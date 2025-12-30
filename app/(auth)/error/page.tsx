@@ -49,27 +49,27 @@ export default async function ErrorPage({ searchParams }: ErrorPageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-destructive/10">
-            <AlertCircleIcon className="size-6 text-destructive" />
-          </div>
-          <CardDescription className="text-base font-semibold">
-            {errorInfo.title}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-muted-foreground mb-6 text-sm">
-            {errorInfo.description}
-          </p>
+    <Card>
+      <CardHeader className="text-center">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-destructive/10">
+          <AlertCircleIcon className="size-6 text-destructive" />
+        </div>
+        <CardDescription className="text-base font-semibold">
+          {errorInfo.title}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="text-center">
+        <p className="text-muted-foreground mb-6 text-sm">
+          {errorInfo.description}
+        </p>
           <Link
             href={authRoutes.signIn}
             className={cn(buttonVariants(), 'w-full')}
           >
-            Sign in
-          </Link>
-        </CardContent>
-      </Card>
+          Sign in
+        </Link>
+      </CardContent>
+    </Card>
     </div>
   );
 }
