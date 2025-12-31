@@ -8,12 +8,14 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ user, className }: UserAvatarProps) {
-  const fallback = user.name?.charAt(0).toUpperCase() || '?';
+  const falbackName =
+    user.name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase();
+  const avatarSrc = user.image && user.image !== '' ? user.image : undefined;
 
   return (
     <Avatar className={cn('h-8 w-8 rounded-lg', className)}>
-      <AvatarImage src={user.avatar} alt={user.name} />
-      <AvatarFallback className="rounded-lg">{fallback}</AvatarFallback>
+      <AvatarImage src={avatarSrc} alt={user.name} />
+      <AvatarFallback className="rounded-lg">{falbackName}</AvatarFallback>
     </Avatar>
   );
 }

@@ -12,7 +12,11 @@ import { DynamicSidebarSection } from './dynamic-sidebar-section';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible={siteConfig.sidebar.collapsible} {...props}>
+    <Sidebar
+      collapsible={siteConfig.sidebar.collapsible}
+      {...props}
+      suppressHydrationWarning
+    >
       <NavHeader />
 
       <SidebarContent>

@@ -15,10 +15,10 @@ import { GoogleIcon } from '@/components/custom-icons';
 import { MailIcon, Loader2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginEmailSchema, type LoginEmailInput } from '@/lib/validations/auth';
-import { signInWithGoogle, signInWithEmail } from './login-actions';
-import { toast } from 'sonner';
+import { signInWithGoogle, signInWithEmail } from '@/lib/actions/login-actions';
 
 export function LoginForm({
   className,

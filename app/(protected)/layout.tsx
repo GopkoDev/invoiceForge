@@ -17,6 +17,7 @@ export default function PrivateLayout({
           '--header-height': `calc(var(--spacing) * ${siteConfig.header.height})`,
         } as React.CSSProperties
       }
+      suppressHydrationWarning
     >
       <AppSidebar variant={siteConfig.sidebar.variant} />
       <SidebarInset>

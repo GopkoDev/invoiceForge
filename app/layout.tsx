@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { siteConfig } from '@/config/site.config';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ProgressBarProvider } from '@/components/progress-bar-provider';
+import { SessionProvider } from '@/components/session-provider';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
@@ -23,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className={`antialiased`}>
-        {
+        <SessionProvider>
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
@@ -36,7 +37,7 @@ export default function RootLayout({
               expand={siteConfig.toast.expand}
             />
           </ThemeProvider>
-        }
+        </SessionProvider>
       </body>
     </html>
   );

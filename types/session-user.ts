@@ -1,6 +1,6 @@
 export interface SessionUser {
   name?: string;
   email: string;
-  avatar?: string;
+  image?: string;
   id: string;
 }

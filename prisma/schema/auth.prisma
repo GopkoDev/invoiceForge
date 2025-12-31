@@ -7,8 +7,9 @@ model User {
     emailVerified DateTime?
     image         String?
 
-    accounts Account[]
-    sessions Session[]
+    accounts     Account[]
+    sessions     Session[]
+    emailHistory EmailHistory[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -52,4 +53,18 @@ model VerificationToken {
     expires    DateTime
 
     @@id([identifier, token])
+}
+
+model EmailHistory {
+    id        String   @id @default(cuid())
+    userId    String
+    oldEmail  String
+    newEmail  String
+    changedAt DateTime @default(now())
+    reason    String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([oldEmail])
 }

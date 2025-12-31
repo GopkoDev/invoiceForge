@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation';
+import { protectedRoutes } from '@/config/routes.config';
+
 export default function SettingsPage() {
-  return <h1>SettingsPage</h1>;
+  redirect(protectedRoutes.settingsProfile);
 }

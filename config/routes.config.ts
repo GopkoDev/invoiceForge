@@ -8,6 +8,7 @@ export const protectedRoutes = {
   dashboard: '/dashboard',
   invoices: '/invoices',
   settings: '/settings',
+  settingsProfile: '/settings/profile',
 };
 
 export const publicRoutes = {
