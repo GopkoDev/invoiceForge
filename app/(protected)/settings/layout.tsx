@@ -5,6 +5,10 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SettingsModalContainer } from '@/components/modals/settings/settings-modal-container';
 import { protectedRoutes } from '@/config/routes.config';
+import {
+  ContentArea,
+  ContentAreaHeader,
+} from '@/components/layout/content-area/content-area';
 
 const settingsNavItems = [
   { name: 'Profile', href: protectedRoutes.settingsProfile },
@@ -18,13 +22,11 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="container mx-auto space-y-6 p-2 md:p-6">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your account settings and preferences.
-        </p>
-      </div>
+    <ContentArea>
+      <ContentAreaHeader
+        title="Settings"
+        description="Manage your account settings and preferences."
+      />
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <nav className="lg:w-48">
@@ -51,6 +53,6 @@ export default function SettingsLayout({
       </div>
 
       <SettingsModalContainer />
-    </div>
+    </ContentArea>
   );
 }

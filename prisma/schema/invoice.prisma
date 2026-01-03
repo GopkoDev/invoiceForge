@@ -1,0 +1,238 @@
+// Invoice system models
+
+enum Currency {
+    UAH
+    USD
+    EUR
+    GBP
+    PLN
+}
+
+enum InvoiceStatus {
+    DRAFT // Draft invoice, not sent yet
+    PENDING // Sent to customer, awaiting payment
+    PAID // Fully paid
+    OVERDUE // Payment deadline passed
+    CANCELLED // Cancelled invoice
+}
+
+// Sender Profile (Company or Individual Entrepreneur)
+model SenderProfile {
+    id             String  @id @default(cuid())
+    userId         String
+    name           String // Company or FOP name
+    legalName      String? // Full legal name
+    taxId          String? // Tax identification number (EDRPOU/INN)
+    address        String?
+    city           String?
+    country        String?
+    postalCode     String?
+    phone          String?
+    email          String?
+    website        String?
+    logo           String? // URL to logo image
+    invoicePrefix  String  @unique // e.g., "INV", "FOP", "LLC"
+    invoiceCounter Int     @default(0) // Last invoice number
+    isDefault      Boolean @default(false)
+
+    user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    bankAccounts BankAccount[]
+    invoices     Invoice[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+    @@index([invoicePrefix])
+}
+
+// Bank Accounts for Sender Profiles
+model BankAccount {
+    id              String   @id @default(cuid())
+    senderProfileId String
+    bankName        String
+    accountName     String // Account holder name
+    accountNumber   String
+    iban            String?
+    swift           String?
+    currency        Currency
+    isDefault       Boolean  @default(false)
+
+    senderProfile SenderProfile @relation(fields: [senderProfileId], references: [id], onDelete: Cascade)
+    invoices      Invoice[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([senderProfileId])
+    @@index([currency])
+}
+
+// Global Customer Database
+model Customer {
+    id              String   @id @default(cuid())
+    userId          String // Owner of this customer
+    name            String
+    companyName     String?
+    taxId           String?
+    email           String?
+    phone           String?
+    address         String?
+    city            String?
+    country         String?
+    postalCode      String?
+    defaultCurrency Currency @default(USD)
+    notes           String?
+
+    user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    invoices     Invoice[]
+    customPrices CustomPrice[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+    @@index([email])
+}
+
+// Products/Services Catalog
+model Product {
+    id          String   @id @default(cuid())
+    userId      String // Owner of this product
+    name        String
+    description String?
+    unit        String   @default("pcs") // unit of measure: pcs, hours, kg, etc.
+    price       Decimal  @db.Decimal(10, 2) // Default price
+    currency    Currency @default(USD)
+    isActive    Boolean  @default(true)
+
+    user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    customPrices CustomPrice[]
+    invoiceItems InvoiceItem[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+    @@index([isActive])
+}
+
+// Custom Prices for specific Customer-Product combinations
+model CustomPrice {
+    id         String   @id @default(cuid())
+    productId  String
+    customerId String
+    price      Decimal  @db.Decimal(10, 2)
+    currency   Currency
+    notes      String?
+
+    product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+    customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([productId, customerId])
+    @@index([customerId])
+}
+
+// Invoice
+model Invoice {
+    id              String @id @default(cuid())
+    invoiceNumber   String // e.g., "INV-2025-0001"
+    senderProfileId String
+    customerId      String
+    bankAccountId   String
+
+    issueDate    DateTime @default(now())
+    dueDate      DateTime
+    paymentTerms String? // e.g., "Net 30", "Due on receipt"
+
+    status InvoiceStatus @default(DRAFT)
+
+    // Snapshot: Sender (From) data at invoice creation time
+    senderName       String
+    senderLegalName  String?
+    senderTaxId      String?
+    senderAddress    String?
+    senderCity       String?
+    senderCountry    String?
+    senderPostalCode String?
+    senderPhone      String?
+    senderEmail      String?
+    senderWebsite    String?
+    senderLogo       String?
+
+    // Snapshot: Customer (Bill To) data at invoice creation time
+    customerName        String
+    customerCompanyName String?
+    customerTaxId       String?
+    customerEmail       String?
+    customerPhone       String?
+    customerAddress     String?
+    customerCity        String?
+    customerCountry     String?
+    customerPostalCode  String?
+
+    // Snapshot: Bank Account data at invoice creation time
+    bankName          String
+    bankAccountNumber String
+    bankIban          String?
+    bankSwift         String?
+    accountName       String
+
+    // Amounts
+    subtotal   Decimal @db.Decimal(10, 2)
+    taxRate    Decimal @default(0) @db.Decimal(5, 2) // Tax percentage
+    taxAmount  Decimal @default(0) @db.Decimal(10, 2)
+    discount   Decimal @default(0) @db.Decimal(10, 2)
+    shipping   Decimal @default(0) @db.Decimal(10, 2)
+    total      Decimal @db.Decimal(10, 2)
+    amountPaid Decimal @default(0) @db.Decimal(10, 2)
+
+    currency Currency
+
+    // Additional fields
+    notes    String?
+    terms    String? // Terms and conditions
+    poNumber String? // Purchase Order number
+
+    // Payment tracking
+    paidAt DateTime?
+
+    senderProfile SenderProfile @relation(fields: [senderProfileId], references: [id], onDelete: Restrict)
+    customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+    bankAccount   BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+    items         InvoiceItem[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([senderProfileId, invoiceNumber])
+    @@index([senderProfileId])
+    @@index([customerId])
+    @@index([status])
+    @@index([issueDate])
+    @@index([dueDate])
+}
+
+// Invoice Line Items
+model InvoiceItem {
+    id        String  @id @default(cuid())
+    invoiceId String
+    productId String?
+
+    description String
+    quantity    Decimal @db.Decimal(10, 2)
+    rate        Decimal @db.Decimal(10, 2) // Price at the time of invoice creation (snapshot)
+    amount      Decimal @db.Decimal(10, 2) // quantity * rate
+
+    invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+    product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([invoiceId])
+    @@index([productId])
+}

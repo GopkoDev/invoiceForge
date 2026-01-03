@@ -24,16 +24,17 @@ import {
 import { UserAvatar } from '@/components/layout/user/user-avatar';
 import { Spinner } from '@/components/ui/spinner';
 import { SessionUser } from '@/types/session-user';
-import { useModalStore } from '@/store/use-modal-store';
+import { useModal } from '@/store/use-modal-store';
 import {
   profileFormSchema,
   ProfileFormValues,
 } from '@/lib/validations/profile';
 import { updateProfile } from '@/lib/actions/profile-actions';
 import { TriangleAlert } from 'lucide-react';
+import { authRoutes } from '@/config/routes.config';
 
 export function ProfileSettings({ user }: { user: SessionUser }) {
-  const { updateModalProps } = useModalStore();
+  const confirmationModal = useModal('confirmationModal');
   const router = useRouter();
   const [isEmailChanged, setIsEmailChanged] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(user.image || '');
@@ -67,7 +68,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
       toast.success('Profile updated successfully');
 
       if (result.emailChanged) {
-        await signOut({ callbackUrl: '/login', redirect: true });
+        await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
       } else {
         router.refresh();
       }
@@ -78,14 +79,15 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
 
   const onSubmit = async (data: ProfileFormValues) => {
     if (isEmailChanged) {
-      updateModalProps({
-        showConfirmationModal: true,
+      confirmationModal.open({
+        open: true,
         title: 'Confirm Email Change',
         description:
           'Warning: After changing your email, you will be logged out and will need to sign in with your new email. You will no longer be able to login with your old email. Are you sure you want to continue?',
         variant: 'destructive',
         confirmText: 'Yes, Change Email',
         cancelText: 'Cancel',
+        onClose: confirmationModal.close,
         onConfirm: () => handleConfirmedSubmit(data),
       });
     } else {
@@ -137,9 +139,9 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                           handleAvatarUrlChange(e.target.value);
                         }}
                       />
-                      {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
+
+                      <FieldError errors={[fieldState.error]} />
+
                       <p className="text-muted-foreground text-xs mt-1">
                         Enter a URL to your avatar image
                       </p>
@@ -165,9 +167,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                       placeholder="Enter your full name"
                       autoComplete="name"
                     />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
+                    <FieldError errors={[fieldState.error]} />
                   </Field>
                 )}
               />
@@ -190,9 +190,9 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                         handleEmailChange(e.target.value);
                       }}
                     />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
+
+                    <FieldError errors={[fieldState.error]} />
+
                     {isEmailChanged && (
                       <p className="text-warning text-sm mt-1 flex items-center gap-2 text-amber-600">
                         <TriangleAlert />

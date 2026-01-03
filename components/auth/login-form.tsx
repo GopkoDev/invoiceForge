@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { GoogleIcon } from '@/components/custom-icons';
 import { MailIcon, Loader2Icon } from 'lucide-react';
-import { useState } from 'react';
+import { useTransition } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,9 +39,15 @@ export function LoginForm({
     }
   };
 
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGoogleLoading, startTransition] = useTransition();
   const isEmailLoading = form.formState.isSubmitting;
   const isLoading = isGoogleLoading || isEmailLoading;
+
+  const handleGoogleSignIn = () => {
+    startTransition(async () => {
+      await signInWithGoogle();
+    });
+  };
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
@@ -53,33 +59,27 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <FieldGroup>
-            <form
-              action={async () => {
-                setIsGoogleLoading(true);
-                await signInWithGoogle();
-              }}
-            >
-              <Field>
-                <Button
-                  variant="outline"
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  {isGoogleLoading ? (
-                    <>
-                      <Loader2Icon className="animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      <GoogleIcon />
-                      Login with Google
-                    </>
-                  )}
-                </Button>
-              </Field>
-            </form>
+            <Field>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                className="w-full"
+              >
+                {isGoogleLoading ? (
+                  <>
+                    <Loader2Icon className="animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon />
+                    Login with Google
+                  </>
+                )}
+              </Button>
+            </Field>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -111,9 +111,7 @@ export function LoginForm({
                         aria-invalid={fieldState.invalid}
                         autoComplete="email"
                       />
-                      {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />

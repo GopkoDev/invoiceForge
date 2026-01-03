@@ -37,13 +37,13 @@ export interface SiteConfig {
 
 export const siteConfig: SiteConfig = {
   meta: {
-    title: 'Invoices by Hopko',
+    title: 'Invoices by Hopko D.',
     description:
       'Invoice Hopko is a modern invoice management system built with Next.js and shadcn/ui by Dmytro Hopko',
   },
 
   branding: {
-    name: 'Invoices by Hopko',
+    name: 'Invoices by Hopko D.',
   },
 
   sidebar: {

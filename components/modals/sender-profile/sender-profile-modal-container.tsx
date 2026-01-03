@@ -11,8 +11,17 @@ const ConfirmationModal = dynamic(
   { ssr: false }
 );
 
-export function SettingsModalContainer() {
+const BankAccountModal = dynamic(
+  () =>
+    import('@/components/modals/sender-profile/bank-account-modal').then(
+      (mod) => mod.BankAccountModal
+    ),
+  { ssr: false }
+);
+
+export function SenderProfileModalContainer() {
   const confirmationModal = useModal('confirmationModal');
+  const bankAccountModal = useModal('bankAccountModal');
 
   return (
     <>
@@ -26,6 +35,17 @@ export function SettingsModalContainer() {
           variant={confirmationModal.props.variant}
           confirmText={confirmationModal.props.confirmText}
           cancelText={confirmationModal.props.cancelText}
+        />
+      )}
+
+      {bankAccountModal.isOpen && bankAccountModal.props && (
+        <BankAccountModal
+          open={bankAccountModal.isOpen}
+          close={bankAccountModal.close}
+          senderProfileId={bankAccountModal.props.senderProfileId}
+          onFormSubmit={bankAccountModal.props.onFormSubmit}
+          defaultValues={bankAccountModal.props.defaultValues}
+          isEditing={bankAccountModal.props.isEditing}
         />
       )}
     </>
