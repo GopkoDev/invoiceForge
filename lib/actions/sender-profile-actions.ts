@@ -1,7 +1,7 @@
 'use server';
 
-import { auth } from '@/auth';
 import { prisma } from '@/prisma';
+import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
   senderProfileFormSchema,
   SenderProfileFormValues,
@@ -16,18 +16,14 @@ export async function createSenderProfile(
   data: SenderProfileFormValues
 ): Promise<ActionResult<SenderProfile>> {
   try {
-    const validatedData = senderProfileFormSchema.parse(data);
-    const { invoicePrefix, isDefault } = validatedData;
-
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
+    const validatedData = senderProfileFormSchema.parse(data);
+    const { invoicePrefix, isDefault } = validatedData;
 
     const existingPrefix = await prisma.senderProfile.findUnique({
       where: { invoicePrefix: invoicePrefix },
@@ -76,17 +72,13 @@ export async function updateSenderProfile(
   data: SenderProfileFormValues
 ): Promise<ActionResult<SenderProfile>> {
   try {
-    const validatedData = senderProfileFormSchema.parse(data);
-
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
+    const validatedData = senderProfileFormSchema.parse(data);
 
     const existingProfile = await prisma.senderProfile.findUnique({
       where: { id },
@@ -148,15 +140,12 @@ export async function updateSenderProfile(
 
 export async function deleteSenderProfile(id: string): Promise<ActionResult> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
 
     const existingProfile = await prisma.senderProfile.findUnique({
       where: { id },
@@ -206,15 +195,12 @@ export async function getSenderProfiles(): Promise<
   ActionResult<SenderProfileWithRelations[]>
 > {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
 
     const profiles = await prisma.senderProfile.findMany({
       where: { userId },
@@ -247,15 +233,12 @@ export async function getSenderProfile(
   id: string
 ): Promise<ActionResult<SenderProfileWithRelations>> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
 
     const profile = await prisma.senderProfile.findUnique({
       where: { id },

@@ -33,6 +33,11 @@ export const navigationMenuConfig: NavigationConfig = {
           url: protectedRoutes.senderProfiles,
           icon: 'senderProfiles',
         },
+        {
+          title: 'Products',
+          url: protectedRoutes.products,
+          icon: 'products',
+        },
       ],
     },
 
@@ -41,7 +46,7 @@ export const navigationMenuConfig: NavigationConfig = {
       items: [
         {
           title: 'Settings',
-          url: protectedRoutes.settings,
+          url: protectedRoutes.settingsProfile,
           icon: 'settings',
         },
       ],

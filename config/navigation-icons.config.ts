@@ -4,6 +4,7 @@ import {
   FileTextIcon,
   Building2Icon,
   UsersIcon,
+  PackageIcon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -13,6 +14,7 @@ export const navigationIcons = {
   invoices: FileTextIcon,
   senderProfiles: Building2Icon,
   customers: UsersIcon,
+  products: PackageIcon,
 } as const satisfies Record<string, LucideIcon>;
 
 export type NavigationIconKey = keyof typeof navigationIcons;

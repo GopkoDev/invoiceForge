@@ -9,6 +9,7 @@ const protectedRoutesBase = {
   invoices: '/invoices',
   senderProfiles: '/sender-profiles',
   customers: '/customers',
+  products: '/products',
   settings: '/settings',
 } as const;
 
@@ -32,6 +33,12 @@ export const protectedRoutes = {
     `${protectedRoutesBase.customers}/${id}` as const,
   customerEdit: (id: string) =>
     `${protectedRoutesBase.customers}/${id}/edit` as const,
+
+  productsNew: `${protectedRoutesBase.products}/new`,
+  productDetail: (id: string) =>
+    `${protectedRoutesBase.products}/${id}` as const,
+  productEdit: (id: string) =>
+    `${protectedRoutesBase.products}/${id}/edit` as const,
 } as const;
 
 export const publicRoutes = {

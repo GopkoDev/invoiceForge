@@ -11,8 +11,9 @@ export async function updateProfile(data: ProfileFormValues) {
   try {
     const validatedData = profileFormSchema.parse(data);
 
+    // Profile actions need full session for email
     const session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.id || !session?.user?.email) {
       return {
         success: false,
         error: 'Unauthorized. Please login to continue.',

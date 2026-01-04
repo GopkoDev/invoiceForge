@@ -1,7 +1,7 @@
 'use server';
 
-import { auth } from '@/auth';
 import { prisma } from '@/prisma';
+import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
   bankAccountFormSchema,
   BankAccountFormValues,
@@ -17,17 +17,13 @@ export async function createBankAccount(
   data: BankAccountFormValues
 ): Promise<ActionResult<BankAccount>> {
   try {
-    const validatedData = bankAccountFormSchema.parse(data);
-
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
+    const validatedData = bankAccountFormSchema.parse(data);
 
     const senderProfile = await prisma.senderProfile.findUnique({
       where: { id: senderProfileId },
@@ -79,17 +75,13 @@ export async function updateBankAccount(
   data: BankAccountFormValues
 ): Promise<ActionResult<BankAccount>> {
   try {
-    const validatedData = bankAccountFormSchema.parse(data);
-
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
+    const validatedData = bankAccountFormSchema.parse(data);
 
     const existingAccount = await prisma.bankAccount.findUnique({
       where: { id },
@@ -148,15 +140,12 @@ export async function updateBankAccount(
 
 export async function deleteBankAccount(id: string): Promise<ActionResult> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
 
     const existingAccount = await prisma.bankAccount.findUnique({
       where: { id },
@@ -211,15 +200,12 @@ export async function getBankAccounts(
   limit?: number
 ): Promise<ActionResult<BankAccountWithRelations[]>> {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
     }
 
-    const userId = session.user.id;
+    const { userId } = authResult.data;
 
     const senderProfile = await prisma.senderProfile.findUnique({
       where: { id: senderProfileId },

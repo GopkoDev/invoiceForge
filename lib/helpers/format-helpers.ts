@@ -22,3 +22,20 @@ export function formatFullAddress(
 ): string {
   return parts.filter(Boolean).join(', ');
 }
+
+/**
+ * Format currency value with currency symbol
+ * @param amount - Numeric amount to format
+ * @param currency - Currency code (USD, EUR, UAH, etc.)
+ * @returns Formatted currency string
+ */
+export function formatCurrency(amount: number, currency: string): string {
+  const formatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return formatter.format(amount);
+}
