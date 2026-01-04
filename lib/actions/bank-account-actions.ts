@@ -8,11 +8,14 @@ import {
 } from '@/lib/validations/bank-account';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
+import { BankAccountWithRelations } from '@/types/sender-profile/types';
+import { ActionResult } from '@/types/actions';
+import { BankAccount } from '@prisma/client';
 
 export async function createBankAccount(
   senderProfileId: string,
   data: BankAccountFormValues
-) {
+): Promise<ActionResult<BankAccount>> {
   try {
     const validatedData = bankAccountFormSchema.parse(data);
 
@@ -74,7 +77,7 @@ export async function createBankAccount(
 export async function updateBankAccount(
   id: string,
   data: BankAccountFormValues
-) {
+): Promise<ActionResult<BankAccount>> {
   try {
     const validatedData = bankAccountFormSchema.parse(data);
 
@@ -143,7 +146,7 @@ export async function updateBankAccount(
   }
 }
 
-export async function deleteBankAccount(id: string) {
+export async function deleteBankAccount(id: string): Promise<ActionResult> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -203,14 +206,16 @@ export async function deleteBankAccount(id: string) {
   }
 }
 
-export async function getBankAccounts(senderProfileId: string) {
+export async function getBankAccounts(
+  senderProfileId: string,
+  limit?: number
+): Promise<ActionResult<BankAccountWithRelations[]>> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return {
         success: false,
         error: 'Unauthorized. Please login to continue.',
-        data: [],
       };
     }
 
@@ -224,7 +229,6 @@ export async function getBankAccounts(senderProfileId: string) {
       return {
         success: false,
         error: 'Sender profile not found or access denied.',
-        data: [],
       };
     }
 
@@ -238,6 +242,7 @@ export async function getBankAccounts(senderProfileId: string) {
         },
       },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      ...(limit && { take: limit }),
     });
 
     return {
@@ -250,7 +255,6 @@ export async function getBankAccounts(senderProfileId: string) {
     return {
       success: false,
       error: 'Failed to fetch bank accounts. Please try again.',
-      data: [],
     };
   }
 }

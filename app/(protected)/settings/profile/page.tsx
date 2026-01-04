@@ -1,4 +1,4 @@
-import { ProfileSettings } from '@/components/settings/profile-settings';
+import { ProfileSettings } from '@/components/settings';
 import type { Metadata } from 'next';
 import { auth } from '@/auth';
 import { SessionUser } from '@/types/session-user';

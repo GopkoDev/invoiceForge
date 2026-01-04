@@ -8,8 +8,13 @@ import {
 } from '@/lib/validations/sender-profile';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
+import { SenderProfileWithRelations } from '@/types/sender-profile/types';
+import { SenderProfile } from '@prisma/client';
+import { ActionResult } from '@/types/actions';
 
-export async function createSenderProfile(data: SenderProfileFormValues) {
+export async function createSenderProfile(
+  data: SenderProfileFormValues
+): Promise<ActionResult<SenderProfile>> {
   try {
     const validatedData = senderProfileFormSchema.parse(data);
     const { invoicePrefix, isDefault } = validatedData;
@@ -69,7 +74,7 @@ export async function createSenderProfile(data: SenderProfileFormValues) {
 export async function updateSenderProfile(
   id: string,
   data: SenderProfileFormValues
-) {
+): Promise<ActionResult<SenderProfile>> {
   try {
     const validatedData = senderProfileFormSchema.parse(data);
 
@@ -141,7 +146,7 @@ export async function updateSenderProfile(
   }
 }
 
-export async function deleteSenderProfile(id: string) {
+export async function deleteSenderProfile(id: string): Promise<ActionResult> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -197,14 +202,15 @@ export async function deleteSenderProfile(id: string) {
   }
 }
 
-export async function getSenderProfiles() {
+export async function getSenderProfiles(): Promise<
+  ActionResult<SenderProfileWithRelations[]>
+> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return {
         success: false,
         error: 'Unauthorized. Please login to continue.',
-        data: [],
       };
     }
 
@@ -213,10 +219,10 @@ export async function getSenderProfiles() {
     const profiles = await prisma.senderProfile.findMany({
       where: { userId },
       include: {
-        bankAccounts: true,
         _count: {
           select: {
             invoices: true,
+            bankAccounts: true,
           },
         },
       },
@@ -233,19 +239,19 @@ export async function getSenderProfiles() {
     return {
       success: false,
       error: 'Failed to fetch sender profiles. Please try again.',
-      data: [],
     };
   }
 }
 
-export async function getSenderProfile(id: string) {
+export async function getSenderProfile(
+  id: string
+): Promise<ActionResult<SenderProfileWithRelations>> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return {
         success: false,
         error: 'Unauthorized. Please login to continue.',
-        data: null,
       };
     }
 
@@ -254,7 +260,12 @@ export async function getSenderProfile(id: string) {
     const profile = await prisma.senderProfile.findUnique({
       where: { id },
       include: {
-        bankAccounts: true,
+        _count: {
+          select: {
+            invoices: true,
+            bankAccounts: true,
+          },
+        },
       },
     });
 
@@ -262,7 +273,6 @@ export async function getSenderProfile(id: string) {
       return {
         success: false,
         error: 'Sender profile not found or access denied.',
-        data: null,
       };
     }
 
@@ -276,7 +286,6 @@ export async function getSenderProfile(id: string) {
     return {
       success: false,
       error: 'Failed to fetch sender profile. Please try again.',
-      data: null,
     };
   }
 }

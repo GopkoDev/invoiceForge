@@ -104,6 +104,7 @@ export function LoginForm({
                     <Field data-invalid={fieldState.invalid}>
                       <Input
                         {...field}
+                        value={field.value ?? ''}
                         id="login-email"
                         type="email"
                         placeholder="Enter your email"

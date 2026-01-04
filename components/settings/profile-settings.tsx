@@ -130,6 +130,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                       </FieldLabel>
                       <Input
                         {...field}
+                        value={field.value ?? ''}
                         id="profile-form-avatar"
                         type="url"
                         aria-invalid={fieldState.invalid}
@@ -162,6 +163,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                     </FieldLabel>
                     <Input
                       {...field}
+                      value={field.value ?? ''}
                       id="profile-form-name"
                       aria-invalid={fieldState.invalid}
                       placeholder="Enter your full name"
@@ -180,6 +182,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                     <FieldLabel htmlFor="profile-form-email">Email</FieldLabel>
                     <Input
                       {...field}
+                      value={field.value ?? ''}
                       id="profile-form-email"
                       type="email"
                       aria-invalid={fieldState.invalid}

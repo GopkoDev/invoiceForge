@@ -13,12 +13,10 @@ export default async function EditSenderProfileBankAccountsPage({
 
   const result = await getBankAccounts(id);
 
-  if (!result.success) {
+  if (!result.success || !result.data) {
     console.error('Error fetching bank accounts:', result.error);
     notFound();
   }
 
-  const bankAccounts = result.data;
-
-  return <BankAccountsList senderProfileId={id} bankAccounts={bankAccounts} />;
+  return <BankAccountsList senderProfileId={id} bankAccounts={result.data} />;
 }

@@ -125,6 +125,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-name"
                   aria-invalid={fieldState.invalid}
                   placeholder="My Company Ltd."
@@ -145,6 +146,7 @@ export function SenderProfileForm({
                 </FieldLabel>
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-legal-name"
                   aria-invalid={fieldState.invalid}
                   placeholder="My Company Limited Liability Company"
@@ -166,6 +168,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-tax-id"
                   aria-invalid={fieldState.invalid}
                   placeholder="1234567890"
@@ -187,6 +190,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-invoice-prefix"
                   aria-invalid={fieldState.invalid}
                   placeholder="INV"
@@ -243,6 +247,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-email"
                   type="email"
                   aria-invalid={fieldState.invalid}
@@ -262,6 +267,7 @@ export function SenderProfileForm({
                 <FieldLabel htmlFor="sender-form-phone">Phone</FieldLabel>
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-phone"
                   type="tel"
                   aria-invalid={fieldState.invalid}
@@ -283,6 +289,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-website"
                   type="url"
                   aria-invalid={fieldState.invalid}
@@ -314,6 +321,7 @@ export function SenderProfileForm({
 
                 <Textarea
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-address"
                   aria-invalid={fieldState.invalid}
                   placeholder="123 Main Street, Suite 100"
@@ -334,6 +342,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-city"
                   aria-invalid={fieldState.invalid}
                   placeholder="Kyiv"
@@ -355,6 +364,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-postal-code"
                   aria-invalid={fieldState.invalid}
                   placeholder="01001"
@@ -374,6 +384,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-country"
                   aria-invalid={fieldState.invalid}
                   placeholder="Ukraine"
@@ -402,6 +413,7 @@ export function SenderProfileForm({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="sender-form-logo"
                   type="url"
                   aria-invalid={fieldState.invalid}

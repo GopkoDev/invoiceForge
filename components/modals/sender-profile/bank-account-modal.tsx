@@ -101,6 +101,7 @@ export function BankAccountModal({
 
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     id="bank-form-name"
                     aria-invalid={fieldState.invalid}
                     placeholder="PrivatBank"
@@ -123,6 +124,7 @@ export function BankAccountModal({
 
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     id="bank-form-account-name"
                     aria-invalid={fieldState.invalid}
                     placeholder="Company Name LLC"
@@ -145,6 +147,7 @@ export function BankAccountModal({
 
                 <Input
                   {...field}
+                  value={field.value ?? ''}
                   id="bank-form-account-number"
                   aria-invalid={fieldState.invalid}
                   placeholder="1234567890123456"
@@ -165,6 +168,7 @@ export function BankAccountModal({
 
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     id="bank-form-iban"
                     aria-invalid={fieldState.invalid}
                     placeholder="UA123456789012345678901234567"
@@ -184,6 +188,7 @@ export function BankAccountModal({
 
                   <Input
                     {...field}
+                    value={field.value ?? ''}
                     id="bank-form-swift"
                     aria-invalid={fieldState.invalid}
                     placeholder="PBANUA2X"

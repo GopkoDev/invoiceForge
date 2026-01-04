@@ -1,4 +1,4 @@
-import { ContentAreaHeader } from '@/components/layout/content-area/content-area';
+import { ContentAreaHeader } from '@/components/layout/content-area';
 import { SenderProfileForm } from '@/components/sender-profiles/sender-profile-form';
 import type { Metadata } from 'next';
 

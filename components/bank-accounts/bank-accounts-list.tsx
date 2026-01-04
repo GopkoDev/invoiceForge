@@ -28,15 +28,12 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import {
-  createBankAccount,
-  deleteBankAccount,
-  updateBankAccount,
-} from '@/lib/actions/bank-account-actions';
+import { deleteBankAccount } from '@/lib/actions/bank-account-actions';
 import { useModal } from '@/store/use-modal-store';
 import { BankAccountField } from './bank-account-field';
 import { BankAccountWithRelations } from '@/types/sender-profile/types';
 import { BankAccountFormValues } from '@/lib/validations/bank-account';
+import { handleBankAccountSubmit } from '@/lib/helpers';
 
 interface BankAccountsListProps {
   senderProfileId: string;
@@ -51,6 +48,20 @@ export function BankAccountsList({
   const confirmationModal = useModal('confirmationModal');
   const bankAccountModal = useModal('bankAccountModal');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const bankAccountModalOnFormSubmit = (accountId?: string) => {
+    return async (data: BankAccountFormValues, isEditing: boolean) => {
+      await handleBankAccountSubmit(
+        senderProfileId,
+        data,
+        isEditing,
+        accountId,
+        () => {
+          router.refresh();
+        }
+      );
+    };
+  };
 
   const handleDelete = async (account: BankAccountWithRelations) => {
     const { id, bankName } = account;
@@ -78,36 +89,12 @@ export function BankAccountsList({
     });
   };
 
-  const bankAccountModalOnFormSubmit = async (
-    data: BankAccountFormValues,
-    isEditing: boolean
-  ) => {
-    try {
-      const result = isEditing
-        ? await updateBankAccount(senderProfileId, data)
-        : await createBankAccount(senderProfileId, data);
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to save bank account');
-        return;
-      }
-
-      toast.success(
-        `Bank account ${isEditing ? 'updated' : 'created'} successfully`
-      );
-
-      router.refresh();
-    } catch {
-      toast.error('Failed to save bank account');
-    }
-  };
-
   const handleEdit = (account: BankAccountWithRelations) => {
     bankAccountModal.open({
       open: true,
       close: bankAccountModal.close,
       senderProfileId,
-      onFormSubmit: bankAccountModalOnFormSubmit,
+      onFormSubmit: bankAccountModalOnFormSubmit(account.id),
       defaultValues: {
         bankName: account.bankName,
         accountName: account.accountName,
@@ -125,8 +112,8 @@ export function BankAccountsList({
     bankAccountModal.open({
       open: true,
       close: bankAccountModal.close,
-      onFormSubmit: bankAccountModalOnFormSubmit,
       senderProfileId,
+      onFormSubmit: bankAccountModalOnFormSubmit(),
       defaultValues: undefined,
       isEditing: false,
     });

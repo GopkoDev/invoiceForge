@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalString, phoneValidation } from '@/lib/helpers/zod-helpers';
 
 export const senderProfileFormSchema = z.object({
   name: z
@@ -6,31 +7,16 @@ export const senderProfileFormSchema = z.object({
     .trim()
     .min(1, 'Name is required')
     .max(100, 'Name must be less than 100 characters'),
-  legalName: z.string().trim().max(200).optional().or(z.literal('')),
-  taxId: z.string().trim().max(50).optional().or(z.literal('')),
-  address: z.string().trim().max(200).optional().or(z.literal('')),
-  city: z.string().trim().max(100).optional().or(z.literal('')),
-  country: z.string().trim().max(100).optional().or(z.literal('')),
-  postalCode: z.string().trim().max(20).optional().or(z.literal('')),
-  phone: z.string().trim().max(50).optional().or(z.literal('')),
-  email: z
-    .string()
-    .trim()
-    .email('Invalid email address')
-    .optional()
-    .or(z.literal('')),
-  website: z
-    .string()
-    .trim()
-    .url('Invalid URL format')
-    .optional()
-    .or(z.literal('')),
-  logo: z
-    .string()
-    .trim()
-    .url('Invalid URL format')
-    .optional()
-    .or(z.literal('')),
+  legalName: optionalString(z.string().trim().max(200)),
+  taxId: optionalString(z.string().trim().max(50)),
+  address: optionalString(z.string().trim().max(200)),
+  city: optionalString(z.string().trim().max(100)),
+  country: optionalString(z.string().trim().max(100)),
+  postalCode: optionalString(z.string().trim().max(20)),
+  phone: optionalString(phoneValidation(z.string().trim().max(50))),
+  email: optionalString(z.string().trim().email('Invalid email address')),
+  website: optionalString(z.string().trim().url('Invalid URL format')),
+  logo: optionalString(z.string().trim().url('Invalid URL format')),
   invoicePrefix: z
     .string()
     .trim()

@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Building2, Landmark } from 'lucide-react';
 import { protectedRoutes } from '@/config/routes.config';
 import { use, useMemo } from 'react';
+import { ContentAreaHeader } from '@/components/layout/content-area';
 
 const tabs = {
   profile: {
@@ -53,6 +54,11 @@ export default function SenderProfileEditLayout({
 
   return (
     <>
+      <ContentAreaHeader
+        title="Edit Sender Profile"
+        description="Update your company or business profile information and manage bank accounts"
+      />
+
       <Tabs value={activeTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
           {Object.values(tabs).map((tab) => (

@@ -16,6 +16,18 @@ export const navigationMenuConfig: NavigationConfig = {
           url: protectedRoutes.invoices,
           icon: 'invoices',
         },
+      ],
+    },
+
+    {
+      type: 'group',
+      label: 'Management',
+      items: [
+        {
+          title: 'Customers',
+          url: protectedRoutes.customers,
+          icon: 'customers',
+        },
         {
           title: 'Sender Profiles',
           url: protectedRoutes.senderProfiles,

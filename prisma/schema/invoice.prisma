@@ -77,6 +77,8 @@ model Customer {
     taxId           String?
     email           String?
     phone           String?
+    website         String?
+    image           String? // URL to customer logo/image
     address         String?
     city            String?
     country         String?

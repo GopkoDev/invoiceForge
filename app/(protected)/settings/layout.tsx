@@ -8,7 +8,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import {
   ContentArea,
   ContentAreaHeader,
-} from '@/components/layout/content-area/content-area';
+} from '@/components/layout/content-area';
 
 const settingsNavItems = [
   { name: 'Profile', href: protectedRoutes.settingsProfile },
