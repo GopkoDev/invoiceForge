@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InvoiceFlow
+
+Modern invoice management system built with Next.js, Prisma, and TypeScript.
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then, run the development server:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Database:** PostgreSQL with Prisma ORM
+- **Authentication:** NextAuth.js
+- **UI Components:** Shadcn UI with Tailwind CSS
+- **State Management:** Zustand
+- **Form Handling:** React Hook Form + Zod
+
+## Roadmap
+
+### 🐛 Bug Fixes
+
+- [ ] Modal height overflow on small screens (custom price editing modal)
+- [ ] Contact information should be clickable links on profile page
+
+### ✨ Features
+
+#### High Priority
+
+- [ ] **Onboarding Flow**: Implement first-time user onboarding experience
+- [ ] **i18n Support**: Add internationalization for multi-language support
+- [ ] **Custom Product Types**: Allow users to define their own product types based on business activity during registration
+
+#### Core Features
+
+- [ ] **Sender Profiles Management**
+
+  - [ ] Implement pagination for sender profiles list
+  - [ ] Add drag-and-drop reordering
+  - [ ] Soft delete via `isArchived` flag (store `archivedInvoicePrefix` separately)
+  - [ ] Add "Back" button on create/edit forms
+
+- [ ] **Product Management**
+
+  - [ ] Add price change history logging
+  - [ ] Display custom prices overview on product page
+  - [ ] Add product-specific seed data based on user's business type
+
+- [ ] **Rich Text Editor**: Implement Tap Tap editor for notes fields
+
+#### UX Improvements
+
+- [ ] **Loading State Optimization**: Store item count in localStorage to render matching skeleton count
+- [ ] **Navigation**: Add back button to all create/edit forms
+
+#### Architecture & Performance
+
+- [ ] **Revalidation Strategy**: Evaluate moving `revalidatePath` calls from actions to call sites
+- [ ] **API Layer Refactoring**: Restructure actions to follow API-like patterns with grouped parameters and entity-based organization
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [Shadcn UI](https://ui.shadcn.com)
