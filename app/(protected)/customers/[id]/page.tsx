@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getCustomer } from '@/lib/actions/customer-actions';
+import { getCustomerCustomPrices } from '@/lib/actions/custom-price-actions';
 import { CustomerDetailView } from '@/components/customers';
 import type { Metadata } from 'next';
 
@@ -16,11 +17,20 @@ export default async function CustomerDetailPage({
   params,
 }: CustomerDetailPageProps) {
   const { id } = await params;
-  const result = await getCustomer(id);
 
-  if (!result.success || !result.data) {
+  const [customerResult, customPricesResult] = await Promise.all([
+    getCustomer(id),
+    getCustomerCustomPrices(id),
+  ]);
+
+  if (!customerResult.success || !customerResult.data) {
     notFound();
   }
 
-  return <CustomerDetailView customer={result.data} />;
+  return (
+    <CustomerDetailView
+      customer={customerResult.data}
+      customPrices={customPricesResult.data || []}
+    />
+  );
 }

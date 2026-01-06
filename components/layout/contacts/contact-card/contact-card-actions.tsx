@@ -56,16 +56,16 @@ export function ContactCardActions({
 
   return (
     <div className="flex gap-2">
-      <Link
-        href={detailRoute}
-        className={buttonVariants({
-          variant: 'outline',
-          size: 'sm',
-          className: 'flex-1',
-        })}
-      >
-        <Eye className="h-3 w-3" />
-        Preview
+      <Link href={detailRoute} className="flex-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isDeleting}
+          className="w-full"
+        >
+          <Eye className="h-3 w-3" />
+          Preview
+        </Button>
       </Link>
 
       <Button

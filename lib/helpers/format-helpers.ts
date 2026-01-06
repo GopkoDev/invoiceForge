@@ -1,3 +1,5 @@
+import { UNIT_OPTIONS } from '@/constants/unit-options';
+
 /**
  * Format location string from city and country
  * @param city - City name
@@ -38,4 +40,14 @@ export function formatCurrency(amount: number, currency: string): string {
   });
 
   return formatter.format(amount);
+}
+
+/**
+ * Format unit with label from UNIT_OPTIONS
+ * @param unit - Unit value (e.g., 'hours', 'pcs', 'kg')
+ * @returns Formatted unit label or original unit if not found
+ */
+export function getUnitLabel(unit: string): string {
+  const unitOption = UNIT_OPTIONS.find((option) => option.value === unit);
+  return unitOption ? unitOption.label : unit;
 }

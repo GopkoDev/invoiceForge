@@ -41,6 +41,7 @@ export default async function EditProductPage({
         defaultValues={defaultValues}
         isEditing
         invoiceItemsCount={product._count.invoiceItems}
+        customPricesCount={product._count.customPrices}
       />
     </>
   );

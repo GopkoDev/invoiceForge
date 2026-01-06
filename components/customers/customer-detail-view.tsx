@@ -3,6 +3,7 @@ import { CustomerInfoSidebar } from './customer-info-sidebar';
 import { CustomerRecentInvoices } from './customer-recent-invoices';
 import { CustomerCustomPrices } from './customer-custom-prices';
 import { CustomerWithRelations } from '@/types/customer/types';
+import { SerializedCustomPrice } from '@/types/custom-price/types';
 import {
   ContactsDetailsHeader,
   ContactsDetailsGrid,
@@ -13,9 +14,13 @@ import {
 
 interface CustomerDetailViewProps {
   customer: CustomerWithRelations;
+  customPrices: SerializedCustomPrice[];
 }
 
-export function CustomerDetailView({ customer }: CustomerDetailViewProps) {
+export function CustomerDetailView({
+  customer,
+  customPrices,
+}: CustomerDetailViewProps) {
   return (
     <ContactsDetailsLayout>
       <ContactsDetailsHeader
@@ -33,7 +38,10 @@ export function CustomerDetailView({ customer }: CustomerDetailViewProps) {
 
         <ContactsDetailsContentLayout>
           <CustomerRecentInvoices />
-          <CustomerCustomPrices />
+          <CustomerCustomPrices
+            customerId={customer.id}
+            customPrices={customPrices}
+          />
         </ContactsDetailsContentLayout>
       </ContactsDetailsGrid>
     </ContactsDetailsLayout>

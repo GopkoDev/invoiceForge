@@ -26,7 +26,9 @@ import {
   ProductFormValues,
 } from '@/lib/validations/product';
 import { createProduct, updateProduct } from '@/lib/actions/product-actions';
+import { getProductCustomPrices } from '@/lib/actions/custom-price-actions';
 import { protectedRoutes } from '@/config/routes.config';
+import { useModal } from '@/store/use-modal-store';
 import {
   Select,
   SelectContent,
@@ -45,15 +47,18 @@ interface ProductFormProps {
   defaultValues?: ProductFormValues & { id?: string };
   isEditing?: boolean;
   invoiceItemsCount?: number;
+  customPricesCount?: number;
 }
 
 export function ProductForm({
   defaultValues,
   isEditing = false,
   invoiceItemsCount = 0,
+  customPricesCount = 0,
 }: ProductFormProps) {
   const router = useRouter();
   const isUsedInInvoices = isEditing && invoiceItemsCount > 0;
+  const currencyChangeModal = useModal('currencyChangeWarningModal');
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -67,23 +72,70 @@ export function ProductForm({
     },
   });
 
+  const handleUpdate = async (data: ProductFormValues) => {
+    if (!defaultValues?.id) return;
+
+    const result = await updateProduct(defaultValues.id, data);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update product');
+      return;
+    }
+
+    toast.success('Product updated successfully');
+    router.push(protectedRoutes.products);
+    router.refresh();
+  };
+
   const onSubmit = async (data: ProductFormValues) => {
     try {
-      const result =
-        isEditing && defaultValues?.id
-          ? await updateProduct(defaultValues.id, data)
-          : await createProduct(data);
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to save product');
+      if (!isEditing) {
+        const result = await createProduct(data);
+        if (!result.success) {
+          toast.error(result.error || 'Failed to create product');
+          return;
+        }
+        toast.success('Product created successfully');
+        router.push(protectedRoutes.products);
+        router.refresh();
         return;
       }
 
-      toast.success(
-        `Product ${isEditing ? 'updated' : 'created'} successfully`
-      );
-      router.push(protectedRoutes.products);
-      router.refresh();
+      if (!defaultValues?.id) return;
+
+      const currencyChanged = defaultValues.currency !== data.currency;
+      if (currencyChanged && customPricesCount > 0) {
+        const customPricesResult = await getProductCustomPrices(
+          defaultValues.id
+        );
+
+        if (!customPricesResult.success || !customPricesResult.data) {
+          toast.error('Failed to load custom prices');
+          return;
+        }
+
+        const customersAffected = customPricesResult.data.map((cp) => ({
+          customerId: cp.customer.id,
+          customerName: cp.customer.name,
+          price: cp.price,
+        }));
+
+        currencyChangeModal.open({
+          open: true,
+          onClose: currencyChangeModal.close,
+          onConfirm: async () => {
+            currencyChangeModal.close();
+            await handleUpdate(data);
+          },
+          oldCurrency: defaultValues.currency,
+          newCurrency: data.currency,
+          customersAffected,
+        });
+
+        return;
+      }
+
+      await handleUpdate(data);
     } catch {
       toast.error('Failed to save product');
     }

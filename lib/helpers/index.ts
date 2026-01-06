@@ -4,4 +4,5 @@ export {
   formatLocation,
   formatFullAddress,
   formatCurrency,
+  getUnitLabel,
 } from './format-helpers';

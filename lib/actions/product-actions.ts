@@ -19,9 +19,9 @@ function serializeProduct(product: ProductWithRelations): SerializedProduct {
   };
 }
 
-export async function getProducts(): Promise<
-  ActionResult<SerializedProduct[]>
-> {
+export async function getProducts({
+  onlyActive,
+}: { onlyActive?: boolean } = {}): Promise<ActionResult<SerializedProduct[]>> {
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult.success || !authResult.data) {
@@ -33,6 +33,7 @@ export async function getProducts(): Promise<
     const products = await prisma.product.findMany({
       where: {
         userId,
+        ...(onlyActive ? { isActive: true } : {}),
       },
       include: {
         _count: {
@@ -151,6 +152,7 @@ export async function updateProduct(
         _count: {
           select: {
             invoiceItems: true,
+            customPrices: true,
           },
         },
       },
@@ -160,7 +162,6 @@ export async function updateProduct(
       return { success: false, error: 'Product not found' };
     }
 
-    // Prevent changing currency or unit if product is used in invoices
     if (existingProduct._count.invoiceItems > 0) {
       if (validatedData.currency !== existingProduct.currency) {
         return {

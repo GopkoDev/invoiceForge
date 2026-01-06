@@ -11,8 +11,17 @@ const ConfirmationModal = dynamic(
   { ssr: false }
 );
 
+const CustomPriceModal = dynamic(
+  () =>
+    import('@/components/modals/customer/custom-price-modal').then(
+      (mod) => mod.CustomPriceModal
+    ),
+  { ssr: false }
+);
+
 export function CustomerModalContainer() {
   const confirmationModal = useModal('confirmationModal');
+  const customPriceModal = useModal('customPriceModal');
 
   return (
     <>
@@ -26,6 +35,19 @@ export function CustomerModalContainer() {
           variant={confirmationModal.props.variant}
           confirmText={confirmationModal.props.confirmText}
           cancelText={confirmationModal.props.cancelText}
+        />
+      )}
+
+      {customPriceModal.isOpen && customPriceModal.props && (
+        <CustomPriceModal
+          open={customPriceModal.isOpen}
+          close={customPriceModal.close}
+          onFormSubmit={customPriceModal.props.onFormSubmit}
+          defaultValues={customPriceModal.props.defaultValues}
+          isEditing={customPriceModal.props.isEditing}
+          mode={customPriceModal.props.mode}
+          onLoadProducts={customPriceModal.props.onLoadProducts}
+          productInfo={customPriceModal.props.productInfo}
         />
       )}
     </>

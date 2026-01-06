@@ -121,11 +121,11 @@ model Product {
 
 // Custom Prices for specific Customer-Product combinations
 model CustomPrice {
-    id         String   @id @default(cuid())
+    id         String  @id @default(cuid())
     productId  String
     customerId String
-    price      Decimal  @db.Decimal(10, 2)
-    currency   Currency
+    name       String?
+    price      Decimal @db.Decimal(10, 2)
     notes      String?
 
     product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -134,7 +134,7 @@ model CustomPrice {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    @@unique([productId, customerId])
+    @@index([productId])
     @@index([customerId])
 }
 

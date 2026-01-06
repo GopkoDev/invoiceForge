@@ -11,8 +11,26 @@ const ConfirmationModal = dynamic(
   { ssr: false }
 );
 
+const CurrencyChangeWarningModal = dynamic(
+  () =>
+    import('./currency-change-warning-modal').then(
+      (mod) => mod.CurrencyChangeWarningModal
+    ),
+  { ssr: false }
+);
+
+const CustomPriceModal = dynamic(
+  () =>
+    import('@/components/modals/customer/custom-price-modal').then(
+      (mod) => mod.CustomPriceModal
+    ),
+  { ssr: false }
+);
+
 export function ProductModalContainer() {
   const confirmationModal = useModal('confirmationModal');
+  const currencyChangeWarningModal = useModal('currencyChangeWarningModal');
+  const customPriceModal = useModal('customPriceModal');
 
   return (
     <>
@@ -28,7 +46,34 @@ export function ProductModalContainer() {
           cancelText={confirmationModal.props.cancelText}
         />
       )}
+
+      {currencyChangeWarningModal.isOpen &&
+        currencyChangeWarningModal.props && (
+          <CurrencyChangeWarningModal
+            open={currencyChangeWarningModal.isOpen}
+            onClose={currencyChangeWarningModal.close}
+            onConfirm={currencyChangeWarningModal.props.onConfirm}
+            oldCurrency={currencyChangeWarningModal.props.oldCurrency}
+            newCurrency={currencyChangeWarningModal.props.newCurrency}
+            customersAffected={
+              currencyChangeWarningModal.props.customersAffected
+            }
+            isSubmitting={currencyChangeWarningModal.props.isSubmitting}
+          />
+        )}
+
+      {customPriceModal.isOpen && customPriceModal.props && (
+        <CustomPriceModal
+          open={customPriceModal.isOpen}
+          close={customPriceModal.close}
+          onFormSubmit={customPriceModal.props.onFormSubmit}
+          defaultValues={customPriceModal.props.defaultValues}
+          isEditing={customPriceModal.props.isEditing}
+          mode={customPriceModal.props.mode}
+          onLoadProducts={customPriceModal.props.onLoadProducts}
+          productInfo={customPriceModal.props.productInfo}
+        />
+      )}
     </>
   );
 }
-

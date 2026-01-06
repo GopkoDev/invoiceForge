@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Package, MoreHorizontal, Pencil, Trash2, Power } from 'lucide-react';
+import {
+  Package,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Power,
+  DollarSign,
+} from 'lucide-react';
 import { protectedRoutes } from '@/config/routes.config';
 import { SerializedProduct } from '@/types/product/types';
 import {
@@ -22,8 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { UNIT_OPTIONS } from '@/constants/unit-options';
-import { formatCurrency } from '@/lib/helpers';
+import { formatCurrency, getUnitLabel } from '@/lib/helpers';
 import { useModal } from '@/store/use-modal-store';
 import {
   deleteProduct,
@@ -32,11 +38,6 @@ import {
 
 interface ProductsTableProps {
   products: SerializedProduct[];
-}
-
-function getUnitLabel(unit: string): string {
-  const unitOption = UNIT_OPTIONS.find((option) => option.value === unit);
-  return unitOption ? unitOption.label : unit;
 }
 
 export function ProductsTable({ products }: ProductsTableProps) {
@@ -161,7 +162,20 @@ export function ProductsTable({ products }: ProductsTableProps) {
                     <MoreHorizontal className="h-4 w-4" />
                     <span className="sr-only">Open menu</span>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-full">
+                    <DropdownMenuItem
+                      onClick={() =>
+                        router.push(
+                          protectedRoutes.productCustomPrices(product.id)
+                        )
+                      }
+                    >
+                      <DollarSign className="mr-2 h-4 w-4" />
+                      Custom Prices
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
                     <DropdownMenuItem
                       onClick={() =>
                         router.push(protectedRoutes.productEdit(product.id))
