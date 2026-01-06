@@ -42,7 +42,7 @@ export function DetailListItem({
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <p className="font-semibold text-sm truncate">{title}</p>
             {badges.map((badge, index) => (
-              <Badge key={index} variant={badge.variant || 'secondary'}>
+              <Badge key={`badge-${badge.label}-${index}`} variant={badge.variant || 'secondary'}>
                 {badge.label}
               </Badge>
             ))}
@@ -57,7 +57,7 @@ export function DetailListItem({
               }
             >
               {details.map((detail, index) => (
-                <div key={index} className="flex items-center gap-1">
+                <div key={`detail-${detail.value}-${index}`} className="flex items-center gap-1">
                   {detail.icon && <detail.icon className="h-3 w-3 shrink-0" />}
                   {detail.label && (
                     <span className="font-semibold shrink-0">

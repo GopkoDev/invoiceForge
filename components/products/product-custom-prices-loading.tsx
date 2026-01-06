@@ -26,7 +26,7 @@ export function ProductCustomPricesTableLoading() {
         </TableHeader>
         <TableBody>
           {[1, 2, 3, 4, 5].map((index) => (
-            <TableRow key={index}>
+            <TableRow key={`custom-price-skeleton-${index}`}>
               {/* Customer */}
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">

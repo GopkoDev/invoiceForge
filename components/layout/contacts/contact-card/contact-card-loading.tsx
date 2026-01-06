@@ -23,7 +23,7 @@ export function ContactCardLoading() {
 
         <div className="space-y-2 text-sm min-h-[104px]">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={`contact-info-${i}`} className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 shrink-0" />
               <Skeleton className="h-4 w-full max-w-[180px]" />
             </div>

@@ -15,7 +15,7 @@ export default function CustomersLoading() {
 
       <ContactsGrid>
         {[1, 2, 3].map((index) => (
-          <ContactCardLoading key={index} />
+          <ContactCardLoading key={`customer-skeleton-${index}`} />
         ))}
       </ContactsGrid>
     </>

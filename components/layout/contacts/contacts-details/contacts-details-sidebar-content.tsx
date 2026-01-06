@@ -94,7 +94,7 @@ export function ContactsDetailsSidebarContent({
             {badges.length > 0 && (
               <div className="flex items-center gap-2 mt-2">
                 {badges.map((badge, index) => (
-                  <Badge key={index} variant={badge.variant || 'secondary'}>
+                  <Badge key={`badge-${badge.label}-${index}`} variant={badge.variant || 'secondary'}>
                     {badge.label}
                   </Badge>
                 ))}

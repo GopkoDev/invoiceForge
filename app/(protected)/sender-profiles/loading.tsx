@@ -15,7 +15,7 @@ export default function SenderProfilesLoading() {
 
       <ContactsGrid>
         {[1, 2, 3].map((index) => (
-          <ContactCardLoading key={index} />
+          <ContactCardLoading key={`sender-profile-skeleton-${index}`} />
         ))}
       </ContactsGrid>
     </>

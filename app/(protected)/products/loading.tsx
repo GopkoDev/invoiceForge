@@ -31,7 +31,7 @@ function ProductsTableLoading() {
         </TableHeader>
         <TableBody>
           {[1, 2, 3, 4, 5].map((index) => (
-            <TableRow key={index}>
+            <TableRow key={`product-skeleton-${index}`}>
               {/* Product */}
               <TableCell>
                 <div className="flex items-center gap-3">

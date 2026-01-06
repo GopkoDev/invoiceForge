@@ -28,7 +28,7 @@ function SectionSkeleton({ fieldsCount = 3 }: SectionSkeletonProps) {
       <Skeleton className="h-4 w-24 mb-3" />
       <div className="space-y-3">
         {Array.from({ length: fieldsCount }).map((_, i) => (
-          <InfoItemSkeleton key={i} />
+          <InfoItemSkeleton key={`field-${i}`} />
         ))}
       </div>
     </div>
@@ -70,7 +70,7 @@ export function ContactsDetailsSidebarLoading({
         <CardContent className="pt-6">
           <div className="space-y-4">
             {Array.from({ length: sectionsCount }).map((_, index) => (
-              <div key={index}>
+              <div key={`section-${index}`}>
                 {index > 0 && <Separator className="mb-4" />}
                 <SectionSkeleton />
               </div>
@@ -101,7 +101,7 @@ export function ContactsDetailsSidebarLoading({
 
           <CardContent>
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index}>
+              <div key={`stat-${index}`}>
                 {index > 0 && <Separator className="my-2" />}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

@@ -26,7 +26,7 @@ export default function BankAccountsEditLoading() {
         <div className="space-y-6">
           {/* Bank Account Card 1 */}
           {[1, 2].map((index) => (
-            <Card key={index}>
+            <Card key={`bank-account-skeleton-${index}`}>
               <CardHeader>
                 <div className="flex items-center gap-4">
                   <Skeleton className="h-10 w-10 rounded-full" />

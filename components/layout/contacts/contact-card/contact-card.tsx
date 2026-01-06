@@ -70,7 +70,7 @@ export function ContactCard({
           {badges.length > 0 && (
             <div className="flex gap-2">
               {badges.map((badge, index) => (
-                <Badge key={index} variant={badge.variant || 'secondary'}>
+                <Badge key={`${badge.label}-${index}`} variant={badge.variant || 'secondary'}>
                   {badge.label}
                 </Badge>
               ))}
