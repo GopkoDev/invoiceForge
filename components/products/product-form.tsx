@@ -276,11 +276,13 @@ export function ProductForm({
                     {...field}
                     value={field.value ?? ''}
                     id="product-form-price"
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     aria-invalid={fieldState.invalid}
                     placeholder="100.00"
+                    onChange={(e) => {
+                      const sanitized = e.target.value.replace(/[^\d.]/g, '');
+                      field.onChange(sanitized);
+                    }}
                   />
 
                   <FieldError errors={[fieldState.error]} />

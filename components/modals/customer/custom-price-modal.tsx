@@ -297,12 +297,14 @@ export function CustomPriceModal({
                   {...field}
                   value={field.value ?? ''}
                   id="custom-price-form-price"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
                   aria-invalid={fieldState.invalid}
                   placeholder="0.00"
                   disabled={form.formState.isSubmitting}
+                  onChange={(e) => {
+                    const sanitized = e.target.value.replace(/[^\d.]/g, '');
+                    field.onChange(sanitized);
+                  }}
                 />
 
                 <FieldError errors={[fieldState.error]} />

@@ -49,7 +49,7 @@ export function CurrencyChangeWarningModal({
 }: CurrencyChangeWarningModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -67,7 +67,7 @@ export function CurrencyChangeWarningModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Custom Prices Will Be Affected</AlertTitle>
@@ -80,12 +80,12 @@ export function CurrencyChangeWarningModal({
           </Alert>
 
           <div>
-            <h4 className="text-sm font-medium mb-2">
+            <h4 className="mb-2 text-sm font-medium">
               Affected Customers ({customersAffected.length}):
             </h4>
-            <div className="rounded-md border max-h-48 overflow-y-auto">
+            <div className="max-h-48 overflow-y-auto rounded-md border">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted">
                   <TableRow>
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Current Price</TableHead>

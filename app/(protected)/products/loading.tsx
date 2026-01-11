@@ -16,14 +16,14 @@ function ProductsTableLoading() {
   return (
     <div className="rounded-md border">
       <Table>
-        <TableHeader>
+        <TableHeader className="bg-muted">
           <TableRow>
             <TableHead className="w-[300px]">Product</TableHead>
-            <TableHead className="text-right w-[140px]">Price</TableHead>
-            <TableHead className="text-center w-[160px]">Unit</TableHead>
-            <TableHead className="text-center w-[100px]">Status</TableHead>
-            <TableHead className="text-center w-[100px]">Invoices</TableHead>
-            <TableHead className="text-center w-[130px]">
+            <TableHead className="w-[140px] text-right">Price</TableHead>
+            <TableHead className="w-[160px] text-center">Unit</TableHead>
+            <TableHead className="w-[100px] text-center">Status</TableHead>
+            <TableHead className="w-[100px] text-center">Invoices</TableHead>
+            <TableHead className="w-[130px] text-center">
               Custom Prices
             </TableHead>
             <TableHead className="w-[70px]" aria-label="Actions"></TableHead>
@@ -44,23 +44,23 @@ function ProductsTableLoading() {
               </TableCell>
               {/* Price */}
               <TableCell className="text-right">
-                <Skeleton className="h-4 w-20 ml-auto" />
+                <Skeleton className="ml-auto h-4 w-20" />
               </TableCell>
               {/* Unit */}
               <TableCell className="text-center">
-                <Skeleton className="h-4 w-20 mx-auto" />
+                <Skeleton className="mx-auto h-4 w-20" />
               </TableCell>
               {/* Status */}
               <TableCell className="text-center">
-                <Skeleton className="h-5 w-14 mx-auto rounded-full" />
+                <Skeleton className="mx-auto h-5 w-14 rounded-full" />
               </TableCell>
               {/* Invoices */}
-              <TableCell className="text-center text-muted-foreground">
-                <Skeleton className="h-4 w-3 mx-auto" />
+              <TableCell className="text-muted-foreground text-center">
+                <Skeleton className="mx-auto h-4 w-3" />
               </TableCell>
               {/* Custom Prices */}
-              <TableCell className="text-center text-muted-foreground">
-                <Skeleton className="h-4 w-3 mx-auto" />
+              <TableCell className="text-muted-foreground text-center">
+                <Skeleton className="mx-auto h-4 w-3" />
               </TableCell>
               {/* Actions */}
               <TableCell>

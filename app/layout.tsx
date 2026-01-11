@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Roboto } from 'next/font/google';
 import { siteConfig } from '@/config/site.config';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ProgressBarProvider } from '@/components/progress-bar-provider';
@@ -8,6 +8,11 @@ import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const roboto = Roboto({
+  weight: ['400', '700'],
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-roboto',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -15,6 +20,9 @@ export const metadata: Metadata = {
     template: '%s - ' + siteConfig.meta.title,
   },
   description: siteConfig.meta.description,
+  appleWebApp: {
+    title: 'Invoice Forge',
+  },
 };
 export default function RootLayout({
   children,
@@ -22,7 +30,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${roboto.variable}`}
+      suppressHydrationWarning
+    >
       <body className={`antialiased`}>
         <SessionProvider>
           <ThemeProvider

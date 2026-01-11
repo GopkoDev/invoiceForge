@@ -87,14 +87,14 @@ export function ProductsTable({ products }: ProductsTableProps) {
   return (
     <div className="rounded-md border">
       <Table>
-        <TableHeader>
+        <TableHeader className="bg-muted">
           <TableRow>
             <TableHead className="w-[300px]">Product</TableHead>
-            <TableHead className="text-right w-[140px]">Price</TableHead>
-            <TableHead className="text-center w-[160px]">Unit</TableHead>
-            <TableHead className="text-center w-[100px]">Status</TableHead>
-            <TableHead className="text-center w-[100px]">Invoices</TableHead>
-            <TableHead className="text-center w-[130px]">
+            <TableHead className="w-[140px] text-right">Price</TableHead>
+            <TableHead className="w-[160px] text-center">Unit</TableHead>
+            <TableHead className="w-[100px] text-center">Status</TableHead>
+            <TableHead className="w-[100px] text-center">Invoices</TableHead>
+            <TableHead className="w-[130px] text-center">
               Custom Prices
             </TableHead>
             <TableHead className="w-[70px]" aria-label="Actions"></TableHead>
@@ -105,13 +105,13 @@ export function ProductsTable({ products }: ProductsTableProps) {
             <TableRow key={product.id}>
               <TableCell>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted">
-                    <Package className="h-4 w-4 text-muted-foreground" />
+                  <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-md">
+                    <Package className="text-muted-foreground h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="font-medium truncate">{product.name}</div>
+                    <div className="truncate font-medium">{product.name}</div>
                     {product.description && (
-                      <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+                      <div className="text-muted-foreground max-w-[200px] truncate text-xs">
                         {product.description}
                       </div>
                     )}
@@ -123,7 +123,7 @@ export function ProductsTable({ products }: ProductsTableProps) {
                 {formatCurrency(product.price, product.currency)}
               </TableCell>
 
-              <TableCell className="text-center text-muted-foreground">
+              <TableCell className="text-muted-foreground text-center">
                 {getUnitLabel(product.unit)}
               </TableCell>
 
@@ -133,7 +133,7 @@ export function ProductsTable({ products }: ProductsTableProps) {
                 </Badge>
               </TableCell>
 
-              <TableCell className="text-center text-muted-foreground">
+              <TableCell className="text-muted-foreground text-center">
                 {product._count.invoiceItems > 0 ? (
                   <span>{product._count.invoiceItems}</span>
                 ) : (
@@ -143,7 +143,7 @@ export function ProductsTable({ products }: ProductsTableProps) {
                 )}
               </TableCell>
 
-              <TableCell className="text-center text-muted-foreground">
+              <TableCell className="text-muted-foreground text-center">
                 {product._count.customPrices > 0 ? (
                   <span>{product._count.customPrices}</span>
                 ) : (
@@ -156,7 +156,7 @@ export function ProductsTable({ products }: ProductsTableProps) {
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                    className="focus-visible:ring-ring hover:bg-accent hover:text-accent-foreground inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                     disabled={loadingId === product.id}
                   >
                     <MoreHorizontal className="h-4 w-4" />

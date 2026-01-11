@@ -180,7 +180,7 @@ export function CustomerCustomPrices({
     >
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted">
             <TableRow>
               <TableHead>Product/Service</TableHead>
               <TableHead>Label</TableHead>
@@ -211,12 +211,12 @@ export function CustomerCustomPrices({
                         {price.name}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-muted-foreground opacity-[0.3]">
+                      <span className="text-muted-foreground text-xs opacity-[0.3]">
                         No label
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
+                  <TableCell className="text-muted-foreground text-right">
                     <span className="line-through">
                       {formatCurrency(
                         price.product.price,
@@ -241,11 +241,11 @@ export function CustomerCustomPrices({
                   </TableCell>
                   <TableCell className="max-w-xs">
                     {price.notes ? (
-                      <span className="text-sm text-muted-foreground truncate block">
+                      <span className="text-muted-foreground block truncate text-sm">
                         {price.notes}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground opacity-[0.3]">
+                      <span className="text-muted-foreground text-xs opacity-[0.3]">
                         No notes
                       </span>
                     )}
@@ -263,14 +263,14 @@ export function CustomerCustomPrices({
                         <DropdownMenuItem
                           onClick={() => handleEditCustomPrice(price)}
                         >
-                          <Pencil className="h-4 w-4 mr-2" />
+                          <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDeleteCustomPrice(price)}
                           className="text-destructive focus:text-destructive"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
+                          <Trash2 className="mr-2 h-4 w-4" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>

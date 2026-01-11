@@ -224,10 +224,13 @@ model InvoiceItem {
     invoiceId String
     productId String?
 
-    description String
+    name        String // Product name (snapshot from Product or custom)
+    description String? // Additional description
+    unit        String  @default("pcs") // Unit of measure
     quantity    Decimal @db.Decimal(10, 2)
     rate        Decimal @db.Decimal(10, 2) // Price at the time of invoice creation (snapshot)
     amount      Decimal @db.Decimal(10, 2) // quantity * rate
+    currency    Currency? // Optional: can differ from invoice currency in multi-currency scenarios
 
     invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
     product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)

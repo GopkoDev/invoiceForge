@@ -12,16 +12,16 @@ export function ProductCustomPricesTableLoading() {
   return (
     <div className="rounded-md border">
       <Table>
-        <TableHeader>
+        <TableHeader className="bg-muted">
           <TableRow>
             <TableHead className="w-[280px]">Customer</TableHead>
             <TableHead className="w-[140px]">Label</TableHead>
-            <TableHead className="text-right w-[140px]">
+            <TableHead className="w-[140px] text-right">
               Default Price
             </TableHead>
-            <TableHead className="text-right w-[180px]">Custom Price</TableHead>
+            <TableHead className="w-[180px] text-right">Custom Price</TableHead>
             <TableHead className="w-[220px]">Notes</TableHead>
-            <TableHead className="text-right w-[80px]">Actions</TableHead>
+            <TableHead className="w-[80px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -30,7 +30,7 @@ export function ProductCustomPricesTableLoading() {
               {/* Customer */}
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
-                  <Skeleton className="h-8 w-8 rounded shrink-0" />
+                  <Skeleton className="h-8 w-8 shrink-0 rounded" />
                   <div className="flex flex-col space-y-1.5">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-24" />
@@ -42,8 +42,8 @@ export function ProductCustomPricesTableLoading() {
                 <Skeleton className="h-5 w-16 rounded-full" />
               </TableCell>
               {/* Default Price */}
-              <TableCell className="text-right text-muted-foreground">
-                <Skeleton className="h-4 w-24 ml-auto" />
+              <TableCell className="text-muted-foreground text-right">
+                <Skeleton className="ml-auto h-4 w-24" />
               </TableCell>
               {/* Custom Price */}
               <TableCell className="text-right">
@@ -58,7 +58,7 @@ export function ProductCustomPricesTableLoading() {
               </TableCell>
               {/* Actions */}
               <TableCell className="text-right">
-                <Skeleton className="h-9 w-9 rounded-md ml-auto" />
+                <Skeleton className="ml-auto h-9 w-9 rounded-md" />
               </TableCell>
             </TableRow>
           ))}

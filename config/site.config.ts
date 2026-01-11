@@ -8,6 +8,9 @@ export interface SiteConfig {
 
   branding: {
     name: string;
+    website: string;
+    domain: string;
+    icon: string;
   };
 
   sidebar: {
@@ -37,13 +40,16 @@ export interface SiteConfig {
 
 export const siteConfig: SiteConfig = {
   meta: {
-    title: 'InvoiceFlow',
+    title: 'Invoice Forge',
     description:
-      'InvoiceFlow is a modern invoice management system built with Next.js and shadcn/ui by Dmytro Hopko',
+      'Invoice Forge is a modern invoice management system built with Next.js and shadcn/ui by Dmytro Hopko',
   },
 
   branding: {
-    name: 'InvoiceFlow',
+    name: 'Invoice Forge',
+    website: 'https://invoiceforge.hopko.dev',
+    domain: 'invoiceforge.hopko.dev',
+    icon: '/invoice-forge-logo.svg',
   },
 
   sidebar: {

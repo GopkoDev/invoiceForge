@@ -39,6 +39,12 @@ export const protectedRoutes = {
     `${protectedRoutesBase.products}/${id}/edit` as const,
   productCustomPrices: (id: string) =>
     `${protectedRoutesBase.products}/${id}/custom-prices` as const,
+
+  invoicesNew: `${protectedRoutesBase.invoices}/new`,
+  invoiceEdit: (id: string) =>
+    `${protectedRoutesBase.invoices}/${id}/edit` as const,
+  invoiceView: (id: string) =>
+    `${protectedRoutesBase.invoices}/${id}` as const,
 } as const;
 
 export const publicRoutes = {

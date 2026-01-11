@@ -128,9 +128,9 @@ export function ProductCustomPrices({
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Package className="h-12 w-12 text-muted-foreground mb-4" />
-          <div className="text-sm font-semibold mb-2">No Custom Prices</div>
-          <div className="text-muted-foreground text-xs max-w-md mb-4">
+          <Package className="text-muted-foreground mb-4 h-12 w-12" />
+          <div className="mb-2 text-sm font-semibold">No Custom Prices</div>
+          <div className="text-muted-foreground mb-4 max-w-md text-xs">
             Add special pricing for specific customers for <b>{productName}</b>.
           </div>
           <Button size="sm" onClick={handleAddCustomPrice}>
@@ -145,16 +145,16 @@ export function ProductCustomPrices({
   return (
     <div className="rounded-md border">
       <Table>
-        <TableHeader>
+        <TableHeader className="bg-muted">
           <TableRow>
             <TableHead className="w-[280px]">Customer</TableHead>
             <TableHead className="w-[140px]">Label</TableHead>
-            <TableHead className="text-right w-[140px]">
+            <TableHead className="w-[140px] text-right">
               Default Price
             </TableHead>
-            <TableHead className="text-right w-[180px]">Custom Price</TableHead>
+            <TableHead className="w-[180px] text-right">Custom Price</TableHead>
             <TableHead className="w-[220px]">Notes</TableHead>
-            <TableHead className="text-right w-[80px]">Actions</TableHead>
+            <TableHead className="w-[80px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -178,12 +178,12 @@ export function ProductCustomPrices({
                       {price.name}
                     </Badge>
                   ) : (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       {new Date(price.createdAt).toLocaleDateString()}
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-right text-muted-foreground">
+                <TableCell className="text-muted-foreground text-right">
                   <span className="line-through">
                     {formatCurrency(productPrice, productCurrency)}
                   </span>
@@ -206,7 +206,7 @@ export function ProductCustomPrices({
                   </div>
                 </TableCell>
                 <TableCell className="max-w-xs">
-                  <span className="text-sm text-muted-foreground truncate block">
+                  <span className="text-muted-foreground block truncate text-sm">
                     {price.notes || '-'}
                   </span>
                 </TableCell>
@@ -223,14 +223,14 @@ export function ProductCustomPrices({
                       <DropdownMenuItem
                         onClick={() => handleEditCustomPrice(price)}
                       >
-                        <Pencil className="h-4 w-4 mr-2" />
+                        <Pencil className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDeleteCustomPrice(price)}
                         className="text-destructive focus:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
+                        <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
