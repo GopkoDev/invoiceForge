@@ -5,9 +5,9 @@ import dynamic from 'next/dynamic';
 
 const ConfirmationModal = dynamic(
   () =>
-    import(
-      '@/components/modals/global-modals/confirmation-modal/confirmation-modal'
-    ).then((mod) => mod.ConfirmationModal),
+    import('@/components/modals/global-modals/confirmation-modal/confirmation-modal').then(
+      (mod) => mod.ConfirmationModal
+    ),
   { ssr: false }
 );
 
@@ -19,9 +19,18 @@ const BankAccountModal = dynamic(
   { ssr: false }
 );
 
+const InvoicePdfPreviewModal = dynamic(
+  () =>
+    import('@/components/modals/invoice/invoice-pdf-preview-modal').then(
+      (mod) => mod.InvoicePdfPreviewModal
+    ),
+  { ssr: false }
+);
+
 export function SenderProfileModalContainer() {
   const confirmationModal = useModal('confirmationModal');
   const bankAccountModal = useModal('bankAccountModal');
+  const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
 
   return (
     <>
@@ -47,6 +56,10 @@ export function SenderProfileModalContainer() {
           defaultValues={bankAccountModal.props.defaultValues}
           isEditing={bankAccountModal.props.isEditing}
         />
+      )}
+
+      {invoicePdfPreviewModal.isOpen && invoicePdfPreviewModal.props && (
+        <InvoicePdfPreviewModal />
       )}
     </>
   );

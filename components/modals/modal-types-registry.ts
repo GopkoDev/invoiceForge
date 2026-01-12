@@ -7,6 +7,7 @@ import type { CurrencyChangeWarningModalProps } from './product/currency-change-
 import type { UnsavedChangesDialogProps } from './invoice-editor/unsaved-changes-dialog';
 import type { InvalidItemsWarningDialogProps } from './invoice-editor/invalid-items-warning-dialog';
 import type { ValidationErrorDialogProps } from './invoice-editor/validation-error-dialog';
+import type { InvoicePdfPreviewModalProps } from './invoice/invoice-pdf-preview-modal';
 
 export interface ModalRegistry {
   confirmationModal: ConfirmationModalProps;
@@ -16,4 +17,5 @@ export interface ModalRegistry {
   unsavedChangesDialog: UnsavedChangesDialogProps;
   invalidItemsWarningDialog: InvalidItemsWarningDialogProps;
   validationErrorDialog: ValidationErrorDialogProps;
+  invoicePdfPreviewModal: InvoicePdfPreviewModalProps;
 }

@@ -53,7 +53,9 @@ export type SerializedInvoiceItem = {
   id: string;
   invoiceId: string;
   productId: string | null;
+  name: string;
   description: string | null;
+  unit: string;
   quantity: number;
   rate: number;
   amount: number;
@@ -183,3 +185,52 @@ export const invoiceStatusConfig: Record<
   OVERDUE: { label: 'Overdue', variant: 'destructive' },
   CANCELLED: { label: 'Cancelled', variant: 'secondary' },
 };
+
+// Invoice list tab type
+export type InvoiceTab = 'all' | 'drafts' | 'final';
+
+// Sort direction
+export type SortDirection = 'asc' | 'desc';
+
+// Sort field for invoices
+export type InvoiceSortField =
+  | 'createdAt'
+  | 'issueDate'
+  | 'dueDate'
+  | 'total'
+  | 'invoiceNumber';
+
+// Invoice list search params
+export interface InvoiceSearchParams {
+  page?: string;
+  pageSize?: string;
+  tab?: InvoiceTab;
+  search?: string;
+  status?: InvoiceStatus | 'all';
+  customerId?: string;
+  senderProfileId?: string;
+  // Support both naming conventions for sorting
+  sortField?: InvoiceSortField;
+  sortDirection?: SortDirection;
+  sortBy?: string;
+  sortOrder?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+// Filter options for dropdowns
+export interface InvoiceFilterOptions {
+  customers: { id: string; name: string }[];
+  senderProfiles: { id: string; name: string }[];
+}
+
+// Paginated invoice list response
+export interface PaginatedInvoiceList {
+  invoices: InvoiceListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  filterOptions: InvoiceFilterOptions;
+  totalInvoices: number; // Total invoices without any filters (for empty state detection)
+}

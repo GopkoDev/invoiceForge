@@ -1,8 +1,7 @@
 import { useCallback, useMemo } from 'react';
-import { pdf } from '@react-pdf/renderer';
-import { toast } from 'sonner';
-import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
-import { convertLogoToBase64 } from '@/lib/utils/image-to-base64';
+import { Button } from '@/components/ui/button';
+import { Download, Printer } from 'lucide-react';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   useFormData,
   useSelectedSenderProfile,
@@ -12,10 +11,10 @@ import {
   useInvalidItems,
   useHasUnsavedChanges,
 } from '@/store/invoice-editor-store';
-import { Button } from '@/components/ui/button';
-import { Download, Printer } from 'lucide-react';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { siteConfig } from '@/config/site.config';
+import {
+  downloadPdfFromFormData,
+  printPdfFromFormData,
+} from '@/lib/helpers/invoice-pdf-helpers';
 
 export function useInvoicePdf() {
   const formData = useFormData();
@@ -34,28 +33,18 @@ export function useInvoicePdf() {
     };
   }, [formData, invalidItems]);
 
-  const prepareLogoForPdf = useCallback(async (): Promise<string | null> => {
-    if (!senderProfile?.logo) return null;
-    return await convertLogoToBase64(senderProfile.logo);
-  }, [senderProfile]);
+  const handleDownloadPdf = useCallback(async () => {
+    if (hasUnsavedChanges) return;
 
-  const generatePdfBlob = useCallback(async (): Promise<Blob> => {
-    const logoBase64 = await prepareLogoForPdf();
-
-    const doc = (
-      <InvoicePDFDocument
-        formData={pdfFormData}
-        senderProfile={senderProfile}
-        customer={customer}
-        bankAccount={bankAccount}
-        subtotal={subtotal}
-        taxAmount={taxAmount}
-        total={total}
-        logoBase64={logoBase64}
-      />
+    await downloadPdfFromFormData(
+      pdfFormData,
+      senderProfile,
+      customer,
+      bankAccount,
+      subtotal,
+      taxAmount,
+      total
     );
-
-    return await pdf(doc).toBlob();
   }, [
     pdfFormData,
     senderProfile,
@@ -64,52 +53,31 @@ export function useInvoicePdf() {
     subtotal,
     taxAmount,
     total,
-    prepareLogoForPdf,
+    hasUnsavedChanges,
   ]);
-
-  const handleDownloadPdf = useCallback(async () => {
-    if (hasUnsavedChanges) return;
-
-    try {
-      const blob = await generatePdfBlob();
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${formData.invoiceNumber || 'invoice'}(${siteConfig.branding.domain}).pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-      toast.success('PDF downloaded');
-    } catch (err) {
-      console.error(err);
-      toast.error('Error generating PDF');
-    }
-  }, [generatePdfBlob, formData.invoiceNumber, hasUnsavedChanges]);
 
   const handlePrint = useCallback(async () => {
     if (hasUnsavedChanges) return;
 
-    try {
-      const blob = await generatePdfBlob();
-      const url = URL.createObjectURL(blob);
-
-      const printWindow = window.open(url);
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.focus();
-          printWindow.print();
-          URL.revokeObjectURL(url);
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Error generating PDF');
-    }
-  }, [generatePdfBlob, hasUnsavedChanges]);
+    await printPdfFromFormData(
+      pdfFormData,
+      senderProfile,
+      customer,
+      bankAccount,
+      subtotal,
+      taxAmount,
+      total
+    );
+  }, [
+    pdfFormData,
+    senderProfile,
+    customer,
+    bankAccount,
+    subtotal,
+    taxAmount,
+    total,
+    hasUnsavedChanges,
+  ]);
 
   const DownloadButton = (
     <Button

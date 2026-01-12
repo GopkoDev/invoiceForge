@@ -1,10 +1,10 @@
 import { protectedRoutes } from '@/config/routes.config';
 import { SenderProfileInfoSidebar } from './sender-profile-info-sidebar';
-import { SenderProfileRecentInvoices } from './sender-profile-recent-invoices';
 import {
   SenderProfileWithRelations,
   BankAccountWithRelations,
 } from '@/types/sender-profile/types';
+import { InvoiceListItem } from '@/types/invoice/types';
 import {
   ContactsDetailsHeader,
   ContactsDetailsGrid,
@@ -13,15 +13,18 @@ import {
   ContactsDetailsLayout,
 } from '@/components/layout/contacts';
 import { SenderProfileBankAccountsList } from './sender-profile-bank-accounts-list';
+import { RelatedInvoicesList } from '@/components/invoices';
 
 interface SenderProfileDetailViewProps {
   profile: SenderProfileWithRelations;
   bankAccounts: BankAccountWithRelations[];
+  invoices: InvoiceListItem[];
 }
 
 export function SenderProfileDetailView({
   profile,
   bankAccounts,
+  invoices,
 }: SenderProfileDetailViewProps) {
   return (
     <ContactsDetailsLayout>
@@ -44,7 +47,12 @@ export function SenderProfileDetailView({
             bankAccounts={bankAccounts}
           />
 
-          <SenderProfileRecentInvoices />
+          <RelatedInvoicesList
+            invoices={invoices}
+            entityType="sender-profile"
+            entityId={profile.id}
+            newInvoiceParams={{ senderProfileId: profile.id }}
+          />
         </ContactsDetailsContentLayout>
       </ContactsDetailsGrid>
     </ContactsDetailsLayout>

@@ -18,8 +18,12 @@ import {
   InvoiceCustomPrice,
   SerializedInvoice,
   InvoiceListItem,
+  PaginatedInvoiceList,
+  InvoiceTab,
+  InvoiceSortField,
+  SortDirection,
 } from '@/types/invoice/types';
-import { Currency, InvoiceStatus } from '@prisma/client';
+import { InvoiceStatus } from '@prisma/client';
 
 import {
   senderProfileSelect,
@@ -415,6 +419,74 @@ export async function getInvoices(): Promise<ActionResult<InvoiceListItem[]>> {
   }
 }
 
+// Get invoices by customer ID
+export async function getInvoicesByCustomer(
+  customerId: string,
+  limit?: number
+): Promise<ActionResult<InvoiceListItem[]>> {
+  try {
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        customerId,
+        senderProfile: { userId: authResult.data.userId },
+      },
+      select: invoiceListSelect,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return {
+      success: true,
+      data: invoices.map((inv) => ({
+        ...inv,
+        total: serializeDecimal(inv.total),
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching customer invoices:', error);
+    return { success: false, error: 'Failed to fetch customer invoices' };
+  }
+}
+
+// Get invoices by sender profile ID
+export async function getInvoicesBySenderProfile(
+  senderProfileId: string,
+  limit?: number
+): Promise<ActionResult<InvoiceListItem[]>> {
+  try {
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        senderProfileId,
+        senderProfile: { userId: authResult.data.userId },
+      },
+      select: invoiceListSelect,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return {
+      success: true,
+      data: invoices.map((inv) => ({
+        ...inv,
+        total: serializeDecimal(inv.total),
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching sender profile invoices:', error);
+    return { success: false, error: 'Failed to fetch sender profile invoices' };
+  }
+}
+
 // Update invoice status
 export async function updateInvoiceStatus(
   id: string,
@@ -441,11 +513,274 @@ export async function updateInvoiceStatus(
     });
 
     revalidatePath(protectedRoutes.invoices);
-    revalidatePath(protectedRoutes.invoiceView(id));
+    revalidatePath(protectedRoutes.invoiceEdit(id));
 
     return { success: true };
   } catch (error) {
     console.error('Error updating invoice status:', error);
     return { success: false, error: 'Failed to update invoice status' };
+  }
+}
+
+// Get paginated invoices with filters and sorting
+export async function getPaginatedInvoices(params: {
+  page?: number;
+  pageSize?: number;
+  tab?: InvoiceTab;
+  search?: string;
+  status?: InvoiceStatus | 'all';
+  customerId?: string;
+  senderProfileId?: string;
+  sortField?: InvoiceSortField;
+  sortDirection?: SortDirection;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<ActionResult<PaginatedInvoiceList>> {
+  try {
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      tab = 'all',
+      search = '',
+      status = 'all',
+      customerId,
+      senderProfileId,
+      sortField = 'createdAt',
+      sortDirection = 'desc',
+      dateFrom,
+      dateTo,
+    } = params;
+
+    const userId = authResult.data.userId;
+
+    const baseWhere = {
+      senderProfile: { userId },
+    };
+
+    const getTabStatusFilter = () => {
+      if (tab === 'drafts') {
+        return { status: 'DRAFT' as InvoiceStatus };
+      }
+      if (tab === 'final') {
+        return { status: { not: 'DRAFT' as InvoiceStatus } };
+      }
+      return {};
+    };
+
+    const buildFilters = () => {
+      const filters: Record<string, unknown> = {};
+
+      if (search) {
+        filters.OR = [
+          { invoiceNumber: { contains: search, mode: 'insensitive' } },
+          { customerName: { contains: search, mode: 'insensitive' } },
+          { senderName: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      // Status filter (only if not filtered by tab)
+      if (status !== 'all' && tab === 'all') {
+        filters.status = status;
+      }
+
+      if (customerId) {
+        filters.customerId = customerId;
+      }
+
+      if (senderProfileId) {
+        filters.senderProfileId = senderProfileId;
+      }
+
+      if (dateFrom) {
+        filters.issueDate = {
+          ...((filters.issueDate as object) || {}),
+          gte: new Date(dateFrom),
+        };
+      }
+      if (dateTo) {
+        filters.issueDate = {
+          ...((filters.issueDate as object) || {}),
+          lte: new Date(dateTo),
+        };
+      }
+
+      return filters;
+    };
+
+    const tabFilter = getTabStatusFilter();
+    const additionalFilters = buildFilters();
+
+    const where = {
+      ...baseWhere,
+      ...tabFilter,
+      ...additionalFilters,
+    };
+
+    const orderBy = {
+      [sortField]: sortDirection,
+    };
+
+    const [invoices, total, totalInvoices, customers, senderProfiles] =
+      await Promise.all([
+        prisma.invoice.findMany({
+          where,
+          select: invoiceListSelect,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.invoice.count({ where }),
+        // Total invoices without any filters (for empty state detection)
+        prisma.invoice.count({ where: baseWhere }),
+        // Get unique customers for filter dropdown
+        prisma.customer.findMany({
+          where: { userId },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        }),
+        // Get sender profiles for filter dropdown
+        prisma.senderProfile.findMany({
+          where: { userId },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+
+    return {
+      success: true,
+      data: {
+        invoices: invoices.map((inv) => ({
+          ...inv,
+          total: serializeDecimal(inv.total),
+        })),
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+        filterOptions: {
+          customers,
+          senderProfiles,
+        },
+        totalInvoices,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching paginated invoices:', error);
+    return { success: false, error: 'Failed to fetch invoices' };
+  }
+}
+
+export async function duplicateInvoice(
+  id: string
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success || !authResult.data) {
+      return { success: false, error: authResult.error };
+    }
+
+    const { userId } = authResult.data;
+
+    const originalInvoice = await prisma.invoice.findFirst({
+      where: { id, senderProfile: { userId } },
+      include: { items: true },
+    });
+
+    if (!originalInvoice) {
+      return { success: false, error: 'Invoice not found' };
+    }
+
+    const senderProfile = await prisma.senderProfile.findFirst({
+      where: { id: originalInvoice.senderProfileId, userId },
+      select: { invoicePrefix: true, invoiceCounter: true },
+    });
+
+    if (!senderProfile) {
+      return { success: false, error: 'Sender profile not found' };
+    }
+
+    const year = new Date().getFullYear();
+    const newInvoiceNumber = `${senderProfile.invoicePrefix}-${year}-${String(senderProfile.invoiceCounter + 1).padStart(4, '0')}`;
+
+    const newInvoice = await prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          invoiceNumber: newInvoiceNumber,
+          senderProfileId: originalInvoice.senderProfileId,
+          customerId: originalInvoice.customerId,
+          bankAccountId: originalInvoice.bankAccountId,
+          issueDate: new Date(),
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          paymentTerms: originalInvoice.paymentTerms,
+          status: 'DRAFT',
+          currency: originalInvoice.currency,
+          poNumber: null,
+          senderName: originalInvoice.senderName,
+          senderLegalName: originalInvoice.senderLegalName,
+          senderTaxId: originalInvoice.senderTaxId,
+          senderAddress: originalInvoice.senderAddress,
+          senderCity: originalInvoice.senderCity,
+          senderCountry: originalInvoice.senderCountry,
+          senderPostalCode: originalInvoice.senderPostalCode,
+          senderPhone: originalInvoice.senderPhone,
+          senderEmail: originalInvoice.senderEmail,
+          senderWebsite: originalInvoice.senderWebsite,
+          senderLogo: originalInvoice.senderLogo,
+          customerName: originalInvoice.customerName,
+          customerCompanyName: originalInvoice.customerCompanyName,
+          customerTaxId: originalInvoice.customerTaxId,
+          customerEmail: originalInvoice.customerEmail,
+          customerPhone: originalInvoice.customerPhone,
+          customerAddress: originalInvoice.customerAddress,
+          customerCity: originalInvoice.customerCity,
+          customerCountry: originalInvoice.customerCountry,
+          customerPostalCode: originalInvoice.customerPostalCode,
+          bankName: originalInvoice.bankName,
+          bankAccountNumber: originalInvoice.bankAccountNumber,
+          bankIban: originalInvoice.bankIban,
+          bankSwift: originalInvoice.bankSwift,
+          accountName: originalInvoice.accountName,
+          subtotal: originalInvoice.subtotal,
+          taxRate: originalInvoice.taxRate,
+          taxAmount: originalInvoice.taxAmount,
+          discount: originalInvoice.discount,
+          shipping: originalInvoice.shipping,
+          total: originalInvoice.total,
+          amountPaid: 0,
+          notes: originalInvoice.notes,
+          terms: originalInvoice.terms,
+          items: {
+            create: originalInvoice.items.map((item) => ({
+              productId: item.productId,
+              name: item.name,
+              description: item.description,
+              unit: item.unit,
+              quantity: item.quantity,
+              rate: item.rate,
+              amount: item.amount,
+              currency: item.currency,
+            })),
+          },
+        },
+      });
+
+      await tx.senderProfile.update({
+        where: { id: originalInvoice.senderProfileId },
+        data: { invoiceCounter: { increment: 1 } },
+      });
+
+      return created;
+    });
+
+    revalidatePath(protectedRoutes.invoices);
+    return { success: true, data: { id: newInvoice.id } };
+  } catch (error) {
+    console.error('Error duplicating invoice:', error);
+    return { success: false, error: 'Failed to duplicate invoice' };
   }
 }

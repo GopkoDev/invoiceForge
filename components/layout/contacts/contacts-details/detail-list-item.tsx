@@ -1,8 +1,10 @@
 import { Badge } from '@/components/ui/badge';
 import { LucideIcon } from 'lucide-react';
+import React from 'react';
 
 interface DetailListItemBadge {
-  label: string;
+  label?: string;
+  content?: React.ReactNode;
   variant?: 'default' | 'secondary' | 'outline' | 'destructive';
 }
 
@@ -15,7 +17,7 @@ interface DetailListItemDetail {
 interface DetailListItemProps {
   icon: LucideIcon;
   iconClassName?: string;
-  title: string;
+  title: string | React.ReactNode;
   badges?: DetailListItemBadge[];
   details?: DetailListItemDetail[];
   detailsLayout?: 'vertical' | 'horizontal';
@@ -33,18 +35,24 @@ export function DetailListItem({
 }: DetailListItemProps) {
   return (
     <div className="flex items-center justify-between">
-      <div className="flex items-start gap-4 flex-1 min-w-0">
-        <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 shrink-0">
+      <div className="flex min-w-0 flex-1 items-start gap-4">
+        <div className="bg-primary/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
           <Icon className={iconClassName} />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <p className="font-semibold text-sm truncate">{title}</p>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold">{title}</p>
             {badges.map((badge, index) => (
-              <Badge key={`badge-${badge.label}-${index}`} variant={badge.variant || 'secondary'}>
-                {badge.label}
-              </Badge>
+              <React.Fragment key={`badge-${index}`}>
+                {badge.content ? (
+                  badge.content
+                ) : badge.label ? (
+                  <Badge variant={badge.variant || 'secondary'}>
+                    {badge.label}
+                  </Badge>
+                ) : null}
+              </React.Fragment>
             ))}
           </div>
 
@@ -52,15 +60,18 @@ export function DetailListItem({
             <div
               className={
                 detailsLayout === 'horizontal'
-                  ? 'flex items-center gap-4 text-xs text-muted-foreground flex-wrap'
-                  : 'space-y-1 text-xs text-muted-foreground'
+                  ? 'text-muted-foreground flex flex-wrap items-center gap-4 text-xs'
+                  : 'text-muted-foreground space-y-1 text-xs'
               }
             >
               {details.map((detail, index) => (
-                <div key={`detail-${detail.value}-${index}`} className="flex items-center gap-1">
+                <div
+                  key={`detail-${detail.value}-${index}`}
+                  className="flex items-center gap-1"
+                >
                   {detail.icon && <detail.icon className="h-3 w-3 shrink-0" />}
                   {detail.label && (
-                    <span className="font-semibold shrink-0">
+                    <span className="shrink-0 font-semibold">
                       {detail.label}:
                     </span>
                   )}
@@ -77,7 +88,7 @@ export function DetailListItem({
       </div>
 
       {actions && (
-        <div className="flex items-center gap-1 shrink-0">{actions}</div>
+        <div className="flex shrink-0 items-center gap-1">{actions}</div>
       )}
     </div>
   );
