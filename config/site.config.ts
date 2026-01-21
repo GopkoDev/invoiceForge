@@ -1,5 +1,7 @@
 export type SidebarVariant = 'sidebar' | 'floating' | 'inset';
 
+const appName = 'Invoice Forge';
+
 export interface SiteConfig {
   meta: {
     title: string;
@@ -11,6 +13,7 @@ export interface SiteConfig {
     website: string;
     domain: string;
     icon: string;
+    emailFrom: string;
   };
 
   sidebar: {
@@ -40,16 +43,17 @@ export interface SiteConfig {
 
 export const siteConfig: SiteConfig = {
   meta: {
-    title: 'Invoice Forge',
+    title: appName,
     description:
       'Invoice Forge is a modern invoice management system built with Next.js and shadcn/ui by Dmytro Hopko',
   },
 
   branding: {
-    name: 'Invoice Forge',
+    name: appName,
     website: 'https://invoiceforge.hopko.dev',
     domain: 'invoiceforge.hopko.dev',
     icon: '/invoice-forge-logo.svg',
+    emailFrom: `${appName} <${process.env.EMAIL_SERVER_USER || ''}>`,
   },
 
   sidebar: {

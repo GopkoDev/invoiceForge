@@ -7,3 +7,7 @@ export const CURRENCY_OPTIONS = [
   { value: Currency.GBP, label: 'GBP - British Pound' },
   { value: Currency.PLN, label: 'PLN - Polish Zloty' },
 ];
+
+export function getCurrenciesValues() {
+  return CURRENCY_OPTIONS.map((option) => option.value);
+}

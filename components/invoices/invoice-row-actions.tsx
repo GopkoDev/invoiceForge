@@ -42,12 +42,14 @@ interface InvoiceRowActionsProps {
   invoiceId: string;
   invoiceNumber: string;
   status: InvoiceStatus;
+  onDataChange?: () => void;
 }
 
 export function InvoiceRowActions({
   invoiceId,
   invoiceNumber,
   status,
+  onDataChange,
 }: InvoiceRowActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -124,6 +126,8 @@ export function InvoiceRowActions({
       const result = await deleteInvoice(invoiceId);
       if (result.success) {
         toast.success('Invoice deleted successfully');
+        onDataChange?.();
+        router.refresh();
       } else {
         toast.error(result.error || 'Failed to delete invoice');
       }
@@ -136,6 +140,8 @@ export function InvoiceRowActions({
       const result = await updateInvoiceStatus(invoiceId, newStatus);
       if (result.success) {
         toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
+        onDataChange?.();
+        router.refresh();
       } else {
         toast.error(result.error || 'Failed to update invoice status');
       }
