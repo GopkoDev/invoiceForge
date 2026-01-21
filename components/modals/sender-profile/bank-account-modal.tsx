@@ -76,7 +76,7 @@ export function BankAccountModal({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Bank Account' : 'Add Bank Account'}
@@ -244,7 +244,7 @@ export function BankAccountModal({
 
                 <Label
                   htmlFor="bank-form-is-default"
-                  className="text-sm font-normal cursor-pointer"
+                  className="cursor-pointer text-sm font-normal"
                 >
                   Set as default bank account for this sender profile
                 </Label>
@@ -270,8 +270,8 @@ export function BankAccountModal({
               {form.formState.isSubmitting
                 ? 'Saving...'
                 : isEditing
-                ? 'Update'
-                : 'Create'}
+                  ? 'Update'
+                  : 'Create'}
             </Button>
           </DialogFooter>
         </form>

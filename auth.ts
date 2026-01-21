@@ -7,9 +7,10 @@ import { getEmailServerConfig } from './lib/get-email-server-config';
 import type { Adapter } from 'next-auth/adapters';
 import { jwtConfig } from './config/jwt.config';
 import { authRoutes } from './config/routes.config';
+import { siteConfig } from './config/site.config';
 
 const emailServer = getEmailServerConfig();
-const emailFrom = process.env.EMAIL_FROM;
+const emailFrom = siteConfig.branding.emailFrom;
 
 // Custom adapter that allows account linking with same email
 function customAdapter(): Adapter {

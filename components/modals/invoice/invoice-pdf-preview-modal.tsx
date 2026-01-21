@@ -62,7 +62,7 @@ export function InvoicePdfPreviewModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
       <DialogContent
-        className="flex h-[100dvh] max-h-[100dvh] w-[100vw] !max-w-none flex-col gap-0 p-0 sm:h-[90vh] sm:max-h-[90vh] sm:w-full sm:!max-w-[850px]"
+        className="flex h-dvh max-h-dvh w-screen max-w-none! flex-col gap-0 p-0 sm:h-[90dvh] sm:max-h-[90dvh] sm:w-full sm:sm:max-w-212.5!"
         showCloseButton={false}
       >
         <DialogHeader className="shrink-0 border-b px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-4">

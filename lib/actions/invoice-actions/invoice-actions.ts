@@ -280,13 +280,24 @@ export async function updateInvoice(
       validatedData.shipping
     );
 
+    // If sender profile changed, generate a new invoice number to avoid conflicts
+    let invoiceNumber = validatedData.invoiceNumber;
+    if (validatedData.senderProfileId !== existingInvoice.senderProfileId) {
+      const newNumberResult = await generateInvoiceNumber(
+        validatedData.senderProfileId
+      );
+      if (newNumberResult.success && newNumberResult.data) {
+        invoiceNumber = newNumberResult.data;
+      }
+    }
+
     const invoice = await prisma.$transaction(async (tx) => {
       await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
 
       return tx.invoice.update({
         where: { id },
         data: {
-          invoiceNumber: validatedData.invoiceNumber,
+          invoiceNumber,
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
