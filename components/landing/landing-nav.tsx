@@ -35,11 +35,16 @@ export function LandingNav({
         'bg-background/80 fixed top-0 z-50 w-full border-b backdrop-blur-lg',
         className
       )}
+      aria-label="Main navigation"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="flex items-center gap-2"
+            aria-label="Invoice Forge homepage"
+          >
             <Logo size={32} />
             <span className="text-xl font-bold">{brandName}</span>
           </Link>
@@ -50,6 +55,7 @@ export function LandingNav({
               <a
                 key={link.href}
                 href={link.href}
+                aria-label={link.label}
                 onClick={(e) => {
                   if (link.href.startsWith('#')) {
                     e.preventDefault();
@@ -69,7 +75,9 @@ export function LandingNav({
                 {link.label}
               </a>
             ))}
+
             <ModeToggle />
+
             <Link href={ctaHref}>
               <Button size="sm">{ctaButton}</Button>
             </Link>
@@ -79,7 +87,11 @@ export function LandingNav({
           <div className="flex items-center gap-2 md:hidden">
             <ModeToggle />
             <Link href={ctaHref}>
-              <Button size="sm" className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                className="flex items-center gap-1.5"
+                aria-label={ctaButton}
+              >
                 {ctaButton}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>

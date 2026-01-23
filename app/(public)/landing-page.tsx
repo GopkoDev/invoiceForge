@@ -29,7 +29,7 @@ export function LandingPage() {
   ];
 
   return (
-    <div className="bg-background text-foreground min-h-screen">
+    <>
       <LandingNav
         brandName={landingContent.navigation.brandName}
         links={landingContent.navigation.links}
@@ -37,47 +37,49 @@ export function LandingPage() {
         ctaHref={loginHref}
       />
 
-      <LandingHero
-        badge={landingContent.hero.badge}
-        headline={landingContent.hero.headline}
-        subheadline={landingContent.hero.subheadline}
-        ctaButton={landingContent.hero.ctaButton}
-        ctaHref={loginHref}
-        stats={landingContent.hero.stats}
-      />
+      <main>
+        <LandingHero
+          badge={landingContent.hero.badge}
+          headline={landingContent.hero.headline}
+          subheadline={landingContent.hero.subheadline}
+          ctaButton={landingContent.hero.ctaButton}
+          ctaHref={loginHref}
+          stats={landingContent.hero.stats}
+        />
 
-      <FeatureGrid
-        badge={landingContent.features.badge}
-        headline={landingContent.features.headline}
-        subheadline={landingContent.features.subheadline}
-        features={landingContent.features.items}
-      />
+        <FeatureGrid
+          badge={landingContent.features.badge}
+          headline={landingContent.features.headline}
+          subheadline={landingContent.features.subheadline}
+          features={landingContent.features.items}
+        />
 
-      <BetaPricingSection
-        badge={landingContent.betaPricing.badge}
-        headline={landingContent.betaPricing.headline}
-        description={landingContent.betaPricing.description}
-        benefits={landingContent.betaPricing.benefits}
-        pricing={landingContent.betaPricing.pricing}
-        ctaButton={landingContent.betaPricing.ctaButton}
-        ctaHref={loginHref}
-        ctaDisclaimer={landingContent.betaPricing.ctaDisclaimer}
-      />
+        <BetaPricingSection
+          badge={landingContent.betaPricing.badge}
+          headline={landingContent.betaPricing.headline}
+          description={landingContent.betaPricing.description}
+          benefits={landingContent.betaPricing.benefits}
+          pricing={landingContent.betaPricing.pricing}
+          ctaButton={landingContent.betaPricing.ctaButton}
+          ctaHref={loginHref}
+          ctaDisclaimer={landingContent.betaPricing.ctaDisclaimer}
+        />
 
-      <HowItWorksSection
-        badge={landingContent.howItWorks.badge}
-        headline={landingContent.howItWorks.headline}
-        subheadline={landingContent.howItWorks.subheadline}
-        steps={landingContent.howItWorks.steps}
-      />
+        <HowItWorksSection
+          badge={landingContent.howItWorks.badge}
+          headline={landingContent.howItWorks.headline}
+          subheadline={landingContent.howItWorks.subheadline}
+          steps={landingContent.howItWorks.steps}
+        />
 
-      <FinalCtaSection
-        headline={landingContent.finalCta.headline}
-        subheadline={landingContent.finalCta.subheadline}
-        ctaButton={landingContent.finalCta.ctaButton}
-        ctaHref={loginHref}
-        disclaimer={landingContent.finalCta.disclaimer}
-      />
+        <FinalCtaSection
+          headline={landingContent.finalCta.headline}
+          subheadline={landingContent.finalCta.subheadline}
+          ctaButton={landingContent.finalCta.ctaButton}
+          ctaHref={loginHref}
+          disclaimer={landingContent.finalCta.disclaimer}
+        />
+      </main>
 
       <LandingFooter
         brandName={landingContent.footer.brandName}
@@ -86,6 +88,6 @@ export function LandingPage() {
         copyright={landingContent.footer.copyright}
         disclaimer={landingContent.footer.disclaimer}
       />
-    </div>
+    </>
   );
 }

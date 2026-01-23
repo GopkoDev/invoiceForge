@@ -26,7 +26,7 @@ export function LandingFooter({
   className,
 }: LandingFooterProps) {
   return (
-    <footer className={cn('border-t py-12', className)}>
+    <footer className={cn('border-t py-12', className)} role="contentinfo">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-8 md:grid-cols-4">
           {/* Brand */}
@@ -50,6 +50,7 @@ export function LandingFooter({
                     <a
                       href={link.href}
                       className="hover:text-foreground transition-colors"
+                      aria-label={link.label}
                       onClick={(e) => {
                         if (link.href.startsWith('#')) {
                           e.preventDefault();

@@ -40,7 +40,7 @@ export function FeatureGrid({
   features,
 }: FeatureGridProps) {
   return (
-    <SectionContainer id="features">
+    <SectionContainer id="features" aria-labelledby="features-heading">
       <motion.div
         initial="initial"
         whileInView="animate"
@@ -53,6 +53,7 @@ export function FeatureGrid({
             badge={badge}
             highlightedText={headline}
             subheadline={subheadline}
+            headingId="features-heading"
           />
         </motion.div>
 

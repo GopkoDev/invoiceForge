@@ -5,6 +5,7 @@ const appName = 'Invoice Forge';
 export interface SiteConfig {
   meta: {
     title: string;
+    googleSiteVerification: string;
     description: string;
   };
 
@@ -44,8 +45,9 @@ export interface SiteConfig {
 export const siteConfig: SiteConfig = {
   meta: {
     title: appName,
+    googleSiteVerification: '',
     description:
-      'Invoice Forge is a modern invoice management system built with Next.js and shadcn/ui by Dmytro Hopko',
+      'Create professional-looking invoices in seconds with smart autofill, multi-currency support, and instant PDF generation. Free invoice management software for freelancers and small businesses.',
   },
 
   branding: {

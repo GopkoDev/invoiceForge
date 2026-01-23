@@ -12,6 +12,7 @@ interface PageHeaderProps {
   subheadline?: string;
   className?: string;
   children?: React.ReactNode;
+  headingId?: string;
 }
 
 const fadeInUp = {
@@ -28,6 +29,7 @@ export function PageHeader({
   subheadline,
   className,
   children,
+  headingId,
 }: PageHeaderProps) {
   return (
     <motion.div {...fadeInUp} className={cn('text-center', className)}>
@@ -42,7 +44,10 @@ export function PageHeader({
           {badge}
         </Badge>
       )}
-      <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl">
+      <h1
+        id={headingId}
+        className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl"
+      >
         {headline}{' '}
         {highlightedText && (
           <span className="animate-gradient-shift bg-linear-to-r from-violet-600 via-fuchsia-500 to-pink-600 bg-clip-text text-transparent dark:from-cyan-400 dark:via-purple-400 dark:to-pink-400">

@@ -47,7 +47,7 @@ export function BetaPricingSection({
   ctaDisclaimer,
 }: BetaPricingSectionProps) {
   return (
-    <SectionContainer id="pricing">
+    <SectionContainer id="pricing" aria-labelledby="pricing-heading">
       <motion.div
         initial="initial"
         whileInView="animate"
@@ -64,7 +64,10 @@ export function BetaPricingSection({
                     text={badge.text}
                     variant="beta"
                   />
-                  <h2 className="mb-4 text-3xl font-bold sm:text-4xl">
+                  <h2
+                    id="pricing-heading"
+                    className="mb-4 text-3xl font-bold sm:text-4xl"
+                  >
                     {headline}
                   </h2>
                   <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
@@ -96,7 +99,11 @@ export function BetaPricingSection({
                   </div>
 
                   <Link href={ctaHref}>
-                    <Button size="lg" className="mb-4 w-full">
+                    <Button
+                      size="lg"
+                      className="mb-4 w-full"
+                      aria-label={ctaButton}
+                    >
                       {ctaButton}
                     </Button>
                   </Link>

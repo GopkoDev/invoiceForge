@@ -39,7 +39,7 @@ export function HowItWorksSection({
   steps,
 }: HowItWorksSectionProps) {
   return (
-    <SectionContainer id="how-it-works">
+    <SectionContainer id="how-it-works" aria-labelledby="how-it-works-heading">
       <motion.div
         initial="initial"
         whileInView="animate"
@@ -52,6 +52,7 @@ export function HowItWorksSection({
             headline={headline.split('3 simple steps')[0]}
             highlightedText="3 simple steps"
             subheadline={subheadline}
+            headingId="how-it-works-heading"
           />
         </motion.div>
 
