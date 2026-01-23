@@ -13,16 +13,9 @@ import { UserDropdownContent } from '@/components/layout/user/user-dropdown-cont
 import { auth } from '@/auth';
 import { SessionUser } from '@/types/session-user';
 
-const MOCK_USER = {
-  name: 'Falback User',
-  email: 'fallback@example.com',
-  avatar: '/avatars/shadcn.jpg',
-  id: '1',
-};
-
 export async function NavUser() {
   const session = await auth();
-  const user: SessionUser = (session?.user as SessionUser) || MOCK_USER;
+  const user: SessionUser = session?.user as SessionUser;
   const updatedUser = {
     ...user,
     name: user.name || user.email.split('@')[0],

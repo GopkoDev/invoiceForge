@@ -1,5 +1,5 @@
 import type { NavigationConfig } from '@/types/navigation';
-import { protectedRoutes } from './routes.config';
+import { legalRoutes, protectedRoutes } from './routes.config';
 
 export const navigationMenuConfig: NavigationConfig = {
   sections: [
@@ -44,6 +44,16 @@ export const navigationMenuConfig: NavigationConfig = {
     {
       type: 'secondary',
       items: [
+        {
+          title: 'Privacy Policy',
+          url: legalRoutes.privacy,
+          icon: 'privacy',
+        },
+        {
+          title: 'Terms of Service',
+          url: legalRoutes.terms,
+          icon: 'terms',
+        },
         {
           title: 'Settings',
           url: protectedRoutes.settingsProfile,

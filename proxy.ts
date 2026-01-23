@@ -15,10 +15,11 @@ export default auth(async function proxy(req) {
     const isProtectedRoute = routes.protected.some((route) =>
       pathname.startsWith(route)
     );
+    const isLegalRoute = routes.legal.some((route) => pathname === route);
 
     // === LOGGED IN USER ===
     if (token) {
-      if (isProtectedRoute) {
+      if (isProtectedRoute || isLegalRoute) {
         return NextResponse.next();
       }
 
@@ -45,7 +46,7 @@ export default auth(async function proxy(req) {
         return NextResponse.redirect(loginUrl);
       }
 
-      if (isPublicRoute || isAuthPage) {
+      if (isPublicRoute || isAuthPage || isLegalRoute) {
         return NextResponse.next();
       }
 

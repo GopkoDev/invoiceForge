@@ -1,3 +1,9 @@
+export const legalRoutes = { privacy: '/privacy', terms: '/terms' } as const;
+
+export const publicRoutes = {
+  landing: '/',
+} as const;
+
 export const authRoutes = {
   signIn: '/login',
   verifyRequest: '/verify-request',
@@ -45,10 +51,6 @@ export const protectedRoutes = {
     `${protectedRoutesBase.invoices}/${id}/edit` as const,
 } as const;
 
-export const publicRoutes = {
-  landing: '/',
-} as const;
-
 export const protectedRoutesArray = [
   ...Object.values(protectedRoutesBase),
 ] as const;
@@ -57,8 +59,11 @@ export const publicRoutesArray = [...Object.values(publicRoutes)] as const;
 
 export const authRoutesArray = [...Object.values(authRoutes)] as const;
 
+export const legalRoutesArray = [...Object.values(legalRoutes)] as const;
+
 export const routes = {
   public: publicRoutesArray,
   protected: protectedRoutesArray,
   auth: authRoutesArray,
+  legal: legalRoutesArray,
 } as const;
