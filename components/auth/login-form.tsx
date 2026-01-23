@@ -11,19 +11,25 @@ import {
 import { Field, FieldError, FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { GoogleIcon } from '@/components/custom-icons';
 import { MailIcon, Loader2Icon } from 'lucide-react';
-import { useTransition } from 'react';
+import { useState, useTransition, useId } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginEmailSchema, type LoginEmailInput } from '@/lib/validations/auth';
 import { signInWithGoogle, signInWithEmail } from '@/lib/actions/login-actions';
+import Link from 'next/link';
+import { legalRoutes } from '@/config/routes.config';
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<'div'>) {
+  const [isAgeAndTermsAccepted, setIsAgeAndTermsAccepted] = useState(false);
+  const checkboxId = useId();
+
   const form = useForm<LoginEmailInput>({
     resolver: zodResolver(loginEmailSchema),
     defaultValues: {
@@ -32,6 +38,7 @@ export function LoginForm({
   });
 
   const onEmailSubmit = async (data: LoginEmailInput) => {
+    if (!isAgeAndTermsAccepted) return;
     const result = await signInWithEmail(data.email);
 
     if (!result.success) {
@@ -59,12 +66,47 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <FieldGroup>
+            {/* Age & Legal Gate Checkbox */}
+            <div className="border-border bg-muted/30 flex items-start gap-3 rounded-lg border p-4">
+              <Checkbox
+                id={checkboxId}
+                checked={isAgeAndTermsAccepted}
+                onCheckedChange={(checked) =>
+                  setIsAgeAndTermsAccepted(checked === true)
+                }
+                className="mt-0.5"
+              />
+              <label
+                htmlFor={checkboxId}
+                className="cursor-pointer text-sm leading-relaxed"
+              >
+                I confirm I am 18+ and agree to the{' '}
+                <Link
+                  href={legalRoutes.terms}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/80 underline underline-offset-4"
+                >
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link
+                  href={legalRoutes.privacy}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/80 underline underline-offset-4"
+                >
+                  Privacy Policy
+                </Link>
+              </label>
+            </div>
+
             <Field>
               <Button
                 variant="outline"
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={isLoading || !isAgeAndTermsAccepted}
                 className="w-full"
               >
                 {isGoogleLoading ? (
@@ -86,7 +128,7 @@ export function LoginForm({
                 <Separator />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-4 text-muted-foreground">
+                <span className="bg-card text-muted-foreground px-4">
                   Or continue with Email
                 </span>
               </div>
@@ -117,7 +159,11 @@ export function LoginForm({
                   )}
                 />
                 <Field>
-                  <Button type="submit" disabled={isLoading} className="w-full">
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !isAgeAndTermsAccepted}
+                    className="w-full"
+                  >
                     {isEmailLoading ? (
                       <>
                         <Loader2Icon className="animate-spin" />

@@ -143,7 +143,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
 
                       <FieldError errors={[fieldState.error]} />
 
-                      <p className="text-muted-foreground text-xs mt-1">
+                      <p className="text-muted-foreground mt-1 text-xs">
                         Enter a URL to your avatar image
                       </p>
                     </Field>
@@ -197,7 +197,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
                     <FieldError errors={[fieldState.error]} />
 
                     {isEmailChanged && (
-                      <p className="text-warning text-sm mt-1 flex items-center gap-2 text-amber-600">
+                      <p className="text-warning mt-1 flex items-center gap-2 text-sm text-amber-600">
                         <TriangleAlert />
                         Changing email will require you to login again
                       </p>

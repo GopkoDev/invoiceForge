@@ -41,8 +41,8 @@ export const landingContent = {
     brandName: 'Invoice Forge',
     links: [
       { label: 'Features', href: '#features' },
-      { label: 'How It Works', href: '#how-it-works' },
       { label: 'Pricing', href: '#pricing' },
+      { label: 'How It Works', href: '#how-it-works' },
     ],
     ctaButton: 'Get Started',
   },
@@ -53,60 +53,60 @@ export const landingContent = {
       text: 'Public Beta - Free to Use',
     },
     headline: {
-      line1: 'Beautiful Invoices',
-      line2: 'In Seconds',
+      line1: 'Master Your Billing',
+      line2: 'With the Invoice Forge',
     },
     subheadline:
-      'The fastest way to create stunning invoice PDFs. Built for freelancers who care about design and speed.',
+      'Stop wrestling with messy templates. Use pre-saved data and smart snapshots to hammer out professional-looking PDFs instantly. Focus on your craft, while the Forge handles the paperwork.',
     ctaButton: 'Join Beta for Free',
     stats: [
-      { label: 'Supported Currencies', value: '5+' },
-      { label: 'Invoice Statuses', value: '5' },
-      { label: 'Setup Time', value: '< 5 min' },
+      { label: 'Manual Retyping', value: '0%' },
+      { label: 'Pixel-Perfect', value: '100%' },
+      { label: 'Status Tracking', value: 'Live' },
     ] as StatItem[],
   },
 
   features: {
     badge: 'Features',
-    headline: 'Speed meets Beautiful Design',
+    headline: 'Fast, Smart, Reliable',
     subheadline:
-      'Everything you need to create professional-looking invoices without the complexity',
+      'Save hours with smart autofill, instant status tracking, and zero manual retyping. Create invoices in 30 seconds with pre-filled data.',
     items: [
       {
         icon: Building2,
-        title: 'Multi-Profile Management',
+        title: 'Quick Profile Switching',
         description:
-          'Manage multiple sender profiles for different companies or business entities. Perfect for freelancers with multiple ventures.',
+          'Switch between companies in one click. All your data auto-fills instantly – no retyping company details, bank accounts, or logos.',
       },
       {
         icon: Globe,
-        title: 'Global Ready',
+        title: 'Multi-Currency Support',
         description:
-          'Support for USD, EUR, UAH, GBP, and PLN currencies. Create invoices for clients worldwide with automatic currency handling.',
+          'Support for USD, EUR, UAH, GBP, and PLN. Select your bank account and the currency auto-fills. Invoice clients worldwide with automatic currency handling.',
       },
       {
         icon: Shield,
-        title: 'Smart Snapshots',
+        title: 'Always Accurate Data',
         description:
-          'Your old invoices stay accurate forever. Update client details anytime without worrying about breaking historical records.',
+          'Invoices stay accurate forever. Update client details anytime – old invoices preserve original data automatically. No manual corrections, no errors.',
       },
       {
         icon: BarChart3,
-        title: 'Smart Dashboard',
+        title: 'Instant Status Tracking',
         description:
-          'Track invoice status in real-time. Monitor Paid, Pending, Overdue, and Draft invoices with visual clarity.',
+          'See all invoice statuses at a glance: Paid, Pending, Overdue, Draft. Filter by client or date. Find any invoice in seconds. Never lose track of payments again.',
       },
       {
         icon: Clock,
-        title: 'Gorgeous PDFs, Instantly',
+        title: 'Lightning-Fast Invoice Creation',
         description:
-          'Generate pixel-perfect invoices in under a second. Add your logo, preview in real-time, and download beautiful PDFs with one click.',
+          'Client data? Auto-filled. Products? Pre-loaded from catalog. Logo, bank details, tax info? All saved. Just select, review, and download. 30 seconds, not 15 minutes.',
       },
       {
         icon: Zap,
-        title: 'Product Catalog',
+        title: 'Reusable Product Catalog',
         description:
-          'Create a reusable product and service catalog. Set custom prices for specific clients and streamline your invoicing workflow.',
+          'Add products once, use forever. Custom client pricing? Saved and auto-filled. Descriptions, units, prices – all pre-populated. Create invoices 10x faster.',
       },
     ] as FeatureItem[],
   },
@@ -118,7 +118,7 @@ export const landingContent = {
     },
     headline: 'Why is Invoice Forge free?',
     description:
-      "We're in Public Beta and need your feedback to build the perfect invoicing tool. In exchange for early access and unlimited usage, we ask for your honest input on features, UX, and performance.",
+      "We're in Public Beta and need your feedback to build the fastest invoicing tool. Help us perfect the autofill logic, status tracking, and workflow. In exchange: unlimited usage, free forever during beta.",
     benefits: [
       'Unlimited invoices & clients',
       'All features unlocked',
@@ -138,33 +138,34 @@ export const landingContent = {
   howItWorks: {
     badge: 'How It Works',
     headline: 'Get started in 3 simple steps',
-    subheadline: 'From setup to your first invoice in under 5 minutes',
+    subheadline:
+      'First invoice in under 5 minutes. Every next one in 30 seconds.',
     steps: [
       {
         step: '01',
-        title: 'Setup Your Profile',
+        title: 'Setup Once',
         description:
-          'Add your company details, logo, and bank accounts. Create multiple profiles if you run several businesses.',
+          'Add your company details, logo, and bank accounts once. Everything auto-fills on every invoice from now on.',
       },
       {
         step: '02',
-        title: 'Add Clients & Products',
+        title: 'Build Your Database',
         description:
-          'Build your client database and product catalog. Set custom prices for specific clients.',
+          'Add clients and products to your database. Next time you invoice them, all data pre-fills automatically – no retyping.',
       },
       {
         step: '03',
-        title: 'Create & Send Invoices',
+        title: 'Create Invoices Instantly',
         description:
-          'Generate professional invoices in seconds. Download as PDF or track payment status directly in the dashboard.',
+          'Pick a client, select products. Everything auto-fills. Review, download professional PDF. Done in 30 seconds.',
       },
     ] as HowItWorksStep[],
   },
 
   finalCta: {
-    headline: 'Ready to streamline your billing?',
+    headline: 'Stop wasting time on invoices',
     subheadline:
-      'Join hundreds of freelancers and small businesses already using Invoice Forge to get paid faster.',
+      'Join freelancers who cut their invoicing time from 15 minutes to 30 seconds with smart autofill and professional templates.',
     ctaButton: 'Start for Free Today',
     disclaimer:
       'No credit card required • Full access during beta • Cancel anytime',
@@ -173,7 +174,7 @@ export const landingContent = {
   footer: {
     brandName: 'Invoice Forge',
     description:
-      'Professional invoicing made simple for freelancers and small businesses. Built with speed and clarity in mind.',
+      'Fast invoicing with smart autofill and instant status tracking. Built for freelancers who value speed and accuracy over complexity.',
     sections: {
       product: {
         title: 'Product',

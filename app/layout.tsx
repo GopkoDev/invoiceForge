@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { ProgressBarProvider } from '@/components/progress-bar-provider';
 import { SessionProvider } from '@/components/session-provider';
 import { Toaster } from '@/components/ui/sonner';
+import { CookieBanner } from '@/components/layout/cookie-banner';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -48,6 +49,7 @@ export default function RootLayout({
               position={siteConfig.toast.position}
               expand={siteConfig.toast.expand}
             />
+            <CookieBanner />
           </ThemeProvider>
         </SessionProvider>
       </body>

@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 interface PageHeaderProps {
   icon?: LucideIcon;
   badge?: string;
-  headline: string;
+  headline?: string;
   highlightedText?: string;
   subheadline?: string;
   className?: string;

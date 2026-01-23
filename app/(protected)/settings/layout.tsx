@@ -12,6 +12,7 @@ import {
 
 const settingsNavItems = [
   { name: 'Profile', href: protectedRoutes.settingsProfile },
+  { name: 'Privacy', href: protectedRoutes.settingsPrivacy },
 ];
 
 export default function SettingsLayout({

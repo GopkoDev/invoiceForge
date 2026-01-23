@@ -51,8 +51,7 @@ export function FeatureGrid({
         <motion.div variants={fadeInUp}>
           <PageHeader
             badge={badge}
-            headline={headline.split('Beautiful Design')[0]}
-            highlightedText="Beautiful Design"
+            highlightedText={headline}
             subheadline={subheadline}
           />
         </motion.div>
