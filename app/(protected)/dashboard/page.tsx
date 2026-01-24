@@ -3,7 +3,6 @@ import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
 
-import { DashboardShell } from '@/components/dashboard/dashboard-shell';
 import { DashboardHeader } from '@/components/dashboard/header/dashboard-header';
 import { DashboardSetupAlert } from '@/components/dashboard/dashboard-setup-alert';
 import {

@@ -1,4 +1,5 @@
 import { authRoutes, legalRoutes } from '@/config/routes.config';
+import { siteConfig } from '@/config/site.config';
 import type { LucideIcon } from 'lucide-react';
 import {
   Building2,
@@ -281,8 +282,7 @@ export const privacyContent = {
       alert: {
         type: 'warning',
         text: 'Invoice Forge is <strong>strictly for users 18 years of age or older</strong>. We do not knowingly collect or process personal data from anyone under 18.',
-        action:
-          'If you believe a minor has created an account, please contact us immediately at <strong>privacy@invoiceforge.com</strong>, and we will delete their data within 72 hours.',
+        action: `If you believe a minor has created an account, please contact us immediately at <strong>${siteConfig.branding.emailFrom}</strong>, and we will delete their data within 72 hours.`,
       },
     },
     {
@@ -415,7 +415,7 @@ export const privacyContent = {
             'You can export all your data in <strong>JSON format</strong> at any time:',
           methods: [
             '<strong>Method 1:</strong> Go to Settings → Privacy → Export My Data',
-            "<strong>Method 2:</strong> Contact us at <strong>privacy@invoiceforge.com</strong> and we'll send you a complete data export within 72 hours",
+            `<strong>Method 2:</strong> Contact us at <strong>${siteConfig.branding.emailFrom}</strong> and we'll send you a complete data export within 72 hours`,
           ],
           exportIncludes:
             'Your export will include: customer lists, product catalog, invoices, sender profiles, and all associated metadata.',
@@ -429,8 +429,7 @@ export const privacyContent = {
         {
           icon: Check,
           title: 'Object to Processing',
-          description:
-            'You may object to certain types of data processing by contacting <strong>privacy@invoiceforge.com</strong>. We will cease processing unless we have compelling legitimate grounds.',
+          description: `You may object to certain types of data processing by contacting <strong>${siteConfig.branding.emailFrom}</strong>. We will cease processing unless we have compelling legitimate grounds.`,
         },
       ],
       responseTime:
@@ -518,10 +517,7 @@ export const privacyContent = {
       title: '10. Contact & Data Protection Officer',
       icon: Mail,
       intro: 'For privacy questions, data requests, or concerns:',
-      contacts: [
-        'Email: privacy@invoiceforge.com',
-        'DPO (Data Protection Officer): dpo@invoiceforge.com',
-      ],
+      contacts: [`Email: ${siteConfig.branding.emailFrom}`],
       authorities: {
         eu: {
           title: 'EU Supervisory Authority:',

@@ -54,11 +54,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   events: {
     // Log when accounts are linked
     async linkAccount({ user, account }) {
-      console.log('[auth] Account linked:', {
-        userId: user.id,
-        provider: account.provider,
-        email: user.email,
-      });
+      console.log(
+        '[auth] Account linked:',
+        process.env.NODE_ENV !== 'production'
+          ? {
+              userId: user.id,
+              provider: account.provider,
+              email: user.email,
+            }
+          : ''
+      );
     },
   },
   callbacks: {

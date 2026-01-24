@@ -9,6 +9,7 @@ import { DataTable } from '@/components/legal/data-table';
 import { ConfirmationBox } from '@/components/legal/confirmation-box';
 import { privacyContent } from '@/constants/public-pages-content';
 import { parseHtmlText } from '@/lib/utils/parse-html-text';
+import { siteConfig } from '@/config/site.config';
 
 export function PrivacyPolicyContent() {
   return (
@@ -117,8 +118,9 @@ export function PrivacyPolicyContent() {
                 </p>
                 <p className="text-muted-foreground text-sm">
                   If you believe a minor has created an account, please contact
-                  us immediately at <strong>privacy@invoiceforge.com</strong>,
-                  and we will delete their data within 72 hours.
+                  us immediately at{' '}
+                  <strong>{siteConfig.branding.emailFrom}</strong>, and we will
+                  delete their data within 72 hours.
                 </p>
               </div>
             </ContentCard>

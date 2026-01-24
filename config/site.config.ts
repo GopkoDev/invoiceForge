@@ -1,10 +1,12 @@
 export type SidebarVariant = 'sidebar' | 'floating' | 'inset';
 
 const appName = 'Invoice Forge';
+const appEmail = 'support@invoiceforge.hopko.dev';
 
 export interface SiteConfig {
   meta: {
     title: string;
+    email: string;
     googleSiteVerification: string;
     description: string;
   };
@@ -45,6 +47,7 @@ export interface SiteConfig {
 export const siteConfig: SiteConfig = {
   meta: {
     title: appName,
+    email: appEmail,
     googleSiteVerification: '',
     description:
       'Create professional-looking invoices in seconds with smart autofill, multi-currency support, and instant PDF generation. Free invoice management software for freelancers and small businesses.',
@@ -55,7 +58,7 @@ export const siteConfig: SiteConfig = {
     website: 'https://invoiceforge.hopko.dev',
     domain: 'invoiceforge.hopko.dev',
     icon: '/invoice-forge-logo.svg',
-    emailFrom: `${appName} <${process.env.EMAIL_SERVER_USER || ''}>`,
+    emailFrom: `${appName} <${appEmail}>`,
   },
 
   sidebar: {
