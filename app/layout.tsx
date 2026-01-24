@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     siteName: siteConfig.branding.name,
     images: [
       {
-        url: '/og-image.png',
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
         alt: `${siteConfig.branding.name} - Modern Invoice Management`,
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: siteConfig.meta.title,
     description: siteConfig.meta.description,
-    images: ['/og-image.png'],
+    images: ['/opengraph-image'],
     creator: '@invoiceforge',
   },
   robots: {

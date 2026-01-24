@@ -1,78 +1,82 @@
-# InvoiceFlow
+# Invoice Forge
 
-Modern invoice management system built with Next.js, Prisma, and TypeScript.
+> Modern invoice management system for freelancers and small businesses
 
-## Getting Started
+[![Live Demo](https://img.shields.io/badge/demo-live-success)](https://invoiceforge.hopko.dev)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org)
 
-First, install dependencies:
+## ✨ Features
+
+- 📄 **Professional PDF Generation** - Create beautiful invoices instantly
+- 💾 **Smart Data Management** - Pre-save clients, products, and sender profiles
+- 🌍 **Multi-Currency Support** - Work with international clients effortlessly
+- 📊 **Real-Time Tracking** - Monitor invoice status and payment history
+- 🎨 **Modern UI** - Clean, responsive design built with Shadcn UI
+
+## 🚀 Quick Start
 
 ```bash
+# Install dependencies
 pnpm install
-```
 
-Then, run the development server:
+# Set up environment variables
+cp .env.example .env
 
-```bash
+# Run database migrations
+pnpm prisma migrate dev
+
+# Start development server
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
-- **Database:** PostgreSQL with Prisma ORM
-- **Authentication:** NextAuth.js
-- **UI Components:** Shadcn UI with Tailwind CSS
-- **State Management:** Zustand
-- **Form Handling:** React Hook Form + Zod
+- **Database:** PostgreSQL + Prisma ORM
+- **Authentication:** Auth.js (NextAuth.js v5)
+- **UI:** Tailwind CSS + Shadcn UI
+- **State:** Zustand
+- **Validation:** Zod + React Hook Form
+- **Monitoring:** Sentry + Vercel Analytics
 
-## Roadmap
 
-### 🐛 Bug Fixes
+## 📁 Project Structure
 
-- [ ] Modal height overflow on small screens (custom price editing modal)
-- [ ] Contact information should be clickable links on profile page
+```
+app/              # Next.js App Router pages
+components/       # React components
+lib/              # Utility functions & actions
+prisma/           # Database schema & migrations
+config/           # App configuration
+types/            # TypeScript type definitions
+```
 
-### ✨ Features
+## 🔧 Environment Variables
 
-#### High Priority
+Required environment variables (see `.env.example`):
 
-- [ ] **Onboarding Flow**: Implement first-time user onboarding experience
-- [ ] **i18n Support**: Add internationalization for multi-language support
-- [ ] **Custom Product Types**: Allow users to define their own product types based on business activity during registration
+- `DATABASE_URL` - PostgreSQL connection string
+- `AUTH_SECRET` - NextAuth secret key
+- `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` - OAuth credentials
+- `EMAIL_SERVER_*` - SMTP configuration
+- `SENTRY_DSN` - Error tracking (optional)
 
-#### Core Features
+## 📝 License
 
-- [ ] **Sender Profiles Management**
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
 
-  - [ ] Implement pagination for sender profiles list
-  - [ ] Add drag-and-drop reordering
-  - [ ] Soft delete via `isArchived` flag (store `archivedInvoicePrefix` separately)
-  - [ ] Add "Back" button on create/edit forms
+You are free to share and adapt this work for non-commercial purposes with proper attribution. See [LICENSE](./LICENSE) for full details.
 
-- [ ] **Product Management**
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-  - [ ] Add price change history logging
-  - [ ] Display custom prices overview on product page
-  - [ ] Add product-specific seed data based on user's business type
+## 🤝 Contributing
 
-- [ ] **Rich Text Editor**: Implement Tap Tap editor for notes fields
+Contributions are welcome! See [TODO.md](./TODO.md) for planned features.
 
-#### UX Improvements
+---
 
-- [ ] **Loading State Optimization**: Store item count in localStorage to render matching skeleton count
-- [ ] **Navigation**: Add back button to all create/edit forms
-
-#### Architecture & Performance
-
-- [ ] **Revalidation Strategy**: Evaluate moving `revalidatePath` calls from actions to call sites
-- [ ] **API Layer Refactoring**: Restructure actions to follow API-like patterns with grouped parameters and entity-based organization
-
-## Learn More
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [Tailwind CSS](https://tailwindcss.com/docs)
-- [Shadcn UI](https://ui.shadcn.com)
+**[invoiceforge.hopko.dev](https://invoiceforge.hopko.dev)** • Built with ❤️ by [Dmytro Hopko](https://github.com/GopkoDev)
