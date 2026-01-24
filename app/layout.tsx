@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Roboto } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { siteConfig } from '@/config/site.config';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ProgressBarProvider } from '@/components/progress-bar-provider';
@@ -127,6 +129,8 @@ export default function RootLayout({
             <CookieBanner />
           </ThemeProvider>
         </SessionProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
