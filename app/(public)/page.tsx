@@ -16,18 +16,6 @@ export const metadata: Metadata = {
     'multi-currency billing',
     'freelance invoicing',
   ],
-  openGraph: {
-    title: `${siteConfig.branding.name} - Modern Invoice Management`,
-    description: siteConfig.meta.description,
-    url: siteConfig.branding.website,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: `${siteConfig.branding.name} - Modern Invoice Management`,
-    description: siteConfig.meta.description,
-    creator: '@invoiceforge',
-  },
   alternates: {
     canonical: siteConfig.branding.website,
   },

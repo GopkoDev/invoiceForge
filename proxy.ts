@@ -67,6 +67,6 @@ export default auth(async function proxy(req) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.json|opengraph-image|twitter-image|icon|apple-icon).*)',
   ],
 };
