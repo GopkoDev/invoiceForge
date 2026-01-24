@@ -21,20 +21,12 @@ export const metadata: Metadata = {
     description: siteConfig.meta.description,
     url: siteConfig.branding.website,
     type: 'website',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: `${siteConfig.branding.name} - Modern Invoice Management`,
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: `${siteConfig.branding.name} - Modern Invoice Management`,
     description: siteConfig.meta.description,
-    images: ['/og-image.png'],
+    creator: '@invoiceforge',
   },
   alternates: {
     canonical: siteConfig.branding.website,

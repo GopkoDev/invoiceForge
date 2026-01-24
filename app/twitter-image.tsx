@@ -11,7 +11,7 @@ export const size = {
 export const contentType = 'image/png';
 
 /**
- * Dynamic OpenGraph image generation - Visual twin of Hero component
+ * Twitter card image generation - Visual twin of Hero component
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/metadata/opengraph-image
  */
 export default async function Image() {
