@@ -70,37 +70,46 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+Invoice Forge lets Freelancers keep sender profiles, Customers and products, create invoices, export them as PDFs and send them to their Customers. This feature changes no business capability. It moves the trust boundary: the server stops trusting the browser form, the Origin header and any URL a caller supplies, and treats every request without a live account as a Visitor. The one outbound call that reaches arbitrary internet hosts, the logo fetch, is fenced off from private networks.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: architecture-map.md reflects ded1be7; HEAD 1c90e41 differs only in docs, so the map is current. Next.js 16 App Router monolith on Vercel, Prisma 7 on Neon Postgres, next-auth JWT sessions, proxy excludes /api, no tests. -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| Freelancer | Person | Signs in; manages sender profiles, Customers, products and invoices; exports PDFs and their data; deletes their account |
+| Visitor | Person (external, untrusted) | Anyone without a signed-in session, including scripts, bots and search crawlers. May reach only the public set (AC-05) |
+| Google OAuth | System (external) | Identity provider for sign-in |
+| SMTP server | System (external) | Delivers magic-link sign-in email (Nodemailer) |
+| Sentry | System (external) | Receives errors and load failures (production only) |
+| Logo image hosts | System (external, untrusted) | Any public HTTPS host a Freelancer links a sender-profile logo to. Fetched server-side, capped by size, time and rate |
+| Private and internal networks | System (external, forbidden) | Cloud metadata service, loopback, private and link-local ranges. The logo fetch must refuse them at every hop |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title architecture-hardening - System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(freelancer, "Freelancer", "Signed-in account holder who owns sender profiles, customers, products and invoices")
+    Person_Ext(visitor, "Visitor", "Anyone without a signed-in session, incl. scripts, bots and crawlers")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(forge, "Invoice Forge", "Invoicing web app: invoices, PDFs, dashboard, data export")
+
+    System_Ext(google, "Google OAuth", "Sign-in provider")
+    System_Ext(smtp, "SMTP server", "Magic-link email")
+    System_Ext(sentry, "Sentry", "Error monitoring, production only")
+    System_Ext(logohost, "Logo image hosts", "Public HTTPS hosts named in sender-profile logo links, untrusted")
+    System_Ext(internal, "Private and internal networks", "Cloud metadata, loopback, private and link-local ranges")
+
+    Rel(freelancer, forge, "Manages invoices, exports PDFs and data", "HTTPS")
+    Rel(visitor, forge, "Public pages, sign-in, crawling rules only", "HTTPS")
+    Rel(forge, google, "Delegates sign-in", "OAuth 2.0")
+    Rel(forge, smtp, "Sends sign-in links", "SMTP")
+    Rel(forge, sentry, "Reports errors and load failures", "HTTPS")
+    Rel(forge, logohost, "Fetches an owned profile logo, capped", "HTTPS")
+    Rel(forge, internal, "Never fetched, refused at every hop", "blocked")
 ```
 
 ## 4. Solution strategy
