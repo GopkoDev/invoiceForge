@@ -372,17 +372,20 @@ Default is the repo's convention set (`docs/architecture-map.md` §Conventions).
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| 0001 | Deny unauthenticated requests in the proxy by default, with an explicit public allowlist | Accepted | §4 |
+| 0002 | Treat sessions without a live account as Visitors, keeping JWT sessions | Accepted | §4 |
+| 0003 | Fetch logos only by owned sender-profile id, through an IP-pinning fetcher that checks every hop | Accepted | §4 |
+| 0004 | Enforce invoice-number uniqueness on a normalized key column | Accepted | §4 |
+| 0005 | Allocate invoice numbers under a sender-profile row lock inside the save transaction | Accepted | §4 |
+| 0006 | Compute invoice amounts in one shared exact-decimal module used by both editor and server | Accepted | §4 |
+| 0007 | Delete an account in one explicit transaction, keeping Restrict foreign keys on invoices | Accepted | §4 |
+| 0008 | Rate-limit logo fetches with a Postgres sliding-window counter | Accepted | §5 |
+| 0009 | Classify action failures with typed error codes and route load failures to segment error boundaries | Accepted | §8 |
+| 0010 | Carry the browser time zone to the server in a cookie | Accepted | §8 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/architecture-hardening/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
