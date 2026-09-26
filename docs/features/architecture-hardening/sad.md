@@ -451,13 +451,20 @@ There is no automated test harness (spec §3, F7). Every "How verify" is a manua
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
-
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Freelancer | A signed-in account holder who owns sender profiles, Customers, products and invoices and sees only their own data (CONTEXT) |
+| Visitor | Anyone reaching the app without a signed-in session, including scripts and bots; here also any device whose token belongs to a deleted account (CONTEXT, ADR-0002) |
+| Customer | A party a Freelancer bills. Invoices keep a copy of the Customer's details, and account deletion removes those copies (CONTEXT) |
+| Sender profile | A business identity a Freelancer issues invoices under, with its own logo, bank accounts, invoice prefix and invoice sequence (CONTEXT) |
+| Invoice number | The identifier printed on an invoice, unique within its sender profile; system-assigned from the sequence or typed manually (CONTEXT) |
+| Invoice sequence | The per-sender-profile running count that proposes the next number; only system-assigned numbers advance it (CONTEXT) |
+| Custom price | A price agreed with one Customer for one product, pre-filled into that Customer's invoice lines (CONTEXT) |
+| Normalized number key | The invoice number lower-cased and trimmed; two numbers are "the same" when their keys match. Uniqueness is enforced on it (ADR-0004) |
+| System-assigned vs manual number | An empty number field on save means system-assigned (allocated from the sequence); any filled-in number is manual, even if it equals the hint (AC-06) |
+| Legacy invoice | An invoice saved before this feature whose stored total differs from the recomputed one, whose amounts break the new rules, or whose number is shared; it is corrected on its next edit (AC-17). *Not yet in CONTEXT, flagged for `/sdd:glossary`* |
+| Live account | A session whose `User` row still exists. Without one, the session is treated as a Visitor (ADR-0002) |
+| Public allowlist | The exact set of paths reachable without a session (AC-05); everything else is denied by default (ADR-0001) |
+| Safe fetcher | The only server-side path that fetches a user-influenced URL: https, pinned validated address per hop, 5 s, 512 KB, images only (ADR-0003) |
+| Load failure vs not found | A load failure is an error with retry (SCR-17); "not found" is a missing or foreign record (SCR-16). They are never shown as each other (ADR-0009) |
+| Wave | One of the four risk-ordered production releases: security, integrity, validation, the rest (spec §1, §7) |
