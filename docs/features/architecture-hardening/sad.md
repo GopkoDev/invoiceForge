@@ -348,21 +348,27 @@ Migrations are applied with `prisma migrate deploy` before the release that need
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
+Default is the repo's convention set (`docs/architecture-map.md` §Conventions). The rows below state each convention this feature relies on, and **bold** marks where it adds or overrides one.
 
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Authentication | next-auth JWT sessions. **Deny by default**: the proxy covers `/api`, and one `publicRoutes` allowlist is the only way to make a path public. **A token without a live account is a Visitor** everywhere in the Node layer | ADR-0001, ADR-0002; `config/routes.config.ts` |
+| Authorization | `getAuthenticatedUser()` (actions) or `requireSession()` (route handlers) runs **first, before any input is parsed**. Every query is scoped by `userId`. A record that isn't the caller's returns `NOT_FOUND`, identical to a missing one | architecture-map §Conventions; ADR-0009; AC-23, AC-29 |
+| Input validation | Every action re-runs the entity's zod schema, **with no `as` casts that bypass it** (L8). **Link parameters are parsed with fallback-to-default schemas**: page ≥ 1, page size ∈ {10, 20, 30, 50, 100} (the sizes the list offers, `components/invoices/invoices-table-footer.tsx:29`), sort field, order, status and tab from enums; anything invalid becomes its default, and the controls show what was applied | `lib/validations/`, `lib/validations/search-params.ts` |
+| Error handling | Actions return `ActionResult<T>` and never throw to the client. **Typed `code`** (`UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `FAILED`) plus a plain-language `error` and optional `fieldErrors`. Pages map `FAILED` to the segment `error.tsx` (retry + Sentry). Raw database or upstream text is logged, never returned | ADR-0009; `types/actions.ts` |
+| Money | `Decimal(10,2)` at rest. All amounts are computed by **one pure exact-decimal module** shared by editor and server, rounding half-up. The server ignores client-sent totals | ADR-0006 |
+| Invoice numbering | The number is unique within a sender profile on a **normalized key** (lower-case, trimmed). An empty field means system-assigned and is allocated under a profile row lock; a filled field is manual and never moves the sequence | ADR-0004, ADR-0005 |
+| Status and paid date | **One transition function**, `applyStatusChange()`: entering Paid sets `paidAt` to now; saving an already-Paid invoice keeps it; leaving Paid clears it; an unknown status is rejected | `lib/helpers/invoice-status.ts`; AC-18, AC-19 |
+| Destructive operations | Deleting a Customer or sender profile counts its invoices and refuses with the count (the `Restrict` FKs stay as the database backstop). **Account deletion is one explicit transaction**; any new entity that references Freelancer-owned data with `Restrict` must join that transaction | ADR-0007; AC-20, AC-22 |
+| Outbound HTTP | The server fetches a user-influenced URL **only through the safe fetcher** (https, validated and pinned address per hop, 5 s, 512 KB, `image/*`). No other code path fetches user-supplied URLs | ADR-0003 |
+| Rate limiting | Real logo fetches are limited per Freelancer by a Postgres sliding-window counter; browser-side reuse never reaches the server | ADR-0008 |
+| Time and time zones | Stored as UTC. Day boundaries and "current month" use the validated browser time zone from the `tz` cookie, falling back to UTC. Range ends are exclusive at the next local midnight | ADR-0010; `lib/helpers/time-zone.ts` |
+| Logging and observability | Existing `console.error` inside `try/catch`, plus Sentry (production). **Load failures and allocator conflicts go to Sentry**; logo-fetch outcomes are structured log lines (§7). No request body or bank detail is logged | §7; `sentry.*.config.ts` |
+| Cache invalidation | Mutations call `revalidatePath(protectedRoutes.<x>)`. **Dashboard Suspense boundaries for debtors, expected payments and recent invoices are keyed on currency only** (A9) | architecture-map §Conventions |
+| ID strategy | `cuid()` on domain models; unchanged | `prisma/schema/invoice.prisma:21` |
+| Internationalisation | N/A: English only | — |
+| Events | N/A: no events or queues; all calls are direct function calls | — |
+| Repository configuration | **The `sdd` marketplace is declared in `.claude/settings.json` `extraKnownMarketplaces`** (F4). **`.claude/settings.local.json` is git-ignored** (F5). There are no empty route folders (F6) | spec §6 repository-hygiene rows |
 
 ## 9. Architecture decisions
 
