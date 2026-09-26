@@ -27,11 +27,11 @@ ticket: "code-review 2026-09-26: F1, F2, A1"
 ## Considered options
 
 1. **Proxy covers everything, including `/api`, plus `requireSession()` in every route handler.** One allowlist in `config/routes.config.ts` decides what is public; handlers check the session again as a second layer.
-2. **`requireSession()` wrapper in every route handler only; proxy unchanged.** Less change to the proxy, but a forgotten wrapper is a public endpoint.
+2. **`requireSession()` wrapper in every route handler, enforced by a lint/build check that fails on any `app/api/**/route.ts` without it; proxy unchanged.** Future route handlers are covered by the check, and the proxy stays simple. But the check covers only route handlers, not pages or server actions, and it depends on the lint gate running before every deploy.
 
 ## Decision outcome
 
-**Chosen:** Option 1. It is the only option where a new endpoint is private without anyone doing anything, which is what AC-05 literally asks for. The per-handler check stays as defense in depth, because the proxy only validates the token signature and never sees whether the account still exists (ADR-0002).
+**Chosen:** Option 1. One mechanism makes pages, route handlers and actions private without anyone doing anything, which is what AC-05 asks for. Option 2 relies on a tooling check covering one kind of endpoint. The per-handler check stays as defense in depth, because the proxy only validates the token signature and never sees whether the account still exists (ADR-0002).
 
 Shape:
 - `config/routes.config.ts` holds one `publicRoutes` allowlist: sign-in and sign-up (`/login`, `/verify-request`, `/error`, `/api/auth/*`), `/`, `/privacy`, `/terms`, `robots.txt`, `sitemap.xml`, social-share preview images, app icons and `manifest.json`.

@@ -33,7 +33,7 @@ ticket: "code-review 2026-09-26: L2, L4"
 
 **Chosen:** Option 1. Everything stays expressible in the Prisma schema, the database enforces the invariant under concurrency, and the normalization rule lives in one function (`normalizeInvoiceNumber`) shared by the save path and the "already used" check.
 
-Migration (expand-only, wave 2): add `invoiceNumberKey` nullable → backfill from `invoiceNumber` → create the unique index → make it `NOT NULL`. Before the index step, the migration counts normalized duplicates. With 0 duplicates (the measured case), uniqueness applies to every invoice at once, as spec §1 prescribes. If the production count is above 0, the column stays nullable, the duplicate rows keep `NULL` (Postgres treats NULLs as distinct), and those invoices follow AC-17: viewable, but not saveable until renumbered, because every save writes a non-null key.
+Migration (expand-only, wave 2): add `invoiceNumberKey` nullable → backfill from `invoiceNumber` → create the unique index. `NOT NULL` is a separate contract step (SAD §7, wave 4). It is applied only after wave 2 has run in production without a rollback, because old code doesn't write the key, and only if no row has a `NULL` key. Before the index step, the migration counts normalized duplicates. With 0 duplicates (the measured case), uniqueness applies to every invoice at once, as spec §1 prescribes. If the production count is above 0, the column stays nullable, the duplicate rows keep `NULL` (Postgres treats NULLs as distinct), and those invoices follow AC-17: viewable, but not saveable until renumbered, because every save writes a non-null key.
 
 ## Consequences
 

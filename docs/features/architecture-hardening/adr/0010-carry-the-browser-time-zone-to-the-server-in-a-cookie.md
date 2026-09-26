@@ -26,11 +26,11 @@ The invoice list and the dashboard are server-rendered, and the server doesn't k
 ## Considered options
 
 1. **Cookie.** A small client component in the protected layout writes the browser's IANA time zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) to a `tz` cookie. The server validates it against the runtime's zone list and computes day bounds: start at local 00:00, end exclusive at the next day's local 00:00. With no cookie (the very first request), it uses UTC, then refreshes once after the cookie is set.
-2. **Time zone as an account setting.** A new `User.timeZone` field and a settings control, defaulted from the browser on first sign-in. Stable across devices and known on the first render, but it adds a migration and new UI, and it contradicts the spec's "the one their browser reports" (a travelling Freelancer would see the stored zone, not the browser's).
+2. **The browser computes range bounds.** The client converts the chosen local dates into UTC instants and sends them with the request or link; the server uses them as given. Also browser-reported and needs no cookie, but a shared or bookmarked link carries the creator's bounds rather than the viewer's, and the server still has no time zone for AC-25's "current month" fallback on a malformed link.
 
 ## Decision outcome
 
-**Chosen:** Option 1. It implements the spec's wording directly, needs no schema or UI, keeps links free of per-viewer state (a shared link shows each viewer their own days), and is contained in `lib/helpers/time-zone.ts`. An invalid or missing cookie falls back to UTC and never throws.
+**Chosen:** Option 1. It implements the spec's wording directly for both AC-25 and AC-27, needs no schema or UI, keeps links free of per-viewer state (a shared link shows each viewer their own days), and is contained in `lib/helpers/time-zone.ts`. An invalid or missing cookie falls back to UTC and never throws.
 
 ## Consequences
 
@@ -43,7 +43,7 @@ The invoice list and the dashboard are server-rendered, and the server doesn't k
 - The cookie is client-controlled input. It is validated, and only ever used to compute date bounds.
 
 **Neutral**
-- Promoting it to an account setting later is additive.
+- Promoting it to an account setting later would be additive, but it is a new capability outside this feature.
 
 ## Links
 

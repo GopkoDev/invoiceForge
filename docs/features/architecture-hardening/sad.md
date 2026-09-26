@@ -9,10 +9,6 @@ target_surfaces: [backend-service, web-frontend]
 
 # Software Architecture Document — architecture-hardening
 
-<!-- 12 Arc42 sections. Empty section → <!-- N/A: <one-line reason> -->. -->
-<!-- C4 Context (L1) lives inline in §3. C4 Container (L2) lives inline in §5. -->
-<!-- Numbers in §10 come VERBATIM from spec.md §6 NFR — no inventing, no rounding. -->
-
 ## 1. Introduction and goals
 
 **Intent.** Invoice Forge is in production, and a review on 2026-09-26 found 27 open problems. This feature fixes them in the existing app. It closes the authorization boundary so a Visitor can reach only deliberately public endpoints, and makes the logo fetch for PDFs unable to reach internal or private network addresses. The server enforces every invoice rule itself, so each saved invoice has a number unique within its sender profile and totals that equal what the Freelancer saw and are never negative. List and dashboard pages survive malformed links and report load failures honestly, and account deletion always succeeds and removes all of the Freelancer's data. Nothing new is built for the Freelancer beyond warnings, confirmations and error states. The work hardens what exists, shipped in four risk-ordered waves (spec §1).
@@ -34,7 +30,9 @@ target_surfaces: [backend-service, web-frontend]
 | Tech Lead | SAD approval | Yes |
 | Security Lead | Security review required by spec §6.1 (the authorization boundary of every endpoint changes) | Yes |
 
-<!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
+**Decision overrides:**
+- Decision override: spec §8 Q1 (one-time clean-up) is closed without a bulk fix — rationale: the configured database has 0 duplicate numbers and 0 negative totals (measured 2026-09-26), and the ADR-0004 fallback keeps wave 2 unblocked whatever the production duplicate count turns out to be. Any production duplicates follow AC-17 (see §11).
+- Decision override: spec §8 Q3 (p95 targets for save and export) is re-dated from "before `sdd:design`" to "before the wave-2 release (save) / wave-4 release (export)" — rationale: both targets are defined relative to a baseline that can only be measured from production traces, and no design decision depends on the number (see §11).
 
 ## 2. Constraints
 
@@ -80,6 +78,7 @@ Invoice Forge lets Freelancers keep sender profiles, Customers and products, cre
 |---|---|---|
 | Freelancer | Person | Signs in; manages sender profiles, Customers, products and invoices; exports PDFs and their data; deletes their account |
 | Visitor | Person (external, untrusted) | Anyone without a signed-in session, including scripts, bots and search crawlers. May reach only the public set (AC-05) |
+| Customer | Person (non-interacting) | Never signs in and receives PDFs outside the system. Their details live only as copies on invoices, which account deletion removes (AC-20). Not drawn in the C4 Context because there is no interaction |
 | Google OAuth | System (external) | Identity provider for sign-in |
 | SMTP server | System (external) | Delivers magic-link sign-in email (Nodemailer) |
 | Sentry | System (external) | Receives errors and load failures (production only) |
@@ -120,8 +119,8 @@ C4Context
 
 **Top strategic choices (the seeds for ADRs):**
 
-1. **Deny by default at the boundary** (ADR-0001, ADR-0002). One allowlist in `config/routes.config.ts` defines the public set, and the proxy now covers `/api` too. Everything else requires a session: page requests go to sign-in, and data requests and actions are refused. A token whose account no longer exists counts as a Visitor. The edge proxy checks the signature, and the Node layer (layouts, `getAuthenticatedUser()`, `requireSession()`) checks that the account is live. This serves quality goal 1 and closes F1, F2, F3 and AC-21 without changing the session model.
-2. **Outbound fetches are fenced, not trusted** (ADR-0003). The logo endpoint takes an owned sender-profile id, never a URL. A dedicated fetcher pins each connection to an address it has validated as public, re-checks every redirect hop, and enforces the ≤ 512 KB / ≤ 5 s caps. Refusals come from a closed, generic code set. This serves quality goal 1 and is wave 1 on its own.
+1. **Deny by default at the boundary** (ADR-0001, ADR-0002). One allowlist in `config/routes.config.ts` defines the public set, and the proxy now covers `/api` too. Everything else requires a session: page requests go to sign-in, and data requests and actions are refused. A token whose account no longer exists counts as a Visitor. The edge proxy checks the signature, and the Node layer (layouts, `getAuthenticatedUser()`, `requireSession()`) checks that the account is live. This serves quality goal 1 and closes F1, F2 and AC-21 without changing the session model. F3, the account and profile actions that skip the guard-first convention, is closed by moving those actions onto that convention (§8), in wave 4.
+2. **Outbound fetches are fenced, not trusted** (ADR-0003). The logo endpoint takes an owned sender-profile id, never a URL. A dedicated fetcher pins each connection to an address it has validated as public, re-checks every redirect hop, and enforces the ≤ 512 KB / ≤ 5 s caps. Refusals come from a closed, generic code set. This serves quality goal 1. Together with the ADR-0001 allowlist (which structurally closes the same hole and F2) and the ADR-0008 rate limit, it is wave 1, the image-conversion security release.
 3. **The server is the single source of truth for invoice data** (ADR-0004, ADR-0005, ADR-0006). Numbers are allocated server-side inside the save transaction under a sender-profile row lock. Uniqueness is enforced by the database on a normalized key. Amounts are recomputed by one exact-decimal module that the editor also runs, so the saved total equals the displayed one. Every action re-validates its input with the shared zod schema (fixing L8's bypass). This serves quality goal 2 (waves 2–3).
 4. **Destructive operations are explicit and atomic** (ADR-0007). Account deletion is one transaction that deletes invoices before the user, and the `Restrict` foreign keys that protect AC-22 stay in place. The paid date follows the status through one transition function (`applyStatusChange`: set on entering Paid, clear on leaving, reject unknown statuses) used by both the list and the editor. This serves quality goal 2.
 5. **Reads fail honestly** (crosscutting mechanics in §8). Link parameters are parsed with fallback-to-default schemas, never cast. Load failures, "not found" and "not signed in" are distinct outcomes, each with its own destination: the error boundary with retry (SCR-17), not-found (SCR-16) or sign-in (SCR-01). This serves quality goal 3 (waves 3–4).
@@ -328,10 +327,10 @@ There is no infrastructure change. The app stays one Vercel project (`vercel.jso
 
 | Wave | Ships | Schema change | Rollback-safe because |
 |---|---|---|---|
-| 1 | ADR-0001, ADR-0002, ADR-0003, ADR-0008; F1, A1, A2 | new `LogoFetchWindow` table | old code ignores the table |
-| 2 | ADR-0004, ADR-0005, ADR-0006, ADR-0007; L1–L5, L7, L10 | `Invoice.invoiceNumberKey` nullable + backfill + unique index | old code doesn't write the key, so its rows stay `NULL`, which the unique index tolerates |
+| 1 | ADR-0001, ADR-0003, ADR-0008; A1, A2, F1, F2 | new `LogoFetchWindow` table | old code ignores the table |
+| 2 | ADR-0002, ADR-0004, ADR-0005, ADR-0006, ADR-0007; L1–L5, L7, L10 | `Invoice.invoiceNumberKey` nullable + backfill + unique index | old code doesn't write the key, so its rows stay `NULL`, which the unique index tolerates |
 | 3 | ADR-0009, ADR-0010; A3–A7, L6, L8, L9 | none | code only |
-| 4 | A8–A10, F3–F6 | contract step: `invoiceNumberKey` `NOT NULL` | applied only after wave 2 has run in production without a rollback |
+| 4 | A8–A10, F3–F6 | contract step: `invoiceNumberKey` `NOT NULL`, only if no row has a `NULL` key (the ADR-0004 fallback was not taken) | applied only after wave 2 has run in production without a rollback; if the fallback was taken, the column stays nullable |
 
 Migrations are applied with `prisma migrate deploy` before the release that needs them. The wave-2 migration counts normalized duplicate numbers first and takes the ADR-0004 fallback if the count is above 0. Releases go out at low-traffic hours (spec §8, stale editor tabs).
 
@@ -447,7 +446,7 @@ There is no automated test harness (spec §3, F7). Every "How verify" is a manua
 - **Invoice prefixes stay unique across all Freelancers** (`invoicePrefix @unique`, spec §8 Q2, closed here as a follow-up). One Freelancer can learn that another already uses a prefix. Planned as a separate feature that scopes uniqueness to one account.
 - The logo rate limit is a sliding-window estimate, not an exact 60-second log (ADR-0008).
 - The first-ever server render uses UTC until the `tz` cookie exists (ADR-0010).
-- `invoiceNumberKey` stays nullable between waves 2 and 4 (§7) for rollback safety.
+- `invoiceNumberKey` stays nullable between waves 2 and 4 (§7) for rollback safety, and stays nullable for good if the ADR-0004 fallback was taken (legacy duplicate rows keep a `NULL` key until renumbered).
 
 ## 12. Glossary
 
