@@ -389,29 +389,44 @@ ADR files live under `docs/features/architecture-hardening/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+There is no automated test harness (spec §3, F7). Every "How verify" is a manual probe run before the wave ships, a production metric, or both. The numbers are quoted verbatim from spec §6 and §7.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Security of the boundary**
+- **When:** a Visitor (no cookie, or the token of a deleted account) requests any page, `/api/*` route or server action outside the public allowlist, including a route added after this feature.
+- **Then:** a page request is sent to sign-in; a data request or action is refused as "not signed in" with no data (AC-05, AC-21, AC-23).
+- **How verify:** before each wave, a scripted request sweep without cookies over every route in the `next build` route manifest, where only allowlisted paths may return content; the same sweep with a deleted account's token; Security Lead review of the matcher and allowlist.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+- **When:** a signed-in Freelancer's logo link is not https, is not an image, is large, is slow, or leads (directly, via a redirect, or via a DNS answer that changes between lookup and connect) to a private, loopback, link-local or metadata address, or the Freelancer keeps regenerating PDFs.
+- **Then:** the PDF is produced without the logo, with the AC-03 warning. Size cap: ≤ 512 KB per image; larger is refused. Time cap: ≤ 5 s per fetch, then aborted. Rate limit: ≤ 30 fetches per minute per Freelancer; only real fetches from the external address count, and reusing a logo already fetched within the same editor or export session does not. No private address is ever connected to.
+- **How verify:** a probe set on a preview deployment covering `169.254.169.254`, `127.0.0.1`, `[::1]`, an IPv4-mapped IPv6 address, a redirect to `10.0.0.1`, a DNS-rebinding test host, a 5 MB image, a slow-drip server, and 31 fetches in a minute; then the counts of `logo_fetch outcome=` log lines (size-cap warnings, aborts, refusals), as spec §6 measures them.
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-2. Integrity of stored invoice data**
+- **When:** two editor tabs save new invoices under one sender profile at the same time with the number field empty, or a system-proposed number is already taken by a manual one.
+- **Then:** both saves succeed with different numbers. Duplicate-number save failures on untouched numbers: 0 per month.
+- **How verify:** a script that fires two parallel saves 20 times on a preview deployment (all must succeed with distinct numbers); in production, the error-monitoring count of "number already used" where the number was system-proposed (Sentry alert, §7).
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+- **When:** a Freelancer saves an invoice with any line items, discount, shipping and tax, or edits a legacy invoice, or deletes an account that has invoices.
+- **Then:** newly saved invoices with a negative total or a line total ≠ quantity × price: 0 new ones in the 30 days after the integrity wave ships. Account deletions that fail: 0 failed deletions within 14 days of release. Invoice save latency p95 (incl. number assignment): TBD — baseline + 20% (see §8).
+- **How verify:** a SQL count on release day and at day 30 (`total < 0`, or any item whose stored total ≠ round-half-up(quantity × price)); the Sentry/log count of failed `deleteUserAccount` calls over 14 days; production performance traces over a 7-day window for save p95, once the baseline is set (§11 open question).
+
+**QG-3. Honest, crash-free reads**
+- **When:** a Freelancer opens an invoice-list or dashboard link with malformed, out-of-range or tampered parameters (A3–A5 examples: `?from=abc&to=xyz`, `?page=-1`, `?pageSize=2.5`, `?sortBy=items`, `?status=FOO`).
+- **Then:** the page opens with the default for each bad value and the controls show what was applied. Unhandled page errors from malformed links: 0 per month.
+- **How verify:** a malformed-link checklist opened on a preview deployment before wave 3; in production, the error-monitoring count on the list and dashboard pages.
+
+- **When:** any data page (invoice list, dashboard, sender profiles, customers, products, invoice/customer/sender-profile detail, invoice editor) can't load its data, or the record doesn't exist or belongs to someone else.
+- **Then:** a load failure shows the error state with retry (SCR-17) and is reported to Sentry; a missing or foreign record shows the same "not found" (SCR-16).
+- **How verify:** on a preview deployment with the database made unreachable, open each listed page and confirm SCR-17 and a Sentry event; open another account's record ids and confirm SCR-16.
+
+- **When:** the Freelancer changes the dashboard date range.
+- **Then:** only the date-dependent sections reload (3 fewer data loads per change).
+- **How verify:** the request count per change in a production trace.
+
+**Supporting NFRs (outside the top 3, still verified):**
+- Availability during rollout: 0 minutes of planned downtime, and the schema change is backward-compatible within a wave. Verified by the deploy log and the §7 rollback-safety table.
+- Data export latency p95: TBD — ≤ baseline − 30% (see §8). Verified by production performance traces.
+- Repository hygiene, plugin setup: 0 missing-plugin failures on a fresh clone; the plugin installs from shared repo config alone (F4). Verified by a fresh-clone check on a second machine.
+- Repository hygiene, personal settings: 0 personal settings files tracked in the repo; 0 empty route folders (F5, F6). Verified by an ignore-rule check and a folder scan in review.
 
 ## 11. Risks and technical debt
 
