@@ -209,31 +209,118 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+These flows seed the runtime view with the three highest-risk paths, one per strategic choice that changes runtime behaviour. The `sequences` stage adds a flow or branch for every remaining §5 acceptance criterion. Participants are the §5 containers; messages are semantic, not endpoints.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: logo fetch for a PDF (wave 1; AC-01, AC-02, AC-02b, AC-03, AC-21)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor F as Freelancer
+    participant B as Browser UI
+    participant P as Proxy
+    participant S as Server app
+    participant SF as Safe fetcher
+    participant DB as PostgreSQL
+    participant H as Logo image hosts
+    F->>B: generates an invoice PDF
+    alt logo already fetched in this editor or export session
+        B->>B: reuses the cached data URL
+    else not cached
+        B->>P: asks for the logo of sender profile X
+        alt no session token
+            P-->>B: refused as not signed in
+        else token signature valid
+            P->>S: forwards the request
+            S->>DB: loads the live user and profile X scoped to that user
+            alt account gone or profile not owned
+                S-->>B: not signed in, or not found
+            else owned profile
+                S->>DB: increments the sliding-window counter
+                alt over 30 per minute
+                    S-->>B: refusal RATE_LIMITED
+                else within the limit
+                    S->>SF: fetches the stored logo link
+                    SF->>SF: https only, resolves DNS, rejects private and internal ranges
+                    SF->>H: requests the image from the validated address
+                    H-->>SF: image bytes or a redirect
+                    Note over SF,H: every redirect hop is re-validated, at most 3 hops, 5 s total, 512 KB cap
+                    SF-->>S: image, or a refusal code
+                    S-->>B: data URL, or a generic refusal
+                end
+            end
+        end
+    end
+    B-->>F: PDF with the logo, or without it plus a plain-language warning
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: saving an invoice, system-assigned vs manual number (wave 2; AC-06, AC-07, AC-08, AC-09, AC-10, AC-13, AC-14, AC-15)**
+
+```mermaid
+sequenceDiagram
+    actor F as Freelancer
+    participant B as Browser UI
+    participant S as Server app
+    participant DB as PostgreSQL
+    F->>B: saves the invoice
+    B->>B: shows totals from the shared calculation module
+    B->>S: submits the invoice form
+    S->>S: checks the live session, validates with the shared schema, recomputes every amount
+    alt a rule is broken
+        S-->>B: field errors next to the offending fields, nothing saved
+    else input valid
+        S->>DB: begins a transaction
+        alt number field filled in, manual
+            S->>DB: checks the normalized number key, counter untouched
+            alt key already used in this sender profile
+                S->>DB: rolls back
+                S-->>B: this invoice number is already used in this sender profile
+            else key free
+                S->>DB: inserts the invoice with the manual number
+            end
+        else number field empty, system-assigned
+            S->>DB: increments the profile counter, which locks the profile row
+            loop while the candidate key is taken by a manual number
+                S->>DB: increments again and checks the next candidate
+            end
+            S->>DB: inserts the invoice with the allocated number and key
+        end
+        S->>DB: commits, releasing the profile lock
+        S-->>B: saved invoice with its final number and stored totals
+    end
+    B-->>F: shows the final number and totals, or the blocking message
+```
+
+**Critical flow 3: account deletion (wave 2; AC-20, AC-21, AC-24)**
+
+```mermaid
+sequenceDiagram
+    actor F as Freelancer
+    participant B as Browser UI
+    participant S as Server app
+    participant DB as PostgreSQL
+    F->>B: chooses to delete the account
+    B->>S: asks how many invoices will be lost
+    S->>DB: counts invoices across the Freelancer's sender profiles
+    S-->>B: invoice count
+    B-->>F: warning with the count and an export offer
+    opt export first
+        F->>B: exports data
+        B->>S: requests the export file
+        S->>DB: reads every exportable category in parallel
+        S-->>B: file named Invoice Forge
+    end
+    F->>B: confirms the deletion
+    B->>S: deletes the account
+    S->>DB: in one transaction deletes the invoices, then the user and everything it cascades to
+    alt any step fails
+        DB-->>S: error, the transaction rolls back
+        S-->>B: deletion failed, nothing removed
+        B-->>F: stays on settings with an error
+    else committed
+        S-->>B: deleted
+        B-->>F: lands on sign-in, other devices become Visitors on their next request
+    end
+```
 
 ## 7. Deployment view
 
