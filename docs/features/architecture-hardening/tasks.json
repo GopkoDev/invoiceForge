@@ -1,0 +1,664 @@
+{
+  "slug": "architecture-hardening",
+  "tasks": [
+    {
+      "id": "T00",
+      "title": "Set up the test harness, throwaway database and factories",
+      "layer": "infra",
+      "deps": [],
+      "acs": [],
+      "dod": "Unit, component, integration (throwaway Postgres with repo + staged migrations 01-06), contract and e2e suites each run one smoke test green locally and in CI; the .env database is never reachable from tests.",
+      "files_hint": [
+        "package.json",
+        "docs/features/architecture-hardening/test-plan.md",
+        "docs/features/architecture-hardening/data-model.md",
+        "docs/features/architecture-hardening/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t00-test-harness.md"
+    },
+    {
+      "id": "T01",
+      "title": "Add the LogoFetchWindow table and Prisma model",
+      "layer": "migration",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "The LogoFetchWindow migration applies and reverts cleanly on the dev DB and prisma migrate diff reports no drift.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/01_create_logo_fetch_window.up.sql",
+        "docs/features/architecture-hardening/migrations/01_create_logo_fetch_window.down.sql",
+        "prisma/schema/auth.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t01-logo-fetch-window-table.md"
+    },
+    {
+      "id": "T02",
+      "title": "Deny unauthenticated requests by default in the proxy, with one public allowlist",
+      "layer": "wiring",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-05"
+      ],
+      "dod": "A cookie-less request sweep returns content only for allowlisted paths, redirects private pages to sign-in and answers /api/* and server-action POSTs with 401 NotSignedIn.",
+      "files_hint": [
+        "proxy.ts",
+        "config/routes.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t02-deny-by-default-proxy.md"
+    },
+    {
+      "id": "T03",
+      "title": "Build the IP-pinning safe fetcher with per-hop checks and size/time caps",
+      "layer": "infra",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "A scratch probe run shows the safe fetcher refuses every private/loopback/link-local/metadata/rebinding/redirect/oversize/slow case and returns bytes for a public https image.",
+      "files_hint": [
+        "lib/security/safe-fetch.ts",
+        "package.json"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t03-safe-fetcher.md"
+    },
+    {
+      "id": "T04",
+      "title": "Implement the per-Freelancer sliding-window logo rate limiter",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T01"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "A scratch run against the dev DB allows 30 fetches and refuses the 31st within a minute with a Retry-After between 1 and 60 seconds.",
+      "files_hint": [
+        "lib/security/logo-rate-limit.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t04-logo-rate-limiter.md"
+    },
+    {
+      "id": "T05",
+      "title": "Rewrite /api/convert-image to fetch only an owned sender profile's logo",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T03",
+        "T04"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-02b",
+        "AC-03"
+      ],
+      "dod": "Manual probes show 401 without a session, 404 for a foreign or logo-less profile, 200 with a data URL for an owned https image, and generic 422/429/502 refusals that never echo the address.",
+      "files_hint": [
+        "app/api/convert-image/route.ts",
+        "lib/helpers/route-auth.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t05-convert-image-endpoint.md"
+    },
+    {
+      "id": "T06",
+      "title": "Request logos by sender-profile id with a per-session cache and show the PDF logo warning",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T05"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-03"
+      ],
+      "dod": "In the running app the PDF shows an owned https logo, reuses it without a second request, and for a refused logo still renders the PDF with the verbatim AC-03 warning.",
+      "files_hint": [
+        "lib/utils/image-to-base64.ts",
+        "lib/helpers/invoice-pdf-helpers.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "components/invoice-editor/pdf-preview-panel.tsx",
+        "components/modals/invoice/invoice-pdf-preview-modal.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t06-pdf-logo-client-and-warning.md"
+    },
+    {
+      "id": "T07",
+      "title": "Add, backfill and uniquely index Invoice.invoiceNumberKey (expand step)",
+      "layer": "migration",
+      "deps": [
+        "T00",
+        "T01"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "Migrations 02-04 apply and revert cleanly, every non-duplicate invoice has a key, and the unique (senderProfileId, invoiceNumberKey) index is valid.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/02_add_invoice_number_key.up.sql",
+        "docs/features/architecture-hardening/migrations/02_add_invoice_number_key.down.sql",
+        "docs/features/architecture-hardening/migrations/03_backfill_invoice_number_key.up.sql",
+        "docs/features/architecture-hardening/migrations/03_backfill_invoice_number_key.down.sql",
+        "docs/features/architecture-hardening/migrations/04_create_invoice_number_key_unique.up.sql",
+        "docs/features/architecture-hardening/migrations/04_create_invoice_number_key_unique.down.sql",
+        "prisma/schema/invoice.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t07-invoice-number-key-migration.md"
+    },
+    {
+      "id": "T08",
+      "title": "Introduce typed ActionResult error codes and move every action onto them",
+      "layer": "app",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-29"
+      ],
+      "dod": "The discriminated ActionResult compiles across the repo, every failure return carries a typed code, and a foreign id yields the same NOT_FOUND as a missing one.",
+      "files_hint": [
+        "types/actions.ts",
+        "lib/helpers/auth-helpers.ts",
+        "lib/actions/",
+        "components/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t08-typed-action-result.md"
+    },
+    {
+      "id": "T09",
+      "title": "Treat sessions without a live account as Visitors in layouts and guards",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T05",
+        "T08"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "With the User row deleted, the other device is redirected to sign-in, its actions return UNAUTHORIZED and create nothing, and its /api calls get 401.",
+      "files_hint": [
+        "lib/helpers/route-auth.ts",
+        "lib/helpers/auth-helpers.ts",
+        "app/(protected)/layout.tsx",
+        "app/(invoice-editor)/layout.tsx",
+        "auth.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t09-live-account-guard.md"
+    },
+    {
+      "id": "T10",
+      "title": "Make invoice-calculations a pure exact-decimal module shared by editor and server",
+      "layer": "domain",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-13"
+      ],
+      "dod": "A scratch run over the half-up rounding cases matches hand-computed values and the editor displays totals from the shared module.",
+      "files_hint": [
+        "lib/helpers/invoice-calculations.ts",
+        "store/invoice-editor-store/helpers.ts",
+        "lib/actions/invoice-actions/helpers.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t10-shared-decimal-calculations.md"
+    },
+    {
+      "id": "T11",
+      "title": "Tighten the invoice schema and add applyStatusChange for the paid date",
+      "layer": "domain",
+      "deps": [
+        "T00",
+        "T08",
+        "T10"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-15",
+        "AC-18",
+        "AC-19"
+      ],
+      "dod": "Scratch runs show applyStatusChange sets, keeps, clears and rejects as specified, the schema rejects every AC-14/15 case with the contract messages, and the list status change updates the paid date.",
+      "files_hint": [
+        "lib/validations/invoice.ts",
+        "lib/helpers/invoice-status.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoice-row-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t11-invoice-rules-and-status.md"
+    },
+    {
+      "id": "T12",
+      "title": "Add normalizeInvoiceNumber and the row-locked allocateInvoiceNumber",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T07"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-09"
+      ],
+      "dod": "A scratch run of parallel allocations yields only distinct numbers, skips a manually taken candidate, and normalization treats \" INV-001 \" and \"inv-001\" as equal.",
+      "files_hint": [
+        "lib/actions/invoice-actions/numbering.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t12-numbering-module.md"
+    },
+    {
+      "id": "T13",
+      "title": "Rewrite createInvoice and duplicateInvoice on the allocator and recomputed amounts",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T10",
+        "T11",
+        "T12"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "dod": "Manual and scripted probes show allocated, kept and blocked numbers as specified, concurrent saves all succeed with distinct numbers, stored amounts equal the shared-module figures, and duplicates get a sequence number.",
+      "files_hint": [
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/invoice-actions/helpers.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t13-create-and-duplicate-invoice.md"
+    },
+    {
+      "id": "T14",
+      "title": "Rewrite updateInvoice for profile moves, legacy invoices and confirmed totals",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T13"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-17",
+        "AC-18"
+      ],
+      "dod": "Manual checks show a move allocates from the target profile only, legacy invoices are blocked or confirmed exactly per AC-17, and re-saving a Paid invoice keeps its paid date.",
+      "files_hint": [
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/invoice-actions/select-queries.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t14-update-invoice-move-and-legacy.md"
+    },
+    {
+      "id": "T15",
+      "title": "Extend ConfirmationModal with a body slot, async confirm and a hideable confirm button",
+      "layer": "ui",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-22",
+        "AC-17"
+      ],
+      "dod": "Existing confirmations behave unchanged and an async confirm keeps the dialog open with a spinner until it settles.",
+      "files_hint": [
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "components/modals/global-modals/confirmation-modal/types.ts",
+        "store/use-modal-store.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t15-confirmation-modal-async-body.md"
+    },
+    {
+      "id": "T16",
+      "title": "Build the editor number hint, field errors, saved state, legacy alert and SCR-15 dialog",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T14",
+        "T15"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-08",
+        "AC-11",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-17"
+      ],
+      "dod": "A manual walk of every changed SCR-03 state and every SCR-15 state in the running app matches screens.md, and the displayed total equals the stored total after save.",
+      "files_hint": [
+        "components/invoice-editor/invoice-details-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "components/invoice-editor/invoice-editor-form.tsx",
+        "components/invoice-editor/invoice-editor.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "store/invoice-editor-store/",
+        "hooks/use-editor-header-buttons.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t16-editor-number-and-save-states.md"
+    },
+    {
+      "id": "T17",
+      "title": "Add the deletion summary and delete the account in one explicit transaction",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "Deleting a throwaway account with invoices removes every AC-20 category and a forced failure mid-transaction removes nothing.",
+      "files_hint": [
+        "lib/actions/account-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t17-account-deletion-transaction.md"
+    },
+    {
+      "id": "T18",
+      "title": "Show the invoice count and export offer in the delete-account dialog",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T15",
+        "T17"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "A manual walk of every SCR-08 state and the changed SCR-07 states matches screens.md and a successful deletion lands on sign-in.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t18-delete-account-dialog.md"
+    },
+    {
+      "id": "T19",
+      "title": "Refuse deleting a Customer or sender profile that has invoices, with the count",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T15"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "Deleting a Customer or sender profile with invoices is blocked with the count and removes no invoice, while one without invoices is deleted.",
+      "files_hint": [
+        "lib/actions/customer-actions.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "components/customers/customer-card-actions.tsx",
+        "components/sender-profiles/sender-profile-card-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t19-block-deleting-records-with-invoices.md"
+    },
+    {
+      "id": "T20",
+      "title": "Require an https logo link when saving a sender profile",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Saving a sender profile with a non-https logo link is blocked with the field message and an https link saves.",
+      "files_hint": [
+        "lib/validations/sender-profile.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "components/sender-profiles/sender-profile-form.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t20-sender-profile-https-logo.md"
+    },
+    {
+      "id": "T21",
+      "title": "Validate custom prices on create and update and link them to an explicit owned Customer",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-31"
+      ],
+      "dod": "Updating a custom price shows the same validation messages as creating one, and a created price links exactly the chosen owned Customer and product or is refused as not found.",
+      "files_hint": [
+        "lib/validations/custom-price.ts",
+        "lib/actions/custom-price-actions.ts",
+        "components/modals/customer/custom-price-modal.tsx",
+        "components/customers/customer-custom-prices.tsx",
+        "components/products/product-custom-prices.tsx",
+        "hooks/use-product-custom-price-modal.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t21-custom-price-validation-and-links.md"
+    },
+    {
+      "id": "T22",
+      "title": "Carry the browser time zone in a validated tz cookie with day-bound helpers",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T09"
+      ],
+      "acs": [
+        "AC-27"
+      ],
+      "dod": "A scratch run shows local day ranges end exclusively at the next local midnight including DST edges, the tz cookie is set on first load, and an invalid cookie falls back to UTC.",
+      "files_hint": [
+        "lib/helpers/time-zone.ts",
+        "components/time-zone-cookie.tsx",
+        "app/(protected)/layout.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t22-time-zone-cookie.md"
+    },
+    {
+      "id": "T23",
+      "title": "Parse invoice-list link parameters with fallback defaults and inclusive local date ranges",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T14",
+        "T22"
+      ],
+      "acs": [
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Every malformed invoice-list link opens with defaults and matching controls, and invoices issued late on the last local day of a range are included.",
+      "files_hint": [
+        "lib/validations/search-params.ts",
+        "app/(protected)/invoices/page.tsx",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoices-toolbar.tsx",
+        "components/invoices/invoices-table-footer.tsx",
+        "hooks/use-invoice-filters.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t23-invoice-list-link-params.md"
+    },
+    {
+      "id": "T24",
+      "title": "Parse dashboard date ranges with a current-month fallback and key Suspense on currency",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T22",
+        "T23"
+      ],
+      "acs": [
+        "AC-25"
+      ],
+      "dod": "Malformed and inverted dashboard links show the current local month with the filter displaying it, and a date change no longer reloads the three currency-keyed sections.",
+      "files_hint": [
+        "lib/validations/search-params.ts",
+        "app/(protected)/dashboard/page.tsx",
+        "lib/actions/dashboard-actions.ts",
+        "components/dashboard/header/dashboard-filters.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t24-dashboard-link-params.md"
+    },
+    {
+      "id": "T25",
+      "title": "Add the segment load-error boundaries with retry and Sentry reporting",
+      "layer": "ui",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "A forced page-load throw renders the SCR-17 boundary inside the app shell with a working retry and reports the error.",
+      "files_hint": [
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "components/layout/content-area/load-error.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t25-load-error-boundaries.md"
+    },
+    {
+      "id": "T26",
+      "title": "Route page load outcomes: FAILED to the error boundary, NOT_FOUND to not-found",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T08",
+        "T25",
+        "T14"
+      ],
+      "acs": [
+        "AC-28",
+        "AC-29"
+      ],
+      "dod": "With the database unreachable every AC-28 page shows the retry error state and reports it, and foreign record ids show the same not-found page as random ids.",
+      "files_hint": [
+        "app/(protected)/invoices/page.tsx",
+        "app/(protected)/dashboard/page.tsx",
+        "app/(protected)/customers/",
+        "app/(protected)/products/",
+        "app/(protected)/sender-profiles/",
+        "app/(invoice-editor)/invoices/",
+        "components/layout/content-area/",
+        "components/customers/customers-list.tsx",
+        "components/products/products-list.tsx",
+        "components/sender-profiles/sender-profiles-list.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t26-page-outcome-routing.md"
+    },
+    {
+      "id": "T27",
+      "title": "Harden the data export: session first, parallel reads, Invoice Forge file name",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T09"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "The export downloads a file named \"Invoice Forge export YYYY-MM-DD.json\" holding every deletion category except sessions and no OAuth tokens.",
+      "files_hint": [
+        "app/api/user/export/route.ts",
+        "config/site.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t27-data-export-endpoint.md"
+    },
+    {
+      "id": "T28",
+      "title": "Check the session before parsing input in profile and account settings actions",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T17"
+      ],
+      "acs": [
+        "AC-23"
+      ],
+      "dod": "Signed out, profile and account actions return UNAUTHORIZED before looking at any submitted values, and signed in the profile update still works.",
+      "files_hint": [
+        "lib/actions/profile-actions.ts",
+        "lib/actions/account-actions.ts",
+        "components/settings/profile-settings.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t28-profile-actions-guard-first.md"
+    },
+    {
+      "id": "T29",
+      "title": "Disallow the root and every page of each private section in robots.txt",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T02"
+      ],
+      "acs": [
+        "AC-30"
+      ],
+      "dod": "robots.txt served without a session matches the contract example, disallowing every private section root and page.",
+      "files_hint": [
+        "app/robots.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t29-robots-disallow-section-roots.md"
+    },
+    {
+      "id": "T30",
+      "title": "Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)",
+      "layer": "migration",
+      "deps": [
+        "T00",
+        "T07",
+        "T14"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "With a zero pre-flight count, migrations 05-06 apply and revert cleanly with no schema drift; otherwise the task is closed as not applicable with the count recorded.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/05_set_invoice_number_key_not_null.up.sql",
+        "docs/features/architecture-hardening/migrations/05_set_invoice_number_key_not_null.down.sql",
+        "docs/features/architecture-hardening/migrations/06_drop_invoice_number_exact_unique.up.sql",
+        "docs/features/architecture-hardening/migrations/06_drop_invoice_number_exact_unique.down.sql",
+        "prisma/schema/invoice.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t30-invoice-number-key-contract.md"
+    },
+    {
+      "id": "T31",
+      "title": "Declare the sdd marketplace, ignore local settings and remove the empty route folder",
+      "layer": "docs",
+      "deps": [
+        "T00"
+      ],
+      "acs": [],
+      "dod": "No personal settings file is tracked, no empty route folder remains, and a fresh clone installs the sdd plugin from repo config alone.",
+      "files_hint": [
+        ".claude/settings.json",
+        ".gitignore",
+        "app/api/auth/log-logout/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t31-repository-hygiene.md"
+    }
+  ]
+}

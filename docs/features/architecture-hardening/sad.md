@@ -50,7 +50,7 @@ target_surfaces: [backend-service, web-frontend]
 **Organisational.**
 - Size M (1–2 sprints), one developer, the owner (Dmytro Hopko).
 - Delivery in four risk-ordered waves (spec §1): (1) the image-conversion security fix as its own release; (2) invoice data integrity; (3) input and link validation; (4) the rest.
-- No automated tests and no test harness (spec §3, F7). TDD is off, and regressions are caught by review and production monitoring.
+- Automated tests are in scope (amended 2026-09-27; spec §3 F7 non-goal reversed). TDD is on; the harness is task T00 and the AC → test map is `test-plan.md`. Integration tests run against a throwaway database, never the configured one.
 - Target: 0 open High/Medium findings within 30 days of the first wave's release (spec §7). There is no other hard deadline.
 
 **Conventions.** (source: `docs/architecture-map.md` §Conventions)
@@ -321,6 +321,387 @@ sequenceDiagram
     end
 ```
 
+### Flow 4: request boundary, deny by default (wave 1; AC-05, AC-21, AC-23, AC-30)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client
+    participant E as service (edge boundary)
+    participant S as service (app)
+    participant D as data-store
+
+    Note over C,E: Precondition: the public allowlist is the only source of public paths (sign-in, sign-up, landing, privacy, terms, crawling rules, sitemap, share images, icons, manifest)
+    C->>E: requests any page, data endpoint or action
+    E->>E: matches the path against the public allowlist
+    alt path is on the public allowlist
+        E->>S: forwards without a session check
+        S-->>C: public content, e.g. crawling rules that disallow the root and every page of each private section
+    else private path and no valid session token
+        alt page request
+            E-->>C: sends to sign-in
+        else data request or action
+            E-->>C: refused as not signed in, no data returned
+        end
+    else private path with a valid token signature
+        E->>S: forwards the request
+        S->>S: checks the session first, before parsing any submitted values
+        S->>D: looks up the account behind the token
+        D-->>S: live account, or none
+        alt account no longer exists (deleted on another device)
+            S-->>C: treated as a Visitor, signed out, no data, nothing created
+        else live account
+            S-->>C: handled, every read and write scoped to this Freelancer
+        end
+    end
+    Note over C,S: Postcondition: no private path returns data without a live account, including paths added later
+```
+
+### Flow 5: saving a sender profile's logo link (wave 3; AC-04)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a signed-in Freelancer is editing a sender profile (SCR-05)
+    U->>UI: enters a logo link and saves
+    UI->>S: submits the sender profile
+    S->>S: checks the live session, re-validates with the shared sender-profile schema
+    alt logo link is not a secure web address
+        S-->>UI: field error on the logo field, nothing saved
+        UI-->>U: the link must be a secure web address, shown next to the logo field
+    else valid input
+        S->>D: loads the sender profile scoped to the Freelancer
+        alt profile not found or not owned
+            S-->>UI: not found
+        else owned
+            S->>D: updates the sender profile
+            Note over S,D: persists SenderProfile logo link
+            D-->>S: ack
+            S-->>UI: saved profile
+            UI-->>U: back to the profile with the new logo link
+        end
+    end
+    Note over U,S: Postcondition: every stored logo link is a secure web address. Reachability is checked only when a PDF is made (flow 1)
+```
+
+### Flow 6: moving an invoice to another sender profile, and duplicating one (wave 2; AC-11, AC-12)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a signed-in Freelancer has an invoice under sender profile A
+    alt move to sender profile B
+        U->>UI: changes the sender profile from A to B
+        UI->>UI: clears the number field, shows B's proposed number as a hint
+        U->>UI: saves, with the number left empty or typed
+        UI->>S: submits the invoice with sender profile B
+        S->>S: checks the live session, validates, confirms B is owned
+        S->>D: begins a transaction
+        alt typed number already used in B (normalized key)
+            S->>D: rolls back
+            S-->>UI: this invoice number is already used in this sender profile
+        else saveable
+            alt number field empty
+                S->>D: allocates the next free number from B's sequence under B's row lock, as in flow 2
+            else typed number is free in B
+                S->>S: keeps the typed number, B's sequence untouched
+            end
+            S->>D: updates the invoice with B, its number and number key
+            Note over S,D: persists Invoice sender profile, number and number key, plus B's counter when allocated
+            S->>D: commits, A's sequence unchanged and A's old number never proposed again
+            S-->>UI: saved invoice with its final number
+        end
+    else duplicate an invoice
+        U->>UI: duplicates invoice X from the list
+        UI->>S: asks to duplicate invoice X
+        S->>S: checks the live session
+        S->>D: loads X scoped to the Freelancer
+        alt X not found or not owned
+            S-->>UI: not found
+        else owned
+            S->>D: in one transaction allocates the next free number from X's sender profile sequence
+            S->>D: inserts the copy with that number, its key and recomputed amounts
+            Note over S,D: persists the Invoice copy with its lines and the profile counter
+            S-->>UI: copy with a number in the same format as a new invoice
+        end
+    end
+    Note over U,S: Postcondition: an invoice never keeps A's number under B unless it was typed and is free in B
+```
+
+### Flow 7: editing a legacy invoice (wave 2; AC-17)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: an invoice saved before this change is opened in the editor
+    U->>UI: opens the legacy invoice
+    UI->>S: loads the invoice
+    S->>D: reads the invoice and whether another invoice in its sender profile shares its number key
+    D-->>S: invoice with stored totals, shared-number flag
+    S-->>UI: invoice, recomputed totals, shared-number flag
+    UI-->>U: the invoice can be viewed
+    U->>UI: saves
+    UI->>S: submits the invoice
+    S->>S: checks the live session, validates, recomputes every amount, normalizes the number
+    alt number still shared with another invoice in the sender profile
+        S-->>UI: save blocked until the number is changed to a free one
+    else amounts break the rules
+        S-->>UI: field errors next to the offending fields, nothing saved
+    else stored total differs and not yet confirmed
+        S-->>UI: needs confirmation, with old and new totals
+        UI-->>U: old total next to new total, asks to confirm (SCR-15)
+        alt Freelancer cancels
+            UI-->>U: stays in the editor, nothing saved
+        else Freelancer confirms
+            UI->>S: resubmits with the confirmation
+            S->>D: updates the invoice with the recomputed amounts and number key
+            Note over S,D: persists Invoice amounts, lines and number key
+            S-->>UI: saved invoice with the stored figures
+        end
+    else nothing differs
+        S->>D: saves as in flow 2
+        S-->>UI: saved invoice
+    end
+    Note over U,S: Postcondition: a status change from the invoice list touches neither amounts nor number and is never blocked by these checks (flow 8)
+```
+
+### Flow 8: status change and paid date (wave 2; AC-18, AC-19)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a signed-in Freelancer changes the status of invoice X
+    alt from the invoice list
+        U->>UI: picks a new status on a row
+        UI->>S: changes the status of invoice X only
+    else from the editor
+        U->>UI: saves the invoice with a status
+        UI->>S: submits the invoice, amounts and number handled as in flow 2
+    end
+    S->>S: checks the live session
+    S->>D: loads X scoped to the Freelancer
+    S->>S: applies the one status transition rule
+    alt X not found or not owned
+        S-->>UI: not found
+    else status the product doesn't know
+        S-->>UI: rejected with a plain-language message, nothing saved
+    else entering Paid from another status
+        S->>D: stores Paid with the paid date set to now
+    else already Paid and saved again
+        S->>D: stores the invoice, paid date unchanged
+    else leaving Paid
+        S->>D: stores the new status and clears the paid date
+    else change between other statuses
+        S->>D: stores the new status, paid date stays empty
+    end
+    Note over S,D: persists Invoice status and paid date (informs dashboard payment queries)
+    S-->>UI: updated status and paid date
+    UI-->>U: the list row or the editor shows them
+    Note over U,S: Postcondition: the paid date is set exactly while the invoice is Paid. A list status change skips the legacy checks of flow 7
+```
+
+### Flow 9: creating or updating a custom price (wave 3; AC-16, AC-31)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a signed-in Freelancer is on a Customer's page or a product's custom prices page
+    U->>UI: adds or edits a custom price for a chosen Customer and product (SCR-11)
+    UI->>S: submits Customer, product, amount and note
+    S->>S: checks the live session, validates with the shared custom-price schema, same for create and update
+    alt negative amount, not a number, or note too long
+        S-->>UI: the same field messages on create and update, nothing saved
+    else valid input
+        S->>D: looks up the Customer and the product scoped to the Freelancer
+        D-->>S: both found, or one missing
+        alt Customer or product is not the Freelancer's
+            S-->>UI: blocked as not found
+        else both owned
+            S->>D: creates or updates the custom price linked to exactly that Customer and product
+            Note over S,D: persists CustomPrice for the Customer and product pair (informs the pair uniqueness index)
+            D-->>S: ack
+            S-->>UI: saved
+            UI-->>U: back to the originating page with the price listed
+        end
+    end
+    Note over U,S: Postcondition: every custom price links one owned Customer to one owned product with a valid amount
+```
+
+### Flow 10: deleting a Customer or sender profile (wave 2; AC-22)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a signed-in Freelancer chooses delete on one Customer or sender profile R
+    U->>UI: confirms the deletion (SCR-14)
+    UI->>S: deletes R
+    S->>S: checks the live session
+    S->>D: loads R scoped to the Freelancer and counts the invoices that reference it
+    D-->>S: R and N invoices, or no R
+    alt R not found or not owned
+        S-->>UI: not found
+    else N invoices depend on R
+        S-->>UI: blocked, N invoices depend on it
+        UI-->>U: SCR-14 shows the count, nothing removed
+    else no invoices depend on R
+        S->>D: deletes R
+        Note over S,D: removes the Customer or SenderProfile, the restrict link from invoices stays as the backstop
+        alt an invoice referencing R was saved meanwhile
+            D-->>S: restrict violation
+            S-->>UI: blocked, invoices depend on it
+        else deleted
+            D-->>S: ack
+            S-->>UI: deleted
+        end
+    end
+    Note over U,S: Postcondition: deleting a Customer or sender profile never removes an invoice
+```
+
+### Flow 11: opening the invoice list or dashboard from a link (wave 3; AC-25, AC-26, AC-27)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: the browser has stored its time zone in a cookie, otherwise UTC applies
+    U->>UI: opens a dashboard or invoice-list link, bookmarked or shared
+    UI->>S: requests the page with the link parameters and the time-zone cookie
+    S->>S: validates the time zone, falls back to UTC
+    alt dashboard link
+        S->>S: parses the date range with the fallback schema
+        alt range malformed or start after end
+            S->>S: applies the current month in the Freelancer's time zone
+        else valid range
+            S->>S: applies the linked range
+        end
+        S->>D: reads the figures for the applied range
+        D-->>S: figures
+        S-->>UI: dashboard with the applied range
+        UI-->>U: the date filter shows the range actually applied
+    else invoice-list link
+        S->>S: parses page, page size, sort field, order, status and tab, each invalid value becomes its default
+        S->>S: turns the date range into local day bounds, the end exclusive at the next local midnight
+        S->>D: reads one page of the Freelancer's invoices, filtered and sorted
+        Note over S,D: reads Invoice by owner, status, issue date range and sort field (informs list indexes)
+        D-->>S: invoices and total count
+        S-->>UI: list with the applied parameters
+        UI-->>U: controls match what is shown, invoices issued any time on the last day included
+    end
+    Note over U,S: Postcondition: no link parameter crashes a page or shows figures for a range other than the one displayed
+```
+
+### Flow 12: loading a data page, load failure vs not found (wave 3; AC-28, AC-29)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+    participant X as external-system (error monitoring)
+
+    Note over U,S: Precondition: the request passed the boundary with a live account (flow 4)
+    U->>UI: opens a data page (list, dashboard, profiles, customers, products, a detail page or the editor)
+    UI->>S: requests the page
+    S->>D: reads the data scoped to the Freelancer
+    alt read fails
+        D-->>S: error
+        S->>X: reports the failure, details stay out of the response
+        S-->>UI: load failure, plain-language text only
+        UI-->>U: error state with retry (SCR-17), neither an empty state nor not found
+        opt Freelancer retries
+            U->>UI: retries
+            UI->>S: requests the page again
+        end
+    else record doesn't exist or belongs to another Freelancer
+        D-->>S: no row for this Freelancer
+        S-->>UI: not found
+        UI-->>U: not found (SCR-16), identical in both cases
+    else loaded
+        D-->>S: data
+        S-->>UI: page data
+        UI-->>U: the page, with its empty state only when there truly is no data
+    end
+    Note over U,S: Postcondition: a load failure is never shown as empty data or a missing page, and a foreign record is indistinguishable from a missing one
+```
+
+### Coverage: user stories and acceptance criteria → flows
+
+| US | Flows |
+|---|---|
+| US-01 Include my logo safely in PDFs | 1, 4, 5 |
+| US-02 Get a unique invoice number | 2, 6 |
+| US-03 Trust invoice amounts | 2, 7, 9 |
+| US-04 Track when an invoice was paid | 8 |
+| US-05 Manage and delete my account safely | 3, 4, 10 |
+| US-06 Use any link to my lists and dashboard | 11 |
+| US-07 See an honest error when data fails to load | 12 |
+| US-08 Keep my private pages out of search engines | 4 (public-path branch) |
+
+| AC | Shown in | AC | Shown in |
+|---|---|---|---|
+| AC-01 | flow 1, happy path | AC-17 | flow 7 |
+| AC-02 | flow 1 "no session token", flow 4 | AC-18 | flow 8 "entering Paid", "already Paid" |
+| AC-02b | flow 1 "profile not owned" | AC-19 | flow 8 "leaving Paid", "unknown status" |
+| AC-03 | flow 1 refusal branches | AC-20 | flow 3 |
+| AC-04 | flow 5 | AC-21 | flow 3 postcondition, flow 4 "account no longer exists" |
+| AC-05 | flow 4 | AC-22 | flow 10 |
+| AC-06 | flow 2 "system-assigned" | AC-23 | flow 4 (session checked before input), plus the no-token branch |
+| AC-07 | flow 2 profile row lock | AC-24 | flow 3 "export first" |
+| AC-08 | flow 2 "key already used" | AC-25 | flow 11 dashboard branch |
+| AC-09 | flow 2 skip loop | AC-26 | flow 11 invoice-list branch |
+| AC-10 | flow 2 "key free" | AC-27 | flow 11 local day bounds |
+| AC-11 | flow 6 move branch | AC-28 | flow 12 "read fails" |
+| AC-12 | flow 6 duplicate branch | AC-29 | flow 12 "doesn't exist or belongs to another Freelancer" |
+| AC-13 | flow 2 recompute | AC-30 | flow 4 public-path branch |
+| AC-14 | flow 2 "a rule is broken" | AC-31 | flow 9 ownership branch |
+| AC-15 | flow 2 "a rule is broken" | | |
+| AC-16 | flow 9 validation branch | | |
+
+Every §4 user story maps to at least one flow, and every §5 AC maps to a flow or branch. None is non-runtime.
+
+### Flags from the sequences pass
+
+- **Flag for design:** flow 7's "needs confirmation, with old and new totals" outcome is not one of the ADR-0009 typed codes (`UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `FAILED`). Decide whether it is a new code or a detail on an existing one. Also decide how the resubmit proves the Freelancer confirmed these exact totals, for example by echoing the confirmed old total.
+- **Flag for design:** flow 10's race branch (an invoice saved between the count and the delete) must map the database restrict violation to the same "N invoices depend on it" refusal (`CONFLICT`), not to `FAILED`.
+- **Participants:** flows 4–12 use the generic vocabulary. In flow 4, "service (edge boundary)" is the §5 Proxy container and "service (app)" is the Server app. In flow 12, "external-system (error monitoring)" is Sentry. No participant is new to §5. Flows 1–3 predate this pass and keep their concrete names.
+- **Hints for data-model, from the persist and read notes:** unique (sender profile, normalized number key) (flows 2, 6, 7); invoice counts by Customer and by sender profile (flow 10, AC-22 warnings); the invoice-list read by owner, status, issue-date range and sort field (flow 11); invoice status and paid date for dashboard payment queries (flow 8); unique (Customer, product) on custom prices (flow 9); the logo-fetch window counter (flow 1, ADR-0008).
+
 ## 7. Deployment view
 
 There is no infrastructure change. The app stays one Vercel project (`vercel.json`, functions in region `iad1`, the proxy on the edge) over the existing Neon Postgres reached through its pooler (`eu-central-1`). No new service, queue or store is added: the logo-fetch counter is a table in the same database (ADR-0008). The feature ships as **four production releases**, one per wave (spec §1). Every schema change is expand-only inside its wave, so the previous build can be redeployed without a database rollback (§6 NFR: 0 minutes of planned downtime).
@@ -388,7 +769,7 @@ ADR files live under `docs/features/architecture-hardening/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-There is no automated test harness (spec §3, F7). Every "How verify" is a manual probe run before the wave ships, a production metric, or both. The numbers are quoted verbatim from spec §6 and §7.
+Every scenario is covered by automated tests mapped in `test-plan.md` (amended 2026-09-27; F7 reversed). The "How verify" lines below are the additional manual probes on the preview deployment before each wave ships, and the production metrics. The numbers are quoted verbatim from spec §6 and §7.
 
 **QG-1. Security of the boundary**
 - **When:** a Visitor (no cookie, or the token of a deleted account) requests any page, `/api/*` route or server action outside the public allowlist, including a route added after this feature.
@@ -431,7 +812,7 @@ There is no automated test harness (spec §3, F7). Every "How verify" is a manua
 
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| No automated tests around security-critical code: the proxy matcher and allowlist, IP classification in the safe fetcher, the number allocator, and the deletion transaction (spec §3, F7). A regression is found only in review or in production | High | Security Lead review of the ADR-0001 and ADR-0003 code paths; the §10 manual probe sets run before each wave; the §7 Sentry alerts; a test harness is the recommended next feature | Dmytro Hopko |
+| A regression in security-critical code (the proxy matcher and allowlist, IP classification in the safe fetcher, the number allocator, the deletion transaction) slips past the tests. Amended 2026-09-27: F7 reversed, these paths now carry unit + integration tests (`test-plan.md`) | Medium | The `test-plan.md` rows for AC-03, AC-05, AC-07, AC-20 run on every PR; Security Lead review of the ADR-0001 and ADR-0003 code paths; the §10 manual probe sets run before each wave; the §7 Sentry alerts | Dmytro Hopko |
 | Region mismatch: functions run in Vercel `iad1`, the database in Neon `eu-central-1` (brownfield: `vercel.json`, `.env`). Every round-trip inside the save transaction crosses the Atlantic, which inflates save latency and how long the sender-profile lock is held (ADR-0005) | Medium | Keep allocation to the fewest round-trips (one `UPDATE … RETURNING`, the key check, the insert); measure the save baseline before wave 2; moving the function region next to the database is a separate decision | Dmytro Hopko |
 | The proxy matcher regex and allowlist become security-critical (ADR-0001). A wrong exclusion silently makes a path public | Medium | Every exclusion commented with its reason; the §10 QG-1 route sweep before every release that touches `proxy.ts` or `routes.config.ts` | Dmytro Hopko |
 | Gaps in private-address classification: IPv6 forms, IPv4-mapped IPv6, NAT64, decimal or octal IPv4 literals in hostnames | Medium | Normalize addresses with Node's `net` parsing before range checks; connect only to the checked address (ADR-0003); include these forms in the §10 probe set | Dmytro Hopko |
