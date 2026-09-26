@@ -430,22 +430,24 @@ There is no automated test harness (spec §3, F7). Every "How verify" is a manua
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| No automated tests around security-critical code: the proxy matcher and allowlist, IP classification in the safe fetcher, the number allocator, and the deletion transaction (spec §3, F7). A regression is found only in review or in production | High | Security Lead review of the ADR-0001 and ADR-0003 code paths; the §10 manual probe sets run before each wave; the §7 Sentry alerts; a test harness is the recommended next feature | Dmytro Hopko |
+| Region mismatch: functions run in Vercel `iad1`, the database in Neon `eu-central-1` (brownfield: `vercel.json`, `.env`). Every round-trip inside the save transaction crosses the Atlantic, which inflates save latency and how long the sender-profile lock is held (ADR-0005) | Medium | Keep allocation to the fewest round-trips (one `UPDATE … RETURNING`, the key check, the insert); measure the save baseline before wave 2; moving the function region next to the database is a separate decision | Dmytro Hopko |
+| The proxy matcher regex and allowlist become security-critical (ADR-0001). A wrong exclusion silently makes a path public | Medium | Every exclusion commented with its reason; the §10 QG-1 route sweep before every release that touches `proxy.ts` or `routes.config.ts` | Dmytro Hopko |
+| Gaps in private-address classification: IPv6 forms, IPv4-mapped IPv6, NAT64, decimal or octal IPv4 literals in hostnames | Medium | Normalize addresses with Node's `net` parsing before range checks; connect only to the checked address (ADR-0003); include these forms in the §10 probe set | Dmytro Hopko |
+| The production duplicate-number count may differ from the count on the database configured in `.env` (0 groups, 27 invoices, measured 2026-09-26) | Low | The wave-2 migration counts first and takes the ADR-0004 fallback (nullable key, AC-17 path) if the count is above 0 | Dmytro Hopko |
+| PDFs of older invoices show the sender profile's current logo, not the logo URL snapshotted on the invoice (ADR-0003) | Low | Accepted; mention it in the release note; revisit with logo uploads (spec §3 non-goal) | Dmytro Hopko |
+| next-auth 5.0.0-beta.30: the live-account rule relies on the session callback's database lookup (ADR-0002) | Low | Pin the version; `requireLiveUser()` checks for a missing `user.id` explicitly, so a callback change fails closed | Dmytro Hopko |
+| Open architectural decision: p95 latency targets for invoice save (incl. number assignment) and data export | Open question | Resolve before the wave-2 release for save, and before the wave-4 release for export; default is baseline + 20% (save) and baseline − 30% (export) measured from Sentry traces (spec §8) | Dmytro Hopko |
+| Open architectural decision: editor tabs opened before a deploy send data in the old shape after a wave ships | Open question | Resolve before `sdd:tasks`; default is to accept the risk and ship waves at low-traffic hours (spec §8) | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- **No one-time clean-up of already-corrupted data** (spec §8 Q1, closed here). On the configured database there are 0 duplicate numbers and 0 negative totals. Sequences behind their highest number are handled by the allocator's skip loop (AC-09). Stale paid dates and wrong line totals are corrected on the next status change or edit (AC-17, AC-18, AC-19).
+- **Invoice prefixes stay unique across all Freelancers** (`invoicePrefix @unique`, spec §8 Q2, closed here as a follow-up). One Freelancer can learn that another already uses a prefix. Planned as a separate feature that scopes uniqueness to one account.
+- The logo rate limit is a sliding-window estimate, not an exact 60-second log (ADR-0008).
+- The first-ever server render uses UTC until the `tz` cookie exists (ADR-0010).
+- `invoiceNumberKey` stays nullable between waves 2 and 4 (§7) for rollback safety.
 
 ## 12. Glossary
 
