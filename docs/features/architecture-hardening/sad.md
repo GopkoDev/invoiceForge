@@ -130,49 +130,81 @@ Delivery follows the spec's risk order, and every schema change is expand-only w
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
+The app keeps its existing style: a layered-by-convention Next.js monolith. Route groups render pages (ui), `'use server'` actions hold the use cases and data access, and Prisma talks to Postgres. `lib/helpers` and `lib/validations` hold shared rules. There are no hexagonal ports, and this feature doesn't introduce them. Every change extends an existing module or adds a small shared module next to its peers, so the closest precedents in `docs/architecture-map.md` still apply (copy `lib/actions/customer-actions.ts` for any action). Two surfaces map onto two containers: the **Server app** (`backend-service`) and the **Browser UI** (`web-frontend`). The proxy and the safe fetcher are drawn separately because they are the two trust checkpoints.
 
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
-
-**Internal decomposition:**
+**Internal decomposition** (★ new, ✎ changed, ✗ removed):
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+proxy.ts                                   ✎ matcher covers /api; allowlist from routes.config (ADR-0001)
+config/routes.config.ts                    ✎ single publicRoutes allowlist (AC-05)
+app/
+├── (protected)/layout.tsx                 ✎ requireLiveUser() (ADR-0002); tz-cookie client island (ADR-0010)
+├── (protected)/error.tsx                  ★ load-error boundary: retry + Sentry (ADR-0009, SCR-17)
+├── (invoice-editor)/layout.tsx            ✎ requireLiveUser()
+├── (invoice-editor)/error.tsx             ★ load-error boundary for the editor
+├── (protected)/dashboard/page.tsx         ✎ params via schema (A3); Suspense keyed on currency (A9)
+├── (protected)/invoices/page.tsx          ✎ params via schema (A4, A5)
+├── (protected)/{customers,products,sender-profiles}/…  ✎ typed failure → error boundary, not 404/empty (A6, A7)
+├── api/convert-image/route.ts             ✎ requireSession + { senderProfileId } + safe fetch + rate limit (ADR-0003, ADR-0008)
+├── api/user/export/route.ts               ✎ requireSession; parallel reads; filename from siteConfig (A10, AC-24)
+├── api/auth/log-logout/                   ✗ empty leftover folder (F6)
+└── robots.ts                              ✎ prefix disallow rules for section roots (A8, AC-30)
+lib/
+├── security/safe-fetch.ts                 ★ IP classification, pinned undici agent, per-hop checks, 512 KB / 5 s caps
+├── security/logo-rate-limit.ts            ★ Postgres sliding-window counter (ADR-0008)
+├── helpers/route-auth.ts                  ★ requireSession(), requireLiveUser()
+├── helpers/invoice-calculations.ts        ✎ pure exact-decimal module shared by editor and server (ADR-0006)
+├── helpers/invoice-status.ts              ★ applyStatusChange(): paid date set/clear, status enum (AC-18, AC-19)
+├── helpers/time-zone.ts                   ★ validated tz cookie, day bounds, current month (ADR-0010)
+├── validations/search-params.ts           ★ invoice-list and dashboard param schemas with fallback defaults
+├── validations/invoice.ts                 ✎ ranges, discount cap, status enum (AC-14, AC-15, AC-19)
+├── actions/invoice-actions/numbering.ts   ★ normalizeInvoiceNumber(), allocateInvoiceNumber() (ADR-0004, ADR-0005)
+├── actions/invoice-actions/*.ts           ✎ recompute amounts, one allocator for create/move/duplicate, validated paging (L6)
+├── actions/account-actions.ts             ✎ guard first + ActionResult (F3); invoice count; delete transaction (ADR-0007)
+├── actions/profile-actions.ts             ✎ session check before parsing input (F3, AC-23)
+├── actions/custom-price-actions.ts        ✎ validate on update, explicit customerId (L8, L10, AC-16, AC-31)
+└── actions/{customer,sender-profile}-actions.ts  ✎ "N invoices depend on it" refusal (AC-22)
+types/actions.ts                           ✎ ActionResult gains a typed error code (ADR-0009)
+prisma/schema/                             ✎ Invoice.invoiceNumberKey + unique (ADR-0004); LogoFetchWindow model (ADR-0008)
+components/                                ✎ editor number hint + field errors + legacy-totals dialog (SCR-15), delete dialogs with counts (SCR-08, SCR-14), logo warning (SCR-04)
+.claude/settings.json, .gitignore          ✎ marketplace declared (F4); settings.local.json ignored (F5)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title architecture-hardening - Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer", "Signed-in account holder")
+    Person_Ext(visitor, "Visitor", "No signed-in session, incl. scripts and crawlers")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(forge, "Invoice Forge") {
+        Container(browser, "Browser UI", "React 19 client components", "web-frontend: editor, dialogs, error states, PDF rendering, per-session logo cache")
+        Container(proxy, "Proxy", "proxy.ts, next-auth edge config", "Deny by default: verifies the JWT, public allowlist, covers /api")
+        Container(server, "Server app", "Next.js 16 RSC, server actions, route handlers", "backend-service: pages, invoice rules, numbering, deletion, export, logo endpoint")
+        Container(safefetch, "Safe fetcher", "lib/security, undici", "IP-pinned logo fetch, per-hop checks, 512 KB and 5 s caps")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "PostgreSQL", "Neon, Prisma 7", "Invoices with normalized number key, sender-profile counters, logo-fetch windows")
+    System_Ext(google, "Google OAuth", "Sign-in provider")
+    System_Ext(smtp, "SMTP server", "Magic-link email")
+    System_Ext(sentry, "Sentry", "Error monitoring")
+    System_Ext(logohost, "Logo image hosts", "Untrusted public HTTPS hosts")
+    System_Ext(internal, "Private and internal networks", "Must never be reached")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, browser, "Uses", "HTTPS")
+    Rel(visitor, proxy, "Any request", "HTTPS")
+    Rel(browser, proxy, "Page loads, server actions, fetch", "HTTPS")
+    Rel(proxy, server, "Forwards public or signed-in requests")
+    Rel(server, db, "Reads and writes in transactions", "Prisma, pg")
+    Rel(server, safefetch, "Fetches an owned profile logo")
+    Rel(safefetch, logohost, "Requests the image from a validated address", "HTTPS")
+    Rel(safefetch, internal, "Refused at every hop", "blocked")
+    Rel(server, google, "Delegates sign-in", "OAuth 2.0")
+    Rel(server, smtp, "Sends sign-in links", "SMTP")
+    Rel(server, sentry, "Reports server errors", "HTTPS")
+    Rel(browser, sentry, "Reports load failures", "HTTPS via /monitoring")
 ```
 
 ## 6. Runtime view
