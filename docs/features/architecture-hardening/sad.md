@@ -4,7 +4,7 @@ owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
 updated_at: "2026-09-26"
 feature_size: "M"
-target_surfaces: []  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
+target_surfaces: [backend-service, web-frontend]
 ---
 
 # Software Architecture Document — architecture-hardening
@@ -114,19 +114,19 @@ C4Context
 
 ## 4. Solution strategy
 
-<!-- 🎯 Why: the 3–4 STRATEGIC PILLARS every ADR grows from. Without §4 each ADR looks random —
-     there's no umbrella. ⭐ The densest section — the blast-radius gate fires almost always here
-     (decisions are irreversible + multi-module).
-     📋 Write: 3–4 choices; each a heading + 2–3 sentences of rationale.
-     📌 «Store content as a table of typed blocks» is a pillar — ADR-0001 grows from it. -->
+**Target surfaces: `backend-service` + `web-frontend`.** The feature introduces no new container. It hardens the two halves of the existing Next.js monolith: the server side (RSC pages, server actions, route handlers, proxy) and the browser side (client components, the invoice editor, PDF rendering). ux-flows lists 19 affected screens (SCR-01…SCR-19) and one new stop, the legacy-totals confirmation (SCR-15). Scored 1 of 3 on the blast-radius gate (multi-module only; nothing new is introduced and there is no real alternative), so this is recorded inline, not as an ADR.
+
+**UI architecture (web-frontend): unchanged.** Server-rendered React Server Components with client islands, as today. New UI (error-with-retry, confirmations, field messages, the logo warning) is composed from the existing shadcn/ui primitives (`Empty`, `AlertDialog`, `Field`, `Sonner`) and modals go through `store/use-modal-store.ts` (architecture-map §Frontend). No new state or routing library.
 
 **Top strategic choices (the seeds for ADRs):**
 
-1. **<e.g. Module isolation through events>** — <2–3 sentences citing quality goals + constraints>.
-2. **<e.g. Single-store persistence>** — <2–3 sentences>.
-3. **<e.g. Server-rendered read side>** — <2–3 sentences>.
+1. **Deny by default at the boundary** (ADR-0001, ADR-0002). One allowlist in `config/routes.config.ts` defines the public set, and the proxy now covers `/api` too. Everything else requires a session: page requests go to sign-in, and data requests and actions are refused. A token whose account no longer exists counts as a Visitor. The edge proxy checks the signature, and the Node layer (layouts, `getAuthenticatedUser()`, `requireSession()`) checks that the account is live. This serves quality goal 1 and closes F1, F2, F3 and AC-21 without changing the session model.
+2. **Outbound fetches are fenced, not trusted** (ADR-0003). The logo endpoint takes an owned sender-profile id, never a URL. A dedicated fetcher pins each connection to an address it has validated as public, re-checks every redirect hop, and enforces the ≤ 512 KB / ≤ 5 s caps. Refusals come from a closed, generic code set. This serves quality goal 1 and is wave 1 on its own.
+3. **The server is the single source of truth for invoice data** (ADR-0004, ADR-0005, ADR-0006). Numbers are allocated server-side inside the save transaction under a sender-profile row lock. Uniqueness is enforced by the database on a normalized key. Amounts are recomputed by one exact-decimal module that the editor also runs, so the saved total equals the displayed one. Every action re-validates its input with the shared zod schema (fixing L8's bypass). This serves quality goal 2 (waves 2–3).
+4. **Destructive operations are explicit and atomic** (ADR-0007). Account deletion is one transaction that deletes invoices before the user, and the `Restrict` foreign keys that protect AC-22 stay in place. The paid date follows the status through one transition function (`applyStatusChange`: set on entering Paid, clear on leaving, reject unknown statuses) used by both the list and the editor. This serves quality goal 2.
+5. **Reads fail honestly** (crosscutting mechanics in §8). Link parameters are parsed with fallback-to-default schemas, never cast. Load failures, "not found" and "not signed in" are distinct outcomes, each with its own destination: the error boundary with retry (SCR-17), not-found (SCR-16) or sign-in (SCR-01). This serves quality goal 3 (waves 3–4).
 
-Each tactical decision in later sections should trace to one of these seeds. Tactical decisions that *contradict* a strategic choice are red flags — surface them in §11.
+Delivery follows the spec's risk order, and every schema change is expand-only within its wave (§7). A tactical decision in later sections that contradicts one of these choices is a red flag for §11.
 
 ## 5. Building block view
 
