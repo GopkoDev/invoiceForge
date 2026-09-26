@@ -324,25 +324,27 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
+There is no infrastructure change. The app stays one Vercel project (`vercel.json`, functions in region `iad1`, the proxy on the edge) over the existing Neon Postgres reached through its pooler (`eu-central-1`). No new service, queue or store is added: the logo-fetch counter is a table in the same database (ADR-0008). The feature ships as **four production releases**, one per wave (spec §1). Every schema change is expand-only inside its wave, so the previous build can be redeployed without a database rollback (§6 NFR: 0 minutes of planned downtime).
 
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+| Wave | Ships | Schema change | Rollback-safe because |
+|---|---|---|---|
+| 1 | ADR-0001, ADR-0002, ADR-0003, ADR-0008; F1, A1, A2 | new `LogoFetchWindow` table | old code ignores the table |
+| 2 | ADR-0004, ADR-0005, ADR-0006, ADR-0007; L1–L5, L7, L10 | `Invoice.invoiceNumberKey` nullable + backfill + unique index | old code doesn't write the key, so its rows stay `NULL`, which the unique index tolerates |
+| 3 | ADR-0009, ADR-0010; A3–A7, L6, L8, L9 | none | code only |
+| 4 | A8–A10, F3–F6 | contract step: `invoiceNumberKey` `NOT NULL` | applied only after wave 2 has run in production without a rollback |
+
+Migrations are applied with `prisma migrate deploy` before the release that needs them. The wave-2 migration counts normalized duplicate numbers first and takes the ADR-0004 fallback if the count is above 0. Releases go out at low-traffic hours (spec §8, stale editor tabs).
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- Metrics, as structured log lines: `logo_fetch outcome=<ok|NOT_HTTPS|NOT_IMAGE|TOO_LARGE|RATE_LIMITED|UNAVAILABLE> reason=<size|timeout|blocked_ip|…>`, which gives the size-cap, time-cap and refusal counts spec §6 measures "in logs". The upstream host and IP go to the log only, never to the response.
+- Alerts (Sentry): any "number already used" on a system-assigned number (target 0 per month; it indicates an allocator bug); any unhandled error on the list or dashboard pages (target 0 per month); a spike in `UNAVAILABLE reason=blocked_ip` (a likely SSRF probe).
+- Load failures (AC-28): reported by the new `error.tsx` boundaries and by `captureException` in the server paths that throw into them.
+- Tracing: the existing Sentry performance traces (10% sample in production, `sentry.server.config.ts:18`) give invoice-save and data-export p95 over a 7-day window. Their targets are open (§11).
 
-**Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+**Scaling thresholds** (design estimates, current scale is 3 accounts and 27 invoices on the configured database):
+- Number allocation serializes saves within one sender profile only. Each save holds the profile lock for its transaction's round-trips (see the region note in §11), which is comfortable up to roughly 1 save per second per sender profile. Above that, move the allocation into a single SQL statement.
+- `LogoFetchWindow` holds about 2 rows per actively fetching Freelancer after opportunistic cleanup. It stays tiny until thousands of concurrent Freelancers.
+- Account deletion runs in one transaction. It is comfortable up to about 10,000 invoices per Freelancer; above that, delete invoices in batches inside the transaction or move deletion to a background job.
 
 ## 8. Crosscutting concepts
 
