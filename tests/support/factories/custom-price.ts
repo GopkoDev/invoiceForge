@@ -1,8 +1,8 @@
 import type { CustomPrice, PrismaClient } from '@prisma/client';
 
 export type CustomPriceOverrides = Partial<
-  Omit<CustomPrice, 'id' | 'productId' | 'customerId' | 'createdAt' | 'updatedAt'>
-> & { id?: string };
+  Omit<CustomPrice, 'id' | 'productId' | 'customerId' | 'createdAt' | 'updatedAt' | 'price'>
+> & { id?: string; price?: number };
 
 export async function createCustomPrice(
   prisma: PrismaClient,

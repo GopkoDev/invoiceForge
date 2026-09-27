@@ -1,8 +1,8 @@
 import type { Currency, PrismaClient, Product } from '@prisma/client';
 
 export type ProductOverrides = Partial<
-  Omit<Product, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
-> & { id?: string };
+  Omit<Product, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'price'>
+> & { id?: string; price?: number };
 
 export async function createProduct(
   prisma: PrismaClient,

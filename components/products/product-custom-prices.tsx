@@ -23,7 +23,7 @@ import { Pencil, Trash2, MoreVertical, Package, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useModal } from '@/store/use-modal-store';
 import { SerializedCustomPrice } from '@/types/custom-price/types';
-import { CustomPriceFormValues } from '@/lib/validations/custom-price';
+import { CustomPriceSchemaValues } from '@/lib/validations/custom-price';
 import {
   updateCustomPrice,
   deleteCustomPrice,
@@ -67,28 +67,16 @@ export function ProductCustomPrices({
         isEditing: true,
         mode: 'selectProduct',
         defaultValues: price,
-        onFormSubmit: async (data: CustomPriceFormValues) => {
-          const result = await updateCustomPrice(
-            price.id,
-            price.customerId,
-            {
-              name: data.name,
-              price: data.price,
-              notes: data.notes,
-            },
-            productId
-          );
-          if (result.success) {
-            toast.success('Custom price updated successfully');
-          } else {
-            toast.error(result.error || 'Failed to update custom price');
-            throw new Error(result.error);
-          }
-        },
+        onFormSubmit: (data: CustomPriceSchemaValues) =>
+          updateCustomPrice(price.id, {
+            name: data.name,
+            price: data.price,
+            notes: data.notes,
+          }),
         onLoadProducts: async () => [],
       });
     },
-    [customPriceModal, productId]
+    [customPriceModal]
   );
 
   const handleDeleteCustomPrice = useCallback(

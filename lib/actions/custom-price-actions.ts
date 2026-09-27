@@ -3,8 +3,10 @@
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
-  customPriceFormSchema,
-  CustomPriceFormValues,
+  customPriceSchema,
+  updateCustomPriceSchema,
+  CustomPriceSchemaValues,
+  UpdateCustomPriceValues,
 } from '@/lib/validations/custom-price';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
@@ -15,7 +17,8 @@ import {
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
 import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
-import type { Prisma } from '@prisma/client';
+
+const NOT_FOUND_MESSAGE = 'Customer or product not found.';
 
 function serializeCustomPrice(
   customPrice: CustomPriceWithRelations
@@ -92,8 +95,7 @@ export async function getCustomerCustomPrices(
 }
 
 export async function createCustomPrice(
-  data: CustomPriceFormValues,
-  context: { customerId?: string; productId?: string }
+  data: CustomPriceSchemaValues
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -103,32 +105,26 @@ export async function createCustomPrice(
 
     const { userId } = authResult.data;
 
-    const productId = context.productId || data.productId;
-    const customerId = context.customerId || data.productId;
-
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id: customerId,
-        userId,
-      },
-    });
-
-    if (!customer) {
-      return fail('NOT_FOUND', 'Customer not found.');
+    let validatedData: CustomPriceSchemaValues;
+    try {
+      validatedData = customPriceSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return zodValidationFailure(error);
+      }
+      throw error;
     }
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        userId,
-      },
-    });
+    const { customerId, productId } = validatedData;
 
-    if (!product) {
-      return fail('NOT_FOUND', 'Product not found.');
+    const [customer, product] = await Promise.all([
+      prisma.customer.findFirst({ where: { id: customerId, userId } }),
+      prisma.product.findFirst({ where: { id: productId, userId } }),
+    ]);
+
+    if (!customer || !product) {
+      return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
     }
-
-    const validatedData = customPriceFormSchema.parse(data);
 
     const customPrice = await prisma.customPrice.create({
       data: {
@@ -137,7 +133,7 @@ export async function createCustomPrice(
         name: validatedData.name,
         price: validatedData.price,
         notes: validatedData.notes,
-      } as unknown as Prisma.CustomPriceUncheckedCreateInput,
+      },
     });
 
     revalidatePath(protectedRoutes.customerDetail(customerId));
@@ -145,9 +141,6 @@ export async function createCustomPrice(
 
     return ok({ id: customPrice.id });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return zodValidationFailure(error);
-    }
     console.error('Error creating custom price:', error);
     return fail('FAILED', 'Failed to create custom price.');
   }
@@ -155,9 +148,7 @@ export async function createCustomPrice(
 
 export async function updateCustomPrice(
   id: string,
-  customerId: string,
-  data: Pick<CustomPriceFormValues, 'name' | 'price' | 'notes'>,
-  productId?: string
+  data: UpdateCustomPriceValues
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -167,50 +158,45 @@ export async function updateCustomPrice(
 
     const { userId } = authResult.data;
 
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id: customerId,
-        userId,
-      },
-    });
-
-    if (!customer) {
-      return fail('NOT_FOUND', 'Customer not found.');
+    let validatedData: UpdateCustomPriceValues;
+    try {
+      validatedData = updateCustomPriceSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return zodValidationFailure(error);
+      }
+      throw error;
     }
 
     const existingCustomPrice = await prisma.customPrice.findFirst({
       where: {
         id,
-        customerId,
+        customer: { userId },
       },
       select: {
+        customerId: true,
         productId: true,
       },
     });
 
     if (!existingCustomPrice) {
-      return fail('NOT_FOUND', 'Custom price not found.');
+      return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
     }
-
-    const finalProductId = productId || existingCustomPrice.productId;
 
     await prisma.customPrice.update({
       where: { id },
       data: {
-        name: data.name,
-        price: data.price,
-        notes: data.notes,
-      } as unknown as Prisma.CustomPriceUncheckedUpdateInput,
+        name: validatedData.name,
+        price: validatedData.price,
+        notes: validatedData.notes,
+      },
     });
 
-    revalidatePath(protectedRoutes.customerDetail(customerId));
-    revalidatePath(protectedRoutes.productCustomPrices(finalProductId));
+    revalidatePath(protectedRoutes.customerDetail(existingCustomPrice.customerId));
+    revalidatePath(protectedRoutes.productCustomPrices(existingCustomPrice.productId));
 
     return ok();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return zodValidationFailure(error);
-    }
     console.error('Error updating custom price:', error);
     return fail('FAILED', 'Failed to update custom price.');
   }

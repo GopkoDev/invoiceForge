@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
 import { createCustomPrice } from '@/lib/actions/custom-price-actions';
 import { getCustomers } from '@/lib/actions/customer-actions';
-import type { CustomPriceFormValues } from '@/lib/validations/custom-price';
+import type { CustomPriceSchemaValues } from '@/lib/validations/custom-price';
 import type { Currency } from '@prisma/client';
 
 interface UseProductCustomPriceModalParams {
@@ -28,21 +28,13 @@ export function useProductCustomPriceModal({
       open: true,
       close: customPriceModal.close,
       mode: 'selectCustomer',
+      fixedProductId: productId,
       productInfo: {
         price: productPrice,
         currency: productCurrency,
         unit: productUnit,
       },
-      onFormSubmit: async (data: CustomPriceFormValues) => {
-        // In selectCustomer mode, data.productId contains customerId
-        const result = await createCustomPrice(data, { productId });
-        if (result.success) {
-          toast.success('Custom price created successfully');
-        } else {
-          toast.error(result.error || 'Failed to create custom price');
-          throw new Error(result.error);
-        }
-      },
+      onFormSubmit: (data: CustomPriceSchemaValues) => createCustomPrice(data),
       onLoadProducts: async () => {
         const result = await getCustomers();
         if (!result.success) {
