@@ -118,7 +118,7 @@ export default async function DashboardPage({
           </div>
         }
       >
-        <ChartSection currency={currency} appliedRange={appliedRange} />
+        <ChartSection currency={currency} appliedRange={appliedRange} timeZone={timeZone} />
       </Suspense>
 
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">

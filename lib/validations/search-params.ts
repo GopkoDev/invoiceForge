@@ -35,11 +35,18 @@ function firstString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+// F-32 (review-2026-09-27): `Number('1e20')` is a structurally valid positive integer per
+// `z.number().int()`, so an absurdly large page sailed through this schema unclamped and
+// overflowed Prisma's `skip` downstream in invoice-actions.ts (`(page - 1) * pageSize`). Capped
+// at a value no real pager ever reaches, so it falls back to the documented default like every
+// other structurally invalid page.
+const MAX_PAGE = 1_000_000;
+
 const pageSchema = z
   .preprocess((value) => {
     const raw = firstString(value);
     return raw === undefined ? NaN : Number(raw);
-  }, z.number().int().min(1))
+  }, z.number().int().min(1).max(MAX_PAGE))
   .catch(1);
 
 const pageSizeSchema = z

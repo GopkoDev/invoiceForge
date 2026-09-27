@@ -140,6 +140,38 @@ describe('localDayRange (unit, AC-27 — inclusive local range, exclusive next-m
     expect(hours).toBe(25);
   });
 
+  // F-30 (review-2026-09-27): where DST starts at local midnight (the zone's clocks spring
+  // forward at 00:00 instead of 2am/3am), local midnight itself does not exist — the wall clock
+  // jumps straight from 23:59:59 the day before to 01:00:00. The buggy `zonedTimeToUtc` resolved
+  // this to an instant an hour before the actual transition, so the day started an hour early
+  // and the previous day's last hour (23:00-23:59) was dropped from its own range.
+  it('a DST spring-forward-at-midnight day (America/Santiago 2026-09-06) starts at the transition instant, not an hour early', () => {
+    const [start, end] = localDayRange('2026-09-06', '2026-09-06', 'America/Santiago');
+
+    // Chile moves clocks forward from -04:00 to -03:00 at exactly 2026-09-06T04:00:00Z; local
+    // midnight Sept 6 does not exist, so the day starts at that transition instant.
+    expect(start.toISOString()).toBe('2026-09-06T04:00:00.000Z');
+    expect((end.getTime() - start.getTime()) / (60 * 60 * 1000)).toBe(23);
+  });
+
+  it('a DST spring-forward-at-midnight day (America/Havana 2026-03-08) starts at the transition instant, not an hour early', () => {
+    const [start, end] = localDayRange('2026-03-08', '2026-03-08', 'America/Havana');
+
+    // Cuba moves clocks forward from -05:00 to -04:00 at exactly 2026-03-08T05:00:00Z; local
+    // midnight March 8 does not exist, so the day starts at that transition instant.
+    expect(start.toISOString()).toBe('2026-03-08T05:00:00.000Z');
+    expect((end.getTime() - start.getTime()) / (60 * 60 * 1000)).toBe(23);
+  });
+
+  it('the previous day keeps its full last hour when the next day springs forward at midnight (America/Santiago)', () => {
+    // Sept 5's range end == Sept 6's range start; the bug made this boundary an hour early
+    // (2026-09-06T03:00:00Z), dropping Sept 5 23:00-23:59 local from Sept 5's own range.
+    const [, sept5End] = localDayRange('2026-09-05', '2026-09-05', 'America/Santiago');
+    const lastHourMoment = new Date('2026-09-06T03:30:00.000Z'); // 23:30 Sept 5, Santiago (-04:00)
+
+    expect(lastHourMoment.getTime()).toBeLessThan(sept5End.getTime());
+  });
+
   it('handles a +14 zone (Pacific/Kiritimati) single-day range as a plain 24h day', () => {
     const [start, end] = localDayRange('2026-09-15', '2026-09-15', 'Pacific/Kiritimati');
     const hours = (end.getTime() - start.getTime()) / (60 * 60 * 1000);

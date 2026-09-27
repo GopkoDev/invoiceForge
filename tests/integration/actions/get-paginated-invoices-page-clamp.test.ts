@@ -67,6 +67,7 @@ type InvoiceListItemLike = { id: string; invoiceNumber: string };
 type GetPaginatedInvoices = (params: {
   page?: number;
   pageSize?: number;
+  search?: string;
 }) => Promise<
   ActionResult<{
     invoices: InvoiceListItemLike[];
@@ -130,6 +131,41 @@ describe.runIf(containerRuntimeAvailable)('getPaginatedInvoices page clamp (T23,
     expect(result.data.page).toBe(1);
     expect(result.data.applied.page).toBe(1);
     expect(result.data.invoices.map((inv) => inv.id)).toContain(invoice.id);
+  });
+
+  // F-32 (review-2026-09-27): the clamp only fired when `totalPages > 0`
+  // (`requestedPage > totalPages && totalPages > 0 ? 1 : requestedPage`), so a filter with zero
+  // matching invoices (`totalPages === 0`) left `page`/`applied.page` at the raw requested value
+  // instead of clamping to 1 — the "?page=1e20 with 0 results" case from
+  // lib/validations/search-params.ts:38-43; invoice-actions.ts:941,947.
+  it('AC-26: a requested page clamps to 1 when the filter matches zero invoices', async () => {
+    const freelancer = await createFreelancer(prisma, { email: 'zero-results@example.com' });
+    const senderProfile = await createSenderProfile(prisma, freelancer.id);
+    const bankAccount = await createBankAccount(prisma, senderProfile.id);
+    const customer = await createCustomer(prisma, freelancer.id);
+
+    // Seed one invoice so `totalInvoices` (unfiltered) is non-zero, but filter by a search term
+    // that matches nothing, so `total` (filtered) is 0 and `totalPages` is 0.
+    await seedInvoiceRow(prisma, {
+      senderProfile,
+      customer,
+      bankAccount,
+      overrides: { invoiceNumber: `${senderProfile.invoicePrefix}-0001` },
+    });
+
+    authMock.mockResolvedValue({ user: { id: freelancer.id } });
+
+    const result = await getPaginatedInvoices({
+      page: 5,
+      pageSize: 10,
+      search: 'no-such-invoice-matches-this',
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.page).toBe(1);
+    expect(result.data.applied.page).toBe(1);
+    expect(result.data.invoices).toHaveLength(0);
   });
 });
 

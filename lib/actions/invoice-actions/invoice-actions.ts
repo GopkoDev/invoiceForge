@@ -941,7 +941,10 @@ export async function getPaginatedInvoices(
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
-    const page = requestedPage > totalPages && totalPages > 0 ? 1 : requestedPage;
+    // F-32 (review-2026-09-27) — a filter matching zero invoices (`totalPages === 0`) used to
+    // skip the clamp entirely (`totalPages > 0` was false), leaving an absurd requested page
+    // (e.g. `?page=1e20`) unclamped and overflowing Prisma's `skip` below.
+    const page = totalPages === 0 || requestedPage > totalPages ? 1 : requestedPage;
 
     const invoices = await prisma.invoice.findMany({
       where,
@@ -956,7 +959,11 @@ export async function getPaginatedInvoices(
       pageSize,
       sortField,
       sortDirection,
-      status,
+      // F-33 (review-2026-09-27) — off the "all" tab, the tab controls the status filter and
+      // `status` is ignored by the query (getTabStatusFilter/buildFilters above), so echoing the
+      // raw requested status here would show a filter pill/Clear button for a filter that isn't
+      // actually applied.
+      status: tab === 'all' ? status : 'all',
       tab,
       customerId,
       senderProfileId,

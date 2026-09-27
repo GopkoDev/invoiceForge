@@ -76,9 +76,40 @@ function getZoneOffsetMs(instantMs: number, timeZone: string): number {
   return asUtc - instantMs;
 }
 
+/** Whether the zone's wall clock at `instantMs` reads exactly the given calendar date/time. */
+function wallClockMatches(
+  instantMs: number,
+  timeZone: string,
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): boolean {
+  const parts = getZonedParts(new Date(instantMs), timeZone);
+  return (
+    parts.year === year &&
+    parts.month === month &&
+    parts.day === day &&
+    parts.hour === hour &&
+    parts.minute === minute &&
+    parts.second === second
+  );
+}
+
 /**
  * Converts a calendar date/time as observed in `timeZone` to the UTC instant it represents.
- * Iterates the offset once to land on the correct side of a DST transition.
+ * Iterates the offset up to twice, checking the wall clock each guess actually produces (not
+ * just whether the offset stabilized — F-30, review-2026-09-27), so it lands on the correct
+ * instant even when the desired wall-clock time is ambiguous (a fall-back repeats it).
+ *
+ * A handful of zones (e.g. America/Santiago, America/Havana) spring their clocks forward at
+ * local midnight, so local midnight itself does not exist there on a transition day — the wall
+ * clock jumps straight from 23:59:59 to 01:00:00. Neither guess can reproduce a nonexistent wall
+ * clock, and in that gap case this resolves to the transition instant itself (the first guess,
+ * computed from the offset in effect just before the desired time), which is the earliest
+ * instant whose local day is the requested one.
  */
 function zonedTimeToUtc(
   year: number,
@@ -91,11 +122,22 @@ function zonedTimeToUtc(
 ): Date {
   const candidateMs = Date.UTC(year, month - 1, day, hour, minute, second);
   const offset1 = getZoneOffsetMs(candidateMs, timeZone);
-  const firstGuessMs = candidateMs - offset1;
-  const offset2 = getZoneOffsetMs(firstGuessMs, timeZone);
-  const realMs = offset2 === offset1 ? firstGuessMs : candidateMs - offset2;
+  const guess1Ms = candidateMs - offset1;
 
-  return new Date(realMs);
+  if (wallClockMatches(guess1Ms, timeZone, year, month, day, hour, minute, second)) {
+    return new Date(guess1Ms);
+  }
+
+  const offset2 = getZoneOffsetMs(guess1Ms, timeZone);
+  const guess2Ms = candidateMs - offset2;
+
+  if (wallClockMatches(guess2Ms, timeZone, year, month, day, hour, minute, second)) {
+    return new Date(guess2Ms);
+  }
+
+  // Neither guess reproduces the requested wall clock: it falls in a spring-forward gap.
+  // Resolve to the transition instant (guess1Ms), the earliest instant on the requested day.
+  return new Date(guess1Ms);
 }
 
 /** The UTC instant of local midnight, on the local calendar day that `date` falls on in `timeZone`. */
@@ -148,4 +190,16 @@ export function currentLocalMonth(timeZone: string, now: Date = new Date()): [Da
   const end = zonedTimeToUtc(year, month + 1, 1, 0, 0, 0, timeZone);
 
   return [start, end];
+}
+
+// T38 (spec.md §5 AC-25, review-2026-09-27 F-31) — the dashboard chart groups paid/planned
+// amounts by the local calendar day so a users east/west of UTC see their own day boundaries,
+// not the server's. `yyyy-MM-dd` is lexicographically ordered, so callers can compare these keys
+// with plain string operators instead of re-parsing them into Dates.
+/** The `yyyy-MM-dd` calendar date that `date` falls on in `timeZone`. */
+export function formatLocalDateKey(date: Date, timeZone: string): string {
+  const { year, month, day } = getZonedParts(date, timeZone);
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  return `${year}-${mm}-${dd}`;
 }

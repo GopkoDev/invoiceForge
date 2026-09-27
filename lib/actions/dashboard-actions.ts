@@ -16,16 +16,12 @@ import {
   ExpectedPaymentItem,
 } from '@/types/dashboard';
 import { Currency, InvoiceStatus } from '@prisma/client';
-import {
-  startOfDay,
-  endOfDay,
-  eachDayOfInterval,
-  eachWeekOfInterval,
-  eachMonthOfInterval,
-  format,
-  differenceInDays,
-} from 'date-fns';
 import type { DashboardAppliedRange } from '@/lib/validations/search-params';
+import {
+  currentLocalMonth,
+  formatLocalDateKey,
+  startOfLocalDay,
+} from '@/lib/helpers/time-zone';
 
 const CACHE_TAGS = {
   dashboard: 'dashboard',
@@ -202,7 +198,8 @@ export async function getDashboardSummaryStats(
  */
 export async function getDashboardChartData(
   currency: Currency,
-  appliedRange?: DashboardAppliedRange
+  appliedRange?: DashboardAppliedRange,
+  timeZone: string = 'UTC'
 ): Promise<ActionResult<ChartDataPoint[]>> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -212,28 +209,29 @@ export async function getDashboardChartData(
 
     const { userId } = authResult.data;
 
-    // Default to current month if no range provided
-    const now = new Date();
-    const today = startOfDay(now);
-    const from = appliedRange?.start ?? new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = appliedRange
-      ? endOfDay(new Date(appliedRange.endExclusive.getTime() - 1))
-      : new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // T38 (review-2026-09-27 F-31) — `appliedRange` is already local-day-aligned in the
+    // Freelancer's own time zone (search-params.ts's `localDayRange`/`currentLocalMonth`,
+    // ADR-0010); querying and grouping must stay in that zone end-to-end instead of re-deriving
+    // server-zone `startOfDay`/`endOfDay` bounds, which shifted both the query window and the
+    // per-day grouping key for anyone whose local day doesn't line up with the server's.
+    const [rangeStart, rangeEndExclusive] = appliedRange
+      ? [appliedRange.start, appliedRange.endExclusive]
+      : currentLocalMonth(timeZone);
 
-    // Determine granularity based on date range
-    const daysDiff = differenceInDays(to, from);
-    let intervals: Date[];
+    const todayKey = formatLocalDateKey(new Date(), timeZone);
 
-    if (daysDiff <= 31) {
-      // Daily for up to 1 month
-      intervals = eachDayOfInterval({ start: from, end: to });
-    } else if (daysDiff <= 180) {
-      // Weekly for up to 6 months
-      intervals = eachWeekOfInterval({ start: from, end: to });
-    } else {
-      // Monthly for longer periods
-      intervals = eachMonthOfInterval({ start: from, end: to });
+    // Local-day buckets spanning [rangeStart, rangeEndExclusive). Stepping by 25h before
+    // re-snapping to local midnight safely crosses any DST transition in `timeZone` without
+    // ever landing on the wrong day.
+    const dayKeys: string[] = [];
+    let cursor = startOfLocalDay(rangeStart, timeZone);
+    while (cursor.getTime() < rangeEndExclusive.getTime()) {
+      dayKeys.push(formatLocalDateKey(cursor, timeZone));
+      cursor = startOfLocalDay(new Date(cursor.getTime() + 25 * 60 * 60 * 1000), timeZone);
     }
+
+    // Determine granularity based on the local day count.
+    const daysDiff = dayKeys.length;
 
     // Fetch paid invoices within the selected date range only
     const paidInvoices = await prisma.invoice.findMany({
@@ -242,8 +240,8 @@ export async function getDashboardChartData(
         currency,
         status: 'PAID' as InvoiceStatus,
         issueDate: {
-          gte: startOfDay(from),
-          lte: endOfDay(to),
+          gte: rangeStart,
+          lt: rangeEndExclusive,
         },
       },
       select: {
@@ -260,8 +258,8 @@ export async function getDashboardChartData(
         currency,
         status: { in: ['PENDING', 'OVERDUE'] as InvoiceStatus[] },
         dueDate: {
-          gte: startOfDay(from),
-          lte: endOfDay(to),
+          gte: rangeStart,
+          lt: rangeEndExclusive,
         },
       },
       select: {
@@ -271,83 +269,80 @@ export async function getDashboardChartData(
       orderBy: { dueDate: 'asc' },
     });
 
-    // Build map of paid amounts by date (within selected range)
+    // Group paid amounts by the Freelancer's local calendar day (within selected range)
     const paidByDate = new Map<string, number>();
     for (const invoice of paidInvoices) {
-      const invoiceDate = startOfDay(new Date(invoice.issueDate));
-      const dateKey = format(invoiceDate, 'yyyy-MM-dd');
+      const dateKey = formatLocalDateKey(new Date(invoice.issueDate), timeZone);
       const amount = invoice.total?.toNumber() ?? 0;
       paidByDate.set(dateKey, (paidByDate.get(dateKey) ?? 0) + amount);
     }
 
-    // Group planned invoices by due date (within selected range)
+    // Group planned invoices by due date, same local calendar day (within selected range)
     const plannedByDate = new Map<string, number>();
     for (const invoice of plannedInvoices) {
-      const dueDate = format(
-        startOfDay(new Date(invoice.dueDate)),
-        'yyyy-MM-dd'
-      );
+      const dateKey = formatLocalDateKey(new Date(invoice.dueDate), timeZone);
       const amount = invoice.total?.toNumber() ?? 0;
-      plannedByDate.set(dueDate, (plannedByDate.get(dueDate) ?? 0) + amount);
+      plannedByDate.set(dateKey, (plannedByDate.get(dateKey) ?? 0) + amount);
+    }
+
+    // Roll the local-day buckets up into daily/weekly/monthly display groups. `yyyy-MM-dd` keys
+    // sort and compare lexicographically, so grouping/comparison never needs to re-parse a key
+    // back into a Date (the round trip that used to reintroduce the server's own zone).
+    const dayGroups: string[][] = [];
+    if (daysDiff <= 31) {
+      // Daily for up to 1 month
+      for (const dateKey of dayKeys) {
+        dayGroups.push([dateKey]);
+      }
+    } else if (daysDiff <= 180) {
+      // Weekly for up to 6 months
+      for (let i = 0; i < dayKeys.length; i += 7) {
+        dayGroups.push(dayKeys.slice(i, i + 7));
+      }
+    } else {
+      // Monthly for longer periods, grouped by the local yyyy-MM prefix
+      let currentMonth = '';
+      for (const dateKey of dayKeys) {
+        const monthKey = dateKey.slice(0, 7);
+        if (monthKey !== currentMonth) {
+          dayGroups.push([]);
+          currentMonth = monthKey;
+        }
+        dayGroups[dayGroups.length - 1].push(dateKey);
+      }
     }
 
     // Build chart data
     let runningPaid = 0;
     let runningExpected = 0;
 
-    const chartData: ChartDataPoint[] = intervals.map(
-      (intervalStart, index) => {
-        const dateKey = format(intervalStart, 'yyyy-MM-dd');
-        const isPast = intervalStart < today;
-        const isToday =
-          format(intervalStart, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+    const chartData: ChartDataPoint[] = dayGroups.map((group) => {
+      const dateKey = group[0];
+      const isPastOrToday = dateKey <= todayKey;
 
-        // Get the next interval start or end date
-        const nextIntervalStart = intervals[index + 1]
-          ? intervals[index + 1]
-          : endOfDay(to);
-
-        // Sum all paid amounts that fall within this interval
-        let paidForInterval = 0;
-        for (const [paidDate, amount] of paidByDate.entries()) {
-          const paidDateObj = new Date(paidDate);
-          if (paidDateObj >= intervalStart && paidDateObj < nextIntervalStart) {
-            paidForInterval += amount;
-          }
-        }
-
-        // Sum all planned payments that fall within this interval
-        let plannedForInterval = 0;
-        for (const [plannedDate, amount] of plannedByDate.entries()) {
-          const plannedDateObj = new Date(plannedDate);
-          if (
-            plannedDateObj >= intervalStart &&
-            plannedDateObj < nextIntervalStart
-          ) {
-            plannedForInterval += amount;
-          }
-        }
-
-        runningPaid += paidForInterval;
-
-        if (isPast || isToday) {
-          // Past/today: expected line follows paid line
-          runningExpected = runningPaid;
-        } else {
-          // Future: expected line includes planned payments
-          runningExpected += plannedForInterval;
-        }
-
-        const paid = runningPaid;
-        const expected = runningExpected;
-
-        return {
-          date: dateKey,
-          paid,
-          expected,
-        };
+      let paidForInterval = 0;
+      let plannedForInterval = 0;
+      for (const day of group) {
+        paidForInterval += paidByDate.get(day) ?? 0;
+        plannedForInterval += plannedByDate.get(day) ?? 0;
       }
-    );
+
+      runningPaid += paidForInterval;
+
+      if (isPastOrToday) {
+        // Past/today: expected line follows paid line
+        runningExpected = runningPaid;
+      } else {
+        // Future: expected line includes planned payments
+        runningExpected += plannedForInterval;
+      }
+
+      return {
+        date: dateKey,
+        paid: runningPaid,
+        expected: runningExpected,
+      };
+    });
 
     return ok(chartData);
   } catch (error) {

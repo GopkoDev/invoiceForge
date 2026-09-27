@@ -50,6 +50,12 @@ describe('invoiceListParamsSchema (unit, AC-26)', () => {
     ['page=abc', { page: 'abc' }, { page: 1 }],
     ['page=0', { page: '0' }, { page: 1 }],
     ['page missing', {}, { page: 1 }],
+    // F-32 (review-2026-09-27): `Number('1e20')` is a structurally valid positive integer per
+    // `z.number().int()`, so it sailed through unclamped and overflowed Prisma's `skip` once
+    // multiplied by pageSize downstream (invoice-actions.ts). A page number this large is never
+    // legitimate, so the schema caps it the same way it caps every other out-of-range field.
+    ['page=1e20 (absurdly large)', { page: '1e20' }, { page: 1 }],
+
     ['pageSize=25 (not offered)', { pageSize: '25' }, { pageSize: 10 }],
     ['pageSize=abc', { pageSize: 'abc' }, { pageSize: 10 }],
     ['sortField=items (unknown)', { sortField: 'items' }, { sortField: 'createdAt' }],

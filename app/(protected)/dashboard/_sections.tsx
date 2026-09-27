@@ -38,11 +38,13 @@ export async function StatsSection({
 export async function ChartSection({
   currency,
   appliedRange,
+  timeZone,
 }: {
   currency: Currency;
   appliedRange: DashboardAppliedRange | undefined;
+  timeZone: string;
 }) {
-  const result = await getDashboardChartData(currency, appliedRange);
+  const result = await getDashboardChartData(currency, appliedRange, timeZone);
   const data = unwrapPageResult(result);
   return (
     <div className="px-4 lg:px-6">
