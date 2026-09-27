@@ -30,7 +30,7 @@
 | T22 | [Carry the browser time zone in a validated tz cookie with day-bound helpers](./t22-time-zone-cookie.md) | infra | Dmytro Hopko | S | T09 | todo |
 | T23 | [Parse invoice-list link parameters with fallback defaults and inclusive local date ranges](./t23-invoice-list-link-params.md) | ports | Dmytro Hopko | M | T14, T22 | todo |
 | T24 | [Parse dashboard date ranges with a current-month fallback and key Suspense on currency](./t24-dashboard-link-params.md) | ports | Dmytro Hopko | M | T22, T23 | todo |
-| T25 | [Add the segment load-error boundaries with retry and Sentry reporting](./t25-load-error-boundaries.md) | ui | Dmytro Hopko | S | — | todo |
+| T25 | [Add the segment load-error boundaries with retry and Sentry reporting](./t25-load-error-boundaries.md) | ui | Dmytro Hopko | S | — | done |
 | T26 | [Route page load outcomes: FAILED to the error boundary, NOT_FOUND to not-found](./t26-page-outcome-routing.md) | ui | Dmytro Hopko | L | T08, T25, T14 | todo |
 | T27 | [Harden the data export: session first, parallel reads, Invoice Forge file name](./t27-data-export-endpoint.md) | ports | Dmytro Hopko | S | T09 | todo |
 | T28 | [Check the session before parsing input in profile and account settings actions](./t28-profile-actions-guard-first.md) | app | Dmytro Hopko | S | T08, T17 | todo |
