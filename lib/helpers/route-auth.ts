@@ -5,7 +5,7 @@
 // account fails closed (AC-02 fail-closed edge case) rather than trusting the JWT alone.
 
 import { NextResponse } from 'next/server';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { auth } from '@/auth';
 import { prisma } from '@/prisma';
 
@@ -30,6 +30,7 @@ export async function requireSession(): Promise<RequireSessionResult> {
     const session = await auth();
     userId = session?.user?.id;
   } catch (error) {
+    unstable_rethrow(error);
     // Fail closed: a thrown auth() call (e.g. the session callback's DB lookup is down) is
     // treated as no session, never as a live user (T09 edge case table).
     console.error('[requireSession] auth() failed, treating as no session:', error);
@@ -63,6 +64,8 @@ export async function requireLiveUser(): Promise<LiveUser> {
     const session = await auth();
     userId = session?.user?.id;
   } catch (error) {
+    // Next's own control-flow errors (dynamic-rendering bail-out, redirects) must propagate.
+    unstable_rethrow(error);
     console.error('[requireLiveUser] auth() failed, treating as no session:', error);
     userId = undefined;
   }

@@ -40,7 +40,9 @@ vi.mock('@/auth', () => ({
 const redirectMock = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
-vi.mock('next/navigation', () => ({
+vi.mock('next/navigation', async (importOriginal) => ({
+  // Keep the real unstable_rethrow: it recognises Next's internal control-flow errors.
+  ...(await importOriginal<typeof import('next/navigation')>()),
   redirect: (url: string) => redirectMock(url),
 }));
 
@@ -77,6 +79,17 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
     await expect(requireLiveUser()).rejects.toThrow('REDIRECT:/api/auth/clear-session');
 
     expect(signOutMock).not.toHaveBeenCalled();
+  });
+
+  it("rethrows Next's dynamic-rendering signal from auth() instead of treating it as no session", async () => {
+    const dynamicUsage = Object.assign(new Error('Dynamic server usage: headers'), {
+      digest: 'DYNAMIC_SERVER_USAGE',
+    });
+    authMock.mockRejectedValue(dynamicUsage);
+
+    await expect(requireLiveUser()).rejects.toBe(dynamicUsage);
+
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it('returns the live userId without touching the session when the account still exists', async () => {
