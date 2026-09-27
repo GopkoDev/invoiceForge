@@ -21,6 +21,7 @@ import {
   getAccountDeletionSummary,
 } from '@/lib/actions/account-actions';
 import { authRoutes } from '@/config/routes.config';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 
 const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
 const FALLBACK_EXPORT_FILENAME = 'invoice-forge-data.json';
@@ -49,10 +50,20 @@ function invoiceCountLine(count: number) {
     : `${count} invoices will be permanently lost.`;
 }
 
-/** Downloads the Freelancer's data export. Returns false when the export failed. */
-async function downloadDataExport(): Promise<boolean> {
+type ExportOutcome = 'ok' | 'unauthorized' | 'failed';
+
+/**
+ * Downloads the Freelancer's data export. A 401 (AC-21: a stale session must be treated as a
+ * Visitor) is reported separately from any other failure, since the caller sends the device to
+ * sign-in rather than showing the generic export-failed toast.
+ */
+async function downloadDataExport(): Promise<ExportOutcome> {
   try {
     const response = await fetch('/api/user/export');
+
+    if (response.status === 401) {
+      return 'unauthorized';
+    }
 
     if (!response.ok) {
       throw new Error('Failed to export data');
@@ -68,10 +79,10 @@ async function downloadDataExport(): Promise<boolean> {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-    return true;
+    return 'ok';
   } catch (error) {
     console.error('Error exporting data:', error);
-    return false;
+    return 'failed';
   }
 }
 
@@ -88,8 +99,13 @@ export function GdprSettings() {
 
   const handleExportData = async () => {
     setIsExporting(true);
-    const exported = await downloadDataExport();
-    if (exported) {
+    const outcome = await downloadDataExport();
+    if (outcome === 'unauthorized') {
+      // AC-21: a stale session must go to sign-in, not a generic "couldn't be exported" toast.
+      goToSignIn();
+      return;
+    }
+    if (outcome === 'ok') {
       toast.success('Your data has been exported successfully');
     } else {
       toast.error(EXPORT_FAILED_MESSAGE);
@@ -153,34 +169,55 @@ export function GdprSettings() {
 
   async function loadSummary() {
     showDialog({ ...dialogStateRef.current, summary: { status: 'counting' } });
-    const result = await getAccountDeletionSummary();
-    showDialog({
-      ...dialogStateRef.current,
-      summary: result.success
-        ? { status: 'ready', invoiceCount: result.data.invoiceCount }
-        : { status: 'failed' },
-    });
+    // F-36: a rejected call must still resolve out of "counting" into the SCR-08 failed state
+    // (with its Retry), rather than leaving the skeleton up forever.
+    try {
+      const result = await getAccountDeletionSummary();
+      showDialog({
+        ...dialogStateRef.current,
+        summary: result.success
+          ? { status: 'ready', invoiceCount: result.data.invoiceCount }
+          : { status: 'failed' },
+      });
+    } catch (error) {
+      console.error('Error counting invoices for account deletion:', error);
+      showDialog({ ...dialogStateRef.current, summary: { status: 'failed' } });
+    }
   }
 
   async function handleExportFromDialog() {
     showDialog({ ...dialogStateRef.current, exporting: true });
-    const exported = await downloadDataExport();
-    if (!exported) {
+    const outcome = await downloadDataExport();
+    if (outcome === 'unauthorized') {
+      // AC-21: a stale session must go to sign-in, not a generic "couldn't be exported" toast.
+      goToSignIn();
+      return;
+    }
+    if (outcome === 'failed') {
       toast.error(EXPORT_FAILED_MESSAGE);
     }
     showDialog({ ...dialogStateRef.current, exporting: false });
   }
 
   async function handleDeleteAccount() {
-    const result = await deleteUserAccount();
+    // F-36: a rejected call (network failure, thrown before the server ever returns an
+    // ActionResult) must land on the same toast + close as a FAILED result, not leave Confirm
+    // with no feedback at all.
+    try {
+      const result = await deleteUserAccount();
 
-    if (!result.success) {
+      if (!result.success) {
+        closeDialog();
+        toast.error(result.error);
+        return;
+      }
+
+      await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
+    } catch (error) {
+      console.error('Error deleting account:', error);
       closeDialog();
-      toast.error(result.error);
-      return;
+      toast.error("Your account couldn't be deleted. Nothing was removed.");
     }
-
-    await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
   }
 
   const openDeleteDialog = () => {

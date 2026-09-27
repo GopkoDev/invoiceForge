@@ -14,6 +14,7 @@ import { z } from 'zod';
 import {
   zodValidationFailure,
   isUniqueConstraintError,
+  failed,
 } from '@/lib/actions/action-result-helpers';
 import {
   InvoiceEditorData,
@@ -158,8 +159,7 @@ export async function generateInvoiceNumber(
 
     return ok(invoiceNumber);
   } catch (error) {
-    console.error('Error generating invoice number:', error);
-    return fail('FAILED', 'Failed to generate invoice number.');
+    return failed('Error generating invoice number:', error, 'Failed to generate invoice number.');
   }
 }
 
@@ -250,8 +250,7 @@ export async function getInvoiceEditorData(
       legacy,
     });
   } catch (error) {
-    console.error('Error fetching invoice editor data:', error);
-    return fail('FAILED', 'Failed to fetch invoice editor data.');
+    return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');
   }
 }
 
@@ -382,8 +381,7 @@ export async function createInvoice(
       }
       return invoiceNumberConflict();
     }
-    console.error('Error creating invoice:', error);
-    return fail('FAILED', 'Failed to create invoice.');
+    return failed('Error creating invoice:', error, 'Failed to create invoice.');
   }
 }
 
@@ -604,8 +602,7 @@ export async function updateInvoice(
       }
       return invoiceNumberConflict();
     }
-    console.error('Error updating invoice:', error);
-    return fail('FAILED', 'Failed to update invoice.');
+    return failed('Error updating invoice:', error, 'Failed to update invoice.');
   }
 }
 
@@ -638,8 +635,7 @@ export async function deleteInvoice(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting invoice:', error);
-    return fail('FAILED', 'Failed to delete invoice.');
+    return failed('Error deleting invoice:', error, 'Failed to delete invoice.');
   }
 }
 
@@ -677,8 +673,7 @@ export async function getInvoice(
 
     return ok({ ...serialized, legacy });
   } catch (error) {
-    console.error('Error fetching invoice:', error);
-    return fail('FAILED', 'Failed to fetch invoice.');
+    return failed('Error fetching invoice:', error, 'Failed to fetch invoice.');
   }
 }
 
@@ -703,8 +698,7 @@ export async function getInvoices(): Promise<ActionResult<InvoiceListItem[]>> {
       })),
     );
   } catch (error) {
-    console.error('Error fetching invoices:', error);
-    return fail('FAILED', 'Failed to fetch invoices.');
+    return failed('Error fetching invoices:', error, 'Failed to fetch invoices.');
   }
 }
 
@@ -736,8 +730,7 @@ export async function getInvoicesByCustomer(
       })),
     );
   } catch (error) {
-    console.error('Error fetching customer invoices:', error);
-    return fail('FAILED', 'Failed to fetch customer invoices.');
+    return failed('Error fetching customer invoices:', error, 'Failed to fetch customer invoices.');
   }
 }
 
@@ -769,8 +762,7 @@ export async function getInvoicesBySenderProfile(
       })),
     );
   } catch (error) {
-    console.error('Error fetching sender profile invoices:', error);
-    return fail('FAILED', 'Failed to fetch sender profile invoices.');
+    return failed('Error fetching sender profile invoices:', error, 'Failed to fetch sender profile invoices.');
   }
 }
 
@@ -821,8 +813,7 @@ export async function updateInvoiceStatus(
 
     return ok({ status: nextStatus, paidAt: paidAt ? paidAt.toISOString() : null });
   } catch (error) {
-    console.error('Error updating invoice status:', error);
-    return fail('FAILED', 'Failed to update invoice status.');
+    return failed('Error updating invoice status:', error, 'Failed to update invoice status.');
   }
 }
 
@@ -989,8 +980,7 @@ export async function getPaginatedInvoices(
       applied,
     });
   } catch (error) {
-    console.error('Error fetching paginated invoices:', error);
-    return fail('FAILED', 'Failed to fetch invoices.');
+    return failed('Error fetching paginated invoices:', error, 'Failed to fetch invoices.');
   }
 }
 
@@ -1122,13 +1112,14 @@ export async function duplicateInvoice(
     return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      return fail(
-        'CONFLICT',
-        'This invoice number is already used in this sender profile.',
-        { fieldErrors: { invoiceNumber: ['This invoice number is already used in this sender profile.'] } },
-      );
+      // F-39: contracts/server-actions.md §duplicateInvoice lists only UNAUTHORIZED, NOT_FOUND,
+      // FAILED — never CONFLICT, since duplicate has no invoiceNumber field on screen to attach
+      // a fieldError to (unlike createInvoice/updateInvoice's manual-number path). A P2002 here
+      // can only mean allocateInvoiceNumber's own row lock and key check were bypassed — an
+      // allocator bug, so it gets the same backstop alert those two raise.
+      captureMessage('invoice_number_conflict', { extra: { id } });
+      return fail('FAILED', 'Failed to duplicate invoice.');
     }
-    console.error('Error duplicating invoice:', error);
-    return fail('FAILED', 'Failed to duplicate invoice.');
+    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.');
   }
 }

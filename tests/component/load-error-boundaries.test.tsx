@@ -96,7 +96,12 @@ describe('(protected)/error.tsx — AC-28 default and still-failing states', () 
     expect(screen.getByText(/we couldn't load your data/i)).toBeInTheDocument();
   });
 
-  it('retry calls reset() then router.refresh()', async () => {
+  // F-37 (T39): "reset() then refresh()" re-renders the segment from the still-cached error
+  // payload before the refetch lands, so the first "Try again" can never recover — it has to
+  // refresh (kick off the refetch) before reset() (clear the boundary), and both belong inside
+  // startTransition so React treats the pair as one non-blocking update
+  // (`startTransition(() => { router.refresh(); reset(); })`).
+  it('retry calls router.refresh() then reset(), so the boundary clears onto fresh data, not the cached failure', async () => {
     const user = userEvent.setup();
     const error = Object.assign(new Error('load failed'), { digest: 'abc123' });
     const reset = vi.fn();
@@ -107,11 +112,9 @@ describe('(protected)/error.tsx — AC-28 default and still-failing states', () 
 
     expect(reset).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
-    // reset() before router.refresh(), per the checklist ("onRetry calls reset() then
-    // router.refresh()").
     const resetOrder = reset.mock.invocationCallOrder[0];
     const refreshOrder = refresh.mock.invocationCallOrder[0];
-    expect(resetOrder).toBeLessThan(refreshOrder);
+    expect(refreshOrder).toBeLessThan(resetOrder);
   });
 
   it('reports again when the retry itself fails (still-failing state)', () => {

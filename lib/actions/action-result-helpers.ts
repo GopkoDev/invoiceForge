@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { captureException } from '@sentry/nextjs';
 import { ActionFailure, fail } from '@/types/actions';
 
 /**
@@ -31,6 +32,17 @@ export function isUniqueConstraintError(error: unknown): boolean {
     'code' in error &&
     (error as { code?: unknown }).code === 'P2002'
   );
+}
+
+/**
+ * A FAILED result for a caught, unexpected error (ADR-0009): logs it, alerts error monitoring
+ * (F-38: "the cause of a FAILED result never reaches Sentry" — before this only account-actions
+ * called captureException), and returns the plain-language message the client shows.
+ */
+export function failed(logContext: string, error: unknown, message: string): ActionFailure {
+  console.error(logContext, error);
+  captureException(error);
+  return fail('FAILED', message);
 }
 
 /** True for Prisma's Restrict-FK violation (P2003) — a live "still referenced" delete conflict. */

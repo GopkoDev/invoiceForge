@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { InvoiceFormData } from '@/types/invoice/types';
 import { InvoiceEditorState, InvoiceEditorInitData, TotalsChanged } from './types';
 import { ActionFailure } from '@/types/actions';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import {
   generateInvoiceNumber,
   createInvoice,
@@ -36,6 +37,12 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     result: ActionFailure,
     retry: () => void
   ): void {
+    // AC-21: a stale session's save must send the device to sign-in, not just toast a
+    // generic error and leave it on the editor.
+    if (redirectIfUnauthorized(result)) {
+      return;
+    }
+
     if (result.details?.kind === 'TOTALS_CHANGED') {
       set({
         totalsChanged: {

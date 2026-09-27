@@ -16,6 +16,7 @@ import {
   zodValidationFailure,
   hasInvoicesConflict,
   isRestrictForeignKeyError,
+  failed,
 } from '@/lib/actions/action-result-helpers';
 
 export async function createSenderProfile(
@@ -67,9 +68,7 @@ export async function createSenderProfile(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error creating sender profile:', error);
-
-    return fail('FAILED', 'Failed to create sender profile. Please try again.');
+    return failed('Error creating sender profile:', error, 'Failed to create sender profile. Please try again.');
   }
 }
 
@@ -135,9 +134,7 @@ export async function updateSenderProfile(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error updating sender profile:', error);
-
-    return fail('FAILED', 'Failed to update sender profile. Please try again.');
+    return failed('Error updating sender profile:', error, 'Failed to update sender profile. Please try again.');
   }
 }
 
@@ -186,9 +183,7 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting sender profile:', error);
-
-    return fail('FAILED', 'Failed to delete sender profile. Please try again.');
+    return failed('Error deleting sender profile:', error, 'Failed to delete sender profile. Please try again.');
   }
 }
 
@@ -218,9 +213,7 @@ export async function getSenderProfiles(): Promise<
 
     return ok(profiles);
   } catch (error) {
-    console.error('Error fetching sender profiles:', error);
-
-    return fail('FAILED', 'Failed to fetch sender profiles. Please try again.');
+    return failed('Error fetching sender profiles:', error, 'Failed to fetch sender profiles. Please try again.');
   }
 }
 
@@ -253,8 +246,6 @@ export async function getSenderProfile(
 
     return ok(profile);
   } catch (error) {
-    console.error('Error fetching sender profile:', error);
-
-    return fail('FAILED', 'Failed to fetch sender profile. Please try again.');
+    return failed('Error fetching sender profile:', error, 'Failed to fetch sender profile. Please try again.');
   }
 }

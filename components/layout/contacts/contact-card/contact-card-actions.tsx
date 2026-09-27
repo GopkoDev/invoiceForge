@@ -9,6 +9,7 @@ import { AlertCircle, Eye, Trash2 } from 'lucide-react';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { useModal } from '@/store/use-modal-store';
 import { ActionResult } from '@/types/actions';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 
 interface ContactCardActionsProps {
   id: string;
@@ -53,6 +54,12 @@ export function ContactCardActions({
       } else {
         router.refresh();
       }
+      return;
+    }
+
+    // AC-21: a stale session's delete must send the device to sign-in, not just toast a
+    // generic error and leave the confirmation dialog sitting open.
+    if (redirectIfUnauthorized(result)) {
       return;
     }
 

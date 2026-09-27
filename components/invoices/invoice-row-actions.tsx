@@ -37,6 +37,7 @@ import {
   downloadInvoicePdf,
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
@@ -84,6 +85,8 @@ export function InvoiceRowActions({
     try {
       const result = await getInvoice(invoiceId);
       if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
@@ -99,6 +102,8 @@ export function InvoiceRowActions({
     try {
       const result = await getInvoice(invoiceId);
       if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }

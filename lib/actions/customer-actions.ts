@@ -15,6 +15,7 @@ import {
   zodValidationFailure,
   hasInvoicesConflict,
   isRestrictForeignKeyError,
+  failed,
 } from '@/lib/actions/action-result-helpers';
 
 export async function getCustomers(): Promise<
@@ -48,8 +49,7 @@ export async function getCustomers(): Promise<
 
     return ok(customers);
   } catch (error) {
-    console.error('Error fetching customers:', error);
-    return fail('FAILED', 'Failed to fetch customers.');
+    return failed('Error fetching customers:', error, 'Failed to fetch customers.');
   }
 }
 
@@ -85,8 +85,7 @@ export async function getCustomer(
 
     return ok(customer);
   } catch (error) {
-    console.error('Error fetching customer:', error);
-    return fail('FAILED', 'Failed to fetch customer.');
+    return failed('Error fetching customer:', error, 'Failed to fetch customer.');
   }
 }
 
@@ -116,8 +115,7 @@ export async function createCustomer(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error creating customer:', error);
-    return fail('FAILED', 'Failed to create customer.');
+    return failed('Error creating customer:', error, 'Failed to create customer.');
   }
 }
 
@@ -158,8 +156,7 @@ export async function updateCustomer(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error updating customer:', error);
-    return fail('FAILED', 'Failed to update customer.');
+    return failed('Error updating customer:', error, 'Failed to update customer.');
   }
 }
 
@@ -212,7 +209,6 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting customer:', error);
-    return fail('FAILED', 'Failed to delete customer.');
+    return failed('Error deleting customer:', error, 'Failed to delete customer.');
   }
 }

@@ -266,3 +266,74 @@ describe('GdprSettings delete-account dialog (SCR-08)', () => {
     expect(signOutMock).not.toHaveBeenCalled();
   });
 });
+
+// T39 (spec.md §5 AC-21, AC-28; review-2026-09-27.md F-34, F-36) —
+// docs/features/architecture-hardening/tasks.json T39, cite
+// components/settings/gdpr-settings.tsx:57,154-163,174-184.
+describe('GdprSettings — UNAUTHORIZED and rejected calls (T39, F-34, F-36, AC-21)', () => {
+  const assignMock = vi.fn();
+
+  beforeEach(() => {
+    getAccountDeletionSummaryMock.mockReset();
+    deleteUserAccountMock.mockReset();
+    toastError.mockReset();
+    assignMock.mockReset();
+    useModalStore.getState().resetAllModals();
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, assign: assignMock },
+      writable: true,
+    });
+  });
+
+  // F-34: a 401 export response is caught generically and toasted as "couldn't be exported"
+  // instead of sending the device to sign-in (AC-21 — a stale session tries an action, it must
+  // be signed out, never just told an unrelated error happened).
+  it('routes a 401 export response to the cookie-clearing sign-in route instead of a generic toast', async () => {
+    const user = userEvent.setup();
+    getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+
+    renderSettings();
+    await openDeleteDialog(user);
+    await screen.findByText('2 invoices will be permanently lost.');
+
+    await user.click(screen.getByRole('button', { name: /export my data first/i }));
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session'));
+    expect(toastError).not.toHaveBeenCalledWith("Your data couldn't be exported. Try again.");
+  });
+
+  // F-36: loadSummary() never catches a rejected getAccountDeletionSummary() call, so the
+  // dialog hangs on the counting skeleton forever instead of showing the SCR-08 failed state.
+  it('shows the failed summary state (not an endless "counting") when the summary call rejects', async () => {
+    const user = userEvent.setup();
+    getAccountDeletionSummaryMock.mockRejectedValue(new Error('network error'));
+
+    renderSettings();
+    await openDeleteDialog(user);
+
+    expect(await screen.findByText("Couldn't count your invoices.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Yes, Delete My Account' })).toBeDisabled();
+  });
+
+  // F-36: handleDeleteAccount() never catches a rejected deleteUserAccount() call, so Confirm
+  // gives no feedback at all (the dialog just sits there) instead of the same toast + close a
+  // FAILED result gets.
+  it('toasts and closes the dialog (same as a FAILED result) when deleteUserAccount rejects', async () => {
+    const user = userEvent.setup();
+    getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));
+    deleteUserAccountMock.mockRejectedValue(new Error('network error'));
+
+    renderSettings();
+    await openDeleteDialog(user);
+    await screen.findByText('2 invoices will be permanently lost.');
+
+    await user.click(screen.getByRole('button', { name: 'Yes, Delete My Account' }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByText('Delete your account?')).not.toBeInTheDocument()
+    );
+    expect(signOutMock).not.toHaveBeenCalled();
+  });
+});
