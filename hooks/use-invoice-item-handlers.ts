@@ -6,6 +6,15 @@ import {
   useInvoiceItem,
   useInvoiceEditorActions,
 } from '@/store/invoice-editor-store';
+import { lineAmount } from '@/lib/helpers/invoice-calculations';
+
+// F-01: the line total the editor shows must come from the same shared exact-decimal module the
+// server stores from (AC-13), never a float `price * quantity` multiply. F-04/quantity/price are
+// NaN for a moment while an invalid entry is being typed (see F-04 below); lineAmount reports
+// that as 'NaN' rather than throwing, so the total mirrors it honestly.
+function computeLineTotal(quantity: number, price: number): number {
+  return Number(lineAmount(quantity, price));
+}
 
 interface UseInvoiceItemHandlersProps {
   itemId: string;
@@ -32,20 +41,22 @@ export function useInvoiceItemHandlers({
         description: product.description || '',
         unit: product.unit,
         price,
-        total: price * item.quantity,
+        total: computeLineTotal(item.quantity, price),
       });
       closePopover();
     },
     [item.quantity, itemId, updateItem]
   );
 
+  // F-04: the entered value is never silently corrected — parse it as typed (including "-" and
+  // letters) and let invoiceItemSchema reject it on save, rather than stripping characters and
+  // defaulting an unparseable entry to 0.
   const handleQuantityChange = useCallback(
     (value: string) => {
-      const sanitized = value.replace(/[^\d.]/g, '');
-      const quantity = parseFloat(sanitized) || 0;
+      const quantity = Number(value);
       updateItem(itemId, {
         quantity,
-        total: item.price * quantity,
+        total: computeLineTotal(quantity, item.price),
       });
     },
     [item.price, itemId, updateItem]
@@ -53,11 +64,10 @@ export function useInvoiceItemHandlers({
 
   const handlePriceChange = useCallback(
     (value: string) => {
-      const sanitized = value.replace(/[^\d.]/g, '');
-      const price = parseFloat(sanitized) || 0;
+      const price = Number(value);
       updateItem(itemId, {
         price,
-        total: price * item.quantity,
+        total: computeLineTotal(item.quantity, price),
       });
     },
     [item.quantity, itemId, updateItem]

@@ -12,10 +12,32 @@ interface Scaled {
   scale: number;
 }
 
+// F-07: Number#toString() renders very small/large numbers in exponent form (e.g. (1e-7)
+// .toString() === "1e-7"), which BigInt(...) can't parse. Expand the mantissa/exponent into a
+// plain decimal string ourselves (no re-parsing through a float) before the digit split below.
+function expandExponent(raw: string): string {
+  const match = raw.match(/^(-?)(\d+)(?:\.(\d+))?e([+-]?\d+)$/i);
+  if (!match) return raw;
+
+  const [, sign, intPart, fracPart = '', expPart] = match;
+  const exp = parseInt(expPart, 10);
+  const digits = intPart + fracPart;
+  const pointPos = intPart.length + exp;
+
+  if (pointPos <= 0) {
+    return `${sign}0.${'0'.repeat(-pointPos)}${digits}`;
+  }
+  if (pointPos >= digits.length) {
+    return `${sign}${digits}${'0'.repeat(pointPos - digits.length)}`;
+  }
+  return `${sign}${digits.slice(0, pointPos)}.${digits.slice(pointPos)}`;
+}
+
 function parseDecimal(value: DecimalString | number): Scaled {
   const raw = typeof value === 'number' ? value.toString() : value.trim();
-  const negative = raw.startsWith('-');
-  const abs = negative ? raw.slice(1) : raw;
+  const normalized = /e/i.test(raw) ? expandExponent(raw) : raw;
+  const negative = normalized.startsWith('-');
+  const abs = negative ? normalized.slice(1) : normalized;
   const [intPart, fracPart = ''] = abs.split('.');
   const unscaledStr = `${intPart || '0'}${fracPart}` || '0';
   const unscaled = BigInt(unscaledStr) * BigInt(negative ? -1 : 1);
@@ -68,11 +90,21 @@ function toCents(value: Scaled): bigint {
   return roundHalfUp(value, 2);
 }
 
+// F-04 (spec.md §3, "the entered value is never silently corrected"): the editor keeps a numeric
+// field's raw, un-sanitized parse (e.g. Number('-') while a "-5" is still being typed), which can
+// be NaN/Infinity for a moment. BigInt can't represent that, so every entry point below checks
+// for it first and reports the whole result as "NaN" instead of throwing — honest, not silently
+// rounded to 0.
+function isInvalidNumber(value: DecimalString | number): boolean {
+  return typeof value === 'number' && !Number.isFinite(value);
+}
+
 /** quantity x price, rounded half-up to cents. Exact for any input decimal precision. */
 export function lineAmount(
   quantity: DecimalString | number,
   price: DecimalString | number
 ): DecimalString {
+  if (isInvalidNumber(quantity) || isInvalidNumber(price)) return 'NaN';
   const product = multiply(parseDecimal(quantity), parseDecimal(price));
   return formatScaled(toCents(product), 2);
 }
@@ -109,6 +141,21 @@ export interface InvoiceAmounts {
  * Whatever the browser sent for totals is ignored; this is the only computation that counts.
  */
 export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmounts {
+  const hasInvalidInput =
+    input.items.some((item) => isInvalidNumber(item.quantity) || isInvalidNumber(item.price)) ||
+    isInvalidNumber(input.discount) ||
+    isInvalidNumber(input.shipping) ||
+    isInvalidNumber(input.taxRate);
+
+  if (hasInvalidInput) {
+    return {
+      items: input.items.map(() => ({ amount: 'NaN' })),
+      subtotal: 'NaN',
+      taxAmount: 'NaN',
+      total: 'NaN',
+    };
+  }
+
   const itemCents = input.items.map((item) =>
     toCents(multiply(parseDecimal(item.quantity), parseDecimal(item.price)))
   );

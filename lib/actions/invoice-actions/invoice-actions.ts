@@ -1016,16 +1016,25 @@ export async function duplicateInvoice(
       return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
+    // F-05: the source invoice may be a legacy row whose amounts already break the rules (e.g. a
+    // negative rate) — run it through the same schema createInvoice/updateInvoice use before
+    // recomputing, instead of blindly copying a possibly rule-breaking source into a new invoice.
+    const parsed = invoiceFormSchema.safeParse(transformInvoiceToFormData(originalInvoice));
+    if (!parsed.success) {
+      return zodValidationFailure(parsed.error);
+    }
+    const validatedData = parsed.data;
+
     // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
     // the original's quantity x rate rather than copying its (possibly stale) stored figures.
     const amounts = computeInvoiceAmounts({
-      items: originalInvoice.items.map((item) => ({
-        quantity: item.quantity.toString(),
-        price: item.rate.toString(),
+      items: validatedData.items.map((item) => ({
+        quantity: item.quantity,
+        price: item.price,
       })),
-      discount: originalInvoice.discount.toString(),
-      shipping: originalInvoice.shipping.toString(),
-      taxRate: originalInvoice.taxRate.toString(),
+      discount: validatedData.discount,
+      shipping: validatedData.shipping,
+      taxRate: validatedData.taxRate,
     });
 
     const newInvoice = await prisma.$transaction(async (tx) => {

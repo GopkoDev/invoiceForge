@@ -95,4 +95,33 @@ describe('customPriceSchema — shared create/update messages (AC-16)', () => {
     const result = customPriceSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
+
+  // F-06 (T32): the custom-price schema had no upper bound and no 2dp rule, per
+  // contracts/server-actions.md §createCustomPrice ("price: number; > 0, ≤ 99 999 999.99, 2 dp").
+  // A too-large value used to reach the DB and fail as FAILED instead of a field error.
+  const MAX_AMOUNT = 99_999_999.99;
+
+  it.each([
+    ['create', () => customPriceSchema, createInput],
+    ['update', () => updateSchema, updateInput],
+  ])('%s: rejects a price above the maximum with "Price is too large."', (_label, getSchema, buildInput) => {
+    const messages = messagesFor(getSchema(), { ...buildInput(), price: MAX_AMOUNT + 0.01 }, 'price');
+    expect(messages).toEqual(['Price is too large.']);
+  });
+
+  it.each([
+    ['create', () => customPriceSchema, createInput],
+    ['update', () => updateSchema, updateInput],
+  ])('%s: accepts the maximum price boundary', (_label, getSchema, buildInput) => {
+    const result = getSchema().safeParse({ ...buildInput(), price: MAX_AMOUNT });
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['create', () => customPriceSchema, createInput],
+    ['update', () => updateSchema, updateInput],
+  ])('%s: rejects a price with more than 2 decimal places', (_label, getSchema, buildInput) => {
+    const messages = messagesFor(getSchema(), { ...buildInput(), price: 1.004 }, 'price');
+    expect(messages).toEqual(['Price can have at most 2 decimal places.']);
+  });
 });

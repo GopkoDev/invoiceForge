@@ -560,7 +560,9 @@ describe.runIf(containerRuntimeAvailable)(
         bankAccount: owner.bankAccount,
         overrides: { invoiceNumber: 'RECOMP-0001', invoiceNumberKey: normalizeInvoiceNumber('RECOMP-0001') },
       });
-      const formItems = items([{ productName: 'A', quantity: 2, price: 5.005, total: 999999 }]);
+      // Price is 2dp (F-02: quantity/price are bound to 2 decimal places); only the browser-sent
+      // `total` field is tampered here.
+      const formItems = items([{ productName: 'A', quantity: 2, price: 5.01, total: 999999 }]);
       const expected = computeInvoiceAmounts({
         items: formItems.map((i) => ({ quantity: i.quantity, price: i.price })),
         discount: 0,

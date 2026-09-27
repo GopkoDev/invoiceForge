@@ -76,6 +76,37 @@ describe('CustomPriceModal — states (T21, AC-16, AC-31)', () => {
     expect(onFormSubmit).not.toHaveBeenCalled();
   });
 
+  // F-04 (T32): the price Input's onChange stripped "-" (and letters) before parsing, silently
+  // rewriting a negative entry into a positive one instead of letting the schema reject it
+  // (spec.md §3 "the entered value is never silently corrected").
+  it('F-04: a negative price is kept as negative and rejected, instead of being silently turned positive', async () => {
+    const user = userEvent.setup();
+    const onFormSubmit = vi.fn().mockResolvedValue(ok({ id: 'new-id' }));
+
+    render(
+      <CustomPriceModal
+        open
+        close={vi.fn()}
+        mode="selectProduct"
+        fixedCustomerId="cust_1"
+        fixedProductId="prod_1"
+        onFormSubmit={onFormSubmit}
+        onLoadProducts={vi.fn().mockResolvedValue([])}
+      />
+    );
+
+    const priceInput = screen.getByRole('textbox', { name: /Custom Price/ });
+    await user.clear(priceInput);
+    await user.type(priceInput, '-5');
+
+    expect(priceInput).toHaveValue('-5');
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByText('Price must be positive.')).toBeInTheDocument();
+    expect(onFormSubmit).not.toHaveBeenCalled();
+  });
+
   it('not-found: shows a destructive Alert and keeps the dialog open with the entered value', async () => {
     const user = userEvent.setup();
     const onFormSubmit = vi.fn().mockResolvedValue(fail('NOT_FOUND', NOT_FOUND_MESSAGE));

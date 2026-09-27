@@ -19,6 +19,24 @@ describe('lineAmount (AC-13, exact half-up rounding)', () => {
     // not reproduce that artefact.
     expect(lineAmount('0.1', '3')).toBe('0.30');
   });
+
+  // F-07: numbers small enough that JS's Number#toString() renders them in exponent form (e.g.
+  // 1e-7) used to make parseDecimal's BigInt(unscaledStr) throw a SyntaxError instead of
+  // returning a value — the server then surfaced FAILED instead of VALIDATION, and the editor's
+  // onChange crashed. lineAmount/computeInvoiceAmounts must accept exponent-form numbers.
+  it('does not throw on a number given in exponent form', () => {
+    expect(() => lineAmount(1e-7, 1)).not.toThrow();
+    expect(() => lineAmount('1e-7', '1')).not.toThrow();
+  });
+
+  it('parses exponent-form numbers to their exact decimal value', () => {
+    // 1e-2 = 0.01, rounded to 2dp is itself.
+    expect(lineAmount('1e-2', '1')).toBe('0.01');
+    // 1e-7 is far below the cent, so it rounds down to 0.00.
+    expect(lineAmount('1e-7', '1')).toBe('0.00');
+    // Large positive exponent.
+    expect(lineAmount('1.5e2', '1')).toBe('150.00');
+  });
 });
 
 describe('computeInvoiceAmounts (AC-13, editor/server parity)', () => {

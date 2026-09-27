@@ -363,10 +363,10 @@ export function CustomPriceModal({
                   aria-invalid={fieldState.invalid}
                   placeholder="0.00"
                   disabled={form.formState.isSubmitting}
-                  onChange={(e) => {
-                    const sanitized = e.target.value.replace(/[^\d.]/g, '');
-                    field.onChange(sanitized);
-                  }}
+                  // F-04: the entered value is never silently corrected — pass it through as
+                  // typed (including "-" and letters) and let customPriceSchema's zod coercion
+                  // reject it with the contract's field message.
+                  onChange={(e) => field.onChange(e.target.value)}
                 />
 
                 <FieldError errors={[fieldState.error]} />

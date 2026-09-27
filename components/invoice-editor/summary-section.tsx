@@ -26,12 +26,14 @@ export function SummarySection() {
     useSummary();
   const fieldErrors = useFieldErrors();
 
+  // F-04: the entered value is never silently corrected — parse the raw input as typed
+  // (including "-" and letters) and let invoiceFormSchema reject it on save, rather than
+  // stripping characters and defaulting an unparseable entry to 0.
   const handleNumericChange = (
     value: string,
     field: 'taxRate' | 'discount' | 'shipping'
   ) => {
-    const sanitized = value.replace(/[^\d.]/g, '');
-    updateField(field, parseFloat(sanitized) || 0);
+    updateField(field, Number(value));
   };
 
   const taxableAmount = subtotal - discount + shipping;

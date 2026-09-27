@@ -95,6 +95,7 @@ type FormItem = {
 type FormValues = Record<string, unknown> & { items: FormItem[] };
 type CreateInvoice = (data: FormValues) => Promise<ActionResult<SavedInvoice>>;
 type DuplicateInvoice = (id: string) => Promise<ActionResult<{ id: string; invoiceNumber: string }>>;
+type GetInvoice = (id: string) => Promise<ActionResult<{ legacy: unknown }>>;
 type FormatInvoiceNumber = (prefix: string, n: number) => string;
 type NormalizeInvoiceNumber = (s: string) => string;
 type PeekNextInvoiceNumber = (senderProfileId: string) => Promise<string | null>;
@@ -106,6 +107,7 @@ describe.runIf(containerRuntimeAvailable)(
     let prisma: PrismaClient;
     let createInvoice: CreateInvoice;
     let duplicateInvoice: DuplicateInvoice;
+    let getInvoice: GetInvoice;
     let formatInvoiceNumber: FormatInvoiceNumber;
     let normalizeInvoiceNumber: NormalizeInvoiceNumber;
     let peekNextInvoiceNumber: PeekNextInvoiceNumber;
@@ -115,9 +117,9 @@ describe.runIf(containerRuntimeAvailable)(
       process.env.DATABASE_URL = db.connectionString;
       vi.resetModules();
       prisma = createTestPrismaClient(db.connectionString);
-      ({ createInvoice, duplicateInvoice } = (await import(
+      ({ createInvoice, duplicateInvoice, getInvoice } = (await import(
         '@/lib/actions/invoice-actions/invoice-actions'
-      )) as unknown as { createInvoice: CreateInvoice; duplicateInvoice: DuplicateInvoice });
+      )) as unknown as { createInvoice: CreateInvoice; duplicateInvoice: DuplicateInvoice; getInvoice: GetInvoice });
       ({ formatInvoiceNumber, normalizeInvoiceNumber, peekNextInvoiceNumber } = (await import(
         '@/lib/actions/invoice-actions/numbering'
       )) as unknown as {
@@ -286,9 +288,12 @@ describe.runIf(containerRuntimeAvailable)(
 
     it('AC-13: stored amounts are recomputed from quantity x price; a tampered browser total is ignored and the save is not blocked', async () => {
       const owner = await seedOwner();
+      // Prices are 2dp (F-02: quantity/price are bound to 2 decimal places), so only the
+      // browser-sent `total` field is tampered here; half-up rounding of a >2dp product is
+      // covered directly at the unit level (tests/unit/invoice-calculations.test.ts).
       const formItems = items([
-        { productName: 'A', quantity: 1, price: 2.675, total: 999 }, // tampered total, 2.675 rounds half-up to 2.68
-        { productName: 'B', quantity: 2, price: 5.005, total: -1 }, // tampered total
+        { productName: 'A', quantity: 1, price: 2.68, total: 999 }, // tampered total
+        { productName: 'B', quantity: 2, price: 5.01, total: -1 }, // tampered total
       ]);
       const expected = computeInvoiceAmounts({
         items: formItems.map((i) => ({ quantity: i.quantity, price: i.price })),
@@ -429,6 +434,55 @@ describe.runIf(containerRuntimeAvailable)(
       const untouchedOriginal = await prisma.invoice.findUniqueOrThrow({ where: { id: original.id } });
       expect(untouchedOriginal.status).toBe('PAID');
       expect(Number(untouchedOriginal.total)).toBe(999);
+    });
+
+    // F-02 regression (T32): quantity/price/taxRate/discount/shipping used to be unbound on
+    // decimal places, so a value with 3+ decimals could be stored differently by the DECIMAL(_,2)
+    // column than what was used to compute the total, flagging a brand-new invoice as legacy on
+    // its very next load. With the 2dp bound enforced at the schema, a freshly created invoice
+    // must reopen with legacy === null.
+    it('F-02: a freshly created invoice reopens with legacy === null', async () => {
+      const owner = await seedOwner();
+      const formItems = items([{ productName: 'A', quantity: 1.01, price: 2.01, total: 0 }]);
+
+      const result = await createInvoice(
+        buildForm(owner, { items: formItems, taxRate: 10.01, discount: 1.01, shipping: 1.01 })
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      const reopened = await getInvoice(result.data.id);
+      expect(reopened.success).toBe(true);
+      if (!reopened.success) return;
+      expect(reopened.data.legacy).toBeNull();
+    });
+
+    // F-05 (T32): duplicateInvoice recomputed amounts from the source invoice's stored
+    // quantity/rate but never validated them, so a legacy invoice whose stored rate is negative
+    // (broke the rules before this feature existed) produced a new, equally invalid copy instead
+    // of being blocked.
+    it('F-05: duplicating a legacy invoice with a rule-breaking amount is rejected as VALIDATION, and nothing is saved', async () => {
+      const owner = await seedOwner();
+      const original = await seedInvoiceRow(prisma, {
+        senderProfile: owner.senderProfile,
+        customer: owner.customer,
+        bankAccount: owner.bankAccount,
+        items: [{ name: 'Legacy item', quantity: 1, rate: -5, amount: -5 }],
+        overrides: { subtotal: -5, total: -5 },
+      });
+
+      const before = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
+
+      const result = await duplicateInvoice(original.id);
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.code).toBe('VALIDATION');
+      expect(result.fieldErrors?.['items.0.price']).toContain("Price can't be negative.");
+
+      const after = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
+      expect(after).toBe(before);
     });
 
     it('duplicateInvoice NOT_FOUND: an invoice belonging to another user is treated as missing', async () => {

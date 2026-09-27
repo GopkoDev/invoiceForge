@@ -7,6 +7,21 @@ import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 // "Field-error messages", both verbatim).
 const MAX_AMOUNT = 99_999_999.99;
 
+// F-02: quantity/price/taxRate/discount/shipping map to DECIMAL(_,2) columns, so a value with
+// more than 2 decimal places gets rounded differently by the DB than by the shared decimal
+// module used to compute the stored total — flagging a brand-new invoice as legacy on its next
+// edit (SCR-15). Checked on the string form of the number (JS's Number#toString() round-trips a
+// directly-typed decimal literal exactly), never by re-doing the arithmetic in floats.
+function hasAtMostTwoDecimalPlaces(value: number): boolean {
+  if (!Number.isFinite(value)) return true; // let z.number()'s own type check report NaN/Infinity
+  const str = Math.abs(value).toString();
+  if (/e/i.test(str)) {
+    return Math.abs(value - Math.round(value * 100) / 100) < Number.EPSILON * Math.abs(value || 1);
+  }
+  const dot = str.indexOf('.');
+  return dot === -1 || str.length - dot - 1 <= 2;
+}
+
 export const invoiceItemSchema = z.object({
   id: z.string(),
   productId: z.string().optional(),
@@ -16,11 +31,13 @@ export const invoiceItemSchema = z.object({
   quantity: z
     .number()
     .gt(0, 'Quantity must be greater than zero.')
-    .max(MAX_AMOUNT, 'Quantity is too large.'),
+    .max(MAX_AMOUNT, 'Quantity is too large.')
+    .refine(hasAtMostTwoDecimalPlaces, 'Quantity can have at most 2 decimal places.'),
   price: z
     .number()
     .min(0, "Price can't be negative.")
-    .max(MAX_AMOUNT, 'Price is too large.'),
+    .max(MAX_AMOUNT, 'Price is too large.')
+    .refine(hasAtMostTwoDecimalPlaces, 'Price can have at most 2 decimal places.'),
   total: z.number(),
 });
 
@@ -44,12 +61,18 @@ export const invoiceFormSchema = z
       .number()
       .min(0, 'Tax rate must be between 0 and 100 %.')
       .max(100, 'Tax rate must be between 0 and 100 %.')
+      .refine(hasAtMostTwoDecimalPlaces, 'Tax rate can have at most 2 decimal places.')
       .default(0),
-    discount: z.number().min(0, "Discount can't be negative.").default(0),
+    discount: z
+      .number()
+      .min(0, "Discount can't be negative.")
+      .refine(hasAtMostTwoDecimalPlaces, "Discount can have at most 2 decimal places.")
+      .default(0),
     shipping: z
       .number()
       .min(0, "Shipping can't be negative.")
       .max(MAX_AMOUNT, "Shipping can't exceed the maximum amount.")
+      .refine(hasAtMostTwoDecimalPlaces, 'Shipping can have at most 2 decimal places.')
       .default(0),
     notes: z.string().optional().default(''),
     terms: z.string().optional().default(''),

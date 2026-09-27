@@ -201,6 +201,67 @@ describe('invoiceFormSchema (AC-14, amount bounds)', () => {
   });
 });
 
+// F-02 (T32): quantity/price/taxRate/discount/shipping map to DECIMAL(_,2) columns but were
+// unbounded on decimal places, so a 3dp value could be stored differently by the DB than what
+// was used to compute the total, flagging a brand-new invoice as legacy on its next edit.
+describe('invoiceFormSchema (F-02, 2 decimal place bound)', () => {
+  it('rejects a quantity with more than 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(
+      baseInvoice({
+        items: [
+          { id: 'item-1', productName: 'Widget', description: '', unit: 'pcs', quantity: 1.004, price: 1, total: 0 },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+    expect(fieldMessages(result, 'items.0.quantity')).toContain('Quantity can have at most 2 decimal places.');
+  });
+
+  it('rejects a price with more than 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(
+      baseInvoice({
+        items: [
+          { id: 'item-1', productName: 'Widget', description: '', unit: 'pcs', quantity: 1, price: 1.004, total: 0 },
+        ],
+      })
+    );
+    expect(result.success).toBe(false);
+    expect(fieldMessages(result, 'items.0.price')).toContain('Price can have at most 2 decimal places.');
+  });
+
+  it('rejects a tax rate with more than 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(baseInvoice({ taxRate: 10.005 }));
+    expect(result.success).toBe(false);
+    expect(fieldMessages(result, 'taxRate')).toContain('Tax rate can have at most 2 decimal places.');
+  });
+
+  it('rejects a discount with more than 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(baseInvoice({ discount: 1.004 }));
+    expect(result.success).toBe(false);
+    expect(fieldMessages(result, 'discount')).toContain("Discount can have at most 2 decimal places.");
+  });
+
+  it('rejects a shipping amount with more than 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(baseInvoice({ shipping: 1.004 }));
+    expect(result.success).toBe(false);
+    expect(fieldMessages(result, 'shipping')).toContain('Shipping can have at most 2 decimal places.');
+  });
+
+  it('accepts quantity, price, taxRate, discount and shipping at exactly 2 decimal places', () => {
+    const result = invoiceFormSchema.safeParse(
+      baseInvoice({
+        items: [
+          { id: 'item-1', productName: 'Widget', description: '', unit: 'pcs', quantity: 1.01, price: 2.01, total: 0 },
+        ],
+        taxRate: 10.01,
+        discount: 1.01,
+        shipping: 1.01,
+      })
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('invoiceFormSchema (AC-15, discount cannot exceed subtotal + shipping)', () => {
   // subtotal = 1 x 100 = 100.00; shipping 10 -> cap is 110.
   it('rejects a discount above subtotal + shipping', () => {
