@@ -41,7 +41,43 @@ export function serializeInvoice(
   } as unknown as SerializedInvoice;
 }
 
-export { calculateInvoiceTotals } from '@/lib/helpers/invoice-calculations';
+import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
+
+interface InvoiceTotalsItem {
+  total: number;
+}
+
+interface InvoiceTotals {
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+}
+
+/**
+ * Thin number adapter over the shared exact-decimal module (ADR-0006), kept for the existing
+ * createInvoice/updateInvoice call sites. It sums the already-computed per-item totals through
+ * the shared module so subtotal/tax/total never drift on floats; recomputing each line from
+ * quantity x rate on the server (ignoring client-sent totals) is wired in T13/T14.
+ */
+export function calculateInvoiceTotals(
+  items: InvoiceTotalsItem[],
+  taxRate: number,
+  discount: number,
+  shipping: number
+): InvoiceTotals {
+  const amounts = computeInvoiceAmounts({
+    items: items.map((item) => ({ quantity: 1, price: item.total })),
+    discount,
+    shipping,
+    taxRate,
+  });
+
+  return {
+    subtotal: Number(amounts.subtotal),
+    taxAmount: Number(amounts.taxAmount),
+    total: Number(amounts.total),
+  };
+}
 
 export function buildSenderSnapshot(profile: SenderProfile) {
   return {

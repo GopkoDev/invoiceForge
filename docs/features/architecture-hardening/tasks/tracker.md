@@ -15,7 +15,7 @@
 | T07 | [Add, backfill and uniquely index Invoice.invoiceNumberKey (expand step)](./t07-invoice-number-key-migration.md) | migration | Dmytro Hopko | M | T01 | todo |
 | T08 | [Introduce typed ActionResult error codes and move every action onto them](./t08-typed-action-result.md) | app | Dmytro Hopko | L | — | todo |
 | T09 | [Treat sessions without a live account as Visitors in layouts and guards](./t09-live-account-guard.md) | app | Dmytro Hopko | S | T05, T08 | todo |
-| T10 | [Make invoice-calculations a pure exact-decimal module shared by editor and server](./t10-shared-decimal-calculations.md) | domain | Dmytro Hopko | M | — | todo |
+| T10 | [Make invoice-calculations a pure exact-decimal module shared by editor and server](./t10-shared-decimal-calculations.md) | domain | Dmytro Hopko | M | — | done |
 | T11 | [Tighten the invoice schema and add applyStatusChange for the paid date](./t11-invoice-rules-and-status.md) | domain | Dmytro Hopko | M | T08, T10 | todo |
 | T12 | [Add normalizeInvoiceNumber and the row-locked allocateInvoiceNumber](./t12-numbering-module.md) | app | Dmytro Hopko | M | T07 | todo |
 | T13 | [Rewrite createInvoice and duplicateInvoice on the allocator and recomputed amounts](./t13-create-and-duplicate-invoice.md) | app | Dmytro Hopko | L | T08, T10, T11, T12 | todo |
