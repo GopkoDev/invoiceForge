@@ -25,13 +25,12 @@ import {
   SerializedInvoice,
   InvoiceListItem,
   PaginatedInvoiceList,
-  InvoiceTab,
-  InvoiceSortField,
-  SortDirection,
 } from '@/types/invoice/types';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
+import { getRequestTimeZone, localDayRange } from '@/lib/helpers/time-zone';
+import { InvoiceListParams } from '@/lib/validations/search-params';
 import {
   allocateInvoiceNumber,
   isInvoiceKeyTaken,
@@ -824,20 +823,13 @@ export async function updateInvoiceStatus(
   }
 }
 
-// Get paginated invoices with filters and sorting
-export async function getPaginatedInvoices(params: {
-  page?: number;
-  pageSize?: number;
-  tab?: InvoiceTab;
-  search?: string;
-  status?: InvoiceStatus | 'all';
-  customerId?: string;
-  senderProfileId?: string;
-  sortField?: InvoiceSortField;
-  sortDirection?: SortDirection;
-  dateFrom?: string;
-  dateTo?: string;
-}): Promise<ActionResult<PaginatedInvoiceList>> {
+// Get paginated invoices with filters and sorting. Takes already-parsed params from
+// lib/validations/search-params.ts (contracts/server-actions.md §getPaginatedInvoices, verbatim):
+// it no longer casts raw strings. Returns `applied` so the controls show what was actually used
+// (AC-26), and clamps an out-of-range page to 1 once `total` is known (task file §Edge cases).
+export async function getPaginatedInvoices(
+  params: Partial<InvoiceListParams>
+): Promise<ActionResult<PaginatedInvoiceList & { applied: InvoiceListParams }>> {
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult.success) {
@@ -845,7 +837,7 @@ export async function getPaginatedInvoices(params: {
     }
 
     const {
-      page = 1,
+      page: requestedPage = 1,
       pageSize = 10,
       tab = 'all',
       search = '',
@@ -859,6 +851,9 @@ export async function getPaginatedInvoices(params: {
     } = params;
 
     const userId = authResult.data.userId;
+    // Day boundaries use the validated browser time zone from the `tz` cookie, falling back to
+    // UTC (sad.md §8 Hard rule "Time and time zones"; ADR-0010).
+    const timeZone = await getRequestTimeZone();
 
     const baseWhere = {
       senderProfile: { userId },
@@ -898,17 +893,12 @@ export async function getPaginatedInvoices(params: {
         filters.senderProfileId = senderProfileId;
       }
 
-      if (dateFrom) {
-        filters.issueDate = {
-          ...((filters.issueDate as object) || {}),
-          gte: new Date(dateFrom),
-        };
-      }
-      if (dateTo) {
-        filters.issueDate = {
-          ...((filters.issueDate as object) || {}),
-          lte: new Date(dateTo),
-        };
+      // Date bounds (contracts/server-actions.md §Link parameters, verbatim): [startOfDay(from,
+      // tz), startOfDay(to + 1 day, tz)), so the last day is included in full and the end is
+      // exclusive at the next local midnight (AC-27, ADR-0010).
+      if (dateFrom && dateTo) {
+        const [gte, lt] = localDayRange(dateFrom, dateTo, timeZone);
+        filters.issueDate = { gte, lt };
       }
 
       return filters;
@@ -927,31 +917,50 @@ export async function getPaginatedInvoices(params: {
       [sortField]: sortDirection,
     };
 
-    const [invoices, total, totalInvoices, customers, senderProfiles] =
-      await Promise.all([
-        prisma.invoice.findMany({
-          where,
-          select: invoiceListSelect,
-          orderBy,
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-        }),
-        prisma.invoice.count({ where }),
-        // Total invoices without any filters (for empty state detection)
-        prisma.invoice.count({ where: baseWhere }),
-        // Get unique customers for filter dropdown
-        prisma.customer.findMany({
-          where: { userId },
-          select: { id: true, name: true },
-          orderBy: { name: 'asc' },
-        }),
-        // Get sender profiles for filter dropdown
-        prisma.senderProfile.findMany({
-          where: { userId },
-          select: { id: true, name: true },
-          orderBy: { name: 'asc' },
-        }),
-      ]);
+    // The clamp to page 1 (task file §Edge cases, "?page=999 beyond the last page") is only
+    // knowable once `total` is counted, so the count and the page-scoped fetch are sequenced.
+    const [total, totalInvoices, customers, senderProfiles] = await Promise.all([
+      prisma.invoice.count({ where }),
+      // Total invoices without any filters (for empty state detection)
+      prisma.invoice.count({ where: baseWhere }),
+      // Get unique customers for filter dropdown
+      prisma.customer.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      // Get sender profiles for filter dropdown
+      prisma.senderProfile.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+    const page = requestedPage > totalPages && totalPages > 0 ? 1 : requestedPage;
+
+    const invoices = await prisma.invoice.findMany({
+      where,
+      select: invoiceListSelect,
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+
+    const applied: InvoiceListParams = {
+      page,
+      pageSize,
+      sortField,
+      sortDirection,
+      status,
+      tab,
+      customerId,
+      senderProfileId,
+      search,
+      dateFrom: dateFrom && dateTo ? dateFrom : undefined,
+      dateTo: dateFrom && dateTo ? dateTo : undefined,
+    };
 
     return ok({
       invoices: invoices.map((inv) => ({
@@ -961,12 +970,13 @@ export async function getPaginatedInvoices(params: {
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize),
+      totalPages,
       filterOptions: {
         customers,
         senderProfiles,
       },
       totalInvoices,
+      applied,
     });
   } catch (error) {
     console.error('Error fetching paginated invoices:', error);

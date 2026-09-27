@@ -1,40 +1,19 @@
-import {
-  InvoiceSearchParams,
-  InvoiceTab,
-  InvoiceSortField,
-  SortDirection,
-  InvoiceStatus,
-} from '@/types/invoice/types';
 import { getPaginatedInvoices } from '@/lib/actions/invoice-actions/invoice-actions';
+import { invoiceListParamsSchema } from '@/lib/validations/search-params';
 import { InvoicesListContainer } from '@/components/invoices';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface InvoicesPageProps {
-  searchParams: Promise<InvoiceSearchParams>;
+  // Next.js searchParams: raw, untrusted, string | string[] | undefined per key — never cast, a
+  // bad/tampered link is parsed with fallback-to-default schemas so it never throws (AC-26).
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function InvoicesPage({
   searchParams,
 }: InvoicesPageProps) {
-  const params = await searchParams;
-
-  const query = {
-    page: Number(params.page) || 1,
-    pageSize: Number(params.pageSize) || 10,
-    tab: (params.tab as InvoiceTab) || 'all',
-    search: params.search || '',
-    status: (params.status as InvoiceStatus | 'all') || 'all',
-    sortField: (params.sortBy ||
-      params.sortField ||
-      'createdAt') as InvoiceSortField,
-    sortDirection: (params.sortOrder ||
-      params.sortDirection ||
-      'desc') as SortDirection,
-    dateFrom: params.dateFrom || '',
-    dateTo: params.dateTo || '',
-    customerId: params.customerId || '',
-    senderProfileId: params.senderProfileId || '',
-  };
+  const rawParams = await searchParams;
+  const query = invoiceListParamsSchema.parse(rawParams);
 
   const result = await getPaginatedInvoices(query);
 

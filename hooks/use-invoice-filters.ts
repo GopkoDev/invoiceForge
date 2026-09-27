@@ -1,61 +1,81 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import type { InvoiceListParams } from '@/lib/validations/search-params';
 
+// T23 (spec.md §5 AC-26) — every control shows `PaginatedInvoiceList.applied`, not the raw link
+// (screens.md §SCR-02, verbatim: "Every control ... shows PaginatedInvoiceList.applied, not the
+// raw link"), and every link this hook builds starts from `applied` too, so a bad value never
+// round-trips back into the URL.
 interface UseInvoiceFiltersParams {
-  defaultPageSize?: number;
+  applied: InvoiceListParams;
 }
 
-export function useInvoiceFilters({
-  defaultPageSize = 10,
-}: UseInvoiceFiltersParams = {}) {
+type UpdatableKey = keyof InvoiceListParams;
+
+export function useInvoiceFilters({ applied }: UseInvoiceFiltersParams) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  const page = Number(searchParams.get('page')) || 1;
-  const pageSize = Number(searchParams.get('pageSize')) || defaultPageSize;
-  const tab = (searchParams.get('tab') as 'all' | 'drafts' | 'final') || 'all';
-  const search = searchParams.get('search') || '';
-  const status = searchParams.get('status') || 'all';
-  const customerId = searchParams.get('customerId') || '';
-  const senderProfileId = searchParams.get('senderProfileId') || '';
-  const sortBy = searchParams.get('sortBy') || 'createdAt';
-  const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
-  const dateFrom = searchParams.get('dateFrom') || '';
-  const dateTo = searchParams.get('dateTo') || '';
+  const {
+    page,
+    pageSize,
+    tab,
+    search,
+    status,
+    customerId = '',
+    senderProfileId = '',
+    sortField,
+    sortDirection,
+    dateFrom = '',
+    dateTo = '',
+  } = applied;
 
   const [localSearch, setLocalSearch] = useState(search);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateParams = useCallback(
-    (updates: Record<string, string | number | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString());
+  // The server may have fallen back to a different `search` than what's locally being typed
+  // (e.g. navigating directly to a link with a bad/tampered value) — resync on it.
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
 
-      Object.entries(updates).forEach(([key, value]) => {
+  const updateParams = useCallback(
+    (updates: Partial<Record<UpdatableKey, string | number | undefined>>) => {
+      const merged: Record<string, string | number | undefined> = {
+        ...applied,
+        ...updates,
+      };
+
+      const params = new URLSearchParams();
+      Object.entries(merged).forEach(([key, value]) => {
         if (value === undefined || value === '' || value === 'all') {
-          params.delete(key);
-        } else {
-          params.set(key, String(value));
+          return;
         }
+        params.set(key, String(value));
       });
 
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [router, pathname, searchParams]
+    [router, pathname, applied]
   );
 
   const setTab = useCallback(
     (newTab: 'all' | 'drafts' | 'final') => {
-      const params = new URLSearchParams();
-      if (newTab !== 'all') {
-        params.set('tab', newTab);
-      }
-      setLocalSearch(''); // Reset local search too
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      setLocalSearch('');
+      updateParams({
+        tab: newTab,
+        search: undefined,
+        status: undefined,
+        customerId: undefined,
+        senderProfileId: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+        page: undefined,
+      });
     },
-    [router, pathname]
+    [updateParams]
   );
 
   const setSearch = useCallback(
@@ -119,33 +139,33 @@ export function useInvoiceFilters({
     (field: string, direction?: 'asc' | 'desc') => {
       const newDirection =
         direction ??
-        (field === sortBy ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'desc');
+        (field === sortField ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc');
 
       updateParams({
-        sortBy: field,
-        sortOrder: newDirection,
+        sortField: field,
+        sortDirection: newDirection,
         page: 1,
       });
     },
-    [updateParams, sortBy, sortOrder]
+    [updateParams, sortField, sortDirection]
   );
 
   const clearFilters = useCallback(() => {
-    const params = new URLSearchParams();
-    if (tab !== 'all') {
-      params.set('tab', tab);
-    }
-    setLocalSearch(''); // Reset local search too
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [router, pathname, tab]);
+    setLocalSearch('');
+    updateParams({
+      search: undefined,
+      status: undefined,
+      customerId: undefined,
+      senderProfileId: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      page: undefined,
+    });
+  }, [updateParams]);
 
-  const hasActiveFilters =
-    search ||
-    status !== 'all' ||
-    customerId ||
-    senderProfileId ||
-    dateFrom ||
-    dateTo;
+  const hasActiveFilters = Boolean(
+    search || status !== 'all' || customerId || senderProfileId || dateFrom || dateTo
+  );
 
   // Create filters object for components
   const filters = {
@@ -156,8 +176,8 @@ export function useInvoiceFilters({
     senderProfileId,
     dateFrom,
     dateTo,
-    sortBy,
-    sortOrder,
+    sortBy: sortField,
+    sortOrder: sortDirection,
   };
 
   return {
@@ -168,8 +188,8 @@ export function useInvoiceFilters({
     status,
     customerId,
     senderProfileId,
-    sortBy,
-    sortOrder,
+    sortBy: sortField,
+    sortOrder: sortDirection,
     dateFrom,
     dateTo,
     filters,

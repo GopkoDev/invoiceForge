@@ -9,9 +9,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import type { PaginatedInvoiceList } from '@/types/invoice/types';
 import type { InvoiceSortField } from '@/types/invoice/types';
+import type { InvoiceListParams } from '@/lib/validations/search-params';
 
 interface InvoicesListContainerProps {
-  data: PaginatedInvoiceList;
+  data: PaginatedInvoiceList & { applied: InvoiceListParams };
 }
 
 const TAB_OPTIONS = [
@@ -35,7 +36,7 @@ export function InvoicesListContainer({ data }: InvoicesListContainerProps) {
     setPageSize,
     setTab,
     clearFilters,
-  } = useInvoiceFilters();
+  } = useInvoiceFilters({ applied: data.applied });
 
   const {
     invoices,

@@ -28,7 +28,7 @@
 | T20 | [Require an https logo link when saving a sender profile](./t20-sender-profile-https-logo.md) | app | Dmytro Hopko | S | T08 | done |
 | T21 | [Validate custom prices on create and update and link them to an explicit owned Customer](./t21-custom-price-validation-and-links.md) | app | Dmytro Hopko | M | T08 | done |
 | T22 | [Carry the browser time zone in a validated tz cookie with day-bound helpers](./t22-time-zone-cookie.md) | infra | Dmytro Hopko | S | T09 | done |
-| T23 | [Parse invoice-list link parameters with fallback defaults and inclusive local date ranges](./t23-invoice-list-link-params.md) | ports | Dmytro Hopko | M | T14, T22 | todo |
+| T23 | [Parse invoice-list link parameters with fallback defaults and inclusive local date ranges](./t23-invoice-list-link-params.md) | ports | Dmytro Hopko | M | T14, T22 | done |
 | T24 | [Parse dashboard date ranges with a current-month fallback and key Suspense on currency](./t24-dashboard-link-params.md) | ports | Dmytro Hopko | M | T22, T23 | todo |
 | T25 | [Add the segment load-error boundaries with retry and Sentry reporting](./t25-load-error-boundaries.md) | ui | Dmytro Hopko | S | — | done |
 | T26 | [Route page load outcomes: FAILED to the error boundary, NOT_FOUND to not-found](./t26-page-outcome-routing.md) | ui | Dmytro Hopko | L | T08, T25, T14 | todo |
