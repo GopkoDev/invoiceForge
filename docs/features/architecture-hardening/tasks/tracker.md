@@ -24,7 +24,7 @@
 | T16 | [Build the editor number hint, field errors, saved state, legacy alert and SCR-15 dialog](./t16-editor-number-and-save-states.md) | ui | Dmytro Hopko | L | T14, T15 | done |
 | T17 | [Add the deletion summary and delete the account in one explicit transaction](./t17-account-deletion-transaction.md) | app | Dmytro Hopko | M | T08 | done |
 | T18 | [Show the invoice count and export offer in the delete-account dialog](./t18-delete-account-dialog.md) | ui | Dmytro Hopko | M | T15, T17 | done |
-| T19 | [Refuse deleting a Customer or sender profile that has invoices, with the count](./t19-block-deleting-records-with-invoices.md) | app | Dmytro Hopko | M | T08, T15 | todo |
+| T19 | [Refuse deleting a Customer or sender profile that has invoices, with the count](./t19-block-deleting-records-with-invoices.md) | app | Dmytro Hopko | M | T08, T15 | done |
 | T20 | [Require an https logo link when saving a sender profile](./t20-sender-profile-https-logo.md) | app | Dmytro Hopko | S | T08 | todo |
 | T21 | [Validate custom prices on create and update and link them to an explicit owned Customer](./t21-custom-price-validation-and-links.md) | app | Dmytro Hopko | M | T08 | todo |
 | T22 | [Carry the browser time zone in a validated tz cookie with day-bound helpers](./t22-time-zone-cookie.md) | infra | Dmytro Hopko | S | T09 | todo |

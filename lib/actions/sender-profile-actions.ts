@@ -12,7 +12,11 @@ import { SenderProfileWithRelations } from '@/types/sender-profile/types';
 import { SenderProfile } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import {
+  zodValidationFailure,
+  hasInvoicesConflict,
+  isRestrictForeignKeyError,
+} from '@/lib/actions/action-result-helpers';
 
 export async function createSenderProfile(
   data: SenderProfileFormValues
@@ -152,17 +156,23 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
     }
 
     if (existingProfile._count.invoices > 0) {
-      return fail(
-        'CONFLICT',
-        'Cannot delete sender profile with existing invoices. Please delete or reassign invoices first.',
-        { details: { kind: 'HAS_INVOICES', invoiceCount: existingProfile._count.invoices } },
-      );
+      return hasInvoicesConflict('sender profile', existingProfile._count.invoices);
     }
 
-    // Delete sender profile (cascade will delete bank accounts)
-    await prisma.senderProfile.delete({
-      where: { id },
-    });
+    try {
+      // Delete sender profile (cascade will delete bank accounts)
+      await prisma.senderProfile.delete({
+        where: { id },
+      });
+    } catch (deleteError) {
+      if (isRestrictForeignKeyError(deleteError)) {
+        // An invoice was saved between the count above and this delete (Restrict FK, P2003):
+        // recount and report the same CONFLICT, never FAILED (sad.md §8 Hard rule, AC-22).
+        const invoiceCount = await prisma.invoice.count({ where: { senderProfileId: id } });
+        return hasInvoicesConflict('sender profile', invoiceCount);
+      }
+      throw deleteError;
+    }
 
     revalidatePath(protectedRoutes.senderProfiles);
 

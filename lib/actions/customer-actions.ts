@@ -11,7 +11,11 @@ import { protectedRoutes } from '@/config/routes.config';
 import { CustomerWithRelations } from '@/types/customer/types';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import {
+  zodValidationFailure,
+  hasInvoicesConflict,
+  isRestrictForeignKeyError,
+} from '@/lib/actions/action-result-helpers';
 
 export async function getCustomers(): Promise<
   ActionResult<CustomerWithRelations[]>
@@ -187,16 +191,22 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     }
 
     if (customer._count.invoices > 0) {
-      return fail(
-        'CONFLICT',
-        `Cannot delete customer with ${customer._count.invoices} invoice(s). Please delete or reassign invoices first.`,
-        { details: { kind: 'HAS_INVOICES', invoiceCount: customer._count.invoices } },
-      );
+      return hasInvoicesConflict('customer', customer._count.invoices);
     }
 
-    await prisma.customer.delete({
-      where: { id },
-    });
+    try {
+      await prisma.customer.delete({
+        where: { id },
+      });
+    } catch (deleteError) {
+      if (isRestrictForeignKeyError(deleteError)) {
+        // An invoice was saved between the count above and this delete (Restrict FK, P2003):
+        // recount and report the same CONFLICT, never FAILED (sad.md §8 Hard rule, AC-22).
+        const invoiceCount = await prisma.invoice.count({ where: { customerId: id } });
+        return hasInvoicesConflict('customer', invoiceCount);
+      }
+      throw deleteError;
+    }
 
     revalidatePath(protectedRoutes.customers);
 

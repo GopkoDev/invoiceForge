@@ -32,3 +32,30 @@ export function isUniqueConstraintError(error: unknown): boolean {
     (error as { code?: unknown }).code === 'P2002'
   );
 }
+
+/** True for Prisma's Restrict-FK violation (P2003) — a live "still referenced" delete conflict. */
+export function isRestrictForeignKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'P2003'
+  );
+}
+
+/**
+ * T19 (AC-22, contracts/server-actions.md §deleteCustomer/deleteSenderProfile): the shared
+ * "N invoices depend on this <entity>, so it can't be deleted." wording, singular for N = 1.
+ */
+export function hasInvoicesConflict(
+  entityLabel: 'customer' | 'sender profile',
+  invoiceCount: number,
+): ActionFailure {
+  const noun = invoiceCount === 1 ? 'invoice' : 'invoices';
+  const verb = invoiceCount === 1 ? 'depends' : 'depend';
+  return fail(
+    'CONFLICT',
+    `${invoiceCount} ${noun} ${verb} on this ${entityLabel}, so it can't be deleted.`,
+    { details: { kind: 'HAS_INVOICES', invoiceCount } },
+  );
+}

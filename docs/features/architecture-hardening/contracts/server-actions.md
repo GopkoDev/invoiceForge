@@ -187,7 +187,7 @@ Flow 10 (AC-22). Outcomes:
 | Outcome | Result |
 |---|---|
 | not found / not owned | `NOT_FOUND` |
-| N ≥ 1 invoices reference it | `CONFLICT`, `details: { kind: 'HAS_INVOICES', invoiceCount: N }`, `error: "N invoices depend on this customer, so it can't be deleted."` (or "…this sender profile…") |
+| N ≥ 1 invoices reference it | `CONFLICT`, `details: { kind: 'HAS_INVOICES', invoiceCount: N }`, `error`: N = 1 → `"1 invoice depends on this customer, so it can't be deleted."` (or "…this sender profile…"); N ≥ 2 → `"N invoices depend on this customer, so it can't be deleted."` (or "…this sender profile…") |
 | an invoice was saved between the count and the delete (FK `Restrict` violation, P2003) | the same `CONFLICT`, with `invoiceCount` recounted. Never `FAILED` (sad §6 flag) |
 | none | `success` |
 
