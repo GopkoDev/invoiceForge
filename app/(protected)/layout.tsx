@@ -3,6 +3,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SiteHeader } from '@/components/layout/site-header';
 import { siteConfig } from '@/config/site.config';
+import { requireLiveUser } from '@/lib/helpers/route-auth';
 
 export const metadata: Metadata = {
   robots: {
@@ -15,11 +16,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PrivateLayout({
+export default async function PrivateLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // T09 (ADR-0002, AC-21): a stale token whose User row is gone is treated as a Visitor —
+  // redirected to sign-in before any protected data renders.
+  await requireLiveUser();
+
   return (
     <SidebarProvider
       defaultOpen={siteConfig.sidebar.defaultOpen}
