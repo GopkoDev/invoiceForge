@@ -23,6 +23,14 @@ import {
 import { authRoutes } from '@/config/routes.config';
 
 const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
+const FALLBACK_EXPORT_FILENAME = 'invoice-forge-data.json';
+
+/** Reads the file name the server chose (Content-Disposition), falling back when absent. */
+function exportFilenameFrom(response: Response): string {
+  const disposition = response.headers.get('content-disposition');
+  const match = disposition?.match(/filename="([^"]+)"/);
+  return match?.[1] ?? FALLBACK_EXPORT_FILENAME;
+}
 
 // SCR-08 states that decide the dialog's body and whether Confirm is enabled.
 type DeletionSummary =
@@ -50,11 +58,12 @@ async function downloadDataExport(): Promise<boolean> {
       throw new Error('Failed to export data');
     }
 
+    const filename = exportFilenameFrom(response);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'invoice-forge-data.json';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

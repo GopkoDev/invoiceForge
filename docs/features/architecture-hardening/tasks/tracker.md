@@ -32,7 +32,7 @@
 | T24 | [Parse dashboard date ranges with a current-month fallback and key Suspense on currency](./t24-dashboard-link-params.md) | ports | Dmytro Hopko | M | T22, T23 | done |
 | T25 | [Add the segment load-error boundaries with retry and Sentry reporting](./t25-load-error-boundaries.md) | ui | Dmytro Hopko | S | — | done |
 | T26 | [Route page load outcomes: FAILED to the error boundary, NOT_FOUND to not-found](./t26-page-outcome-routing.md) | ui | Dmytro Hopko | L | T08, T25, T14 | done |
-| T27 | [Harden the data export: session first, parallel reads, Invoice Forge file name](./t27-data-export-endpoint.md) | ports | Dmytro Hopko | S | T09 | todo |
+| T27 | [Harden the data export: session first, parallel reads, Invoice Forge file name](./t27-data-export-endpoint.md) | ports | Dmytro Hopko | S | T09 | done |
 | T28 | [Check the session before parsing input in profile and account settings actions](./t28-profile-actions-guard-first.md) | app | Dmytro Hopko | S | T08, T17 | todo |
 | T29 | [Disallow the root and every page of each private section in robots.txt](./t29-robots-disallow-section-roots.md) | ports | Dmytro Hopko | S | T02 | todo |
 | T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | todo |

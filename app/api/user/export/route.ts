@@ -1,124 +1,115 @@
-import { auth } from '@/auth';
-import { prisma } from '@/prisma';
+// T27 (spec.md §5 AC-24, sad.md §5/§8, openapi.yaml operationId exportUserData) — hardened data
+// export: requireSession() first (before any category is read), every AC-20 category read in
+// parallel and scoped to the caller (Session dropped per exportVersion 2.0), file named for the
+// product from config/site.config.ts.
 import { NextResponse } from 'next/server';
+import { captureException } from '@sentry/nextjs';
+import { requireSession } from '@/lib/helpers/route-auth';
+import { prisma } from '@/prisma';
+import { siteConfig } from '@/config/site.config';
+
+const EXPORT_FAILED_BODY = {
+  success: false,
+  code: 'FAILED',
+  error: "Your data couldn't be exported. Try again.",
+} as const;
+
+function utcDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 export async function GET() {
+  const session = await requireSession();
+  if (!session.ok) {
+    return session.response;
+  }
+  const { userId } = session;
+
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = session.user.id;
-
-    // Fetch all user data with relations
-    const userData = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        accounts: {
+    const [user, accounts, emailHistory, senderProfiles, customers, products, invoices] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
           select: {
-            provider: true,
-            type: true,
+            id: true,
+            name: true,
+            email: true,
+            emailVerified: true,
+            image: true,
             createdAt: true,
+            updatedAt: true,
           },
-        },
-        sessions: {
-          select: {
-            expires: true,
-            createdAt: true,
-          },
-        },
-        emailHistory: true,
-        senderProfiles: {
-          include: {
-            bankAccounts: true,
-          },
-        },
-        customers: {
+        }),
+        prisma.account.findMany({
+          where: { userId },
+          select: { provider: true, type: true, createdAt: true },
+        }),
+        prisma.emailHistory.findMany({ where: { userId } }),
+        prisma.senderProfile.findMany({
+          where: { userId },
+          include: { bankAccounts: true },
+        }),
+        prisma.customer.findMany({
+          where: { userId },
           include: {
             customPrices: {
               include: {
                 product: {
-                  select: {
-                    name: true,
-                    unit: true,
-                  },
+                  select: { name: true, unit: true },
                 },
               },
             },
           },
-        },
-        products: {
+        }),
+        prisma.product.findMany({
+          where: { userId },
           include: {
             customPrices: {
               include: {
                 customer: {
-                  select: {
-                    name: true,
-                  },
+                  select: { name: true },
                 },
               },
             },
           },
-        },
-      },
-    });
+        }),
+        prisma.invoice.findMany({
+          where: { senderProfile: { userId } },
+          include: { items: true },
+        }),
+      ]);
 
-    if (!userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!user) {
+      // requireSession() already confirmed the User row exists; treat a race (deleted between
+      // the check and here) the same as a failed export rather than leaking a partial file.
+      return NextResponse.json(EXPORT_FAILED_BODY, { status: 500 });
     }
 
-    // Fetch invoices separately due to complexity
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        senderProfile: {
-          userId: userId,
-        },
-      },
-      include: {
-        items: true,
-      },
-    });
-
-    // Combine all data
     const exportData = {
       exportDate: new Date().toISOString(),
-      exportVersion: '1.0',
-      user: {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        emailVerified: userData.emailVerified,
-        image: userData.image,
-        createdAt: userData.createdAt,
-        updatedAt: userData.updatedAt,
-      },
-      accounts: userData.accounts,
-      sessions: userData.sessions,
-      emailHistory: userData.emailHistory,
-      senderProfiles: userData.senderProfiles,
-      customers: userData.customers,
-      products: userData.products,
-      invoices: invoices,
+      exportVersion: '2.0',
+      user,
+      accounts,
+      emailHistory,
+      senderProfiles,
+      customers,
+      products,
+      invoices,
     };
 
-    // Convert to JSON string with formatting
     const jsonData = JSON.stringify(exportData, null, 2);
+    const filename = `${siteConfig.branding.name} export ${utcDateString(new Date())}.json`;
 
-    // Return as downloadable file
     return new NextResponse(jsonData, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Content-Disposition': 'attachment; filename="invoice-forge-data.json"',
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {
     console.error('Error exporting user data:', error);
-    return NextResponse.json(
-      { error: 'Failed to export data' },
-      { status: 500 }
-    );
+    captureException(error);
+    return NextResponse.json(EXPORT_FAILED_BODY, { status: 500 });
   }
 }
