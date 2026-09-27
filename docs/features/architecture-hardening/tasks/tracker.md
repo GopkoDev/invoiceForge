@@ -36,6 +36,6 @@
 | T28 | [Check the session before parsing input in profile and account settings actions](./t28-profile-actions-guard-first.md) | app | Dmytro Hopko | S | T08, T17 | todo |
 | T29 | [Disallow the root and every page of each private section in robots.txt](./t29-robots-disallow-section-roots.md) | ports | Dmytro Hopko | S | T02 | todo |
 | T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | todo |
-| T31 | [Declare the sdd marketplace, ignore local settings and remove the empty route folder](./t31-repository-hygiene.md) | docs | Dmytro Hopko | S | — | todo |
+| T31 | [Declare the sdd marketplace, ignore local settings and remove the empty route folder](./t31-repository-hygiene.md) | docs | Dmytro Hopko | S | — | done |
 
 **Total:** 32 tasks, ~26 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).

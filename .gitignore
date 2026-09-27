@@ -46,4 +46,5 @@ next-env.d.ts
 
 # sdd (per-developer)
 .claude/*.local.md
+.claude/settings.local.json
 .worktrees/

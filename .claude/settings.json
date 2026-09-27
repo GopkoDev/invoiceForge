@@ -1,4 +1,12 @@
 {
+  "extraKnownMarketplaces": {
+    "sdd": {
+      "source": {
+        "source": "github",
+        "repo": "genkovich/sdd"
+      }
+    }
+  },
   "enabledPlugins": {
     "sdd@sdd": true
   }
