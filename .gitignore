@@ -27,6 +27,8 @@
 # misc
 .DS_Store
 *.pem
+# throwaway self-signed cert/key for the local test image host (never used outside tests)
+!tests/support/fixtures/tls/*.pem
 
 # debug
 npm-debug.log*

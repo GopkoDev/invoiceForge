@@ -8,7 +8,7 @@
 | T00 | [Set up the test harness, throwaway database and factories](./t00-test-harness.md) | infra | Dmytro Hopko | M | — | done |
 | T01 | [Add the LogoFetchWindow table and Prisma model](./t01-logo-fetch-window-table.md) | migration | Dmytro Hopko | S | — | todo |
 | T02 | [Deny unauthenticated requests by default in the proxy, with one public allowlist](./t02-deny-by-default-proxy.md) | wiring | Dmytro Hopko | M | — | done |
-| T03 | [Build the IP-pinning safe fetcher with per-hop checks and size/time caps](./t03-safe-fetcher.md) | infra | Dmytro Hopko | L | — | todo |
+| T03 | [Build the IP-pinning safe fetcher with per-hop checks and size/time caps](./t03-safe-fetcher.md) | infra | Dmytro Hopko | L | — | done |
 | T04 | [Implement the per-Freelancer sliding-window logo rate limiter](./t04-logo-rate-limiter.md) | infra | Dmytro Hopko | S | T01 | todo |
 | T05 | [Rewrite /api/convert-image to fetch only an owned sender profile's logo](./t05-convert-image-endpoint.md) | ports | Dmytro Hopko | M | T03, T04 | todo |
 | T06 | [Request logos by sender-profile id with a per-session cache and show the PDF logo warning](./t06-pdf-logo-client-and-warning.md) | ui | Dmytro Hopko | M | T05 | todo |
