@@ -29,6 +29,7 @@ import {
   SortDirection,
 } from '@/types/invoice/types';
 import { InvoiceStatus } from '@prisma/client';
+import { applyStatusChange } from '@/lib/helpers/invoice-status';
 
 import {
   senderProfileSelect,
@@ -516,35 +517,52 @@ export async function getInvoicesBySenderProfile(
   }
 }
 
-// Update invoice status
+// Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
+// amount, number or legacy checks (AC-17 last sentence). The status/paid-date rule itself lives
+// once in applyStatusChange (sad.md §8).
 export async function updateInvoiceStatus(
   id: string,
-  status: InvoiceStatus
-): Promise<ActionResult> {
+  status: string
+): Promise<ActionResult<{ status: InvoiceStatus; paidAt: string | null }>> {
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult.success) {
       return authResult;
     }
 
+    const parsedStatus = z.nativeEnum(InvoiceStatus, {
+      errorMap: () => ({ message: 'Unknown status.' }),
+    }).safeParse(status);
+
+    if (!parsedStatus.success) {
+      return fail('VALIDATION', 'Unknown status.', {
+        fieldErrors: { status: ['Unknown status.'] },
+      });
+    }
+
     const invoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId: authResult.data.userId } },
-      select: { id: true },
+      select: { status: true, paidAt: true },
     });
 
     if (!invoice) {
       return fail('NOT_FOUND', 'Invoice not found.');
     }
 
+    const { status: nextStatus, paidAt } = applyStatusChange(
+      invoice,
+      parsedStatus.data
+    );
+
     await prisma.invoice.update({
       where: { id },
-      data: { status, ...(status === 'PAID' && { paidAt: new Date() }) },
+      data: { status: nextStatus, paidAt },
     });
 
     revalidatePath(protectedRoutes.invoices);
     revalidatePath(protectedRoutes.invoiceEdit(id));
 
-    return ok();
+    return ok({ status: nextStatus, paidAt: paidAt ? paidAt.toISOString() : null });
   } catch (error) {
     console.error('Error updating invoice status:', error);
     return fail('FAILED', 'Failed to update invoice status.');
