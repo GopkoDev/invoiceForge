@@ -16,15 +16,13 @@ import { useCallback } from 'react';
 interface DashboardHeaderProps {
   currencyTabs: CurrencyTab[];
   selectedCurrency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
+  appliedRange?: { start: Date; endExclusive: Date } | undefined;
 }
 
 export function DashboardHeader({
   currencyTabs,
   selectedCurrency,
-  dateFrom,
-  dateTo,
+  appliedRange,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,10 +67,6 @@ export function DashboardHeader({
     }
   };
 
-  // Create DateRange object for the filters component
-  const dateRange =
-    dateFrom && dateTo ? { from: dateFrom, to: dateTo } : undefined;
-
   return (
     <section
       className="flex flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between lg:px-6"
@@ -80,7 +74,7 @@ export function DashboardHeader({
     >
       <div className="flex items-center gap-2">
         <DashboardFilters
-          dateRange={dateRange}
+          appliedRange={appliedRange}
           onDateRangeChange={handleDateRangeChange}
         />
       </div>

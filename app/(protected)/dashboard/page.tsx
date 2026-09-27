@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
 
@@ -30,6 +29,8 @@ import {
 } from '@/lib/actions/dashboard-actions';
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
+import { dashboardParamsSchema, type DashboardAppliedRange } from '@/lib/validations/search-params';
+import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -45,26 +46,6 @@ interface DashboardSearchParams {
 
 interface DashboardPageProps {
   searchParams: Promise<DashboardSearchParams>;
-}
-
-function parseDateRange(from?: string, to?: string, preset?: string) {
-  const now = new Date();
-
-  if (preset === 'all-time') {
-    return { dateFrom: undefined, dateTo: undefined };
-  }
-
-  let dateFrom = startOfMonth(now);
-  let dateTo = endOfMonth(now);
-
-  if (from && to) {
-    try {
-      dateFrom = parseISO(from);
-      dateTo = parseISO(to);
-    } catch {}
-  }
-
-  return { dateFrom, dateTo };
 }
 
 function validateCurrency(
@@ -89,14 +70,12 @@ function validateCurrency(
 
 async function StatsSection({
   currency,
-  dateFrom,
-  dateTo,
+  appliedRange,
 }: {
   currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
+  appliedRange: DashboardAppliedRange | undefined;
 }) {
-  const result = await getDashboardSummaryStats(currency, dateFrom, dateTo);
+  const result = await getDashboardSummaryStats(currency, appliedRange);
   const stats =
     result.success && result.data
       ? result.data
@@ -115,14 +94,12 @@ async function StatsSection({
 
 async function ChartSection({
   currency,
-  dateFrom,
-  dateTo,
+  appliedRange,
 }: {
   currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
+  appliedRange: DashboardAppliedRange | undefined;
 }) {
-  const result = await getDashboardChartData(currency, dateFrom, dateTo);
+  const result = await getDashboardChartData(currency, appliedRange);
   const data = result.success && result.data ? result.data : [];
   return (
     <div className="px-4 lg:px-6">
@@ -145,14 +122,12 @@ async function ExpectedPaymentsSection({ currency }: { currency: Currency }) {
 
 async function SenderAccountsSection({
   currency,
-  dateFrom,
-  dateTo,
+  appliedRange,
 }: {
   currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
+  appliedRange: DashboardAppliedRange | undefined;
 }) {
-  const result = await getDashboardSenderAccounts(currency, dateFrom, dateTo);
+  const result = await getDashboardSenderAccounts(currency, appliedRange);
   const accounts = result.success && result.data ? result.data : [];
   return (
     <div className="px-4 lg:px-6">
@@ -186,11 +161,8 @@ export default async function DashboardPage({
 
   const currency = validateCurrency(params.currency, currencyTabs);
 
-  const { dateFrom, dateTo } = parseDateRange(
-    params.from,
-    params.to,
-    params.preset
-  );
+  const timeZone = await getRequestTimeZone();
+  const { appliedRange } = dashboardParamsSchema(timeZone).parse(params);
 
   const setupStatus =
     setupStatusResult.success && setupStatusResult.data
@@ -203,46 +175,50 @@ export default async function DashboardPage({
           isComplete: false,
         };
 
-  const suspenseKey = `${currency}-${dateFrom?.getTime() ?? 'all'}-${dateTo?.getTime() ?? 'time'}`;
+  // T24 (spec.md §6 NFR "Dashboard date-range change"; sad.md §8 Hard rule "Cache invalidation":
+  // debtors/expected-payments/recent-invoices Suspense boundaries key on currency only) — sections
+  // that don't take a date range never re-suspend when the range changes; sections that do take a
+  // range also key on it.
+  const currencyKey = currency;
+  const rangeKey = `${appliedRange?.start.getTime() ?? 'all'}-${appliedRange?.endExclusive.getTime() ?? 'time'}`;
 
   return (
     <>
       <DashboardHeader
         currencyTabs={currencyTabs}
         selectedCurrency={currency}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        appliedRange={appliedRange}
       />
 
       <DashboardSetupAlert setupStatus={setupStatus} />
 
       <Suspense
-        key={`stats-${suspenseKey}`}
+        key={`stats-${currencyKey}-${rangeKey}`}
         fallback={<DashboardStatsCardsSkeleton />}
       >
-        <StatsSection currency={currency} dateFrom={dateFrom} dateTo={dateTo} />
+        <StatsSection currency={currency} appliedRange={appliedRange} />
       </Suspense>
 
       <Suspense
-        key={`chart-${suspenseKey}`}
+        key={`chart-${currencyKey}-${rangeKey}`}
         fallback={
           <div className="px-4 lg:px-6">
             <DashboardChartSkeleton />
           </div>
         }
       >
-        <ChartSection currency={currency} dateFrom={dateFrom} dateTo={dateTo} />
+        <ChartSection currency={currency} appliedRange={appliedRange} />
       </Suspense>
 
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
         <Suspense
-          key={`debtors-${suspenseKey}`}
+          key={`debtors-${currencyKey}`}
           fallback={<DashboardDebtorsSkeleton />}
         >
           <DebtorsSection currency={currency} />
         </Suspense>
         <Suspense
-          key={`payments-${suspenseKey}`}
+          key={`payments-${currencyKey}`}
           fallback={<DashboardExpectedPaymentsSkeleton />}
         >
           <ExpectedPaymentsSection currency={currency} />
@@ -250,22 +226,18 @@ export default async function DashboardPage({
       </div>
 
       <Suspense
-        key={`accounts-${suspenseKey}`}
+        key={`accounts-${currencyKey}-${rangeKey}`}
         fallback={
           <div className="px-4 lg:px-6">
             <DashboardSenderAccountsSkeleton />
           </div>
         }
       >
-        <SenderAccountsSection
-          currency={currency}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-        />
+        <SenderAccountsSection currency={currency} appliedRange={appliedRange} />
       </Suspense>
 
       <Suspense
-        key={`invoices-${suspenseKey}`}
+        key={`invoices-${currencyKey}`}
         fallback={<DashboardRecentInvoicesSkeleton />}
       >
         <RecentInvoicesSection currency={currency} />

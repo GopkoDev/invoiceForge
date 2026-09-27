@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { InvoiceStatus } from '@prisma/client';
 import type { InvoiceSortField, InvoiceTab, SortDirection } from '@/types/invoice/types';
+import { currentLocalMonth, localDayRange } from '@/lib/helpers/time-zone';
 
 // T23 (spec.md §5 AC-26, AC-27) — invoice-list link parameters are parsed with fallback-to-default
 // schemas, so a malformed or tampered link never throws and always opens with a documented
@@ -125,6 +126,58 @@ export const invoiceListParamsSchema = z
       dateTo: validRange ? dateTo : undefined,
     };
   });
+
+// T24 (spec.md §5 AC-25) — the dashboard's `from`/`to`/`preset` link parameters, parsed with a
+// current-month fallback instead of a "no range" default: `preset=all-time` drops the range,
+// a valid `from<=to` pair is applied as local day bounds, and anything else (missing, malformed,
+// or an inverted range) falls back to the current local month in the given time zone, per
+// docs/features/architecture-hardening/tasks/t24-dashboard-link-params.md (Checklist item 1) and
+// contracts/server-actions.md §Link parameters, Dashboard. `timeZone` is trusted as-is — it was
+// already validated by getRequestTimeZone() (T22) — and `now` is injectable so the current-month
+// fallback is deterministic under test.
+export type DashboardAppliedRange = { start: Date; endExclusive: Date };
+
+const presetSchema = z
+  .preprocess((value) => firstString(value), z.string().optional())
+  .catch(undefined);
+
+/** Falls back to UTC for a zone Intl cannot resolve — belt-and-braces alongside
+ * getRequestTimeZone()'s own validation (T22), so this schema never throws on a tampered zone. */
+function resolveTimeZone(timeZone: string): string {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone });
+    return timeZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+export function dashboardParamsSchema(timeZone: string, now: Date = new Date()) {
+  const zone = resolveTimeZone(timeZone);
+
+  return z
+    .object({
+      from: dateSchema,
+      to: dateSchema,
+      preset: presetSchema,
+    })
+    .transform(({ from, to, preset }): { appliedRange: DashboardAppliedRange | undefined } => {
+      if (preset === 'all-time') {
+        return { appliedRange: undefined };
+      }
+
+      const validFrom = from !== undefined && isValidIsoDate(from) ? from : undefined;
+      const validTo = to !== undefined && isValidIsoDate(to) ? to : undefined;
+
+      if (validFrom !== undefined && validTo !== undefined && validFrom <= validTo) {
+        const [start, endExclusive] = localDayRange(validFrom, validTo, zone);
+        return { appliedRange: { start, endExclusive } };
+      }
+
+      const [start, endExclusive] = currentLocalMonth(zone, now);
+      return { appliedRange: { start, endExclusive } };
+    });
+}
 
 export type InvoiceListParams = {
   page: number;

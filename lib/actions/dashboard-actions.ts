@@ -25,6 +25,7 @@ import {
   format,
   differenceInDays,
 } from 'date-fns';
+import type { DashboardAppliedRange } from '@/lib/validations/search-params';
 
 const CACHE_TAGS = {
   dashboard: 'dashboard',
@@ -96,8 +97,7 @@ export async function getDashboardCurrencyTabs(): Promise<
  */
 export async function getDashboardSummaryStats(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<DashboardSummaryStats>> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -114,42 +114,39 @@ export async function getDashboardSummaryStats(
     };
 
     // For paid invoices, filter by issueDate
-    const paidWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'PAID' as InvoiceStatus,
-            issueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'PAID' as InvoiceStatus };
+    const paidWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'PAID' as InvoiceStatus,
+          issueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'PAID' as InvoiceStatus };
 
     // For pending/overdue invoices, filter by dueDate
-    const pendingWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'PENDING' as InvoiceStatus,
-            dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'PENDING' as InvoiceStatus };
+    const pendingWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'PENDING' as InvoiceStatus,
+          dueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'PENDING' as InvoiceStatus };
 
-    const overdueWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'OVERDUE' as InvoiceStatus,
-            dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'OVERDUE' as InvoiceStatus };
+    const overdueWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'OVERDUE' as InvoiceStatus,
+          dueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'OVERDUE' as InvoiceStatus };
 
     // All future payments (pending + overdue) - NO date filter
     const allFutureWhere = {
@@ -205,8 +202,7 @@ export async function getDashboardSummaryStats(
  */
 export async function getDashboardChartData(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<ChartDataPoint[]>> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -216,11 +212,13 @@ export async function getDashboardChartData(
 
     const { userId } = authResult.data;
 
-    // Default to current month if no dates provided
+    // Default to current month if no range provided
     const now = new Date();
     const today = startOfDay(now);
-    const from = dateFrom ?? new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = dateTo ?? new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const from = appliedRange?.start ?? new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = appliedRange
+      ? endOfDay(new Date(appliedRange.endExclusive.getTime() - 1))
+      : new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     // Determine granularity based on date range
     const daysDiff = differenceInDays(to, from);
@@ -363,8 +361,7 @@ export async function getDashboardChartData(
  */
 export async function getDashboardSenderAccounts(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<SenderAccountMetrics[]>> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -385,7 +382,7 @@ export async function getDashboardSenderAccounts(
       currency,
     };
 
-    if (dateFrom && dateTo) {
+    if (appliedRange) {
       invoiceFilter = {
         ...invoiceFilter,
         OR: [
@@ -393,16 +390,16 @@ export async function getDashboardSenderAccounts(
             // Paid invoices by issue date
             status: 'PAID' as InvoiceStatus,
             issueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
+              gte: appliedRange.start,
+              lt: appliedRange.endExclusive,
             },
           },
           {
             // Pending/Overdue invoices by due date
             status: { in: ['PENDING', 'OVERDUE'] as InvoiceStatus[] },
             dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
+              gte: appliedRange.start,
+              lt: appliedRange.endExclusive,
             },
           },
         ],
