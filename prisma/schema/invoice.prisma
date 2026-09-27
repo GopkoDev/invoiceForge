@@ -142,6 +142,7 @@ model CustomPrice {
 model Invoice {
     id              String @id @default(cuid())
     invoiceNumber   String // e.g., "INV-2025-0001"
+    invoiceNumberKey String? // lower(trim(invoiceNumber)) (ADR-0004); nullable until the T30 contract step
     senderProfileId String
     customerId      String
     bankAccountId   String
@@ -211,6 +212,7 @@ model Invoice {
     updatedAt DateTime @updatedAt
 
     @@unique([senderProfileId, invoiceNumber])
+    @@unique([senderProfileId, invoiceNumberKey])
     @@index([senderProfileId])
     @@index([customerId])
     @@index([status])

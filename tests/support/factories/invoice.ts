@@ -63,6 +63,7 @@ export async function createInvoice(
       bankAccountId: bankAccount.id,
 
       invoiceNumber: overrides.invoiceNumber ?? `${senderProfile.invoicePrefix}-0001`,
+      invoiceNumberKey: overrides.invoiceNumberKey,
       issueDate: overrides.issueDate ?? new Date(),
       dueDate: overrides.dueDate ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       paymentTerms: overrides.paymentTerms,
@@ -134,10 +135,6 @@ export async function createInvoice(
  * A "legacy" invoice (test-plan.md §Test data): written before invoiceNumberKey existed, so its
  * key is NULL, and its stored total may not match a fresh recompute of its items (drift the
  * migration/read-repair tasks need to reproduce).
- *
- * `invoiceNumberKey` isn't in the Prisma schema yet (T07 promotes migrations 02-05). Until then
- * this best-effort-sets it via raw SQL, feature-detecting the column, so the factory doesn't
- * need to change shape once the column lands - it will just start being meaningful.
  */
 export async function createLegacyInvoice(
   prisma: PrismaClient,
@@ -148,30 +145,14 @@ export async function createLegacyInvoice(
   // A stored total that deliberately disagrees with a fresh recompute of the items.
   const storedTotal = params.storedTotal ?? recomputedTotal + 1;
 
-  const invoice = await createInvoice(prisma, {
+  return createInvoice(prisma, {
     ...params,
     items,
     overrides: {
       ...params.overrides,
       subtotal: recomputedTotal,
       total: storedTotal,
+      invoiceNumberKey: null,
     },
   });
-
-  // TODO(T07): once invoiceNumberKey is promoted into prisma/schema, fold this into the
-  // `createInvoice` call above (`invoiceNumberKey: null`) and delete this raw-SQL branch.
-  const columnExists = await prisma.$queryRawUnsafe<{ exists: boolean }[]>(
-    `SELECT EXISTS (
-       SELECT 1 FROM information_schema.columns
-       WHERE table_name = 'Invoice' AND column_name = 'invoiceNumberKey'
-     ) AS "exists"`
-  );
-  if (columnExists[0]?.exists) {
-    await prisma.$executeRawUnsafe(
-      `UPDATE "Invoice" SET "invoiceNumberKey" = NULL WHERE id = $1`,
-      invoice.id
-    );
-  }
-
-  return invoice;
 }
