@@ -34,6 +34,7 @@ import { InvoiceListParams } from '@/lib/validations/search-params';
 import {
   allocateInvoiceNumber,
   isInvoiceKeyTaken,
+  lockSenderProfileRow,
   normalizeInvoiceNumber,
   peekNextInvoiceNumber,
 } from './numbering';
@@ -97,6 +98,12 @@ async function resolveManualOrAllocatedNumber(
     const allocated = await allocateInvoiceNumber(tx, senderProfileId);
     return { ...allocated, wasAllocated: true };
   }
+
+  // F-10: take the same row lock the allocator does, so a manual save and a concurrent
+  // allocation for the same profile always serialize instead of racing — otherwise both can pass
+  // this check before either commits, and the loser surfaces as a raw P2002 (wrongly alerting the
+  // allocator-bug backstop below when the loser happened to be system-assigned).
+  await lockSenderProfileRow(tx, senderProfileId);
 
   const invoiceNumberKey = normalizeInvoiceNumber(invoiceNumber);
   if (await isInvoiceKeyTaken(tx, senderProfileId, invoiceNumberKey, excludeInvoiceId)) {
@@ -430,18 +437,35 @@ export async function updateInvoice(
     const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
 
     const invoice = await prisma.$transaction(async (tx) => {
-      // Step 2/3 (AC-11): a move clears the number field and applies the manual/allocate rules
-      // under B; an unmoved invoice keeps its own key untouched, otherwise the same manual rules
-      // apply in its own profile (A's counter never touched either way).
-      let resolvedNumber: { invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean };
-      if (
+      // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
+      // move clears the number field and always applies the manual/allocate rules under B; an
+      // unmoved, unchanged number instead runs the legacy shared-number check (F-09: a NULL key
+      // is checked by its own invoiceNumber's normalized key, never blanket-treated as shared),
+      // and only when it's free does it keep the number and (for a legacy row) get its key
+      // written; a changed, non-empty number falls through to the same manual rules (AC-08,
+      // AC-10). A's counter is never touched either way.
+      const numberUnchanged =
         !moved &&
-        existingInvoice.invoiceNumberKey !== null &&
-        normalizeInvoiceNumber(validatedData.invoiceNumber) === existingInvoice.invoiceNumberKey
-      ) {
+        validatedData.invoiceNumber !== '' &&
+        normalizeInvoiceNumber(validatedData.invoiceNumber) ===
+          normalizeInvoiceNumber(existingInvoice.invoiceNumber);
+
+      let resolvedNumber: { invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean };
+      if (numberUnchanged) {
+        const effectiveKey =
+          existingInvoice.invoiceNumberKey ?? normalizeInvoiceNumber(existingInvoice.invoiceNumber);
+        const sharedNumber = await isInvoiceKeyTaken(
+          tx,
+          existingInvoice.senderProfileId,
+          effectiveKey,
+          existingInvoice.id
+        );
+        if (sharedNumber) {
+          throw new InvoiceLegacySharedNumberError();
+        }
         resolvedNumber = {
           invoiceNumber: existingInvoice.invoiceNumber,
-          invoiceNumberKey: existingInvoice.invoiceNumberKey,
+          invoiceNumberKey: effectiveKey,
           wasAllocated: false,
         };
       } else {
@@ -454,27 +478,6 @@ export async function updateInvoice(
       }
       const { invoiceNumber, invoiceNumberKey } = resolvedNumber;
       wasAllocated = resolvedNumber.wasAllocated;
-
-      // Step 4 (AC-17): a legacy/shared number blocks the save only when it's kept unchanged in
-      // its own profile; a move or a fresh number sidesteps it entirely.
-      const numberUnchanged =
-        !moved &&
-        validatedData.invoiceNumber !== '' &&
-        normalizeInvoiceNumber(validatedData.invoiceNumber) ===
-          normalizeInvoiceNumber(existingInvoice.invoiceNumber);
-      if (numberUnchanged) {
-        const sharedNumber =
-          existingInvoice.invoiceNumberKey === null ||
-          (await isInvoiceKeyTaken(
-            tx,
-            existingInvoice.senderProfileId,
-            existingInvoice.invoiceNumberKey,
-            existingInvoice.id
-          ));
-        if (sharedNumber) {
-          throw new InvoiceLegacySharedNumberError();
-        }
-      }
 
       // Stored amounts come only from the shared exact-decimal module (ADR-0006); whatever the
       // browser sent for items[].total/subtotal/etc. is ignored (AC-13).

@@ -364,12 +364,15 @@ describe.runIf(containerRuntimeAvailable)(
       expect(invoiceCount).toBe(0);
     });
 
-    it('CONFLICT (P2002 backstop): a unique violation past the lock is reported as CONFLICT and alerts Sentry when the number was system-assigned', async () => {
+    it('F-08: an exact-text legacy duplicate with a NULL key is now caught by the key check itself, skipped, no Sentry alert', async () => {
       const owner = await seedOwner();
       const candidate = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 1);
-      // Exact-text legacy duplicate with a NULL key: invisible to the allocator's key check
-      // (isInvoiceKeyTaken), but the exact-match unique on [senderProfileId, invoiceNumber]
-      // still rejects the insert (same setup as T12's allocate-invoice-number.test.ts).
+      const next = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 2);
+      // Exact-text legacy duplicate with a NULL key. Before F-08's fix this was invisible to the
+      // allocator's key check (isInvoiceKeyTaken) and only caught by the exact-match unique on
+      // [senderProfileId, invoiceNumber] at insert time, surfacing as a raw P2002 that wrongly
+      // alerted Sentry's "allocator bug" backstop. Now the key check catches it first: the
+      // allocator skips it and lands on the next free number, and nothing alerts.
       await seedInvoiceRow(prisma, {
         senderProfile: owner.senderProfile,
         customer: owner.customer,
@@ -379,17 +382,42 @@ describe.runIf(containerRuntimeAvailable)(
 
       const result = await createInvoice(buildForm(owner));
 
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.code).toBe('CONFLICT');
-      expect(result.error).toBe('This invoice number is already used in this sender profile.');
-      expect(captureMessageMock).toHaveBeenCalledWith(
-        'invoice_number_conflict',
-        expect.anything()
-      );
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.invoiceNumber).toBe(next);
+      expect(captureMessageMock).not.toHaveBeenCalled();
 
       const updatedProfile = await prisma.senderProfile.findUniqueOrThrow({ where: { id: owner.senderProfile.id } });
-      expect(updatedProfile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter);
+      expect(updatedProfile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter + 2);
+    });
+
+    it('F-10: a concurrent manual save and an allocation contending for the same number never race past the row lock — no P2002, no Sentry alert, no duplicate numbers stored', async () => {
+      for (let i = 0; i < 10; i += 1) {
+        const owner = await seedOwner();
+        const candidate = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 1);
+
+        const [manual, allocated] = await Promise.all([
+          createInvoice(buildForm(owner, { invoiceNumber: candidate })),
+          createInvoice(buildForm(owner)),
+        ]);
+
+        // Whichever loses the race is a clean CONFLICT (the manual path now takes the same
+        // sender-profile row lock as the allocator, ADR-0005), never a raw P2002/FAILED escaping
+        // the transaction, and the allocator bug backstop never fires for a race the lock
+        // already accounts for.
+        for (const result of [manual, allocated]) {
+          if (!result.success) {
+            expect(result.code).toBe('CONFLICT');
+          }
+        }
+        expect(captureMessageMock).not.toHaveBeenCalled();
+
+        const rows = await prisma.invoice.findMany({
+          where: { senderProfileId: owner.senderProfile.id },
+          select: { invoiceNumber: true },
+        });
+        expect(new Set(rows.map((r) => r.invoiceNumber)).size).toBe(rows.length);
+      }
     });
 
     it('AC-12: a duplicate gets a fresh allocated number, DRAFT status, no paidAt, and recomputed amounts', async () => {

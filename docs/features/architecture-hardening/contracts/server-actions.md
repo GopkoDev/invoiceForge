@@ -113,7 +113,7 @@ Flows 2, 6 (move), 7 (legacy), 8 (status from the editor). The checks run in thi
 1. `UNAUTHORIZED` → `VALIDATION` (schema) → `NOT_FOUND` (invoice, or new relations not owned).
 2. **Move (AC-11):** if `senderProfileId` changed, the editor has already cleared the number field. Empty → allocate from **B's** sequence; typed → manual rules in B. A's counter is never touched.
 3. **Number:** if the normalized key equals the invoice's own current key and the profile is unchanged → keep it. Otherwise → the manual rules of `createInvoice` (`CONFLICT` if taken).
-4. **Legacy shared number (AC-17):** the invoice's key is `NULL` or shared with another invoice in the profile, and the number is unchanged → `CONFLICT`, `fieldErrors.invoiceNumber = ["This invoice number is also used by another invoice. Change it to a free one to save."]`.
+4. **Legacy shared number (AC-17):** the invoice's normalized number — its own key, or the normalized key of its `invoiceNumber` when the key is `NULL` — is shared with another invoice in the profile, and the number is unchanged → `CONFLICT`, `fieldErrors.invoiceNumber = ["This invoice number is also used by another invoice. Change it to a free one to save."]`. A `NULL`-key invoice whose number is *not* shared saves normally and gets its key written.
 5. **Legacy totals (AC-17, flow 7):** the recomputed `total` ≠ the stored `total`:
    - without `confirmedTotals`, or with values that no longer equal (stored, recomputed) → `CONFLICT`, `details: { kind: 'TOTALS_CHANGED', oldTotal, newTotal }`, `error: "The total of this invoice changes from {oldTotal} to {newTotal}. Confirm to save."`. Nothing saved; the UI opens SCR-15.
    - with `confirmedTotals` equal to both → saved.
@@ -150,7 +150,7 @@ For an existing invoice, `data.invoice` gains:
 legacy: {
   storedTotal: DecimalString;       // Invoice.total
   recomputedTotal: DecimalString;   // shared module over the stored lines
-  sharedNumber: boolean;            // key NULL, or another invoice in the profile has the same normalized key
+  sharedNumber: boolean;            // another invoice in the profile has the same normalized key (own key, or the normalized key of invoiceNumber when the key is NULL)
 } | null                            // null when nothing differs and the number is free
 ```
 

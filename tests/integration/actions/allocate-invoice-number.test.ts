@@ -175,17 +175,18 @@ describe.runIf(containerRuntimeAvailable)(
       expect(updated.invoiceCounter).toBe(senderProfile.invoiceCounter + 3);
     });
 
-    it('a legacy invoice with a NULL invoiceNumberKey never blocks allocation, even if it normalizes to the candidate', async () => {
+    it('F-08: a legacy invoice with a NULL invoiceNumberKey blocks allocation of a case/whitespace variant, so the allocator skips to the next free number', async () => {
       const { senderProfile, customer, bankAccount } = await seedProfile();
       const { formatInvoiceNumber } = (await import(
         '@/lib/actions/invoice-actions/numbering'
       )) as unknown as { formatInvoiceNumber: (prefix: string, n: number) => string };
       const candidate = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 1);
+      const next = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 2);
 
       // Legacy row: a case/whitespace variant of the candidate with a NULL key (a backfill
-      // duplicate, ADR-0004). NULL is distinct in the key unique and the allocator's "is this key
-      // taken" check must agree. The text differs, so the exact-match unique kept until wave 4
-      // (data-model.md) doesn't collide either.
+      // duplicate, ADR-0004). NULL is distinct in the key *unique index*, but AC-08/AC-09 still
+      // count it as the same number: the allocator's "is this key taken" check must agree, so it
+      // skips this candidate rather than colliding with it.
       await createInvoice(prisma, {
         senderProfile,
         customer,
@@ -199,19 +200,26 @@ describe.runIf(containerRuntimeAvailable)(
         return alloc;
       });
 
-      expect(allocation.invoiceNumber).toBe(candidate);
-      expect(allocation.invoiceNumberKey).toBe(normalizeInvoiceNumber(candidate));
+      expect(allocation.invoiceNumber).not.toBe(candidate);
+      expect(allocation.invoiceNumber).toBe(next);
+      expect(allocation.invoiceNumberKey).toBe(normalizeInvoiceNumber(next));
+
+      const updated = await prisma.senderProfile.findUniqueOrThrow({ where: { id: senderProfile.id } });
+      expect(updated.invoiceCounter).toBe(senderProfile.invoiceCounter + 2);
     });
 
-    it('a unique violation that gets past the lock (exact-text legacy duplicate) propagates to the caller as P2002', async () => {
+    it('F-08: a legacy invoice with a NULL invoiceNumberKey blocks allocation of its own exact text too, so no P2002 ever reaches the caller', async () => {
       const { senderProfile, customer, bankAccount } = await seedProfile();
       const { formatInvoiceNumber } = (await import(
         '@/lib/actions/invoice-actions/numbering'
       )) as unknown as { formatInvoiceNumber: (prefix: string, n: number) => string };
       const candidate = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 1);
+      const next = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 2);
 
-      // Same exact text, NULL key: invisible to the key check, but the wave-2 exact-match unique
-      // still rejects the insert. Edge-case table: P2002 propagates (T13 maps it to CONFLICT).
+      // Same exact text, NULL key. Before F-08's fix this was invisible to the key check and only
+      // caught by the wave-2 exact-match unique at insert time (a raw P2002). Now the allocator's
+      // own key check catches it first, so the caller never sees a P2002 (AC-09: "the Freelancer
+      // never sees an already used message" for a system-assigned number).
       await createInvoice(prisma, {
         senderProfile,
         customer,
@@ -219,12 +227,16 @@ describe.runIf(containerRuntimeAvailable)(
         overrides: { invoiceNumber: candidate, invoiceNumberKey: null },
       });
 
-      await expect(
-        prisma.$transaction(async (tx) => {
-          const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
-          await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
-        })
-      ).rejects.toMatchObject({ code: 'P2002' });
+      const allocation = await prisma.$transaction(async (tx) => {
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
+        return alloc;
+      });
+
+      expect(allocation.invoiceNumber).toBe(next);
+
+      const updated = await prisma.senderProfile.findUniqueOrThrow({ where: { id: senderProfile.id } });
+      expect(updated.invoiceCounter).toBe(senderProfile.invoiceCounter + 2);
     });
 
     it('allocations in different sender profiles never contend and advance independently', async () => {

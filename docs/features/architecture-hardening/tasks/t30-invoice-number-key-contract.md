@@ -34,6 +34,8 @@ invent the missing part. -->
 
 This task finishes ADR-0004: once every invoice has a key, uniqueness rests on the normalized key alone.
 
+**Gate prerequisite added by review-2026-09-27 F-09:** before running the pre-flight `SELECT count(*) ... IS NULL` below, re-run migration `03_backfill_invoice_number_key` (idempotent — it only touches rows still holding a `NULL` key). Before F-09's fix, `updateInvoice`/`computeInvoiceLegacyInfo` treated every `NULL`-key row as shared, so a Freelancer editing a legacy invoice whose number had actually become free while under `NULL` never got its key written. Now that a save writes the key whenever the number isn't really shared, most such rows self-heal on their next edit, but any never touched since the original backfill still need this second pass to reach 0.
+
 ## Inlined context
 
 > **Hard rule:** | 4 | A8–A10, F3–F6 | contract step: `invoiceNumberKey` `NOT NULL`, only if no row has a `NULL` key (the ADR-0004 fallback was not taken) | applied only after wave 2 has run in production without a rollback; if the fallback was taken, the column stays nullable |

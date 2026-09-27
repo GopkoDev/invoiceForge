@@ -30,8 +30,10 @@ export function formatInvoiceNumber(prefix: string, n: number): string {
 /**
  * Whether a normalized invoice number key is already taken within a sender profile.
  *
- * NULL keys (legacy invoices written before invoiceNumberKey existed) never match: Postgres
- * treats NULL as distinct in the unique index (ADR-0004), and this check must agree.
+ * NULL keys (legacy invoices written before invoiceNumberKey existed) never match the unique
+ * *index*: Postgres treats NULL as distinct there (ADR-0004). But AC-08/AC-09 count two numbers
+ * as the same invoice number whenever they normalize to the same key, key or no key, so a NULL-key
+ * row whose own invoiceNumber normalizes to `key` still counts as taken here (F-08).
  */
 export async function isInvoiceKeyTaken(
   tx: Prisma.TransactionClient,
@@ -47,7 +49,33 @@ export async function isInvoiceKeyTaken(
     },
     select: { id: true },
   });
-  return existing !== null;
+  if (existing !== null) {
+    return true;
+  }
+
+  // NULL-key rows aren't covered by the query above (Postgres treats NULL as distinct there), so
+  // match them by normalizing their own invoiceNumber in JS instead.
+  const nullKeyRows = await tx.invoice.findMany({
+    where: {
+      senderProfileId,
+      invoiceNumberKey: null,
+      ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
+    },
+    select: { invoiceNumber: true },
+  });
+  return nullKeyRows.some((row) => normalizeInvoiceNumber(row.invoiceNumber) === key);
+}
+
+/**
+ * Takes the sender-profile row lock (ADR-0005) without advancing invoiceCounter, so a manually
+ * typed number's uniqueness check (F-10) serializes with allocateInvoiceNumber's own lock instead
+ * of racing it — a race that would otherwise surface as a spurious P2002 past the lock.
+ */
+export async function lockSenderProfileRow(
+  tx: Prisma.TransactionClient,
+  senderProfileId: string
+): Promise<void> {
+  await tx.$queryRaw`SELECT 1 FROM "SenderProfile" WHERE id = ${senderProfileId} FOR UPDATE`;
 }
 
 /**
