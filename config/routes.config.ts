@@ -109,3 +109,8 @@ export function isPublicPath(pathname: string): boolean {
 
   return pathname === '/api/auth' || pathname.startsWith(nextAuthApiPrefix);
 }
+
+// T09 (ADR-0002): a server component can't write cookies, so anything that finds a token
+// without a live account redirects here (a route handler, which can) to clear the session
+// cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
+export const CLEAR_SESSION_PATH = '/api/auth/clear-session';

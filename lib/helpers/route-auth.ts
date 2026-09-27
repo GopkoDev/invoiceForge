@@ -8,16 +8,15 @@ import { NextResponse } from 'next/server';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { auth } from '@/auth';
 import { prisma } from '@/prisma';
+import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 
 export type RequireSessionResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
 
 const NOT_SIGNED_IN_BODY = { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' } as const;
 
-// T09 (ADR-0002): a layout is a server component and can't write cookies itself, so the
-// live-account guard redirects here (a route handler, which can) rather than calling
-// `signOut()` directly. Named so both call sites (this file and the redirect target itself)
-// agree on the path.
-export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
+// Re-exported for existing importers; the path lives in routes.config so client-safe code
+// (e.g. unwrapPageResult) can use it without importing Prisma.
+export { CLEAR_SESSION_PATH };
 
 /**
  * Resolves the live caller for a route handler, or a ready-to-return 401 `NotSignedIn`

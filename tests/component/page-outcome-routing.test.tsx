@@ -241,6 +241,20 @@ describe('AC-28 — a FAILED secondary load on a detail page is an error, never 
   });
 });
 
+describe('UNAUTHORIZED from a page loader (a token without a live account)', () => {
+  it('goes through the cookie-clearing route, not straight to /login (which would loop)', async () => {
+    getCustomersMock.mockResolvedValue({
+      success: false,
+      code: 'UNAUTHORIZED',
+      error: 'Not signed in.',
+    });
+
+    await expect(callPage(CustomersPage, {})).rejects.toThrow();
+
+    expect(redirectMock).toHaveBeenCalledWith('/api/auth/clear-session');
+  });
+});
+
 describe('AC-29 — NOT_FOUND still routes to notFound(), identical for missing and foreign', () => {
   it('customer detail page: NOT_FOUND calls notFound()', async () => {
     getCustomerMock.mockResolvedValue(notFoundResult('Customer not found.'));
