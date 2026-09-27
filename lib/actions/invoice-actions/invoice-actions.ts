@@ -7,6 +7,7 @@ import {
   InvoiceFormValues,
 } from '@/lib/validations/invoice';
 import { revalidatePath } from 'next/cache';
+import { captureMessage } from '@sentry/nextjs';
 import { protectedRoutes } from '@/config/routes.config';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
@@ -30,6 +31,13 @@ import {
 } from '@/types/invoice/types';
 import { InvoiceStatus } from '@prisma/client';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
+import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
+import {
+  allocateInvoiceNumber,
+  isInvoiceKeyTaken,
+  normalizeInvoiceNumber,
+  peekNextInvoiceNumber,
+} from './numbering';
 
 import {
   senderProfileSelect,
@@ -52,7 +60,34 @@ import {
   verifyInvoiceRelations,
 } from './helpers';
 
-// Generate invoice number based on sender profile prefix
+/** SavedInvoice (contracts/server-actions.md §createInvoice, verbatim): the final saved figures,
+ * numbers as `number` (not Decimal/string), `paidAt` as an ISO string or null. */
+export type SavedInvoice = {
+  id: string;
+  invoiceNumber: string;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  status: InvoiceStatus;
+  paidAt: string | null;
+};
+
+const INVOICE_NUMBER_CONFLICT_MESSAGE =
+  'This invoice number is already used in this sender profile.';
+
+/** Thrown inside the save transaction when a manually typed number's normalized key is already
+ * taken (AC-08), so the transaction rolls back before reaching the catch block that turns it into
+ * the CONFLICT outcome. */
+class InvoiceNumberConflictError extends Error {}
+
+function invoiceNumberConflict(): ActionResult<never> {
+  return fail('CONFLICT', INVOICE_NUMBER_CONFLICT_MESSAGE, {
+    fieldErrors: { invoiceNumber: [INVOICE_NUMBER_CONFLICT_MESSAGE] },
+  });
+}
+
+// Returns the next proposed invoice number as a hint only (AC-06): never the number actually
+// saved — that only ever comes from allocateInvoiceNumber inside the save transaction.
 export async function generateInvoiceNumber(
   senderProfileId: string
 ): Promise<ActionResult<string>> {
@@ -64,15 +99,17 @@ export async function generateInvoiceNumber(
 
     const profile = await prisma.senderProfile.findFirst({
       where: { id: senderProfileId, userId: authResult.data.userId },
-      select: { invoicePrefix: true, invoiceCounter: true },
+      select: { id: true },
     });
 
     if (!profile) {
       return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
-    const year = new Date().getFullYear();
-    const invoiceNumber = `${profile.invoicePrefix}-${year}-${String(profile.invoiceCounter + 1).padStart(4, '0')}`;
+    const invoiceNumber = await peekNextInvoiceNumber(senderProfileId);
+    if (invoiceNumber === null) {
+      return fail('NOT_FOUND', 'Sender profile not found.');
+    }
 
     return ok(invoiceNumber);
   } catch (error) {
@@ -166,10 +203,16 @@ export async function getInvoiceEditorData(
   }
 }
 
-// Create a new invoice
+// Create a new invoice (Flow 2). The number, amounts and paid date are decided server-side, in
+// one transaction (contracts/server-actions.md §createInvoice, verbatim; sad.md §8 rows Invoice
+// numbering / Money / Authorization).
 export async function createInvoice(
   data: InvoiceFormValues
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<SavedInvoice>> {
+  // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
+  // knows whether to alert Sentry (checklist: only for system-assigned numbers).
+  let wasAllocated = false;
+
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult.success) {
@@ -177,7 +220,11 @@ export async function createInvoice(
     }
 
     const { userId } = authResult.data;
-    const validatedData = invoiceFormSchema.parse(data);
+    const parsed = invoiceFormSchema.safeParse(data);
+    if (!parsed.success) {
+      return zodValidationFailure(parsed.error);
+    }
+    const validatedData = parsed.data;
 
     // Verify ownership and get snapshot data
     const relationsResult = await verifyInvoiceRelations(
@@ -191,61 +238,106 @@ export async function createInvoice(
     }
 
     const { senderProfile, customer, bankAccount } = relationsResult.data;
-    const { subtotal, taxAmount, total } = calculateInvoiceTotals(
-      validatedData.items,
-      validatedData.taxRate,
-      validatedData.discount,
-      validatedData.shipping
-    );
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const createdInvoice = await tx.invoice.create({
+      let invoiceNumber: string;
+      let invoiceNumberKey: string;
+
+      if (validatedData.invoiceNumber === '') {
+        wasAllocated = true;
+        ({ invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
+          tx,
+          senderProfile.id
+        ));
+      } else {
+        invoiceNumber = validatedData.invoiceNumber;
+        invoiceNumberKey = normalizeInvoiceNumber(invoiceNumber);
+        if (await isInvoiceKeyTaken(tx, senderProfile.id, invoiceNumberKey)) {
+          throw new InvoiceNumberConflictError();
+        }
+      }
+
+      // Stored amounts come only from the shared exact-decimal module (ADR-0006); whatever the
+      // browser sent for items[].total/subtotal/etc. is ignored (AC-13).
+      const amounts = computeInvoiceAmounts({
+        items: validatedData.items.map((item) => ({
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        discount: validatedData.discount,
+        shipping: validatedData.shipping,
+        taxRate: validatedData.taxRate,
+      });
+
+      const { status, paidAt } = applyStatusChange(
+        { status: 'DRAFT', paidAt: null },
+        validatedData.status
+      );
+
+      return tx.invoice.create({
         data: {
-          invoiceNumber: validatedData.invoiceNumber,
+          invoiceNumber,
+          invoiceNumberKey,
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
           issueDate: validatedData.issueDate,
           dueDate: validatedData.dueDate,
           paymentTerms: validatedData.paymentTerms,
-          status: validatedData.status,
+          status,
+          paidAt,
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
           ...buildCustomerSnapshot(customer),
           ...buildBankAccountSnapshot(bankAccount),
-          subtotal,
+          subtotal: amounts.subtotal,
           taxRate: validatedData.taxRate,
-          taxAmount,
+          taxAmount: amounts.taxAmount,
           discount: validatedData.discount,
           shipping: validatedData.shipping,
-          total,
+          total: amounts.total,
           notes: validatedData.notes,
           terms: validatedData.terms,
-          items: { create: buildInvoiceItems(validatedData.items) },
+          items: {
+            create: validatedData.items.map((item, index) => ({
+              productId:
+                item.productId && item.productId !== 'custom'
+                  ? item.productId
+                  : null,
+              name: item.productName,
+              description: item.description || null,
+              unit: item.unit,
+              quantity: item.quantity,
+              rate: item.price,
+              amount: amounts.items[index].amount,
+            })),
+          },
         },
       });
-
-      await tx.senderProfile.update({
-        where: { id: senderProfile.id },
-        data: { invoiceCounter: { increment: 1 } },
-      });
-
-      return createdInvoice;
     });
 
     revalidatePath(protectedRoutes.invoices);
-    return ok({ id: invoice.id });
+    return ok({
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      subtotal: Number(invoice.subtotal),
+      taxAmount: Number(invoice.taxAmount),
+      total: Number(invoice.total),
+      status: invoice.status,
+      paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    if (isUniqueConstraintError(error)) {
-      return fail(
-        'CONFLICT',
-        'This invoice number is already used in this sender profile.',
-        { fieldErrors: { invoiceNumber: ['This invoice number is already used in this sender profile.'] } },
-      );
+    if (error instanceof InvoiceNumberConflictError || isUniqueConstraintError(error)) {
+      // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
+      // shouldn't happen past the row lock — alert so it's investigated.
+      if (wasAllocated) {
+        captureMessage('invoice_number_conflict', { extra: { data } });
+      }
+      return invoiceNumberConflict();
     }
     console.error('Error creating invoice:', error);
     return fail('FAILED', 'Failed to create invoice.');
@@ -719,9 +811,12 @@ export async function getPaginatedInvoices(params: {
   }
 }
 
+// Duplicate an existing invoice (Flow 6, duplicate branch, AC-12). In one transaction: allocate
+// from the original's sender-profile sequence (same allocator and format as createInvoice),
+// insert the copy with recomputed amounts, status DRAFT, paidAt null.
 export async function duplicateInvoice(
   id: string
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult.success) {
@@ -741,20 +836,35 @@ export async function duplicateInvoice(
 
     const senderProfile = await prisma.senderProfile.findFirst({
       where: { id: originalInvoice.senderProfileId, userId },
-      select: { invoicePrefix: true, invoiceCounter: true },
+      select: { id: true },
     });
 
     if (!senderProfile) {
       return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
-    const year = new Date().getFullYear();
-    const newInvoiceNumber = `${senderProfile.invoicePrefix}-${year}-${String(senderProfile.invoiceCounter + 1).padStart(4, '0')}`;
+    // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
+    // the original's quantity x rate rather than copying its (possibly stale) stored figures.
+    const amounts = computeInvoiceAmounts({
+      items: originalInvoice.items.map((item) => ({
+        quantity: item.quantity.toString(),
+        price: item.rate.toString(),
+      })),
+      discount: originalInvoice.discount.toString(),
+      shipping: originalInvoice.shipping.toString(),
+      taxRate: originalInvoice.taxRate.toString(),
+    });
 
     const newInvoice = await prisma.$transaction(async (tx) => {
+      const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
+        tx,
+        senderProfile.id
+      );
+
       const created = await tx.invoice.create({
         data: {
-          invoiceNumber: newInvoiceNumber,
+          invoiceNumber,
+          invoiceNumberKey,
           senderProfileId: originalInvoice.senderProfileId,
           customerId: originalInvoice.customerId,
           bankAccountId: originalInvoice.bankAccountId,
@@ -789,45 +899,41 @@ export async function duplicateInvoice(
           bankIban: originalInvoice.bankIban,
           bankSwift: originalInvoice.bankSwift,
           accountName: originalInvoice.accountName,
-          subtotal: originalInvoice.subtotal,
+          subtotal: amounts.subtotal,
           taxRate: originalInvoice.taxRate,
-          taxAmount: originalInvoice.taxAmount,
+          taxAmount: amounts.taxAmount,
           discount: originalInvoice.discount,
           shipping: originalInvoice.shipping,
-          total: originalInvoice.total,
+          total: amounts.total,
           amountPaid: 0,
           notes: originalInvoice.notes,
           terms: originalInvoice.terms,
           items: {
-            create: originalInvoice.items.map((item) => ({
+            create: originalInvoice.items.map((item, index) => ({
               productId: item.productId,
               name: item.name,
               description: item.description,
               unit: item.unit,
               quantity: item.quantity,
               rate: item.rate,
-              amount: item.amount,
+              amount: amounts.items[index].amount,
               currency: item.currency,
             })),
           },
         },
       });
 
-      await tx.senderProfile.update({
-        where: { id: originalInvoice.senderProfileId },
-        data: { invoiceCounter: { increment: 1 } },
-      });
-
       return created;
     });
 
     revalidatePath(protectedRoutes.invoices);
-    return ok({ id: newInvoice.id });
+    return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       return fail(
         'CONFLICT',
         'This invoice number is already used in this sender profile.',
+        { fieldErrors: { invoiceNumber: ['This invoice number is already used in this sender profile.'] } },
       );
     }
     console.error('Error duplicating invoice:', error);
