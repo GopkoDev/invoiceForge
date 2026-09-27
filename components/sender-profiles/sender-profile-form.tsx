@@ -79,6 +79,17 @@ export function SenderProfileForm({
           });
         }
 
+        const fieldErrors = result.fieldErrors;
+        if (fieldErrors) {
+          for (const [name, messages] of Object.entries(fieldErrors)) {
+            if (messages?.[0]) {
+              form.setError(name as keyof SenderProfileFormValues, {
+                message: messages[0],
+              });
+            }
+          }
+        }
+
         return;
       }
 

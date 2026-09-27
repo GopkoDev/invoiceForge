@@ -28,7 +28,11 @@ export async function createSenderProfile(
     }
 
     const { userId } = authResult.data;
-    const validatedData = senderProfileFormSchema.parse(data);
+    const parsed = senderProfileFormSchema.safeParse(data);
+    if (!parsed.success) {
+      return zodValidationFailure(parsed.error);
+    }
+    const validatedData = parsed.data;
     const { invoicePrefix, isDefault } = validatedData;
 
     const existingPrefix = await prisma.senderProfile.findUnique({
@@ -80,7 +84,11 @@ export async function updateSenderProfile(
     }
 
     const { userId } = authResult.data;
-    const validatedData = senderProfileFormSchema.parse(data);
+    const parsed = senderProfileFormSchema.safeParse(data);
+    if (!parsed.success) {
+      return zodValidationFailure(parsed.error);
+    }
+    const validatedData = parsed.data;
 
     const existingProfile = await prisma.senderProfile.findUnique({
       where: { id },
