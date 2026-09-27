@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import NextAuth from 'next-auth';
 import authConfig from '@/auth.config';
+import { clearSessionCookies } from '@/lib/helpers/session-cookies';
 import {
   authRoutes,
   routes,
@@ -71,8 +72,7 @@ export default auth(async function proxy(req) {
     console.error('[proxy] Auth error:', error);
     const response = NextResponse.redirect(new URL(authRoutes.signIn, req.url));
 
-    response.cookies.delete('authjs.session-token');
-    response.cookies.delete('__Secure-authjs.session-token');
+    clearSessionCookies(req, response);
 
     return response;
   }

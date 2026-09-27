@@ -114,6 +114,17 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain('authjs.session-token=;');
   });
+
+  it('marks the __Secure- cookie deletion Secure, or browsers on https ignore it', async () => {
+    const res = await callProxy(buildRequest('/dashboard', { token: 'reject' }));
+
+    const secureDeletion = res.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith('__Secure-authjs.session-token='));
+    expect(secureDeletion).toBeDefined();
+    expect(secureDeletion).toMatch(/;\s*Secure/i);
+    expect(secureDeletion).toMatch(/;\s*Path=\//i);
+  });
 });
 
 describe('proxy matcher (sad.md §11, api is no longer excluded)', () => {

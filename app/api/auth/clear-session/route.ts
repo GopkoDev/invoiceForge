@@ -15,37 +15,10 @@
 // for a path that is none of protected/legal/auth-page/public) and a signed-out caller reach it.
 import { NextRequest, NextResponse } from 'next/server';
 import { authRoutes } from '@/config/routes.config';
-
-// Mirrors the cookie names proxy.ts's catch branch clears on a malformed token.
-const SESSION_COOKIE_NAMES = ['authjs.session-token', '__Secure-authjs.session-token'] as const;
-
-// Browsers ignore a Set-Cookie for a `__Secure-` name that lacks the Secure attribute, so the
-// deletion must carry it or the production (https) cookie would survive.
-function expireCookie(response: NextResponse, name: string) {
-  response.cookies.set(name, '', {
-    maxAge: 0,
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: name.startsWith('__Secure-'),
-  });
-}
+import { clearSessionCookies } from '@/lib/helpers/session-cookies';
 
 export async function GET(req: NextRequest) {
   const response = NextResponse.redirect(new URL(authRoutes.signIn, req.url), 302);
-
-  for (const name of SESSION_COOKIE_NAMES) {
-    expireCookie(response, name);
-  }
-
-  // Large JWTs get split by next-auth into chunks: authjs.session-token.0, .1, ... Only clear
-  // chunk cookies that are actually present on the request.
-  for (const cookie of req.cookies.getAll()) {
-    const isChunk = SESSION_COOKIE_NAMES.some((base) => cookie.name.startsWith(`${base}.`));
-    if (isChunk) {
-      expireCookie(response, cookie.name);
-    }
-  }
-
+  clearSessionCookies(req, response);
   return response;
 }
