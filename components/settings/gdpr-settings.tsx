@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useModal } from '@/store/use-modal-store';
 import { signOut } from 'next-auth/react';
 import { toast } from 'sonner';
-import { Download, Trash2 } from 'lucide-react';
+import { AlertCircle, Download, Trash2 } from 'lucide-react';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,63 +14,169 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { deleteUserAccount } from '@/lib/actions/account-actions';
+import {
+  deleteUserAccount,
+  getAccountDeletionSummary,
+} from '@/lib/actions/account-actions';
 import { authRoutes } from '@/config/routes.config';
+
+const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
+
+// SCR-08 states that decide the dialog's body and whether Confirm is enabled.
+type DeletionSummary =
+  | { status: 'counting' }
+  | { status: 'ready'; invoiceCount: number }
+  | { status: 'failed' };
+
+interface DialogState {
+  summary: DeletionSummary;
+  exporting: boolean;
+}
+
+function invoiceCountLine(count: number) {
+  return count === 1
+    ? '1 invoice will be permanently lost.'
+    : `${count} invoices will be permanently lost.`;
+}
+
+/** Downloads the Freelancer's data export. Returns false when the export failed. */
+async function downloadDataExport(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/user/export');
+
+    if (!response.ok) {
+      throw new Error('Failed to export data');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'invoice-forge-data.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error('Error exporting data:', error);
+    return false;
+  }
+}
 
 export function GdprSettings() {
   const [isExporting, setIsExporting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const confirmationModal = useModal('confirmationModal');
+  // The dialog props live in the modal store, so every SCR-08 transition republishes them.
+  // A summary that resolves after Cancel must not reopen the dialog.
+  const dialogOpenRef = useRef(false);
+  const dialogStateRef = useRef<DialogState>({
+    summary: { status: 'counting' },
+    exporting: false,
+  });
 
   const handleExportData = async () => {
     setIsExporting(true);
-    try {
-      const response = await fetch('/api/user/export');
-
-      if (!response.ok) {
-        throw new Error('Failed to export data');
-      }
-
-      // Create a blob from the response
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'invoice-forge-data.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
+    const exported = await downloadDataExport();
+    if (exported) {
       toast.success('Your data has been exported successfully');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Failed to export data. Please try again.');
-    } finally {
-      setIsExporting(false);
+    } else {
+      toast.error(EXPORT_FAILED_MESSAGE);
     }
+    setIsExporting(false);
   };
 
-  const handleDeleteAccount = async () => {
-    setIsDeleting(true);
-    try {
-      const result = await deleteUserAccount();
+  const closeDialog = () => {
+    dialogOpenRef.current = false;
+    confirmationModal.close();
+  };
 
-      if (!result.success) {
-        toast.error(result.error || 'Failed to delete account');
-        setIsDeleting(false);
-        return;
-      }
+  const showDialog = (next: DialogState) => {
+    if (!dialogOpenRef.current) return;
+    dialogStateRef.current = next;
+    const { summary, exporting } = next;
 
-      toast.success('Account deleted successfully');
+    confirmationModal.open({
+      open: true,
+      onClose: closeDialog,
+      onConfirm: handleDeleteAccount,
+      title: 'Delete your account?',
+      description: "This can't be undone.",
+      body: (
+        <div className="space-y-3">
+          {summary.status === 'counting' && <Skeleton className="h-5 w-3/4" />}
+          {summary.status === 'ready' && summary.invoiceCount > 0 && (
+            <p className="text-sm font-medium">
+              {invoiceCountLine(summary.invoiceCount)}
+            </p>
+          )}
+          {summary.status === 'failed' && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle className="flex items-center justify-between gap-2">
+                Couldn&apos;t count your invoices.
+                <Button size="sm" variant="outline" onClick={loadSummary}>
+                  Retry
+                </Button>
+              </AlertTitle>
+            </Alert>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportFromDialog}
+            disabled={exporting}
+          >
+            {exporting ? <Spinner /> : <Download />}
+            Export my data first
+          </Button>
+        </div>
+      ),
+      variant: 'destructive',
+      confirmText: 'Yes, Delete My Account',
+      cancelText: 'Cancel',
+      // Deleting without seeing what is lost is not allowed: Confirm waits for a count.
+      confirmDisabled: summary.status !== 'ready',
+    });
+  };
 
-      await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      toast.error('Failed to delete account. Please try again.');
-      setIsDeleting(false);
+  async function loadSummary() {
+    showDialog({ ...dialogStateRef.current, summary: { status: 'counting' } });
+    const result = await getAccountDeletionSummary();
+    showDialog({
+      ...dialogStateRef.current,
+      summary: result.success
+        ? { status: 'ready', invoiceCount: result.data.invoiceCount }
+        : { status: 'failed' },
+    });
+  }
+
+  async function handleExportFromDialog() {
+    showDialog({ ...dialogStateRef.current, exporting: true });
+    const exported = await downloadDataExport();
+    if (!exported) {
+      toast.error(EXPORT_FAILED_MESSAGE);
     }
+    showDialog({ ...dialogStateRef.current, exporting: false });
+  }
+
+  async function handleDeleteAccount() {
+    const result = await deleteUserAccount();
+
+    if (!result.success) {
+      closeDialog();
+      toast.error(result.error);
+      return;
+    }
+
+    await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
+  }
+
+  const openDeleteDialog = () => {
+    dialogOpenRef.current = true;
+    void loadSummary();
   };
 
   return (
@@ -114,34 +221,9 @@ export function GdprSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={() =>
-              confirmationModal.open({
-                open: true,
-                onClose: confirmationModal.close,
-                onConfirm: handleDeleteAccount,
-                title: 'Are you absolutely sure?',
-                description:
-                  'This action cannot be undone. All your invoices, customers, and profile data will be permanently deleted from our active servers',
-                variant: 'destructive',
-                confirmText: 'Yes, Delete My Account',
-                cancelText: 'Cancel',
-              })
-            }
-          >
-            {isDeleting ? (
-              <>
-                <Spinner className="mr-2" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 />
-                Delete Account
-              </>
-            )}
+          <Button variant="destructive" onClick={openDeleteDialog}>
+            <Trash2 />
+            Delete Account
           </Button>
         </CardContent>
       </Card>
