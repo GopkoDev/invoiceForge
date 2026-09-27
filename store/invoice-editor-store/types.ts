@@ -6,8 +6,16 @@ import {
   InvoiceBankAccount,
   InvoiceProduct,
   InvoiceCustomPrice,
+  InvoiceLegacyInfo,
   Currency,
 } from '@/types/invoice/types';
+
+/** The pair a CONFLICT TOTALS_CHANGED carries (contracts/server-actions.md, AC-17): the SCR-15
+ * dialog shows these, and a confirmed resubmit echoes them back as `confirmedTotals`. */
+export interface TotalsChanged {
+  oldTotal: string;
+  newTotal: string;
+}
 
 export interface NormalizedData {
   senderProfilesById: Map<string, InvoiceSenderProfile>;
@@ -66,6 +74,18 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
 
+  /** The hint from `generateInvoiceNumber`, shown only as a placeholder — never merged into
+   * `formData.invoiceNumber` (AC-06, AC-11). */
+  invoiceNumberHint?: string;
+  /** VALIDATION / CONFLICT `fieldErrors` from the last save attempt, keyed by form path
+   * (AC-08, AC-14, AC-15). */
+  fieldErrors?: Record<string, string[]>;
+  /** Set by a CONFLICT `details.kind === 'TOTALS_CHANGED'` so the header can open the SCR-15
+   * confirmation dialog (AC-17). */
+  totalsChanged: TotalsChanged | null;
+  /** `legacy` flags from `getInvoiceEditorData`, carried in on `initialize` (AC-17). */
+  legacy: InvoiceLegacyInfo | null;
+
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(
     key: K,
@@ -86,7 +106,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
 
   setIsSaving: (isSaving: boolean) => void;
   markAsSaved: () => void;
-  saveInvoice: () => Promise<void>;
+  saveInvoice: (options?: { confirmedTotals?: TotalsChanged }) => Promise<void>;
+  clearTotalsChanged: () => void;
   reset: () => void;
 }
 
@@ -105,6 +126,7 @@ export interface InvoiceEditorInitData {
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
   invoiceId?: string;
+  legacy?: InvoiceLegacyInfo | null;
 }
 
 export interface RecalculateComputedValuesStateInput extends NormalizedData {

@@ -9,12 +9,14 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Calculator } from 'lucide-react';
 import {
   useSummary,
   useInvoiceCurrency,
   useInvoiceEditorActions,
+  useFieldErrors,
 } from '@/store/invoice-editor-store';
 
 export function SummarySection() {
@@ -22,6 +24,7 @@ export function SummarySection() {
   const { updateField } = useInvoiceEditorActions();
   const { subtotal, taxRate, taxAmount, discount, shipping, total } =
     useSummary();
+  const fieldErrors = useFieldErrors();
 
   const handleNumericChange = (
     value: string,
@@ -73,10 +76,14 @@ export function SummarySection() {
                   handleNumericChange(e.target.value, 'discount')
                 }
                 className="h-8 w-24 text-right"
+                aria-invalid={!!fieldErrors?.discount}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
+          <FieldError
+            errors={fieldErrors?.discount?.map((message) => ({ message }))}
+          />
 
           <div className="flex items-center justify-between gap-4">
             <Label className="text-muted-foreground">Shipping</Label>
@@ -90,10 +97,14 @@ export function SummarySection() {
                   handleNumericChange(e.target.value, 'shipping')
                 }
                 className="h-8 w-24 text-right"
+                aria-invalid={!!fieldErrors?.shipping}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
+          <FieldError
+            errors={fieldErrors?.shipping?.map((message) => ({ message }))}
+          />
 
           <Separator className="my-2" />
 
@@ -116,6 +127,7 @@ export function SummarySection() {
                 value={taxRate}
                 onChange={(e) => handleNumericChange(e.target.value, 'taxRate')}
                 className="h-8 w-16 text-right"
+                aria-invalid={!!fieldErrors?.taxRate}
               />
               <span className="text-muted-foreground ml-1">%</span>
             </div>
@@ -125,6 +137,9 @@ export function SummarySection() {
             {taxAmount.toFixed(2)} {currency}
           </span>
         </div>
+        <FieldError
+          errors={fieldErrors?.taxRate?.map((message) => ({ message }))}
+        />
 
         <Separator />
 

@@ -4,6 +4,7 @@ export type {
   ProductOption,
   GroupedProducts,
   InvalidItem,
+  TotalsChanged,
 } from './types';
 
 // Store and selectors
@@ -33,4 +34,8 @@ export {
   useInvoiceEditorActions,
   usePoNumber,
   useInvoiceItem,
+  useInvoiceNumberHint,
+  useFieldErrors,
+  useTotalsChanged,
+  useLegacy,
 } from './use-invoice-editor-store';

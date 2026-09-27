@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -10,6 +9,7 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { FieldDescription, FieldError } from '@/components/ui/field';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,12 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { FileText, CalendarIcon, Lock, Unlock, Car } from 'lucide-react';
+import { FileText, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -30,6 +25,8 @@ import { cn } from '@/lib/utils';
 // Import store selectors and actions
 import {
   useInvoiceNumber,
+  useInvoiceNumberHint,
+  useFieldErrors,
   useInvoiceDates,
   useInvoiceCurrency,
   usePoNumber,
@@ -44,9 +41,9 @@ const dueDatePresets = [
 ];
 
 export function InvoiceDetailsSection() {
-  const [isInvoiceNumberLocked, setIsInvoiceNumberLocked] = useState(true);
-
   const invoiceNumber = useInvoiceNumber();
+  const invoiceNumberHint = useInvoiceNumberHint();
+  const fieldErrors = useFieldErrors();
   const { issueDate, dueDate } = useInvoiceDates();
   const currency = useInvoiceCurrency();
   const poNumber = usePoNumber();
@@ -79,49 +76,22 @@ export function InvoiceDetailsSection() {
               Invoice Number <span className="text-destructive">*</span>
             </Label>
 
-            <div className="flex gap-2">
-              <Input
-                value={invoiceNumber}
-                onChange={(e) => updateField('invoiceNumber', e.target.value)}
-                placeholder="INV-2024-0001"
-                disabled={isInvoiceNumberLocked}
-                className={cn(
-                  isInvoiceNumberLocked && 'bg-muted cursor-not-allowed'
-                )}
-              />
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        setIsInvoiceNumberLocked(!isInvoiceNumberLocked)
-                      }
-                    >
-                      {isInvoiceNumberLocked ? (
-                        <Lock className="h-4 w-4" />
-                      ) : (
-                        <Unlock className="h-4 w-4" />
-                      )}
-                    </Button>
-                  }
-                />
+            <Input
+              value={invoiceNumber}
+              onChange={(e) => updateField('invoiceNumber', e.target.value)}
+              placeholder={invoiceNumberHint}
+              aria-invalid={!!fieldErrors?.invoiceNumber}
+            />
 
-                <TooltipContent>
-                  {isInvoiceNumberLocked
-                    ? 'Unlock to edit invoice number'
-                    : 'Lock invoice number'}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-
-            {isInvoiceNumberLocked && (
-              <p className="text-muted-foreground text-xs">
-                Auto-generated. Click the lock to edit manually.
-              </p>
+            {/* An empty field is the only signal a number is system-proposed (AC-06); the hint
+                is shown only as a placeholder, never merged into the value. */}
+            {invoiceNumber === '' && (
+              <FieldDescription>Assigned on save</FieldDescription>
             )}
+
+            <FieldError
+              errors={fieldErrors?.invoiceNumber?.map((message) => ({ message }))}
+            />
           </div>
 
           {/* Currency (read-only, derived from bank account) */}

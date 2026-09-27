@@ -5,11 +5,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
 import { InvoiceFormData } from '@/types/invoice/types';
-import { InvoiceEditorState, InvoiceEditorInitData } from './types';
+import { InvoiceEditorState, InvoiceEditorInitData, TotalsChanged } from './types';
+import { ActionFailure } from '@/types/actions';
 import {
   generateInvoiceNumber,
   createInvoice,
   updateInvoice,
+  SavedInvoice,
 } from '@/lib/actions/invoice-actions/invoice-actions';
 import {
   normalizeData,
@@ -27,6 +29,54 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 ) => {
   const initialFormData = createInitialFormData();
 
+  // Turns a failed save into the right UI state (AC-08, AC-14, AC-15, AC-17): TOTALS_CHANGED
+  // opens SCR-15, fieldErrors land next to the offending fields, everything else is a toast
+  // (FAILED gets a Retry action that resubmits with the same options).
+  function handleSaveFailure(
+    result: ActionFailure,
+    retry: () => void
+  ): void {
+    if (result.details?.kind === 'TOTALS_CHANGED') {
+      set({
+        totalsChanged: {
+          oldTotal: result.details.oldTotal,
+          newTotal: result.details.newTotal,
+        },
+      });
+      return;
+    }
+
+    if (result.fieldErrors) {
+      set({ fieldErrors: result.fieldErrors });
+      return;
+    }
+
+    if (result.code === 'FAILED') {
+      toast.error(result.error || 'Error saving invoice.', {
+        action: { label: 'Retry', onClick: retry },
+      });
+      return;
+    }
+
+    toast.error(result.error || 'Error saving invoice.');
+  }
+
+  // On success the server's figures replace whatever the browser had (AC-06, AC-13), and any
+  // prior field error / totals confirmation is cleared.
+  function applySavedInvoice(saved: SavedInvoice): void {
+    const state = get();
+    set({
+      formData: { ...state.formData, invoiceNumber: saved.invoiceNumber, status: saved.status },
+      invoiceId: saved.id,
+      subtotal: saved.subtotal,
+      taxAmount: saved.taxAmount,
+      total: saved.total,
+      fieldErrors: undefined,
+      totalsChanged: null,
+      hasUnsavedChanges: false,
+    });
+  }
+
   return {
     formData: initialFormData,
     senderProfiles: [],
@@ -37,6 +87,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     invoiceId: undefined,
     isSaving: false,
     hasUnsavedChanges: false,
+    invoiceNumberHint: undefined,
+    fieldErrors: undefined,
+    totalsChanged: null,
+    legacy: null,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -63,6 +117,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         invoiceId: data.invoiceId,
         isSaving: false,
         hasUnsavedChanges: false,
+        invoiceNumberHint: undefined,
+        fieldErrors: undefined,
+        totalsChanged: null,
+        legacy: data.legacy ?? null,
         ...normalizedData,
       };
 
@@ -120,18 +178,18 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       );
       const selectedBankAccount = defaultBankAccount || senderBankAccounts[0];
 
+      // An empty number field is the only signal a number is system-proposed (AC-06, AC-11): the
+      // proposed number is exposed as a separate hint, never merged into the value the Freelancer
+      // would submit. This also clears a moved invoice's old number — A's number is never
+      // proposed again under B.
       const updates: Partial<InvoiceFormData> = {
         senderProfileId: id,
         bankAccountId: selectedBankAccount?.id || '',
+        invoiceNumber: '',
       };
 
       if (selectedBankAccount) {
         updates.currency = selectedBankAccount.currency;
-      }
-
-      const result = await generateInvoiceNumber(id);
-      if (result.success) {
-        updates.invoiceNumber = result.data;
       }
 
       const newFormData = { ...state.formData, ...updates };
@@ -143,8 +201,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({
         formData: newFormData,
         hasUnsavedChanges: true,
+        invoiceNumberHint: undefined,
         ...computedValues,
       });
+
+      const result = await generateInvoiceNumber(id);
+      if (result.success) {
+        set({ invoiceNumberHint: result.data });
+      }
     },
 
     selectBankAccount: (id: string) => {
@@ -308,31 +372,34 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({ hasUnsavedChanges: false });
     },
 
-    saveInvoice: async () => {
+    saveInvoice: async (options?: { confirmedTotals?: TotalsChanged }) => {
       const state = get();
-      set({ isSaving: true });
+      set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
+
+      const payload = options?.confirmedTotals
+        ? { ...state.formData, confirmedTotals: options.confirmedTotals }
+        : state.formData;
+      const retry = () => get().saveInvoice(options);
 
       try {
         if (state.invoiceId) {
           // Update existing invoice
-          const result = await updateInvoice(state.invoiceId, state.formData);
+          const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
-            get().markAsSaved();
+            applySavedInvoice(result.data);
             toast.success('Invoice updated');
           } else {
-            toast.error(result.error || 'Error updating invoice');
+            handleSaveFailure(result, retry);
           }
         } else {
           // Create new invoice
-          const result = await createInvoice(state.formData);
+          const result = await createInvoice(payload);
           if (result.success) {
-            get().markAsSaved();
+            applySavedInvoice(result.data);
             toast.success('Invoice created');
-            // Update invoiceId in store
-            set({ invoiceId: result.data.id });
             return; // Router redirect will be handled in component
           } else {
-            toast.error(result.error || 'Error creating invoice');
+            handleSaveFailure(result, retry);
           }
         }
       } catch {
@@ -340,6 +407,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       } finally {
         set({ isSaving: false });
       }
+    },
+
+    clearTotalsChanged: () => {
+      set({ totalsChanged: null });
     },
 
     reset: () => {
@@ -354,6 +425,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         invoiceId: undefined,
         isSaving: false,
         hasUnsavedChanges: false,
+        invoiceNumberHint: undefined,
+        fieldErrors: undefined,
+        totalsChanged: null,
+        legacy: null,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -424,6 +499,18 @@ export const useIsEditingSentInvoice = () =>
 export const useInvoiceId = () =>
   useInvoiceEditorStore((state) => state.invoiceId);
 
+export const useInvoiceNumberHint = () =>
+  useInvoiceEditorStore((state) => state.invoiceNumberHint);
+
+export const useFieldErrors = () =>
+  useInvoiceEditorStore(useShallow((state) => state.fieldErrors));
+
+export const useTotalsChanged = () =>
+  useInvoiceEditorStore(useShallow((state) => state.totalsChanged));
+
+export const useLegacy = () =>
+  useInvoiceEditorStore(useShallow((state) => state.legacy));
+
 export const useSummary = () =>
   useInvoiceEditorStore(
     useShallow((state) => ({
@@ -471,6 +558,7 @@ export const useInvoiceEditorActions = () =>
       setIsSaving: state.setIsSaving,
       markAsSaved: state.markAsSaved,
       saveInvoice: state.saveInvoice,
+      clearTotalsChanged: state.clearTotalsChanged,
       reset: state.reset,
     }))
   );
