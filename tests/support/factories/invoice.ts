@@ -142,15 +142,18 @@ export async function createLegacyInvoice(
 ): Promise<Invoice & { items: InvoiceItem[] }> {
   const items = params.items ?? [{ name: 'Legacy Item', quantity: 1, rate: 100, amount: 100 }];
   const recomputedTotal = items.reduce((sum, item) => sum + item.amount, 0);
-  // A stored total that deliberately disagrees with a fresh recompute of the items.
-  const storedTotal = params.storedTotal ?? recomputedTotal + 1;
+  // A stored total that deliberately disagrees with a fresh recompute of the items, unless the
+  // caller already pinned an explicit `total` (and/or `subtotal`) via `overrides` — that always
+  // wins over the default drift-by-one, so a caller asserting an exact stored/recomputed pair
+  // gets exactly what it asked for.
+  const storedTotal = params.overrides?.total ?? params.storedTotal ?? recomputedTotal + 1;
 
   return createInvoice(prisma, {
     ...params,
     items,
     overrides: {
       ...params.overrides,
-      subtotal: recomputedTotal,
+      subtotal: params.overrides?.subtotal ?? recomputedTotal,
       total: storedTotal,
       invoiceNumberKey: null,
     },

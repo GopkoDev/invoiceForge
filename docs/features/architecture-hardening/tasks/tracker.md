@@ -19,7 +19,7 @@
 | T11 | [Tighten the invoice schema and add applyStatusChange for the paid date](./t11-invoice-rules-and-status.md) | domain | Dmytro Hopko | M | T08, T10 | done |
 | T12 | [Add normalizeInvoiceNumber and the row-locked allocateInvoiceNumber](./t12-numbering-module.md) | app | Dmytro Hopko | M | T07 | done |
 | T13 | [Rewrite createInvoice and duplicateInvoice on the allocator and recomputed amounts](./t13-create-and-duplicate-invoice.md) | app | Dmytro Hopko | L | T08, T10, T11, T12 | done |
-| T14 | [Rewrite updateInvoice for profile moves, legacy invoices and confirmed totals](./t14-update-invoice-move-and-legacy.md) | app | Dmytro Hopko | L | T13 | todo |
+| T14 | [Rewrite updateInvoice for profile moves, legacy invoices and confirmed totals](./t14-update-invoice-move-and-legacy.md) | app | Dmytro Hopko | L | T13 | done |
 | T15 | [Extend ConfirmationModal with a body slot, async confirm and a hideable confirm button](./t15-confirmation-modal-async-body.md) | ui | Dmytro Hopko | S | — | done |
 | T16 | [Build the editor number hint, field errors, saved state, legacy alert and SCR-15 dialog](./t16-editor-number-and-save-states.md) | ui | Dmytro Hopko | L | T14, T15 | todo |
 | T17 | [Add the deletion summary and delete the account in one explicit transaction](./t17-account-deletion-transaction.md) | app | Dmytro Hopko | M | T08 | todo |

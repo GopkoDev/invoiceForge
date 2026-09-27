@@ -27,6 +27,15 @@ export type InvoiceListItem = {
   createdAt: Date;
 };
 
+// T14 (spec.md §5 AC-17) — legacy flags surfaced alongside a saved invoice
+// (contracts/server-actions.md §getInvoiceEditorData / getInvoice, verbatim): null when nothing
+// differs and the number is free.
+export interface InvoiceLegacyInfo {
+  storedTotal: string;
+  recomputedTotal: string;
+  sharedNumber: boolean;
+}
+
 // Serialized invoice for client components (Decimal converted to number)
 export type SerializedInvoice = Omit<
   InvoiceWithRelations,
@@ -47,6 +56,7 @@ export type SerializedInvoice = Omit<
   total: number;
   amountPaid: number;
   items: SerializedInvoiceItem[];
+  legacy: InvoiceLegacyInfo | null;
 };
 
 export type SerializedInvoiceItem = {
@@ -169,6 +179,7 @@ export interface InvoiceEditorData {
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
   invoiceId?: string;
+  legacy?: InvoiceLegacyInfo | null;
 }
 
 // Status configuration for UI

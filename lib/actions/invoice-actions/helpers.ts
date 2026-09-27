@@ -1,6 +1,5 @@
-import { InvoiceFormValues } from '@/lib/validations/invoice';
 import { prisma } from '@/prisma';
-import { SerializedInvoice, InvoiceFormData } from '@/types/invoice/types';
+import { SerializedInvoice, InvoiceFormData, InvoiceLegacyInfo } from '@/types/invoice/types';
 import { Prisma } from '@prisma/client';
 import type {
   Invoice,
@@ -10,6 +9,7 @@ import type {
   BankAccount,
 } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/actions';
+import { isInvoiceKeyTaken } from './numbering';
 
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
@@ -43,40 +43,43 @@ export function serializeInvoice(
 
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 
-interface InvoiceTotalsItem {
-  total: number;
-}
-
-interface InvoiceTotals {
-  subtotal: number;
-  taxAmount: number;
-  total: number;
-}
-
 /**
- * Thin number adapter over the shared exact-decimal module (ADR-0006), kept for the existing
- * createInvoice/updateInvoice call sites. It sums the already-computed per-item totals through
- * the shared module so subtotal/tax/total never drift on floats; recomputing each line from
- * quantity x rate on the server (ignoring client-sent totals) is wired in T13/T14.
+ * T14 (spec.md §5 AC-17) — the legacy flags shared by getInvoiceEditorData/getInvoice and
+ * updateInvoice's own legacy gates (contracts/server-actions.md §getInvoiceEditorData / getInvoice,
+ * verbatim): recomputes the stored lines through the one exact-decimal module (ADR-0006) and
+ * compares against the stored total; a shared/NULL normalized key also counts as legacy. `null`
+ * when nothing differs and the number is free.
  */
-export function calculateInvoiceTotals(
-  items: InvoiceTotalsItem[],
-  taxRate: number,
-  discount: number,
-  shipping: number
-): InvoiceTotals {
-  const amounts = computeInvoiceAmounts({
-    items: items.map((item) => ({ quantity: 1, price: item.total })),
-    discount,
-    shipping,
-    taxRate,
+export async function computeInvoiceLegacyInfo(
+  client: Prisma.TransactionClient,
+  invoice: Invoice & { items: InvoiceItem[] }
+): Promise<InvoiceLegacyInfo | null> {
+  const recomputed = computeInvoiceAmounts({
+    items: invoice.items.map((item) => ({
+      quantity: item.quantity.toString(),
+      price: item.rate.toString(),
+    })),
+    discount: invoice.discount.toString(),
+    shipping: invoice.shipping.toString(),
+    taxRate: invoice.taxRate.toString(),
   });
 
-  return {
-    subtotal: Number(amounts.subtotal),
-    taxAmount: Number(amounts.taxAmount),
-    total: Number(amounts.total),
-  };
+  const storedTotal = invoice.total.toFixed(2);
+  const recomputedTotal = recomputed.total;
+  const sharedNumber =
+    invoice.invoiceNumberKey === null ||
+    (await isInvoiceKeyTaken(
+      client,
+      invoice.senderProfileId,
+      invoice.invoiceNumberKey,
+      invoice.id
+    ));
+
+  if (storedTotal === recomputedTotal && !sharedNumber) {
+    return null;
+  }
+
+  return { storedTotal, recomputedTotal, sharedNumber };
 }
 
 export function buildSenderSnapshot(profile: SenderProfile) {
@@ -117,19 +120,6 @@ export function buildBankAccountSnapshot(bankAccount: BankAccount) {
     bankSwift: bankAccount.swift,
     accountName: bankAccount.accountName,
   };
-}
-
-export function buildInvoiceItems(items: InvoiceFormValues['items']) {
-  return items.map((item) => ({
-    productId:
-      item.productId && item.productId !== 'custom' ? item.productId : null,
-    name: item.productName,
-    description: item.description || null,
-    unit: item.unit,
-    quantity: item.quantity,
-    rate: item.price,
-    amount: item.total,
-  }));
 }
 
 export function transformInvoiceToFormData(
