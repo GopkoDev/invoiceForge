@@ -25,6 +25,8 @@ export type InvoiceListItem = {
   customerName: string;
   senderName: string;
   createdAt: Date;
+  // T35 (AC-18, F-15): the moment the status became Paid; null otherwise.
+  paidAt: Date | null;
 };
 
 // T14 (spec.md §5 AC-17) — legacy flags surfaced alongside a saved invoice

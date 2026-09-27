@@ -16,6 +16,12 @@ interface ContactCardActionsProps {
   detailRoute: string;
   deleteAction: (id: string) => Promise<ActionResult>;
   entityLabel: string;
+  // T35 (SCR-09/SCR-19, F-16): the detail page already shows the record, so it hides the
+  // Preview link and labels the icon-only trigger "Delete".
+  showPreview?: boolean;
+  // T35 (SCR-14, F-16): from a detail page, deletion goes to the record's list instead of
+  // refreshing in place. Defaults to the existing list-row behaviour.
+  onDeleted?: () => void;
 }
 
 export function ContactCardActions({
@@ -24,6 +30,8 @@ export function ContactCardActions({
   detailRoute,
   deleteAction,
   entityLabel,
+  showPreview = true,
+  onDeleted,
 }: ContactCardActionsProps) {
   const router = useRouter();
   const confirmationModal = useModal('confirmationModal');
@@ -40,7 +48,11 @@ export function ContactCardActions({
     if (result.success) {
       confirmationModal.close();
       toast.success(`${entityLabel} deleted successfully`);
-      router.refresh();
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        router.refresh();
+      }
       return;
     }
 
@@ -89,17 +101,19 @@ export function ContactCardActions({
 
   return (
     <div className="flex gap-2">
-      <Link href={detailRoute} className="flex-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isDeleting}
-          className="w-full"
-        >
-          <Eye className="h-3 w-3" />
-          Preview
-        </Button>
-      </Link>
+      {showPreview && (
+        <Link href={detailRoute} className="flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isDeleting}
+            className="w-full"
+          >
+            <Eye className="h-3 w-3" />
+            Preview
+          </Button>
+        </Link>
+      )}
 
       <Button
         variant="outline"
@@ -108,6 +122,7 @@ export function ContactCardActions({
         disabled={isDeleting}
       >
         <Trash2 className="h-3 w-3" />
+        {!showPreview && 'Delete'}
       </Button>
     </div>
   );

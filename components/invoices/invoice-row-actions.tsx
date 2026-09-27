@@ -112,8 +112,11 @@ export function InvoiceRowActions({
     startTransition(async () => {
       const result = await duplicateInvoice(invoiceId);
       if (result.success) {
-        toast.success('Invoice duplicated successfully');
-        router.push(protectedRoutes.invoiceEdit(result.data.id));
+        // SCR-02 "duplicated" (AC-12, F-14): name the new invoice number and stay on the list;
+        // the copy shows up in the refreshed list rather than opening in the editor.
+        toast.success(`Duplicated as ${result.data.invoiceNumber}`);
+        onDataChange?.();
+        router.refresh();
       } else {
         toast.error(result.error || 'Failed to duplicate invoice');
       }

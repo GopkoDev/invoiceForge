@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { buttonVariants } from '@/components/ui/button';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import Link from 'next/link';
@@ -9,6 +10,9 @@ interface ContactsDetailsHeaderProps {
   backHref: string;
   editHref: string;
   editLabel?: string;
+  // T35 (SCR-09/SCR-19, F-16): the detail page's delete entry point (e.g.
+  // CustomerDetailDeleteAction), rendered next to Edit.
+  deleteAction?: ReactNode;
 }
 
 export function ContactsDetailsHeader({
@@ -17,6 +21,7 @@ export function ContactsDetailsHeader({
   backHref,
   editHref,
   editLabel = 'Edit',
+  deleteAction,
 }: ContactsDetailsHeaderProps) {
   return (
     <div className="flex items-center justify-between">
@@ -35,10 +40,13 @@ export function ContactsDetailsHeader({
         </div>
       </div>
 
-      <Link href={editHref} className={cn(buttonVariants())}>
-        <Pencil className="h-4 w-4" />
-        {editLabel}
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href={editHref} className={cn(buttonVariants())}>
+          <Pencil className="h-4 w-4" />
+          {editLabel}
+        </Link>
+        {deleteAction}
+      </div>
     </div>
   );
 }

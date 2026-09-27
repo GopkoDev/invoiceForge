@@ -14,6 +14,7 @@ import {
 } from '@/components/layout/contacts';
 import { SenderProfileBankAccountsList } from './sender-profile-bank-accounts-list';
 import { RelatedInvoicesList } from '@/components/invoices';
+import { SenderProfileDetailDeleteAction } from './sender-profile-detail-delete-action';
 
 interface SenderProfileDetailViewProps {
   profile: SenderProfileWithRelations;
@@ -34,6 +35,12 @@ export function SenderProfileDetailView({
         backHref={protectedRoutes.senderProfiles}
         editHref={protectedRoutes.senderProfileEdit(profile.id)}
         editLabel="Edit Profile"
+        deleteAction={
+          <SenderProfileDetailDeleteAction
+            profileId={profile.id}
+            profileName={profile.name}
+          />
+        }
       />
 
       <ContactsDetailsGrid>

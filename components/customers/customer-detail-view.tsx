@@ -12,6 +12,7 @@ import {
   ContactsDetailsLayout,
 } from '@/components/layout/contacts';
 import { RelatedInvoicesList } from '@/components/invoices';
+import { CustomerDetailDeleteAction } from './customer-detail-delete-action';
 
 interface CustomerDetailViewProps {
   customer: CustomerWithRelations;
@@ -32,6 +33,12 @@ export function CustomerDetailView({
         backHref={protectedRoutes.customers}
         editHref={protectedRoutes.customerEdit(customer.id)}
         editLabel="Edit Customer"
+        deleteAction={
+          <CustomerDetailDeleteAction
+            customerId={customer.id}
+            customerName={customer.name}
+          />
+        }
       />
 
       <ContactsDetailsGrid>

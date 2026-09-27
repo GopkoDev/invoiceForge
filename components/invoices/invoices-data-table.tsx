@@ -125,7 +125,12 @@ export function InvoicesDataTable({
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => <InvoiceStatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <InvoiceStatusBadge
+            status={row.original.status}
+            paidAt={row.original.paidAt}
+          />
+        ),
       },
       {
         accessorKey: 'issueDate',
