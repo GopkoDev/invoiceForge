@@ -11,7 +11,7 @@
 | T03 | [Build the IP-pinning safe fetcher with per-hop checks and size/time caps](./t03-safe-fetcher.md) | infra | Dmytro Hopko | L | — | done |
 | T04 | [Implement the per-Freelancer sliding-window logo rate limiter](./t04-logo-rate-limiter.md) | infra | Dmytro Hopko | S | T01 | done |
 | T05 | [Rewrite /api/convert-image to fetch only an owned sender profile's logo](./t05-convert-image-endpoint.md) | ports | Dmytro Hopko | M | T03, T04 | done |
-| T06 | [Request logos by sender-profile id with a per-session cache and show the PDF logo warning](./t06-pdf-logo-client-and-warning.md) | ui | Dmytro Hopko | M | T05 | todo |
+| T06 | [Request logos by sender-profile id with a per-session cache and show the PDF logo warning](./t06-pdf-logo-client-and-warning.md) | ui | Dmytro Hopko | M | T05 | done |
 | T07 | [Add, backfill and uniquely index Invoice.invoiceNumberKey (expand step)](./t07-invoice-number-key-migration.md) | migration | Dmytro Hopko | M | T01 | done |
 | T08 | [Introduce typed ActionResult error codes and move every action onto them](./t08-typed-action-result.md) | app | Dmytro Hopko | L | — | done |
 | T09 | [Treat sessions without a live account as Visitors in layouts and guards](./t09-live-account-guard.md) | app | Dmytro Hopko | S | T05, T08 | todo |

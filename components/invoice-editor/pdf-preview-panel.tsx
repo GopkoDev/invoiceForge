@@ -2,15 +2,17 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   InvoiceFormData,
   InvoiceSenderProfile,
   InvoiceCustomer,
   InvoiceBankAccount,
 } from '@/types/invoice/types';
-import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, AlertTriangle } from 'lucide-react';
 import { PDF_PAGE } from '@/config/pdf-config';
 import { PDFPreviewDocument } from './pdf-preview-document';
+import { fetchLogoDataUrl } from '@/lib/utils/image-to-base64';
 
 interface PDFPreviewPanelProps {
   formData: InvoiceFormData;
@@ -21,16 +23,6 @@ interface PDFPreviewPanelProps {
   taxAmount: number;
   total: number;
 }
-
-// Check if logo is a valid URL
-const isValidLogoUrl = (url: string | null | undefined): boolean => {
-  if (!url) return false;
-  return (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('data:')
-  );
-};
 
 const PAGE_WIDTH_PX = PDF_PAGE.WIDTH_PX;
 const PAGE_MIN_HEIGHT_PX = PDF_PAGE.HEIGHT_PX;
@@ -53,11 +45,48 @@ export function PDFPreviewPanel({
   const [zoom, setZoom] = useState<number | 'fit'>('fit');
   const [fitScale, setFitScale] = useState(1);
   const [pageHeight, setPageHeight] = useState(PAGE_MIN_HEIGHT_PX);
+  const [logoSrc, setLogoSrc] = useState<string | undefined>(undefined);
+  const [logoWarning, setLogoWarning] = useState<string | undefined>(
+    undefined
+  );
 
-  const logoSrc =
-    senderProfile?.logo && isValidLogoUrl(senderProfile.logo)
-      ? senderProfile.logo
-      : undefined;
+  const senderProfileId = senderProfile?.id;
+  const senderProfileLogo = senderProfile?.logo;
+
+  // Fetches the sender profile's logo by id (never a URL) - SCR-04 no-logo-set/with-logo/
+  // warn-specific/warn-generic. `fetchLogoDataUrl` caches successes for the session, so a
+  // second render with the same profile id makes no request (edge case table).
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLogo() {
+      if (!senderProfileId || !senderProfileLogo) {
+        return { logoSrc: undefined, logoWarning: undefined };
+      }
+
+      const result = await fetchLogoDataUrl(senderProfileId);
+
+      if ('dataUrl' in result) {
+        return { logoSrc: result.dataUrl, logoWarning: undefined };
+      }
+      if ('warning' in result) {
+        return { logoSrc: undefined, logoWarning: result.warning };
+      }
+      // unauthorized: the preview still renders without the logo; the download/print path
+      // (hooks/use-invoice-pdf.tsx, invoice-pdf-preview-modal.tsx) owns the SCR-01 redirect.
+      return { logoSrc: undefined, logoWarning: undefined };
+    }
+
+    loadLogo().then(({ logoSrc, logoWarning }) => {
+      if (cancelled) return;
+      setLogoSrc(logoSrc);
+      setLogoWarning(logoWarning);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [senderProfileId, senderProfileLogo]);
 
   // Calculate fit scale based on container width
   const calculateFitScale = useCallback(() => {
@@ -174,6 +203,15 @@ export function PDFPreviewPanel({
           )}
         </div>
       </div>
+
+      {logoWarning && (
+        <Alert variant="destructive" className="shrink-0 rounded-none border-x-0 border-t-0">
+          <AlertTriangle />
+          <AlertDescription>
+            {logoWarning} The PDF was made without it.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Preview Area with scroll */}
       <div

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Download, Printer, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -17,6 +18,7 @@ import {
   downloadInvoicePdf,
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
+import { authRoutes } from '@/config/routes.config';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
 export interface InvoicePdfPreviewModalProps {
@@ -24,6 +26,7 @@ export interface InvoicePdfPreviewModalProps {
 }
 
 export function InvoicePdfPreviewModal() {
+  const router = useRouter();
   const { isOpen, props, close } = useModal('invoicePdfPreviewModal');
   const invoice = props?.invoice;
 
@@ -40,22 +43,24 @@ export function InvoicePdfPreviewModal() {
 
     setIsDownloading(true);
     try {
-      await downloadInvoicePdf(invoice, invoiceData);
+      const result = await downloadInvoicePdf(invoice, invoiceData);
+      if (result.unauthorized) router.push(authRoutes.signIn);
     } finally {
       setIsDownloading(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, router]);
 
   const handlePrint = useCallback(async () => {
     if (!invoice || !invoiceData) return;
 
     setIsPrinting(true);
     try {
-      await printInvoicePdf(invoice, invoiceData);
+      const result = await printInvoicePdf(invoice, invoiceData);
+      if (result.unauthorized) router.push(authRoutes.signIn);
     } finally {
       setIsPrinting(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, router]);
 
   if (!isOpen || !invoice || !invoiceData) return null;
 
