@@ -5,7 +5,7 @@ import { getSenderProfiles } from '@/lib/actions/sender-profile-actions';
 import { SenderProfilesList } from '@/components/sender-profiles/sender-profiles-list';
 import type { Metadata } from 'next';
 import { cn } from '@/lib/utils';
-import { ContentAreaHeader } from '@/components/layout/content-area';
+import { ContentAreaHeader, unwrapPageResult } from '@/components/layout/content-area';
 import { protectedRoutes } from '@/config/routes.config';
 import { PAGE_HEADER_TEXT } from './_constants';
 
@@ -18,7 +18,7 @@ const { title, description, buttonText } = PAGE_HEADER_TEXT;
 
 export default async function SenderProfilesPage() {
   const result = await getSenderProfiles();
-  const profiles = result.success ? result.data : [];
+  const profiles = unwrapPageResult(result) || [];
 
   return (
     <>

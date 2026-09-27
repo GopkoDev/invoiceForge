@@ -1,8 +1,7 @@
-import { notFound } from 'next/navigation';
 import { getProduct } from '@/lib/actions/product-actions';
 import { getProductCustomPrices } from '@/lib/actions/custom-price-actions';
 import { ProductCustomPrices } from '@/components/products/product-custom-prices';
-import { ContentAreaHeader } from '@/components/layout/content-area';
+import { ContentAreaHeader, unwrapPageResult } from '@/components/layout/content-area';
 import { formatCurrency, getUnitLabel } from '@/lib/helpers/format-helpers';
 import { ProductCustomPricesHeaderAction } from '@/components/products/product-custom-prices-header-action';
 import type { Metadata } from 'next';
@@ -26,11 +25,8 @@ export default async function ProductCustomPricesPage({
     getProductCustomPrices(id),
   ]);
 
-  if (!productResult.success || !productResult.data) {
-    notFound();
-  }
-
-  const product = productResult.data;
+  const product = unwrapPageResult(productResult);
+  const customPrices = unwrapPageResult(customPricesResult);
 
   return (
     <>
@@ -56,9 +52,7 @@ export default async function ProductCustomPricesPage({
         productPrice={product.price}
         productCurrency={product.currency}
         productUnit={product.unit}
-        customPrices={
-          customPricesResult.success ? customPricesResult.data : []
-        }
+        customPrices={customPrices}
       />
     </>
   );

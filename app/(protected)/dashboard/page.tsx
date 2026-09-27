@@ -1,3 +1,4 @@
+import { unwrapPageResult } from '@/components/layout/content-area';
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
@@ -5,12 +6,6 @@ import { Currency } from '@prisma/client';
 import { DashboardHeader } from '@/components/dashboard/header/dashboard-header';
 import { DashboardSetupAlert } from '@/components/dashboard/dashboard-setup-alert';
 import {
-  DashboardStatsCards,
-  DashboardChart,
-  DashboardDebtors,
-  DashboardExpectedPayments,
-  DashboardSenderAccounts,
-  DashboardRecentInvoices,
   DashboardStatsCardsSkeleton,
   DashboardChartSkeleton,
   DashboardDebtorsSkeleton,
@@ -19,17 +14,17 @@ import {
   DashboardRecentInvoicesSkeleton,
 } from '@/components/dashboard';
 import {
-  getDashboardCurrencyTabs,
-  getDashboardSummaryStats,
-  getDashboardChartData,
-  getDashboardSenderAccounts,
-  getDashboardRecentInvoices,
-  getDashboardDebtors,
-  getDashboardExpectedPayments,
-} from '@/lib/actions/dashboard-actions';
+  StatsSection,
+  ChartSection,
+  DebtorsSection,
+  ExpectedPaymentsSection,
+  SenderAccountsSection,
+  RecentInvoicesSection,
+} from './_sections';
+import { getDashboardCurrencyTabs } from '@/lib/actions/dashboard-actions';
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
-import { dashboardParamsSchema, type DashboardAppliedRange } from '@/lib/validations/search-params';
+import { dashboardParamsSchema } from '@/lib/validations/search-params';
 import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
@@ -68,80 +63,6 @@ function validateCurrency(
   return 'USD';
 }
 
-async function StatsSection({
-  currency,
-  appliedRange,
-}: {
-  currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
-}) {
-  const result = await getDashboardSummaryStats(currency, appliedRange);
-  const stats =
-    result.success && result.data
-      ? result.data
-      : {
-          totalReceived: 0,
-          receivedCount: 0,
-          totalPlanned: 0,
-          plannedCount: 0,
-          totalOverdue: 0,
-          overdueCount: 0,
-          allFuturePayments: 0,
-          allFuturePaymentsCount: 0,
-        };
-  return <DashboardStatsCards stats={stats} currency={currency} />;
-}
-
-async function ChartSection({
-  currency,
-  appliedRange,
-}: {
-  currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
-}) {
-  const result = await getDashboardChartData(currency, appliedRange);
-  const data = result.success && result.data ? result.data : [];
-  return (
-    <div className="px-4 lg:px-6">
-      <DashboardChart data={data} currency={currency} />
-    </div>
-  );
-}
-
-async function DebtorsSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardDebtors(currency);
-  const debtors = result.success && result.data ? result.data : [];
-  return <DashboardDebtors debtors={debtors} />;
-}
-
-async function ExpectedPaymentsSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardExpectedPayments(currency);
-  const payments = result.success && result.data ? result.data : [];
-  return <DashboardExpectedPayments payments={payments} />;
-}
-
-async function SenderAccountsSection({
-  currency,
-  appliedRange,
-}: {
-  currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
-}) {
-  const result = await getDashboardSenderAccounts(currency, appliedRange);
-  const accounts = result.success && result.data ? result.data : [];
-  return (
-    <div className="px-4 lg:px-6">
-      <DashboardSenderAccounts senderAccounts={accounts} currency={currency} />
-    </div>
-  );
-}
-
-async function RecentInvoicesSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardRecentInvoices(currency);
-  const invoices = result.success && result.data ? result.data : [];
-  return <DashboardRecentInvoices invoices={invoices} />;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,25 +76,15 @@ export default async function DashboardPage({
     checkDashboardSetup(),
   ]);
 
-  const currencyTabs = currencyTabsResult.success
-    ? (currencyTabsResult.data ?? [])
-    : [];
+  // A failed read is a load error (SCR-17), never "no currencies" or an unfinished setup.
+  const currencyTabs = unwrapPageResult(currencyTabsResult) ?? [];
 
   const currency = validateCurrency(params.currency, currencyTabs);
 
   const timeZone = await getRequestTimeZone();
   const { appliedRange } = dashboardParamsSchema(timeZone).parse(params);
 
-  const setupStatus =
-    setupStatusResult.success && setupStatusResult.data
-      ? setupStatusResult.data
-      : {
-          hasSenderProfiles: false,
-          hasBankAccounts: false,
-          hasCustomers: false,
-          hasProducts: false,
-          isComplete: false,
-        };
+  const setupStatus = unwrapPageResult(setupStatusResult);
 
   // T24 (spec.md §6 NFR "Dashboard date-range change"; sad.md §8 Hard rule "Cache invalidation":
   // debtors/expected-payments/recent-invoices Suspense boundaries key on currency only) — sections

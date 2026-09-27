@@ -1,8 +1,8 @@
-import { notFound } from 'next/navigation';
 import { getCustomer } from '@/lib/actions/customer-actions';
 import { getCustomerCustomPrices } from '@/lib/actions/custom-price-actions';
 import { getInvoicesByCustomer } from '@/lib/actions/invoice-actions/invoice-actions';
 import { CustomerDetailView } from '@/components/customers';
+import { unwrapPageResult } from '@/components/layout/content-area';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -28,15 +28,16 @@ export default async function CustomerDetailPage({
       getInvoicesByCustomer(id, PREVIEW_INVOICES_LIMIT),
     ]);
 
-  if (!customerResult.success) {
-    notFound();
-  }
+  // The record first, so a missing or foreign customer is not-found, not a load error.
+  const customer = unwrapPageResult(customerResult);
+  const customPrices = unwrapPageResult(customPricesResult);
+  const invoices = unwrapPageResult(invoicesResult);
 
   return (
     <CustomerDetailView
-      customer={customerResult.data}
-      customPrices={customPricesResult.success ? customPricesResult.data : []}
-      invoices={invoicesResult.success ? invoicesResult.data : []}
+      customer={customer}
+      customPrices={customPrices}
+      invoices={invoices}
     />
   );
 }

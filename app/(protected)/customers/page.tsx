@@ -7,7 +7,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { cn } from '@/lib/utils';
-import { notFound } from 'next/navigation';
+import { unwrapPageResult } from '@/components/layout/content-area';
 import { PAGE_HEADER_TEXT } from './_constants';
 
 export const metadata: Metadata = {
@@ -19,12 +19,7 @@ const { title, description, buttonText } = PAGE_HEADER_TEXT;
 
 export default async function CustomersPage() {
   const result = await getCustomers();
-
-  if (!result.success) {
-    return notFound();
-  }
-
-  const customers = result.data || [];
+  const customers = unwrapPageResult(result) || [];
 
   return (
     <>
