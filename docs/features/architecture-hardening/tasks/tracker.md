@@ -6,7 +6,7 @@
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
 | T00 | [Set up the test harness, throwaway database and factories](./t00-test-harness.md) | infra | Dmytro Hopko | M | — | done |
-| T01 | [Add the LogoFetchWindow table and Prisma model](./t01-logo-fetch-window-table.md) | migration | Dmytro Hopko | S | — | todo |
+| T01 | [Add the LogoFetchWindow table and Prisma model](./t01-logo-fetch-window-table.md) | migration | Dmytro Hopko | S | — | done |
 | T02 | [Deny unauthenticated requests by default in the proxy, with one public allowlist](./t02-deny-by-default-proxy.md) | wiring | Dmytro Hopko | M | — | done |
 | T03 | [Build the IP-pinning safe fetcher with per-hop checks and size/time caps](./t03-safe-fetcher.md) | infra | Dmytro Hopko | L | — | done |
 | T04 | [Implement the per-Freelancer sliding-window logo rate limiter](./t04-logo-rate-limiter.md) | infra | Dmytro Hopko | S | T01 | todo |

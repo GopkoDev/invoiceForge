@@ -1,15 +1,22 @@
-// TODO(T01): LogoFetchWindow doesn't exist yet - `prisma/schema/*.prisma` has no such model
-// (data-model.md §Entities, "new (wave 1, ADR-0008)"). T01 adds the migration and Prisma model;
-// once it does, replace this stub with a real `prisma.logoFetchWindow.create(...)` factory
-// keyed on (userId, windowStart), and add "LogoFetchWindow" to
-// tests/support/db/truncate.ts APP_TABLES.
-//
-// Left as a stub rather than invented schema, per this task's brief: "leave a clearly marked
-// TODO stub or skip it rather than inventing schema".
+// LogoFetchWindow factory (test-plan.md §Test data). One row per Freelancer per one-minute
+// window - the sliding-window counter the per-Freelancer logo-fetch rate limiter (T04) counts
+// against (data-model.md §Entities/LogoFetchWindow, ADR-0008).
 
-export function createLogoFetchWindow(): never {
-  throw new Error(
-    'createLogoFetchWindow: LogoFetchWindow model does not exist yet - T01 adds it. ' +
-      'See tests/support/factories/logo-fetch-window.ts.'
-  );
+import type { LogoFetchWindow, PrismaClient } from '@prisma/client';
+
+export type LogoFetchWindowOverrides = Partial<
+  Pick<LogoFetchWindow, 'userId' | 'windowStart' | 'count'>
+>;
+
+export async function createLogoFetchWindow(
+  prisma: PrismaClient,
+  overrides: LogoFetchWindowOverrides & Pick<LogoFetchWindow, 'userId'>
+): Promise<LogoFetchWindow> {
+  return prisma.logoFetchWindow.create({
+    data: {
+      userId: overrides.userId,
+      windowStart: overrides.windowStart ?? new Date(),
+      count: overrides.count ?? 0,
+    },
+  });
 }

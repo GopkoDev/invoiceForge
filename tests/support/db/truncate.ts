@@ -18,8 +18,8 @@ const APP_TABLES = [
   'VerificationToken',
   'Session',
   'Account',
+  'LogoFetchWindow',
   'User',
-  // TODO(T01): add "LogoFetchWindow" once its migration is promoted into prisma/migrations/.
 ];
 
 export async function truncateAllTables(prisma: PrismaClient): Promise<void> {
