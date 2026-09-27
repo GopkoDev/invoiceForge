@@ -141,13 +141,30 @@ describe('safeFetchImage against the local image host (AC-03)', () => {
     expect(result).toEqual(expect.objectContaining({ ok: false, code: 'TOO_LARGE' }));
   });
 
-  it('aborts a response with a false Content-Length at the real size cap, not the declared one', async () => {
+  // A body shorter than its declared length is a broken download either way: the owner chose
+  // (2026-09-27) to refuse it like a dropped connection (test-plan: "closes the connection
+  // mid-body -> could not be loaded"), rather than embed a possibly truncated image.
+  it('refuses a body shorter than its declared Content-Length, promptly, as UNAVAILABLE', async () => {
     const fetcher = fetcherFor();
+    const started = Date.now();
     const result = await fetcher.safeFetchImage(urlFor('/false-content-length'));
 
-    // The body actually sent is small, so this must not hang waiting for a declared 5 MB that
-    // never arrives - it should resolve (ok, with the real small body) rather than time out.
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+    }
+    // Must not wait for the 5 s time cap on bytes that are never coming.
+    expect(Date.now() - started).toBeLessThan(4000);
+  });
+
+  it('refuses a connection dropped mid-body as UNAVAILABLE', async () => {
+    const fetcher = fetcherFor();
+    const result = await fetcher.safeFetchImage(urlFor('/drop-mid-body'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+    }
   });
 
   it('aborts a slow-drip response at the time cap with UNAVAILABLE reason=timeout', async () => {

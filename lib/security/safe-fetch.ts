@@ -272,12 +272,9 @@ function performHop(
             finish({ kind: 'failure', code: 'TOO_LARGE', reason: 'size' });
           } else if (timedOut) {
             finish({ kind: 'failure', code: 'UNAVAILABLE', reason: 'timeout' });
-          } else if (chunks.length > 0) {
-            // Body ended without a matching Content-Length/chunked terminator (e.g. a false
-            // declared Content-Length) but real bytes did arrive within budget: use them rather
-            // than hang waiting for bytes that were never coming.
-            finish({ kind: 'success', bytes: Buffer.concat(chunks), contentType });
           } else {
+            // The connection closed before the body was complete (a dropped connection, or fewer
+            // bytes than the declared Content-Length): a possibly truncated image is never used.
             finish({ kind: 'failure', code: 'UNAVAILABLE', reason: 'incomplete' });
           }
         };
