@@ -1,27 +1,42 @@
 'use server';
 
-import { auth } from '@/auth';
 import { prisma } from '@/prisma';
+import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
+import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
 import {
   profileFormSchema,
   ProfileFormValues,
 } from '@/lib/validations/profile';
+import { ActionResult, ok, fail } from '@/types/actions';
 
-export async function updateProfile(data: ProfileFormValues) {
+export async function updateProfile(
+  data: ProfileFormValues
+): Promise<ActionResult<void>> {
   try {
-    const validatedData = profileFormSchema.parse(data);
-
-    // Profile actions need full session for email
-    const session = await auth();
-    if (!session?.user?.id || !session?.user?.email) {
-      return {
-        success: false,
-        error: 'Unauthorized. Please login to continue.',
-      };
+    const authResult = await getAuthenticatedUser();
+    if (!authResult.success) {
+      return authResult;
     }
 
-    const userId = session.user.id;
-    const currentEmail = session.user.email;
+    const { userId } = authResult.data;
+
+    const parsed = profileFormSchema.safeParse(data);
+    if (!parsed.success) {
+      return zodValidationFailure(parsed.error);
+    }
+
+    const validatedData = parsed.data;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
+    if (!currentUser) {
+      return fail('FAILED', 'Failed to update profile. Please try again.');
+    }
+
+    const currentEmail = currentUser.email;
     const isEmailChanged = validatedData.email !== currentEmail;
 
     if (isEmailChanged) {
@@ -30,10 +45,10 @@ export async function updateProfile(data: ProfileFormValues) {
       });
 
       if (existingUser && existingUser.id !== userId) {
-        return {
-          success: false,
-          error: 'This email is already in use by another account.',
-        };
+        return fail(
+          'CONFLICT',
+          'This email is already in use by another account.',
+        );
       }
     }
 
@@ -53,7 +68,7 @@ export async function updateProfile(data: ProfileFormValues) {
       if (isEmailChanged && currentEmail) {
         await tx.emailHistory.create({
           data: {
-            userId: userId,
+            userId,
             oldEmail: currentEmail,
             newEmail: validatedData.email,
             reason: 'User changed email via profile settings',
@@ -62,16 +77,9 @@ export async function updateProfile(data: ProfileFormValues) {
       }
     });
 
-    return {
-      success: true,
-      emailChanged: isEmailChanged,
-    };
+    return ok();
   } catch (error) {
     console.error('Error updating profile:', error);
-
-    return {
-      success: false,
-      error: 'Failed to update profile. Please try again.',
-    };
+    return fail('FAILED', 'Failed to update profile. Please try again.');
   }
 }

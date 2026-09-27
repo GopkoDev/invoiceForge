@@ -61,13 +61,21 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
       const result = await updateProfile(data);
 
       if (!result.success) {
+        if (result.fieldErrors) {
+          for (const [field, messages] of Object.entries(result.fieldErrors)) {
+            form.setError(field as keyof ProfileFormValues, {
+              type: 'server',
+              message: messages[0],
+            });
+          }
+        }
         toast.error(result.error || 'Failed to update profile');
         return;
       }
 
       toast.success('Profile updated successfully');
 
-      if (result.emailChanged) {
+      if (isEmailChanged) {
         await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
       } else {
         router.refresh();
