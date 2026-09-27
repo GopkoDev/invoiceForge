@@ -659,6 +659,238 @@
         "app/api/auth/log-logout/"
       ],
       "file": "docs/features/architecture-hardening/tasks/t31-repository-hygiene.md"
+    },
+    {
+      "id": "T32",
+      "title": "Fix invoice amount rules: shared line totals, 2-decimal inputs, field errors, no silent rewrites, validated duplicates",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T13",
+        "T16",
+        "T21"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16"
+      ],
+      "dod": "Review F-01..F-07 fixed: editor line totals from lineAmount(); 2-dp refinement on quantity/price/taxRate/discount/shipping and custom price (+ upper bound); Save maps client issues to fieldErrors; inputs keep '-'/letters for the schema to reject; duplicateInvoice validates the copy; parseDecimal handles exponent input. Each has a regression test (incl. create→reopen legacy===null).",
+      "files_hint": [
+        "hooks/use-invoice-item-handlers.ts",
+        "lib/validations/invoice.ts",
+        "lib/validations/custom-price.ts",
+        "hooks/use-editor-header-buttons.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "components/modals/customer/custom-price-modal.tsx",
+        "lib/helpers/invoice-calculations.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T33",
+      "title": "Treat NULL-key invoices by normalized number in the taken and shared checks",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T12",
+        "T14"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-09",
+        "AC-17"
+      ],
+      "dod": "Review F-08..F-10 fixed: isInvoiceKeyTaken also matches NULL-key rows by normalized invoiceNumber; the allocator skips them; a NULL-key invoice whose number is not shared saves and gets its key written; manual path takes the profile row lock; contract text reconciled; allocate tests flipped; a re-run of the idempotent 03 backfill is added as a T30 gate prerequisite.",
+      "files_hint": [
+        "lib/actions/invoice-actions/numbering.ts",
+        "lib/actions/invoice-actions/helpers.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/actions/allocate-invoice-number.test.ts",
+        "docs/features/architecture-hardening/contracts/server-actions.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T34",
+      "title": "Test the real session callback, stale-session actions and the cookie-less route sweep",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T02",
+        "T09"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review F-11, F-12 fixed: integration test drives auth.ts callbacks.session with a deleted user's token and asserts no user.id; a stale-session create action leaves 0 rows; a sweep over every built non-public route without a cookie is refused/redirected and only allowlisted paths return content.",
+      "files_hint": [
+        "auth.ts",
+        "tests/integration",
+        "tests/e2e",
+        "playwright.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T35",
+      "title": "Build the missing SCR-02 duplicated and paid-date states and the detail-page delete entry",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T13",
+        "T19"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-18",
+        "AC-22"
+      ],
+      "dod": "Review F-14..F-16 fixed: duplicate shows 'Duplicated as {invoiceNumber}' and stays on the list; the list row selects and shows paidAt; SCR-09/SCR-19 offer delete leading to SCR-14. Component tests per state.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "lib/actions/invoice-actions/select-queries.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T36",
+      "title": "Harden the safe fetcher and rate limiter, and make the SSRF tests fail on regression",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T03",
+        "T04",
+        "T05"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review F-17..F-24 fixed: non-2xx upstream → UNAVAILABLE (logged); DNS inside the 5 s deadline; malformed Location → UNAVAILABLE; missing IP ranges refused; refused calls and pre-fetch refusals don't count; one refusal-message table tested at route level; redirect-limit, private-hop (blocked_ip) and rebinding (ok && 1 resolve) tests assert the real reason.",
+      "files_hint": [
+        "lib/security/safe-fetch.ts",
+        "lib/security/logo-rate-limit.ts",
+        "app/api/convert-image/route.ts",
+        "tests/integration/security/safe-fetch.test.ts",
+        "tests/support/image-host.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T37",
+      "title": "List the next-auth paths explicitly, allow the manifest icons, anchor the matcher and guard clear-session",
+      "layer": "wiring",
+      "deps": [
+        "T00",
+        "T02",
+        "T09"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review F-25..F-28 fixed: no /api/auth/ prefix match (unseen /api/auth/x denied); manifest icons allowed and dead icon URLs removed; matcher exclusions anchored to a segment boundary; clear-session does not clear a live session on a cross-site GET. Unit tests for each.",
+      "files_hint": [
+        "config/routes.config.ts",
+        "proxy.ts",
+        "app/api/auth/clear-session/route.ts",
+        "app/layout.tsx",
+        "tests/unit/routes-config.test.ts",
+        "tests/unit/proxy.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T38",
+      "title": "Fix local-date display, midnight-DST day bounds, dashboard chart zone, page cap and tab status",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Review F-29..F-33 fixed with regression tests: toolbar parses YYYY-MM-DD as local; localDayRange correct for Santiago/Havana; chart queries [start, endExclusive) and groups by the tz; page capped; applied.status is 'all' off the 'all' tab.",
+      "files_hint": [
+        "components/invoices/invoices-toolbar.tsx",
+        "lib/helpers/time-zone.ts",
+        "lib/actions/dashboard-actions.ts",
+        "lib/validations/search-params.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T39",
+      "title": "Route UNAUTHORIZED to sign-in, make retry recover and report FAILED causes to Sentry",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T08",
+        "T25",
+        "T26"
+      ],
+      "acs": [
+        "AC-21",
+        "AC-28"
+      ],
+      "dod": "Review F-34..F-39 fixed: shared client helper sends UNAUTHORIZED/401/rejected calls to CLEAR_SESSION_PATH (editor store, gdpr, contact cards, PDF entry points); retry uses startTransition(refresh+reset); a failed() helper calls captureException; duplicateInvoice P2002 → captureMessage + FAILED.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "lib/actions"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T40",
+      "title": "Fix the async ConfirmationModal regression and the remaining dialog and editor findings",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T15",
+        "T16",
+        "T18",
+        "T19"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-17",
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Review F-40..F-51 fixed: async callers close the modal (component tests for products and bank accounts); unsaved-dialog Save resolves with real success; same-profile reselect keeps the number; sender-profile delete counts bank-account invoices and verifyInvoiceRelations ties the account to the profile; SCR-14 'Close' footer; SCR-08 deleting disables body buttons; legacy alert cleared on save; SCR-15 onClose wired; productId ownership; logo cache keyed by url; login-actions codes; design-system doc records LoadError and the modal contract.",
+      "files_hint": [
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "components/products/products-table.tsx",
+        "components/bank-accounts/bank-accounts-list.tsx",
+        "components/settings/profile-settings.tsx",
+        "hooks/use-editor-header-buttons.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "docs/design-system.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
     }
   ]
 }

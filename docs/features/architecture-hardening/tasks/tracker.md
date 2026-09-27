@@ -37,7 +37,16 @@
 | T29 | [Disallow the root and every page of each private section in robots.txt](./t29-robots-disallow-section-roots.md) | ports | Dmytro Hopko | S | T02 | done |
 | T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | blocked |
 | T31 | [Declare the sdd marketplace, ignore local settings and remove the empty route folder](./t31-repository-hygiene.md) | docs | Dmytro Hopko | S | — | done |
+| T32 | [Fix invoice amount rules: shared line totals, 2-decimal inputs, field errors, no silent rewrites, validated duplicates](../_review/review-2026-09-27.md) | app | Dmytro Hopko | M | T13, T16, T21 | todo |
+| T33 | [Treat NULL-key invoices by normalized number in the taken and shared checks](../_review/review-2026-09-27.md) | app | Dmytro Hopko | M | T12, T14 | todo |
+| T34 | [Test the real session callback, stale-session actions and the cookie-less route sweep](../_review/review-2026-09-27.md) | infra | Dmytro Hopko | M | T02, T09 | todo |
+| T35 | [Build the missing SCR-02 duplicated and paid-date states and the detail-page delete entry](../_review/review-2026-09-27.md) | ui | Dmytro Hopko | M | T13, T19 | todo |
+| T36 | [Harden the safe fetcher and rate limiter, and make the SSRF tests fail on regression](../_review/review-2026-09-27.md) | infra | Dmytro Hopko | M | T03, T04, T05 | todo |
+| T37 | [List the next-auth paths explicitly, allow the manifest icons, anchor the matcher and guard clear-session](../_review/review-2026-09-27.md) | wiring | Dmytro Hopko | M | T02, T09 | todo |
+| T38 | [Fix local-date display, midnight-DST day bounds, dashboard chart zone, page cap and tab status](../_review/review-2026-09-27.md) | ports | Dmytro Hopko | M | T22, T23, T24 | todo |
+| T39 | [Route UNAUTHORIZED to sign-in, make retry recover and report FAILED causes to Sentry](../_review/review-2026-09-27.md) | ui | Dmytro Hopko | M | T08, T25, T26 | todo |
+| T40 | [Fix the async ConfirmationModal regression and the remaining dialog and editor findings](../_review/review-2026-09-27.md) | ui | Dmytro Hopko | M | T15, T16, T18, T19 | todo |
 
-**Total:** 32 tasks, ~26 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
+**Total:** 41 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`), ~26 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
 > **T30 blocked by its own gate (2026-09-27):** promote migrations 05–06 only after wave 2 has run in production without a rollback **and** the wave-4 pre-flight `SELECT count(*) FROM "Invoice" WHERE "invoiceNumberKey" IS NULL;` returns 0 (sad §7 row 4, data-model §Pre-flight). The red contract test is staged at `docs/features/architecture-hardening/migrations/05-06_contract.test.ts.staged` — move it to `tests/integration/invoice-number-key-contract.test.ts` when the gate passes. Promoting also retires the NULL-key legacy paths: update the invoice factory to default `invoiceNumberKey` to the normalized number, and revisit the T07 expand-step assertions (nullable column, exact unique present) and the T12/T13/T14 legacy-key tests at that time.

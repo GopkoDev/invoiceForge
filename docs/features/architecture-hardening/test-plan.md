@@ -153,5 +153,5 @@ Every error and authorization AC already has its own dedicated row above. These 
 ## CI placement
 
 - **On every PR:** unit, component, contract and integration. Integration needs the throwaway container, and the suite should stay in minutes. The AC-07 race runs 20 iterations here.
-- **Before each wave ships (and nightly):** e2e, e2e-through-UI and the rate-limit load scenario, against a production build. Wave 1 does not ship until every AC-01–AC-05 row is green.
+- **Before each wave ships (and nightly):** e2e, e2e-through-UI and the rate-limit load scenario, against a production build. Wave 1 does not ship until every AC-01–AC-05 row is green. As of review 2026-09-27 (F-13) the e2e, e2e-through-UI and contract rows are not written yet, apart from the AC-05 sweep and the AC-21 integration rows (follow-up T34). They are deferred in spec §8 and still gate each wave's release.
 - **Manual, before each wave:** the sad §10 probe sets on the preview deployment (route sweep, SSRF probe list, malformed-link checklist, database-unreachable walk) remain the smoke check on real infrastructure.
