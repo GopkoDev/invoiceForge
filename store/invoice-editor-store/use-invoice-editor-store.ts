@@ -130,7 +130,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       }
 
       const result = await generateInvoiceNumber(id);
-      if (result.success && result.data) {
+      if (result.success) {
         updates.invoiceNumber = result.data;
       }
 
@@ -325,7 +325,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         } else {
           // Create new invoice
           const result = await createInvoice(state.formData);
-          if (result.success && result.data) {
+          if (result.success) {
             get().markAsSaved();
             toast.success('Invoice created');
             // Update invoiceId in store

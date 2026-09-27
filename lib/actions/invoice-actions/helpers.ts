@@ -9,7 +9,7 @@ import type {
   Customer,
   BankAccount,
 } from '@prisma/client';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
 
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
@@ -184,10 +184,9 @@ export async function verifyInvoiceRelations(
     }),
   ]);
 
-  if (!senderProfile)
-    return { success: false, error: 'Sender profile not found' };
-  if (!customer) return { success: false, error: 'Customer not found' };
-  if (!bankAccount) return { success: false, error: 'Bank account not found' };
+  if (!senderProfile) return fail('NOT_FOUND', 'Sender profile not found.');
+  if (!customer) return fail('NOT_FOUND', 'Customer not found.');
+  if (!bankAccount) return fail('NOT_FOUND', 'Bank account not found.');
 
-  return { success: true, data: { senderProfile, customer, bankAccount } };
+  return ok({ senderProfile, customer, bankAccount });
 }

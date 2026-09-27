@@ -38,7 +38,7 @@ export default async function InvoicesPage({
 
   const result = await getPaginatedInvoices(query);
 
-  if (!result.success || !result.data) {
+  if (!result.success) {
     return (
       <Card>
         <CardContent className="py-10 text-center">

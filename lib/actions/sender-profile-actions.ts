@@ -10,15 +10,17 @@ import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { SenderProfileWithRelations } from '@/types/sender-profile/types';
 import { SenderProfile } from '@prisma/client';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 export async function createSenderProfile(
   data: SenderProfileFormValues
 ): Promise<ActionResult<SenderProfile>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -30,11 +32,10 @@ export async function createSenderProfile(
     });
 
     if (existingPrefix) {
-      return {
-        success: false,
-        error:
-          'This invoice prefix is already in use. Please choose another one.',
-      };
+      return fail(
+        'CONFLICT',
+        'This invoice prefix is already in use. Please choose another one.',
+      );
     }
 
     if (isDefault) {
@@ -53,17 +54,14 @@ export async function createSenderProfile(
 
     revalidatePath(protectedRoutes.senderProfiles);
 
-    return {
-      success: true,
-      data: senderProfile,
-    };
+    return ok(senderProfile);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error creating sender profile:', error);
 
-    return {
-      success: false,
-      error: 'Failed to create sender profile. Please try again.',
-    };
+    return fail('FAILED', 'Failed to create sender profile. Please try again.');
   }
 }
 
@@ -73,8 +71,8 @@ export async function updateSenderProfile(
 ): Promise<ActionResult<SenderProfile>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -85,10 +83,7 @@ export async function updateSenderProfile(
     });
 
     if (!existingProfile || existingProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Sender profile not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     if (validatedData.invoicePrefix !== existingProfile.invoicePrefix) {
@@ -97,11 +92,10 @@ export async function updateSenderProfile(
       });
 
       if (existingPrefix && existingPrefix.id !== id) {
-        return {
-          success: false,
-          error:
-            'This invoice prefix is already in use. Please choose another one.',
-        };
+        return fail(
+          'CONFLICT',
+          'This invoice prefix is already in use. Please choose another one.',
+        );
       }
     }
 
@@ -124,25 +118,22 @@ export async function updateSenderProfile(
 
     revalidatePath(protectedRoutes.senderProfiles);
 
-    return {
-      success: true,
-      data: updatedProfile,
-    };
+    return ok(updatedProfile);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error updating sender profile:', error);
 
-    return {
-      success: false,
-      error: 'Failed to update sender profile. Please try again.',
-    };
+    return fail('FAILED', 'Failed to update sender profile. Please try again.');
   }
 }
 
 export async function deleteSenderProfile(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -157,18 +148,15 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
     });
 
     if (!existingProfile || existingProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Sender profile not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     if (existingProfile._count.invoices > 0) {
-      return {
-        success: false,
-        error:
-          'Cannot delete sender profile with existing invoices. Please delete or reassign invoices first.',
-      };
+      return fail(
+        'CONFLICT',
+        'Cannot delete sender profile with existing invoices. Please delete or reassign invoices first.',
+        { details: { kind: 'HAS_INVOICES', invoiceCount: existingProfile._count.invoices } },
+      );
     }
 
     // Delete sender profile (cascade will delete bank accounts)
@@ -178,16 +166,11 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
 
     revalidatePath(protectedRoutes.senderProfiles);
 
-    return {
-      success: true,
-    };
+    return ok();
   } catch (error) {
     console.error('Error deleting sender profile:', error);
 
-    return {
-      success: false,
-      error: 'Failed to delete sender profile. Please try again.',
-    };
+    return fail('FAILED', 'Failed to delete sender profile. Please try again.');
   }
 }
 
@@ -196,8 +179,8 @@ export async function getSenderProfiles(): Promise<
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -215,17 +198,11 @@ export async function getSenderProfiles(): Promise<
       orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
     });
 
-    return {
-      success: true,
-      data: profiles,
-    };
+    return ok(profiles);
   } catch (error) {
     console.error('Error fetching sender profiles:', error);
 
-    return {
-      success: false,
-      error: 'Failed to fetch sender profiles. Please try again.',
-    };
+    return fail('FAILED', 'Failed to fetch sender profiles. Please try again.');
   }
 }
 
@@ -234,8 +211,8 @@ export async function getSenderProfile(
 ): Promise<ActionResult<SenderProfileWithRelations>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -253,22 +230,13 @@ export async function getSenderProfile(
     });
 
     if (!profile || profile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Sender profile not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
-    return {
-      success: true,
-      data: profile,
-    };
+    return ok(profile);
   } catch (error) {
     console.error('Error fetching sender profile:', error);
 
-    return {
-      success: false,
-      error: 'Failed to fetch sender profile. Please try again.',
-    };
+    return fail('FAILED', 'Failed to fetch sender profile. Please try again.');
   }
 }

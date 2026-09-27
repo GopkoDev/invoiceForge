@@ -56,7 +56,9 @@ export default async function ProductCustomPricesPage({
         productPrice={product.price}
         productCurrency={product.currency}
         productUnit={product.unit}
-        customPrices={customPricesResult.data || []}
+        customPrices={
+          customPricesResult.success ? customPricesResult.data : []
+        }
       />
     </>
   );

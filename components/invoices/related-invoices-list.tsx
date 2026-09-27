@@ -63,7 +63,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (result.success && result.data) {
+      if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
       } else {
         toast.error(result.error || 'Failed to load invoice');
@@ -80,7 +80,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
@@ -95,7 +95,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }

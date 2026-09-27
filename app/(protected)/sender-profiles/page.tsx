@@ -18,7 +18,7 @@ const { title, description, buttonText } = PAGE_HEADER_TEXT;
 
 export default async function SenderProfilesPage() {
   const result = await getSenderProfiles();
-  const profiles = result.data || [];
+  const profiles = result.success ? result.data : [];
 
   return (
     <>

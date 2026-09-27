@@ -9,15 +9,17 @@ import {
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { CustomerWithRelations } from '@/types/customer/types';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 export async function getCustomers(): Promise<
   ActionResult<CustomerWithRelations[]>
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -40,10 +42,10 @@ export async function getCustomers(): Promise<
       },
     });
 
-    return { success: true, data: customers };
+    return ok(customers);
   } catch (error) {
     console.error('Error fetching customers:', error);
-    return { success: false, error: 'Failed to fetch customers' };
+    return fail('FAILED', 'Failed to fetch customers.');
   }
 }
 
@@ -52,8 +54,8 @@ export async function getCustomer(
 ): Promise<ActionResult<CustomerWithRelations>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -74,16 +76,13 @@ export async function getCustomer(
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
-    return {
-      success: true,
-      data: customer,
-    };
+    return ok(customer);
   } catch (error) {
     console.error('Error fetching customer:', error);
-    return { success: false, error: 'Failed to fetch customer' };
+    return fail('FAILED', 'Failed to fetch customer.');
   }
 }
 
@@ -92,8 +91,8 @@ export async function createCustomer(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -108,10 +107,13 @@ export async function createCustomer(
 
     revalidatePath(protectedRoutes.customers);
 
-    return { success: true, data: { id: customer.id } };
+    return ok({ id: customer.id });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error creating customer:', error);
-    return { success: false, error: 'Failed to create customer' };
+    return fail('FAILED', 'Failed to create customer.');
   }
 }
 
@@ -121,8 +123,8 @@ export async function updateCustomer(
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -136,7 +138,7 @@ export async function updateCustomer(
     });
 
     if (!existingCustomer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     await prisma.customer.update({
@@ -147,18 +149,21 @@ export async function updateCustomer(
     revalidatePath(protectedRoutes.customers);
     revalidatePath(protectedRoutes.customerEdit(id));
 
-    return { success: true };
+    return ok();
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error updating customer:', error);
-    return { success: false, error: 'Failed to update customer' };
+    return fail('FAILED', 'Failed to update customer.');
   }
 }
 
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -178,14 +183,15 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     if (customer._count.invoices > 0) {
-      return {
-        success: false,
-        error: `Cannot delete customer with ${customer._count.invoices} invoice(s). Please delete or reassign invoices first.`,
-      };
+      return fail(
+        'CONFLICT',
+        `Cannot delete customer with ${customer._count.invoices} invoice(s). Please delete or reassign invoices first.`,
+        { details: { kind: 'HAS_INVOICES', invoiceCount: customer._count.invoices } },
+      );
     }
 
     await prisma.customer.delete({
@@ -194,9 +200,9 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
 
     revalidatePath(protectedRoutes.customers);
 
-    return { success: true };
+    return ok();
   } catch (error) {
     console.error('Error deleting customer:', error);
-    return { success: false, error: 'Failed to delete customer' };
+    return fail('FAILED', 'Failed to delete customer.');
   }
 }

@@ -77,7 +77,7 @@ export function CustomerCustomPrices({
 
   const loadProductsList = useCallback(async () => {
     const result = await getProducts({ onlyActive: true });
-    if (result.success && result.data) {
+    if (result.success) {
       return result.data;
     } else {
       toast.error(result.error || 'Failed to load products');

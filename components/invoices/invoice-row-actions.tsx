@@ -62,7 +62,7 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (result.success && result.data) {
+      if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
       } else {
         toast.error(result.error || 'Failed to load invoice');
@@ -83,7 +83,7 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
@@ -98,7 +98,7 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
@@ -111,7 +111,7 @@ export function InvoiceRowActions({
   const handleDuplicate = () => {
     startTransition(async () => {
       const result = await duplicateInvoice(invoiceId);
-      if (result.success && result.data) {
+      if (result.success) {
         toast.success('Invoice duplicated successfully');
         router.push(protectedRoutes.invoiceEdit(result.data.id));
       } else {

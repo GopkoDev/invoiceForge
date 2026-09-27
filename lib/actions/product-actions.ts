@@ -9,7 +9,9 @@ import {
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { ProductWithRelations, SerializedProduct } from '@/types/product/types';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 // Helper to serialize Decimal to number for client components
 function serializeProduct(product: ProductWithRelations): SerializedProduct {
@@ -24,8 +26,8 @@ export async function getProducts({
 }: { onlyActive?: boolean } = {}): Promise<ActionResult<SerializedProduct[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -54,10 +56,10 @@ export async function getProducts({
       ],
     });
 
-    return { success: true, data: products.map(serializeProduct) };
+    return ok(products.map(serializeProduct));
   } catch (error) {
     console.error('Error fetching products:', error);
-    return { success: false, error: 'Failed to fetch products' };
+    return fail('FAILED', 'Failed to fetch products.');
   }
 }
 
@@ -66,8 +68,8 @@ export async function getProduct(
 ): Promise<ActionResult<SerializedProduct>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -88,16 +90,13 @@ export async function getProduct(
     });
 
     if (!product) {
-      return { success: false, error: 'Product not found' };
+      return fail('NOT_FOUND', 'Product not found.');
     }
 
-    return {
-      success: true,
-      data: serializeProduct(product),
-    };
+    return ok(serializeProduct(product));
   } catch (error) {
     console.error('Error fetching product:', error);
-    return { success: false, error: 'Failed to fetch product' };
+    return fail('FAILED', 'Failed to fetch product.');
   }
 }
 
@@ -106,8 +105,8 @@ export async function createProduct(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -123,10 +122,13 @@ export async function createProduct(
 
     revalidatePath(protectedRoutes.products);
 
-    return { success: true, data: { id: product.id } };
+    return ok({ id: product.id });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error creating product:', error);
-    return { success: false, error: 'Failed to create product' };
+    return fail('FAILED', 'Failed to create product.');
   }
 }
 
@@ -136,7 +138,7 @@ export async function updateProduct(
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
+    if (!authResult.success) {
       return authResult;
     }
 
@@ -159,21 +161,21 @@ export async function updateProduct(
     });
 
     if (!existingProduct) {
-      return { success: false, error: 'Product not found' };
+      return fail('NOT_FOUND', 'Product not found.');
     }
 
     if (existingProduct._count.invoiceItems > 0) {
       if (validatedData.currency !== existingProduct.currency) {
-        return {
-          success: false,
-          error: `Cannot change currency for product used in ${existingProduct._count.invoiceItems} invoice(s). Create a new product instead.`,
-        };
+        return fail(
+          'CONFLICT',
+          `Cannot change currency for product used in ${existingProduct._count.invoiceItems} invoice(s). Create a new product instead.`,
+        );
       }
       if (validatedData.unit !== existingProduct.unit) {
-        return {
-          success: false,
-          error: `Cannot change unit of measure for product used in ${existingProduct._count.invoiceItems} invoice(s). Create a new product instead.`,
-        };
+        return fail(
+          'CONFLICT',
+          `Cannot change unit of measure for product used in ${existingProduct._count.invoiceItems} invoice(s). Create a new product instead.`,
+        );
       }
     }
 
@@ -188,17 +190,20 @@ export async function updateProduct(
     revalidatePath(protectedRoutes.products);
     revalidatePath(protectedRoutes.productEdit(id));
 
-    return { success: true };
+    return ok();
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error updating product:', error);
-    return { success: false, error: 'Failed to update product' };
+    return fail('FAILED', 'Failed to update product.');
   }
 }
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
+    if (!authResult.success) {
       return authResult;
     }
 
@@ -219,14 +224,14 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
     });
 
     if (!product) {
-      return { success: false, error: 'Product not found' };
+      return fail('NOT_FOUND', 'Product not found.');
     }
 
     if (product._count.invoiceItems > 0) {
-      return {
-        success: false,
-        error: `Cannot delete product used in ${product._count.invoiceItems} invoice(s). Consider deactivating it instead.`,
-      };
+      return fail(
+        'CONFLICT',
+        `Cannot delete product used in ${product._count.invoiceItems} invoice(s). Consider deactivating it instead.`,
+      );
     }
 
     // Note: CustomPrices will be automatically deleted due to onDelete: Cascade in schema
@@ -236,17 +241,17 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
 
     revalidatePath(protectedRoutes.products);
 
-    return { success: true };
+    return ok();
   } catch (error) {
     console.error('Error deleting product:', error);
-    return { success: false, error: 'Failed to delete product' };
+    return fail('FAILED', 'Failed to delete product.');
   }
 }
 
 export async function toggleProductActive(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
+    if (!authResult.success) {
       return authResult;
     }
 
@@ -260,7 +265,7 @@ export async function toggleProductActive(id: string): Promise<ActionResult> {
     });
 
     if (!product) {
-      return { success: false, error: 'Product not found' };
+      return fail('NOT_FOUND', 'Product not found.');
     }
 
     await prisma.product.update({
@@ -272,9 +277,9 @@ export async function toggleProductActive(id: string): Promise<ActionResult> {
 
     revalidatePath(protectedRoutes.products);
 
-    return { success: true };
+    return ok();
   } catch (error) {
     console.error('Error toggling product status:', error);
-    return { success: false, error: 'Failed to update product status' };
+    return fail('FAILED', 'Failed to update product status.');
   }
 }

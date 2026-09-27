@@ -45,7 +45,7 @@ export function useProductCustomPriceModal({
       },
       onLoadProducts: async () => {
         const result = await getCustomers();
-        if (!result.success || !result.data) {
+        if (!result.success) {
           toast.error(result.error || 'Failed to load customers');
           return [];
         }

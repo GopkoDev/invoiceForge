@@ -9,8 +9,10 @@ import {
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { BankAccountWithRelations } from '@/types/sender-profile/types';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
 import { BankAccount } from '@prisma/client';
+import { z } from 'zod';
+import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 export async function createBankAccount(
   senderProfileId: string,
@@ -18,8 +20,8 @@ export async function createBankAccount(
 ): Promise<ActionResult<BankAccount>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -30,10 +32,7 @@ export async function createBankAccount(
     });
 
     if (!senderProfile || senderProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Sender profile not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     if (validatedData.isDefault) {
@@ -56,17 +55,14 @@ export async function createBankAccount(
       protectedRoutes.senderProfileEditBankAccounts(senderProfileId)
     );
 
-    return {
-      success: true,
-      data: bankAccount,
-    };
+    return ok(bankAccount);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error creating bank account:', error);
 
-    return {
-      success: false,
-      error: 'Failed to create bank account. Please try again.',
-    };
+    return fail('FAILED', 'Failed to create bank account. Please try again.');
   }
 }
 
@@ -76,8 +72,8 @@ export async function updateBankAccount(
 ): Promise<ActionResult<BankAccount>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -91,10 +87,7 @@ export async function updateBankAccount(
     });
 
     if (!existingAccount || existingAccount.senderProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Bank account not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Bank account not found.');
     }
 
     if (validatedData.isDefault && !existingAccount.isDefault) {
@@ -124,25 +117,22 @@ export async function updateBankAccount(
       )
     );
 
-    return {
-      success: true,
-      data: updatedAccount,
-    };
+    return ok(updatedAccount);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
     console.error('Error updating bank account:', error);
 
-    return {
-      success: false,
-      error: 'Failed to update bank account. Please try again.',
-    };
+    return fail('FAILED', 'Failed to update bank account. Please try again.');
   }
 }
 
 export async function deleteBankAccount(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -156,18 +146,14 @@ export async function deleteBankAccount(id: string): Promise<ActionResult> {
     });
 
     if (!existingAccount || existingAccount.senderProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Bank account not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Bank account not found.');
     }
 
     if (existingAccount.invoices.length > 0) {
-      return {
-        success: false,
-        error:
-          'Cannot delete bank account with existing invoices. Please delete or reassign invoices first.',
-      };
+      return fail(
+        'CONFLICT',
+        'Cannot delete bank account with existing invoices. Please delete or reassign invoices first.',
+      );
     }
 
     const senderProfileId = existingAccount.senderProfileId;
@@ -182,16 +168,11 @@ export async function deleteBankAccount(id: string): Promise<ActionResult> {
       protectedRoutes.senderProfileEditBankAccounts(senderProfileId)
     );
 
-    return {
-      success: true,
-    };
+    return ok();
   } catch (error) {
     console.error('Error deleting bank account:', error);
 
-    return {
-      success: false,
-      error: 'Failed to delete bank account. Please try again.',
-    };
+    return fail('FAILED', 'Failed to delete bank account. Please try again.');
   }
 }
 
@@ -201,8 +182,8 @@ export async function getBankAccounts(
 ): Promise<ActionResult<BankAccountWithRelations[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -212,10 +193,7 @@ export async function getBankAccounts(
     });
 
     if (!senderProfile || senderProfile.userId !== userId) {
-      return {
-        success: false,
-        error: 'Sender profile not found or access denied.',
-      };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     const bankAccounts = await prisma.bankAccount.findMany({
@@ -231,16 +209,10 @@ export async function getBankAccounts(
       ...(limit && { take: limit }),
     });
 
-    return {
-      success: true,
-      data: bankAccounts,
-    };
+    return ok(bankAccounts);
   } catch (error) {
     console.error('Error fetching bank accounts:', error);
 
-    return {
-      success: false,
-      error: 'Failed to fetch bank accounts. Please try again.',
-    };
+    return fail('FAILED', 'Failed to fetch bank accounts. Please try again.');
   }
 }

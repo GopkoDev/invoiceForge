@@ -3,7 +3,7 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
 import {
   CurrencyTab,
   DashboardSummaryStats,
@@ -67,8 +67,8 @@ export async function getDashboardCurrencyTabs(): Promise<
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -84,10 +84,10 @@ export async function getDashboardCurrencyTabs(): Promise<
     );
 
     const data = await getCachedCurrencyTabs();
-    return { success: true, data };
+    return ok(data);
   } catch (error) {
     console.error('Error fetching dashboard currency tabs:', error);
-    return { success: false, error: 'Failed to fetch currency tabs' };
+    return fail('FAILED', 'Failed to fetch currency tabs.');
   }
 }
 
@@ -101,8 +101,8 @@ export async function getDashboardSummaryStats(
 ): Promise<ActionResult<DashboardSummaryStats>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -182,22 +182,19 @@ export async function getDashboardSummaryStats(
         }),
       ]);
 
-    return {
-      success: true,
-      data: {
-        totalReceived: paidResult._sum.total?.toNumber() ?? 0,
-        receivedCount: paidResult._count,
-        totalPlanned: pendingResult._sum.total?.toNumber() ?? 0,
-        plannedCount: pendingResult._count,
-        totalOverdue: overdueResult._sum.total?.toNumber() ?? 0,
-        overdueCount: overdueResult._count,
-        allFuturePayments: allFutureResult._sum.total?.toNumber() ?? 0,
-        allFuturePaymentsCount: allFutureResult._count,
-      },
-    };
+    return ok({
+      totalReceived: paidResult._sum.total?.toNumber() ?? 0,
+      receivedCount: paidResult._count,
+      totalPlanned: pendingResult._sum.total?.toNumber() ?? 0,
+      plannedCount: pendingResult._count,
+      totalOverdue: overdueResult._sum.total?.toNumber() ?? 0,
+      overdueCount: overdueResult._count,
+      allFuturePayments: allFutureResult._sum.total?.toNumber() ?? 0,
+      allFuturePaymentsCount: allFutureResult._count,
+    });
   } catch (error) {
     console.error('Error fetching dashboard summary stats:', error);
-    return { success: false, error: 'Failed to fetch summary statistics' };
+    return fail('FAILED', 'Failed to fetch summary statistics.');
   }
 }
 
@@ -213,8 +210,8 @@ export async function getDashboardChartData(
 ): Promise<ActionResult<ChartDataPoint[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -354,10 +351,10 @@ export async function getDashboardChartData(
       }
     );
 
-    return { success: true, data: chartData };
+    return ok(chartData);
   } catch (error) {
     console.error('Error fetching dashboard chart data:', error);
-    return { success: false, error: 'Failed to fetch chart data' };
+    return fail('FAILED', 'Failed to fetch chart data.');
   }
 }
 
@@ -371,8 +368,8 @@ export async function getDashboardSenderAccounts(
 ): Promise<ActionResult<SenderAccountMetrics[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -518,10 +515,10 @@ export async function getDashboardSenderAccounts(
       }
     );
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
     console.error('Error fetching dashboard sender accounts:', error);
-    return { success: false, error: 'Failed to fetch sender accounts' };
+    return fail('FAILED', 'Failed to fetch sender accounts.');
   }
 }
 
@@ -533,8 +530,8 @@ export async function getDashboardRecentInvoices(
 ): Promise<ActionResult<RecentInvoice[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -569,10 +566,10 @@ export async function getDashboardRecentInvoices(
       currency: inv.currency,
     }));
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
     console.error('Error fetching dashboard recent invoices:', error);
-    return { success: false, error: 'Failed to fetch recent invoices' };
+    return fail('FAILED', 'Failed to fetch recent invoices.');
   }
 }
 
@@ -584,8 +581,8 @@ export async function getDashboardDebtors(
 ): Promise<ActionResult<DebtorInfo[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -646,10 +643,10 @@ export async function getDashboardDebtors(
       .sort((a, b) => b.total - a.total)
       .slice(0, 3); // Top 3 by debt amount
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
     console.error('Error fetching dashboard debtors:', error);
-    return { success: false, error: 'Failed to fetch debtors' };
+    return fail('FAILED', 'Failed to fetch debtors.');
   }
 }
 
@@ -661,8 +658,8 @@ export async function getDashboardExpectedPayments(
 ): Promise<ActionResult<ExpectedPaymentGroup[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -720,9 +717,9 @@ export async function getDashboardExpectedPayments(
       count: data.invoices.length,
     }));
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
     console.error('Error fetching dashboard expected payments:', error);
-    return { success: false, error: 'Failed to fetch expected payments' };
+    return fail('FAILED', 'Failed to fetch expected payments.');
   }
 }

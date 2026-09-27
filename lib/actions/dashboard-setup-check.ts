@@ -2,7 +2,7 @@
 
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
 
 export interface SetupCheckResult {
   hasSenderProfiles: boolean;
@@ -17,8 +17,8 @@ export async function checkDashboardSetup(): Promise<
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -38,18 +38,15 @@ export async function checkDashboardSetup(): Promise<
     const hasCustomers = customerCount > 0;
     const hasProducts = productCount > 0;
 
-    return {
-      success: true,
-      data: {
-        hasSenderProfiles,
-        hasBankAccounts,
-        hasCustomers,
-        hasProducts,
-        isComplete: hasSenderProfiles && hasBankAccounts && hasCustomers,
-      },
-    };
+    return ok({
+      hasSenderProfiles,
+      hasBankAccounts,
+      hasCustomers,
+      hasProducts,
+      isComplete: hasSenderProfiles && hasBankAccounts && hasCustomers,
+    });
   } catch (error) {
     console.error('Error checking dashboard setup:', error);
-    return { success: false, error: 'Failed to check setup status' };
+    return fail('FAILED', 'Failed to check setup status.');
   }
 }

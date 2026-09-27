@@ -8,7 +8,12 @@ import {
 } from '@/lib/validations/invoice';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import {
+  zodValidationFailure,
+  isUniqueConstraintError,
+} from '@/lib/actions/action-result-helpers';
 import {
   InvoiceEditorData,
   InvoiceSenderProfile,
@@ -52,8 +57,8 @@ export async function generateInvoiceNumber(
 ): Promise<ActionResult<string>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const profile = await prisma.senderProfile.findFirst({
@@ -62,16 +67,16 @@ export async function generateInvoiceNumber(
     });
 
     if (!profile) {
-      return { success: false, error: 'Sender profile not found' };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     const year = new Date().getFullYear();
     const invoiceNumber = `${profile.invoicePrefix}-${year}-${String(profile.invoiceCounter + 1).padStart(4, '0')}`;
 
-    return { success: true, data: invoiceNumber };
+    return ok(invoiceNumber);
   } catch (error) {
     console.error('Error generating invoice number:', error);
-    return { success: false, error: 'Failed to generate invoice number' };
+    return fail('FAILED', 'Failed to generate invoice number.');
   }
 }
 
@@ -81,8 +86,8 @@ export async function getInvoiceEditorData(
 ): Promise<ActionResult<InvoiceEditorData>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -143,23 +148,20 @@ export async function getInvoiceEditorData(
       ({ bankAccounts: _bankAccounts, ...profile }) => profile
     );
 
-    return {
-      success: true,
-      data: {
-        senderProfiles: transformedProfiles,
-        bankAccounts,
-        customers: customers as InvoiceCustomer[],
-        products: transformedProducts,
-        customPrices: transformedCustomPrices,
-        initialData: existingInvoice
-          ? transformInvoiceToFormData(existingInvoice)
-          : undefined,
-        invoiceId,
-      },
-    };
+    return ok({
+      senderProfiles: transformedProfiles,
+      bankAccounts,
+      customers: customers as InvoiceCustomer[],
+      products: transformedProducts,
+      customPrices: transformedCustomPrices,
+      initialData: existingInvoice
+        ? transformInvoiceToFormData(existingInvoice)
+        : undefined,
+      invoiceId,
+    });
   } catch (error) {
     console.error('Error fetching invoice editor data:', error);
-    return { success: false, error: 'Failed to fetch invoice editor data' };
+    return fail('FAILED', 'Failed to fetch invoice editor data.');
   }
 }
 
@@ -169,8 +171,8 @@ export async function createInvoice(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -183,8 +185,8 @@ export async function createInvoice(
       validatedData.customerId,
       validatedData.bankAccountId
     );
-    if (!relationsResult.success || !relationsResult.data) {
-      return { success: false, error: relationsResult.error };
+    if (!relationsResult.success) {
+      return relationsResult;
     }
 
     const { senderProfile, customer, bankAccount } = relationsResult.data;
@@ -232,10 +234,20 @@ export async function createInvoice(
     });
 
     revalidatePath(protectedRoutes.invoices);
-    return { success: true, data: { id: invoice.id } };
+    return ok({ id: invoice.id });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
+    if (isUniqueConstraintError(error)) {
+      return fail(
+        'CONFLICT',
+        'This invoice number is already used in this sender profile.',
+        { fieldErrors: { invoiceNumber: ['This invoice number is already used in this sender profile.'] } },
+      );
+    }
     console.error('Error creating invoice:', error);
-    return { success: false, error: 'Failed to create invoice' };
+    return fail('FAILED', 'Failed to create invoice.');
   }
 }
 
@@ -246,8 +258,8 @@ export async function updateInvoice(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -258,7 +270,7 @@ export async function updateInvoice(
       where: { id, senderProfile: { userId } },
     });
     if (!existingInvoice) {
-      return { success: false, error: 'Invoice not found' };
+      return fail('NOT_FOUND', 'Invoice not found.');
     }
 
     // Verify ownership and get snapshot data
@@ -268,8 +280,8 @@ export async function updateInvoice(
       validatedData.customerId,
       validatedData.bankAccountId
     );
-    if (!relationsResult.success || !relationsResult.data) {
-      return { success: false, error: relationsResult.error };
+    if (!relationsResult.success) {
+      return relationsResult;
     }
 
     const { senderProfile, customer, bankAccount } = relationsResult.data;
@@ -325,10 +337,20 @@ export async function updateInvoice(
 
     revalidatePath(protectedRoutes.invoices);
     revalidatePath(protectedRoutes.invoiceEdit(id));
-    return { success: true, data: { id: invoice.id } };
+    return ok({ id: invoice.id });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
+    if (isUniqueConstraintError(error)) {
+      return fail(
+        'CONFLICT',
+        'This invoice number is already used in this sender profile.',
+        { fieldErrors: { invoiceNumber: ['This invoice number is already used in this sender profile.'] } },
+      );
+    }
     console.error('Error updating invoice:', error);
-    return { success: false, error: 'Failed to update invoice' };
+    return fail('FAILED', 'Failed to update invoice.');
   }
 }
 
@@ -336,8 +358,8 @@ export async function updateInvoice(
 export async function deleteInvoice(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoice = await prisma.invoice.findFirst({
@@ -346,24 +368,23 @@ export async function deleteInvoice(id: string): Promise<ActionResult> {
     });
 
     if (!invoice) {
-      return { success: false, error: 'Invoice not found' };
+      return fail('NOT_FOUND', 'Invoice not found.');
     }
 
     if (invoice.status !== 'DRAFT') {
-      return {
-        success: false,
-        error:
-          'Only draft invoices can be deleted. Consider cancelling instead.',
-      };
+      return fail(
+        'CONFLICT',
+        'Only draft invoices can be deleted. Consider cancelling instead.',
+      );
     }
 
     await prisma.invoice.delete({ where: { id } });
     revalidatePath(protectedRoutes.invoices);
 
-    return { success: true };
+    return ok();
   } catch (error) {
     console.error('Error deleting invoice:', error);
-    return { success: false, error: 'Failed to delete invoice' };
+    return fail('FAILED', 'Failed to delete invoice.');
   }
 }
 
@@ -373,8 +394,8 @@ export async function getInvoice(
 ): Promise<ActionResult<SerializedInvoice>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoice = await prisma.invoice.findFirst({
@@ -388,18 +409,18 @@ export async function getInvoice(
     });
 
     if (!invoice) {
-      return { success: false, error: 'Invoice not found' };
+      return fail('NOT_FOUND', 'Invoice not found.');
     }
 
     const serialized = serializeInvoice(invoice);
     if (!serialized) {
-      return { success: false, error: 'Failed to serialize invoice' };
+      return fail('FAILED', 'Failed to serialize invoice.');
     }
 
-    return { success: true, data: serialized };
+    return ok(serialized);
   } catch (error) {
     console.error('Error fetching invoice:', error);
-    return { success: false, error: 'Failed to fetch invoice' };
+    return fail('FAILED', 'Failed to fetch invoice.');
   }
 }
 
@@ -407,8 +428,8 @@ export async function getInvoice(
 export async function getInvoices(): Promise<ActionResult<InvoiceListItem[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -417,16 +438,15 @@ export async function getInvoices(): Promise<ActionResult<InvoiceListItem[]>> {
       orderBy: { createdAt: 'desc' },
     });
 
-    return {
-      success: true,
-      data: invoices.map((inv) => ({
+    return ok(
+      invoices.map((inv) => ({
         ...inv,
         total: serializeDecimal(inv.total),
       })),
-    };
+    );
   } catch (error) {
     console.error('Error fetching invoices:', error);
-    return { success: false, error: 'Failed to fetch invoices' };
+    return fail('FAILED', 'Failed to fetch invoices.');
   }
 }
 
@@ -437,8 +457,8 @@ export async function getInvoicesByCustomer(
 ): Promise<ActionResult<InvoiceListItem[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -451,16 +471,15 @@ export async function getInvoicesByCustomer(
       take: limit,
     });
 
-    return {
-      success: true,
-      data: invoices.map((inv) => ({
+    return ok(
+      invoices.map((inv) => ({
         ...inv,
         total: serializeDecimal(inv.total),
       })),
-    };
+    );
   } catch (error) {
     console.error('Error fetching customer invoices:', error);
-    return { success: false, error: 'Failed to fetch customer invoices' };
+    return fail('FAILED', 'Failed to fetch customer invoices.');
   }
 }
 
@@ -471,8 +490,8 @@ export async function getInvoicesBySenderProfile(
 ): Promise<ActionResult<InvoiceListItem[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -485,16 +504,15 @@ export async function getInvoicesBySenderProfile(
       take: limit,
     });
 
-    return {
-      success: true,
-      data: invoices.map((inv) => ({
+    return ok(
+      invoices.map((inv) => ({
         ...inv,
         total: serializeDecimal(inv.total),
       })),
-    };
+    );
   } catch (error) {
     console.error('Error fetching sender profile invoices:', error);
-    return { success: false, error: 'Failed to fetch sender profile invoices' };
+    return fail('FAILED', 'Failed to fetch sender profile invoices.');
   }
 }
 
@@ -505,8 +523,8 @@ export async function updateInvoiceStatus(
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const invoice = await prisma.invoice.findFirst({
@@ -515,7 +533,7 @@ export async function updateInvoiceStatus(
     });
 
     if (!invoice) {
-      return { success: false, error: 'Invoice not found' };
+      return fail('NOT_FOUND', 'Invoice not found.');
     }
 
     await prisma.invoice.update({
@@ -526,10 +544,10 @@ export async function updateInvoiceStatus(
     revalidatePath(protectedRoutes.invoices);
     revalidatePath(protectedRoutes.invoiceEdit(id));
 
-    return { success: true };
+    return ok();
   } catch (error) {
     console.error('Error updating invoice status:', error);
-    return { success: false, error: 'Failed to update invoice status' };
+    return fail('FAILED', 'Failed to update invoice status.');
   }
 }
 
@@ -549,8 +567,8 @@ export async function getPaginatedInvoices(params: {
 }): Promise<ActionResult<PaginatedInvoiceList>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const {
@@ -662,27 +680,24 @@ export async function getPaginatedInvoices(params: {
         }),
       ]);
 
-    return {
-      success: true,
-      data: {
-        invoices: invoices.map((inv) => ({
-          ...inv,
-          total: serializeDecimal(inv.total),
-        })),
-        total,
-        page,
-        pageSize,
-        totalPages: Math.ceil(total / pageSize),
-        filterOptions: {
-          customers,
-          senderProfiles,
-        },
-        totalInvoices,
+    return ok({
+      invoices: invoices.map((inv) => ({
+        ...inv,
+        total: serializeDecimal(inv.total),
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+      filterOptions: {
+        customers,
+        senderProfiles,
       },
-    };
+      totalInvoices,
+    });
   } catch (error) {
     console.error('Error fetching paginated invoices:', error);
-    return { success: false, error: 'Failed to fetch invoices' };
+    return fail('FAILED', 'Failed to fetch invoices.');
   }
 }
 
@@ -691,8 +706,8 @@ export async function duplicateInvoice(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -703,7 +718,7 @@ export async function duplicateInvoice(
     });
 
     if (!originalInvoice) {
-      return { success: false, error: 'Invoice not found' };
+      return fail('NOT_FOUND', 'Invoice not found.');
     }
 
     const senderProfile = await prisma.senderProfile.findFirst({
@@ -712,7 +727,7 @@ export async function duplicateInvoice(
     });
 
     if (!senderProfile) {
-      return { success: false, error: 'Sender profile not found' };
+      return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
     const year = new Date().getFullYear();
@@ -789,9 +804,15 @@ export async function duplicateInvoice(
     });
 
     revalidatePath(protectedRoutes.invoices);
-    return { success: true, data: { id: newInvoice.id } };
+    return ok({ id: newInvoice.id });
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return fail(
+        'CONFLICT',
+        'This invoice number is already used in this sender profile.',
+      );
+    }
     console.error('Error duplicating invoice:', error);
-    return { success: false, error: 'Failed to duplicate invoice' };
+    return fail('FAILED', 'Failed to duplicate invoice.');
   }
 }

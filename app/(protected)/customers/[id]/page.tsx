@@ -28,15 +28,15 @@ export default async function CustomerDetailPage({
       getInvoicesByCustomer(id, PREVIEW_INVOICES_LIMIT),
     ]);
 
-  if (!customerResult.success || !customerResult.data) {
+  if (!customerResult.success) {
     notFound();
   }
 
   return (
     <CustomerDetailView
       customer={customerResult.data}
-      customPrices={customPricesResult.data || []}
-      invoices={invoicesResult.data || []}
+      customPrices={customPricesResult.success ? customPricesResult.data : []}
+      invoices={invoicesResult.success ? invoicesResult.data : []}
     />
   );
 }
