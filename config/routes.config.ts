@@ -19,6 +19,9 @@ const protectedRoutesBase = {
   settings: '/settings',
 } as const;
 
+/** The root of every private section; each one and everything under it needs a session. */
+export const privateSectionRoots = Object.values(protectedRoutesBase);
+
 export const protectedRoutes = {
   ...protectedRoutesBase,
 
