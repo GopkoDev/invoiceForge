@@ -35,7 +35,9 @@
 | T27 | [Harden the data export: session first, parallel reads, Invoice Forge file name](./t27-data-export-endpoint.md) | ports | Dmytro Hopko | S | T09 | done |
 | T28 | [Check the session before parsing input in profile and account settings actions](./t28-profile-actions-guard-first.md) | app | Dmytro Hopko | S | T08, T17 | done |
 | T29 | [Disallow the root and every page of each private section in robots.txt](./t29-robots-disallow-section-roots.md) | ports | Dmytro Hopko | S | T02 | done |
-| T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | todo |
+| T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | blocked |
 | T31 | [Declare the sdd marketplace, ignore local settings and remove the empty route folder](./t31-repository-hygiene.md) | docs | Dmytro Hopko | S | — | done |
 
 **Total:** 32 tasks, ~26 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
+
+> **T30 blocked by its own gate (2026-09-27):** promote migrations 05–06 only after wave 2 has run in production without a rollback **and** the wave-4 pre-flight `SELECT count(*) FROM "Invoice" WHERE "invoiceNumberKey" IS NULL;` returns 0 (sad §7 row 4, data-model §Pre-flight). The red contract test is staged at `docs/features/architecture-hardening/migrations/05-06_contract.test.ts.staged` — move it to `tests/integration/invoice-number-key-contract.test.ts` when the gate passes. Promoting also retires the NULL-key legacy paths: update the invoice factory to default `invoiceNumberKey` to the normalized number, and revisit the T07 expand-step assertions (nullable column, exact unique present) and the T12/T13/T14 legacy-key tests at that time.
