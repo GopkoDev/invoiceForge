@@ -11,8 +11,14 @@ export type FetchLogoDataUrlResult =
 
 const GENERIC_UNAVAILABLE_WARNING = 'The logo could not be loaded from this link.';
 
-// Successful results only (checklist: "so a retry after a transient error is possible").
+// Successful results only (checklist: "so a retry after a transient error is possible"). Keyed
+// by (senderProfileId, logo URL) rather than senderProfileId alone (F-49): a profile id alone
+// kept showing a stale cached logo after the Freelancer changed the URL, until a full reload.
 const sessionCache = new Map<string, { dataUrl: string }>();
+
+function cacheKey(senderProfileId: string, logoUrl: string): string {
+  return `${senderProfileId}::${logoUrl}`;
+}
 
 interface ConvertImageResponseBody {
   success: boolean;
@@ -59,15 +65,17 @@ async function requestLogoDataUrl(
  * logo reused across renders/exports doesn't count against the per-minute rate limit again.
  */
 export async function fetchLogoDataUrl(
-  senderProfileId: string
+  senderProfileId: string,
+  logoUrl: string = ''
 ): Promise<FetchLogoDataUrlResult> {
-  const cached = sessionCache.get(senderProfileId);
+  const key = cacheKey(senderProfileId, logoUrl);
+  const cached = sessionCache.get(key);
   if (cached) return cached;
 
   const result = await requestLogoDataUrl(senderProfileId);
 
   if ('dataUrl' in result) {
-    sessionCache.set(senderProfileId, result);
+    sessionCache.set(key, result);
   }
 
   return result;

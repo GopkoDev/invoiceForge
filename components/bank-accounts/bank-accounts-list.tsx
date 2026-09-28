@@ -77,6 +77,12 @@ export function BankAccountsList({
       onConfirm: async () => {
         setDeletingId(id);
         const result = await deleteBankAccount(id);
+        setDeletingId(null);
+
+        // F-40: close on both outcomes once the async delete settles — the ConfirmationModal
+        // contract leaves this to the caller, and never closing left a second click re-firing
+        // the delete.
+        confirmationModal.close();
 
         if (!result.success) {
           toast.error(result.error || 'Failed to delete bank account');
@@ -84,7 +90,6 @@ export function BankAccountsList({
           toast.success('Bank account deleted successfully');
           router.refresh();
         }
-        setDeletingId(null);
       },
     });
   };

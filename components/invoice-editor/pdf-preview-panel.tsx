@@ -64,7 +64,7 @@ export function PDFPreviewPanel({
         return { logoSrc: undefined, logoWarning: undefined };
       }
 
-      const result = await fetchLogoDataUrl(senderProfileId);
+      const result = await fetchLogoDataUrl(senderProfileId, senderProfileLogo);
 
       if ('dataUrl' in result) {
         return { logoSrc: result.dataUrl, logoWarning: undefined };

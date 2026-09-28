@@ -170,8 +170,12 @@ export async function verifyInvoiceRelations(
   const [senderProfile, customer, bankAccount] = await Promise.all([
     prisma.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
     prisma.customer.findFirst({ where: { id: customerId, userId } }),
+    // F-43: tied to the SPECIFIC sender profile the invoice is being saved under, not just to
+    // any profile the same user owns — otherwise an invoice could carry senderProfileId A with
+    // a bank account that actually belongs to the same user's profile B, which later makes
+    // deleteSenderProfile's invoice count for B miss it entirely.
     prisma.bankAccount.findFirst({
-      where: { id: bankAccountId, senderProfile: { userId } },
+      where: { id: bankAccountId, senderProfileId, senderProfile: { userId } },
     }),
   ]);
 
@@ -180,4 +184,36 @@ export async function verifyInvoiceRelations(
   if (!bankAccount) return fail('NOT_FOUND', 'Bank account not found.');
 
   return ok({ senderProfile, customer, bankAccount });
+}
+
+/**
+ * F-48: item.productId was stored with no ownership check at all, so a request could carry
+ * another Freelancer's product id — which that product's real owner then couldn't have its
+ * currency/unit changed or be deleted (the "used in N invoice(s)" conflict would count an
+ * invoice that isn't theirs). Checked against every non-empty, non-'custom' productId at once.
+ */
+export async function verifyItemProductsOwnership(
+  userId: string,
+  items: { productId?: string }[]
+): Promise<ActionResult<void>> {
+  const productIds = Array.from(
+    new Set(
+      items
+        .map((item) => item.productId)
+        .filter((id): id is string => Boolean(id) && id !== 'custom')
+    )
+  );
+
+  if (productIds.length === 0) return ok();
+
+  const owned = await prisma.product.findMany({
+    where: { id: { in: productIds }, userId },
+    select: { id: true },
+  });
+
+  if (owned.length !== productIds.length) {
+    return fail('NOT_FOUND', 'Product not found.');
+  }
+
+  return ok();
 }

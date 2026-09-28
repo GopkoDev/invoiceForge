@@ -96,7 +96,13 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
         confirmText: 'Yes, Change Email',
         cancelText: 'Cancel',
         onClose: confirmationModal.close,
-        onConfirm: () => handleConfirmedSubmit(data),
+        // F-40: close once the async submit settles — the ConfirmationModal contract leaves
+        // this to the caller, and never closing left the dialog open (and a second click able
+        // to resubmit) after a successful or failed email change.
+        onConfirm: async () => {
+          await handleConfirmedSubmit(data);
+          confirmationModal.close();
+        },
       });
     } else {
       await handleConfirmedSubmit(data);

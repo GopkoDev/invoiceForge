@@ -2,6 +2,12 @@
 // T19 (spec.md §5 AC-22) — SCR-14 "blocked" state: deleting a Customer or sender profile that
 // has invoices shows the destructive Alert with the result's `error`, hides the Delete/Confirm
 // button (only "Close" remains), and removes nothing.
+//
+// F-44 (review-2026-09-27.md, Group 8): the blocked dialog's own footer button must say "Close",
+// not the leftover "Cancel" text — checked by scoping to the dialog's footer (`data-slot`
+// "dialog-footer") so the assertion can't accidentally match the Dialog's separate, always-present
+// sr-only "Close" icon button instead (contact-card-actions.tsx only set `hideConfirm`, never
+// `cancelText`, so the footer button kept its default "Cancel" label).
 // See docs/features/architecture-hardening/tasks/t19-block-deleting-records-with-invoices.md and
 // test-plan.md AC-22 row "delete-record dialog shows the blocked block" (component).
 //
@@ -18,9 +24,17 @@
 // from the modal store to `ConfirmationModal` at all (same T15 wiring gap as SettingsModalContainer
 // had before T18), so even a caller that set them would not see them rendered.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail } from '@/types/actions';
+
+/** Scopes a "Close" button query to the dialog's footer, never the Dialog's own always-present
+ * sr-only "Close" icon button (which also has accessible name "Close"). */
+function footerCloseButton() {
+  const footer = document.querySelector('[data-slot="dialog-footer"]');
+  if (!footer) throw new Error('dialog footer not found');
+  return within(footer as HTMLElement).getByRole('button', { name: 'Close' });
+}
 
 const deleteCustomerMock = vi.fn();
 vi.mock('@/lib/actions/customer-actions', () => ({
@@ -100,10 +114,11 @@ describe('SCR-14 blocked delete (T19, AC-22)', () => {
       )
     ).toBeInTheDocument();
 
-    // SCR-14 blocked: Delete/Confirm is hidden, only Close remains.
+    // SCR-14 blocked: Delete/Confirm is hidden, only Close remains — the dialog's own footer
+    // button, not just the Dialog's separate sr-only close icon.
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(footerCloseButton()).toBeInTheDocument();
 
     expect(routerRefresh).not.toHaveBeenCalled();
   });
@@ -134,7 +149,7 @@ describe('SCR-14 blocked delete (T19, AC-22)', () => {
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(footerCloseButton()).toBeInTheDocument();
     expect(routerRefresh).not.toHaveBeenCalled();
   });
 

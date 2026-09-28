@@ -108,7 +108,10 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
       {confirmationModal.isOpen && confirmationModal.props && (
         <ConfirmationModal
           open={confirmationModal.isOpen}
-          onClose={confirmationModal.close}
+          // F-47: use the dialog's own onClose (e.g. openTotalsConfirmation's onClose, which
+          // clears totalsChanged before closing) instead of always jumping straight to
+          // confirmationModal.close, which skipped that cleanup entirely.
+          onClose={confirmationModal.props.onClose ?? confirmationModal.close}
           onConfirm={confirmationModal.props.onConfirm}
           title={confirmationModal.props.title}
           description={confirmationModal.props.description}

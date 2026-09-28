@@ -138,6 +138,20 @@ export async function updateSenderProfile(
   }
 }
 
+/** F-43: counts invoices that would Restrict-block deleting this sender profile, whether they
+ * reference it directly (invoice.senderProfileId) or through one of its bank accounts
+ * (invoice.bankAccountId) — both FKs are Restrict onto rows this delete's cascade removes. */
+async function countSenderProfileInvoices(senderProfileId: string): Promise<number> {
+  return prisma.invoice.count({
+    where: {
+      OR: [
+        { senderProfileId },
+        { bankAccount: { senderProfileId } },
+      ],
+    },
+  });
+}
+
 export async function deleteSenderProfile(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
@@ -149,19 +163,20 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
 
     const existingProfile = await prisma.senderProfile.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { invoices: true },
-        },
-      },
     });
 
     if (!existingProfile || existingProfile.userId !== userId) {
       return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
-    if (existingProfile._count.invoices > 0) {
-      return hasInvoicesConflict('sender profile', existingProfile._count.invoices);
+    // F-43: an invoice can be Restrict-blocked from either the profile's own senderProfileId OR
+    // (data saved before verifyInvoiceRelations tied a bank account to its specific profile,
+    // helpers.ts) one of its bank accounts' bankAccountId — counting only senderProfileId missed
+    // those and reported CONFLICT with count 0.
+    const invoiceCount = await countSenderProfileInvoices(id);
+
+    if (invoiceCount > 0) {
+      return hasInvoicesConflict('sender profile', invoiceCount);
     }
 
     try {
@@ -173,8 +188,8 @@ export async function deleteSenderProfile(id: string): Promise<ActionResult> {
       if (isRestrictForeignKeyError(deleteError)) {
         // An invoice was saved between the count above and this delete (Restrict FK, P2003):
         // recount and report the same CONFLICT, never FAILED (sad.md §8 Hard rule, AC-22).
-        const invoiceCount = await prisma.invoice.count({ where: { senderProfileId: id } });
-        return hasInvoicesConflict('sender profile', invoiceCount);
+        const recount = await countSenderProfileInvoices(id);
+        return hasInvoicesConflict('sender profile', recount);
       }
       throw deleteError;
     }

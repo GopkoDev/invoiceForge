@@ -30,6 +30,17 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 ) => {
   const initialFormData = createInitialFormData();
 
+  // F-41: the field-error keys the editor actually renders a FieldError next to
+  // (invoice-details-section.tsx, summary-section.tsx, invoice-item-fields.tsx). A fieldErrors
+  // key outside this set (e.g. senderProfileId/bankAccountId/customerId, or an item field the
+  // editor never shows an input for) has nowhere on screen to appear, so it must not be dropped
+  // silently — it gets toasted as a fallback instead.
+  const RENDERED_FIELD_ERROR_KEYS = new Set(['invoiceNumber', 'discount', 'shipping', 'taxRate']);
+  function isRenderedFieldErrorKey(key: string): boolean {
+    if (RENDERED_FIELD_ERROR_KEYS.has(key)) return true;
+    return /^items\.\d+\.(price|quantity)$/.test(key);
+  }
+
   // Turns a failed save into the right UI state (AC-08, AC-14, AC-15, AC-17): TOTALS_CHANGED
   // opens SCR-15, fieldErrors land next to the offending fields, everything else is a toast
   // (FAILED gets a Retry action that resubmits with the same options).
@@ -55,6 +66,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
     if (result.fieldErrors) {
       set({ fieldErrors: result.fieldErrors });
+      // F-41: a key with no rendered field gets no visible FieldError at all — toast it as a
+      // fallback so the Freelancer is never left with no feedback whatsoever.
+      const unrendered = Object.entries(result.fieldErrors).filter(
+        ([key]) => !isRenderedFieldErrorKey(key)
+      );
+      if (unrendered.length > 0) {
+        toast.error(unrendered.flatMap(([, messages]) => messages).join(' '));
+      }
       return;
     }
 
@@ -81,6 +100,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       fieldErrors: undefined,
       totalsChanged: null,
       hasUnsavedChanges: false,
+      // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
+      // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
+      legacy: null,
     });
   }
 
@@ -176,6 +198,13 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
     selectSenderProfile: async (id: string) => {
       const state = get();
+
+      // F-42: re-selecting the CURRENT sender profile is not a move (AC-11 is about actually
+      // moving an invoice to a DIFFERENT profile) — a no-op reselect must not wipe the number
+      // and renumber under the same profile.
+      if (id === state.formData.senderProfileId) {
+        return;
+      }
 
       const senderBankAccounts =
         state.bankAccountsBySenderProfileId.get(id) || [];

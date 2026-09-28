@@ -223,6 +223,29 @@ describe('GdprSettings delete-account dialog (SCR-08)', () => {
     expect(screen.getByText('Delete your account?')).toBeInTheDocument();
   });
 
+  // F-45 (review-2026-09-27.md, Group 8): screens.md §SCR-08 "deleting" row says "every button
+  // is disabled" while the confirmed delete is in flight — but the Export and Retry buttons live
+  // in the dialog's `body` slot, so ConfirmationModal's own pending-disables (Confirm/Cancel only)
+  // never reach them.
+  it('disables the Export my data first button while the confirmed delete is in flight (F-45)', async () => {
+    const user = userEvent.setup();
+    getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));
+    const gate = new Promise<ReturnType<typeof ok>>(() => {});
+    deleteUserAccountMock.mockReturnValue(gate);
+
+    renderSettings();
+    await openDeleteDialog(user);
+    await screen.findByText('2 invoices will be permanently lost.');
+
+    await user.click(screen.getByRole('button', { name: 'Yes, Delete My Account' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /export my data first/i })
+      ).toBeDisabled()
+    );
+  });
+
   it('deletes the account and signs the Freelancer out on success (AC-20, AC-21)', async () => {
     const user = userEvent.setup();
     getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));

@@ -56,6 +56,12 @@ export function ProductsTable({ products }: ProductsTableProps) {
       onConfirm: async () => {
         setLoadingId(product.id);
         const result = await deleteProduct(product.id);
+        setLoadingId(null);
+
+        // F-40: the ConfirmationModal contract leaves closing to the caller once an async
+        // onConfirm settles — close it here on both outcomes, or a second click re-fires the
+        // delete on a dialog that never went away.
+        confirmationModal.close();
 
         if (result.success) {
           toast.success('Product deleted successfully');
@@ -63,7 +69,6 @@ export function ProductsTable({ products }: ProductsTableProps) {
         } else {
           toast.error(result.error || 'Failed to delete product');
         }
-        setLoadingId(null);
       },
       onClose: confirmationModal.close,
     });

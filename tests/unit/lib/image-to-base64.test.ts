@@ -134,6 +134,51 @@ describe('fetchLogoDataUrl (AC-01, AC-03)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  // F-50 (review-2026-09-27.md, Group 8): the session cache was keyed by senderProfileId alone,
+  // so a Freelancer who changes the logo URL and comes straight back to the same invoice/PDF
+  // preview kept seeing the OLD logo (the stale cached dataUrl) until a full reload.
+  it('refetches when the same sender profile is asked for a different logo URL (F-49)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          success: true,
+          data: { dataUrl: 'data:image/png;base64,OLD', contentType: 'image/png', size: 4 },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          success: true,
+          data: { dataUrl: 'data:image/png;base64,NEW', contentType: 'image/png', size: 4 },
+        })
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await fetchLogoDataUrl('profile-logo-change', 'https://example.com/old.png');
+    const second = await fetchLogoDataUrl('profile-logo-change', 'https://example.com/new.png');
+
+    expect(first).toEqual({ dataUrl: 'data:image/png;base64,OLD' });
+    expect(second).toEqual({ dataUrl: 'data:image/png;base64,NEW' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('still caches per (profile, logo URL) pair — a repeat of the same pair makes no request (F-49)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        success: true,
+        data: { dataUrl: 'data:image/png;base64,SAME', contentType: 'image/png', size: 4 },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await fetchLogoDataUrl('profile-logo-same', 'https://example.com/same.png');
+    const second = await fetchLogoDataUrl('profile-logo-same', 'https://example.com/same.png');
+
+    expect(first).toEqual({ dataUrl: 'data:image/png;base64,SAME' });
+    expect(second).toEqual({ dataUrl: 'data:image/png;base64,SAME' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves { unauthorized: true } on a 401, without a warning message (SCR-01)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(401, { success: false, code: 'NotSignedIn', error: 'Not signed in.' })

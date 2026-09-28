@@ -37,7 +37,7 @@ async function resolveLogoForPdf(
     return { logoBase64: null };
   }
 
-  const result = await fetchLogoDataUrl(senderProfile.id);
+  const result = await fetchLogoDataUrl(senderProfile.id, senderProfile.logo);
 
   if ('dataUrl' in result) {
     return { logoBase64: result.dataUrl };

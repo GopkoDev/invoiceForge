@@ -42,6 +42,9 @@ type DeletionSummary =
 interface DialogState {
   summary: DeletionSummary;
   exporting: boolean;
+  // F-45: screens.md SCR-08 "deleting" row — every button in the dialog is disabled while the
+  // confirmed delete is in flight, not just ConfirmationModal's own Confirm/Cancel footer.
+  deleting: boolean;
 }
 
 function invoiceCountLine(count: number) {
@@ -95,6 +98,7 @@ export function GdprSettings() {
   const dialogStateRef = useRef<DialogState>({
     summary: { status: 'counting' },
     exporting: false,
+    deleting: false,
   });
 
   const handleExportData = async () => {
@@ -121,7 +125,7 @@ export function GdprSettings() {
   const showDialog = (next: DialogState) => {
     if (!dialogOpenRef.current) return;
     dialogStateRef.current = next;
-    const { summary, exporting } = next;
+    const { summary, exporting, deleting } = next;
 
     confirmationModal.open({
       open: true,
@@ -142,7 +146,7 @@ export function GdprSettings() {
               <AlertCircle />
               <AlertTitle className="flex items-center justify-between gap-2">
                 Couldn&apos;t count your invoices.
-                <Button size="sm" variant="outline" onClick={loadSummary}>
+                <Button size="sm" variant="outline" onClick={loadSummary} disabled={deleting}>
                   Retry
                 </Button>
               </AlertTitle>
@@ -152,7 +156,7 @@ export function GdprSettings() {
             variant="outline"
             size="sm"
             onClick={handleExportFromDialog}
-            disabled={exporting}
+            disabled={exporting || deleting}
           >
             {exporting ? <Spinner /> : <Download />}
             Export my data first
@@ -200,6 +204,10 @@ export function GdprSettings() {
   }
 
   async function handleDeleteAccount() {
+    // F-45: screens.md SCR-08 "deleting" — every button is disabled while the delete is in
+    // flight, including the body's Export/Retry buttons ConfirmationModal's own pending-disable
+    // (Confirm/Cancel only) never reaches.
+    showDialog({ ...dialogStateRef.current, deleting: true });
     // F-36: a rejected call (network failure, thrown before the server ever returns an
     // ActionResult) must land on the same toast + close as a FAILED result, not leave Confirm
     // with no feedback at all.

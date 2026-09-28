@@ -58,6 +58,7 @@ import {
   computeInvoiceLegacyInfo,
   transformInvoiceToFormData,
   verifyInvoiceRelations,
+  verifyItemProductsOwnership,
 } from './helpers';
 
 /** SavedInvoice (contracts/server-actions.md §createInvoice, verbatim): the final saved figures,
@@ -288,6 +289,15 @@ export async function createInvoice(
       return relationsResult;
     }
 
+    // F-48: every item's productId, if any, must belong to this same Freelancer.
+    const productOwnershipResult = await verifyItemProductsOwnership(
+      userId,
+      validatedData.items
+    );
+    if (!productOwnershipResult.success) {
+      return productOwnershipResult;
+    }
+
     const { senderProfile, customer, bankAccount } = relationsResult.data;
 
     const invoice = await prisma.$transaction(async (tx) => {
@@ -429,6 +439,15 @@ export async function updateInvoice(
     );
     if (!relationsResult.success) {
       return relationsResult;
+    }
+
+    // F-48: every item's productId, if any, must belong to this same Freelancer.
+    const productOwnershipResult = await verifyItemProductsOwnership(
+      userId,
+      validatedData.items
+    );
+    if (!productOwnershipResult.success) {
+      return productOwnershipResult;
     }
 
     const { senderProfile, customer, bankAccount } = relationsResult.data;

@@ -77,6 +77,9 @@ export function ContactCardActions({
         ),
         variant: 'destructive',
         confirmText: 'Delete',
+        // F-44: only "Close" remains once Confirm is hidden — the leftover default "Cancel"
+        // text belongs to the still-open, not-yet-blocked default dialog.
+        cancelText: 'Close',
         hideConfirm: true,
         onConfirm: handleConfirm,
         onClose: confirmationModal.close,
