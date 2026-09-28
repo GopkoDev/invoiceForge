@@ -43,7 +43,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFakeDnsResolver } from '../../support/dns-resolver';
 import { startImageHost, type ImageHost } from '../../support/image-host';
-import { createSafeFetcher } from '@/lib/security/safe-fetch';
+import { createSafeFetcher, isPrivateOrInternalAddress } from '@/lib/security/safe-fetch';
 
 const REAL_HOSTNAME = 'logo-fixture.example.test';
 
@@ -91,17 +91,34 @@ describe('safeFetchImage against the local image host (AC-03)', () => {
     return `https://${REAL_HOSTNAME}:${port}${path}`;
   }
 
-  it('refuses a redirect to a private address at the hop, without connecting to it', async () => {
-    const fetcher = fetcherFor();
+  it('refuses a redirect to a private address at the hop, via the IP check itself (not NOT_HTTPS/dns), without connecting to it', async () => {
+    // F-18: the fixture's Location is `https:` (see tests/support/image-host.ts), and this test
+    // maps the redirect target's own literal address so DNS resolution succeeds too - the only
+    // thing left standing between this hop and a connection is the private-IP check itself, and
+    // `isPrivateAddress` here is the *real* classifier (only the fixture's own loopback address
+    // is carved out), so a regression in the classifier's metadata/link-local range would fail
+    // this test for the real reason.
+    const resolver = createFakeDnsResolver({
+      [REAL_HOSTNAME]: [{ address: '127.0.0.1', family: 4 }],
+      '169.254.169.254': [{ address: '169.254.169.254', family: 4 }],
+    });
+    const fetcher = createSafeFetcher({
+      resolver,
+      ca: host.ca,
+      isPrivateAddress: (address: string, family: 4 | 6) =>
+        address === '127.0.0.1' ? false : isPrivateOrInternalAddress(address, family),
+    });
+
     const result = await fetcher.safeFetchImage(urlFor('/redirect/private'));
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe('UNAVAILABLE');
+      expect(result.reason).toBe('blocked_ip');
     }
   });
 
-  it('pins the connection to the checked address and refuses if a second lookup would resolve private (rebinding)', async () => {
+  it('pins the connection to the checked address and never re-resolves, so a rebinding answer is never connected to', async () => {
     let callCount = 0;
     const rebindingResolver = {
       async resolve(hostname: string) {
@@ -110,7 +127,8 @@ describe('safeFetchImage against the local image host (AC-03)', () => {
           throw new Error(`unexpected hostname ${hostname}`);
         }
         // First lookup (the check): public-looking/allowed fixture address.
-        // Any lookup after the first simulates rebinding to a private address.
+        // Any lookup after the first simulates rebinding to a private address - if the fetcher
+        // ever called this a second time for the same hop, that answer must never be used.
         return callCount === 1
           ? [{ address: '127.0.0.1', family: 4 as const }]
           : [{ address: '10.0.0.1', family: 4 as const }];
@@ -124,13 +142,13 @@ describe('safeFetchImage against the local image host (AC-03)', () => {
 
     const result = await fetcher.safeFetchImage(urlFor('/small.png'));
 
-    // Pinned to the checked (first) address: either it succeeds via the address that was
-    // actually validated, or it is refused - it must never connect to the address a later
-    // lookup would return.
+    // A single hop resolves exactly once: the fetcher connects to the address that was checked,
+    // never re-resolving, so this must deterministically succeed via the checked (127.0.0.1)
+    // address - it must never even have the chance to connect to a later, rebinding answer.
+    expect(callCount).toBe(1);
+    expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.contentType).toBe('image/png');
-    } else {
-      expect(result.code).toBe('UNAVAILABLE');
     }
   });
 
@@ -181,12 +199,61 @@ describe('safeFetchImage against the local image host (AC-03)', () => {
     expect(result).toEqual(expect.objectContaining({ ok: false, code: 'NOT_IMAGE' }));
   });
 
-  it('refuses a redirect chain longer than 3 hops with UNAVAILABLE', async () => {
+  it('refuses a redirect chain longer than 3 hops with UNAVAILABLE, for exceeding the redirect limit itself', async () => {
+    // F-18: every hop in this chain stays on REAL_HOSTNAME (image-host.ts now echoes the actual
+    // Host it was called with), so the fake resolver's single mapping resolves every hop - the
+    // only way this can fail is by genuinely exceeding MAX_REDIRECTS, not by a DNS lookup failure
+    // on an unmapped hostname partway through the chain.
     const fetcher = fetcherFor();
     const result = await fetcher.safeFetchImage(urlFor('/redirect/chain-4'));
 
-    expect(result).toEqual(expect.objectContaining({ ok: false, code: 'UNAVAILABLE' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+      expect(result.reason).toBe('redirects');
+    }
   });
+
+  it('refuses a malformed redirect Location as UNAVAILABLE instead of throwing (F-22)', async () => {
+    const fetcher = fetcherFor();
+    const result = await fetcher.safeFetchImage(urlFor('/redirect/malformed'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+    }
+  });
+
+  it('refuses a non-2xx upstream status as UNAVAILABLE even when served as image/* (F-17)', async () => {
+    const fetcher = fetcherFor();
+    const result = await fetcher.safeFetchImage(urlFor('/error-500-image'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+      expect(result.reason).toBe('http_status');
+    }
+  });
+
+  it('refuses within the 5s deadline when DNS resolution itself hangs (F-19)', async () => {
+    const hangingResolver = {
+      resolve(): Promise<never> {
+        // Never resolves or rejects - simulates a stalling DNS server.
+        return new Promise(() => {});
+      },
+    };
+    const fetcher = createSafeFetcher({ resolver: hangingResolver, ca: host.ca });
+
+    const started = Date.now();
+    const result = await fetcher.safeFetchImage(urlFor('/small.png'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('UNAVAILABLE');
+    }
+    // Must not hold the request open past the 5s cap.
+    expect(Date.now() - started).toBeLessThan(5500);
+  }, 10_000);
 
   it('refuses when the pinned address serves a cert that does not match the requested hostname', async () => {
     const WRONG_HOSTNAME = 'wrong-name.example.test';

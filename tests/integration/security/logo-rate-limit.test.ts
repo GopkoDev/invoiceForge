@@ -96,7 +96,41 @@ describe.runIf(containerRuntimeAvailable)('consumeLogoFetch (T04, AC-03, ADR-000
       expect(last?.retryAfterSeconds).toBeGreaterThanOrEqual(1);
       expect(last?.retryAfterSeconds).toBeLessThanOrEqual(60);
     }
+
+    // F-20: the refused 31st call must not itself count against the window - only real,
+    // allowed fetches occupy quota.
+    const window = await prisma.logoFetchWindow.findUniqueOrThrow({
+      where: { userId_windowStart: { userId: freelancer.id, windowStart: minuteStart(now) } },
+    });
+    expect(window.count).toBe(30);
   });
+
+  it(
+    "does not ratchet a client's lockout past its own Retry-After by repeatedly retrying while refused (F-20)",
+    async () => {
+      const freelancer = await createFreelancer(prisma);
+      const now = new Date('2026-09-27T12:00:10.000Z');
+      const clock = createFixedClock(now);
+      const limiter = createLogoRateLimiter({ prisma, clock });
+
+      for (let i = 0; i < 30; i += 1) {
+        await limiter.consumeLogoFetch(freelancer.id);
+      }
+
+      // Five more retries in the same window, all already over the limit.
+      const retries = [];
+      for (let i = 0; i < 5; i += 1) {
+        retries.push(await limiter.consumeLogoFetch(freelancer.id));
+      }
+
+      expect(retries.every((r) => !r.allowed)).toBe(true);
+      const window = await prisma.logoFetchWindow.findUniqueOrThrow({
+        where: { userId_windowStart: { userId: freelancer.id, windowStart: minuteStart(now) } },
+      });
+      // Retrying while refused must not keep growing the stored count.
+      expect(window.count).toBe(30);
+    }
+  );
 
   it('tracks each Freelancer independently: one Freelancer at the limit does not affect another', async () => {
     const freelancerA = await createFreelancer(prisma);
@@ -176,10 +210,10 @@ describe.runIf(containerRuntimeAvailable)('consumeLogoFetch (T04, AC-03, ADR-000
         userId_windowStart: { userId: freelancer.id, windowStart: minuteStart(clock.now()) },
       },
     });
-    // Every call increments the stored counter even when refused (increment happens before the
-    // allow/refuse decision reads it back), so the stored count must equal all 40 attempts with
-    // no lost update - not silently capped at 30.
-    expect(window.count).toBe(40);
+    // F-20: a refused call must not count against the window - the increment used to decide
+    // "is this the 31st+?" is undone for every refused call, so the stored count settles back to
+    // exactly the number that were actually allowed (30), never drifting up with each refusal.
+    expect(window.count).toBe(30);
   });
 
   it('deletes only the calling Freelancer\'s stale windows, never another Freelancer\'s', async () => {

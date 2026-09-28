@@ -249,6 +249,47 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
     });
     expect(JSON.stringify(body)).not.toContain('insecure.example.test');
     await assertMatchesContract({ operationId: 'convertLogoImage', status: 422, body });
+
+    // F-21: a refusal that never reached the fetch (NOT_HTTPS) must not spend the caller's quota -
+    // no LogoFetchWindow row should exist for this Freelancer at all.
+    const anyWindow = await prisma.logoFetchWindow.findFirst({ where: { userId: freelancer.id } });
+    expect(anyWindow).toBeNull();
+  });
+
+  it('AC-03: a non-image response maps to 422 NOT_IMAGE, using the same refusal-message table (F-24)', async () => {
+    const freelancer = await createFreelancer(prisma);
+    const profile = await createSenderProfile(prisma, freelancer.id, { logo: urlFor('/html.html') });
+    authMock.mockResolvedValue({ user: { id: freelancer.id } });
+    safeFetchSpy.mockImplementation((url) => fixtureFetcher().safeFetchImage(url));
+
+    const response = await POST(postRequest({ senderProfileId: profile.id }));
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({
+      success: false,
+      code: 'NOT_IMAGE',
+      error: 'The logo file is not an image.',
+    });
+    await assertMatchesContract({ operationId: 'convertLogoImage', status: 422, body });
+  });
+
+  it('AC-03: an over-size response maps to 422 TOO_LARGE, using the same refusal-message table (F-24)', async () => {
+    const freelancer = await createFreelancer(prisma);
+    const profile = await createSenderProfile(prisma, freelancer.id, { logo: urlFor('/large-5mb.png') });
+    authMock.mockResolvedValue({ user: { id: freelancer.id } });
+    safeFetchSpy.mockImplementation((url) => fixtureFetcher().safeFetchImage(url));
+
+    const response = await POST(postRequest({ senderProfileId: profile.id }));
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({
+      success: false,
+      code: 'TOO_LARGE',
+      error: 'The logo file is larger than 512 KB.',
+    });
+    await assertMatchesContract({ operationId: 'convertLogoImage', status: 422, body });
   });
 
   it('AC-03: a redirect to a private address maps to 502 UNAVAILABLE, the same as any other unreachable link', async () => {

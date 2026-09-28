@@ -5,7 +5,8 @@
 //   1. Upserts (INSERT ... ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count) on the
 //      current minute window - this serializes concurrent callers on the PK row (data-model.md).
 //   2. Reads the previous minute's count (if any).
-//   3. Estimates `prev * (1 - elapsed/60) + current` and allows when <= 30.
+//   3. Estimates `prev * (1 - elapsed/60) + current` and allows when <= 30; when refused, undoes
+//      this call's own increment (F-20) so a refused call never counts against the window.
 //   4. Opportunistically deletes the caller's own stale windows (best-effort, errors swallowed).
 //
 // The upsert/read must never be caught here: a store outage has to propagate so the caller
@@ -93,6 +94,15 @@ export function createLogoRateLimiter(overrides?: LogoRateLimiterOverrides): {
     if (estimate <= LIMIT) {
       return { allowed: true };
     }
+
+    // F-20: a refused call must not count against the window - undo this call's own increment
+    // (never caught: same fails-closed rule as the upsert/read above) so a client that keeps
+    // retrying doesn't ratchet the stored count up past the limit and stay locked out past its
+    // own Retry-After.
+    await prisma.$executeRaw`
+      UPDATE "LogoFetchWindow" SET "count" = "count" - 1
+      WHERE "userId" = ${userId} AND "windowStart" = ${windowStart}
+    `;
 
     const msUntilWindowCloses = WINDOW_MS - elapsedMs;
     const retryAfterSeconds = Math.min(

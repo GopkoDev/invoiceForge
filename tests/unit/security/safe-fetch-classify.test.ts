@@ -48,6 +48,13 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['::ffff:10.0.0.1', 6], // IPv4-mapped RFC1918
     ['::ffff:169.254.169.254', 6], // IPv4-mapped metadata
     ['64:ff9b::7f00:1', 6], // NAT64-mapped loopback (64:ff9b::/96 + 127.0.0.1)
+    ['192.0.0.1', 4], // IETF protocol assignments, 192.0.0.0/24 (F-23)
+    ['198.18.0.1', 4], // benchmarking, 198.18.0.0/15 (F-23)
+    ['198.19.255.255', 4], // benchmarking upper bound, 198.18.0.0/15 (F-23)
+    ['240.0.0.1', 4], // reserved, 240.0.0.0/4 (F-23)
+    ['::0.0.0.1', 6], // IPv4-compatible IPv6, ::/96 (F-23, deprecated but still non-public)
+    ['ff02::1', 6], // multicast, ff00::/8 (F-23)
+    ['fec0::1', 6], // deprecated site-local, fec0::/10 (F-23)
   ])('classifies %s as unsafe', (address, family) => {
     expect(isPrivateOrInternalAddress(address, family)).toBe(true);
   });
@@ -104,14 +111,19 @@ describe('validateFetchUrl (AC-03, non-https refused before any lookup)', () => 
 });
 
 describe('REFUSAL_MESSAGES (AC-03, plain-language warnings)', () => {
-  it('gives each named reason its own specific message', () => {
-    expect(REFUSAL_MESSAGES.NOT_HTTPS).toMatch(/secure web address/i);
-    expect(REFUSAL_MESSAGES.NOT_IMAGE).toMatch(/not an image/i);
-    expect(REFUSAL_MESSAGES.TOO_LARGE).toMatch(/larger than the size limit/i);
+  // F-24: this is the one refusal-message table - app/api/convert-image/route.ts's REFUSAL_BODIES
+  // builds its `error` text from these exact strings (openapi.yaml's LogoFetchRefusal examples),
+  // rather than keeping its own separate, untested copy. Route-level coverage for all four codes
+  // (including NOT_IMAGE and TOO_LARGE, previously untested there) lives in
+  // tests/integration/api/convert-image.test.ts.
+  it('gives each named reason its own specific message, matching the contract text verbatim', () => {
+    expect(REFUSAL_MESSAGES.NOT_HTTPS).toBe('The logo link is not a secure web address.');
+    expect(REFUSAL_MESSAGES.NOT_IMAGE).toBe('The logo file is not an image.');
+    expect(REFUSAL_MESSAGES.TOO_LARGE).toBe('The logo file is larger than 512 KB.');
   });
 
   it('gives unreachable, timeout and private-address refusals the same generic message, revealing nothing', () => {
-    expect(REFUSAL_MESSAGES.UNAVAILABLE).toBe('the logo could not be loaded from this link');
+    expect(REFUSAL_MESSAGES.UNAVAILABLE).toBe('The logo could not be loaded from this link.');
   });
 
   it('never mentions an address, host or IP in any message', () => {

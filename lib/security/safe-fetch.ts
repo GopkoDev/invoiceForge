@@ -53,12 +53,38 @@ export type SafeFetchResult =
 // The `reason` values below are for the `logo_fetch outcome=… reason=…` log line only (sad.md
 // §7, Monitoring) - never returned to a caller. The messages a caller/UI may show live in
 // REFUSAL_MESSAGES, keyed only by the closed refusal-code set.
+// F-24: this is the *only* refusal-message table - app/api/convert-image/route.ts's REFUSAL_BODIES
+// builds its response `error` text from these exact strings (openapi.yaml's LogoFetchRefusal
+// examples), instead of keeping its own separate, never-exercised copy.
 export const REFUSAL_MESSAGES: Record<SafeFetchRefusalCode, string> = {
-  NOT_HTTPS: 'This link is not a secure web address.',
-  NOT_IMAGE: 'This file is not an image.',
-  TOO_LARGE: 'This file is larger than the size limit.',
-  UNAVAILABLE: 'the logo could not be loaded from this link',
+  NOT_HTTPS: 'The logo link is not a secure web address.',
+  NOT_IMAGE: 'The logo file is not an image.',
+  TOO_LARGE: 'The logo file is larger than 512 KB.',
+  UNAVAILABLE: 'The logo could not be loaded from this link.',
 };
+
+// F-19: a sentinel (not an Error subclass) so `withDeadline`'s own rejection can never be
+// confused with a real error the wrapped promise rejects with.
+const DNS_DEADLINE_EXCEEDED = Symbol('dns-deadline-exceeded');
+
+/** Races `promise` against `ms` - rejects with `DNS_DEADLINE_EXCEEDED` if the deadline wins. The
+ * underlying promise (e.g. a stalling `dns.lookup`) may still settle later in the background; the
+ * caller is just never kept waiting for it past the deadline. */
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(DNS_DEADLINE_EXCEEDED), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 function logOutcome(outcome: string, reason: string): void {
   // host/IP never appear here - only the closed outcome/reason vocabulary (sad.md §7).
@@ -67,16 +93,18 @@ function logOutcome(outcome: string, reason: string): void {
 
 // --- IP-range classifier (sad.md §11 risk row "private-address classification") -------------
 
-function isPrivateIPv4(a: number, b: number, c: number, d: number): boolean {
+function isPrivateIPv4(a: number, b: number, c: number): boolean {
   if (a === 0) return true; // 0.0.0.0/8, "this network"
   if (a === 10) return true; // RFC1918
   if (a === 127) return true; // loopback
   if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
   if (a === 169 && b === 254) return true; // link-local incl. 169.254.169.254 metadata
   if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+  if (a === 192 && b === 0 && c === 0) return true; // 192.0.0.0/24, IETF protocol assignments
   if (a === 192 && b === 168) return true; // RFC1918
+  if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15, benchmarking
   if (a >= 224 && a <= 239) return true; // multicast
-  if (a === 255 && b === 255 && c === 255 && d === 255) return true; // broadcast
+  if (a >= 240) return true; // 240.0.0.0/4, reserved (incl. 255.255.255.255 broadcast)
   return false;
 }
 
@@ -130,21 +158,24 @@ function isPrivateIPv6(groups: number[]): boolean {
     const a = (groups[6] >> 8) & 0xff;
     const b = groups[6] & 0xff;
     const c = (groups[7] >> 8) & 0xff;
-    const d = groups[7] & 0xff;
-    return isPrivateIPv4(a, b, c, d);
+    return isPrivateIPv4(a, b, c);
   }
   // NAT64, 64:ff9b::/96
   if (groups[0] === 0x0064 && groups[1] === 0xff9b && groups[2] === 0 && groups[3] === 0 && groups[4] === 0 && groups[5] === 0) {
     const a = (groups[6] >> 8) & 0xff;
     const b = groups[6] & 0xff;
     const c = (groups[7] >> 8) & 0xff;
-    const d = groups[7] & 0xff;
-    return isPrivateIPv4(a, b, c, d);
+    return isPrivateIPv4(a, b, c);
   }
   if (groups.every((g) => g === 0)) return true; // ::
   if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true; // ::1
+  // ::/96, IPv4-compatible IPv6 (deprecated, RFC4291) - top 96 bits zero. Covers ::, ::1 and any
+  // ::a.b.c.d form too; classified unsafe regardless of the embedded IPv4 (F-23).
+  if (groups.slice(0, 6).every((g) => g === 0)) return true;
   if ((groups[0] & 0xfe00) === 0xfc00) return true; // fc00::/7, ULA
   if ((groups[0] & 0xffc0) === 0xfe80) return true; // fe80::/10, link-local
+  if ((groups[0] & 0xff00) === 0xff00) return true; // ff00::/8, multicast (F-23)
+  if ((groups[0] & 0xffc0) === 0xfec0) return true; // fec0::/10, deprecated site-local (F-23)
   return false;
 }
 
@@ -152,7 +183,7 @@ export function isPrivateOrInternalAddress(address: string, family: 4 | 6): bool
   if (family === 4) {
     const quad = parseIPv4(address);
     if (!quad) return true; // unparsable -> treat as unsafe, never guess it's public
-    return isPrivateIPv4(...quad);
+    return isPrivateIPv4(quad[0], quad[1], quad[2]);
   }
   const groups = ipv6ToGroups(address);
   if (!groups) return true;
@@ -245,6 +276,13 @@ function performHop(
           finish({ kind: 'redirect', location: res.headers.location });
           return;
         }
+        // F-17: only a genuine 2xx is ever treated as a usable body - a 404/500 (even one served
+        // with an `image/*` content-type) is refused on status alone, never embedded as the logo.
+        if (status < 200 || status >= 300) {
+          res.resume();
+          finish({ kind: 'failure', code: 'UNAVAILABLE', reason: 'http_status' });
+          return;
+        }
 
         const contentType = res.headers['content-type'] ?? '';
         if (!contentType.toLowerCase().startsWith('image/')) {
@@ -321,10 +359,21 @@ export function createSafeFetcher(overrides: SafeFetcherOverrides = {}): {
         return refuse('UNAVAILABLE', 'redirect_scheme');
       }
 
+      const preDnsRemainingMs = deadline - Date.now();
+      if (preDnsRemainingMs <= 0) {
+        return refuse('UNAVAILABLE', 'timeout');
+      }
+
+      // F-19: DNS resolution is bounded by the same 5s deadline as the rest of the fetch - a
+      // stalling resolver must not hold the request open past it (it may still occupy the libuv
+      // threadpool in the background, but the caller is never kept waiting for it).
       let addresses: ResolvedAddress[];
       try {
-        addresses = await resolver.resolve(validated.hostname);
-      } catch {
+        addresses = await withDeadline(resolver.resolve(validated.hostname), preDnsRemainingMs);
+      } catch (err) {
+        if (err === DNS_DEADLINE_EXCEEDED) {
+          return refuse('UNAVAILABLE', 'timeout');
+        }
         return refuse('UNAVAILABLE', 'dns');
       }
       if (!addresses || addresses.length === 0) {
@@ -351,7 +400,13 @@ export function createSafeFetcher(overrides: SafeFetcherOverrides = {}): {
         if (hop > MAX_REDIRECTS) {
           return refuse('UNAVAILABLE', 'redirects');
         }
-        currentUrl = new URL(hopResult.location as string, currentUrl).toString();
+        // F-22: a malformed `Location` must never throw uncaught (an unhandled 500 with no log
+        // line) - it is refused like any other bad hop, logged the same as every other refusal.
+        try {
+          currentUrl = new URL(hopResult.location as string, currentUrl).toString();
+        } catch {
+          return refuse('UNAVAILABLE', 'malformed_redirect');
+        }
         continue;
       }
 

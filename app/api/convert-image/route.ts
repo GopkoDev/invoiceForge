@@ -2,14 +2,21 @@
 // a sender profile the caller owns, never a URL from the request body.
 //
 // Order of checks (sad.md §6 flow 1, openapi.yaml operationId convertLogoImage, abridged):
-//   session -> live account -> parse body -> profile owned & has a logo -> rate limit (counts
-//   only after ownership, before the outbound fetch) -> safe fetch -> map refusal codes.
+//   session -> live account -> parse body -> profile owned & has a logo -> stored link's own
+//   scheme (F-21: a NOT_HTTPS refusal here must never spend quota) -> rate limit (counts only
+//   after ownership and the scheme check, before the outbound fetch) -> safe fetch -> map
+//   refusal codes.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireSession } from '@/lib/helpers/route-auth';
 import { prisma } from '@/prisma';
 import { consumeLogoFetch } from '@/lib/security/logo-rate-limit';
-import { safeFetchImage, type SafeFetchRefusalCode } from '@/lib/security/safe-fetch';
+import {
+  safeFetchImage,
+  validateFetchUrl,
+  REFUSAL_MESSAGES,
+  type SafeFetchRefusalCode,
+} from '@/lib/security/safe-fetch';
 
 const LogoFetchRequestSchema = z
   .object({ senderProfileId: z.string().min(1).max(64) })
@@ -17,11 +24,13 @@ const LogoFetchRequestSchema = z
 
 const NOT_FOUND_BODY = { success: false, code: 'NOT_FOUND', error: 'Sender profile not found.' } as const;
 
+// F-24: the response text comes from safe-fetch.ts's REFUSAL_MESSAGES - the one refusal-message
+// table - rather than a separate, untested copy of the same strings.
 const REFUSAL_BODIES: Record<SafeFetchRefusalCode, { status: number; body: { success: false; code: SafeFetchRefusalCode; error: string } }> = {
-  NOT_HTTPS: { status: 422, body: { success: false, code: 'NOT_HTTPS', error: 'The logo link is not a secure web address.' } },
-  NOT_IMAGE: { status: 422, body: { success: false, code: 'NOT_IMAGE', error: 'The logo file is not an image.' } },
-  TOO_LARGE: { status: 422, body: { success: false, code: 'TOO_LARGE', error: 'The logo file is larger than 512 KB.' } },
-  UNAVAILABLE: { status: 502, body: { success: false, code: 'UNAVAILABLE', error: 'The logo could not be loaded from this link.' } },
+  NOT_HTTPS: { status: 422, body: { success: false, code: 'NOT_HTTPS', error: REFUSAL_MESSAGES.NOT_HTTPS } },
+  NOT_IMAGE: { status: 422, body: { success: false, code: 'NOT_IMAGE', error: REFUSAL_MESSAGES.NOT_IMAGE } },
+  TOO_LARGE: { status: 422, body: { success: false, code: 'TOO_LARGE', error: REFUSAL_MESSAGES.TOO_LARGE } },
+  UNAVAILABLE: { status: 502, body: { success: false, code: 'UNAVAILABLE', error: REFUSAL_MESSAGES.UNAVAILABLE } },
 };
 
 export async function POST(request: NextRequest) {
@@ -57,6 +66,14 @@ export async function POST(request: NextRequest) {
 
   if (!profile || !profile.logo) {
     return NextResponse.json(NOT_FOUND_BODY, { status: 404 });
+  }
+
+  // F-21: a refusal that would happen before any real fetch (the stored link's own scheme) must
+  // not spend the caller's quota - only real fetch attempts count towards the limit.
+  const scheme = validateFetchUrl(profile.logo);
+  if (!scheme.ok) {
+    const refusal = REFUSAL_BODIES.NOT_HTTPS;
+    return NextResponse.json(refusal.body, { status: refusal.status });
   }
 
   let rateLimit;

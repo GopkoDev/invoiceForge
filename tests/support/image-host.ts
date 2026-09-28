@@ -19,6 +19,8 @@
 //                                 through this host; the fetcher must refuse it before connecting)
 //   GET /redirect/downgrade     - 302s from https down to a plain http URL
 //   GET /redirect/chain-4       - 4 chained 302s before reaching /small.png
+//   GET /redirect/malformed     - 302s with an unparsable Location header
+//   GET /error-500-image        - 500 status served with an image/* content-type
 //   GET /drop-mid-body          - starts a body then destroys the socket before finishing
 //
 // Rebinding (pointing a hostname at this host's address) is the caller's job via an injected
@@ -55,7 +57,14 @@ export interface ImageHost {
 export async function startImageHost(): Promise<ImageHost> {
   const server = https.createServer({ key: TLS_KEY, cert: TLS_CERT }, (req, res) => {
     const url = new URL(req.url ?? '/', 'https://localhost');
-    const base = `https://localhost:${(server.address() as AddressInfo).port}`;
+    const { port } = server.address() as AddressInfo;
+    // Preserve whatever hostname the client actually connected with (the safe fetcher's `Host`
+    // header, set to the original hostname without a port - sad.md §11) rather than hardcoding
+    // `localhost` - otherwise a redirect chain silently jumps onto a hostname the caller's fake
+    // DNS resolver never mapped, and the *next* hop is refused for a DNS lookup failure instead of
+    // whatever the test actually means to exercise (F-18). The port is always this host's own -
+    // the `Host` header carries none, so it is never taken from the request.
+    const base = `https://${req.headers.host ?? 'localhost'}:${port}`;
 
     switch (url.pathname) {
       case '/small.png': {
@@ -112,9 +121,26 @@ export async function startImageHost(): Promise<ImageHost> {
 
       case '/redirect/private': {
         // 169.254.169.254 is the cloud-metadata address; never actually reachable through this
-        // host, the point is the Location header alone.
-        res.writeHead(302, { Location: 'http://169.254.169.254/latest/meta-data' });
+        // host, the point is the Location header alone. `https:` (not `http:`) so the hop is
+        // actually refused by the private-IP check (F-18) rather than by NOT_HTTPS first.
+        res.writeHead(302, { Location: 'https://169.254.169.254/latest/meta-data' });
         res.end();
+        return;
+      }
+
+      case '/redirect/malformed': {
+        // An unparsable `Location` (unterminated IPv6 literal) - the fetcher must refuse this as
+        // UNAVAILABLE instead of letting `new URL()` throw uncaught (F-22).
+        res.writeHead(302, { Location: 'http://[::1' });
+        res.end();
+        return;
+      }
+
+      case '/error-500-image': {
+        // A non-2xx upstream status served with an `image/*` content-type - the fetcher must
+        // refuse on status alone, never embed this as a successful logo (F-17).
+        res.writeHead(500, { 'Content-Type': 'image/png', 'Content-Length': SMALL_PNG.length });
+        res.end(SMALL_PNG);
         return;
       }
 
