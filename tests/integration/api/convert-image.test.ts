@@ -172,7 +172,8 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
 
   it('AC-02 fail-closed: a session token for a deleted account is treated as not signed in', async () => {
     // No User row exists for this id — requireSession() must fail closed (task file scope note).
-    authMock.mockResolvedValue({ user: { id: 'deleted-account-0000000001' } });
+    const staleUserId = 'deleted-account-0000000001';
+    authMock.mockResolvedValue({ user: { id: staleUserId } });
 
     const response = await POST(postRequest({ senderProfileId: 'whatever0000000000000002' }));
     const body = await response.json();
@@ -180,6 +181,12 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
     expect(response.status).toBe(401);
     expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
     expect(safeFetchSpy).not.toHaveBeenCalled();
+
+    // F-11 (T34): this "create action" (consumeLogoFetch writes/increments a LogoFetchWindow
+    // row) must never run for a stale session — the guard (requireSession) has to refuse before
+    // any quota row is created, not just before the fetch.
+    const anyWindow = await prisma.logoFetchWindow.findFirst({ where: { userId: staleUserId } });
+    expect(anyWindow).toBeNull();
   });
 
   it('AC-02b: treats a foreign sender profile as not found, identical to a missing one, with no fetch or quota use', async () => {
