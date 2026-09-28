@@ -82,15 +82,40 @@ const staticAssetRoutes = [
   '/manifest.json',
   '/opengraph-image',
   '/twitter-image',
+  // F-26: the PWA icons app/manifest.json's `icons` array actually points at.
+  '/web-app-manifest-192x192.png',
+  '/web-app-manifest-512x512.png',
 ] as const;
 
 // Next.js icon file conventions only: /icon, /icon.png, /icon1.svg, /icon/0, /apple-icon.png.
 // Not a bare prefix, so a later page such as /iconography stays private.
 const iconPathPattern = /^\/(apple-)?icon\d*(\.[a-z]+|\/[\w-]+)?$/;
 
-// The next-auth handler itself must stay reachable without a session (it is how a session is
-// created in the first place).
-const nextAuthApiPrefix = '/api/auth/';
+// T09 (ADR-0002): a server component can't write cookies, so anything that finds a token
+// without a live account redirects here (a route handler, which can) to clear the session
+// cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
+export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
+
+// F-25: the next-auth (Auth.js v5) handler's own endpoints, listed explicitly instead of the
+// whole `/api/auth/` prefix, so a route added under it later is private by default unless it is
+// added here too. `/api/auth` itself is the base path the client SDK checks; signin/callback
+// carry a dynamic `:provider` segment.
+const nextAuthStaticPaths = [
+  '/api/auth',
+  '/api/auth/session',
+  '/api/auth/csrf',
+  '/api/auth/providers',
+  '/api/auth/signin',
+  '/api/auth/signout',
+  '/api/auth/error',
+  '/api/auth/verify-request',
+  // This app's own route, not next-auth's, but it must stay public the same way (both a
+  // signed-in and a signed-out caller need to reach it — see its own file for why).
+  CLEAR_SESSION_PATH,
+] as const;
+
+// Auth.js's only two endpoints that carry a dynamic provider segment.
+const nextAuthProviderPathPattern = /^\/api\/auth\/(signin|callback)\/[\w-]+$/;
 
 /**
  * AC-05: deny-by-default allowlist. Everything not covered here — including paths added
@@ -101,7 +126,8 @@ export function isPublicPath(pathname: string): boolean {
     publicRoutesArray.some((route) => pathname === route) ||
     authRoutesArray.some((route) => pathname === route) ||
     legalRoutesArray.some((route) => pathname === route) ||
-    staticAssetRoutes.some((route) => pathname === route)
+    staticAssetRoutes.some((route) => pathname === route) ||
+    nextAuthStaticPaths.some((route) => pathname === route)
   ) {
     return true;
   }
@@ -110,10 +136,5 @@ export function isPublicPath(pathname: string): boolean {
     return true;
   }
 
-  return pathname === '/api/auth' || pathname.startsWith(nextAuthApiPrefix);
+  return nextAuthProviderPathPattern.test(pathname);
 }
-
-// T09 (ADR-0002): a server component can't write cookies, so anything that finds a token
-// without a live account redirects here (a route handler, which can) to clear the session
-// cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
-export const CLEAR_SESSION_PATH = '/api/auth/clear-session';

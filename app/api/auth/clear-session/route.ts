@@ -10,14 +10,27 @@
 //
 // This path lives under `/api/auth/` and next.js prefers this specific route segment over the
 // `[...nextauth]` catch-all, so it is reachable without ever hitting next-auth's own handler.
-// `/api/auth/` is already on the public allowlist (config/routes.config.ts `isPublicPath`), so
-// both a signed-in caller (proxy.ts's "logged in" branch falls through to `NextResponse.next()`
-// for a path that is none of protected/legal/auth-page/public) and a signed-out caller reach it.
+// This route's own path is explicitly listed on the public allowlist (config/routes.config.ts
+// `isPublicPath`), so both a signed-in caller (proxy.ts's "logged in" branch falls through to
+// `NextResponse.next()` for a path that is none of protected/legal/auth-page/public) and a
+// signed-out caller reach it.
+//
+// F-28: being public also means a cross-site GET (an <img>, a bare link, no CSRF token
+// possible on a plain navigation) can drive any visitor's browser here directly, not only
+// `requireLiveUser()`'s own redirect. Cookies are only cleared when the caller's session is
+// actually dead (`requireSession()` fails) — the exact case this route exists for. A caller
+// with a live session is left alone and sent back to the dashboard instead.
 import { NextRequest, NextResponse } from 'next/server';
-import { authRoutes } from '@/config/routes.config';
+import { authRoutes, protectedRoutes } from '@/config/routes.config';
 import { clearSessionCookies } from '@/lib/helpers/session-cookies';
+import { requireSession } from '@/lib/helpers/route-auth';
 
 export async function GET(req: NextRequest) {
+  const session = await requireSession();
+  if (session.ok) {
+    return NextResponse.redirect(new URL(protectedRoutes.dashboard, req.url), 302);
+  }
+
   const response = NextResponse.redirect(new URL(authRoutes.signIn, req.url), 302);
   clearSessionCookies(req, response);
   return response;

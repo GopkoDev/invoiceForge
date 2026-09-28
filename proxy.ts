@@ -86,6 +86,9 @@ export const config = {
     //   - _next/static — Next.js build assets, immutable and served by the framework
     //   - _next/image  — the Next.js image optimizer, not an app route
     //   - monitoring   — the Sentry tunnel, forwards telemetry only
-    '/((?!_next/static|_next/image|monitoring).*)',
+    // F-27: each exclusion is anchored to a segment boundary (itself or followed by `/`), so
+    // a look-alike path such as `/monitoring-x` is not swallowed by the same exclusion and
+    // still goes through the proxy.
+    '/((?!(?:_next/static|_next/image|monitoring)(?:/|$)).*)',
   ],
 };

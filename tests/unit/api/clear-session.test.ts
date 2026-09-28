@@ -3,8 +3,20 @@
 // (a server component can't write cookies, and an uncleared cookie would loop back through
 // proxy.ts's "logged in" branch). This route must actually clear the session cookie(s) and land
 // the browser on sign-in.
-import { describe, expect, it } from 'vitest';
+//
+// F-28: this path is on the public allowlist (both a signed-in and a signed-out caller must
+// reach it), which also means a cross-site GET (an <img>, a bare link) can drive any visitor's
+// browser to it directly. It must not clear a *live* session that way — only a session whose
+// `User` row is actually gone (this route's whole reason to exist) gets cleared.
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+
+const authMock = vi.fn<() => Promise<{ user?: { id?: string } } | null>>();
+vi.mock('@/auth', () => ({ auth: () => authMock() }));
+
+const findUniqueMock = vi.fn();
+vi.mock('@/prisma', () => ({ prisma: { user: { findUnique: (...args: unknown[]) => findUniqueMock(...args) } } }));
+
 import { GET } from '@/app/api/auth/clear-session/route';
 
 function buildRequest(cookieHeader: string) {
@@ -14,6 +26,31 @@ function buildRequest(cookieHeader: string) {
 }
 
 describe('GET /api/auth/clear-session (AC-21)', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    findUniqueMock.mockReset();
+    // Default: no session at all, i.e. the stale-token case this route exists for.
+    authMock.mockResolvedValue(null);
+  });
+
+  it('does not clear the session cookies when the caller has a live session (F-28)', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user_1' } });
+    findUniqueMock.mockResolvedValue({ id: 'user_1' });
+
+    const res = await GET(
+      buildRequest('authjs.session-token=live-jwt; __Secure-authjs.session-token=live-jwt-secure')
+    );
+
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.status).toBeLessThan(400);
+    const location = res.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(new URL(location as string).pathname).not.toBe('/login');
+
+    const setCookie = res.headers.getSetCookie?.() ?? [];
+    expect(setCookie).toHaveLength(0);
+  });
+
   it('marks __Secure- cookie deletions Secure, or browsers ignore them on https', async () => {
     const res = await GET(
       buildRequest('__Secure-authjs.session-token=stale; __Secure-authjs.session-token.0=chunk')

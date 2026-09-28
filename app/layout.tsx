@@ -74,12 +74,11 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
+  // F-26: only the icon files that actually exist (app/favicon.ico, app/icon.png,
+  // app/apple-icon.png) — the previous list also pointed at two sized PNGs nothing in this
+  // app emits, which 404ed.
   icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
+    icon: [{ url: '/favicon.ico', sizes: 'any' }],
     apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   manifest: '/manifest.json',

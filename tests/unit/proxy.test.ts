@@ -138,5 +138,17 @@ describe('proxy matcher (sad.md §11, api is no longer excluded)', () => {
     expect(pattern.test('/_next/static/chunk.js')).toBe(false);
     expect(pattern.test('/_next/image')).toBe(false);
     expect(pattern.test('/monitoring')).toBe(false);
+    expect(pattern.test('/monitoring/tunnel')).toBe(false);
+  });
+
+  // F-27: the exclusions are unanchored prefixes, so a real app path that merely starts with
+  // one of the excluded words (but is not that framework/infra path) must still be proxied.
+  it('does not let a look-alike path bypass the proxy (F-27)', async () => {
+    const { config } = await import('@/proxy');
+    const pattern = new RegExp(`^${config.matcher[0] as string}$`);
+
+    expect(pattern.test('/monitoring-x')).toBe(true);
+    expect(pattern.test('/_next/staticfoo')).toBe(true);
+    expect(pattern.test('/_next/imagex')).toBe(true);
   });
 });
