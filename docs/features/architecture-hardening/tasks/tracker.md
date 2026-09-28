@@ -46,7 +46,14 @@
 | T38 | [Fix local-date display, midnight-DST day bounds, dashboard chart zone, page cap and tab status](../_review/review-2026-09-27.md) | ports | Dmytro Hopko | M | T22, T23, T24 | done |
 | T39 | [Route UNAUTHORIZED to sign-in, make retry recover and report FAILED causes to Sentry](../_review/review-2026-09-27.md) | ui | Dmytro Hopko | M | T08, T25, T26 | done |
 | T40 | [Fix the async ConfirmationModal regression and the remaining dialog and editor findings](../_review/review-2026-09-27.md) | ui | Dmytro Hopko | M | T15, T16, T18, T19 | done |
+| T41 | [Keep raw drafts in the editor number inputs, validate only amounts on duplicate, and pin the NULL-key manual and P2002 paths](../_review/review-2026-09-28.md) | app | Dmytro Hopko | M | T32, T33 | todo |
+| T42 | [Route every UNAUTHORIZED and rejected action call to sign-in, and fix the delete-account dialog state](../_review/review-2026-09-28.md) | ui | Dmytro Hopko | M | T39, T40 | todo |
+| T43 | [Report FAILED causes to Sentry once in every action module and show the retrying state](../_review/review-2026-09-28.md) | ui | Dmytro Hopko | M | T39 | todo |
+| T44 | [Sweep the built route manifest and test a stale session against a server create action](../_review/review-2026-09-28.md) | infra | Dmytro Hopko | M | T34 | todo |
+| T45 | [Fix midnight spring-forward day bounds east of UTC, unique chart day keys and the paid-date zone](../_review/review-2026-09-28.md) | ports | Dmytro Hopko | M | T38 | todo |
+| T46 | [Log NOT_HTTPS and RATE_LIMITED logo refusals and pin the ::/96 rule](../_review/review-2026-09-28.md) | infra | Dmytro Hopko | S | T36 | todo |
+| T47 | [Refresh the F-13 deferral note, the architecture map and the screens design-system reference](../_review/review-2026-09-28.md) | docs | Dmytro Hopko | S | T43, T42 | todo |
 
-**Total:** 41 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`), ~26 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
+**Total:** 48 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`), ~32 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
 > **T30 blocked by its own gate (2026-09-27):** promote migrations 05–06 only after wave 2 has run in production without a rollback **and** the wave-4 pre-flight `SELECT count(*) FROM "Invoice" WHERE "invoiceNumberKey" IS NULL;` returns 0 (sad §7 row 4, data-model §Pre-flight). The red contract test is staged at `docs/features/architecture-hardening/migrations/05-06_contract.test.ts.staged` — move it to `tests/integration/invoice-number-key-contract.test.ts` when the gate passes. Promoting also retires the NULL-key legacy paths: update the invoice factory to default `invoiceNumberKey` to the normalized number, and revisit the T07 expand-step assertions (nullable column, exact unique present) and the T12/T13/T14 legacy-key tests at that time.

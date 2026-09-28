@@ -891,6 +891,161 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
       "source": "review-2026-09-27"
+    },
+    {
+      "id": "T41",
+      "title": "Keep raw drafts in the editor number inputs, validate only amounts on duplicate, and pin the NULL-key manual and P2002 paths",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T32",
+        "T33"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-12",
+        "AC-14",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-28 N-01, N-07, N-08, N-18 fixed. Editor numeric inputs bind a raw string draft, so '-5', 'abc' and '1.5' survive as typed and the schema rejects them with contract messages (invalid_type_error). Tests use userEvent.type. duplicateInvoice checks only the amount rules and returns a contract code with a plain list message; a component test asserts the toast. There is an integration test for a manual case/space variant of a NULL-key number (CONFLICT, fieldErrors.invoiceNumber, counter unchanged, 0 rows) and unit tests for the create/update P2002 backstop.",
+      "files_hint": [
+        "components/invoice-editor/summary-section.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "hooks/use-invoice-item-handlers.ts",
+        "lib/validations/invoice.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoice-row-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T42",
+      "title": "Route every UNAUTHORIZED and rejected action call to sign-in, and fix the delete-account dialog state",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T39",
+        "T40"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-28 N-04, N-05, N-06, N-09, N-12, N-13, N-14, N-15 fixed. A shared helper sends UNAUTHORIZED, 401 and rejected calls to CLEAR_SESSION_PATH at every action call site: delete-account, summary, PDF download/print/view, duplicate/delete/status, products, bank accounts, custom prices, profile, and the PDF hooks (no router.push(signIn)). ConfirmationModal and its callers handle a rejected onConfirm (the busy state clears and the call routes to sign-in). The SCR-08 dialog state resets on open. signOut failure after a successful delete does not say 'Nothing was removed'. The editor redirect bypasses its beforeunload guard. There are component tests for each.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T43",
+      "title": "Report FAILED causes to Sentry once in every action module and show the retrying state",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T39"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-28 N-10, N-17 fixed. Every action module (product, custom-price, bank-account, dashboard, profile, dashboard-setup-check) uses failed() with captureException. A page failure yields one Sentry event (test-plan.md:109), with no duplicate capture in unwrapPageResult, and the comment is corrected. The error boundaries use useTransition and pass isPending to LoadError as retrying. There are tests for one-report and retrying.",
+      "files_hint": [
+        "lib/actions",
+        "components/layout/content-area/unwrap-page-result.ts",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "components/layout/content-area/load-error.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T44",
+      "title": "Sweep the built route manifest and test a stale session against a server create action",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T34"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-28 N-02, N-03 fixed. The route sweep reads the built app-path-routes manifest (dynamic segments filled with a fake id) and splits paths by isPublicPath. Protected paths are denied. Allowlisted paths return 200 with no redirect to /login. Route handlers are called with their real method. An integration test builds auth() from sessionCallback for a deleted user, calls a server create action (createCustomer or createInvoice), and asserts UNAUTHORIZED and 0 rows.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/integration",
+        "lib/helpers/session-callback.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T45",
+      "title": "Fix midnight spring-forward day bounds east of UTC, unique chart day keys and the paid-date zone",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T38"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-25",
+        "AC-27"
+      ],
+      "dod": "Review 2026-09-28 N-11, N-16 fixed. The spring-forward gap resolves to the transition instant for both offset signs. time-zone tests have Africa/Cairo 2026-04-24 and Asia/Beirut 2026-03-29 rows. The dashboard chart day keys are unique and complete across a DST day (test). The paid date renders without a server/client zone mismatch.",
+      "files_hint": [
+        "lib/helpers/time-zone.ts",
+        "lib/actions/dashboard-actions.ts",
+        "components/invoices/invoice-status-badge.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T46",
+      "title": "Log NOT_HTTPS and RATE_LIMITED logo refusals and pin the ::/96 rule",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T36"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review 2026-09-28 N-19, N-20 fixed. The convert-image route emits logo_fetch outcome=NOT_HTTPS and outcome=RATE_LIMITED log lines (with tests). The classifier test uses an IPv4-compatible address that no other rule catches (e.g. ::8.8.8.8), so removing the ::/96 rule fails it.",
+      "files_hint": [
+        "app/api/convert-image/route.ts",
+        "tests/unit/security/safe-fetch-classify.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T47",
+      "title": "Refresh the F-13 deferral note, the architecture map and the screens design-system reference",
+      "layer": "docs",
+      "deps": [
+        "T43",
+        "T42"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-28 N-21, N-22 fixed. The spec §8 F-13 'Default now' says a production-build web server exists and only the listed rows remain. architecture-map.md records design-system.md, LoadError, the async ConfirmationModal rule and the client-session-redirect helper. screens.md:455 points to docs/design-system.md.",
+      "files_hint": [
+        "docs/features/architecture-hardening/spec.md",
+        "docs/architecture-map.md",
+        "docs/features/architecture-hardening/screens.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
     }
   ]
 }
