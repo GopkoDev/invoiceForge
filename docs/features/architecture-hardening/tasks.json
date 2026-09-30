@@ -1176,6 +1176,84 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
       "source": "review-2026-09-30"
+    },
+    {
+      "id": "T54",
+      "title": "Scrub Prisma argument values from Sentry events and breadcrumbs, with a test on a real payload",
+      "layer": "app",
+      "deps": [
+        "T49"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-2 S-01, S-02 fixed. sentry.server.config.ts has a beforeSend that cuts exception values and messages of PrismaClientValidationError (and any 'Invalid `prisma.*()` invocation' message) after the invocation line, and a beforeBreadcrumb that does the same for console crumbs. The errorFormat line is removed or carries an honest comment. The test builds a real Prisma validation error message with secret markers, runs it through the real beforeSend and beforeBreadcrumb, and asserts that the markers are absent. It has no 'minimal' shortcut.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "prisma.ts",
+        "lib/actions/action-result-helpers.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T55",
+      "title": "Pin the update conflict payload, every AC-28 loader, the uncovered T48 call sites, the paid-date zone wiring and the unreported duplicate refusal",
+      "layer": "test",
+      "deps": [
+        "T48",
+        "T49",
+        "T50",
+        "T51"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-28",
+        "AC-21",
+        "AC-18",
+        "AC-12",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-30-2 S-03 to S-07 fixed, tests only. updateInvoice's conflict payload is asserted with secret markers and the exact key set (id, senderProfileId, invoiceNumber, wasAllocated). failed-reports-once covers every loader of the nine AC-28 pages. The T48 test file covers the sender-profile form (UNAUTHORIZED and rejected), both product lookups, the UNAUTHORIZED branch of product create, and Print/View in the row actions and related invoices. A page or container test with getRequestTimeZone mocked to America/New_York shows 'Sep 21' for 2026-09-22T02:00Z. The duplicate-refusal test asserts that captureException and captureMessage were not called. Each new test fails when its fix is reverted.",
+      "files_hint": [
+        "tests/unit/lib/actions/invoice-conflict-payload-t49.test.ts",
+        "tests/unit/lib/actions/failed-reports-once.test.ts",
+        "tests/component/action-callers-rejected-t48.test.tsx",
+        "tests/component/invoice-status-badge-paid-date.test.tsx",
+        "tests/unit/lib/actions/invoice-actions/duplicate-amount-rules-only.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T56",
+      "title": "Trim editor number drafts, unit-test the sweep predicate, tighten two T48 tests and fix the remaining reporting-path docs",
+      "layer": "app",
+      "deps": [
+        "T48",
+        "T51",
+        "T52",
+        "T53"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-05",
+        "AC-21",
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-2 S-08 to S-12 fixed. use-number-draft tests raw.trim(), so ' 5' and '5 ' parse and whitespace-only input stays NaN, with test rows for each. The catch-all predicate lives in a helper module that route-sweep.spec.ts imports, and a unit test runs it on a fixture manifest with /api/auth/[...nextauth] and a protected /docs/[...slug], where only the first is excluded. The row-action tests check that the menu closes after a rejection while it is open again. The editor-save test asserts toast.error was not called at all and isSaving is false. sad.md:206 says 'Reports client-side render errors'. screens.md:408 says the server reports the cause once and the boundary reports only browser-originated errors. ADR-0009 gets a dated amendment note.",
+      "files_hint": [
+        "hooks/use-number-draft.ts",
+        "tests/component/editor-number-strict-parse-t51.test.tsx",
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/unit/route-sweep-exclusion.test.ts",
+        "tests/component/action-callers-rejected-t48.test.tsx",
+        "docs/features/architecture-hardening/sad.md",
+        "docs/features/architecture-hardening/screens.md",
+        "docs/features/architecture-hardening/adr/0009-classify-action-failures-with-typed-error-codes-and-segment-error-boundaries.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
     }
   ]
 }
