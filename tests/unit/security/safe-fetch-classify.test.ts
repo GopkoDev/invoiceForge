@@ -50,6 +50,8 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['64:ff9b::7f00:1', 6], // NAT64-mapped loopback (64:ff9b::/96 + 127.0.0.1)
     ['::ffff:0:127.0.0.1', 6], // SIIT, ::ffff:0:0:0/96 + 127.0.0.1 (R-13)
     ['64:ff9b:1::a00:1', 6], // local-use NAT64, 64:ff9b:1::/48 (RFC 8215) + 10.0.0.1 (R-13)
+    ['64:ff9b:1::808:808', 6], // local-use NAT64 is never globally routable, whatever it embeds (R-13)
+    ['64:ff9b:1:7f00:0:100:808:808', 6], // /48 NAT64 prefix, 127.0.0.1 in groups 3-5 (RFC 6052) (R-13)
     ['192.0.0.1', 4], // IETF protocol assignments, 192.0.0.0/24 (F-23)
     ['198.18.0.1', 4], // benchmarking, 198.18.0.0/15 (F-23)
     ['198.19.255.255', 4], // benchmarking upper bound, 198.18.0.0/15 (F-23)
@@ -67,7 +69,6 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['93.184.216.34', 4],
     ['2001:4860:4860::8888', 6],
     ['::ffff:0:8.8.8.8', 6], // SIIT embedding a public IPv4 stays safe (R-13)
-    ['64:ff9b:1::808:808', 6], // local-use NAT64 embedding a public IPv4 stays safe (R-13)
   ])('classifies public address %s as safe', (address, family) => {
     expect(isPrivateOrInternalAddress(address, family)).toBe(false);
   });

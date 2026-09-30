@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { invoiceItemSchema } from '@/lib/validations/invoice';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SummarySection } from '@/components/invoice-editor/summary-section';
 import { InvoiceItemFields } from '@/components/invoice-editor/invoice-item-fields';
