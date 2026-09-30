@@ -263,25 +263,24 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
+There is no infrastructure change. The app stays one Vercel project (functions in `iad1`, the proxy on the edge) over the existing Neon PostgreSQL reached through its pooler. The business layer runs in-process inside the same serverless functions as the web adapters, and nothing new is deployed. There is no schema change, so every release is code-only and rolls back by redeploying the previous build (spec §6: 0 minutes of planned downtime, no stored-data change). The move ships domain by domain, one production release per wave, with the full suite green at each:
 
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+| Wave | Moves into `lib/services` | Also ships | Rollback-safe because |
+|---|---|---|---|
+| 1 | `_shared` (ActingFreelancer, time zone, list query, owner scope, result helpers), customers, products, custom prices | ESLint boundary rule, boundary unit test, `server-only` dependency. The first owner-scoped writes confirm Prisma's relation filter in a unique `where` (§11) | code only |
+| 2 | sender profiles, bank accounts, profile, account deletion and export, dashboard setup check | `convert-image` owned-profile lookup through the layer | code only |
+| 3 | invoices: list with filters, numbering, create, update, status, duplicate, editor data | the unused list-all-invoices function and its test are deleted | code only |
+| 4 | dashboard sections on SQL (ADR-0004) | parity test run old-vs-new, then its old outputs recorded as fixed expected values, then the old in-memory code deleted (spec §1 change 5) | code only; until the old code is deleted, the previous build is a complete fallback |
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- Errors: unchanged. `failed()` inside business functions reports each unexpected cause to Sentry once. The `invoice_number_conflict` message still fires on a system-proposed number clash (spec §6 error-reporting row).
+- Latency: Sentry performance traces (10% sample in production) give the dashboard p95 per section. Each dashboard section's query runs inside a named Sentry span (`dashboard.<section>`), so the before/after 7-day windows (spec §6, §7) compare like with like. The baseline window is taken before wave 4 ships.
+- Alerts: the existing Sentry alerts stay (allocator conflict on a system number, unhandled errors on list or dashboard pages). No new alert.
 
-**Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+**Scaling thresholds** (design estimates. Current scale is a handful of accounts with tens of invoices each):
+- Dashboard queries read rows proportional to the groups displayed and scan only the Freelancer's invoices through the existing `Invoice(senderProfileId)` index. Comfortable up to roughly 100,000 invoices per Freelancer. Above that, add a composite index on `(senderProfileId, status, currency, issueDate)` in its own schema feature.
+- List search is `ILIKE '%…%'` with no index, a sequential scan over one Freelancer's rows. Comfortable up to roughly 10,000 records per list per Freelancer. Above that, add a trigram index (`pg_trgm`, schema change).
+- Full lists (no page requested) serve the web pickers and are fine up to roughly 1,000 customers or products. Above that, the pickers need the paging follow-up feature (spec §3).
 
 ## 8. Crosscutting concepts
 
