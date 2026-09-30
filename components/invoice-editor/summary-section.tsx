@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Calculator } from 'lucide-react';
-import { useNumberDraft } from '@/hooks/use-number-draft';
+import { parseDecimalDraft, useNumberDraft } from '@/hooks/use-number-draft';
 import {
   useSummary,
   useInvoiceCurrency,
@@ -34,7 +34,7 @@ export function SummarySection() {
     value: string,
     field: 'taxRate' | 'discount' | 'shipping'
   ) => {
-    updateField(field, Number(value));
+    updateField(field, parseDecimalDraft(value));
   };
 
   const discountInput = useNumberDraft(discount, (raw) =>

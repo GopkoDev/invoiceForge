@@ -4,10 +4,18 @@ import { useState } from 'react';
 // "abc"). Binding the input straight to the number rewrote the text on every keystroke ("NaN",
 // "1.5" -> 15). The input shows the raw draft for as long as it still parses to the stored value,
 // and falls back to the stored value when something else changed it (e.g. picking a product).
+// R-14: Number(raw) also accepts "0x10" and "1e3" and turns empty input into 0 — a silent rewrite.
+// Only a plain decimal parses; anything else is NaN so the schema says "... must be a number.".
+const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+
+export function parseDecimalDraft(raw: string): number {
+  return DECIMAL.test(raw) ? Number(raw) : NaN;
+}
+
 export function useNumberDraft(value: number, onChange: (raw: string) => void) {
   const [draft, setDraft] = useState<string | null>(null);
 
-  const draftMatchesValue = draft !== null && Object.is(Number(draft), value);
+  const draftMatchesValue = draft !== null && Object.is(parseDecimalDraft(draft), value);
 
   return {
     value: draftMatchesValue ? draft : String(value),

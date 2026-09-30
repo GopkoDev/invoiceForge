@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { parseDecimalDraft } from '@/hooks/use-number-draft';
 import {
   ProductOption,
   useGroupedProducts,
@@ -53,7 +54,7 @@ export function useInvoiceItemHandlers({
   // defaulting an unparseable entry to 0.
   const handleQuantityChange = useCallback(
     (value: string) => {
-      const quantity = Number(value);
+      const quantity = parseDecimalDraft(value);
       updateItem(itemId, {
         quantity,
         total: computeLineTotal(quantity, item.price),
@@ -64,7 +65,7 @@ export function useInvoiceItemHandlers({
 
   const handlePriceChange = useCallback(
     (value: string) => {
-      const price = Number(value);
+      const price = parseDecimalDraft(value);
       updateItem(itemId, {
         price,
         total: computeLineTotal(item.quantity, price),

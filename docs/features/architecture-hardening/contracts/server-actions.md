@@ -138,6 +138,8 @@ Flow 8, list branch. Touches **only** `status` and `paidAt`. It never runs the a
 
 Flow 6, duplicate branch (AC-12). In one transaction: allocate from the original's sender-profile sequence (same allocator and format as create), insert the copy with recomputed amounts, `status = DRAFT`, `paidAt = null`. Outcomes: `UNAUTHORIZED`, `NOT_FOUND`, `FAILED`.
 
+`FAILED` also covers a source whose stored amounts break the amount rules (e.g. a legacy negative rate): only the amount rules are checked before recomputing, and the action refuses with the message `This invoice can't be duplicated. <reasons>`, where the reasons are the de-duplicated rule messages. There is no `VALIDATION` outcome here. It is a refusal, not a fault: no retry (repeating gives the same result) and it is not reported to Sentry; the row toast shows the message as is.
+
 ### `generateInvoiceNumber(senderProfileId: string): Promise<ActionResult<string>>` (semantics ✎)
 
 Returns the **hint only** ("assigned on save", AC-06): the first free number from the current sequence, computed without a lock and **without side effects**. It is never sent back as the number. Outcomes: `UNAUTHORIZED`, `NOT_FOUND`, `FAILED`.
