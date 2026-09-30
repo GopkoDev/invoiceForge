@@ -1357,6 +1357,38 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
       "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T63",
+      "title": "Drop P2011 from the value-free reason allowlist",
+      "layer": "app",
+      "deps": [
+        "T61"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-5 W-01 fixed. 'P2011' is removed from VALUE_FREE_REASON_CODES in lib/helpers/prisma-error-scrub.ts, and the allowlist comment and T61 wording no longer list it. adapter-pg reads P2011 fields with /Key \\(([^)]+)\\)/ from a 23502 detail that holds the failing row's values, so the reason can quote user data. Tests: a P2011 whose reason quotes a secret marker loses it in both redactError and beforeSend; re-adding P2011 to the allowlist fails them.",
+      "files_hint": [
+        "lib/helpers/prisma-error-scrub.ts",
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-5.md",
+      "source": "review-2026-09-30-5"
+    },
+    {
+      "id": "T64",
+      "title": "Build the initialization-error test from the shape Prisma 7.2 actually throws",
+      "layer": "test",
+      "deps": [
+        "T61"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-5 W-02 fixed. The T57 initialization-error test uses the shape RequestHandler rethrows at a call site: new PrismaClientInitializationError(<message with an invocation line and a reason>, clientVersion) with no errorCode. It asserts the arguments and the reason are cut and no [code] label is added. A separate case keeps the errorCode label for an initialization error without an invocation line (the ClientEngine start-up shape). The scrub code's behaviour does not change.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-5.md",
+      "source": "review-2026-09-30-5"
     }
   ]
 }
