@@ -1254,6 +1254,60 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
       "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T57",
+      "title": "Keep Prisma argument values out of server logs",
+      "layer": "app",
+      "deps": [
+        "T54"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-3 U-01 fixed. scrubPrismaText moves to a shared lib/ module that sentry.server.config.ts and action-result-helpers.ts both import. failed() logs a redacted form of the error (name + scrubbed message) instead of the raw Error, and so do app/api/user/export/route.ts:111 and lib/actions/account-actions.ts:30,70. A test builds a real PrismaClientValidationError with secret markers, calls failed() and each direct site, and asserts that no console.error argument (checked through util.inspect, not JSON.stringify) contains a marker. sad.md:746 is true as written.",
+      "files_hint": [
+        "lib/actions/action-result-helpers.ts",
+        "sentry.server.config.ts",
+        "app/api/user/export/route.ts",
+        "lib/actions/account-actions.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T58",
+      "title": "Test the breadcrumb Error branch through Sentry's normalize and keep the Prisma code and cause in events",
+      "layer": "app",
+      "deps": [
+        "T54"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-3 U-02, U-03 fixed. The breadcrumb test asserts on out.data.arguments directly (or through normalize from @sentry/core), so deleting the `instanceof Error` branch in beforeBreadcrumb fails it. beforeSend sets event.tags.prisma_code from hint.originalException.code when present. For Prisma errors other than PrismaClientValidationError the scrubbed message keeps the engine's reason (the final paragraph), e.g. a P1001 event still says \"Can't reach database server\". Tests cover both, and a validation error still loses its arguments.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T59",
+      "title": "Restore ADR-0009's original Option 1 wording under the amendment",
+      "layer": "docs",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-3 U-04 fixed. ADR-0009:30 carries its original Accepted Option 1 wording ('and Sentry capture'), the 2026-09-30 amendment supersedes it without the ADR text being rewritten in place, and the frontmatter updated_at is 2026-09-30.",
+      "files_hint": [
+        "docs/features/architecture-hardening/adr/0009-classify-action-failures-with-typed-error-codes-and-segment-error-boundaries.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
     }
   ]
 }
