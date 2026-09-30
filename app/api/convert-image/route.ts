@@ -15,6 +15,7 @@ import {
   safeFetchImage,
   validateFetchUrl,
   REFUSAL_MESSAGES,
+  logOutcome,
   type SafeFetchRefusalCode,
 } from '@/lib/security/safe-fetch';
 
@@ -72,6 +73,8 @@ export async function POST(request: NextRequest) {
   // not spend the caller's quota - only real fetch attempts count towards the limit.
   const scheme = validateFetchUrl(profile.logo);
   if (!scheme.ok) {
+    // N-19: this short-circuit skips safeFetchImage, so it logs the refusal itself.
+    logOutcome(scheme.code, scheme.reason);
     const refusal = REFUSAL_BODIES.NOT_HTTPS;
     return NextResponse.json(refusal.body, { status: refusal.status });
   }
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!rateLimit.allowed) {
+    logOutcome('RATE_LIMITED', 'rate_limit');
     return NextResponse.json(
       { success: false, code: 'RATE_LIMITED', error: 'Too many requests, try again in a minute.' },
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }

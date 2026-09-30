@@ -52,7 +52,7 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['198.18.0.1', 4], // benchmarking, 198.18.0.0/15 (F-23)
     ['198.19.255.255', 4], // benchmarking upper bound, 198.18.0.0/15 (F-23)
     ['240.0.0.1', 4], // reserved, 240.0.0.0/4 (F-23)
-    ['::0.0.0.1', 6], // IPv4-compatible IPv6, ::/96 (F-23, deprecated but still non-public)
+    ['::8.8.8.8', 6], // IPv4-compatible IPv6, ::/96 - no other rule catches it, so only ::/96 pins it (F-23, N-20)
     ['ff02::1', 6], // multicast, ff00::/8 (F-23)
     ['fec0::1', 6], // deprecated site-local, fec0::/10 (F-23)
   ])('classifies %s as unsafe', (address, family) => {

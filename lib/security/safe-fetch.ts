@@ -86,7 +86,7 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function logOutcome(outcome: string, reason: string): void {
+export function logOutcome(outcome: string, reason: string): void {
   // host/IP never appear here - only the closed outcome/reason vocabulary (sad.md §7).
   console.log(`logo_fetch outcome=${outcome} reason=${reason}`);
 }

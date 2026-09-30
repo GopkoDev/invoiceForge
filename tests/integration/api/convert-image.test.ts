@@ -98,12 +98,16 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
     await host?.close();
   });
 
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     authMock.mockReset();
     safeFetchSpy.mockReset();
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(async () => {
+    logSpy.mockRestore();
     await truncateAllTables(prisma);
   });
 
@@ -261,6 +265,10 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
     // no LogoFetchWindow row should exist for this Freelancer at all.
     const anyWindow = await prisma.logoFetchWindow.findFirst({ where: { userId: freelancer.id } });
     expect(anyWindow).toBeNull();
+
+    // N-19: the short-circuit refusal still emits the monitoring line, with no host or address.
+    expect(logSpy).toHaveBeenCalledWith('logo_fetch outcome=NOT_HTTPS reason=not_https');
+    expect(logSpy.mock.calls.flat().join(' ')).not.toContain('insecure.example.test');
   });
 
   it('AC-03: a non-image response maps to 422 NOT_IMAGE, using the same refusal-message table (F-24)', async () => {
@@ -342,6 +350,8 @@ describe.runIf(containerRuntimeAvailable)('POST /api/convert-image (T05, AC-01/A
       expect(retryAfter).toBeGreaterThanOrEqual(1);
       expect(retryAfter).toBeLessThanOrEqual(60);
       await assertMatchesContract({ operationId: 'convertLogoImage', status: 429, body });
+      // N-19: a rate-limit refusal is logged too (closed vocabulary, no user or host data).
+      expect(logSpy).toHaveBeenCalledWith('logo_fetch outcome=RATE_LIMITED reason=rate_limit');
     },
     20_000
   );
