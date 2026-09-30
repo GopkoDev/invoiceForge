@@ -4,6 +4,50 @@
 
 import * as Sentry from '@sentry/nextjs';
 
+// Prisma error messages embed the rendered call arguments (`email: "..."`), and `errorFormat`
+// cannot remove them: 'minimal' still includes them. So they are cut here, before an event or a
+// console breadcrumb leaves the process (review 2026-09-30-2 S-01; sad.md "no request body is logged").
+const PRISMA_INVOCATION = /(Invalid `prisma\.[^`]*` invocation)[\s\S]*/;
+const REDACTED = ' [arguments redacted]';
+
+export function scrubPrismaText(text: string): string {
+  return text.replace(PRISMA_INVOCATION, `$1${REDACTED}`);
+}
+
+type ScrubbableEvent = {
+  message?: string;
+  exception?: { values?: { type?: string; value?: string }[] };
+};
+
+export function scrubPrismaEvent<T extends ScrubbableEvent>(event: T): T {
+  if (typeof event.message === 'string') event.message = scrubPrismaText(event.message);
+  for (const ex of event.exception?.values ?? []) {
+    if (typeof ex.value !== 'string') continue;
+    ex.value =
+      ex.type === 'PrismaClientValidationError' && !PRISMA_INVOCATION.test(ex.value)
+        ? `PrismaClientValidationError${REDACTED}`
+        : scrubPrismaText(ex.value);
+  }
+  return event;
+}
+
+type ScrubbableBreadcrumb = { category?: string; message?: string; data?: { arguments?: unknown[] } };
+
+export function scrubPrismaBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T): T {
+  if (crumb.category !== 'console') return crumb;
+  if (typeof crumb.message === 'string') crumb.message = scrubPrismaText(crumb.message);
+  if (Array.isArray(crumb.data?.arguments)) {
+    crumb.data.arguments = crumb.data.arguments.map((arg) =>
+      typeof arg === 'string'
+        ? scrubPrismaText(arg)
+        : arg instanceof Error
+          ? scrubPrismaText(`${arg.name}: ${arg.message}`)
+          : arg,
+    );
+  }
+  return crumb;
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const sentryEnabled = isProduction;
 
@@ -26,5 +70,8 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
 
     // Configuration for production environment
     environment: process.env.NODE_ENV,
+
+    beforeSend: (event) => scrubPrismaEvent(event),
+    beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }
