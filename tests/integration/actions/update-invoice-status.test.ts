@@ -167,7 +167,6 @@ describe.runIf(containerRuntimeAvailable)(
         subtotal: 100,
         total: 999, // deliberately wrong vs a fresh recompute of the seeded item (100)
         invoiceNumber: 'LEGACY-0001',
-        invoiceNumberKey: null,
       });
 
       const result = await updateInvoiceStatus(invoice.id, 'PAID');

@@ -30,10 +30,8 @@ export function formatInvoiceNumber(prefix: string, n: number): string {
 /**
  * Whether a normalized invoice number key is already taken within a sender profile.
  *
- * NULL keys (legacy invoices written before invoiceNumberKey existed) never match the unique
- * *index*: Postgres treats NULL as distinct there (ADR-0004). But AC-08/AC-09 count two numbers
- * as the same invoice number whenever they normalize to the same key, key or no key, so a NULL-key
- * row whose own invoiceNumber normalizes to `key` still counts as taken here (F-08).
+ * Since the T30 contract step every invoice has a non-null key, so the key alone decides it: two
+ * numbers count as the same whenever they normalize to the same key (AC-08/AC-09).
  */
 export async function isInvoiceKeyTaken(
   tx: Prisma.TransactionClient,
@@ -49,21 +47,7 @@ export async function isInvoiceKeyTaken(
     },
     select: { id: true },
   });
-  if (existing !== null) {
-    return true;
-  }
-
-  // NULL-key rows aren't covered by the query above (Postgres treats NULL as distinct there), so
-  // match them by normalizing their own invoiceNumber in JS instead.
-  const nullKeyRows = await tx.invoice.findMany({
-    where: {
-      senderProfileId,
-      invoiceNumberKey: null,
-      ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
-    },
-    select: { invoiceNumber: true },
-  });
-  return nullKeyRows.some((row) => normalizeInvoiceNumber(row.invoiceNumber) === key);
+  return existing !== null;
 }
 
 /**

@@ -8,6 +8,7 @@ import type {
   PrismaClient,
   SenderProfile,
 } from '@prisma/client';
+import { normalizeInvoiceNumber } from '@/lib/actions/invoice-actions/numbering';
 
 export interface InvoiceItemInput {
   productId?: string | null;
@@ -55,6 +56,7 @@ export async function createInvoice(
     { name: 'Test Item', quantity: 1, rate: 100, amount: 100 },
   ];
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+  const invoiceNumber = overrides.invoiceNumber ?? `${senderProfile.invoicePrefix}-0001`;
 
   return prisma.invoice.create({
     data: {
@@ -62,8 +64,8 @@ export async function createInvoice(
       customerId: customer.id,
       bankAccountId: bankAccount.id,
 
-      invoiceNumber: overrides.invoiceNumber ?? `${senderProfile.invoicePrefix}-0001`,
-      invoiceNumberKey: overrides.invoiceNumberKey,
+      invoiceNumber,
+      invoiceNumberKey: overrides.invoiceNumberKey ?? normalizeInvoiceNumber(invoiceNumber),
       issueDate: overrides.issueDate ?? new Date(),
       dueDate: overrides.dueDate ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       paymentTerms: overrides.paymentTerms,
@@ -132,9 +134,9 @@ export async function createInvoice(
 }
 
 /**
- * A "legacy" invoice (test-plan.md §Test data): written before invoiceNumberKey existed, so its
- * key is NULL, and its stored total may not match a fresh recompute of its items (drift the
- * migration/read-repair tasks need to reproduce).
+ * A "legacy" invoice (test-plan.md §Test data): its stored total may not match a fresh recompute
+ * of its items (drift the read-repair tasks need to reproduce). Since the T30 contract step every
+ * invoice has a key, so a legacy one no longer has a NULL key.
  */
 export async function createLegacyInvoice(
   prisma: PrismaClient,
@@ -155,7 +157,6 @@ export async function createLegacyInvoice(
       ...params.overrides,
       subtotal: params.overrides?.subtotal ?? recomputedTotal,
       total: storedTotal,
-      invoiceNumberKey: null,
     },
   });
 }
