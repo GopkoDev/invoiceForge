@@ -101,6 +101,9 @@ C4Container
 - **Shared primitives:** Button, Card, Input, Field, InputGroup, Select, Combobox, Command, Dialog, AlertDialog, Drawer, Sheet, Popover, Tabs, Table, Pagination, Calendar, Chart, Sidebar, Skeleton, Empty, Spinner, Sonner (toasts), … — `components/ui/`.
 - **State / data-fetching:** server data via RSC + server actions (no client cache lib); client state in zustand — `store/use-modal-store.ts:18` (typed modal registry), `store/invoice-editor-store/use-invoice-editor-store.ts`.
 - **Forms / tables / PDF:** react-hook-form + zod (`components/customers/customer-form.tsx:51`); TanStack Table (`components/invoices/invoices-data-table.tsx:190`); PDF built client-side with `pdf(doc).toBlob()` (`lib/helpers/invoice-pdf-helpers.tsx:133`).
+- **Design system doc:** `docs/design-system.md` registers the reusable components, including `LoadError` (`components/layout/content-area/load-error.tsx`, the plain-language "couldn't load your data" state every segment `error.tsx` renders).
+- **Async ConfirmationModal rule:** `ConfirmationModal`'s `onConfirm` may be async; the dialog stays open with a `Spinner` until the promise settles, and every caller must close it itself on both success and failure (`docs/design-system.md` Notes).
+- **Client session redirect:** a client component that gets `UNAUTHORIZED` back from a server action checks `isUnauthorizedFailure` and calls `goToSignIn` — `lib/helpers/client-session-redirect.ts` — sending the browser through the cookie-clearing route, the client counterpart to the server-side `unwrapPageResult()`.
 - **Closest UI precedent:** a list screen looks like the invoices list — `app/(protected)/invoices/page.tsx` → `components/invoices/invoices-list-container.tsx` → `components/invoices/invoices-data-table.tsx`; a CRUD form looks like `components/customers/customer-form.tsx`.
 
 ## Where things live / closest precedents
