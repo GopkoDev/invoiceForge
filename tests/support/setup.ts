@@ -1,7 +1,7 @@
 // Global Vitest setup for the unit/component/contract run. Extends `expect` with jest-dom
 // matchers for component tests; a no-op cost for unit/contract tests.
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 // `@testing-library/react`'s own auto-cleanup only registers itself when it finds a
@@ -12,3 +12,7 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   cleanup();
 });
+
+// `server-only` throws outside the Next.js server bundle. lib/services files (and the modules that
+// re-export them) import it by design (service-layer ADR-0002), so neutralise it for every test.
+vi.mock('server-only', () => ({}));

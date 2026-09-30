@@ -6,7 +6,7 @@
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
 | T1 | Enforce the lib/services boundary: server-only, lint rules, boundary test, build in CI | wiring | Dmytro Hopko | S | — | done |
-| T2 | Move the result contract and result helpers into the shared business-layer kernel | domain | Dmytro Hopko | S | T1 | todo |
+| T2 | Move the result contract and result helpers into the shared business-layer kernel | domain | Dmytro Hopko | S | T1 | done |
 | T3 | Add the branded ActingFreelancer, its three factories and the Intl-and-PostgreSQL time-zone resolution | domain | Dmytro Hopko | M | T2 | todo |
 | T4 | Add the shared ListQuery schema, the Page envelope and the paginate helper | domain | Dmytro Hopko | S | T2 | todo |
 | T5 | Wrap the current dashboard actions in dashboard.<section> Sentry spans to start the latency baseline | wiring | Dmytro Hopko | S | — | done |
