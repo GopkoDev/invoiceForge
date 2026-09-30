@@ -35,7 +35,7 @@
 | T27 | [Harden the data export: session first, parallel reads, Invoice Forge file name](./t27-data-export-endpoint.md) | ports | Dmytro Hopko | S | T09 | done |
 | T28 | [Check the session before parsing input in profile and account settings actions](./t28-profile-actions-guard-first.md) | app | Dmytro Hopko | S | T08, T17 | done |
 | T29 | [Disallow the root and every page of each private section in robots.txt](./t29-robots-disallow-section-roots.md) | ports | Dmytro Hopko | S | T02 | done |
-| T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | blocked |
+| T30 | [Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)](./t30-invoice-number-key-contract.md) | migration | Dmytro Hopko | S | T07, T14 | done |
 | T31 | [Declare the sdd marketplace, ignore local settings and remove the empty route folder](./t31-repository-hygiene.md) | docs | Dmytro Hopko | S | — | done |
 | T32 | [Fix invoice amount rules: shared line totals, 2-decimal inputs, field errors, no silent rewrites, validated duplicates](../_review/review-2026-09-27.md) | app | Dmytro Hopko | M | T13, T16, T21 | done |
 | T33 | [Treat NULL-key invoices by normalized number in the taken and shared checks](../_review/review-2026-09-27.md) | app | Dmytro Hopko | M | T12, T14 | done |
@@ -74,4 +74,12 @@
 
 **Total:** 66 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`, T48–T53 from `_review/review-2026-09-30.md`, T54–T56 from `_review/review-2026-09-30-2.md`, T57–T59 from `_review/review-2026-09-30-3.md`, T60–T62 from `_review/review-2026-09-30-4.md`, T63–T64 from `_review/review-2026-09-30-5.md`, T65 from `_review/review-2026-09-30-6.md`), ~42 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
-> **T30 blocked by its own gate (2026-09-27):** promote migrations 05–06 only after wave 2 has run in production without a rollback **and** the wave-4 pre-flight `SELECT count(*) FROM "Invoice" WHERE "invoiceNumberKey" IS NULL;` returns 0 (sad §7 row 4, data-model §Pre-flight). The red contract test is staged at `docs/features/architecture-hardening/migrations/05-06_contract.test.ts.staged` — move it to `tests/integration/invoice-number-key-contract.test.ts` when the gate passes. Promoting also retires the NULL-key legacy paths: update the invoice factory to default `invoiceNumberKey` to the normalized number, and revisit the T07 expand-step assertions (nullable column, exact unique present) and the T12/T13/T14 legacy-key tests at that time.
+> **T30 done (2026-09-30, PR #3):** the owner promoted 05–06 on 2026-09-30, the same day wave 2 was released to production. The pre-flight returned 0 `NULL` keys on dev (26 invoices) and production (33 invoices), and both databases now have `invoiceNumberKey NOT NULL` and only the key unique. Migrations: `20260930200000_set_invoice_number_key_not_null` and `20260930200100_drop_invoice_number_exact_unique`. `prisma migrate diff` shows no drift. A build older than wave 2 can no longer be redeployed, because it doesn't write the key. What changed in the code:
+> - The NULL-key paths are retired: `isInvoiceKeyTaken` matches on the key alone.
+> - The invoice factory defaults the key to the normalized number.
+> - Tests that seeded NULL-key or shared-number rows were removed.
+> - The T07 test reverts 06→05 before each case.
+>
+> Follow-up: the AC-17 shared-number branch is now unreachable (`InvoiceLegacySharedNumberError`, `legacy.sharedNumber`, the SCR-03 alert).
+>
+> **Original gate note (2026-09-27):** promote migrations 05–06 only after wave 2 has run in production without a rollback **and** the wave-4 pre-flight `SELECT count(*) FROM "Invoice" WHERE "invoiceNumberKey" IS NULL;` returns 0 (sad §7 row 4, data-model §Pre-flight). The red contract test is staged at `docs/features/architecture-hardening/migrations/05-06_contract.test.ts.staged` — move it to `tests/integration/invoice-number-key-contract.test.ts` when the gate passes. Promoting also retires the NULL-key legacy paths: update the invoice factory to default `invoiceNumberKey` to the normalized number, and revisit the T07 expand-step assertions (nullable column, exact unique present) and the T12/T13/T14 legacy-key tests at that time.

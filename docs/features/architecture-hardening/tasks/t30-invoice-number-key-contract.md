@@ -9,7 +9,7 @@ files_hint: ["docs/features/architecture-hardening/migrations/05_set_invoice_num
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task: work from what is inlined here. Every quoted chunk carries a provenance
