@@ -1389,6 +1389,21 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-30-5.md",
       "source": "review-2026-09-30-5"
+    },
+    {
+      "id": "T65",
+      "title": "Build the start-up initialization-error test from the P2038 error Prisma 7.2 throws",
+      "layer": "test",
+      "deps": [
+        "T64"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-6 X-01 fixed. The T64 start-up case in tests/unit/prisma-log-scrub-t57.test.ts builds the error the ClientEngine constructor really throws: new PrismaClientInitializationError(<the 'Missing configured driver adapter. ...' message>, clientVersion, 'P2038'), not a P1001 'Can't reach database server' pairing. With adapter-pg the pool connects lazily, so an unreachable database fails at query time as a PrismaClientKnownRequestError P1001. The test asserts the [P2038] label and the unchanged message, and its comment names the ClientEngine constructor as the source. The scrub code's behaviour does not change.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-6.md",
+      "source": "review-2026-09-30-6"
     }
   ]
 }
