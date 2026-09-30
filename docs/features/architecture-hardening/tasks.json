@@ -1046,6 +1046,136 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
       "source": "review-2026-09-28"
+    },
+    {
+      "id": "T48",
+      "title": "Route UNAUTHORIZED and rejected calls to sign-in at the remaining form, editor and row-action call sites",
+      "layer": "ui",
+      "deps": [
+        "T42"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-30 R-01, R-02, R-03, R-04 fixed. Every remaining action caller checks redirectIfUnauthorized before a toast and catches a rejection with goToSignIn: the customer, product and sender-profile forms, the bank-account modal helper, the custom-price modal, the getProducts/getCustomers lookups, the editor save, and View/Download/Print/duplicate/delete/status in invoice-row-actions and related-invoices-list. No async startTransition body can reject into the error boundary, and its dialog closes on every exit path. contact-card-actions clears isDeleting when deleteAction rejects. Component tests through the UI cover at least one create form, the bank-account helper, the custom-price modal, the editor save rejection, a Download rejection, a rejected duplicate and the contact-card rejection.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "components/customers/customer-form.tsx",
+        "components/products/product-form.tsx",
+        "components/sender-profiles/sender-profile-form.tsx",
+        "lib/helpers/bank-account-modal-helpers.ts",
+        "components/modals/customer/custom-price-modal.tsx",
+        "components/customers/customer-custom-prices.tsx",
+        "hooks/use-product-custom-price-modal.tsx",
+        "components/layout/contacts/contact-card/contact-card-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T49",
+      "title": "Report every FAILED once, including auth and client render errors, and keep form data out of Sentry",
+      "layer": "app",
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-28",
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "Review 2026-09-30 R-05, R-06, R-09, R-11 fixed. getAuthenticatedUser's catch reports through failed(). Both error.tsx boundaries call Sentry.captureException only when the error has no digest, so client-originated errors are reported and server ones are not reported twice. getInvoice's serialize failure is reported. The missing-user cases in profile-actions and account-actions return UNAUTHORIZED (ADR-0002). The failed-reports-once test mocks unstable_cache so the dashboard case reaches the prisma rejection, and a new test proves auth throws → loader FAILED → exactly one capture. The invoice_number_conflict captureMessage sends only ids, the number and wasAllocated, and captured Prisma errors carry no argument values (errorFormat minimal or a beforeSend scrub), with a test on the payload.",
+      "files_hint": [
+        "lib/helpers/auth-helpers.ts",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/profile-actions.ts",
+        "lib/actions/account-actions.ts",
+        "tests/unit/lib/actions/failed-reports-once.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T50",
+      "title": "Show the paid date in the Freelancer's zone from the tz cookie",
+      "layer": "ui",
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Review 2026-09-30 R-07 fixed. The invoices page passes getRequestTimeZone() through InvoicesDataTable to InvoiceStatusBadge, which formats the paid date in that zone, so server and browser render the same Freelancer-local day. The badge test asserts the Kiritimati day when that zone is passed and the New York day for a 02:00Z paid timestamp.",
+      "files_hint": [
+        "components/invoices/invoice-status-badge.tsx",
+        "tests/component/invoice-status-badge-paid-date.test.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T51",
+      "title": "Parse editor numbers strictly and write the duplicate refusal into the contract",
+      "layer": "app",
+      "deps": [
+        "T41"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-12",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-30 R-14, R-15 fixed. Editor number drafts parse with a strict decimal pattern, so 0x10, 1e3 and empty or whitespace-only input become NaN and the schema returns '... must be a number.' instead of storing a converted value. userEvent.type cases cover 0x10 and an empty price. contracts/server-actions.md §duplicateInvoice documents the FAILED refusal for a source whose amounts break the rules, with its message, no retry and its reporting rule.",
+      "files_hint": [
+        "hooks/use-invoice-item-handlers.ts",
+        "components/invoice-editor/summary-section.tsx",
+        "hooks/use-number-draft.ts",
+        "docs/features/architecture-hardening/contracts/server-actions.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T52",
+      "title": "Exclude only the next-auth catch-all from the sweep and classify SIIT and local-use NAT64 addresses",
+      "layer": "infra",
+      "deps": [
+        "T44",
+        "T46"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-03"
+      ],
+      "dod": "Review 2026-09-30 R-12, R-13 fixed. The route sweep excludes only /api/auth/[...nextauth] and asserts that the exclusion matched exactly one manifest entry. The safe-fetch classifier runs the embedded-IPv4 check for ::ffff:0:0:0/96 and 64:ff9b:1::/48, with test rows ::ffff:0:127.0.0.1 and 64:ff9b:1::a00:1.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "lib/security/safe-fetch.ts",
+        "tests/unit/security/safe-fetch-classify.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T53",
+      "title": "Update design-system.md and sad.md for the retrying state, the ConfirmationModal rejection rule and the reporting path",
+      "layer": "docs",
+      "deps": [
+        "T48",
+        "T49"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30 R-08, R-10 fixed. design-system.md lists LoadError's retrying prop and says a rejected ConfirmationModal onConfirm routes to sign-in. sad.md:141,721,738 say load failures are reported once by the loader's failed(), onRequestError skips load_failed, and the boundaries report client-originated errors only.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/architecture-hardening/sad.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
     }
   ]
 }
