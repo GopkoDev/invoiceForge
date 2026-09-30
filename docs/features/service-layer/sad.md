@@ -149,7 +149,9 @@ lib/services/                                  ★ request-free business layer (
 └── profile/                                   ★ profile update, dashboard setup check
 lib/actions/**                                 ✎ thin wrappers: actingFreelancerFromSession() → business function → revalidatePath on success
 lib/actions/login-actions.ts                   — unchanged (sign-in stays in the browser flow, spec §3)
-lib/helpers/auth-helpers.ts                    ✎ + actingFreelancerFromSession(): session + tz cookie → ActingFreelancer, or UNAUTHORIZED
+lib/helpers/session-actor.ts                   ★ actingFreelancerFromSession() (actions) + actingFreelancerForRoute() (route handlers): session + tz cookie
+                                                 → ActingFreelancer, or UNAUTHORIZED / today's 401. server-only, NOT 'use server' (auth-helpers.ts is
+                                                 a 'use server' file, so an export there would be browser-callable)
 lib/helpers/time-zone.ts                       ✎ keeps only getRequestTimeZone() (reads the cookie) + re-exports the moved pure helpers
 app/api/user/export/route.ts                   ✎ reads through lib/services/account instead of Prisma
 app/api/convert-image/route.ts                 ✎ owned-profile lookup through lib/services/sender-profiles
@@ -259,6 +261,371 @@ sequenceDiagram
         BL-->>C: success with the same Debtors the dashboard shows
     end
 ```
+
+Flows 3–12 are drawn with the generic participant vocabulary: "service (web wrapper)" is the §5 Web adapters container, "service (business layer)" is the Business layer, "data-store" is PostgreSQL, and "external-system (error monitoring)" is Sentry. A "client (trusted caller)" is anything holding an `ActingFreelancer` from a trusted factory: a web wrapper, a request-free test, and later the Assistant's own adapter. Every error branch returns the typed code of the result contract (ADR-0002).
+
+### Flow 3: loading a data page through a web wrapper (AC-01, AC-04, AC-09, AC-10)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client
+    participant W as service (web wrapper)
+    participant S as service (business layer)
+    participant D as data-store
+    participant X as external-system (error monitoring)
+
+    Note over C,W: Precondition: the request passed the deny-by-default proxy (hardening flow 4)
+    C->>W: opens a list, a detail page, the editor or a picker
+    W->>W: builds ActingFreelancer from the session and the tz cookie
+    alt no session, or the account no longer exists
+        W-->>C: sent to sign in, no business function is called
+    else signed in
+        W->>S: calls the read function with the ActingFreelancer and, for a detail page, the record id
+        S->>D: reads where the id and the owner match
+        alt read fails unexpectedly
+            D-->>S: error
+            S->>X: reports the cause once
+            S-->>W: FAILED with a plain-language message
+            W-->>C: same error state and retry as today, no second report
+        else no row for this id and owner (missing or foreign)
+            D-->>S: no row
+            S-->>W: NOT_FOUND
+            W-->>C: same not-found outcome as today
+        else row found
+            D-->>S: records
+            S-->>W: success with today's data shape
+            W-->>C: same records, values and order as today
+        end
+    end
+    Note over C,S: Postcondition: nothing outside the Freelancer's records was read, and a foreign id looks exactly like a missing one
+```
+
+### Flow 4: searching and paging any list (AC-08, AC-11, AC-12, AC-13, AC-14)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,S: Precondition: C holds an ActingFreelancer. Search, page and page size are all optional
+    C->>S: asks for a list, e.g. customers matching ACME, page 1, 2 per page
+    S->>S: validates the list query with the shared list schema
+    alt page or page size not a whole number of at least 1, or search longer than 100 characters
+        S-->>C: VALIDATION naming the invalid value and what is allowed, no records
+    else query valid
+        opt the list belongs to a parent record (e.g. the custom prices of one customer)
+            S->>D: looks up the parent where the id and the owner match
+            D-->>S: parent, or no row
+        end
+        alt parent missing or foreign
+            S-->>C: NOT_FOUND, exactly as for an id that never existed
+        else parent owned, or the list has no parent
+            S->>D: counts the owner's records matching the search on the list's name fields, in any letter case
+            D-->>S: total
+            S->>S: no page given means the full list as page 1, a page without a size uses 10, a page past the last one falls back to page 1
+            S->>D: reads one page where the owner matches, in today's order ending with the record id
+            D-->>S: items
+            S-->>C: page envelope with items, total, page, page size, total pages and whether more results exist
+        end
+    end
+    Note over C,S: Postcondition: a partial list always says it is partial, an empty list answers page 1 with no pages, and paging never repeats or skips a record
+```
+
+### Flow 5: listing invoices with filters in the Freelancer's time zone (AC-13, AC-21, AC-22, AC-26)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,S: Precondition: the ActingFreelancer carries a resolved zone, e.g. Europe/Kyiv, or UTC when none or an unknown one was given
+    C->>S: asks for invoices by status, customer, sender profile, date range and the drafts or final tab, with a sort option and a page
+    Note over C,S: the invoices-page wrapper always passes page size 10
+    S->>S: validates the filters against the options the invoices page offers
+    alt unknown status or sort option, or a date range that is reversed or has one end only
+        S-->>C: VALIDATION naming the value that is not allowed, no records
+    else filters valid
+        S->>S: turns the date range into local-midnight bounds in the resolved zone, end exclusive
+        Note over S: an invoice issued at 00:30 on 1 October in Kyiv counts in October, not in September
+        S->>D: counts, then reads one page where the sender profile's owner matches, with the filters, in the chosen order ending with the id
+        D-->>S: total and items
+        S-->>C: page envelope of invoices, identical to the invoices page with the same filters
+    end
+    Note over C,S: Postcondition: the browser and a trusted caller passing the same zone get identical results
+```
+
+### Flow 6: creating an invoice (AC-15, AC-16, AC-19)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+    participant X as external-system (error monitoring)
+
+    Note over C,S: Precondition: C holds an ActingFreelancer. The invoice may arrive without a number
+    C->>S: creates an invoice with a customer, sender profile, bank account, lines and optionally a typed number
+    S->>S: validates with the invoice schema and recalculates totals with the exact-decimal module
+    alt input invalid
+        S-->>C: VALIDATION with the same field messages as the editor
+    else input valid
+        S->>D: opens a transaction and locks the sender profile row where the id and the owner match
+        S->>D: checks that the customer, bank account and products belong to the same Freelancer
+        alt sender profile or any referenced record missing or foreign
+            D-->>S: no row
+            S->>D: rolls back
+            S-->>C: NOT_FOUND as if the record did not exist, nothing stored
+        else all owned
+            alt no number given
+                S->>D: takes the next number from the sender profile's invoice sequence, skipping used keys
+            else typed number
+                S->>D: looks up the normalized number key within the sender profile
+            end
+            alt typed number already used in this sender profile
+                S->>D: rolls back
+                S-->>C: CONFLICT, the number is already used in this sender profile
+            else unique clash on a system-assigned number (allocator bug backstop)
+                S->>X: reports invoice_number_conflict
+                S-->>C: CONFLICT, nothing stored
+            else number free
+                S->>D: inserts the invoice and its lines and advances the sequence
+                Note over S,D: persists Invoice, InvoiceItem and SenderProfile invoice sequence
+                D-->>S: committed
+                S-->>C: success with the new invoice id and number
+            end
+        end
+    end
+    Note over C,S: Postcondition: two saves for one sender profile run one after the other under the row lock, so no two invoices in it share a number
+```
+
+### Flow 7: updating an invoice or changing its status (AC-08, AC-18, AC-19, AC-23)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,S: Precondition: C holds an ActingFreelancer and an invoice id
+    alt full update from the editor or an Assistant
+        C->>S: updates the invoice, optionally with the confirmed old and new totals
+        S->>D: loads the invoice where the id and the sender profile's owner match, and checks every referenced record is owned
+        alt invoice or any referenced record missing or foreign
+            S-->>C: NOT_FOUND, nothing stored
+        else stored total differs from the recalculated one and the confirmation doesn't echo both totals
+            S-->>C: CONFLICT TOTALS_CHANGED with the old and the new total, nothing stored
+        else rules hold
+            S->>D: updates where the id and the owner match, with the paid-date rule below
+            Note over S,D: persists Invoice and InvoiceItem
+            S-->>C: success with the saved totals, status and paid date
+        end
+    else status change only
+        C->>S: moves the invoice to a status
+        S->>S: refuses a status the invoices page does not offer (VALIDATION)
+        S->>D: updates status and paid date where the id and the owner match
+        Note over S,D: persists Invoice status and paidAt
+        alt no row for this id and owner
+            S-->>C: NOT_FOUND, nothing changed
+        else updated
+            S-->>C: success with the status and paid date
+        end
+    end
+    Note over S: paid date rule: entering paid sets it, paid again keeps it, leaving paid clears it
+    Note over C,S: Postcondition: a paid date exists only while the invoice is paid, and another Freelancer's invoice is never changed
+```
+
+### Flow 8: duplicating an invoice (AC-08, AC-24)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+    participant X as external-system (error monitoring)
+
+    Note over C,S: Precondition: C holds an ActingFreelancer and an invoice id
+    C->>S: duplicates the invoice
+    S->>D: opens a transaction and loads the invoice with its lines where the id and the sender profile's owner match
+    alt missing or foreign
+        D-->>S: no row
+        S-->>C: NOT_FOUND, nothing created
+    else owned
+        S->>D: locks the sender profile row and takes the next number from its invoice sequence
+        S->>D: inserts a draft with the same customer, sender profile and lines, issued today in the actor's zone, due in 30 days
+        Note over S,D: persists Invoice, InvoiceItem and SenderProfile invoice sequence
+        alt unique clash on the assigned number (allocator bug backstop)
+            S->>X: reports invoice_number_conflict
+            S-->>C: FAILED, nothing created
+        else committed
+            S-->>C: success with the new draft's id and number
+        end
+    end
+    Note over C,S: Postcondition: the original invoice is unchanged, and the copy's number has the same format as any system-assigned number
+```
+
+### Flow 9: deleting a Customer or a sender profile (AC-08, AC-17)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,S: Precondition: C holds an ActingFreelancer and a Customer or sender profile id
+    C->>S: deletes the record
+    S->>D: counts its invoices where the id and the owner match
+    alt missing or foreign
+        D-->>S: no row
+        S-->>C: NOT_FOUND, nothing deleted
+    else has invoices
+        S-->>C: CONFLICT saying how many invoices depend on it
+    else no invoices
+        S->>D: deletes where the id and the owner match
+        Note over S,D: removes Customer or SenderProfile
+        alt an invoice was saved between the count and the delete
+            D-->>S: restrict violation
+            S->>D: recounts the invoices
+            S-->>C: the same CONFLICT with the new count
+        else deleted
+            S-->>C: success
+        end
+    end
+    Note over C,S: Postcondition: a record with invoices is never deleted on its own, and another Freelancer's record is never touched
+```
+
+### Flow 10: deleting the Freelancer's account (AC-20)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client
+    participant W as service (web wrapper)
+    participant S as service (business layer)
+    participant D as data-store
+    participant X as external-system (error monitoring)
+
+    Note over C,W: Precondition: only a wrapper that verified the session may call account deletion
+    C->>W: confirms account deletion
+    W->>W: builds ActingFreelancer from the session
+    alt no session, or the account no longer exists
+        W-->>C: sent to sign in, nothing deleted
+    else signed in
+        W->>S: deletes the account for the ActingFreelancer
+        S->>D: in one transaction, deletes the invoices, the sign-in tokens and the account with everything it owns
+        Note over S,D: removes User and its SenderProfile, BankAccount, Customer, Product, CustomPrice and Invoice rows
+        alt any step fails
+            D-->>S: error, the whole transaction rolls back
+            S->>X: reports the cause once
+            S-->>W: FAILED, the account couldn't be deleted and nothing was removed
+            W-->>C: the same failure message as today
+        else committed
+            S-->>W: success
+            W-->>C: success
+            C->>C: signs out and lands on sign-in, as today
+        end
+    end
+    Note over C,S: Postcondition: the account and all its data are either fully removed or fully intact
+```
+
+### Flow 11: loading the data for a new invoice (AC-07, AC-25)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,S: Precondition: the invoice-editor wrapper and an Assistant call the same business function with an ActingFreelancer
+    C->>S: asks for the data of a new invoice
+    S->>D: reads the owner's customers, products, sender profiles with their bank accounts, and custom prices
+    D-->>S: records, in today's order
+    alt unexpected read failure
+        S-->>C: FAILED with a plain-language message, reported once
+    else loaded
+        S-->>C: success with the same customers, products and custom prices the editor gets
+        C->>C: picks a Customer and a product
+        Note over C: the line is proposed at that Customer's custom price, not at the standard price
+    end
+    Note over C,S: Postcondition: the browser editor and an Assistant see identical data, and the custom price is applied the same way
+```
+
+### Cross-cutting: Flow 12: one dashboard, two callers (AC-01, AC-06, AC-07, AC-21, AC-22)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as client (browser)
+    participant W as service (web wrapper)
+    participant T as client (trusted caller)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over B,S: Precondition: both callers act for the same Freelancer
+    alt browser opens the dashboard
+        B->>W: opens the dashboard for a currency and a period
+        W->>W: builds ActingFreelancer from the session and the tz cookie
+        W->>S: calls each dashboard section function
+        Note over W: the currency tabs stay cached in the wrapper for 60 seconds
+    else a trusted caller asks
+        T->>S: calls the same section functions with an ActingFreelancer and a zone, e.g. Europe/Kyiv, or none
+    end
+    S->>S: uses the zone resolved by the factory, UTC when missing or unknown
+    S->>D: one aggregate query per section, joined on the owner, bucketed by local day and month in that zone
+    D-->>S: one row per group or item displayed, with exact sums
+    Note over S,D: names from the most recent invoice in the group (latest issue date, then latest created). Ties on the exact total are ordered by name, which decides the top three. Sender profiles by name, accounts by bank then holder
+    S-->>W: sections in today's data shapes
+    W-->>B: the dashboard, as today
+    S-->>T: the same sections, with identical figures for the same zone
+    Note over B,S: Postcondition: the same data always gives the same dashboard, whoever asks
+```
+
+### Coverage: user stories and acceptance criteria → flows
+
+| US | Flows |
+|---|---|
+| US-01 Keep using the app unchanged | 1, 3, 12 |
+| US-02 Trust dashboard figures | 2, 12 |
+| US-03 Read a Freelancer's data without a browser | 2, 11, 12 |
+| US-04 Search and page through any list | 4, 5 |
+| US-05 Change data under the same rules | 6, 7, 8, 9, 10 |
+| US-06 Only my data, whoever asks | 1, 3, 4, 6, 7, 8, 9 (owner-scoped branches) |
+| US-07 Dates in my time zone | 2, 5, 12 |
+| US-08 Stay locked out without a session | 1, 3, 10 (no-session branches) |
+
+| AC | Shown in | AC | Shown in |
+|---|---|---|---|
+| AC-01 | flow 3 "row found", flow 12 browser branch | AC-14 | flow 4 "a page past the last one falls back to page 1" |
+| AC-02 | flow 1 "input invalid" | AC-15 | flow 6 "no number given" |
+| AC-03 | flow 1 revalidation step | AC-16 | flow 6 row lock and "typed number already used" |
+| AC-04 | flow 3 "read fails unexpectedly" | AC-17 | flow 9 "has invoices" and the race branch |
+| AC-05 | N/A, non-runtime: a development-time old-vs-new parity test on a fixed fixture. The old code is deleted before release, and the runtime path is flows 2 and 12 | AC-18 | flow 7 "CONFLICT TOTALS_CHANGED" |
+| AC-06 | flow 2, flow 12 naming and tie note | AC-19 | flow 6 and flow 7 "any referenced record missing or foreign" |
+| AC-07 | flows 2, 11, 12 trusted-caller branch | AC-20 | flow 10 "any step fails" |
+| AC-08 | flow 4 "parent missing or foreign", flows 7, 8, 9 "missing or foreign" | AC-21 | flow 5 local-midnight bounds, flow 12 zone buckets |
+| AC-09 | flow 1 and flow 3 "missing or foreign" | AC-22 | flow 2 UTC branch, flows 5 and 12 zone resolution |
+| AC-10 | flow 1 and flow 3 "no session, or the account no longer exists" | AC-23 | flow 7 paid-date rule |
+| AC-11 | flow 4 search and page envelope | AC-24 | flow 8 |
+| AC-12 | flow 4 "no page given means the full list as page 1" | AC-25 | flow 11 |
+| AC-13 | flow 4 and flow 5 VALIDATION branches | AC-26 | flow 5 |
+
+Every §4 user story maps to at least one flow. Every §5 AC maps to a flow or branch, except AC-05, which is an explicit non-runtime N/A.
+
+### Flags from the sequences pass
+
+- **Participants:** flows 3–12 use the generic vocabulary, mapped to §5 containers in the note above flow 3. No participant is new to §5. Flows 1 and 2 were drawn by `design` and keep their concrete names.
+- **Flag for design (flow 4):** a list page needs two reads, the count and the page. They aren't in one transaction, so a concurrent change can make `total` and `items` disagree by one. That seems acceptable for a read. Decide whether ADR-0005 should say so.
+- **Flag for design (flow 7):** the status-change path writes before it knows whether the row exists (owner-scoped update, `P2025 → NOT_FOUND`). But the paid-date rule needs the current status ("paid again keeps it"). So the write either reads first inside a transaction, or it makes the rule conditional in SQL. ADR-0003's fallback note covers the read-then-write-with-owner shape. Confirm that it applies here.
+- **Hints for data-model (from the persist and read notes):** no schema change is planned (spec §3). The reads that matter are the owner-scoped list reads with the id tiebreak (flow 4), the invoice list by owner, status, issue-date range and sort field (flow 5), the normalized number key per sender profile (flows 6, 8), invoice counts per Customer and per sender profile (flow 9), and the dashboard aggregates by sender profile owner, status, currency and issue date (flow 12, §7 scaling note).
 
 ## 7. Deployment view
 
