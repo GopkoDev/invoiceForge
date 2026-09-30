@@ -23,7 +23,12 @@ vi.mock('@/prisma', () => ({
 const authMock = vi.fn();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
+const captureMessageMock = vi.fn();
+const captureExceptionMock = vi.fn();
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessageMock(...a),
+  captureException: (...a: unknown[]) => captureExceptionMock(...a),
+}));
 
 vi.mock('@/lib/actions/invoice-actions/numbering', () => ({
   allocateInvoiceNumber: vi.fn().mockResolvedValue({
@@ -95,6 +100,9 @@ describe('duplicateInvoice — amount rules only (T41, N-07)', () => {
     expect(result.error).toContain("Price can't be negative.");
     expect(result.error).not.toBe('Please fix the highlighted fields.');
     expect(transactionMock).not.toHaveBeenCalled();
+    // T55 S-07: a refusal is an expected outcome, not an incident — nothing goes to Sentry.
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(captureMessageMock).not.toHaveBeenCalled();
   });
 
   it('a non-amount rule (empty unit) does not block the copy', async () => {

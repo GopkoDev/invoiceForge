@@ -26,6 +26,12 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: unknown) => fn,
 }));
 
+// getPaginatedInvoices reads the time-zone cookie first, which needs a request scope.
+vi.mock('@/lib/helpers/time-zone', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/helpers/time-zone')>()),
+  getRequestTimeZone: async () => 'UTC',
+}));
+
 const captureExceptionMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
   captureException: (...args: unknown[]) => captureExceptionMock(...args),
@@ -49,6 +55,69 @@ const cases: Array<[string, () => Promise<{ success: boolean; code?: string }>]>
   [
     'dashboard-setup-check',
     async () => (await import('@/lib/actions/dashboard-setup-check')).checkDashboardSetup(),
+  ],
+  // T55 S-04 (test-plan.md AC-28): every loader of the nine AC-28 pages, not one per module.
+  ['product (by id)', async () => (await import('@/lib/actions/product-actions')).getProduct('p1')],
+  [
+    'product custom prices',
+    async () => (await import('@/lib/actions/custom-price-actions')).getProductCustomPrices('p1'),
+  ],
+  ['customers', async () => (await import('@/lib/actions/customer-actions')).getCustomers()],
+  ['customer (by id)', async () => (await import('@/lib/actions/customer-actions')).getCustomer('c1')],
+  [
+    'sender profiles',
+    async () => (await import('@/lib/actions/sender-profile-actions')).getSenderProfiles(),
+  ],
+  [
+    'sender profile (by id)',
+    async () => (await import('@/lib/actions/sender-profile-actions')).getSenderProfile('s1'),
+  ],
+  [
+    'invoice editor data',
+    async () =>
+      (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoiceEditorData('i1'),
+  ],
+  ['invoice', async () => (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoice('i1')],
+  ['invoices', async () => (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoices()],
+  [
+    'invoices by customer',
+    async () =>
+      (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoicesByCustomer('c1'),
+  ],
+  [
+    'invoices by sender profile',
+    async () =>
+      (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoicesBySenderProfile('s1'),
+  ],
+  [
+    'paginated invoices',
+    async () =>
+      (await import('@/lib/actions/invoice-actions/invoice-actions')).getPaginatedInvoices({}),
+  ],
+  [
+    'dashboard summary stats',
+    async () => (await import('@/lib/actions/dashboard-actions')).getDashboardSummaryStats('USD'),
+  ],
+  [
+    'dashboard chart data',
+    async () => (await import('@/lib/actions/dashboard-actions')).getDashboardChartData('USD'),
+  ],
+  [
+    'dashboard sender accounts',
+    async () => (await import('@/lib/actions/dashboard-actions')).getDashboardSenderAccounts('USD'),
+  ],
+  [
+    'dashboard recent invoices',
+    async () => (await import('@/lib/actions/dashboard-actions')).getDashboardRecentInvoices('USD'),
+  ],
+  [
+    'dashboard debtors',
+    async () => (await import('@/lib/actions/dashboard-actions')).getDashboardDebtors('USD'),
+  ],
+  [
+    'dashboard expected payments',
+    async () =>
+      (await import('@/lib/actions/dashboard-actions')).getDashboardExpectedPayments('USD'),
   ],
   [
     'profile',

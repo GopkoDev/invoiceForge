@@ -79,4 +79,65 @@ describe('invoice_number_conflict payload (T49 R-11)', () => {
     expect(ctx.extra).toMatchObject({ wasAllocated: true });
     expect(Object.keys(ctx.extra).sort()).not.toContain('data');
   });
+
+  // T55 S-03: the update path carries the same rule — the exact key set, no form data.
+  it('updateInvoice sends only id, senderProfileId, invoiceNumber and wasAllocated', async () => {
+    const zero = { toString: () => '0', toFixed: () => '0.00' };
+    const { prisma } = await import('@/prisma');
+    (prisma.invoice.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'inv-1',
+      senderProfileId: 'sp-1',
+      invoiceNumber: 'OLD-1',
+      invoiceNumberKey: 'old-1',
+      status: 'DRAFT',
+      paidAt: null,
+      total: zero,
+      discount: zero,
+      shipping: zero,
+      taxRate: zero,
+      items: [],
+    });
+    transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        invoiceItem: { deleteMany: vi.fn() },
+        invoice: { update: vi.fn().mockRejectedValue({ code: 'P2002' }) },
+      })
+    );
+    const { updateInvoice } = await import('@/lib/actions/invoice-actions/invoice-actions');
+
+    await updateInvoice('inv-1', {
+      invoiceNumber: '',
+      status: 'DRAFT',
+      senderProfileId: 'sp-1',
+      bankAccountId: 'b-1',
+      customerId: 'c-1',
+      issueDate: '2026-01-01',
+      dueDate: '2026-01-31',
+      currency: 'USD',
+      notes: 'SECRET-NOTE-XYZ',
+      items: [
+        {
+          id: 'i-1',
+          productName: 'W',
+          description: 'SECRET-DESC-XYZ',
+          unit: 'pcs',
+          quantity: 1,
+          price: 987.65,
+          total: 987.65,
+        },
+      ],
+    } as never);
+
+    expect(captureMessageMock).toHaveBeenCalledTimes(1);
+    const [name, ctx] = captureMessageMock.mock.calls[0];
+    expect(name).toBe('invoice_number_conflict');
+    const payload = JSON.stringify(ctx);
+    expect(payload).not.toContain('SECRET-NOTE-XYZ');
+    expect(payload).not.toContain('SECRET-DESC-XYZ');
+    expect(payload).not.toContain('987.65');
+    expect(Object.keys(ctx.extra).sort()).toEqual(
+      ['id', 'invoiceNumber', 'senderProfileId', 'wasAllocated'].sort()
+    );
+    expect(ctx.extra).toMatchObject({ id: 'inv-1', senderProfileId: 'sp-1', wasAllocated: true });
+  });
 });

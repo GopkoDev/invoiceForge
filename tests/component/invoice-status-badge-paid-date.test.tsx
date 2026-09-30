@@ -113,3 +113,64 @@ describe('InvoicesDataTable — passes timeZone to the badge (T50, R-07, AC-18)'
     expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
   });
 });
+
+// T55 S-06 (review-2026-09-30-2, AC-18, ADR-0010): the zone travels cookie -> page -> container ->
+// table -> badge. Every link above is tested alone; this renders the real page output so that
+// dropping `timeZone` in the page or in the container puts the row back on the UTC day.
+describe('invoices page wiring — paid date in the cookie time zone (T55, S-06, AC-18)', () => {
+  it("shows 'Sep 21' for 2026-09-22T02:00Z when the request zone is America/New_York", async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/helpers/time-zone', () => ({
+      getRequestTimeZone: async () => 'America/New_York',
+    }));
+    vi.doMock('@/lib/actions/invoice-actions/invoice-actions', () => ({
+      duplicateInvoice: vi.fn(),
+      deleteInvoice: vi.fn(),
+      updateInvoiceStatus: vi.fn(),
+      getInvoice: vi.fn(),
+      getPaginatedInvoices: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          invoices: [{ ...baseInvoice, paidAt: new Date('2026-09-22T02:00:00Z') }],
+          total: 1,
+          totalInvoices: 1,
+          page: 1,
+          pageSize: 10,
+          totalPages: 1,
+          filterOptions: { customers: [], senderProfiles: [] },
+          applied: {
+            page: 1,
+            pageSize: 10,
+            sortBy: 'createdAt',
+            sortOrder: 'desc',
+            tab: 'all',
+          },
+        },
+      }),
+    }));
+    vi.doMock('@/hooks/use-invoice-filters', () => ({
+      useInvoiceFilters: () => ({
+        filters: { sortBy: 'createdAt', sortOrder: 'desc', tab: 'all' },
+        localSearch: '',
+        hasActiveFilters: false,
+        setSearch: vi.fn(),
+        setStatus: vi.fn(),
+        setDateRange: vi.fn(),
+        setCustomerId: vi.fn(),
+        setSenderProfileId: vi.fn(),
+        setSort: vi.fn(),
+        setPage: vi.fn(),
+        setPageSize: vi.fn(),
+        setTab: vi.fn(),
+        clearFilters: vi.fn(),
+      }),
+    }));
+    const { default: InvoicesPage } = await import('@/app/(protected)/invoices/page');
+
+    const element = await InvoicesPage({ searchParams: Promise.resolve({}) });
+    render(element);
+
+    expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sep 22, 2026/)).not.toBeInTheDocument();
+  });
+});

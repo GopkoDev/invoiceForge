@@ -4,7 +4,7 @@
 // error boundary, and never leave a busy state or dialog stuck.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { Component, type ReactNode } from 'react';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, renderHook, act, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail } from '@/types/actions';
 import type { InvoiceListItem } from '@/types/invoice/types';
@@ -31,21 +31,32 @@ vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
 }));
 
 const createCustomerMock = vi.fn();
+const getCustomersMock = vi.fn();
 vi.mock('@/lib/actions/customer-actions', () => ({
   createCustomer: (...a: unknown[]) => createCustomerMock(...a),
   updateCustomer: vi.fn(),
-  getCustomers: vi.fn(),
+  getCustomers: (...a: unknown[]) => getCustomersMock(...a),
 }));
 
 const updateProductMock = vi.fn();
+const createProductMock = vi.fn();
 vi.mock('@/lib/actions/product-actions', () => ({
-  createProduct: vi.fn(),
+  createProduct: (...a: unknown[]) => createProductMock(...a),
+  getProducts: (...a: unknown[]) => getProductsMock(...a),
   updateProduct: (...a: unknown[]) => updateProductMock(...a),
 }));
 
+const getProductsMock = vi.fn();
 const getProductCustomPricesMock = vi.fn();
 vi.mock('@/lib/actions/custom-price-actions', () => ({
   getProductCustomPrices: (...a: unknown[]) => getProductCustomPricesMock(...a),
+}));
+
+const createSenderProfileMock = vi.fn();
+const updateSenderProfileMock = vi.fn();
+vi.mock('@/lib/actions/sender-profile-actions', () => ({
+  createSenderProfile: (...a: unknown[]) => createSenderProfileMock(...a),
+  updateSenderProfile: (...a: unknown[]) => updateSenderProfileMock(...a),
 }));
 
 const createBankMock = vi.fn();
@@ -70,6 +81,9 @@ const { CustomPriceModal } = await import('@/components/modals/customer/custom-p
 const { ContactCardActions } = await import(
   '@/components/layout/contacts/contact-card/contact-card-actions'
 );
+const { SenderProfileForm } = await import('@/components/sender-profiles/sender-profile-form');
+const { CustomerCustomPrices } = await import('@/components/customers/customer-custom-prices');
+const { useProductCustomPriceModal } = await import('@/hooks/use-product-custom-price-modal');
 const { ProductForm } = await import('@/components/products/product-form');
 const { ProductModalContainer } = await import(
   '@/components/modals/product/product-modal-container'
@@ -113,6 +127,11 @@ beforeEach(() => {
     getProductCustomPricesMock,
     createCustomerMock,
     createBankMock,
+    createSenderProfileMock,
+    updateSenderProfileMock,
+    createProductMock,
+    getProductsMock,
+    getCustomersMock,
     toastError,
     assignMock,
   ]) {
@@ -384,4 +403,169 @@ describe('selectSenderProfile number lookup (R-03)', () => {
     await useInvoiceEditorStore.getState().selectSenderProfile('sp-1');
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
   });
+});
+
+// T55 S-05 (review-2026-09-30-2): call sites T48 fixed that had no test.
+describe('SenderProfileForm (AC-21)', () => {
+  async function submit() {
+    const user = userEvent.setup();
+    render(
+      <SenderProfileForm
+        defaultValues={{
+          name: 'Main',
+          legalName: '',
+          taxId: '',
+          address: '',
+          city: '',
+          country: '',
+          postalCode: '',
+          phone: '',
+          email: '',
+          website: '',
+          logo: '',
+          invoicePrefix: 'INV',
+          isDefault: false,
+        }}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Create Profile' }));
+  }
+
+  it('UNAUTHORIZED routes to sign-in, no toast', async () => {
+    createSenderProfileMock.mockResolvedValue(unauthorized());
+    await submit();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('a rejected save routes to sign-in, no toast', async () => {
+    createSenderProfileMock.mockRejectedValue(new Error('boom'));
+    await submit();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProductForm create (AC-21)', () => {
+  it('UNAUTHORIZED from createProduct routes to sign-in, no toast', async () => {
+    createProductMock.mockResolvedValue(unauthorized());
+    const user = userEvent.setup();
+    render(
+      <ProductForm
+        defaultValues={{
+          name: 'Widget',
+          description: '',
+          unit: 'hours',
+          price: '10',
+          currency: 'USD',
+          isActive: true,
+        }}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: /create product/i }));
+    await waitFor(() => expect(createProductMock).toHaveBeenCalled());
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('product lookups (AC-21)', () => {
+  function loadProductsFromCustomerPrices() {
+    render(<CustomerCustomPrices customerId="c-1" customPrices={[]} />);
+    const open = useModalStore.getState().getModalProps;
+    return async () => {
+      const user = userEvent.setup();
+      await user.click(screen.getAllByRole('button', { name: /add/i })[0]);
+      return open('customPriceModal')!.onLoadProducts!();
+    };
+  }
+
+  it('loadProductsList: UNAUTHORIZED routes to sign-in, returns [] and shows no toast', async () => {
+    getProductsMock.mockResolvedValue(unauthorized());
+    const load = loadProductsFromCustomerPrices();
+    await expect(load()).resolves.toEqual([]);
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('loadProductsList: a rejection routes to sign-in and returns []', async () => {
+    getProductsMock.mockRejectedValue(new Error('boom'));
+    const load = loadProductsFromCustomerPrices();
+    await expect(load()).resolves.toEqual([]);
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  async function loadCustomersFromProductHook() {
+    const { result } = renderHook(() =>
+      useProductCustomPriceModal({
+        productId: 'p-1',
+        productPrice: 10,
+        productCurrency: 'USD',
+        productUnit: 'hours',
+      } as never)
+    );
+    act(() => result.current());
+    return useModalStore.getState().getModalProps('customPriceModal')!.onLoadProducts!();
+  }
+
+  it('onLoadProducts: UNAUTHORIZED routes to sign-in, returns [] and shows no toast', async () => {
+    getCustomersMock.mockResolvedValue(unauthorized());
+    await expect(loadCustomersFromProductHook()).resolves.toEqual([]);
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('onLoadProducts: a rejection routes to sign-in and returns []', async () => {
+    getCustomersMock.mockRejectedValue(new Error('boom'));
+    await expect(loadCustomersFromProductHook()).resolves.toEqual([]);
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('Print in the row actions (AC-21)', () => {
+  async function pickPrint() {
+    const user = userEvent.setup();
+    render(<InvoiceRowActions invoiceId="inv-1" invoiceNumber="INV-0001" status="DRAFT" />);
+    await user.click(screen.getByRole('button', { name: /actions for/i }));
+    await user.click(await screen.findByText('Print'));
+  }
+
+  it('UNAUTHORIZED routes to sign-in, no toast', async () => {
+    getInvoiceMock.mockResolvedValue(unauthorized());
+    await pickPrint();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('a rejection routes to sign-in', async () => {
+    getInvoiceMock.mockRejectedValue(new Error('boom'));
+    await pickPrint();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+  });
+});
+
+describe('View and Print in related invoices (AC-21)', () => {
+  async function pick(label: string) {
+    const user = userEvent.setup();
+    render(<RelatedInvoicesList invoices={[invoice]} entityType="customer" entityId="c-1" />);
+    await user.click(screen.getAllByRole('button', { name: '' })[0]);
+    await user.click(await screen.findByText(label));
+  }
+
+  for (const label of ['View', 'Print']) {
+    it(`${label}: UNAUTHORIZED routes to sign-in, no toast`, async () => {
+      getInvoiceMock.mockResolvedValue(unauthorized());
+      await pick(label);
+      await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+      expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it(`${label}: a rejection routes to sign-in`, async () => {
+      getInvoiceMock.mockRejectedValue(new Error('boom'));
+      await pick(label);
+      await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    });
+  }
 });
