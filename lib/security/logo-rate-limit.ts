@@ -13,6 +13,7 @@
 // (T05) fails closed and maps it to UNAVAILABLE (ADR-0008, openapi.yaml 502 hard rule).
 
 import type { PrismaClient } from '@prisma/client';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 const WINDOW_MS = 60_000;
 const LIMIT = 30;
@@ -88,7 +89,7 @@ export function createLogoRateLimiter(overrides?: LogoRateLimiterOverrides): {
         WHERE "userId" = ${userId} AND "windowStart" < ${prevWindowStart}
       `;
     } catch (error) {
-      console.log(`logo_rate_limit_cleanup_failed userId=${userId} error=${String(error)}`);
+      console.log(`logo_rate_limit_cleanup_failed userId=${userId} error=${String(redactError(error))}`);
     }
 
     if (estimate <= LIMIT) {

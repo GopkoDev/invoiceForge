@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { captureException } from '@sentry/nextjs';
 import { ActionFailure, fail } from '@/types/actions';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 /**
  * Shared classification helper (ADR-0009): turns a thrown zod validation error
@@ -37,10 +38,11 @@ export function isUniqueConstraintError(error: unknown): boolean {
 /**
  * A FAILED result for a caught, unexpected error (ADR-0009): logs it, alerts error monitoring
  * (F-38: "the cause of a FAILED result never reaches Sentry" — before this only account-actions
- * called captureException), and returns the plain-language message the client shows.
+ * called captureException), and returns the plain-language message the client shows. The log line
+ * carries a redacted form of the error: Prisma messages embed the call arguments (U-01).
  */
 export function failed(logContext: string, error: unknown, message: string): ActionFailure {
-  console.error(logContext, error);
+  console.error(logContext, redactError(error));
   captureException(error);
   return fail('FAILED', message);
 }

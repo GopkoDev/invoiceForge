@@ -2,6 +2,7 @@
 
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { captureException } from '@sentry/nextjs';
 
@@ -27,7 +28,7 @@ export async function getAccountDeletionSummary(): Promise<
 
     return ok({ invoiceCount });
   } catch (error) {
-    console.error('Error counting invoices for account deletion:', error);
+    console.error('Error counting invoices for account deletion:', redactError(error));
     captureException(error);
     return fail('FAILED', 'Something went wrong. Please try again.');
   }
@@ -67,7 +68,7 @@ export async function deleteUserAccount(): Promise<ActionResult<void>> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting user account:', error);
+    console.error('Error deleting user account:', redactError(error));
     captureException(error);
     return fail('FAILED', "Your account couldn't be deleted. Nothing was removed.");
   }

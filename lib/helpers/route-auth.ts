@@ -9,6 +9,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { auth } from '@/auth';
 import { prisma } from '@/prisma';
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 export type RequireSessionResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
 
@@ -32,7 +33,7 @@ export async function requireSession(): Promise<RequireSessionResult> {
     unstable_rethrow(error);
     // Fail closed: a thrown auth() call (e.g. the session callback's DB lookup is down) is
     // treated as no session, never as a live user (T09 edge case table).
-    console.error('[requireSession] auth() failed, treating as no session:', error);
+    console.error('[requireSession] auth() failed, treating as no session:', redactError(error));
     return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
   }
 
@@ -65,7 +66,7 @@ export async function requireLiveUser(): Promise<LiveUser> {
   } catch (error) {
     // Next's own control-flow errors (dynamic-rendering bail-out, redirects) must propagate.
     unstable_rethrow(error);
-    console.error('[requireLiveUser] auth() failed, treating as no session:', error);
+    console.error('[requireLiveUser] auth() failed, treating as no session:', redactError(error));
     userId = undefined;
   }
 

@@ -1,0 +1,204 @@
+// T57 (review-2026-09-30-3.md U-01; sad.md §8 "No request body or bank detail is logged") — a
+// Prisma error message carries the rendered call arguments, and `console.error(ctx, error)` writes
+// all of it to the server logs. Every server log site that can receive a Prisma error logs a
+// redacted form instead. Each case feeds a REAL PrismaClientValidationError into the site and
+// checks the console output the way Node renders it (util.inspect), not through JSON.stringify.
+import { inspect } from 'node:util';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const EMAIL = 'SECRET-EMAIL@x.com';
+const IBAN = 'SECRET-IBAN-DE00';
+const MARKERS = [EMAIL, IBAN];
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+}));
+
+const authMock = vi.fn();
+vi.mock('@/auth', () => ({ auth: () => authMock(), signOut: vi.fn() }));
+
+const prismaMock = {
+  user: { findUnique: vi.fn() },
+  invoice: { count: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+  senderProfile: { findFirst: vi.fn(), findMany: vi.fn() },
+  account: { findMany: vi.fn() },
+  emailHistory: { findMany: vi.fn() },
+  customer: { findMany: vi.fn() },
+  product: { findMany: vi.fn() },
+  $transaction: vi.fn(),
+};
+vi.mock('@/prisma', () => ({ prisma: prismaMock }));
+
+const consumeLogoFetchMock = vi.fn();
+vi.mock('@/lib/security/logo-rate-limit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/security/logo-rate-limit')>()),
+  consumeLogoFetch: (...a: unknown[]) => consumeLogoFetchMock(...a),
+}));
+
+let realError: Error;
+let consoleError: { mock: { calls: unknown[][] } };
+let consoleLog: { mock: { calls: unknown[][] } };
+
+beforeAll(async () => {
+  const client = new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString: 'postgresql://u:p@127.0.0.1:1/db',
+    }),
+  });
+  try {
+    await (
+      client as unknown as {
+        senderProfile: { update: (a: unknown) => Promise<unknown> };
+      }
+    ).senderProfile.update({
+      where: { id: 'x' },
+      data: { email: EMAIL, iban: IBAN, bogus: 1 },
+    });
+  } catch (e) {
+    realError = e as Error;
+  }
+  await client.$disconnect().catch(() => undefined);
+});
+
+beforeEach(() => {
+  consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
+
+/** The server log as Node would print it: every console argument rendered by util.inspect. */
+function logged(): string {
+  return [...consoleError.mock.calls, ...consoleLog.mock.calls]
+    .map((args: unknown[]) =>
+      args
+        .map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 10 })))
+        .join(' ')
+    )
+    .join('\n');
+}
+
+function expectRedactedLog() {
+  const out = logged();
+  expect(out).not.toBe('');
+  for (const m of MARKERS) expect(out).not.toContain(m);
+  expect(out).toContain('PrismaClientValidationError');
+  // The invocation line stays for triage; outside production Prisma renders the call site into it.
+  expect(out).toMatch(/Invalid `[^`]*senderProfile\.update\(\)` invocation/);
+}
+
+describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
+  it('the fixture is a real error whose message and inspect output contain the argument values', () => {
+    expect(realError.constructor.name).toBe('PrismaClientValidationError');
+    for (const m of MARKERS) expect(inspect(realError)).toContain(m);
+  });
+
+  it('failed() logs a redacted form of the error', async () => {
+    const { failed } = await import('@/lib/actions/action-result-helpers');
+    failed('updateSenderProfile failed', realError, 'Something went wrong.');
+    expectRedactedLog();
+  });
+
+  it('getAccountDeletionSummary logs a redacted form of the error', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    prismaMock.invoice.count.mockRejectedValue(realError);
+    const { getAccountDeletionSummary } =
+      await import('@/lib/actions/account-actions');
+    await getAccountDeletionSummary();
+    expectRedactedLog();
+  });
+
+  it('deleteUserAccount logs a redacted form of the error', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    prismaMock.user.findUnique.mockRejectedValue(realError);
+    const { deleteUserAccount } = await import('@/lib/actions/account-actions');
+    await deleteUserAccount();
+    expectRedactedLog();
+  });
+
+  it('the data export route logs a redacted form of the error', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    prismaMock.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-1' })
+      .mockRejectedValueOnce(realError);
+    const { GET } = await import('@/app/api/user/export/route');
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expectRedactedLog();
+  });
+
+  it('the logo route logs a redacted form of a rate-limit store error', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    prismaMock.senderProfile.findFirst.mockResolvedValue({
+      logo: 'https://example.com/logo.png',
+    });
+    consumeLogoFetchMock.mockRejectedValue(realError);
+    const { POST } = await import('@/app/api/convert-image/route');
+    const { NextRequest } = await import('next/server');
+    const res = await POST(
+      new NextRequest('http://localhost/api/convert-image', {
+        method: 'POST',
+        body: JSON.stringify({ senderProfileId: 'sp-1' }),
+      })
+    );
+    expect(res.status).toBe(502);
+    expectRedactedLog();
+  });
+
+  it('the rate limiter logs a redacted form of a cleanup error', async () => {
+    const { createLogoRateLimiter } =
+      await import('@/lib/security/logo-rate-limit');
+    const fakePrisma = {
+      $queryRaw: vi
+        .fn()
+        .mockResolvedValueOnce([{ count: 1 }])
+        .mockResolvedValueOnce([]),
+      $executeRaw: vi.fn().mockRejectedValue(realError),
+    };
+    const limiter = createLogoRateLimiter({
+      prisma: fakePrisma as unknown as PrismaClient,
+      clock: { now: () => new Date('2026-09-30T12:00:30Z') },
+    });
+    await expect(limiter.consumeLogoFetch('user-1')).resolves.toEqual({
+      allowed: true,
+    });
+    expectRedactedLog();
+  });
+
+  it('requireSession logs a redacted form of an auth() error', async () => {
+    authMock.mockRejectedValue(realError);
+    const { requireSession } = await import('@/lib/helpers/route-auth');
+    const result = await requireSession();
+    expect(result.ok).toBe(false);
+    expectRedactedLog();
+  });
+
+  it('requireLiveUser logs a redacted form of an auth() error', async () => {
+    authMock.mockRejectedValue(realError);
+    const { requireLiveUser } = await import('@/lib/helpers/route-auth');
+    await requireLiveUser().catch(() => undefined);
+    expectRedactedLog();
+  });
+
+  it('a non-Prisma error is still logged in full', async () => {
+    const { failed } = await import('@/lib/actions/action-result-helpers');
+    failed('getProducts failed', new Error('db down'), 'Something went wrong.');
+    expect(logged()).toContain('db down');
+  });
+});

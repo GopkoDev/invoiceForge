@@ -3,16 +3,11 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from '@sentry/nextjs';
+import { REDACTED, hasPrismaInvocation, scrubPrismaText } from '@/lib/helpers/prisma-error-scrub';
 
-// Prisma error messages embed the rendered call arguments (`email: "..."`), and `errorFormat`
-// cannot remove them: 'minimal' still includes them. So they are cut here, before an event or a
-// console breadcrumb leaves the process (review 2026-09-30-2 S-01; sad.md "no request body is logged").
-const PRISMA_INVOCATION = /(Invalid `prisma\.[^`]*` invocation)[\s\S]*/;
-const REDACTED = ' [arguments redacted]';
-
-export function scrubPrismaText(text: string): string {
-  return text.replace(PRISMA_INVOCATION, `$1${REDACTED}`);
-}
+// Prisma call arguments are cut here, before an event or a console breadcrumb leaves the process
+// (review 2026-09-30-2 S-01; sad.md "no request body is logged"). The scrub itself is shared with
+// the server log sites: lib/helpers/prisma-error-scrub.ts.
 
 type ScrubbableEvent = {
   message?: string;
@@ -24,7 +19,7 @@ export function scrubPrismaEvent<T extends ScrubbableEvent>(event: T): T {
   for (const ex of event.exception?.values ?? []) {
     if (typeof ex.value !== 'string') continue;
     ex.value =
-      ex.type === 'PrismaClientValidationError' && !PRISMA_INVOCATION.test(ex.value)
+      ex.type === 'PrismaClientValidationError' && !hasPrismaInvocation(ex.value)
         ? `PrismaClientValidationError${REDACTED}`
         : scrubPrismaText(ex.value);
   }

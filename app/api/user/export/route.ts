@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { captureException } from '@sentry/nextjs';
 import { requireSession } from '@/lib/helpers/route-auth';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { prisma } from '@/prisma';
 import { siteConfig } from '@/config/site.config';
 
@@ -108,7 +109,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Error exporting user data:', error);
+    console.error('Error exporting user data:', redactError(error));
     captureException(error);
     return NextResponse.json(EXPORT_FAILED_BODY, { status: 500 });
   }

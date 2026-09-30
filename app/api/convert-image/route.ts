@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { requireSession } from '@/lib/helpers/route-auth';
 import { prisma } from '@/prisma';
 import { consumeLogoFetch } from '@/lib/security/logo-rate-limit';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import {
   safeFetchImage,
   validateFetchUrl,
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
   try {
     rateLimit = await consumeLogoFetch(userId);
   } catch (error) {
-    console.error('logo_rate_limit_store_error', error);
+    console.error('logo_rate_limit_store_error', redactError(error));
     return NextResponse.json(REFUSAL_BODIES.UNAVAILABLE.body, { status: REFUSAL_BODIES.UNAVAILABLE.status });
   }
 
