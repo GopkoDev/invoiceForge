@@ -13,7 +13,7 @@
 | T6 | Move customers into lib/services/customers with search, paging and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | done |
 | T7 | Move products into lib/services/products with search, paging and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | done |
 | T8 | Move custom prices into lib/services/custom-prices with parent-scoped lists and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | done |
-| T9 | Move sender profiles into lib/services/sender-profiles and route the convert-image logo lookup through it | app | Dmytro Hopko | M | T3, T4 | todo |
+| T9 | Move sender profiles into lib/services/sender-profiles and route the convert-image logo lookup through it | app | Dmytro Hopko | M | T3, T4 | done |
 | T10 | Move bank accounts into lib/services/bank-accounts with a parent-scoped list | app | Dmytro Hopko | M | T3, T4 | done |
 | T11 | Move profile, account deletion, data export and the dashboard setup check into the layer | app | Dmytro Hopko | M | T3 | todo |
 | T12 | Move invoice numbering, getInvoice, the editor data and the next-number preview into lib/services/invoices | app | Dmytro Hopko | M | T3 | todo |
