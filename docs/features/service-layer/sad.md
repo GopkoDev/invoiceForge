@@ -367,13 +367,22 @@ Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
+Domain terms come from `CONTEXT.md` (repo root, canonical). Terms marked † were introduced by this SAD and aren't in `CONTEXT.md`. They are implementation vocabulary, so they belong here rather than in the domain glossary.
 
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Freelancer | A signed-in account holder who owns sender profiles, customers, products and invoices and sees only their own data |
+| Assistant | A program (in-app AI chat or external MCP client) that reads and changes data on behalf of exactly one Freelancer who authorized it, without a browser session. Planned, not built here |
+| Visitor | Anyone reaching the app or its endpoints without a signed-in session, including scripts and bots |
+| Customer | A party a Freelancer bills. Each invoice keeps a copy of the customer's details as they were when it was issued |
+| Debtor | A Customer with at least one overdue invoice in the selected currency, ranked by total overdue amount |
+| Expected payment | A pending (issued, not yet paid, not overdue) invoice, grouped by currency and ordered by due date |
+| Sender profile | A business identity a Freelancer issues invoices under, with its own bank accounts, invoice prefix and invoice sequence |
+| Invoice number / Invoice sequence | The printed identifier, unique within a sender profile / the per-sender-profile counter that proposes the next number |
+| Custom price | A price a Freelancer agrees with one Customer for one product, pre-filled into that Customer's invoice lines |
+| Business function † | A function in `lib/services/` that holds one use case's rules and data access, takes an `ActingFreelancer` and returns `ActionResult<T>`. It never touches the request |
+| Web wrapper † | A `'use server'` action (or RSC page loader, or route handler) that builds the `ActingFreelancer` from the session, calls a business function and refreshes pages on success |
+| ActingFreelancer † | The explicit, branded `{ userId, timeZone }` input naming whose data a business function may touch. Built only by trusted factories (ADR-0001) |
+| Page envelope † | `Page<T> = { items, total, page, pageSize, totalPages, hasMore }`, returned by every list (ADR-0005) |
+| Foreign record † | A record that exists but belongs to another Freelancer. It must behave exactly like a record that never existed |
+| Owner-scoped write † | An update or delete whose own `where` clause carries the owner filter, so no ownership check can drift from its write (ADR-0003) |
