@@ -467,10 +467,8 @@ export async function updateInvoice(
     const invoice = await prisma.$transaction(async (tx) => {
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
       // move clears the number field and always applies the manual/allocate rules under B; an
-      // unmoved, unchanged number instead runs the legacy shared-number check (F-09: a NULL key
-      // is checked by its own invoiceNumber's normalized key, never blanket-treated as shared),
-      // and only when it's free does it keep the number and (for a legacy row) get its key
-      // written; a changed, non-empty number falls through to the same manual rules (AC-08,
+      // unmoved, unchanged number instead runs the legacy shared-number check, and only when
+      // it's free does it keep the number; a changed, non-empty number falls through to the same manual rules (AC-08,
       // AC-10). A's counter is never touched either way.
       const numberUnchanged =
         !moved &&
@@ -480,8 +478,7 @@ export async function updateInvoice(
 
       let resolvedNumber: { invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean };
       if (numberUnchanged) {
-        const effectiveKey =
-          existingInvoice.invoiceNumberKey ?? normalizeInvoiceNumber(existingInvoice.invoiceNumber);
+        const effectiveKey = existingInvoice.invoiceNumberKey;
         const sharedNumber = await isInvoiceKeyTaken(
           tx,
           existingInvoice.senderProfileId,

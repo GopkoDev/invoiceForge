@@ -250,13 +250,13 @@ describe.runIf(containerRuntimeAvailable)(
       expect(invoiceCount).toBe(1); // only the pre-seeded row; nothing new was saved
     });
 
-    it('T41 N-08 / AC-08: a manual number that is a case/space variant of a NULL-key legacy number is blocked with CONFLICT, counter unchanged, 0 rows added', async () => {
+    it('T41 N-08 / AC-08: a manual number that is a case/space variant of an existing number is blocked with CONFLICT, counter unchanged, 0 rows added', async () => {
       const owner = await seedOwner();
       await seedInvoiceRow(prisma, {
         senderProfile: owner.senderProfile,
         customer: owner.customer,
         bankAccount: owner.bankAccount,
-        overrides: { invoiceNumber: ' Inv-777 ', invoiceNumberKey: null },
+        overrides: { invoiceNumber: ' Inv-777 ' },
       });
 
       const result = await createInvoice(buildForm(owner, { invoiceNumber: 'INV-777' }));
@@ -272,7 +272,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(updatedProfile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter);
 
       const invoiceCount = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
-      expect(invoiceCount).toBe(1); // only the pre-seeded NULL-key row
+      expect(invoiceCount).toBe(1); // only the pre-seeded row
     });
 
     it('AC-09: a manually taken proposed number is skipped and the sequence advances past it', async () => {
@@ -387,33 +387,6 @@ describe.runIf(containerRuntimeAvailable)(
 
       const invoiceCount = await prisma.invoice.count({ where: { senderProfileId: foreignProfile.id } });
       expect(invoiceCount).toBe(0);
-    });
-
-    it('F-08: an exact-text legacy duplicate with a NULL key is now caught by the key check itself, skipped, no Sentry alert', async () => {
-      const owner = await seedOwner();
-      const candidate = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 1);
-      const next = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 2);
-      // Exact-text legacy duplicate with a NULL key. Before F-08's fix this was invisible to the
-      // allocator's key check (isInvoiceKeyTaken) and only caught by the exact-match unique on
-      // [senderProfileId, invoiceNumber] at insert time, surfacing as a raw P2002 that wrongly
-      // alerted Sentry's "allocator bug" backstop. Now the key check catches it first: the
-      // allocator skips it and lands on the next free number, and nothing alerts.
-      await seedInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        overrides: { invoiceNumber: candidate, invoiceNumberKey: null },
-      });
-
-      const result = await createInvoice(buildForm(owner));
-
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.data.invoiceNumber).toBe(next);
-      expect(captureMessageMock).not.toHaveBeenCalled();
-
-      const updatedProfile = await prisma.senderProfile.findUniqueOrThrow({ where: { id: owner.senderProfile.id } });
-      expect(updatedProfile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter + 2);
     });
 
     it('F-10: a concurrent manual save and an allocation contending for the same number never race past the row lock — no P2002, no Sentry alert, no duplicate numbers stored', async () => {

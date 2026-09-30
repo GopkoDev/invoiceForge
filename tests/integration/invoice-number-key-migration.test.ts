@@ -41,6 +41,10 @@ const UP_03 = stagedSql('03_backfill_invoice_number_key.up.sql');
 const DOWN_03 = stagedSql('03_backfill_invoice_number_key.down.sql');
 const UP_04 = stagedSql('04_create_invoice_number_key_unique.up.sql');
 const DOWN_04 = stagedSql('04_create_invoice_number_key_unique.down.sql');
+// T30's contract step is live in prisma/migrations/, so each test first reverts it (06 -> 05) to
+// start from the expand-step shape this file tests.
+const DOWN_05 = stagedSql('05_set_invoice_number_key_not_null.down.sql');
+const DOWN_06 = stagedSql('06_drop_invoice_number_exact_unique.down.sql');
 
 interface ColumnRow {
   column_name: string;
@@ -98,6 +102,8 @@ describe.runIf(containerRuntimeAvailable)('Invoice.invoiceNumberKey migration (T
 
   beforeEach(async () => {
     await truncateAllTables(prisma);
+    await prisma.$executeRawUnsafe(DOWN_06);
+    await prisma.$executeRawUnsafe(DOWN_05);
   });
 
   it('adds a nullable invoiceNumberKey column and a valid unique index on (senderProfileId, invoiceNumberKey), alongside the still-present exact-match unique on (senderProfileId, invoiceNumber)', async () => {
@@ -167,6 +173,8 @@ describe.runIf(containerRuntimeAvailable)('Invoice.invoiceNumberKey migration (T
       bankAccount: bankAccountA,
       overrides: { invoiceNumber: 'INV-001' },
     });
+    // The factory writes a key; clear it so the variant below doesn't hit the key unique first.
+    await prisma.$executeRawUnsafe(`UPDATE "Invoice" SET "invoiceNumberKey" = NULL WHERE id = $1`, dupOne.id);
     const dupTwo = await createInvoice(prisma, {
       senderProfile: profileA,
       customer,

@@ -345,61 +345,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(stored.senderProfileId).toBe(owner.senderProfile.id); // A untouched, nothing saved
     });
 
-    // --- AC-17: legacy shared number -----------------------------------------------------------
-    it('F-09: a lone legacy invoice (NULL key) whose number is not actually shared saves with its number unchanged and gets its key written', async () => {
-      const owner = await seedOwner();
-      const legacy = await seedLegacyInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        items: [{ name: 'Legacy item', quantity: 1, rate: 100, amount: 100 }],
-        overrides: { invoiceNumber: 'LEGACY-0001', total: 100 }, // stored total equal to recompute
-      });
-      expect(legacy.invoiceNumberKey).toBeNull();
-
-      const result = await updateInvoice(legacy.id, buildForm(owner, 'LEGACY-0001'));
-
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.data.invoiceNumber).toBe('LEGACY-0001');
-
-      const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: legacy.id } });
-      expect(stored.invoiceNumberKey).toBe(normalizeInvoiceNumber('LEGACY-0001'));
-    });
-
-    it('AC-17: a legacy invoice (NULL key) whose number IS shared with another invoice, saved unchanged, is blocked with the exact shared-number message', async () => {
-      const owner = await seedOwner();
-      await seedInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        overrides: {
-          invoiceNumber: ' legacy-0001 ',
-          invoiceNumberKey: normalizeInvoiceNumber(' legacy-0001 '),
-        },
-      });
-      const legacy = await seedLegacyInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        items: [{ name: 'Legacy item', quantity: 1, rate: 100, amount: 100 }],
-        overrides: { invoiceNumber: 'LEGACY-0001', total: 100 },
-      });
-      expect(legacy.invoiceNumberKey).toBeNull();
-
-      const result = await updateInvoice(legacy.id, buildForm(owner, 'LEGACY-0001'));
-
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.code).toBe('CONFLICT');
-      expect(result.fieldErrors?.invoiceNumber).toEqual([
-        'This invoice number is also used by another invoice. Change it to a free one to save.',
-      ]);
-
-      const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: legacy.id } });
-      expect(stored.invoiceNumberKey).toBeNull(); // nothing saved
-    });
-
+    // --- AC-17: legacy number (a shared number can't exist since T30's NOT NULL key) ------------
     it('AC-17: a legacy invoice renumbered to a free number is no longer blocked by the shared-number check', async () => {
       const owner = await seedOwner();
       const legacy = await seedLegacyInvoiceRow(prisma, {
@@ -443,7 +389,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(result.details).toEqual({ kind: 'TOTALS_CHANGED', oldTotal: '120.50', newTotal: '120.00' });
 
       const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: legacy.id } });
-      expect(stored.invoiceNumberKey).toBeNull(); // nothing saved
+      expect(stored.invoiceNumber).toBe('LEGACY-0003'); // nothing saved
       expect(Number(stored.total)).toBe(120.5);
     });
 
@@ -651,35 +597,6 @@ describe.runIf(containerRuntimeAvailable)(
       });
     });
 
-    it('getInvoice reports legacy.sharedNumber true for a legacy row whose normalized number really is shared with another invoice', async () => {
-      const owner = await seedOwner();
-      await seedInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        overrides: {
-          invoiceNumber: ' legacy-shared ',
-          invoiceNumberKey: normalizeInvoiceNumber(' legacy-shared '),
-        },
-      });
-      const legacy = await seedLegacyInvoiceRow(prisma, {
-        senderProfile: owner.senderProfile,
-        customer: owner.customer,
-        bankAccount: owner.bankAccount,
-        items: [{ name: 'Legacy item', quantity: 1, rate: 100, amount: 100 }],
-        overrides: { invoiceNumber: 'LEGACY-SHARED', total: 100 }, // totals agree; only the number is shared
-      });
-
-      const result = await getInvoice(legacy.id);
-
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.data.legacy).toEqual({
-        storedTotal: '100.00',
-        recomputedTotal: '100.00',
-        sharedNumber: true,
-      });
-    });
   }
 );
 

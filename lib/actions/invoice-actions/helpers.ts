@@ -9,7 +9,7 @@ import type {
   BankAccount,
 } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/actions';
-import { isInvoiceKeyTaken, normalizeInvoiceNumber } from './numbering';
+import { isInvoiceKeyTaken } from './numbering';
 
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
@@ -66,13 +66,10 @@ export async function computeInvoiceLegacyInfo(
 
   const storedTotal = invoice.total.toFixed(2);
   const recomputedTotal = recomputed.total;
-  // F-09: a NULL key is checked by its own invoiceNumber's normalized key, not blanket-treated as
-  // shared — a legacy invoice whose number turns out to be unique is no longer flagged shared.
-  const effectiveKey = invoice.invoiceNumberKey ?? normalizeInvoiceNumber(invoice.invoiceNumber);
   const sharedNumber = await isInvoiceKeyTaken(
     client,
     invoice.senderProfileId,
-    effectiveKey,
+    invoice.invoiceNumberKey,
     invoice.id
   );
 

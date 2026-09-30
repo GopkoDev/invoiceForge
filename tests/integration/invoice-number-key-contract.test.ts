@@ -3,15 +3,10 @@
 // adr/0004-enforce-invoice-number-uniqueness-on-a-normalized-key-column.md, data-model.md
 // §Entities/Invoice + §Indexes, sad.md §7 (wave table row 4) + §11 (accepted debt).
 //
-// RED (T30 not yet implemented): the staged migrations under
-// docs/features/architecture-hardening/migrations/{05,06}_*.{up,down}.sql are NOT yet promoted
-// into prisma/migrations/, so `startTestDatabase()`'s `prisma migrate deploy` leaves the database
-// in T07's expand-step shape: invoiceNumberKey stays nullable, and the exact-match unique
-// Invoice_senderProfileId_invoiceNumber_key is still alive. The first test below asserts the
-// post-promotion contract shape directly and is expected to fail until T30 promotes 05-06 (two
-// separate migration folders, 06 alone) and updates prisma/schema/invoice.prisma
-// (invoiceNumberKey String, @@unique([senderProfileId, invoiceNumberKey]) only, the exact
-// @@unique([senderProfileId, invoiceNumber]) removed).
+// T30 promoted the staged 05-06 into prisma/migrations/ (two folders, 06 alone) and made
+// prisma/schema/invoice.prisma's invoiceNumberKey a required String with only the key unique.
+// The first test checks the shape `prisma migrate deploy` leaves; the rest drive the staged
+// up/down SQL directly from the pre-contract shape.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -97,10 +92,17 @@ describe.runIf(containerRuntimeAvailable)(
   () => {
     let db: TestDatabase;
     let prisma: PrismaClient;
+    // The shape `prisma migrate deploy` left, captured before any beforeEach reset reverts it.
+    let deployed: { nullable: boolean; exactUnique: boolean; keyUnique: { exists: boolean; valid: boolean } };
 
     beforeAll(async () => {
       db = await startTestDatabase(); // runs `prisma migrate deploy` against prisma/migrations/
       prisma = createTestPrismaClient(db.connectionString);
+      deployed = {
+        nullable: await isInvoiceNumberKeyNullable(prisma),
+        exactUnique: await exactUniqueExists(prisma),
+        keyUnique: await keyUniqueState(prisma),
+      };
     }, 60_000);
 
     afterAll(async () => {
@@ -115,16 +117,16 @@ describe.runIf(containerRuntimeAvailable)(
 
     it('makes invoiceNumberKey NOT NULL and drops the exact-match unique once `prisma migrate deploy` has promoted 05-06, leaving the key unique valid', async () => {
       expect(
-        await isInvoiceNumberKeyNullable(prisma),
+        deployed.nullable,
         'expected `prisma migrate deploy` to have promoted 05 (invoiceNumberKey NOT NULL)'
       ).toBe(false);
 
       expect(
-        await exactUniqueExists(prisma),
+        deployed.exactUnique,
         'expected `prisma migrate deploy` to have promoted 06 (exact-match unique Invoice_senderProfileId_invoiceNumber_key dropped)'
       ).toBe(false);
 
-      const keyUnique = await keyUniqueState(prisma);
+      const keyUnique = deployed.keyUnique;
       expect(
         keyUnique.exists,
         'expected the key unique Invoice_senderProfileId_invoiceNumberKey_key to still exist'
@@ -138,7 +140,9 @@ describe.runIf(containerRuntimeAvailable)(
       const customer = await createCustomer(prisma, freelancer.id);
       const bankAccount = await createBankAccount(prisma, profile.id);
 
-      await createLegacyInvoice(prisma, { senderProfile: profile, customer, bankAccount });
+      const legacy = await createLegacyInvoice(prisma, { senderProfile: profile, customer, bankAccount });
+      // The factory writes a key since T30; clear it to reproduce a row the backfill left NULL.
+      await prisma.$executeRawUnsafe(`UPDATE "Invoice" SET "invoiceNumberKey" = NULL WHERE id = $1`, legacy.id);
 
       await expect(
         prisma.$executeRawUnsafe(UP_05),
