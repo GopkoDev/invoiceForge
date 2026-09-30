@@ -244,7 +244,10 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
       '7.2.0',
       'P1001'
     );
-    expect(inspect(redactError(init))).toContain("Can't reach database server");
+    const out = inspect(redactError(init));
+    expect(out).toContain("Can't reach database server");
+    // The log line carries the same code as the Sentry prisma_code tag.
+    expect(out).toContain('PrismaClientInitializationError [P1001]:');
   });
 
   // T62 V-03: the cause chain, a string argument and a validation error without an invocation line

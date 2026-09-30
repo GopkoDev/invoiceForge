@@ -97,8 +97,12 @@ export function redactError(error: unknown, depth = 0): unknown {
     error.name === 'PrismaClientValidationError' && scrubbed === error.message
       ? REDACTED.trim()
       : scrubbed;
-  const code =
-    'code' in error && typeof error.code === 'string' ? ` [${error.code}]` : '';
+  const codeValue =
+    prismaErrorCode(error) ??
+    ('code' in error && typeof error.code === 'string'
+      ? error.code
+      : undefined);
+  const code = codeValue ? ` [${codeValue}]` : '';
   const causeLine =
     error.cause === undefined
       ? ''
