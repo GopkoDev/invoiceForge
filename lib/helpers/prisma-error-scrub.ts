@@ -1,7 +1,9 @@
 // Prisma error messages embed the rendered call arguments (`email: "..."`), and `errorFormat`
 // cannot remove them: 'minimal' still includes them. They are cut before an error leaves the
-// process, whether to Sentry (sentry.server.config.ts) or to the server logs (redactError), per
-// sad.md §8 "No request body or bank detail is logged" (review 2026-09-30-2 S-01, 2026-09-30-3 U-01).
+// process, whether to Sentry (sentry.server.config.ts) or to the application's own server log
+// lines (redactError), per sad.md §8 "No request body or bank detail is logged" (review 2026-09-30-2
+// S-01, 2026-09-30-3 U-01). Errors Auth.js catches itself go through its default logger unscrubbed,
+// a known exception recorded in sad.md §11 (review 2026-09-30-4 V-01).
 //
 // Outside production Prisma renders the call site into the backticks (`}).user.update()`), so the
 // pattern accepts any text there, not only `prisma.*`.
