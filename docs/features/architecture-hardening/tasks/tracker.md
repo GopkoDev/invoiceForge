@@ -65,9 +65,9 @@
 | T57 | [Keep Prisma argument values out of server logs](../_review/review-2026-09-30-3.md) | app | Dmytro Hopko | S | T54 | done |
 | T58 | [Test the breadcrumb Error branch through Sentry's normalize and keep the Prisma code and cause in events](../_review/review-2026-09-30-3.md) | app | Dmytro Hopko | S | T54 | done |
 | T59 | [Restore ADR-0009's original Option 1 wording under the amendment](../_review/review-2026-09-30-3.md) | docs | Dmytro Hopko | S | T56 | done |
-| T60 | [Narrow the sad.md logging contract to application log sites and record the Auth.js logger exception](../_review/review-2026-09-30-4.md) | docs | Dmytro Hopko | S | T57 | todo |
-| T61 | [Keep the Prisma reason paragraph only for an allowlist of value-free error codes](../_review/review-2026-09-30-4.md) | app | Dmytro Hopko | S | T58 | todo |
-| T62 | [Test redactError's cause-chain, string and no-invocation branches and fix its docstring](../_review/review-2026-09-30-4.md) | test | Dmytro Hopko | S | T57 | todo |
+| T60 | [Narrow the sad.md logging contract to application log sites and record the Auth.js logger exception](../_review/review-2026-09-30-4.md) | docs | Dmytro Hopko | S | T57 | done |
+| T61 | [Keep the Prisma reason paragraph only for an allowlist of value-free error codes](../_review/review-2026-09-30-4.md) | app | Dmytro Hopko | S | T58 | done |
+| T62 | [Test redactError's cause-chain, string and no-invocation branches and fix its docstring](../_review/review-2026-09-30-4.md) | test | Dmytro Hopko | S | T57 | done |
 
 **Total:** 63 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`, T48–T53 from `_review/review-2026-09-30.md`, T54–T56 from `_review/review-2026-09-30-2.md`, T57–T59 from `_review/review-2026-09-30-3.md`, T60–T62 from `_review/review-2026-09-30-4.md`), ~41 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
