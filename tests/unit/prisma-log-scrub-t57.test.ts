@@ -270,20 +270,19 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     );
   });
 
-  // The errorCode survives only on an initialization error thrown at client start-up, whose
-  // message has no invocation line. The log line then carries the same code as the Sentry
+  // T65 X-01: the errorCode survives only on an initialization error thrown at client start-up,
+  // whose message has no invocation line. In Prisma 7.2 the ClientEngine constructor throws
+  // this one with code P2038 when no driver adapter is configured. An unreachable database is
+  // not a start-up error here: adapter-pg connects its pool lazily, so it fails at query time as
+  // a PrismaClientKnownRequestError P1001. The log line carries the same code as the Sentry
   // prisma_code tag.
-  it('a start-up initialization error keeps its errorCode label (T64 W-02)', async () => {
+  it('a start-up initialization error keeps its errorCode label (T64 W-02, T65 X-01)', async () => {
     const { Prisma } = await import('@prisma/client');
     const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
-    const init = new Prisma.PrismaClientInitializationError(
-      "Can't reach database server at `db:5432`",
-      '7.2.0',
-      'P1001'
-    );
-    expect(redactError(init)).toBe(
-      "PrismaClientInitializationError [P1001]: Can't reach database server at `db:5432`"
-    );
+    const message =
+      'Missing configured driver adapter. Engine type `client` requires an active driver adapter. Please check your PrismaClient initialization code.';
+    const init = new Prisma.PrismaClientInitializationError(message, '7.2.0', 'P2038');
+    expect(redactError(init)).toBe(`PrismaClientInitializationError [P2038]: ${message}`);
   });
 
   // T62 V-03: the cause chain, a string argument and a validation error without an invocation line
