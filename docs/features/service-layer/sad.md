@@ -347,22 +347,23 @@ Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| Behaviour drift while moving 63 functions: a message, an order, a refreshed path or a paid-date rule changes silently | High | Move domain by domain (§7), with the existing suite as an oracle (0 changed expectations, reviewed in `review`). Wrappers keep today's `revalidatePath` lists verbatim. Only the five spec §1 changes are allowed | Dmytro Hopko |
+| A raw dashboard query or a new business function forgets the owner filter, so a Freelancer sees another's data | High | ADR-0003 owner-in-`where` rule, with all dashboard SQL in one file with an owner join. A foreign-record test per id-taking function and per dashboard query (QG-1). Security review before release | Dmytro Hopko / Security Lead |
+| Prisma rejects a relation filter inside a unique `where` for some model (e.g. `Invoice` via `senderProfile`, `CustomPrice` via `customer`) | Medium | Confirm in wave 1 with the first owner-scoped writes. Fallback per ADR-0003: `updateMany`/`deleteMany` with the owner filter and `count === 0 → NOT_FOUND` | Dmytro Hopko |
+| The dashboard latency reduction target is still unset (spec §8 OQ-1 was due before design) | Medium | Record the 7-day baseline per dashboard span before wave 4. Ship on "no regression" and set the reduction target from the baseline. The spec §8 OQ-1 row stays the tracker | Dmytro Hopko |
+| The `ActingFreelancer` brand can be bypassed with a cast, and business functions trust their caller | Medium | A lint ban on `as ActingFreelancer` outside the factory module. No business function is reachable from the browser (ADR-0006). The Assistant feature must specify its authenticating layer (spec §3) | Dmytro Hopko |
+| Unpaged full lists are unbounded for a non-browser caller | Medium | Out of scope here (spec §3). Caps belong to the Assistant tool layer, and spec §8 OQ-3 is due before `sdd:specify` of the AI-chat / MCP feature | Dmytro Hopko |
+| A time zone known to `Intl` but not to PostgreSQL (or the reverse) gives different day buckets in JS and SQL | Low | Accept a zone only if both know it, else UTC (§8). A test with a zone missing from one database | Dmytro Hopko |
+| `docs/architecture-map.md` is stale (reflects `ded1be7`, before architecture-hardening and this feature) | Low | Re-run `/sdd:survey` after this feature ships so later features read the service-layer layout | Dmytro Hopko |
+| `ILIKE '%…%'` search has no index | Low | Fine to roughly 10,000 records per list per Freelancer (§7). Add `pg_trgm` in a schema feature beyond that | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- Human-readable English error messages live in the business layer (ADR-0002). A tool-specific or translated wording needs a mapping at the consumer.
+- The layer boundary is lint + build + test enforced, not a separate package (ADR-0006). Extract `lib/services` into a package if the MCP server runs as its own process.
+- The dashboard currency-tabs cache (`unstable_cache`, 60 s) stays in the web wrapper, so a non-browser caller reads uncached. That is acceptable at current scale.
+- The customers, products and custom-prices pages and pickers still load full lists. UI paging is a separate follow-up feature (spec §3).
 
 ## 12. Glossary
 
