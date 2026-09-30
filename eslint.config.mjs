@@ -13,6 +13,33 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["lib/services/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth"],
+          patterns: ["next-auth/*"],
+        },
+      ],
+    },
+  },
+  {
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "TSAsExpression[typeAnnotation.typeName.name='ActingFreelancer']",
+          message: "Only lib/services/_shared/acting-freelancer.ts may cast to ActingFreelancer.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["lib/services/_shared/acting-freelancer.ts"],
+    rules: { "no-restricted-syntax": "off" },
+  },
 ]);
 
 export default eslintConfig;

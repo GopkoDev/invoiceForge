@@ -23,6 +23,11 @@ jobs:
       - run: pnpm exec prisma generate
       - run: pnpm lint
       - run: pnpm exec tsc --noEmit
+      - run: pnpm build
+        env:
+          # Placeholder values, just enough for `next build`; never real secrets.
+          AUTH_SECRET: ci-placeholder-secret
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
       - run: pnpm test:unit
 
   integration:
