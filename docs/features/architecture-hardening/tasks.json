@@ -1,0 +1,1409 @@
+{
+  "slug": "architecture-hardening",
+  "tasks": [
+    {
+      "id": "T00",
+      "title": "Set up the test harness, throwaway database and factories",
+      "layer": "infra",
+      "deps": [],
+      "acs": [],
+      "dod": "Unit, component, integration (throwaway Postgres with repo + staged migrations 01-06), contract and e2e suites each run one smoke test green locally and in CI; the .env database is never reachable from tests.",
+      "files_hint": [
+        "package.json",
+        "docs/features/architecture-hardening/test-plan.md",
+        "docs/features/architecture-hardening/data-model.md",
+        "docs/features/architecture-hardening/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t00-test-harness.md"
+    },
+    {
+      "id": "T01",
+      "title": "Add the LogoFetchWindow table and Prisma model",
+      "layer": "migration",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "The LogoFetchWindow migration applies and reverts cleanly on the dev DB and prisma migrate diff reports no drift.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/01_create_logo_fetch_window.up.sql",
+        "docs/features/architecture-hardening/migrations/01_create_logo_fetch_window.down.sql",
+        "prisma/schema/auth.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t01-logo-fetch-window-table.md"
+    },
+    {
+      "id": "T02",
+      "title": "Deny unauthenticated requests by default in the proxy, with one public allowlist",
+      "layer": "wiring",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-05"
+      ],
+      "dod": "A cookie-less request sweep returns content only for allowlisted paths, redirects private pages to sign-in and answers /api/* and server-action POSTs with 401 NotSignedIn.",
+      "files_hint": [
+        "proxy.ts",
+        "config/routes.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t02-deny-by-default-proxy.md"
+    },
+    {
+      "id": "T03",
+      "title": "Build the IP-pinning safe fetcher with per-hop checks and size/time caps",
+      "layer": "infra",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "A scratch probe run shows the safe fetcher refuses every private/loopback/link-local/metadata/rebinding/redirect/oversize/slow case and returns bytes for a public https image.",
+      "files_hint": [
+        "lib/security/safe-fetch.ts",
+        "package.json"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t03-safe-fetcher.md"
+    },
+    {
+      "id": "T04",
+      "title": "Implement the per-Freelancer sliding-window logo rate limiter",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T01"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "A scratch run against the dev DB allows 30 fetches and refuses the 31st within a minute with a Retry-After between 1 and 60 seconds.",
+      "files_hint": [
+        "lib/security/logo-rate-limit.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t04-logo-rate-limiter.md"
+    },
+    {
+      "id": "T05",
+      "title": "Rewrite /api/convert-image to fetch only an owned sender profile's logo",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T03",
+        "T04"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-02b",
+        "AC-03"
+      ],
+      "dod": "Manual probes show 401 without a session, 404 for a foreign or logo-less profile, 200 with a data URL for an owned https image, and generic 422/429/502 refusals that never echo the address.",
+      "files_hint": [
+        "app/api/convert-image/route.ts",
+        "lib/helpers/route-auth.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t05-convert-image-endpoint.md"
+    },
+    {
+      "id": "T06",
+      "title": "Request logos by sender-profile id with a per-session cache and show the PDF logo warning",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T05"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-03"
+      ],
+      "dod": "In the running app the PDF shows an owned https logo, reuses it without a second request, and for a refused logo still renders the PDF with the verbatim AC-03 warning.",
+      "files_hint": [
+        "lib/utils/image-to-base64.ts",
+        "lib/helpers/invoice-pdf-helpers.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "components/invoice-editor/pdf-preview-panel.tsx",
+        "components/modals/invoice/invoice-pdf-preview-modal.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t06-pdf-logo-client-and-warning.md"
+    },
+    {
+      "id": "T07",
+      "title": "Add, backfill and uniquely index Invoice.invoiceNumberKey (expand step)",
+      "layer": "migration",
+      "deps": [
+        "T00",
+        "T01"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "Migrations 02-04 apply and revert cleanly, every non-duplicate invoice has a key, and the unique (senderProfileId, invoiceNumberKey) index is valid.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/02_add_invoice_number_key.up.sql",
+        "docs/features/architecture-hardening/migrations/02_add_invoice_number_key.down.sql",
+        "docs/features/architecture-hardening/migrations/03_backfill_invoice_number_key.up.sql",
+        "docs/features/architecture-hardening/migrations/03_backfill_invoice_number_key.down.sql",
+        "docs/features/architecture-hardening/migrations/04_create_invoice_number_key_unique.up.sql",
+        "docs/features/architecture-hardening/migrations/04_create_invoice_number_key_unique.down.sql",
+        "prisma/schema/invoice.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t07-invoice-number-key-migration.md"
+    },
+    {
+      "id": "T08",
+      "title": "Introduce typed ActionResult error codes and move every action onto them",
+      "layer": "app",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-29"
+      ],
+      "dod": "The discriminated ActionResult compiles across the repo, every failure return carries a typed code, and a foreign id yields the same NOT_FOUND as a missing one.",
+      "files_hint": [
+        "types/actions.ts",
+        "lib/helpers/auth-helpers.ts",
+        "lib/actions/",
+        "components/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t08-typed-action-result.md"
+    },
+    {
+      "id": "T09",
+      "title": "Treat sessions without a live account as Visitors in layouts and guards",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T05",
+        "T08"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "With the User row deleted, the other device is redirected to sign-in, its actions return UNAUTHORIZED and create nothing, and its /api calls get 401.",
+      "files_hint": [
+        "lib/helpers/route-auth.ts",
+        "lib/helpers/auth-helpers.ts",
+        "app/(protected)/layout.tsx",
+        "app/(invoice-editor)/layout.tsx",
+        "auth.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t09-live-account-guard.md"
+    },
+    {
+      "id": "T10",
+      "title": "Make invoice-calculations a pure exact-decimal module shared by editor and server",
+      "layer": "domain",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-13"
+      ],
+      "dod": "A scratch run over the half-up rounding cases matches hand-computed values and the editor displays totals from the shared module.",
+      "files_hint": [
+        "lib/helpers/invoice-calculations.ts",
+        "store/invoice-editor-store/helpers.ts",
+        "lib/actions/invoice-actions/helpers.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t10-shared-decimal-calculations.md"
+    },
+    {
+      "id": "T11",
+      "title": "Tighten the invoice schema and add applyStatusChange for the paid date",
+      "layer": "domain",
+      "deps": [
+        "T00",
+        "T08",
+        "T10"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-15",
+        "AC-18",
+        "AC-19"
+      ],
+      "dod": "Scratch runs show applyStatusChange sets, keeps, clears and rejects as specified, the schema rejects every AC-14/15 case with the contract messages, and the list status change updates the paid date.",
+      "files_hint": [
+        "lib/validations/invoice.ts",
+        "lib/helpers/invoice-status.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoice-row-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t11-invoice-rules-and-status.md"
+    },
+    {
+      "id": "T12",
+      "title": "Add normalizeInvoiceNumber and the row-locked allocateInvoiceNumber",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T07"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-09"
+      ],
+      "dod": "A scratch run of parallel allocations yields only distinct numbers, skips a manually taken candidate, and normalization treats \" INV-001 \" and \"inv-001\" as equal.",
+      "files_hint": [
+        "lib/actions/invoice-actions/numbering.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t12-numbering-module.md"
+    },
+    {
+      "id": "T13",
+      "title": "Rewrite createInvoice and duplicateInvoice on the allocator and recomputed amounts",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T10",
+        "T11",
+        "T12"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "dod": "Manual and scripted probes show allocated, kept and blocked numbers as specified, concurrent saves all succeed with distinct numbers, stored amounts equal the shared-module figures, and duplicates get a sequence number.",
+      "files_hint": [
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/invoice-actions/helpers.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t13-create-and-duplicate-invoice.md"
+    },
+    {
+      "id": "T14",
+      "title": "Rewrite updateInvoice for profile moves, legacy invoices and confirmed totals",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T13"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-17",
+        "AC-18"
+      ],
+      "dod": "Manual checks show a move allocates from the target profile only, legacy invoices are blocked or confirmed exactly per AC-17, and re-saving a Paid invoice keeps its paid date.",
+      "files_hint": [
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/invoice-actions/select-queries.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t14-update-invoice-move-and-legacy.md"
+    },
+    {
+      "id": "T15",
+      "title": "Extend ConfirmationModal with a body slot, async confirm and a hideable confirm button",
+      "layer": "ui",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-22",
+        "AC-17"
+      ],
+      "dod": "Existing confirmations behave unchanged and an async confirm keeps the dialog open with a spinner until it settles.",
+      "files_hint": [
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "components/modals/global-modals/confirmation-modal/types.ts",
+        "store/use-modal-store.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t15-confirmation-modal-async-body.md"
+    },
+    {
+      "id": "T16",
+      "title": "Build the editor number hint, field errors, saved state, legacy alert and SCR-15 dialog",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T14",
+        "T15"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-08",
+        "AC-11",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-17"
+      ],
+      "dod": "A manual walk of every changed SCR-03 state and every SCR-15 state in the running app matches screens.md, and the displayed total equals the stored total after save.",
+      "files_hint": [
+        "components/invoice-editor/invoice-details-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "components/invoice-editor/invoice-editor-form.tsx",
+        "components/invoice-editor/invoice-editor.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "store/invoice-editor-store/",
+        "hooks/use-editor-header-buttons.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t16-editor-number-and-save-states.md"
+    },
+    {
+      "id": "T17",
+      "title": "Add the deletion summary and delete the account in one explicit transaction",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "Deleting a throwaway account with invoices removes every AC-20 category and a forced failure mid-transaction removes nothing.",
+      "files_hint": [
+        "lib/actions/account-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t17-account-deletion-transaction.md"
+    },
+    {
+      "id": "T18",
+      "title": "Show the invoice count and export offer in the delete-account dialog",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T15",
+        "T17"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "A manual walk of every SCR-08 state and the changed SCR-07 states matches screens.md and a successful deletion lands on sign-in.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t18-delete-account-dialog.md"
+    },
+    {
+      "id": "T19",
+      "title": "Refuse deleting a Customer or sender profile that has invoices, with the count",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T15"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "Deleting a Customer or sender profile with invoices is blocked with the count and removes no invoice, while one without invoices is deleted.",
+      "files_hint": [
+        "lib/actions/customer-actions.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "components/customers/customer-card-actions.tsx",
+        "components/sender-profiles/sender-profile-card-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t19-block-deleting-records-with-invoices.md"
+    },
+    {
+      "id": "T20",
+      "title": "Require an https logo link when saving a sender profile",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Saving a sender profile with a non-https logo link is blocked with the field message and an https link saves.",
+      "files_hint": [
+        "lib/validations/sender-profile.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "components/sender-profiles/sender-profile-form.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t20-sender-profile-https-logo.md"
+    },
+    {
+      "id": "T21",
+      "title": "Validate custom prices on create and update and link them to an explicit owned Customer",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-31"
+      ],
+      "dod": "Updating a custom price shows the same validation messages as creating one, and a created price links exactly the chosen owned Customer and product or is refused as not found.",
+      "files_hint": [
+        "lib/validations/custom-price.ts",
+        "lib/actions/custom-price-actions.ts",
+        "components/modals/customer/custom-price-modal.tsx",
+        "components/customers/customer-custom-prices.tsx",
+        "components/products/product-custom-prices.tsx",
+        "hooks/use-product-custom-price-modal.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t21-custom-price-validation-and-links.md"
+    },
+    {
+      "id": "T22",
+      "title": "Carry the browser time zone in a validated tz cookie with day-bound helpers",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T09"
+      ],
+      "acs": [
+        "AC-27"
+      ],
+      "dod": "A scratch run shows local day ranges end exclusively at the next local midnight including DST edges, the tz cookie is set on first load, and an invalid cookie falls back to UTC.",
+      "files_hint": [
+        "lib/helpers/time-zone.ts",
+        "components/time-zone-cookie.tsx",
+        "app/(protected)/layout.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t22-time-zone-cookie.md"
+    },
+    {
+      "id": "T23",
+      "title": "Parse invoice-list link parameters with fallback defaults and inclusive local date ranges",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T14",
+        "T22"
+      ],
+      "acs": [
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Every malformed invoice-list link opens with defaults and matching controls, and invoices issued late on the last local day of a range are included.",
+      "files_hint": [
+        "lib/validations/search-params.ts",
+        "app/(protected)/invoices/page.tsx",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoices-toolbar.tsx",
+        "components/invoices/invoices-table-footer.tsx",
+        "hooks/use-invoice-filters.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t23-invoice-list-link-params.md"
+    },
+    {
+      "id": "T24",
+      "title": "Parse dashboard date ranges with a current-month fallback and key Suspense on currency",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T22",
+        "T23"
+      ],
+      "acs": [
+        "AC-25"
+      ],
+      "dod": "Malformed and inverted dashboard links show the current local month with the filter displaying it, and a date change no longer reloads the three currency-keyed sections.",
+      "files_hint": [
+        "lib/validations/search-params.ts",
+        "app/(protected)/dashboard/page.tsx",
+        "lib/actions/dashboard-actions.ts",
+        "components/dashboard/header/dashboard-filters.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t24-dashboard-link-params.md"
+    },
+    {
+      "id": "T25",
+      "title": "Add the segment load-error boundaries with retry and Sentry reporting",
+      "layer": "ui",
+      "deps": [
+        "T00"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "A forced page-load throw renders the SCR-17 boundary inside the app shell with a working retry and reports the error.",
+      "files_hint": [
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "components/layout/content-area/load-error.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t25-load-error-boundaries.md"
+    },
+    {
+      "id": "T26",
+      "title": "Route page load outcomes: FAILED to the error boundary, NOT_FOUND to not-found",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T08",
+        "T25",
+        "T14"
+      ],
+      "acs": [
+        "AC-28",
+        "AC-29"
+      ],
+      "dod": "With the database unreachable every AC-28 page shows the retry error state and reports it, and foreign record ids show the same not-found page as random ids.",
+      "files_hint": [
+        "app/(protected)/invoices/page.tsx",
+        "app/(protected)/dashboard/page.tsx",
+        "app/(protected)/customers/",
+        "app/(protected)/products/",
+        "app/(protected)/sender-profiles/",
+        "app/(invoice-editor)/invoices/",
+        "components/layout/content-area/",
+        "components/customers/customers-list.tsx",
+        "components/products/products-list.tsx",
+        "components/sender-profiles/sender-profiles-list.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t26-page-outcome-routing.md"
+    },
+    {
+      "id": "T27",
+      "title": "Harden the data export: session first, parallel reads, Invoice Forge file name",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T09"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "The export downloads a file named \"Invoice Forge export YYYY-MM-DD.json\" holding every deletion category except sessions and no OAuth tokens.",
+      "files_hint": [
+        "app/api/user/export/route.ts",
+        "config/site.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t27-data-export-endpoint.md"
+    },
+    {
+      "id": "T28",
+      "title": "Check the session before parsing input in profile and account settings actions",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T08",
+        "T17"
+      ],
+      "acs": [
+        "AC-23"
+      ],
+      "dod": "Signed out, profile and account actions return UNAUTHORIZED before looking at any submitted values, and signed in the profile update still works.",
+      "files_hint": [
+        "lib/actions/profile-actions.ts",
+        "lib/actions/account-actions.ts",
+        "components/settings/profile-settings.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t28-profile-actions-guard-first.md"
+    },
+    {
+      "id": "T29",
+      "title": "Disallow the root and every page of each private section in robots.txt",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T02"
+      ],
+      "acs": [
+        "AC-30"
+      ],
+      "dod": "robots.txt served without a session matches the contract example, disallowing every private section root and page.",
+      "files_hint": [
+        "app/robots.ts"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t29-robots-disallow-section-roots.md"
+    },
+    {
+      "id": "T30",
+      "title": "Make invoiceNumberKey NOT NULL and drop the exact-match unique (contract step)",
+      "layer": "migration",
+      "deps": [
+        "T00",
+        "T07",
+        "T14"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "With a zero pre-flight count, migrations 05-06 apply and revert cleanly with no schema drift; otherwise the task is closed as not applicable with the count recorded.",
+      "files_hint": [
+        "docs/features/architecture-hardening/migrations/05_set_invoice_number_key_not_null.up.sql",
+        "docs/features/architecture-hardening/migrations/05_set_invoice_number_key_not_null.down.sql",
+        "docs/features/architecture-hardening/migrations/06_drop_invoice_number_exact_unique.up.sql",
+        "docs/features/architecture-hardening/migrations/06_drop_invoice_number_exact_unique.down.sql",
+        "prisma/schema/invoice.prisma",
+        "prisma/migrations/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t30-invoice-number-key-contract.md"
+    },
+    {
+      "id": "T31",
+      "title": "Declare the sdd marketplace, ignore local settings and remove the empty route folder",
+      "layer": "docs",
+      "deps": [
+        "T00"
+      ],
+      "acs": [],
+      "dod": "No personal settings file is tracked, no empty route folder remains, and a fresh clone installs the sdd plugin from repo config alone.",
+      "files_hint": [
+        ".claude/settings.json",
+        ".gitignore",
+        "app/api/auth/log-logout/"
+      ],
+      "file": "docs/features/architecture-hardening/tasks/t31-repository-hygiene.md"
+    },
+    {
+      "id": "T32",
+      "title": "Fix invoice amount rules: shared line totals, 2-decimal inputs, field errors, no silent rewrites, validated duplicates",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T13",
+        "T16",
+        "T21"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16"
+      ],
+      "dod": "Review F-01..F-07 fixed: editor line totals from lineAmount(); 2-dp refinement on quantity/price/taxRate/discount/shipping and custom price (+ upper bound); Save maps client issues to fieldErrors; inputs keep '-'/letters for the schema to reject; duplicateInvoice validates the copy; parseDecimal handles exponent input. Each has a regression test (incl. create→reopen legacy===null).",
+      "files_hint": [
+        "hooks/use-invoice-item-handlers.ts",
+        "lib/validations/invoice.ts",
+        "lib/validations/custom-price.ts",
+        "hooks/use-editor-header-buttons.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "components/modals/customer/custom-price-modal.tsx",
+        "lib/helpers/invoice-calculations.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T33",
+      "title": "Treat NULL-key invoices by normalized number in the taken and shared checks",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T12",
+        "T14"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-09",
+        "AC-17"
+      ],
+      "dod": "Review F-08..F-10 fixed: isInvoiceKeyTaken also matches NULL-key rows by normalized invoiceNumber; the allocator skips them; a NULL-key invoice whose number is not shared saves and gets its key written; manual path takes the profile row lock; contract text reconciled; allocate tests flipped; a re-run of the idempotent 03 backfill is added as a T30 gate prerequisite.",
+      "files_hint": [
+        "lib/actions/invoice-actions/numbering.ts",
+        "lib/actions/invoice-actions/helpers.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/actions/allocate-invoice-number.test.ts",
+        "docs/features/architecture-hardening/contracts/server-actions.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T34",
+      "title": "Test the real session callback, stale-session actions and the cookie-less route sweep",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T02",
+        "T09"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review F-11, F-12 fixed: integration test drives auth.ts callbacks.session with a deleted user's token and asserts no user.id; a stale-session create action leaves 0 rows; a sweep over every built non-public route without a cookie is refused/redirected and only allowlisted paths return content.",
+      "files_hint": [
+        "auth.ts",
+        "tests/integration",
+        "tests/e2e",
+        "playwright.config.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T35",
+      "title": "Build the missing SCR-02 duplicated and paid-date states and the detail-page delete entry",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T13",
+        "T19"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-18",
+        "AC-22"
+      ],
+      "dod": "Review F-14..F-16 fixed: duplicate shows 'Duplicated as {invoiceNumber}' and stays on the list; the list row selects and shows paidAt; SCR-09/SCR-19 offer delete leading to SCR-14. Component tests per state.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "lib/actions/invoice-actions/select-queries.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T36",
+      "title": "Harden the safe fetcher and rate limiter, and make the SSRF tests fail on regression",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T03",
+        "T04",
+        "T05"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review F-17..F-24 fixed: non-2xx upstream → UNAVAILABLE (logged); DNS inside the 5 s deadline; malformed Location → UNAVAILABLE; missing IP ranges refused; refused calls and pre-fetch refusals don't count; one refusal-message table tested at route level; redirect-limit, private-hop (blocked_ip) and rebinding (ok && 1 resolve) tests assert the real reason.",
+      "files_hint": [
+        "lib/security/safe-fetch.ts",
+        "lib/security/logo-rate-limit.ts",
+        "app/api/convert-image/route.ts",
+        "tests/integration/security/safe-fetch.test.ts",
+        "tests/support/image-host.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T37",
+      "title": "List the next-auth paths explicitly, allow the manifest icons, anchor the matcher and guard clear-session",
+      "layer": "wiring",
+      "deps": [
+        "T00",
+        "T02",
+        "T09"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review F-25..F-28 fixed: no /api/auth/ prefix match (unseen /api/auth/x denied); manifest icons allowed and dead icon URLs removed; matcher exclusions anchored to a segment boundary; clear-session does not clear a live session on a cross-site GET. Unit tests for each.",
+      "files_hint": [
+        "config/routes.config.ts",
+        "proxy.ts",
+        "app/api/auth/clear-session/route.ts",
+        "app/layout.tsx",
+        "tests/unit/routes-config.test.ts",
+        "tests/unit/proxy.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T38",
+      "title": "Fix local-date display, midnight-DST day bounds, dashboard chart zone, page cap and tab status",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Review F-29..F-33 fixed with regression tests: toolbar parses YYYY-MM-DD as local; localDayRange correct for Santiago/Havana; chart queries [start, endExclusive) and groups by the tz; page capped; applied.status is 'all' off the 'all' tab.",
+      "files_hint": [
+        "components/invoices/invoices-toolbar.tsx",
+        "lib/helpers/time-zone.ts",
+        "lib/actions/dashboard-actions.ts",
+        "lib/validations/search-params.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T39",
+      "title": "Route UNAUTHORIZED to sign-in, make retry recover and report FAILED causes to Sentry",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T08",
+        "T25",
+        "T26"
+      ],
+      "acs": [
+        "AC-21",
+        "AC-28"
+      ],
+      "dod": "Review F-34..F-39 fixed: shared client helper sends UNAUTHORIZED/401/rejected calls to CLEAR_SESSION_PATH (editor store, gdpr, contact cards, PDF entry points); retry uses startTransition(refresh+reset); a failed() helper calls captureException; duplicateInvoice P2002 → captureMessage + FAILED.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "lib/actions"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T40",
+      "title": "Fix the async ConfirmationModal regression and the remaining dialog and editor findings",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T15",
+        "T16",
+        "T18",
+        "T19"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-17",
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Review F-40..F-51 fixed: async callers close the modal (component tests for products and bank accounts); unsaved-dialog Save resolves with real success; same-profile reselect keeps the number; sender-profile delete counts bank-account invoices and verifyInvoiceRelations ties the account to the profile; SCR-14 'Close' footer; SCR-08 deleting disables body buttons; legacy alert cleared on save; SCR-15 onClose wired; productId ownership; logo cache keyed by url; login-actions codes; design-system doc records LoadError and the modal contract.",
+      "files_hint": [
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "components/products/products-table.tsx",
+        "components/bank-accounts/bank-accounts-list.tsx",
+        "components/settings/profile-settings.tsx",
+        "hooks/use-editor-header-buttons.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "docs/design-system.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-27.md",
+      "source": "review-2026-09-27"
+    },
+    {
+      "id": "T41",
+      "title": "Keep raw drafts in the editor number inputs, validate only amounts on duplicate, and pin the NULL-key manual and P2002 paths",
+      "layer": "app",
+      "deps": [
+        "T00",
+        "T32",
+        "T33"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-12",
+        "AC-14",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-28 N-01, N-07, N-08, N-18 fixed. Editor numeric inputs bind a raw string draft, so '-5', 'abc' and '1.5' survive as typed and the schema rejects them with contract messages (invalid_type_error). Tests use userEvent.type. duplicateInvoice checks only the amount rules and returns a contract code with a plain list message; a component test asserts the toast. There is an integration test for a manual case/space variant of a NULL-key number (CONFLICT, fieldErrors.invoiceNumber, counter unchanged, 0 rows) and unit tests for the create/update P2002 backstop.",
+      "files_hint": [
+        "components/invoice-editor/summary-section.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "hooks/use-invoice-item-handlers.ts",
+        "lib/validations/invoice.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "components/invoices/invoice-row-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T42",
+      "title": "Route every UNAUTHORIZED and rejected action call to sign-in, and fix the delete-account dialog state",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T39",
+        "T40"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-28 N-04, N-05, N-06, N-09, N-12, N-13, N-14, N-15 fixed. A shared helper sends UNAUTHORIZED, 401 and rejected calls to CLEAR_SESSION_PATH at every action call site: delete-account, summary, PDF download/print/view, duplicate/delete/status, products, bank accounts, custom prices, profile, and the PDF hooks (no router.push(signIn)). ConfirmationModal and its callers handle a rejected onConfirm (the busy state clears and the call routes to sign-in). The SCR-08 dialog state resets on open. signOut failure after a successful delete does not say 'Nothing was removed'. The editor redirect bypasses its beforeunload guard. There are component tests for each.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "components/modals/global-modals/confirmation-modal/confirmation-modal.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T43",
+      "title": "Report FAILED causes to Sentry once in every action module and show the retrying state",
+      "layer": "ui",
+      "deps": [
+        "T00",
+        "T39"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-28 N-10, N-17 fixed. Every action module (product, custom-price, bank-account, dashboard, profile, dashboard-setup-check) uses failed() with captureException. A page failure yields one Sentry event (test-plan.md:109), with no duplicate capture in unwrapPageResult, and the comment is corrected. The error boundaries use useTransition and pass isPending to LoadError as retrying. There are tests for one-report and retrying.",
+      "files_hint": [
+        "lib/actions",
+        "components/layout/content-area/unwrap-page-result.ts",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "components/layout/content-area/load-error.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T44",
+      "title": "Sweep the built route manifest and test a stale session against a server create action",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T34"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-28 N-02, N-03 fixed. The route sweep reads the built app-path-routes manifest (dynamic segments filled with a fake id) and splits paths by isPublicPath. Protected paths are denied. Allowlisted paths return 200 with no redirect to /login. Route handlers are called with their real method. An integration test builds auth() from sessionCallback for a deleted user, calls a server create action (createCustomer or createInvoice), and asserts UNAUTHORIZED and 0 rows.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/integration",
+        "lib/helpers/session-callback.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T45",
+      "title": "Fix midnight spring-forward day bounds east of UTC, unique chart day keys and the paid-date zone",
+      "layer": "ports",
+      "deps": [
+        "T00",
+        "T38"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-25",
+        "AC-27"
+      ],
+      "dod": "Review 2026-09-28 N-11, N-16 fixed. The spring-forward gap resolves to the transition instant for both offset signs. time-zone tests have Africa/Cairo 2026-04-24 and Asia/Beirut 2026-03-29 rows. The dashboard chart day keys are unique and complete across a DST day (test). The paid date renders without a server/client zone mismatch.",
+      "files_hint": [
+        "lib/helpers/time-zone.ts",
+        "lib/actions/dashboard-actions.ts",
+        "components/invoices/invoice-status-badge.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T46",
+      "title": "Log NOT_HTTPS and RATE_LIMITED logo refusals and pin the ::/96 rule",
+      "layer": "infra",
+      "deps": [
+        "T00",
+        "T36"
+      ],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review 2026-09-28 N-19, N-20 fixed. The convert-image route emits logo_fetch outcome=NOT_HTTPS and outcome=RATE_LIMITED log lines (with tests). The classifier test uses an IPv4-compatible address that no other rule catches (e.g. ::8.8.8.8), so removing the ::/96 rule fails it.",
+      "files_hint": [
+        "app/api/convert-image/route.ts",
+        "tests/unit/security/safe-fetch-classify.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T47",
+      "title": "Refresh the F-13 deferral note, the architecture map and the screens design-system reference",
+      "layer": "docs",
+      "deps": [
+        "T43",
+        "T42"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-28 N-21, N-22 fixed. The spec §8 F-13 'Default now' says a production-build web server exists and only the listed rows remain. architecture-map.md records design-system.md, LoadError, the async ConfirmationModal rule and the client-session-redirect helper. screens.md:455 points to docs/design-system.md.",
+      "files_hint": [
+        "docs/features/architecture-hardening/spec.md",
+        "docs/architecture-map.md",
+        "docs/features/architecture-hardening/screens.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-28.md",
+      "source": "review-2026-09-28"
+    },
+    {
+      "id": "T48",
+      "title": "Route UNAUTHORIZED and rejected calls to sign-in at the remaining form, editor and row-action call sites",
+      "layer": "ui",
+      "deps": [
+        "T42"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Review 2026-09-30 R-01, R-02, R-03, R-04 fixed. Every remaining action caller checks redirectIfUnauthorized before a toast and catches a rejection with goToSignIn: the customer, product and sender-profile forms, the bank-account modal helper, the custom-price modal, the getProducts/getCustomers lookups, the editor save, and View/Download/Print/duplicate/delete/status in invoice-row-actions and related-invoices-list. No async startTransition body can reject into the error boundary, and its dialog closes on every exit path. contact-card-actions clears isDeleting when deleteAction rejects. Component tests through the UI cover at least one create form, the bank-account helper, the custom-price modal, the editor save rejection, a Download rejection, a rejected duplicate and the contact-card rejection.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "components/customers/customer-form.tsx",
+        "components/products/product-form.tsx",
+        "components/sender-profiles/sender-profile-form.tsx",
+        "lib/helpers/bank-account-modal-helpers.ts",
+        "components/modals/customer/custom-price-modal.tsx",
+        "components/customers/customer-custom-prices.tsx",
+        "hooks/use-product-custom-price-modal.tsx",
+        "components/layout/contacts/contact-card/contact-card-actions.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T49",
+      "title": "Report every FAILED once, including auth and client render errors, and keep form data out of Sentry",
+      "layer": "app",
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-28",
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "Review 2026-09-30 R-05, R-06, R-09, R-11 fixed. getAuthenticatedUser's catch reports through failed(). Both error.tsx boundaries call Sentry.captureException only when the error has no digest, so client-originated errors are reported and server ones are not reported twice. getInvoice's serialize failure is reported. The missing-user cases in profile-actions and account-actions return UNAUTHORIZED (ADR-0002). The failed-reports-once test mocks unstable_cache so the dashboard case reaches the prisma rejection, and a new test proves auth throws → loader FAILED → exactly one capture. The invoice_number_conflict captureMessage sends only ids, the number and wasAllocated, and captured Prisma errors carry no argument values (errorFormat minimal or a beforeSend scrub), with a test on the payload.",
+      "files_hint": [
+        "lib/helpers/auth-helpers.ts",
+        "app/(protected)/error.tsx",
+        "app/(invoice-editor)/error.tsx",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/profile-actions.ts",
+        "lib/actions/account-actions.ts",
+        "tests/unit/lib/actions/failed-reports-once.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T50",
+      "title": "Show the paid date in the Freelancer's zone from the tz cookie",
+      "layer": "ui",
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Review 2026-09-30 R-07 fixed. The invoices page passes getRequestTimeZone() through InvoicesDataTable to InvoiceStatusBadge, which formats the paid date in that zone, so server and browser render the same Freelancer-local day. The badge test asserts the Kiritimati day when that zone is passed and the New York day for a 02:00Z paid timestamp.",
+      "files_hint": [
+        "components/invoices/invoice-status-badge.tsx",
+        "tests/component/invoice-status-badge-paid-date.test.tsx"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T51",
+      "title": "Parse editor numbers strictly and write the duplicate refusal into the contract",
+      "layer": "app",
+      "deps": [
+        "T41"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-12",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-30 R-14, R-15 fixed. Editor number drafts parse with a strict decimal pattern, so 0x10, 1e3 and empty or whitespace-only input become NaN and the schema returns '... must be a number.' instead of storing a converted value. userEvent.type cases cover 0x10 and an empty price. contracts/server-actions.md §duplicateInvoice documents the FAILED refusal for a source whose amounts break the rules, with its message, no retry and its reporting rule.",
+      "files_hint": [
+        "hooks/use-invoice-item-handlers.ts",
+        "components/invoice-editor/summary-section.tsx",
+        "hooks/use-number-draft.ts",
+        "docs/features/architecture-hardening/contracts/server-actions.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T52",
+      "title": "Exclude only the next-auth catch-all from the sweep and classify SIIT and local-use NAT64 addresses",
+      "layer": "infra",
+      "deps": [
+        "T44",
+        "T46"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-03"
+      ],
+      "dod": "Review 2026-09-30 R-12, R-13 fixed. The route sweep excludes only /api/auth/[...nextauth] and asserts that the exclusion matched exactly one manifest entry. The safe-fetch classifier runs the embedded-IPv4 check for ::ffff:0:0:0/96 and 64:ff9b:1::/48, with test rows ::ffff:0:127.0.0.1 and 64:ff9b:1::a00:1.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "lib/security/safe-fetch.ts",
+        "tests/unit/security/safe-fetch-classify.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T53",
+      "title": "Update design-system.md and sad.md for the retrying state, the ConfirmationModal rejection rule and the reporting path",
+      "layer": "docs",
+      "deps": [
+        "T48",
+        "T49"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30 R-08, R-10 fixed. design-system.md lists LoadError's retrying prop and says a rejected ConfirmationModal onConfirm routes to sign-in. sad.md:141,721,738 say load failures are reported once by the loader's failed(), onRequestError skips load_failed, and the boundaries report client-originated errors only.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/architecture-hardening/sad.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30.md",
+      "source": "review-2026-09-30"
+    },
+    {
+      "id": "T54",
+      "title": "Scrub Prisma argument values from Sentry events and breadcrumbs, with a test on a real payload",
+      "layer": "app",
+      "deps": [
+        "T49"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-2 S-01, S-02 fixed. sentry.server.config.ts has a beforeSend that cuts exception values and messages of PrismaClientValidationError (and any 'Invalid `prisma.*()` invocation' message) after the invocation line, and a beforeBreadcrumb that does the same for console crumbs. The errorFormat line is removed or carries an honest comment. The test builds a real Prisma validation error message with secret markers, runs it through the real beforeSend and beforeBreadcrumb, and asserts that the markers are absent. It has no 'minimal' shortcut.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "prisma.ts",
+        "lib/actions/action-result-helpers.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T55",
+      "title": "Pin the update conflict payload, every AC-28 loader, the uncovered T48 call sites, the paid-date zone wiring and the unreported duplicate refusal",
+      "layer": "test",
+      "deps": [
+        "T48",
+        "T49",
+        "T50",
+        "T51"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-28",
+        "AC-21",
+        "AC-18",
+        "AC-12",
+        "AC-17"
+      ],
+      "dod": "Review 2026-09-30-2 S-03 to S-07 fixed, tests only. updateInvoice's conflict payload is asserted with secret markers and the exact key set (id, senderProfileId, invoiceNumber, wasAllocated). failed-reports-once covers every loader of the nine AC-28 pages. The T48 test file covers the sender-profile form (UNAUTHORIZED and rejected), both product lookups, the UNAUTHORIZED branch of product create, and Print/View in the row actions and related invoices. A page or container test with getRequestTimeZone mocked to America/New_York shows 'Sep 21' for 2026-09-22T02:00Z. The duplicate-refusal test asserts that captureException and captureMessage were not called. Each new test fails when its fix is reverted.",
+      "files_hint": [
+        "tests/unit/lib/actions/invoice-conflict-payload-t49.test.ts",
+        "tests/unit/lib/actions/failed-reports-once.test.ts",
+        "tests/component/action-callers-rejected-t48.test.tsx",
+        "tests/component/invoice-status-badge-paid-date.test.tsx",
+        "tests/unit/lib/actions/invoice-actions/duplicate-amount-rules-only.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T56",
+      "title": "Trim editor number drafts, unit-test the sweep predicate, tighten two T48 tests and fix the remaining reporting-path docs",
+      "layer": "app",
+      "deps": [
+        "T48",
+        "T51",
+        "T52",
+        "T53"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-05",
+        "AC-21",
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-2 S-08 to S-12 fixed. use-number-draft tests raw.trim(), so ' 5' and '5 ' parse and whitespace-only input stays NaN, with test rows for each. The catch-all predicate lives in a helper module that route-sweep.spec.ts imports, and a unit test runs it on a fixture manifest with /api/auth/[...nextauth] and a protected /docs/[...slug], where only the first is excluded. The row-action tests check that the menu closes after a rejection while it is open again. The editor-save test asserts toast.error was not called at all and isSaving is false. sad.md:206 says 'Reports client-side render errors'. screens.md:408 says the server reports the cause once and the boundary reports only browser-originated errors. ADR-0009 gets a dated amendment note.",
+      "files_hint": [
+        "hooks/use-number-draft.ts",
+        "tests/component/editor-number-strict-parse-t51.test.tsx",
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/unit/route-sweep-exclusion.test.ts",
+        "tests/component/action-callers-rejected-t48.test.tsx",
+        "docs/features/architecture-hardening/sad.md",
+        "docs/features/architecture-hardening/screens.md",
+        "docs/features/architecture-hardening/adr/0009-classify-action-failures-with-typed-error-codes-and-segment-error-boundaries.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-2.md",
+      "source": "review-2026-09-30-2"
+    },
+    {
+      "id": "T57",
+      "title": "Keep Prisma argument values out of server logs",
+      "layer": "app",
+      "deps": [
+        "T54"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-3 U-01 fixed. scrubPrismaText moves to a shared lib/ module that sentry.server.config.ts and action-result-helpers.ts both import. failed() logs a redacted form of the error (name + scrubbed message) instead of the raw Error, and so do app/api/user/export/route.ts:111 and lib/actions/account-actions.ts:30,70. A test builds a real PrismaClientValidationError with secret markers, calls failed() and each direct site, and asserts that no console.error argument (checked through util.inspect, not JSON.stringify) contains a marker. sad.md:746 is true as written.",
+      "files_hint": [
+        "lib/actions/action-result-helpers.ts",
+        "sentry.server.config.ts",
+        "app/api/user/export/route.ts",
+        "lib/actions/account-actions.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T58",
+      "title": "Test the breadcrumb Error branch through Sentry's normalize and keep the Prisma code and cause in events",
+      "layer": "app",
+      "deps": [
+        "T54"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-3 U-02, U-03 fixed. The breadcrumb test asserts on out.data.arguments directly (or through normalize from @sentry/core), so deleting the `instanceof Error` branch in beforeBreadcrumb fails it. beforeSend sets event.tags.prisma_code from hint.originalException.code when present. For Prisma errors other than PrismaClientValidationError the scrubbed message keeps the engine's reason (the final paragraph), e.g. a P1001 event still says \"Can't reach database server\". Tests cover both, and a validation error still loses its arguments.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T59",
+      "title": "Restore ADR-0009's original Option 1 wording under the amendment",
+      "layer": "docs",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "Review 2026-09-30-3 U-04 fixed. ADR-0009:30 carries its original Accepted Option 1 wording ('and Sentry capture'), the 2026-09-30 amendment supersedes it without the ADR text being rewritten in place, and the frontmatter updated_at is 2026-09-30.",
+      "files_hint": [
+        "docs/features/architecture-hardening/adr/0009-classify-action-failures-with-typed-error-codes-and-segment-error-boundaries.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
+      "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T60",
+      "title": "Narrow the sad.md logging contract to application log sites and record the Auth.js logger exception",
+      "layer": "docs",
+      "deps": [
+        "T57"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-01 resolved by narrowing the contract. sad.md:746 says Prisma call arguments are cut from Sentry events and from the application's own server log lines, and names Auth.js's built-in logger (auth.ts sets no logger; adapter and session-callback errors are logged with their stack) as a known exception with its exposure (OAuth tokens or email in an adapter validation error).",
+      "files_hint": [
+        "docs/features/architecture-hardening/sad.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T61",
+      "title": "Keep the Prisma reason paragraph only for an allowlist of value-free error codes",
+      "layer": "app",
+      "deps": [
+        "T58"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-02 fixed. scrubPrismaError keeps the final reason paragraph only when the error code is in an allowlist of codes whose message holds no values (P1000–P1017, P2000, P2002, P2003, P2021, P2022, P2025, P2034, P2037); every other code, and an error without a code, is cut whole after the invocation line. Tests: a P2007 whose reason quotes a secret marker loses it in both redactError and beforeSend; P1001 and P2002 still keep their reason.",
+      "files_hint": [
+        "lib/helpers/prisma-error-scrub.ts",
+        "sentry.server.config.ts",
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T62",
+      "title": "Test redactError's cause-chain, string and no-invocation branches and fix its docstring",
+      "layer": "test",
+      "deps": [
+        "T57"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-03 fixed. The T57 test adds: failed(ctx, new Error('outer', { cause: realValidationError })) whose util.inspect output holds no marker; a string argument containing the invocation text that comes back scrubbed; a PrismaClientValidationError with a message like 'boom\\n{ email: \"SECRET\" }' that logs '[arguments redacted]' only. Each of the three mutations named in the review fails a test. The redactError docstring matches its real output.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "lib/helpers/prisma-error-scrub.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T63",
+      "title": "Drop P2011 from the value-free reason allowlist",
+      "layer": "app",
+      "deps": [
+        "T61"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-5 W-01 fixed. 'P2011' is removed from VALUE_FREE_REASON_CODES in lib/helpers/prisma-error-scrub.ts, and the allowlist comment and T61 wording no longer list it. adapter-pg reads P2011 fields with /Key \\(([^)]+)\\)/ from a 23502 detail that holds the failing row's values, so the reason can quote user data. Tests: a P2011 whose reason quotes a secret marker loses it in both redactError and beforeSend; re-adding P2011 to the allowlist fails them.",
+      "files_hint": [
+        "lib/helpers/prisma-error-scrub.ts",
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-5.md",
+      "source": "review-2026-09-30-5"
+    },
+    {
+      "id": "T64",
+      "title": "Build the initialization-error test from the shape Prisma 7.2 actually throws",
+      "layer": "test",
+      "deps": [
+        "T61"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-5 W-02 fixed. The T57 initialization-error test uses the shape RequestHandler rethrows at a call site: new PrismaClientInitializationError(<message with an invocation line and a reason>, clientVersion) with no errorCode. It asserts the arguments and the reason are cut and no [code] label is added. A separate case keeps the errorCode label for an initialization error without an invocation line (the ClientEngine start-up shape). The scrub code's behaviour does not change.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-5.md",
+      "source": "review-2026-09-30-5"
+    },
+    {
+      "id": "T65",
+      "title": "Build the start-up initialization-error test from the P2038 error Prisma 7.2 throws",
+      "layer": "test",
+      "deps": [
+        "T64"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-6 X-01 fixed. The T64 start-up case in tests/unit/prisma-log-scrub-t57.test.ts builds the error the ClientEngine constructor really throws: new PrismaClientInitializationError(<the 'Missing configured driver adapter. ...' message>, clientVersion, 'P2038'), not a P1001 'Can't reach database server' pairing. With adapter-pg the pool connects lazily, so an unreachable database fails at query time as a PrismaClientKnownRequestError P1001. The test asserts the [P2038] label and the unchanged message, and its comment names the ClientEngine constructor as the source. The scrub code's behaviour does not change.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-6.md",
+      "source": "review-2026-09-30-6"
+    }
+  ]
+}

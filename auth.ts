@@ -8,6 +8,7 @@ import type { Adapter } from 'next-auth/adapters';
 import { jwtConfig } from './config/jwt.config';
 import { authRoutes } from './config/routes.config';
 import { siteConfig } from './config/site.config';
+import { sessionCallback } from './lib/helpers/session-callback';
 
 const emailServer = getEmailServerConfig();
 const emailFrom = siteConfig.branding.emailFrom;
@@ -75,28 +76,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
 
-    async session({ session, token }) {
-      if (token.id) {
-        const user = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        });
-
-        if (user) {
-          session.user.id = user.id;
-          session.user.name = user.name || '';
-          session.user.email = user.email;
-          session.user.image = user.image || '';
-        }
-      }
-
-      return session;
-    },
+    // F-11: the actual lookup lives in lib/helpers/session-callback.ts, extracted so a test can
+    // drive it directly against a real database without importing 'next-auth' itself. Cast: that
+    // module is deliberately typed against the minimal shape it needs, not next-auth's own
+    // (structurally compatible at runtime — JWT/Session are supersets of it).
+    session: (params) =>
+      sessionCallback(params as unknown as Parameters<typeof sessionCallback>[0]),
     async redirect({ url, baseUrl }) {
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;

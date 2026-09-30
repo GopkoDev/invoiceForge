@@ -1,68 +1,82 @@
-async function convertViaServerApi(url: string): Promise<string | null> {
+// T06 (spec.md §5 AC-01/AC-03, ADR-0003, screens.md §SCR-04) - the browser client for
+// /api/convert-image. Requests are made by sender-profile id only (never a URL, per T05's
+// rewrite of the route), successful results are cached per session (ADR-0003) so a repeated
+// render doesn't re-count against the rate limit, and every refusal code is mapped to the
+// plain-language warning screens.md §SCR-04 declares.
+
+export type FetchLogoDataUrlResult =
+  | { dataUrl: string }
+  | { warning: string }
+  | { unauthorized: true };
+
+const GENERIC_UNAVAILABLE_WARNING = 'The logo could not be loaded from this link.';
+
+// Successful results only (checklist: "so a retry after a transient error is possible"). Keyed
+// by (senderProfileId, logo URL) rather than senderProfileId alone (F-49): a profile id alone
+// kept showing a stale cached logo after the Freelancer changed the URL, until a full reload.
+const sessionCache = new Map<string, { dataUrl: string }>();
+
+function cacheKey(senderProfileId: string, logoUrl: string): string {
+  return `${senderProfileId}::${logoUrl}`;
+}
+
+interface ConvertImageResponseBody {
+  success: boolean;
+  code?: string;
+  error?: string;
+  data?: { dataUrl: string };
+}
+
+async function requestLogoDataUrl(
+  senderProfileId: string
+): Promise<FetchLogoDataUrlResult> {
+  let response: Response;
   try {
-    const response = await fetch('/api/convert-image', {
+    response = await fetch('/api/convert-image', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ imageUrl: url }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senderProfileId }),
     });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.base64;
   } catch {
-    return null;
+    return { warning: GENERIC_UNAVAILABLE_WARNING };
   }
-}
 
-async function imageUrlToBase64(url: string): Promise<string | null> {
+  if (response.status === 401) {
+    return { unauthorized: true };
+  }
+
+  let body: ConvertImageResponseBody;
   try {
-    // For external URLs (not same origin), use server API to avoid CORS
-    const isExternal = url.startsWith('http://') || url.startsWith('https://');
-    const isSameOrigin = isExternal && url.startsWith(window.location.origin);
-
-    if (isExternal && !isSameOrigin) {
-      return await convertViaServerApi(url);
-    }
-
-    // For same-origin or relative URLs, fetch directly
-    const response = await fetch(url);
-    if (!response.ok) {
-      return null;
-    }
-
-    const blob = await response.blob();
-
-    // Convert blob to base64
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    body = await response.json();
   } catch {
-    return null;
+    return { warning: GENERIC_UNAVAILABLE_WARNING };
   }
+
+  if (!response.ok || !body.success) {
+    return { warning: body.error ?? GENERIC_UNAVAILABLE_WARNING };
+  }
+
+  return { dataUrl: body.data!.dataUrl };
 }
 
-export async function convertLogoToBase64(
-  logoUrl: string | null | undefined
-): Promise<string | null> {
-  if (!logoUrl) return null;
+/**
+ * Fetches a sender profile's logo as a data URL through /api/convert-image, by profile id
+ * only. Successful results are cached for the lifetime of the session (module scope) so a
+ * logo reused across renders/exports doesn't count against the per-minute rate limit again.
+ */
+export async function fetchLogoDataUrl(
+  senderProfileId: string,
+  logoUrl: string = ''
+): Promise<FetchLogoDataUrlResult> {
+  const key = cacheKey(senderProfileId, logoUrl);
+  const cached = sessionCache.get(key);
+  if (cached) return cached;
 
-  if (logoUrl.startsWith('data:')) return logoUrl;
+  const result = await requestLogoDataUrl(senderProfileId);
 
-  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://'))
-    return await imageUrlToBase64(logoUrl);
+  if ('dataUrl' in result) {
+    sessionCache.set(key, result);
+  }
 
-  if (logoUrl.startsWith('/'))
-    return await imageUrlToBase64(`${window.location.origin}${logoUrl}`);
-
-  return null;
+  return result;
 }

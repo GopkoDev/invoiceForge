@@ -1,6 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -18,12 +23,13 @@ import {
   FieldError,
   FieldLabel,
 } from '@/components/ui/field';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  customPriceFormSchema,
-  CustomPriceFormValues,
+  customPriceSchema,
+  CustomPriceSchemaValues,
 } from '@/lib/validations/custom-price';
 import {
   Select,
@@ -36,6 +42,7 @@ import { SerializedCustomPrice } from '@/types/custom-price/types';
 import { SerializedProduct } from '@/types/product/types';
 import { CustomerWithRelations } from '@/types/customer/types';
 import { formatCurrency, getUnitLabel } from '@/lib/helpers/format-helpers';
+import { ActionResult } from '@/types/actions';
 import type { Currency } from '@prisma/client';
 
 type SelectableItem = SerializedProduct | CustomerWithRelations;
@@ -47,7 +54,10 @@ function isProduct(item: SelectableItem): item is SerializedProduct {
 export interface CustomPriceModalProps {
   open: boolean;
   close: () => void;
-  onFormSubmit: (data: CustomPriceFormValues) => Promise<void>;
+  /** Resolves with the server action's ActionResult — the modal owns success/failure UI. */
+  onFormSubmit: (
+    data: CustomPriceSchemaValues
+  ) => Promise<ActionResult<unknown>>;
   defaultValues?: SerializedCustomPrice;
   isEditing?: boolean;
   mode: 'selectProduct' | 'selectCustomer';
@@ -58,6 +68,11 @@ export interface CustomPriceModalProps {
     currency: Currency;
     unit: string;
   };
+  /** Create from a Customer's page (SCR-10): the Customer is fixed, the Freelancer picks a product. */
+  fixedCustomerId?: string;
+  /** Create from a Product's page (SCR-09): the product is fixed, the Freelancer picks a Customer. */
+  fixedProductId?: string;
+  successMessage?: string;
 }
 
 export function CustomPriceModal({
@@ -69,20 +84,37 @@ export function CustomPriceModal({
   mode = 'selectProduct',
   onLoadProducts,
   productInfo,
+  fixedCustomerId,
+  fixedProductId,
+  successMessage,
 }: CustomPriceModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [availableProducts, setAvailableProducts] = useState<SelectableItem[]>(
     []
   );
+  const [notFoundError, setNotFoundError] = useState<string | null>(null);
 
-  const form = useForm<CustomPriceFormValues>({
-    resolver: zodResolver(customPriceFormSchema),
-    defaultValues: defaultValues || {
-      productId: '',
-      name: '',
-      price: 0,
-      notes: '',
-    },
+  // In selectProduct mode the Freelancer picks the product (customerId is fixed by context);
+  // in selectCustomer mode the Freelancer picks the Customer (productId is fixed by context).
+  const pickedFieldName = mode === 'selectProduct' ? 'productId' : 'customerId';
+
+  const form = useForm<CustomPriceSchemaValues>({
+    resolver: zodResolver(customPriceSchema),
+    defaultValues: defaultValues
+      ? {
+          customerId: defaultValues.customerId,
+          productId: defaultValues.productId,
+          name: defaultValues.name ?? '',
+          price: defaultValues.price,
+          notes: defaultValues.notes ?? '',
+        }
+      : {
+          customerId: fixedCustomerId ?? '',
+          productId: fixedProductId ?? '',
+          name: '',
+          price: 0,
+          notes: '',
+        },
   });
 
   const handleSelectOpen = async (isOpen: boolean) => {
@@ -100,35 +132,68 @@ export function CustomPriceModal({
     }
   };
 
-  const handleProductChange = (productId: string | null) => {
-    if (!productId) return;
-    form.setValue('productId', productId);
-    const item = availableProducts.find((p) => p.id === productId);
+  const handleProductChange = (id: string | null) => {
+    if (!id) return;
+    form.setValue(pickedFieldName, id);
+    const item = availableProducts.find((p) => p.id === id);
     if (item && !form.getValues('price')) {
       const price = isProduct(item) ? item.price : productInfo?.price ?? 0;
       form.setValue('price', price);
     }
   };
 
-  const productId = useWatch({ control: form.control, name: 'productId' });
-  const selectedItem = availableProducts.find((p) => p.id === productId);
+  const pickedId = useWatch({ control: form.control, name: pickedFieldName });
+  const selectedItem = availableProducts.find((p) => p.id === pickedId);
   const defaultProduct: SelectableItem | undefined = isEditing
     ? (defaultValues?.product as SelectableItem | undefined)
     : selectedItem;
 
-  const onSubmit = async (data: CustomPriceFormValues) => {
+  const onSubmit = async (data: CustomPriceSchemaValues) => {
+    setNotFoundError(null);
+    let result: Awaited<ReturnType<typeof onFormSubmit>>;
     try {
-      await onFormSubmit(data);
-      handleClose();
-    } catch (error) {
-      console.error('Form submission error:', error);
+      result = await onFormSubmit(data);
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
+      return;
     }
+    if (redirectIfUnauthorized(result)) return;
+
+    if (result.success) {
+      toast.success(
+        successMessage ||
+          (isEditing
+            ? 'Custom price updated successfully'
+            : 'Custom price created successfully')
+      );
+      handleClose();
+      return;
+    }
+
+    if (result.code === 'VALIDATION' && result.fieldErrors) {
+      Object.entries(result.fieldErrors).forEach(([field, messages]) => {
+        form.setError(field as keyof CustomPriceSchemaValues, {
+          type: 'server',
+          message: messages[0],
+        });
+      });
+      return;
+    }
+
+    if (result.code === 'NOT_FOUND') {
+      setNotFoundError(result.error);
+      return;
+    }
+
+    toast.error(result.error || 'Failed to save custom price');
   };
 
   const handleClose = () => {
     form.reset();
     setIsLoading(false);
     setAvailableProducts([]);
+    setNotFoundError(null);
     close();
   };
 
@@ -152,9 +217,15 @@ export function CustomPriceModal({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {notFoundError && (
+            <Alert variant="destructive">
+              <AlertDescription>{notFoundError}</AlertDescription>
+            </Alert>
+          )}
+
           {!isEditing && (
             <Controller
-              name="productId"
+              name={pickedFieldName}
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -242,13 +313,16 @@ export function CustomPriceModal({
             />
           )}
 
-          {isEditing && defaultValues?.product && (
+          {isEditing && defaultValues?.product && defaultValues?.customer && (
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs font-medium text-muted-foreground uppercase">
                 {mode === 'selectProduct' ? 'Product' : 'Customer'}
               </div>
               <div className="text-sm font-medium">
-                {defaultValues.product.name}
+                {mode === 'selectProduct'
+                  ? defaultValues.product.name
+                  : defaultValues.customer.companyName ||
+                    defaultValues.customer.name}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 Currency is inherited from the product
@@ -301,10 +375,10 @@ export function CustomPriceModal({
                   aria-invalid={fieldState.invalid}
                   placeholder="0.00"
                   disabled={form.formState.isSubmitting}
-                  onChange={(e) => {
-                    const sanitized = e.target.value.replace(/[^\d.]/g, '');
-                    field.onChange(sanitized);
-                  }}
+                  // F-04: the entered value is never silently corrected — pass it through as
+                  // typed (including "-" and letters) and let customPriceSchema's zod coercion
+                  // reject it with the contract's field message.
+                  onChange={(e) => field.onChange(e.target.value)}
                 />
 
                 <FieldError errors={[fieldState.error]} />

@@ -1,0 +1,368 @@
+# Contract — architecture-hardening, HTTP surface (route handlers + the proxy boundary).
+# DERIVED, not hand-written:
+#   fields + constraints  ← data-model.md (+ existing schema prisma/schema/*.prisma for unchanged entities)
+#   error responses       ← sad.md §6 alt-branches (flows 1, 3, 4)
+#   endpoint list + shape ← spec.md §4 US-01, US-05, US-08 / §5 AC-01..03, AC-02b, AC-05, AC-21, AC-24, AC-30
+# The server-action (RPC) surface — invoices, account, custom prices, deletes, link params — is in
+# ./server-actions.md. Field origins + drift findings: ./api-sync-report.md.
+#
+# Deviations from the api-skill defaults (recorded in api-sync-report.md §C):
+#   - auth is the next-auth session cookie, not a Bearer header (ADR-0001, ADR-0002)
+#   - error body is the ActionResult shape {success:false, code, error, details?} with
+#     UPPER_SNAKE codes (ADR-0009; ADR-0003 for the logo refusal set), not {code,message,details?}
+#   - paths stay unversioned (brownfield, same-origin consumer; stale tabs call the old paths)
+openapi: 3.1.0
+
+info:
+  title: Invoice Forge — architecture-hardening HTTP API
+  version: 0.1.0
+  contact:
+    name: Dmytro Hopko
+  description: |
+    Invoice Forge is in production, and a review on 2026-09-26 found that the image-conversion
+    endpoint could be called by any Visitor and would fetch any address, including internal
+    network addresses, with no size limit. This contract closes the authorization boundary:
+    every endpoint is private by default and only the explicit public allowlist is reachable
+    without a session. The logo endpoint takes an owned sender-profile id, never a URL, and
+    fetches only through a size-, time- and rate-capped fetcher that never reaches private
+    addresses. The data export returns everything account deletion removes, except sessions.
+
+    **Public allowlist (AC-05, ADR-0001)** — the only paths reachable without a session:
+    `/`, `/login`, `/verify-request`, `/error`, `/api/auth/*`, `/privacy`, `/terms`,
+    `/robots.txt`, `/sitemap.xml`, social-share preview images, app icons, `/manifest.json`.
+    Framework paths with no app data (`/_next/static`, `/_next/image`, `/monitoring`) are
+    outside the proxy matcher. Every other path, including paths added later, requires a
+    session: a page request is redirected to `/login?callbackUrl=…`; an `/api/*` request or a
+    server-action POST (`Next-Action` header) gets `401` with the `NotSignedIn` body and no data.
+
+tags:
+  - name: logo
+    description: Sender-profile logo for PDFs (US-01)
+  - name: account
+    description: Data export (US-05)
+  - name: public
+    description: Allowlisted public endpoints (US-08)
+
+servers:
+  - url: https://invoiceforge.hopko.dev
+    description: Production
+  - url: http://localhost:3000
+    description: Local
+
+# Global default: every operation needs a live session. Public operations declare `security: []`.
+security:
+  - SessionCookie: []
+
+paths:
+  /api/convert-image:
+    post:
+      summary: Fetch the logo of an owned sender profile as a data URL, for the browser-rendered PDF
+      description: |
+        Takes an owned sender-profile id, never a URL (AC-02b, ADR-0003). Order of checks
+        (sad.md §6 flow 1): session → live account → profile owned → profile has a logo →
+        rate limit (counts only after ownership, before the outbound fetch; ADR-0008) → safe
+        fetch (https only, resolved address must be public, re-checked on every redirect hop,
+        ≤ 3 hops, ≤ 5 s total, ≤ 512 KB, `image/*` only).
+
+        A refusal never echoes the address, the upstream status or the upstream error text
+        (AC-02, AC-03, spec §6.1). Unreachable, timed out and private/internal destinations
+        share one code, `UNAVAILABLE`. The browser caches each data URL per sender profile for
+        the editor or export session, so a cached reuse never reaches this endpoint. Any
+        non-2xx reply means "produce the PDF without the logo and show the AC-03 warning".
+        Not idempotent-keyed: a retry is a new fetch and counts against the limit.
+      operationId: convertLogoImage
+      tags: [logo]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogoFetchRequest" }
+            example:
+              senderProfileId: "clx0000000000000000000000"
+      responses:
+        "200":
+          description: Logo fetched; the data URL is embedded in the PDF (AC-01)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogoFetchSuccess" }
+              example:
+                success: true
+                data:
+                  dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAwAI/AL+hc2rNAAAAABJRU5ErkJggg=="
+                  contentType: "image/png"
+                  size: 68
+        "400":
+          description: Body is not `{ senderProfileId }` (flow 4 — the session was checked first)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionError" }
+              example:
+                success: false
+                code: VALIDATION
+                error: "The request is invalid."
+        "401":
+          $ref: "#/components/responses/NotSignedIn"
+        "404":
+          description: |
+            The sender profile doesn't exist, isn't the caller's, or has no logo — one identical
+            body for all three (AC-02b, AC-29). No quota is consumed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionError" }
+              example:
+                success: false
+                code: NOT_FOUND
+                error: "Sender profile not found."
+        "422":
+          description: |
+            The stored logo link or its response breaks a rule the Freelancer can fix; each maps
+            to its own AC-03 warning. `NOT_HTTPS` — the stored link is not a secure web address
+            (possible only for links saved before AC-04). `NOT_IMAGE` — the response is not
+            `image/*`. `TOO_LARGE` — the response exceeds 512 KB (aborted at the cap).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogoRefusal" }
+              examples:
+                notHttps:
+                  value: { success: false, code: NOT_HTTPS, error: "The logo link is not a secure web address." }
+                notImage:
+                  value: { success: false, code: NOT_IMAGE, error: "The logo file is not an image." }
+                tooLarge:
+                  value: { success: false, code: TOO_LARGE, error: "The logo file is larger than 512 KB." }
+        "429":
+          description: More than 30 real fetches in the sliding minute for this Freelancer (ADR-0008)
+          headers:
+            Retry-After:
+              description: Seconds until the current window closes (1–60)
+              schema: { type: integer, minimum: 1, maximum: 60 }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogoRefusal" }
+              example:
+                success: false
+                code: RATE_LIMITED
+                error: "Too many requests, try again in a minute."
+        "502":
+          description: |
+            Unreachable host, timeout (5 s), too many redirects, or a private, loopback,
+            link-local or metadata destination at any hop — deliberately indistinguishable
+            (AC-03). Also returned when the rate-limit store is down (ADR-0008 fails closed).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogoRefusal" }
+              example:
+                success: false
+                code: UNAVAILABLE
+                error: "The logo could not be loaded from this link."
+
+  /api/user/export:
+    get:
+      summary: Download all of the Freelancer's data as one JSON file
+      description: |
+        One file holding the same categories account deletion removes (AC-20), except sessions
+        (AC-24). The categories are read in parallel (A10). The file name starts with the
+        product name, `Invoice Forge`. A stale token (deleted account) is a Visitor → 401
+        (AC-21, ADR-0002).
+      operationId: exportUserData
+      tags: [account]
+      responses:
+        "200":
+          description: The export file
+          headers:
+            Content-Disposition:
+              description: 'Always `attachment; filename="Invoice Forge export YYYY-MM-DD.json"` (UTC date)'
+              schema:
+                type: string
+                pattern: '^attachment; filename="Invoice Forge export \d{4}-\d{2}-\d{2}\.json"$'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDataExport" }
+              example:
+                exportDate: "2026-09-26T10:00:00.000Z"
+                exportVersion: "2.0"
+                user: { id: "clx0000000000000000000001", name: "Test User", email: "user-1@example.test", emailVerified: null, image: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }
+                accounts: [{ provider: "google", type: "oidc", createdAt: "2026-01-01T00:00:00.000Z" }]
+                emailHistory: []
+                senderProfiles: []
+                customers: []
+                products: []
+                invoices: []
+        "401":
+          $ref: "#/components/responses/NotSignedIn"
+        "500":
+          description: A read failed; nothing partial is returned, details go to Sentry only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionError" }
+              example:
+                success: false
+                code: FAILED
+                error: "Your data couldn't be exported. Try again."
+
+  /robots.txt:
+    get:
+      summary: Crawling rules (public)
+      description: |
+        Disallows the root and every page of each private section (AC-30, A8), as prefix rules:
+        `/dashboard`, `/invoices`, `/customers`, `/products`, `/sender-profiles`, `/settings`,
+        `/api/`. Public on the allowlist.
+      operationId: getRobots
+      tags: [public]
+      security: []
+      responses:
+        "200":
+          description: robots.txt
+          content:
+            text/plain:
+              schema: { type: string }
+              example: |
+                User-Agent: *
+                Allow: /
+                Disallow: /dashboard
+                Disallow: /invoices
+                Disallow: /customers
+                Disallow: /products
+                Disallow: /sender-profiles
+                Disallow: /settings
+                Disallow: /api/
+                Sitemap: https://invoiceforge.hopko.dev/sitemap.xml
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Secure-authjs.session-token
+      description: |
+        next-auth v5 JWT session cookie (`authjs.session-token` on http://localhost). The proxy
+        verifies the signature; the Node layer additionally requires a live `User` row — a token
+        without one is a Visitor (ADR-0002).
+
+  responses:
+    NotSignedIn:
+      description: |
+        No session, an invalid token, or a token whose account no longer exists (AC-02, AC-05,
+        AC-21, AC-23). Returned before any body is parsed. Also the proxy's reply to a
+        server-action POST without a session.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ActionError" }
+          example:
+            success: false
+            code: UNAUTHORIZED
+            error: "Not signed in."
+
+  schemas:
+    # ADR-0009 error shape (deviation from the skill's {code,message,details?}; see report §C).
+    ActionErrorCode:
+      type: string
+      enum: [UNAUTHORIZED, NOT_FOUND, VALIDATION, CONFLICT, FAILED]
+    ActionError:
+      type: object
+      required: [success, code, error]
+      additionalProperties: false
+      properties:
+        success: { const: false }
+        code: { $ref: "#/components/schemas/ActionErrorCode" }
+        error:
+          type: string
+          description: Plain-language message. Never raw database or upstream text (spec §6.1).
+        fieldErrors:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }
+        details:
+          type: object
+          description: Optional structured context (ADR-0009 amendment, see server-actions.md)
+
+    LogoRefusalCode:
+      type: string
+      description: Closed set (ADR-0003). One code per AC-03 warning; UNAVAILABLE is generic on purpose.
+      enum: [NOT_HTTPS, NOT_IMAGE, TOO_LARGE, RATE_LIMITED, UNAVAILABLE]
+    LogoRefusal:
+      type: object
+      required: [success, code, error]
+      additionalProperties: false
+      properties:
+        success: { const: false }
+        code: { $ref: "#/components/schemas/LogoRefusalCode" }
+        error: { type: string }
+
+    LogoFetchRequest:
+      type: object
+      required: [senderProfileId]
+      additionalProperties: false
+      properties:
+        senderProfileId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: SenderProfile.id (cuid). No URL field exists — any other property is rejected (400).
+    LogoFetchSuccess:
+      type: object
+      required: [success, data]
+      additionalProperties: false
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [dataUrl, contentType, size]
+          additionalProperties: false
+          properties:
+            dataUrl:
+              type: string
+              pattern: "^data:image/[a-z0-9.+-]+;base64,"
+            contentType:
+              type: string
+              pattern: "^image/[a-z0-9.+-]+$"
+            size:
+              type: integer
+              minimum: 1
+              maximum: 524288
+              description: Bytes fetched (≤ 512 KB)
+
+    UserDataExport:
+      type: object
+      description: |
+        Categories = AC-20's deletion set minus sessions (AC-24). Entities are serialized as
+        their Prisma models (prisma/schema/*.prisma); money as decimal numbers.
+        `exportVersion` 2.0 — sessions dropped from 1.0.
+      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices]
+      additionalProperties: false
+      properties:
+        exportDate: { type: string, format: date-time }
+        exportVersion: { const: "2.0" }
+        user:
+          type: object
+          required: [id, email]
+          properties:
+            id: { type: string }
+            name: { type: [string, "null"] }
+            email: { type: string, format: email }
+            emailVerified: { type: [string, "null"], format: date-time }
+            image: { type: [string, "null"] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+        accounts:
+          description: Sign-in links (OAuth/email providers) — no tokens
+          type: array
+          items:
+            type: object
+            required: [provider, type]
+            properties:
+              provider: { type: string }
+              type: { type: string }
+              createdAt: { type: string, format: date-time }
+        emailHistory: { type: array, items: { type: object } }
+        senderProfiles:
+          description: Each with its bankAccounts
+          type: array
+          items: { type: object }
+        customers:
+          description: Each with its customPrices
+          type: array
+          items: { type: object }
+        products: { type: array, items: { type: object } }
+        invoices:
+          description: Each with its items
+          type: array
+          items: { type: object }

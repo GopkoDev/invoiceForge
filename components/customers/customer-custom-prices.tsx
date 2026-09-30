@@ -23,13 +23,17 @@ import { Plus, Pencil, Trash2, Package, MoreVertical } from 'lucide-react';
 import { ContactsDetailsContentCard } from '@/components/layout/contacts';
 import { useModal } from '@/store/use-modal-store';
 import { SerializedCustomPrice } from '@/types/custom-price/types';
-import { CustomPriceFormValues } from '@/lib/validations/custom-price';
+import { CustomPriceSchemaValues } from '@/lib/validations/custom-price';
 import {
   createCustomPrice,
   updateCustomPrice,
   deleteCustomPrice,
 } from '@/lib/actions/custom-price-actions';
 import { ProductInfo } from '@/components/custom-prices/custom-price-entity-cell';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { formatCurrency } from '@/lib/helpers';
 import { getProducts } from '@/lib/actions/product-actions';
 
@@ -76,11 +80,17 @@ export function CustomerCustomPrices({
   const hasCustomPrices = customPrices.length > 0;
 
   const loadProductsList = useCallback(async () => {
-    const result = await getProducts({ onlyActive: true });
-    if (result.success && result.data) {
-      return result.data;
-    } else {
+    try {
+      const result = await getProducts({ onlyActive: true });
+      if (result.success) {
+        return result.data;
+      }
+      if (redirectIfUnauthorized(result)) return [];
       toast.error(result.error || 'Failed to load products');
+      return [];
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
       return [];
     }
   }, []);
@@ -90,14 +100,8 @@ export function CustomerCustomPrices({
       open: true,
       close: customPriceModal.close,
       mode: 'selectProduct',
-      onFormSubmit: async (data: CustomPriceFormValues) => {
-        const result = await createCustomPrice(data, { customerId });
-        if (result.success) {
-          toast.success('Custom price created successfully');
-        } else {
-          toast.error(result.error || 'Failed to create custom price');
-        }
-      },
+      fixedCustomerId: customerId,
+      onFormSubmit: (data: CustomPriceSchemaValues) => createCustomPrice(data),
       onLoadProducts: loadProductsList,
     });
   }, [customerId, customPriceModal, loadProductsList]);
@@ -110,23 +114,16 @@ export function CustomerCustomPrices({
         isEditing: true,
         mode: 'selectProduct',
         defaultValues: price,
-        onFormSubmit: async (data: CustomPriceFormValues) => {
-          const result = await updateCustomPrice(
-            price.id,
-            customerId,
-            data,
-            price.productId
-          );
-          if (result.success) {
-            toast.success('Custom price updated successfully');
-          } else {
-            toast.error(result.error || 'Failed to update custom price');
-          }
-        },
+        onFormSubmit: (data: CustomPriceSchemaValues) =>
+          updateCustomPrice(price.id, {
+            name: data.name,
+            price: data.price,
+            notes: data.notes,
+          }),
         onLoadProducts: loadProductsList,
       });
     },
-    [customerId, customPriceModal, loadProductsList]
+    [customPriceModal, loadProductsList]
   );
 
   const handleDeleteCustomPrice = useCallback(
@@ -144,12 +141,14 @@ export function CustomerCustomPrices({
             customerId,
             price.productId
           );
+          confirmationModal.close();
+          // AC-21: a stale session goes to sign-in, not a toast.
+          if (redirectIfUnauthorized(result)) return;
           if (result.success) {
             toast.success('Custom price deleted successfully');
           } else {
             toast.error(result.error || 'Failed to delete custom price');
           }
-          confirmationModal.close();
         },
       });
     },

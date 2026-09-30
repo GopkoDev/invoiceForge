@@ -1,7 +1,6 @@
-import { ContentAreaHeader } from '@/components/layout/content-area';
+import { ContentAreaHeader, unwrapPageResult } from '@/components/layout/content-area';
 import { CustomerForm } from '@/components/customers';
 import { getCustomer } from '@/lib/actions/customer-actions';
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { PAGE_HEADER_TEXT } from './_constants';
 
@@ -21,12 +20,7 @@ export default async function EditCustomerPage({
 }: EditCustomerPageProps) {
   const { id } = await params;
   const result = await getCustomer(id);
-
-  if (!result.success || !result.data) {
-    notFound();
-  }
-
-  const customer = result.data;
+  const customer = unwrapPageResult(result);
 
   const defaultValues = customer;
 

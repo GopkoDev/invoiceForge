@@ -36,6 +36,10 @@ import {
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface RelatedInvoicesListProps {
   invoices: InvoiceListItem[];
@@ -63,13 +67,14 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (result.success && result.data) {
+      if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to load invoice');
       }
     } catch {
-      toast.error('Failed to load invoice');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }
@@ -80,11 +85,18 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await downloadInvoicePdf(result.data);
+      const pdf = await downloadInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }
@@ -95,11 +107,18 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await printInvoicePdf(result.data);
+      const pdf = await printInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }

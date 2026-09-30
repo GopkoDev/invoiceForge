@@ -32,6 +32,10 @@ import {
 import { updateProfile } from '@/lib/actions/profile-actions';
 import { TriangleAlert } from 'lucide-react';
 import { authRoutes } from '@/config/routes.config';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 export function ProfileSettings({ user }: { user: SessionUser }) {
   const confirmationModal = useModal('confirmationModal');
@@ -61,19 +65,30 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
       const result = await updateProfile(data);
 
       if (!result.success) {
+        // AC-21: a stale session goes to sign-in, not a toast.
+        if (redirectIfUnauthorized(result)) return;
+        if (result.fieldErrors) {
+          for (const [field, messages] of Object.entries(result.fieldErrors)) {
+            form.setError(field as keyof ProfileFormValues, {
+              type: 'server',
+              message: messages[0],
+            });
+          }
+        }
         toast.error(result.error || 'Failed to update profile');
         return;
       }
 
       toast.success('Profile updated successfully');
 
-      if (result.emailChanged) {
+      if (isEmailChanged) {
         await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
       } else {
         router.refresh();
       }
     } catch {
-      toast.error('Failed to update profile');
+      // A rejected call is the proxy's 401 as a client sees it: sign-in.
+      goToSignIn();
     }
   };
 
@@ -88,7 +103,13 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
         confirmText: 'Yes, Change Email',
         cancelText: 'Cancel',
         onClose: confirmationModal.close,
-        onConfirm: () => handleConfirmedSubmit(data),
+        // F-40: close once the async submit settles — the ConfirmationModal contract leaves
+        // this to the caller, and never closing left the dialog open (and a second click able
+        // to resubmit) after a successful or failed email change.
+        onConfirm: async () => {
+          await handleConfirmedSubmit(data);
+          confirmationModal.close();
+        },
       });
     } else {
       await handleConfirmedSubmit(data);

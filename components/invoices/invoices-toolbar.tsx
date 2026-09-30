@@ -1,7 +1,7 @@
 'use client';
 
 import { Search, X, CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,8 +66,15 @@ export function InvoicesToolbar({
   onClearFilters,
   isLoading,
 }: InvoicesToolbarProps) {
-  const dateFromValue = dateFrom ? new Date(dateFrom) : undefined;
-  const dateToValue = dateTo ? new Date(dateTo) : undefined;
+  // F-29 (review-2026-09-27) — `dateFrom`/`dateTo` are plain `yyyy-MM-dd` dates with no time
+  // component; `new Date(dateFrom)` parses that as UTC midnight, which `format` below then
+  // renders in the browser's local zone, showing the previous day for anyone west of UTC.
+  // `parse` with an explicit format string reads the same digits as a local midnight instead, so
+  // display and re-formatting stay on the applied day regardless of the viewer's time zone.
+  const dateFromValue = dateFrom
+    ? parse(dateFrom, 'yyyy-MM-dd', new Date())
+    : undefined;
+  const dateToValue = dateTo ? parse(dateTo, 'yyyy-MM-dd', new Date()) : undefined;
 
   return (
     <div className="flex flex-col gap-3">

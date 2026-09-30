@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/
@@ -23,6 +27,8 @@
 # misc
 .DS_Store
 *.pem
+# throwaway self-signed cert/key for the local test image host (never used outside tests)
+!tests/support/fixtures/tls/*.pem
 
 # debug
 npm-debug.log*
@@ -39,3 +45,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sdd (per-developer)
+.claude/*.local.md
+.claude/settings.local.json
+.worktrees/

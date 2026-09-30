@@ -17,6 +17,7 @@ import {
   downloadInvoicePdf,
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
 export interface InvoicePdfPreviewModalProps {
@@ -40,7 +41,8 @@ export function InvoicePdfPreviewModal() {
 
     setIsDownloading(true);
     try {
-      await downloadInvoicePdf(invoice, invoiceData);
+      const result = await downloadInvoicePdf(invoice, invoiceData);
+      if (result.unauthorized) goToSignIn();
     } finally {
       setIsDownloading(false);
     }
@@ -51,7 +53,8 @@ export function InvoicePdfPreviewModal() {
 
     setIsPrinting(true);
     try {
-      await printInvoicePdf(invoice, invoiceData);
+      const result = await printInvoicePdf(invoice, invoiceData);
+      if (result.unauthorized) goToSignIn();
     } finally {
       setIsPrinting(false);
     }

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { deleteBankAccount } from '@/lib/actions/bank-account-actions';
 import { useModal } from '@/store/use-modal-store';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { BankAccountField } from './bank-account-field';
 import { BankAccountWithRelations } from '@/types/sender-profile/types';
 import { BankAccountFormValues } from '@/lib/validations/bank-account';
@@ -76,15 +77,28 @@ export function BankAccountsList({
       onClose: confirmationModal.close,
       onConfirm: async () => {
         setDeletingId(id);
-        const result = await deleteBankAccount(id);
+        try {
+          const result = await deleteBankAccount(id);
 
-        if (!result.success) {
-          toast.error(result.error || 'Failed to delete bank account');
-        } else {
-          toast.success('Bank account deleted successfully');
-          router.refresh();
+          // F-40: close on both outcomes once the async delete settles — the ConfirmationModal
+          // contract leaves this to the caller, and never closing left a second click re-firing
+          // the delete.
+          confirmationModal.close();
+
+          // AC-21: a stale session goes to sign-in, not a toast.
+          if (redirectIfUnauthorized(result)) return;
+
+          if (!result.success) {
+            toast.error(result.error || 'Failed to delete bank account');
+          } else {
+            toast.success('Bank account deleted successfully');
+            router.refresh();
+          }
+        } finally {
+          // A rejected call propagates to ConfirmationModal (it routes to sign-in); the busy
+          // state clears either way (N-13).
+          setDeletingId(null);
         }
-        setDeletingId(null);
       },
     });
   };

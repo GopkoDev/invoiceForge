@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useModal } from '@/store/use-modal-store';
 import { signOut } from 'next-auth/react';
 import { toast } from 'sonner';
-import { Download, Trash2 } from 'lucide-react';
+import { AlertCircle, Download, Trash2 } from 'lucide-react';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,63 +14,235 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { deleteUserAccount } from '@/lib/actions/account-actions';
+import {
+  deleteUserAccount,
+  getAccountDeletionSummary,
+} from '@/lib/actions/account-actions';
 import { authRoutes } from '@/config/routes.config';
+import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+
+const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
+const FALLBACK_EXPORT_FILENAME = 'invoice-forge-data.json';
+
+/** Reads the file name the server chose (Content-Disposition), falling back when absent. */
+function exportFilenameFrom(response: Response): string {
+  const disposition = response.headers.get('content-disposition');
+  const match = disposition?.match(/filename="([^"]+)"/);
+  return match?.[1] ?? FALLBACK_EXPORT_FILENAME;
+}
+
+// SCR-08 states that decide the dialog's body and whether Confirm is enabled.
+type DeletionSummary =
+  | { status: 'counting' }
+  | { status: 'ready'; invoiceCount: number }
+  | { status: 'failed' };
+
+interface DialogState {
+  summary: DeletionSummary;
+  exporting: boolean;
+  // F-45: screens.md SCR-08 "deleting" row — every button in the dialog is disabled while the
+  // confirmed delete is in flight, not just ConfirmationModal's own Confirm/Cancel footer.
+  deleting: boolean;
+}
+
+function invoiceCountLine(count: number) {
+  return count === 1
+    ? '1 invoice will be permanently lost.'
+    : `${count} invoices will be permanently lost.`;
+}
+
+type ExportOutcome = 'ok' | 'unauthorized' | 'failed';
+
+/**
+ * Downloads the Freelancer's data export. A 401 (AC-21: a stale session must be treated as a
+ * Visitor) is reported separately from any other failure, since the caller sends the device to
+ * sign-in rather than showing the generic export-failed toast.
+ */
+async function downloadDataExport(): Promise<ExportOutcome> {
+  try {
+    const response = await fetch('/api/user/export');
+
+    if (response.status === 401) {
+      return 'unauthorized';
+    }
+
+    if (!response.ok) {
+      throw new Error('Failed to export data');
+    }
+
+    const filename = exportFilenameFrom(response);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    return 'ok';
+  } catch (error) {
+    console.error('Error exporting data:', error);
+    return 'failed';
+  }
+}
 
 export function GdprSettings() {
   const [isExporting, setIsExporting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const confirmationModal = useModal('confirmationModal');
+  // The dialog props live in the modal store, so every SCR-08 transition republishes them.
+  // A summary that resolves after Cancel must not reopen the dialog.
+  const dialogOpenRef = useRef(false);
+  const dialogStateRef = useRef<DialogState>({
+    summary: { status: 'counting' },
+    exporting: false,
+    deleting: false,
+  });
 
   const handleExportData = async () => {
     setIsExporting(true);
-    try {
-      const response = await fetch('/api/user/export');
-
-      if (!response.ok) {
-        throw new Error('Failed to export data');
-      }
-
-      // Create a blob from the response
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'invoice-forge-data.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Your data has been exported successfully');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Failed to export data. Please try again.');
-    } finally {
-      setIsExporting(false);
+    const outcome = await downloadDataExport();
+    if (outcome === 'unauthorized') {
+      // AC-21: a stale session must go to sign-in, not a generic "couldn't be exported" toast.
+      goToSignIn();
+      return;
     }
+    if (outcome === 'ok') {
+      toast.success('Your data has been exported successfully');
+    } else {
+      toast.error(EXPORT_FAILED_MESSAGE);
+    }
+    setIsExporting(false);
   };
 
-  const handleDeleteAccount = async () => {
-    setIsDeleting(true);
+  const closeDialog = () => {
+    dialogOpenRef.current = false;
+    confirmationModal.close();
+  };
+
+  const showDialog = (next: DialogState) => {
+    if (!dialogOpenRef.current) return;
+    dialogStateRef.current = next;
+    const { summary, exporting, deleting } = next;
+
+    confirmationModal.open({
+      open: true,
+      onClose: closeDialog,
+      onConfirm: handleDeleteAccount,
+      title: 'Delete your account?',
+      description: "This can't be undone.",
+      body: (
+        <div className="space-y-3">
+          {summary.status === 'counting' && <Skeleton className="h-5 w-3/4" />}
+          {summary.status === 'ready' && summary.invoiceCount > 0 && (
+            <p className="text-sm font-medium">
+              {invoiceCountLine(summary.invoiceCount)}
+            </p>
+          )}
+          {summary.status === 'failed' && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle className="flex items-center justify-between gap-2">
+                Couldn&apos;t count your invoices.
+                <Button size="sm" variant="outline" onClick={loadSummary} disabled={deleting}>
+                  Retry
+                </Button>
+              </AlertTitle>
+            </Alert>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportFromDialog}
+            disabled={exporting || deleting}
+          >
+            {exporting ? <Spinner /> : <Download />}
+            Export my data first
+          </Button>
+        </div>
+      ),
+      variant: 'destructive',
+      confirmText: 'Yes, Delete My Account',
+      cancelText: 'Cancel',
+      // Deleting without seeing what is lost is not allowed: Confirm waits for a count.
+      confirmDisabled: summary.status !== 'ready',
+    });
+  };
+
+  async function loadSummary() {
+    showDialog({ ...dialogStateRef.current, summary: { status: 'counting' } });
     try {
-      const result = await deleteUserAccount();
+      const result = await getAccountDeletionSummary();
+      // AC-21: a stale session goes to sign-in, not to the count-failed Alert.
+      if (redirectIfUnauthorized(result)) return;
+      showDialog({
+        ...dialogStateRef.current,
+        summary: result.success
+          ? { status: 'ready', invoiceCount: result.data.invoiceCount }
+          : { status: 'failed' },
+      });
+    } catch (error) {
+      // A rejected call is the proxy's 401 as a client sees it (contract "Boundary"): sign-in.
+      console.error('Error counting invoices for account deletion:', error);
+      goToSignIn();
+    }
+  }
 
-      if (!result.success) {
-        toast.error(result.error || 'Failed to delete account');
-        setIsDeleting(false);
-        return;
-      }
+  async function handleExportFromDialog() {
+    showDialog({ ...dialogStateRef.current, exporting: true });
+    const outcome = await downloadDataExport();
+    if (outcome === 'unauthorized') {
+      // AC-21: a stale session must go to sign-in, not a generic "couldn't be exported" toast.
+      goToSignIn();
+      return;
+    }
+    if (outcome === 'failed') {
+      toast.error(EXPORT_FAILED_MESSAGE);
+    }
+    showDialog({ ...dialogStateRef.current, exporting: false });
+  }
 
-      toast.success('Account deleted successfully');
+  async function handleDeleteAccount() {
+    // F-45: screens.md SCR-08 "deleting" — every button is disabled while the delete is in
+    // flight, including the body's Export/Retry buttons ConfirmationModal's own pending-disable
+    // (Confirm/Cancel only) never reaches.
+    showDialog({ ...dialogStateRef.current, deleting: true });
+    let result: Awaited<ReturnType<typeof deleteUserAccount>>;
+    try {
+      result = await deleteUserAccount();
+    } catch (error) {
+      // A rejected call is the proxy's 401 as a client sees it (contract "Boundary"): sign-in.
+      console.error('Error deleting account:', error);
+      goToSignIn();
+      return;
+    }
 
+    // AC-21: a stale session goes to sign-in, not a "Not signed in." toast.
+    if (redirectIfUnauthorized(result)) return;
+
+    if (!result.success) {
+      closeDialog();
+      toast.error(result.error);
+      return;
+    }
+
+    try {
       await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
     } catch (error) {
-      console.error('Error deleting account:', error);
-      toast.error('Failed to delete account. Please try again.');
-      setIsDeleting(false);
+      // The account is already gone (AC-20), so never claim "Nothing was removed"; the
+      // cookie-clearing route finishes the sign-out.
+      console.error('Error signing out after account deletion:', error);
+      goToSignIn();
     }
+  }
+
+  const openDeleteDialog = () => {
+    dialogOpenRef.current = true;
+    // N-12: a previous attempt's `deleting`/`exporting` flags must not carry into a reopened dialog.
+    dialogStateRef.current = { summary: { status: 'counting' }, exporting: false, deleting: false };
+    void loadSummary();
   };
 
   return (
@@ -114,34 +287,9 @@ export function GdprSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={() =>
-              confirmationModal.open({
-                open: true,
-                onClose: confirmationModal.close,
-                onConfirm: handleDeleteAccount,
-                title: 'Are you absolutely sure?',
-                description:
-                  'This action cannot be undone. All your invoices, customers, and profile data will be permanently deleted from our active servers',
-                variant: 'destructive',
-                confirmText: 'Yes, Delete My Account',
-                cancelText: 'Cancel',
-              })
-            }
-          >
-            {isDeleting ? (
-              <>
-                <Spinner className="mr-2" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 />
-                Delete Account
-              </>
-            )}
+          <Button variant="destructive" onClick={openDeleteDialog}>
+            <Trash2 />
+            Delete Account
           </Button>
         </CardContent>
       </Card>

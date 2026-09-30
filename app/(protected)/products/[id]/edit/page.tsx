@@ -1,7 +1,6 @@
-import { ContentAreaHeader } from '@/components/layout/content-area';
+import { ContentAreaHeader, unwrapPageResult } from '@/components/layout/content-area';
 import { ProductForm } from '@/components/products';
 import { getProduct } from '@/lib/actions/product-actions';
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { PAGE_HEADER_TEXT } from './_constants';
 
@@ -21,12 +20,7 @@ export default async function EditProductPage({
 }: EditProductPageProps) {
   const { id } = await params;
   const result = await getProduct(id);
-
-  if (!result.success || !result.data) {
-    notFound();
-  }
-
-  const product = result.data;
+  const product = unwrapPageResult(result);
 
   const defaultValues = {
     ...product,

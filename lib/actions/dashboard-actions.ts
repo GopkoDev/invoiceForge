@@ -3,7 +3,8 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok } from '@/types/actions';
+import { failed } from '@/lib/actions/action-result-helpers';
 import {
   CurrencyTab,
   DashboardSummaryStats,
@@ -16,15 +17,12 @@ import {
   ExpectedPaymentItem,
 } from '@/types/dashboard';
 import { Currency, InvoiceStatus } from '@prisma/client';
+import type { DashboardAppliedRange } from '@/lib/validations/search-params';
 import {
-  startOfDay,
-  endOfDay,
-  eachDayOfInterval,
-  eachWeekOfInterval,
-  eachMonthOfInterval,
-  format,
-  differenceInDays,
-} from 'date-fns';
+  currentLocalMonth,
+  formatLocalDateKey,
+  startOfLocalDay,
+} from '@/lib/helpers/time-zone';
 
 const CACHE_TAGS = {
   dashboard: 'dashboard',
@@ -67,8 +65,8 @@ export async function getDashboardCurrencyTabs(): Promise<
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -84,10 +82,9 @@ export async function getDashboardCurrencyTabs(): Promise<
     );
 
     const data = await getCachedCurrencyTabs();
-    return { success: true, data };
+    return ok(data);
   } catch (error) {
-    console.error('Error fetching dashboard currency tabs:', error);
-    return { success: false, error: 'Failed to fetch currency tabs' };
+    return failed('Error fetching dashboard currency tabs:', error, 'Failed to fetch currency tabs.');
   }
 }
 
@@ -96,13 +93,12 @@ export async function getDashboardCurrencyTabs(): Promise<
  */
 export async function getDashboardSummaryStats(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<DashboardSummaryStats>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -114,42 +110,39 @@ export async function getDashboardSummaryStats(
     };
 
     // For paid invoices, filter by issueDate
-    const paidWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'PAID' as InvoiceStatus,
-            issueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'PAID' as InvoiceStatus };
+    const paidWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'PAID' as InvoiceStatus,
+          issueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'PAID' as InvoiceStatus };
 
     // For pending/overdue invoices, filter by dueDate
-    const pendingWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'PENDING' as InvoiceStatus,
-            dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'PENDING' as InvoiceStatus };
+    const pendingWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'PENDING' as InvoiceStatus,
+          dueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'PENDING' as InvoiceStatus };
 
-    const overdueWhere =
-      dateFrom && dateTo
-        ? {
-            ...baseWhere,
-            status: 'OVERDUE' as InvoiceStatus,
-            dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
-            },
-          }
-        : { ...baseWhere, status: 'OVERDUE' as InvoiceStatus };
+    const overdueWhere = appliedRange
+      ? {
+          ...baseWhere,
+          status: 'OVERDUE' as InvoiceStatus,
+          dueDate: {
+            gte: appliedRange.start,
+            lt: appliedRange.endExclusive,
+          },
+        }
+      : { ...baseWhere, status: 'OVERDUE' as InvoiceStatus };
 
     // All future payments (pending + overdue) - NO date filter
     const allFutureWhere = {
@@ -182,22 +175,18 @@ export async function getDashboardSummaryStats(
         }),
       ]);
 
-    return {
-      success: true,
-      data: {
-        totalReceived: paidResult._sum.total?.toNumber() ?? 0,
-        receivedCount: paidResult._count,
-        totalPlanned: pendingResult._sum.total?.toNumber() ?? 0,
-        plannedCount: pendingResult._count,
-        totalOverdue: overdueResult._sum.total?.toNumber() ?? 0,
-        overdueCount: overdueResult._count,
-        allFuturePayments: allFutureResult._sum.total?.toNumber() ?? 0,
-        allFuturePaymentsCount: allFutureResult._count,
-      },
-    };
+    return ok({
+      totalReceived: paidResult._sum.total?.toNumber() ?? 0,
+      receivedCount: paidResult._count,
+      totalPlanned: pendingResult._sum.total?.toNumber() ?? 0,
+      plannedCount: pendingResult._count,
+      totalOverdue: overdueResult._sum.total?.toNumber() ?? 0,
+      overdueCount: overdueResult._count,
+      allFuturePayments: allFutureResult._sum.total?.toNumber() ?? 0,
+      allFuturePaymentsCount: allFutureResult._count,
+    });
   } catch (error) {
-    console.error('Error fetching dashboard summary stats:', error);
-    return { success: false, error: 'Failed to fetch summary statistics' };
+    return failed('Error fetching dashboard summary stats:', error, 'Failed to fetch summary statistics.');
   }
 }
 
@@ -208,37 +197,40 @@ export async function getDashboardSummaryStats(
  */
 export async function getDashboardChartData(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange,
+  timeZone: string = 'UTC'
 ): Promise<ActionResult<ChartDataPoint[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
 
-    // Default to current month if no dates provided
-    const now = new Date();
-    const today = startOfDay(now);
-    const from = dateFrom ?? new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = dateTo ?? new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // T38 (review-2026-09-27 F-31) — `appliedRange` is already local-day-aligned in the
+    // Freelancer's own time zone (search-params.ts's `localDayRange`/`currentLocalMonth`,
+    // ADR-0010); querying and grouping must stay in that zone end-to-end instead of re-deriving
+    // server-zone `startOfDay`/`endOfDay` bounds, which shifted both the query window and the
+    // per-day grouping key for anyone whose local day doesn't line up with the server's.
+    const [rangeStart, rangeEndExclusive] = appliedRange
+      ? [appliedRange.start, appliedRange.endExclusive]
+      : currentLocalMonth(timeZone);
 
-    // Determine granularity based on date range
-    const daysDiff = differenceInDays(to, from);
-    let intervals: Date[];
+    const todayKey = formatLocalDateKey(new Date(), timeZone);
 
-    if (daysDiff <= 31) {
-      // Daily for up to 1 month
-      intervals = eachDayOfInterval({ start: from, end: to });
-    } else if (daysDiff <= 180) {
-      // Weekly for up to 6 months
-      intervals = eachWeekOfInterval({ start: from, end: to });
-    } else {
-      // Monthly for longer periods
-      intervals = eachMonthOfInterval({ start: from, end: to });
+    // Local-day buckets spanning [rangeStart, rangeEndExclusive). Stepping by 25h before
+    // re-snapping to local midnight safely crosses any DST transition in `timeZone` without
+    // ever landing on the wrong day.
+    const dayKeys: string[] = [];
+    let cursor = startOfLocalDay(rangeStart, timeZone);
+    while (cursor.getTime() < rangeEndExclusive.getTime()) {
+      dayKeys.push(formatLocalDateKey(cursor, timeZone));
+      cursor = startOfLocalDay(new Date(cursor.getTime() + 25 * 60 * 60 * 1000), timeZone);
     }
+
+    // Determine granularity based on the local day count.
+    const daysDiff = dayKeys.length;
 
     // Fetch paid invoices within the selected date range only
     const paidInvoices = await prisma.invoice.findMany({
@@ -247,8 +239,8 @@ export async function getDashboardChartData(
         currency,
         status: 'PAID' as InvoiceStatus,
         issueDate: {
-          gte: startOfDay(from),
-          lte: endOfDay(to),
+          gte: rangeStart,
+          lt: rangeEndExclusive,
         },
       },
       select: {
@@ -265,8 +257,8 @@ export async function getDashboardChartData(
         currency,
         status: { in: ['PENDING', 'OVERDUE'] as InvoiceStatus[] },
         dueDate: {
-          gte: startOfDay(from),
-          lte: endOfDay(to),
+          gte: rangeStart,
+          lt: rangeEndExclusive,
         },
       },
       select: {
@@ -276,88 +268,84 @@ export async function getDashboardChartData(
       orderBy: { dueDate: 'asc' },
     });
 
-    // Build map of paid amounts by date (within selected range)
+    // Group paid amounts by the Freelancer's local calendar day (within selected range)
     const paidByDate = new Map<string, number>();
     for (const invoice of paidInvoices) {
-      const invoiceDate = startOfDay(new Date(invoice.issueDate));
-      const dateKey = format(invoiceDate, 'yyyy-MM-dd');
+      const dateKey = formatLocalDateKey(new Date(invoice.issueDate), timeZone);
       const amount = invoice.total?.toNumber() ?? 0;
       paidByDate.set(dateKey, (paidByDate.get(dateKey) ?? 0) + amount);
     }
 
-    // Group planned invoices by due date (within selected range)
+    // Group planned invoices by due date, same local calendar day (within selected range)
     const plannedByDate = new Map<string, number>();
     for (const invoice of plannedInvoices) {
-      const dueDate = format(
-        startOfDay(new Date(invoice.dueDate)),
-        'yyyy-MM-dd'
-      );
+      const dateKey = formatLocalDateKey(new Date(invoice.dueDate), timeZone);
       const amount = invoice.total?.toNumber() ?? 0;
-      plannedByDate.set(dueDate, (plannedByDate.get(dueDate) ?? 0) + amount);
+      plannedByDate.set(dateKey, (plannedByDate.get(dateKey) ?? 0) + amount);
+    }
+
+    // Roll the local-day buckets up into daily/weekly/monthly display groups. `yyyy-MM-dd` keys
+    // sort and compare lexicographically, so grouping/comparison never needs to re-parse a key
+    // back into a Date (the round trip that used to reintroduce the server's own zone).
+    const dayGroups: string[][] = [];
+    if (daysDiff <= 31) {
+      // Daily for up to 1 month
+      for (const dateKey of dayKeys) {
+        dayGroups.push([dateKey]);
+      }
+    } else if (daysDiff <= 180) {
+      // Weekly for up to 6 months
+      for (let i = 0; i < dayKeys.length; i += 7) {
+        dayGroups.push(dayKeys.slice(i, i + 7));
+      }
+    } else {
+      // Monthly for longer periods, grouped by the local yyyy-MM prefix
+      let currentMonth = '';
+      for (const dateKey of dayKeys) {
+        const monthKey = dateKey.slice(0, 7);
+        if (monthKey !== currentMonth) {
+          dayGroups.push([]);
+          currentMonth = monthKey;
+        }
+        dayGroups[dayGroups.length - 1].push(dateKey);
+      }
     }
 
     // Build chart data
     let runningPaid = 0;
     let runningExpected = 0;
 
-    const chartData: ChartDataPoint[] = intervals.map(
-      (intervalStart, index) => {
-        const dateKey = format(intervalStart, 'yyyy-MM-dd');
-        const isPast = intervalStart < today;
-        const isToday =
-          format(intervalStart, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+    const chartData: ChartDataPoint[] = dayGroups.map((group) => {
+      const dateKey = group[0];
+      const isPastOrToday = dateKey <= todayKey;
 
-        // Get the next interval start or end date
-        const nextIntervalStart = intervals[index + 1]
-          ? intervals[index + 1]
-          : endOfDay(to);
-
-        // Sum all paid amounts that fall within this interval
-        let paidForInterval = 0;
-        for (const [paidDate, amount] of paidByDate.entries()) {
-          const paidDateObj = new Date(paidDate);
-          if (paidDateObj >= intervalStart && paidDateObj < nextIntervalStart) {
-            paidForInterval += amount;
-          }
-        }
-
-        // Sum all planned payments that fall within this interval
-        let plannedForInterval = 0;
-        for (const [plannedDate, amount] of plannedByDate.entries()) {
-          const plannedDateObj = new Date(plannedDate);
-          if (
-            plannedDateObj >= intervalStart &&
-            plannedDateObj < nextIntervalStart
-          ) {
-            plannedForInterval += amount;
-          }
-        }
-
-        runningPaid += paidForInterval;
-
-        if (isPast || isToday) {
-          // Past/today: expected line follows paid line
-          runningExpected = runningPaid;
-        } else {
-          // Future: expected line includes planned payments
-          runningExpected += plannedForInterval;
-        }
-
-        const paid = runningPaid;
-        const expected = runningExpected;
-
-        return {
-          date: dateKey,
-          paid,
-          expected,
-        };
+      let paidForInterval = 0;
+      let plannedForInterval = 0;
+      for (const day of group) {
+        paidForInterval += paidByDate.get(day) ?? 0;
+        plannedForInterval += plannedByDate.get(day) ?? 0;
       }
-    );
 
-    return { success: true, data: chartData };
+      runningPaid += paidForInterval;
+
+      if (isPastOrToday) {
+        // Past/today: expected line follows paid line
+        runningExpected = runningPaid;
+      } else {
+        // Future: expected line includes planned payments
+        runningExpected += plannedForInterval;
+      }
+
+      return {
+        date: dateKey,
+        paid: runningPaid,
+        expected: runningExpected,
+      };
+    });
+
+    return ok(chartData);
   } catch (error) {
-    console.error('Error fetching dashboard chart data:', error);
-    return { success: false, error: 'Failed to fetch chart data' };
+    return failed('Error fetching dashboard chart data:', error, 'Failed to fetch chart data.');
   }
 }
 
@@ -366,13 +354,12 @@ export async function getDashboardChartData(
  */
 export async function getDashboardSenderAccounts(
   currency: Currency,
-  dateFrom?: Date | null,
-  dateTo?: Date | null
+  appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<SenderAccountMetrics[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -388,7 +375,7 @@ export async function getDashboardSenderAccounts(
       currency,
     };
 
-    if (dateFrom && dateTo) {
+    if (appliedRange) {
       invoiceFilter = {
         ...invoiceFilter,
         OR: [
@@ -396,16 +383,16 @@ export async function getDashboardSenderAccounts(
             // Paid invoices by issue date
             status: 'PAID' as InvoiceStatus,
             issueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
+              gte: appliedRange.start,
+              lt: appliedRange.endExclusive,
             },
           },
           {
             // Pending/Overdue invoices by due date
             status: { in: ['PENDING', 'OVERDUE'] as InvoiceStatus[] },
             dueDate: {
-              gte: startOfDay(dateFrom),
-              lte: endOfDay(dateTo),
+              gte: appliedRange.start,
+              lt: appliedRange.endExclusive,
             },
           },
         ],
@@ -518,10 +505,9 @@ export async function getDashboardSenderAccounts(
       }
     );
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard sender accounts:', error);
-    return { success: false, error: 'Failed to fetch sender accounts' };
+    return failed('Error fetching dashboard sender accounts:', error, 'Failed to fetch sender accounts.');
   }
 }
 
@@ -533,8 +519,8 @@ export async function getDashboardRecentInvoices(
 ): Promise<ActionResult<RecentInvoice[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -569,10 +555,9 @@ export async function getDashboardRecentInvoices(
       currency: inv.currency,
     }));
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard recent invoices:', error);
-    return { success: false, error: 'Failed to fetch recent invoices' };
+    return failed('Error fetching dashboard recent invoices:', error, 'Failed to fetch recent invoices.');
   }
 }
 
@@ -584,8 +569,8 @@ export async function getDashboardDebtors(
 ): Promise<ActionResult<DebtorInfo[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -646,10 +631,9 @@ export async function getDashboardDebtors(
       .sort((a, b) => b.total - a.total)
       .slice(0, 3); // Top 3 by debt amount
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard debtors:', error);
-    return { success: false, error: 'Failed to fetch debtors' };
+    return failed('Error fetching dashboard debtors:', error, 'Failed to fetch debtors.');
   }
 }
 
@@ -661,8 +645,8 @@ export async function getDashboardExpectedPayments(
 ): Promise<ActionResult<ExpectedPaymentGroup[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -720,9 +704,8 @@ export async function getDashboardExpectedPayments(
       count: data.invoices.length,
     }));
 
-    return { success: true, data: result };
+    return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard expected payments:', error);
-    return { success: false, error: 'Failed to fetch expected payments' };
+    return failed('Error fetching dashboard expected payments:', error, 'Failed to fetch expected payments.');
   }
 }

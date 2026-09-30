@@ -3,6 +3,10 @@ import {
   createBankAccount,
   updateBankAccount,
 } from '@/lib/actions/bank-account-actions';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { BankAccountFormValues } from '@/lib/validations/bank-account';
 
 /**
@@ -27,6 +31,7 @@ export async function handleBankAccountSubmit(
         : await createBankAccount(senderProfileId, data);
 
     if (!result.success) {
+      if (redirectIfUnauthorized(result)) return;
       toast.error(result.error || 'Failed to save bank account');
       return;
     }
@@ -40,8 +45,8 @@ export async function handleBankAccountSubmit(
     if (onSuccess) {
       onSuccess();
     }
-  } catch (error) {
-    toast.error('An unexpected error occurred');
-    console.error('Bank account submit error:', error);
+  } catch {
+    // AC-21: a rejected call is treated like UNAUTHORIZED.
+    goToSignIn();
   }
 }

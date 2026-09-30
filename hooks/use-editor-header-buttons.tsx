@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Loader2, Save } from 'lucide-react';
 import { protectedRoutes } from '@/config/routes.config';
@@ -15,25 +15,77 @@ import {
   useInvoiceId,
   useIsSaving,
 } from '@/store/invoice-editor-store';
-import {
-  getValidItems,
-  validateInvoiceForm,
-} from '@/lib/helpers/invoice-editor';
+import { getValidItems } from '@/lib/helpers/invoice-editor';
 
 export function useEditorHeaderButtons() {
   const router = useRouter();
   const unsavedChangesModal = useModal('unsavedChangesDialog');
-  const validationErrorModal = useModal('validationErrorDialog');
   const invalidItemsWarningModal = useModal('invalidItemsWarningDialog');
+  const confirmationModal = useModal('confirmationModal');
 
   const hasUnsavedChanges = useHasUnsavedChanges();
   const isSaving = useIsSaving();
   const invoiceId = useInvoiceId();
   const invalidItems = useInvalidItems();
-  const { saveInvoice } = useInvoiceEditorActions();
+  const { saveInvoice, clearTotalsChanged } = useInvoiceEditorActions();
 
   const isSaved = !hasUnsavedChanges;
   const isSavingOrPending = isSaving;
+
+  // SCR-15: a CONFLICT TOTALS_CHANGED leaves state.totalsChanged set after saveInvoice()
+  // resolves. Opens the shared, T15-extended ConfirmationModal with the old/new totals; confirm
+  // resubmits with confirmedTotals and reopens itself if the resubmit comes back with fresh
+  // figures (screens.md §SCR-15 "totals-changed-again"); cancel clears the pending state and
+  // saves nothing (AC-17). Recurses through a ref (not itself) so the callback doesn't need to
+  // reference its own not-yet-initialized binding.
+  const openTotalsConfirmationRef = useRef<() => void>(() => {});
+
+  const openTotalsConfirmation = useCallback(() => {
+    const totalsChanged = useInvoiceEditorStore.getState().totalsChanged;
+    if (!totalsChanged) return;
+
+    confirmationModal.open({
+      open: true,
+      title: 'Confirm the new total',
+      description: 'This invoice was saved before totals were recalculated.',
+      body: (
+        <dl className="space-y-1 text-sm">
+          <div className="flex items-center justify-between">
+            <dt className="text-muted-foreground">Old total</dt>
+            <dd>{totalsChanged.oldTotal}</dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-muted-foreground">New total</dt>
+            <dd>{totalsChanged.newTotal}</dd>
+          </div>
+        </dl>
+      ),
+      confirmText: 'Confirm and save',
+      onClose: () => {
+        clearTotalsChanged();
+        confirmationModal.close();
+      },
+      onConfirm: async () => {
+        const current = useInvoiceEditorStore.getState().totalsChanged;
+        if (!current) {
+          confirmationModal.close();
+          return;
+        }
+
+        await saveInvoice({ confirmedTotals: current });
+
+        if (useInvoiceEditorStore.getState().totalsChanged) {
+          openTotalsConfirmationRef.current();
+        } else {
+          confirmationModal.close();
+        }
+      },
+    });
+  }, [confirmationModal, saveInvoice, clearTotalsChanged]);
+
+  useEffect(() => {
+    openTotalsConfirmationRef.current = openTotalsConfirmation;
+  }, [openTotalsConfirmation]);
 
   const performSave = useCallback(async () => {
     const state = useInvoiceEditorStore.getState();
@@ -46,6 +98,11 @@ export function useEditorHeaderButtons() {
     const beforeInvoiceId = invoiceId;
     await saveInvoice();
 
+    if (useInvoiceEditorStore.getState().totalsChanged) {
+      openTotalsConfirmation();
+      return;
+    }
+
     if (!beforeInvoiceId) {
       const newInvoiceId = useInvoiceEditorStore.getState().invoiceId;
       if (newInvoiceId) {
@@ -57,26 +114,15 @@ export function useEditorHeaderButtons() {
         }
       }
     }
-  }, [saveInvoice, invoiceId, router, invalidItems]);
+  }, [saveInvoice, invoiceId, router, invalidItems, openTotalsConfirmation]);
 
+  // F-03: a flat, client-side re-run of the schema used to short-circuit Save here and open a
+  // dialog listing every message, so the server's fieldErrors path (SCR-03 "validation": a
+  // FieldError next to each offending field, AC-14/AC-15) was never reached. Amount rules are now
+  // checked only once, server-side, in performSave -> saveInvoice; a VALIDATION/CONFLICT result
+  // already lands on the store's fieldErrors (see handleSaveFailure) for the fields to render.
   const handleSave = useCallback(async (): Promise<boolean> => {
-    const state = useInvoiceEditorStore.getState();
-
     return await new Promise<boolean>(async (resolve) => {
-      const errors = validateInvoiceForm(state.formData);
-
-      if (errors.length > 0) {
-        validationErrorModal.open({
-          open: true,
-          errors,
-          onClose: () => {
-            validationErrorModal.close();
-            resolve(false);
-          },
-        });
-        return;
-      }
-
       if (invalidItems.length > 0) {
         invalidItemsWarningModal.open({
           open: true,
@@ -84,7 +130,7 @@ export function useEditorHeaderButtons() {
           onConfirm: async () => {
             invalidItemsWarningModal.close();
             await performSave();
-            resolve(true);
+            resolve(!useInvoiceEditorStore.getState().hasUnsavedChanges);
           },
           onCancel: () => {
             invalidItemsWarningModal.close();
@@ -95,14 +141,12 @@ export function useEditorHeaderButtons() {
       }
 
       await performSave();
-      resolve(true);
+      // A VALIDATION/CONFLICT failure (fieldErrors) or a pending TOTALS_CHANGED confirmation
+      // both leave hasUnsavedChanges true — the caller (e.g. handleExit) must not treat those as
+      // saved.
+      resolve(!useInvoiceEditorStore.getState().hasUnsavedChanges);
     });
-  }, [
-    invalidItems,
-    performSave,
-    validationErrorModal,
-    invalidItemsWarningModal,
-  ]);
+  }, [invalidItems, performSave, invalidItemsWarningModal]);
 
   const handleExit = useCallback(() => {
     if (hasUnsavedChanges) {

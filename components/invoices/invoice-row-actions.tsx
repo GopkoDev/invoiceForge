@@ -37,6 +37,10 @@ import {
   downloadInvoicePdf,
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
@@ -62,13 +66,14 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (result.success && result.data) {
+      if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to load invoice');
       }
     } catch {
-      toast.error('Failed to load invoice');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
@@ -83,11 +88,18 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await downloadInvoicePdf(result.data);
+      const pdf = await downloadInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
@@ -98,11 +110,18 @@ export function InvoiceRowActions({
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
-      if (!result.success || !result.data) {
+      if (!result.success) {
+        // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await printInvoicePdf(result.data);
+      const pdf = await printInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
@@ -110,42 +129,63 @@ export function InvoiceRowActions({
 
   const handleDuplicate = () => {
     startTransition(async () => {
-      const result = await duplicateInvoice(invoiceId);
-      if (result.success && result.data) {
-        toast.success('Invoice duplicated successfully');
-        router.push(protectedRoutes.invoiceEdit(result.data.id));
-      } else {
-        toast.error(result.error || 'Failed to duplicate invoice');
+      try {
+        const result = await duplicateInvoice(invoiceId);
+        if (result.success) {
+          // SCR-02 "duplicated" (AC-12, F-14): name the new invoice number and stay on the list;
+          // the copy shows up in the refreshed list rather than opening in the editor.
+          toast.success(`Duplicated as ${result.data.invoiceNumber}`);
+          onDataChange?.();
+          router.refresh();
+        } else if (!redirectIfUnauthorized(result)) {
+          toast.error(result.error || 'Failed to duplicate invoice');
+        }
+      } catch {
+        // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
+        goToSignIn();
+      } finally {
+        setOpen(false);
       }
-      setOpen(false);
     });
   };
 
   const handleDelete = () => {
     startTransition(async () => {
-      const result = await deleteInvoice(invoiceId);
-      if (result.success) {
-        toast.success('Invoice deleted successfully');
-        onDataChange?.();
-        router.refresh();
-      } else {
-        toast.error(result.error || 'Failed to delete invoice');
+      try {
+        const result = await deleteInvoice(invoiceId);
+        if (result.success) {
+          toast.success('Invoice deleted successfully');
+          onDataChange?.();
+          router.refresh();
+        } else if (!redirectIfUnauthorized(result)) {
+          toast.error(result.error || 'Failed to delete invoice');
+        }
+      } catch {
+        // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
+        goToSignIn();
+      } finally {
+        setOpen(false);
       }
-      setOpen(false);
     });
   };
 
   const handleStatusChange = (newStatus: InvoiceStatus) => {
     startTransition(async () => {
-      const result = await updateInvoiceStatus(invoiceId, newStatus);
-      if (result.success) {
-        toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
-        onDataChange?.();
-        router.refresh();
-      } else {
-        toast.error(result.error || 'Failed to update invoice status');
+      try {
+        const result = await updateInvoiceStatus(invoiceId, newStatus);
+        if (result.success) {
+          toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
+          onDataChange?.();
+          router.refresh();
+        } else if (!redirectIfUnauthorized(result)) {
+          toast.error(result.error || 'Failed to update invoice status');
+        }
+      } catch {
+        // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
+        goToSignIn();
+      } finally {
+        setOpen(false);
       }
-      setOpen(false);
     });
   };
 

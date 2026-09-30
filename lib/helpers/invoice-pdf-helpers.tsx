@@ -1,7 +1,7 @@
 import { pdf } from '@react-pdf/renderer';
 import { toast } from 'sonner';
 import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
-import { convertLogoToBase64 } from '@/lib/utils/image-to-base64';
+import { fetchLogoDataUrl } from '@/lib/utils/image-to-base64';
 import { siteConfig } from '@/config/site.config';
 import type {
   SerializedInvoice,
@@ -16,6 +16,50 @@ export interface InvoicePdfData {
   senderProfile: InvoiceSenderProfile | null;
   customer: InvoiceCustomer | null;
   bankAccount: InvoiceBankAccount | null;
+}
+
+/**
+ * Outcome of building the PDF's logo (T06, AC-01/AC-03, screens.md §SCR-04): either a data
+ * URL to embed, a plain-language warning to show alongside a logo-less PDF, or an
+ * unauthorized signal (401 -> SCR-01) that skips PDF generation entirely so the caller can
+ * redirect to sign-in.
+ */
+interface LogoForPdf {
+  logoBase64: string | null;
+  warning?: string;
+  unauthorized?: boolean;
+}
+
+async function resolveLogoForPdf(
+  senderProfile: InvoiceSenderProfile | null | undefined
+): Promise<LogoForPdf> {
+  if (!senderProfile?.logo) {
+    return { logoBase64: null };
+  }
+
+  const result = await fetchLogoDataUrl(senderProfile.id, senderProfile.logo);
+
+  if ('dataUrl' in result) {
+    return { logoBase64: result.dataUrl };
+  }
+  if ('unauthorized' in result) {
+    return { logoBase64: null, unauthorized: true };
+  }
+  return { logoBase64: null, warning: result.warning };
+}
+
+/** Result of generating a PDF blob (T06 checklist: download/print show the AC-03 warning via
+ * `toast.warning`, or redirect to sign-in on `unauthorized`, before ever touching the DOM). */
+export interface GeneratePdfResult {
+  blob: Blob | null;
+  warning?: string;
+  unauthorized?: boolean;
+}
+
+/** Result of the download/print side-effects (opening a link, printing). */
+export interface InvoicePdfActionResult {
+  success: boolean;
+  unauthorized?: boolean;
 }
 
 /**
@@ -109,12 +153,12 @@ export function prepareInvoiceDataForPdf(
 export async function generateInvoicePdfBlob(
   invoice: SerializedInvoice,
   invoiceData?: InvoicePdfData
-): Promise<Blob> {
+): Promise<GeneratePdfResult> {
   const data = invoiceData ?? prepareInvoiceDataForPdf(invoice);
 
-  let logoBase64: string | null = null;
-  if (data.senderProfile?.logo) {
-    logoBase64 = await convertLogoToBase64(data.senderProfile.logo);
+  const logo = await resolveLogoForPdf(data.senderProfile);
+  if (logo.unauthorized) {
+    return { blob: null, unauthorized: true };
   }
 
   const doc = (
@@ -126,11 +170,12 @@ export async function generateInvoicePdfBlob(
       subtotal={invoice.subtotal}
       taxAmount={invoice.taxAmount}
       total={invoice.total}
-      logoBase64={logoBase64}
+      logoBase64={logo.logoBase64}
     />
   );
 
-  return await pdf(doc).toBlob();
+  const blob = await pdf(doc).toBlob();
+  return { blob, warning: logo.warning };
 }
 
 /**
@@ -139,9 +184,19 @@ export async function generateInvoicePdfBlob(
 export async function downloadInvoicePdf(
   invoice: SerializedInvoice,
   invoiceData?: InvoicePdfData
-): Promise<boolean> {
+): Promise<InvoicePdfActionResult> {
   try {
-    const blob = await generateInvoicePdfBlob(invoice, invoiceData);
+    const { blob, warning, unauthorized } = await generateInvoicePdfBlob(
+      invoice,
+      invoiceData
+    );
+    if (unauthorized) return { success: false, unauthorized: true };
+    if (!blob) {
+      toast.error('Failed to download PDF');
+      return { success: false };
+    }
+    if (warning) toast.warning(warning);
+
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
@@ -153,11 +208,11 @@ export async function downloadInvoicePdf(
 
     URL.revokeObjectURL(url);
     toast.success('PDF downloaded successfully');
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error downloading PDF:', error);
     toast.error('Failed to download PDF');
-    return false;
+    return { success: false };
   }
 }
 
@@ -167,9 +222,19 @@ export async function downloadInvoicePdf(
 export async function printInvoicePdf(
   invoice: SerializedInvoice,
   invoiceData?: InvoicePdfData
-): Promise<boolean> {
+): Promise<InvoicePdfActionResult> {
   try {
-    const blob = await generateInvoicePdfBlob(invoice, invoiceData);
+    const { blob, warning, unauthorized } = await generateInvoicePdfBlob(
+      invoice,
+      invoiceData
+    );
+    if (unauthorized) return { success: false, unauthorized: true };
+    if (!blob) {
+      toast.error('Failed to print PDF');
+      return { success: false };
+    }
+    if (warning) toast.warning(warning);
+
     const url = URL.createObjectURL(blob);
 
     const printWindow = window.open(url);
@@ -180,11 +245,11 @@ export async function printInvoicePdf(
         URL.revokeObjectURL(url);
       });
     }
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error printing PDF:', error);
     toast.error('Failed to print PDF');
-    return false;
+    return { success: false };
   }
 }
 
@@ -199,10 +264,10 @@ export async function generatePdfBlobFromFormData(
   subtotal: number,
   taxAmount: number,
   total: number
-): Promise<Blob> {
-  let logoBase64: string | null = null;
-  if (senderProfile?.logo) {
-    logoBase64 = await convertLogoToBase64(senderProfile.logo);
+): Promise<GeneratePdfResult> {
+  const logo = await resolveLogoForPdf(senderProfile);
+  if (logo.unauthorized) {
+    return { blob: null, unauthorized: true };
   }
 
   const doc = (
@@ -214,11 +279,12 @@ export async function generatePdfBlobFromFormData(
       subtotal={subtotal}
       taxAmount={taxAmount}
       total={total}
-      logoBase64={logoBase64}
+      logoBase64={logo.logoBase64}
     />
   );
 
-  return await pdf(doc).toBlob();
+  const blob = await pdf(doc).toBlob();
+  return { blob, warning: logo.warning };
 }
 
 /**
@@ -232,9 +298,9 @@ export async function downloadPdfFromFormData(
   subtotal: number,
   taxAmount: number,
   total: number
-): Promise<boolean> {
+): Promise<InvoicePdfActionResult> {
   try {
-    const blob = await generatePdfBlobFromFormData(
+    const { blob, warning, unauthorized } = await generatePdfBlobFromFormData(
       formData,
       senderProfile,
       customer,
@@ -243,6 +309,13 @@ export async function downloadPdfFromFormData(
       taxAmount,
       total
     );
+    if (unauthorized) return { success: false, unauthorized: true };
+    if (!blob) {
+      toast.error('Error generating PDF');
+      return { success: false };
+    }
+    if (warning) toast.warning(warning);
+
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
@@ -254,11 +327,11 @@ export async function downloadPdfFromFormData(
 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success('PDF downloaded');
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error downloading PDF:', error);
     toast.error('Error generating PDF');
-    return false;
+    return { success: false };
   }
 }
 
@@ -273,9 +346,9 @@ export async function printPdfFromFormData(
   subtotal: number,
   taxAmount: number,
   total: number
-): Promise<boolean> {
+): Promise<InvoicePdfActionResult> {
   try {
-    const blob = await generatePdfBlobFromFormData(
+    const { blob, warning, unauthorized } = await generatePdfBlobFromFormData(
       formData,
       senderProfile,
       customer,
@@ -284,6 +357,13 @@ export async function printPdfFromFormData(
       taxAmount,
       total
     );
+    if (unauthorized) return { success: false, unauthorized: true };
+    if (!blob) {
+      toast.error('Error generating PDF');
+      return { success: false };
+    }
+    if (warning) toast.warning(warning);
+
     const url = URL.createObjectURL(blob);
 
     const printWindow = window.open(url);
@@ -294,10 +374,10 @@ export async function printPdfFromFormData(
         URL.revokeObjectURL(url);
       });
     }
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error printing PDF:', error);
     toast.error('Error generating PDF');
-    return false;
+    return { success: false };
   }
 }

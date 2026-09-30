@@ -1,6 +1,5 @@
-import { InvoiceFormValues } from '@/lib/validations/invoice';
 import { prisma } from '@/prisma';
-import { SerializedInvoice, InvoiceFormData } from '@/types/invoice/types';
+import { SerializedInvoice, InvoiceFormData, InvoiceLegacyInfo } from '@/types/invoice/types';
 import { Prisma } from '@prisma/client';
 import type {
   Invoice,
@@ -9,7 +8,8 @@ import type {
   Customer,
   BankAccount,
 } from '@prisma/client';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { isInvoiceKeyTaken, normalizeInvoiceNumber } from './numbering';
 
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
@@ -41,7 +41,47 @@ export function serializeInvoice(
   } as unknown as SerializedInvoice;
 }
 
-export { calculateInvoiceTotals } from '@/lib/helpers/invoice-calculations';
+import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
+
+/**
+ * T14 (spec.md §5 AC-17) — the legacy flags shared by getInvoiceEditorData/getInvoice and
+ * updateInvoice's own legacy gates (contracts/server-actions.md §getInvoiceEditorData / getInvoice,
+ * verbatim): recomputes the stored lines through the one exact-decimal module (ADR-0006) and
+ * compares against the stored total; a shared/NULL normalized key also counts as legacy. `null`
+ * when nothing differs and the number is free.
+ */
+export async function computeInvoiceLegacyInfo(
+  client: Prisma.TransactionClient,
+  invoice: Invoice & { items: InvoiceItem[] }
+): Promise<InvoiceLegacyInfo | null> {
+  const recomputed = computeInvoiceAmounts({
+    items: invoice.items.map((item) => ({
+      quantity: item.quantity.toString(),
+      price: item.rate.toString(),
+    })),
+    discount: invoice.discount.toString(),
+    shipping: invoice.shipping.toString(),
+    taxRate: invoice.taxRate.toString(),
+  });
+
+  const storedTotal = invoice.total.toFixed(2);
+  const recomputedTotal = recomputed.total;
+  // F-09: a NULL key is checked by its own invoiceNumber's normalized key, not blanket-treated as
+  // shared — a legacy invoice whose number turns out to be unique is no longer flagged shared.
+  const effectiveKey = invoice.invoiceNumberKey ?? normalizeInvoiceNumber(invoice.invoiceNumber);
+  const sharedNumber = await isInvoiceKeyTaken(
+    client,
+    invoice.senderProfileId,
+    effectiveKey,
+    invoice.id
+  );
+
+  if (storedTotal === recomputedTotal && !sharedNumber) {
+    return null;
+  }
+
+  return { storedTotal, recomputedTotal, sharedNumber };
+}
 
 export function buildSenderSnapshot(profile: SenderProfile) {
   return {
@@ -81,19 +121,6 @@ export function buildBankAccountSnapshot(bankAccount: BankAccount) {
     bankSwift: bankAccount.swift,
     accountName: bankAccount.accountName,
   };
-}
-
-export function buildInvoiceItems(items: InvoiceFormValues['items']) {
-  return items.map((item) => ({
-    productId:
-      item.productId && item.productId !== 'custom' ? item.productId : null,
-    name: item.productName,
-    description: item.description || null,
-    unit: item.unit,
-    quantity: item.quantity,
-    rate: item.price,
-    amount: item.total,
-  }));
 }
 
 export function transformInvoiceToFormData(
@@ -143,15 +170,50 @@ export async function verifyInvoiceRelations(
   const [senderProfile, customer, bankAccount] = await Promise.all([
     prisma.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
     prisma.customer.findFirst({ where: { id: customerId, userId } }),
+    // F-43: tied to the SPECIFIC sender profile the invoice is being saved under, not just to
+    // any profile the same user owns — otherwise an invoice could carry senderProfileId A with
+    // a bank account that actually belongs to the same user's profile B, which later makes
+    // deleteSenderProfile's invoice count for B miss it entirely.
     prisma.bankAccount.findFirst({
-      where: { id: bankAccountId, senderProfile: { userId } },
+      where: { id: bankAccountId, senderProfileId, senderProfile: { userId } },
     }),
   ]);
 
-  if (!senderProfile)
-    return { success: false, error: 'Sender profile not found' };
-  if (!customer) return { success: false, error: 'Customer not found' };
-  if (!bankAccount) return { success: false, error: 'Bank account not found' };
+  if (!senderProfile) return fail('NOT_FOUND', 'Sender profile not found.');
+  if (!customer) return fail('NOT_FOUND', 'Customer not found.');
+  if (!bankAccount) return fail('NOT_FOUND', 'Bank account not found.');
 
-  return { success: true, data: { senderProfile, customer, bankAccount } };
+  return ok({ senderProfile, customer, bankAccount });
+}
+
+/**
+ * F-48: item.productId was stored with no ownership check at all, so a request could carry
+ * another Freelancer's product id — which that product's real owner then couldn't have its
+ * currency/unit changed or be deleted (the "used in N invoice(s)" conflict would count an
+ * invoice that isn't theirs). Checked against every non-empty, non-'custom' productId at once.
+ */
+export async function verifyItemProductsOwnership(
+  userId: string,
+  items: { productId?: string }[]
+): Promise<ActionResult<void>> {
+  const productIds = Array.from(
+    new Set(
+      items
+        .map((item) => item.productId)
+        .filter((id): id is string => Boolean(id) && id !== 'custom')
+    )
+  );
+
+  if (productIds.length === 0) return ok();
+
+  const owned = await prisma.product.findMany({
+    where: { id: { in: productIds }, userId },
+    select: { id: true },
+  });
+
+  if (owned.length !== productIds.length) {
+    return fail('NOT_FOUND', 'Product not found.');
+  }
+
+  return ok();
 }

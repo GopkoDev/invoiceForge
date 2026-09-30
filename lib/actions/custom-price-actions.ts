@@ -3,8 +3,10 @@
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
-  customPriceFormSchema,
-  CustomPriceFormValues,
+  customPriceSchema,
+  updateCustomPriceSchema,
+  CustomPriceSchemaValues,
+  UpdateCustomPriceValues,
 } from '@/lib/validations/custom-price';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
@@ -12,8 +14,11 @@ import {
   CustomPriceWithRelations,
   SerializedCustomPrice,
 } from '@/types/custom-price/types';
-import { ActionResult } from '@/types/actions';
-import type { Prisma } from '@prisma/client';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import { failed, zodValidationFailure } from '@/lib/actions/action-result-helpers';
+
+const NOT_FOUND_MESSAGE = 'Customer or product not found.';
 
 function serializeCustomPrice(
   customPrice: CustomPriceWithRelations
@@ -33,8 +38,8 @@ export async function getCustomerCustomPrices(
 ): Promise<ActionResult<SerializedCustomPrice[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -47,7 +52,7 @@ export async function getCustomerCustomPrices(
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     const customPrices = await prisma.customPrice.findMany({
@@ -80,56 +85,45 @@ export async function getCustomerCustomPrices(
       },
     });
 
-    return {
-      success: true,
-      data: customPrices.map((cp) =>
-        serializeCustomPrice(cp as CustomPriceWithRelations)
-      ),
-    };
+    return ok(
+      customPrices.map((cp) => serializeCustomPrice(cp as CustomPriceWithRelations)),
+    );
   } catch (error) {
-    console.error('Error fetching custom prices:', error);
-    return { success: false, error: 'Failed to fetch custom prices' };
+    return failed('Error fetching custom prices:', error, 'Failed to fetch custom prices.');
   }
 }
 
 export async function createCustomPrice(
-  data: CustomPriceFormValues,
-  context: { customerId?: string; productId?: string }
+  data: CustomPriceSchemaValues
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
 
-    const productId = context.productId || data.productId;
-    const customerId = context.customerId || data.productId;
-
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id: customerId,
-        userId,
-      },
-    });
-
-    if (!customer) {
-      return { success: false, error: 'Customer not found' };
+    let validatedData: CustomPriceSchemaValues;
+    try {
+      validatedData = customPriceSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return zodValidationFailure(error);
+      }
+      throw error;
     }
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        userId,
-      },
-    });
+    const { customerId, productId } = validatedData;
 
-    if (!product) {
-      return { success: false, error: 'Product not found' };
+    const [customer, product] = await Promise.all([
+      prisma.customer.findFirst({ where: { id: customerId, userId } }),
+      prisma.product.findFirst({ where: { id: productId, userId } }),
+    ]);
+
+    if (!customer || !product) {
+      return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
     }
-
-    const validatedData = customPriceFormSchema.parse(data);
 
     const customPrice = await prisma.customPrice.create({
       data: {
@@ -138,76 +132,70 @@ export async function createCustomPrice(
         name: validatedData.name,
         price: validatedData.price,
         notes: validatedData.notes,
-      } as unknown as Prisma.CustomPriceUncheckedCreateInput,
+      },
     });
 
     revalidatePath(protectedRoutes.customerDetail(customerId));
     revalidatePath(protectedRoutes.productCustomPrices(productId));
 
-    return { success: true, data: { id: customPrice.id } };
+    return ok({ id: customPrice.id });
   } catch (error) {
-    console.error('Error creating custom price:', error);
-    return { success: false, error: 'Failed to create custom price' };
+    return failed('Error creating custom price:', error, 'Failed to create custom price.');
   }
 }
 
 export async function updateCustomPrice(
   id: string,
-  customerId: string,
-  data: Pick<CustomPriceFormValues, 'name' | 'price' | 'notes'>,
-  productId?: string
+  data: UpdateCustomPriceValues
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
 
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id: customerId,
-        userId,
-      },
-    });
-
-    if (!customer) {
-      return { success: false, error: 'Customer not found' };
+    let validatedData: UpdateCustomPriceValues;
+    try {
+      validatedData = updateCustomPriceSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return zodValidationFailure(error);
+      }
+      throw error;
     }
 
     const existingCustomPrice = await prisma.customPrice.findFirst({
       where: {
         id,
-        customerId,
+        customer: { userId },
       },
       select: {
+        customerId: true,
         productId: true,
       },
     });
 
     if (!existingCustomPrice) {
-      return { success: false, error: 'Custom price not found' };
+      return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
     }
-
-    const finalProductId = productId || existingCustomPrice.productId;
 
     await prisma.customPrice.update({
       where: { id },
       data: {
-        name: data.name,
-        price: data.price,
-        notes: data.notes,
-      } as unknown as Prisma.CustomPriceUncheckedUpdateInput,
+        name: validatedData.name,
+        price: validatedData.price,
+        notes: validatedData.notes,
+      },
     });
 
-    revalidatePath(protectedRoutes.customerDetail(customerId));
-    revalidatePath(protectedRoutes.productCustomPrices(finalProductId));
+    revalidatePath(protectedRoutes.customerDetail(existingCustomPrice.customerId));
+    revalidatePath(protectedRoutes.productCustomPrices(existingCustomPrice.productId));
 
-    return { success: true };
+    return ok();
   } catch (error) {
-    console.error('Error updating custom price:', error);
-    return { success: false, error: 'Failed to update custom price' };
+    return failed('Error updating custom price:', error, 'Failed to update custom price.');
   }
 }
 
@@ -216,8 +204,8 @@ export async function getProductCustomPrices(
 ): Promise<ActionResult<SerializedCustomPrice[]>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -230,7 +218,7 @@ export async function getProductCustomPrices(
     });
 
     if (!product) {
-      return { success: false, error: 'Product not found' };
+      return fail('NOT_FOUND', 'Product not found.');
     }
 
     const customPrices = await prisma.customPrice.findMany({
@@ -263,15 +251,11 @@ export async function getProductCustomPrices(
       },
     });
 
-    return {
-      success: true,
-      data: customPrices.map((cp) =>
-        serializeCustomPrice(cp as CustomPriceWithRelations)
-      ),
-    };
+    return ok(
+      customPrices.map((cp) => serializeCustomPrice(cp as CustomPriceWithRelations)),
+    );
   } catch (error) {
-    console.error('Error fetching product custom prices:', error);
-    return { success: false, error: 'Failed to fetch custom prices' };
+    return failed('Error fetching product custom prices:', error, 'Failed to fetch custom prices.');
   }
 }
 
@@ -282,8 +266,8 @@ export async function deleteCustomPrice(
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -296,7 +280,7 @@ export async function deleteCustomPrice(
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     const existingCustomPrice = await prisma.customPrice.findFirst({
@@ -310,7 +294,7 @@ export async function deleteCustomPrice(
     });
 
     if (!existingCustomPrice) {
-      return { success: false, error: 'Custom price not found' };
+      return fail('NOT_FOUND', 'Custom price not found.');
     }
 
     const finalProductId = productId || existingCustomPrice.productId;
@@ -322,9 +306,8 @@ export async function deleteCustomPrice(
     revalidatePath(protectedRoutes.customerDetail(customerId));
     revalidatePath(protectedRoutes.productCustomPrices(finalProductId));
 
-    return { success: true };
+    return ok();
   } catch (error) {
-    console.error('Error deleting custom price:', error);
-    return { success: false, error: 'Failed to delete custom price' };
+    return failed('Error deleting custom price:', error, 'Failed to delete custom price.');
   }
 }

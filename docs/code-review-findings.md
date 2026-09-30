@@ -1,0 +1,47 @@
+# Code review findings — 2026-09-26
+
+Findings from three reviews run on branch `refactoring` (HEAD `33117b4`):
+
+- `/code-review high app/` — 10 findings (A1–A10)
+- `/code-review high lib/` — 10 findings (L1–L10)
+- `/security-review` of the branch diff — 0 findings. The diff touches only `.claude/settings.json`, `.gitignore` and `docs/architecture-map.md`, and none of them change application code. The existing SSRF in `convert-image` (A1) is outside that diff, so the security review did not report it.
+
+Issues already tracked in `docs/architecture-map.md` §Review findings (F1–F7) are not repeated here. A1 overlaps F1 but shows the impact is larger than F1 describes.
+
+## Priority order
+
+1. **A1, A2** — `convert-image` endpoint: unauthenticated SSRF and unbounded memory use.
+2. **L1, L2, L4** — broken account deletion and duplicate invoice numbers (data integrity).
+3. **L3, L5, L8** — the server trusts client amounts, so negative or incorrect totals can be stored.
+4. **A3, A4, A5, L6, L9** — URL and query params are not validated (crashes, wrong results).
+5. The rest.
+
+## `app/` findings
+
+| ID | Severity | Where | Problem | Failure scenario | Suggested fix |
+|---|---|---|---|---|---|
+| A1 | High | `app/api/convert-image/route.ts:60` | Unauthenticated SSRF proxy. The only guard is an Origin/Referer check, which any non-browser client can forge; `proxy.ts` excludes `/api`. The route fetches any URL, follows redirects and returns the body as base64. | `curl -X POST -H 'Origin: https://invoiceforge.hopko.dev' -d '{"imageUrl":"http://169.254.169.254/latest/meta-data/iam/security-credentials/"}'` returns cloud metadata or internal-network responses. | Add an `auth()` session check. Allow only the `https` scheme, block private, loopback and link-local IP ranges (including after redirects), and require an `image/*` content-type. |
+| A2 | High | `app/api/convert-image/route.ts:75` | The upstream body is fully buffered with no size limit, then base64-encoded (≈ +33%) and wrapped in JSON. | Pointing `imageUrl` at a multi-GB file or an endless stream makes the function run out of memory or time out, and the host pays for the bandwidth. | Check `Content-Length`, stream with a byte cap, and add `AbortSignal.timeout(...)`. |
+| A3 | Medium | `app/(protected)/dashboard/page.tsx:62` | `parseISO` returns Invalid Date instead of throwing, so the try/catch never fires. | `/dashboard?from=abc&to=xyz`: every Prisma query rejects the date and the dashboard shows zeros, then `dashboard-filters.tsx:108` `format()` throws RangeError and the page crashes. | Check with `isValid()` and fall back to the current month. |
+| A4 | Medium | `app/(protected)/invoices/page.tsx:22` | `page` and `pageSize` are passed to Prisma skip/take without clamping. | `?page=-1` makes Prisma error; `?pageSize=-10` reverses pagination; `?pageSize=2.5` throws; `?pageSize=100000000` loads every invoice. | Parse as integers and clamp: `page ≥ 1`, `pageSize` limited to an allowed list (e.g. 10/20/50/100). |
+| A5 | Medium | `app/(protected)/invoices/page.tsx:27` | `sortBy`, `sortOrder`, `status` and `tab` are cast from the URL with `as` and no whitelist, and used in `orderBy: { [sortField]: sortDirection }`. | `?sortBy=items`, `?sortOrder=sideways`, `?status=FOO` or `dateFrom=garbage` cause a Prisma error, and the error card may show raw Prisma text. | Validate with a zod enum and fall back to the defaults. |
+| A6 | Medium | `app/(protected)/sender-profiles/page.tsx:21` | A failed `getSenderProfiles()` is ignored and `result.data \|\| []` is rendered. | A DB or session error shows the "create your first profile" empty state, and the user may create duplicates. | Check `result.success` and show an error state, as the customers and products pages do. |
+| A7 | Medium | `app/(protected)/customers/page.tsx:23` (also `products/page.tsx:23`, `invoices/new/page.tsx:13`) | A failed fetch is turned into `notFound()`. | A Prisma timeout shows a 404 for a route that exists, with no retry, and the error never reaches `error.tsx` or Sentry. | Throw, or render an error state, so `error.tsx` and Sentry handle it. Keep `notFound()` for records that really don't exist. |
+| A8 | Low | `app/robots.ts:13` | The `/dashboard/*`-style disallow rules don't match the section roots. | Crawlers fetch `/dashboard`, `/invoices`, etc., which redirect to `/login?callbackUrl=...`. | Use prefix rules without `/*` (`/dashboard`, `/invoices`, …). |
+| A9 | Low | `app/(protected)/dashboard/page.tsx:206` | The debtors, expected-payments and recent-invoices Suspense boundaries are keyed on the date range, but they depend only on currency. | Every date-range change remounts them and re-runs three identical queries. | Key those boundaries on `currency` only. |
+| A10 | Low | `app/api/user/export/route.ts:73` | The two queries run one after the other although they are independent, and the filename `invoice-forge-data.json` is hardcoded. | Export latency is the sum of both queries, and the filename goes stale if branding changes. | Use `Promise.all`, and take the filename from `siteConfig.branding`. |
+
+## `lib/` findings
+
+| ID | Severity | Where | Problem | Failure scenario | Suggested fix |
+|---|---|---|---|---|---|
+| L1 | High | `lib/actions/account-actions.ts:28` | `deleteUserAccount` relies on cascading deletes, but `Invoice.senderProfile` and `Invoice.customer` use `onDelete: Restrict`. | A user who has any invoice can never delete their account and gets "Failed to delete account". | Delete invoices (and their items) first in a `$transaction`, or change the FKs / add a `User → Invoice` cascade. |
+| L2 | High | `lib/actions/invoice-actions/invoice-actions.ts:286` | When `updateInvoice` moves an invoice to another sender profile, it assigns that profile's counter+1 number but never increments the counter. | Profile B counter=5: the moved invoice gets B-2026-0006, the next `createInvoice` for B also gets B-2026-0006 and fails with P2002. If number generation fails, the old A-prefixed number stays on profile B. | Increment the target profile's counter in the same transaction, and fail loudly when number generation fails. |
+| L3 | High | `lib/actions/invoice-actions/helpers.ts:95` | The server trusts the client-supplied item `total` (`z.number()`, no minimum, never recomputed). | `[{quantity:10, price:100, total:1}]` or `total:-500` is stored, so the PDF and revenue figures are wrong. | Recompute `total = quantity * price` on the server and ignore the client value; enforce `quantity > 0` and `price ≥ 0`. |
+| L4 | Medium | `lib/actions/invoice-actions/invoice-actions.ts:201` | `createInvoice` stores the client-provided `invoiceNumber` but always increments the counter, and the number comes from an earlier separate read. | Two tabs both get PREFIX-2026-0004 and the second save fails with a generic error; a user-edited number puts the counter out of sync. | Assign the number server-side inside the transaction (atomic `increment` + read). If manual numbers are allowed, return a clear "number taken" error on P2002. |
+| L5 | Medium | `lib/helpers/invoice-calculations.ts:21` | The discount is not capped at subtotal + shipping. | subtotal=100, discount=500, tax 20% → tax −80, total −480, which is summed into the dashboard as negative revenue. | Clamp the discount to `[0, subtotal + shipping]` and validate it in the zod schema. |
+| L6 | Medium | `lib/actions/invoice-actions/invoice-actions.ts:635` | `getPaginatedInvoices` accepts `sortField`, `page` and `pageSize` without validation (the server-side part of A4/A5). | `sortField='items'` or `page=0` makes Prisma throw; `pageSize=0` gives `totalPages=Infinity`; `pageSize=1e6` dumps every invoice. | Validate with zod inside the action (enum sort fields, clamped integers). |
+| L7 | Medium | `lib/actions/invoice-actions/invoice-actions.ts:523` | `paidAt` is only set in `updateInvoiceStatus`: it is never cleared when an invoice leaves PAID and never set when create/update saves PAID; `status` is not validated at runtime. | PAID → PENDING keeps the old `paidAt`; saving as PAID from the editor leaves `paidAt` null; a bogus status gives a generic error. | Centralize the status transition (set/clear `paidAt`) and validate `status` with `z.nativeEnum(InvoiceStatus)`. |
+| L8 | Medium | `lib/actions/custom-price-actions.ts:195` | `updateCustomPrice` skips `customPriceFormSchema` (create does validate) and hides this behind an `as unknown as` cast. | Price −50 is saved and pre-fills invoice lines; `'abc'` throws a generic error; a 10k-character note is accepted. | Run `customPriceFormSchema.safeParse` in update and remove the cast. |
+| L9 | Low | `lib/actions/invoice-actions/invoice-actions.ts:619` | `dateTo` uses `lte: new Date(dateTo)`; `'YYYY-MM-DD'` is parsed as UTC midnight. | `dateTo=2026-09-30` excludes an invoice issued 2026-09-30T10:00Z. | Use `lt: startOfDay(dateTo) + 1 day` (or `endOfDay`), with a consistent timezone. |
+| L10 | Low | `lib/actions/custom-price-actions.ts:108`, `invoice-actions.ts:719` | `createCustomPrice` falls back to `data.productId` as the customer id; `duplicateInvoice` copy-pastes the formatting from `generateInvoiceNumber`. | A caller passing a real `productId` without `context.customerId` gets "Customer not found"; a format change leaves duplicated invoices on the old format. | Make `customerId` an explicit parameter, and reuse `generateInvoiceNumber` in `duplicateInvoice`. |

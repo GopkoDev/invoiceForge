@@ -1,8 +1,8 @@
-import { notFound } from 'next/navigation';
 import { getSenderProfile } from '@/lib/actions/sender-profile-actions';
 import { getBankAccounts } from '@/lib/actions/bank-account-actions';
 import { getInvoicesBySenderProfile } from '@/lib/actions/invoice-actions/invoice-actions';
 import { SenderProfileDetailView } from '@/components/sender-profiles/sender-profile-detail-view';
+import { unwrapPageResult } from '@/components/layout/content-area';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -29,15 +29,10 @@ export default async function SenderProfileDetailPage({
     ]
   );
 
-  if (!profileResult.success || !profileResult.data) {
-    notFound();
-  }
-
-  const profile = profileResult.data;
-  const bankAccounts = bankAccountsResult.success
-    ? bankAccountsResult.data || []
-    : [];
-  const invoices = invoicesResult.success ? invoicesResult.data || [] : [];
+  // The record first, so a missing or foreign profile is not-found, not a load error.
+  const profile = unwrapPageResult(profileResult);
+  const bankAccounts = unwrapPageResult(bankAccountsResult) ?? [];
+  const invoices = unwrapPageResult(invoicesResult) ?? [];
 
   return (
     <SenderProfileDetailView

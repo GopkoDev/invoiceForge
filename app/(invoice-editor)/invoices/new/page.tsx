@@ -1,6 +1,6 @@
 import { InvoiceEditor } from '@/components/invoice-editor';
 import { getInvoiceEditorData } from '@/lib/actions/invoice-actions/invoice-actions';
-import { notFound } from 'next/navigation';
+import { unwrapPageResult } from '@/components/layout/content-area';
 
 export const metadata = {
   title: 'New Invoice',
@@ -9,10 +9,7 @@ export const metadata = {
 
 export default async function NewInvoicePage() {
   const result = await getInvoiceEditorData();
+  const data = unwrapPageResult(result);
 
-  if (!result.success || !result.data) {
-    return notFound();
-  }
-
-  return <InvoiceEditor data={result.data} />;
+  return <InvoiceEditor data={data} />;
 }

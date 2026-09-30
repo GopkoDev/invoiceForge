@@ -1,17 +1,11 @@
+import { unwrapPageResult } from '@/components/layout/content-area';
 import { Suspense } from 'react';
-import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
 
 import { DashboardHeader } from '@/components/dashboard/header/dashboard-header';
 import { DashboardSetupAlert } from '@/components/dashboard/dashboard-setup-alert';
 import {
-  DashboardStatsCards,
-  DashboardChart,
-  DashboardDebtors,
-  DashboardExpectedPayments,
-  DashboardSenderAccounts,
-  DashboardRecentInvoices,
   DashboardStatsCardsSkeleton,
   DashboardChartSkeleton,
   DashboardDebtorsSkeleton,
@@ -20,16 +14,18 @@ import {
   DashboardRecentInvoicesSkeleton,
 } from '@/components/dashboard';
 import {
-  getDashboardCurrencyTabs,
-  getDashboardSummaryStats,
-  getDashboardChartData,
-  getDashboardSenderAccounts,
-  getDashboardRecentInvoices,
-  getDashboardDebtors,
-  getDashboardExpectedPayments,
-} from '@/lib/actions/dashboard-actions';
+  StatsSection,
+  ChartSection,
+  DebtorsSection,
+  ExpectedPaymentsSection,
+  SenderAccountsSection,
+  RecentInvoicesSection,
+} from './_sections';
+import { getDashboardCurrencyTabs } from '@/lib/actions/dashboard-actions';
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
+import { dashboardParamsSchema } from '@/lib/validations/search-params';
+import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -45,26 +41,6 @@ interface DashboardSearchParams {
 
 interface DashboardPageProps {
   searchParams: Promise<DashboardSearchParams>;
-}
-
-function parseDateRange(from?: string, to?: string, preset?: string) {
-  const now = new Date();
-
-  if (preset === 'all-time') {
-    return { dateFrom: undefined, dateTo: undefined };
-  }
-
-  let dateFrom = startOfMonth(now);
-  let dateTo = endOfMonth(now);
-
-  if (from && to) {
-    try {
-      dateFrom = parseISO(from);
-      dateTo = parseISO(to);
-    } catch {}
-  }
-
-  return { dateFrom, dateTo };
 }
 
 function validateCurrency(
@@ -87,86 +63,6 @@ function validateCurrency(
   return 'USD';
 }
 
-async function StatsSection({
-  currency,
-  dateFrom,
-  dateTo,
-}: {
-  currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
-}) {
-  const result = await getDashboardSummaryStats(currency, dateFrom, dateTo);
-  const stats =
-    result.success && result.data
-      ? result.data
-      : {
-          totalReceived: 0,
-          receivedCount: 0,
-          totalPlanned: 0,
-          plannedCount: 0,
-          totalOverdue: 0,
-          overdueCount: 0,
-          allFuturePayments: 0,
-          allFuturePaymentsCount: 0,
-        };
-  return <DashboardStatsCards stats={stats} currency={currency} />;
-}
-
-async function ChartSection({
-  currency,
-  dateFrom,
-  dateTo,
-}: {
-  currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
-}) {
-  const result = await getDashboardChartData(currency, dateFrom, dateTo);
-  const data = result.success && result.data ? result.data : [];
-  return (
-    <div className="px-4 lg:px-6">
-      <DashboardChart data={data} currency={currency} />
-    </div>
-  );
-}
-
-async function DebtorsSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardDebtors(currency);
-  const debtors = result.success && result.data ? result.data : [];
-  return <DashboardDebtors debtors={debtors} />;
-}
-
-async function ExpectedPaymentsSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardExpectedPayments(currency);
-  const payments = result.success && result.data ? result.data : [];
-  return <DashboardExpectedPayments payments={payments} />;
-}
-
-async function SenderAccountsSection({
-  currency,
-  dateFrom,
-  dateTo,
-}: {
-  currency: Currency;
-  dateFrom?: Date;
-  dateTo?: Date;
-}) {
-  const result = await getDashboardSenderAccounts(currency, dateFrom, dateTo);
-  const accounts = result.success && result.data ? result.data : [];
-  return (
-    <div className="px-4 lg:px-6">
-      <DashboardSenderAccounts senderAccounts={accounts} currency={currency} />
-    </div>
-  );
-}
-
-async function RecentInvoicesSection({ currency }: { currency: Currency }) {
-  const result = await getDashboardRecentInvoices(currency);
-  const invoices = result.success && result.data ? result.data : [];
-  return <DashboardRecentInvoices invoices={invoices} />;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,69 +76,60 @@ export default async function DashboardPage({
     checkDashboardSetup(),
   ]);
 
-  const currencyTabs = currencyTabsResult.success
-    ? (currencyTabsResult.data ?? [])
-    : [];
+  // A failed read is a load error (SCR-17), never "no currencies" or an unfinished setup.
+  const currencyTabs = unwrapPageResult(currencyTabsResult) ?? [];
 
   const currency = validateCurrency(params.currency, currencyTabs);
 
-  const { dateFrom, dateTo } = parseDateRange(
-    params.from,
-    params.to,
-    params.preset
-  );
+  const timeZone = await getRequestTimeZone();
+  const { appliedRange } = dashboardParamsSchema(timeZone).parse(params);
 
-  const setupStatus =
-    setupStatusResult.success && setupStatusResult.data
-      ? setupStatusResult.data
-      : {
-          hasSenderProfiles: false,
-          hasBankAccounts: false,
-          hasCustomers: false,
-          hasProducts: false,
-          isComplete: false,
-        };
+  const setupStatus = unwrapPageResult(setupStatusResult);
 
-  const suspenseKey = `${currency}-${dateFrom?.getTime() ?? 'all'}-${dateTo?.getTime() ?? 'time'}`;
+  // T24 (spec.md §6 NFR "Dashboard date-range change"; sad.md §8 Hard rule "Cache invalidation":
+  // debtors/expected-payments/recent-invoices Suspense boundaries key on currency only) — sections
+  // that don't take a date range never re-suspend when the range changes; sections that do take a
+  // range also key on it.
+  const currencyKey = currency;
+  const rangeKey = `${appliedRange?.start.getTime() ?? 'all'}-${appliedRange?.endExclusive.getTime() ?? 'time'}`;
 
   return (
     <>
       <DashboardHeader
         currencyTabs={currencyTabs}
         selectedCurrency={currency}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        appliedRange={appliedRange}
       />
 
       <DashboardSetupAlert setupStatus={setupStatus} />
 
       <Suspense
-        key={`stats-${suspenseKey}`}
+        key={`stats-${currencyKey}-${rangeKey}`}
         fallback={<DashboardStatsCardsSkeleton />}
       >
-        <StatsSection currency={currency} dateFrom={dateFrom} dateTo={dateTo} />
+        <StatsSection currency={currency} appliedRange={appliedRange} />
       </Suspense>
 
       <Suspense
-        key={`chart-${suspenseKey}`}
+        key={`chart-${currencyKey}-${rangeKey}`}
         fallback={
           <div className="px-4 lg:px-6">
             <DashboardChartSkeleton />
           </div>
         }
       >
-        <ChartSection currency={currency} dateFrom={dateFrom} dateTo={dateTo} />
+        <ChartSection currency={currency} appliedRange={appliedRange} timeZone={timeZone} />
       </Suspense>
 
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
         <Suspense
-          key={`debtors-${suspenseKey}`}
+          key={`debtors-${currencyKey}`}
           fallback={<DashboardDebtorsSkeleton />}
         >
           <DebtorsSection currency={currency} />
         </Suspense>
         <Suspense
-          key={`payments-${suspenseKey}`}
+          key={`payments-${currencyKey}`}
           fallback={<DashboardExpectedPaymentsSkeleton />}
         >
           <ExpectedPaymentsSection currency={currency} />
@@ -250,22 +137,18 @@ export default async function DashboardPage({
       </div>
 
       <Suspense
-        key={`accounts-${suspenseKey}`}
+        key={`accounts-${currencyKey}-${rangeKey}`}
         fallback={
           <div className="px-4 lg:px-6">
             <DashboardSenderAccountsSkeleton />
           </div>
         }
       >
-        <SenderAccountsSection
-          currency={currency}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-        />
+        <SenderAccountsSection currency={currency} appliedRange={appliedRange} />
       </Suspense>
 
       <Suspense
-        key={`invoices-${suspenseKey}`}
+        key={`invoices-${currencyKey}`}
         fallback={<DashboardRecentInvoicesSkeleton />}
       >
         <RecentInvoicesSection currency={currency} />

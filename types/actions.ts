@@ -1,9 +1,54 @@
 /**
- * Generic action result type for server actions
- * @template T - The type of data returned on success
+ * Generic action result type for server actions (ADR-0009).
+ *
+ * A discriminated union so pages/forms can tell "not found" from "load failed"
+ * from "not signed in" at compile time. Actions never throw to the client;
+ * raw database/upstream text is never returned (sad.md §8, §2).
  */
-export type ActionResult<T = unknown> = {
-  success: boolean;
-  data?: T;
-  error?: string;
+
+export type ActionErrorCode =
+  | 'UNAUTHORIZED'
+  | 'NOT_FOUND'
+  | 'VALIDATION'
+  | 'CONFLICT'
+  | 'FAILED';
+
+/** Exact 2-dp value from the shared decimal module (ADR-0006). */
+export type DecimalString = string;
+
+export type ActionErrorDetails =
+  | { kind: 'TOTALS_CHANGED'; oldTotal: DecimalString; newTotal: DecimalString }
+  | { kind: 'HAS_INVOICES'; invoiceCount: number };
+
+export type ActionFailure = {
+  success: false;
+  code: ActionErrorCode;
+  /** Plain language, never raw DB/upstream text. */
+  error: string;
+  /** VALIDATION / CONFLICT on forms, keyed by form path. */
+  fieldErrors?: Record<string, string[]>;
+  /** Structured context for CONFLICTs the UI must tell apart. */
+  details?: ActionErrorDetails;
 };
+
+export type ActionResult<T = void> = { success: true; data: T } | ActionFailure;
+
+export function ok(): ActionResult<void>;
+export function ok<T>(data: T): ActionResult<T>;
+export function ok<T>(data?: T): ActionResult<T> {
+  return { success: true, data: data as T };
+}
+
+export function fail(
+  code: ActionErrorCode,
+  error: string,
+  extra?: { fieldErrors?: Record<string, string[]>; details?: ActionErrorDetails },
+): ActionFailure {
+  return {
+    success: false,
+    code,
+    error,
+    ...(extra?.fieldErrors !== undefined ? { fieldErrors: extra.fieldErrors } : {}),
+    ...(extra?.details !== undefined ? { details: extra.details } : {}),
+  };
+}

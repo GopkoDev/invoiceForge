@@ -10,6 +10,9 @@ if (!connectionString) {
 
 const adapter = new PrismaPg({ connectionString });
 
-export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+// errorFormat 'minimal' only drops the colored/pretty rendering; the error message still embeds the
+// call arguments. Keeping them out of Sentry is done by beforeSend/beforeBreadcrumb in
+// sentry.server.config.ts, not by this option.
+export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter, errorFormat: 'minimal' });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

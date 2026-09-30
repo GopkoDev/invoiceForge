@@ -1,6 +1,21 @@
 import { z } from 'zod';
 import { optionalString, phoneValidation } from '@/lib/helpers/zod-helpers';
 
+/**
+ * T20 (AC-04, contracts/server-actions.md §createSenderProfile/updateSenderProfile): the logo
+ * link must be a secure (https:) web address so the PDF path never has to fetch a plain-http,
+ * javascript: or data: link. Protocol comparison is case-insensitive (HTTPS://… is allowed).
+ */
+const SECURE_LOGO_MESSAGE = 'The link must be a secure web address (https://…).';
+
+function isSecureHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol.toLowerCase() === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export const senderProfileFormSchema = z.object({
   name: z
     .string()
@@ -16,7 +31,7 @@ export const senderProfileFormSchema = z.object({
   phone: optionalString(phoneValidation(z.string().trim().max(50))),
   email: optionalString(z.string().trim().email('Invalid email address')),
   website: optionalString(z.string().trim().url('Invalid URL format')),
-  logo: optionalString(z.string().trim().url('Invalid URL format')),
+  logo: optionalString(z.string().trim().refine(isSecureHttpsUrl, SECURE_LOGO_MESSAGE)),
   invoicePrefix: z
     .string()
     .trim()

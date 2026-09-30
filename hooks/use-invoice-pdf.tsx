@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import {
   useFormData,
   useSelectedSenderProfile,
@@ -36,7 +37,7 @@ export function useInvoicePdf() {
   const handleDownloadPdf = useCallback(async () => {
     if (hasUnsavedChanges) return;
 
-    await downloadPdfFromFormData(
+    const result = await downloadPdfFromFormData(
       pdfFormData,
       senderProfile,
       customer,
@@ -45,6 +46,7 @@ export function useInvoicePdf() {
       taxAmount,
       total
     );
+    if (result.unauthorized) goToSignIn();
   }, [
     pdfFormData,
     senderProfile,
@@ -59,7 +61,7 @@ export function useInvoicePdf() {
   const handlePrint = useCallback(async () => {
     if (hasUnsavedChanges) return;
 
-    await printPdfFromFormData(
+    const result = await printPdfFromFormData(
       pdfFormData,
       senderProfile,
       customer,
@@ -68,6 +70,7 @@ export function useInvoicePdf() {
       taxAmount,
       total
     );
+    if (result.unauthorized) goToSignIn();
   }, [
     pdfFormData,
     senderProfile,

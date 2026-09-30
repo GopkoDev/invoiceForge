@@ -37,13 +37,16 @@ export function SenderProfileModalContainer() {
       {confirmationModal.isOpen && confirmationModal.props && (
         <ConfirmationModal
           open={confirmationModal.isOpen}
-          onClose={confirmationModal.close}
+          onClose={confirmationModal.props.onClose}
           onConfirm={confirmationModal.props.onConfirm}
           title={confirmationModal.props.title}
           description={confirmationModal.props.description}
+          body={confirmationModal.props.body}
           variant={confirmationModal.props.variant}
           confirmText={confirmationModal.props.confirmText}
           cancelText={confirmationModal.props.cancelText}
+          confirmDisabled={confirmationModal.props.confirmDisabled}
+          hideConfirm={confirmationModal.props.hideConfirm}
         />
       )}
 

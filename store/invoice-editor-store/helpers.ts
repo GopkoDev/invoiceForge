@@ -21,9 +21,8 @@ import {
 import { getValidItems } from '@/lib/helpers/invoice-editor';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  calculateSubtotal,
-  calculateTaxAmount,
-  calculateTotal,
+  computeInvoiceAmounts,
+  decimalStringToNumber,
 } from '@/lib/helpers/invoice-calculations';
 
 // ============================================
@@ -259,21 +258,21 @@ export function recalculateComputedValues(
     state.formData.customerId
   );
 
-  // Calculate totals only for valid items
+  // Calculate totals only for valid items, using the shared exact-decimal module so the
+  // displayed totals always match what the server will store (ADR-0006, AC-13).
   const validItems = getValidItems(state.formData.items, invalidItems);
-  const subtotal = calculateSubtotal(validItems);
-  const taxAmount = calculateTaxAmount(
-    subtotal,
-    state.formData.discount,
-    state.formData.shipping,
-    state.formData.taxRate
-  );
-  const total = calculateTotal(
-    subtotal,
-    taxAmount,
-    state.formData.discount,
-    state.formData.shipping
-  );
+  const amounts = computeInvoiceAmounts({
+    items: validItems.map((item) => ({
+      quantity: item.quantity,
+      price: item.price,
+    })),
+    discount: state.formData.discount,
+    shipping: state.formData.shipping,
+    taxRate: state.formData.taxRate,
+  });
+  const subtotal = decimalStringToNumber(amounts.subtotal);
+  const taxAmount = decimalStringToNumber(amounts.taxAmount);
+  const total = decimalStringToNumber(amounts.total);
 
   // Filter products by invoice currency
   const filteredProducts = _filterProductsByCurrency(

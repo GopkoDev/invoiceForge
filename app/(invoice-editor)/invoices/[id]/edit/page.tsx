@@ -1,7 +1,7 @@
 import { InvoiceEditor } from '@/components/invoice-editor';
 import { getInvoiceEditorData } from '@/lib/actions/invoice-actions/invoice-actions';
-import { redirect, notFound } from 'next/navigation';
-import { authRoutes } from '@/config/routes.config';
+import { notFound } from 'next/navigation';
+import { unwrapPageResult } from '@/components/layout/content-area';
 
 export const metadata = {
   title: 'Edit Invoice',
@@ -20,17 +20,11 @@ export default async function EditInvoicePage({
   const { id } = await params;
 
   const result = await getInvoiceEditorData(id);
+  const data = unwrapPageResult(result);
 
-  if (!result.success) {
-    if (result.error === 'Unauthorized') {
-      redirect(authRoutes.signIn);
-    }
+  if (!data.initialData) {
     notFound();
   }
 
-  if (!result.data || !result.data.initialData) {
-    notFound();
-  }
-
-  return <InvoiceEditor data={result.data} />;
+  return <InvoiceEditor data={data} />;
 }

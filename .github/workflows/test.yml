@@ -1,0 +1,43 @@
+name: test
+
+# test-plan.md §CI placement: "On every PR: unit, component, contract and integration."
+# e2e, e2e-through-UI and the rate-limit load scenario run before each wave ships and nightly,
+# against a production build - not wired in here yet (see tests/README.md §CI placement).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  unit:
+    name: unit + component + contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test:unit
+
+  integration:
+    name: integration (throwaway Postgres container)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      # No `.env` in CI, so the env-guard's "real .env" assertions skip cleanly (see
+      # tests/integration/env-guard.test.ts) and every test talks only to the throwaway
+      # container testcontainers starts.
+      - run: pnpm test:integration

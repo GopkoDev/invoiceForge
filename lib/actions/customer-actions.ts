@@ -9,15 +9,22 @@ import {
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { CustomerWithRelations } from '@/types/customer/types';
-import { ActionResult } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/actions';
+import { z } from 'zod';
+import {
+  zodValidationFailure,
+  hasInvoicesConflict,
+  isRestrictForeignKeyError,
+  failed,
+} from '@/lib/actions/action-result-helpers';
 
 export async function getCustomers(): Promise<
   ActionResult<CustomerWithRelations[]>
 > {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -40,10 +47,9 @@ export async function getCustomers(): Promise<
       },
     });
 
-    return { success: true, data: customers };
+    return ok(customers);
   } catch (error) {
-    console.error('Error fetching customers:', error);
-    return { success: false, error: 'Failed to fetch customers' };
+    return failed('Error fetching customers:', error, 'Failed to fetch customers.');
   }
 }
 
@@ -52,8 +58,8 @@ export async function getCustomer(
 ): Promise<ActionResult<CustomerWithRelations>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -74,16 +80,12 @@ export async function getCustomer(
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
-    return {
-      success: true,
-      data: customer,
-    };
+    return ok(customer);
   } catch (error) {
-    console.error('Error fetching customer:', error);
-    return { success: false, error: 'Failed to fetch customer' };
+    return failed('Error fetching customer:', error, 'Failed to fetch customer.');
   }
 }
 
@@ -92,8 +94,8 @@ export async function createCustomer(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -108,10 +110,12 @@ export async function createCustomer(
 
     revalidatePath(protectedRoutes.customers);
 
-    return { success: true, data: { id: customer.id } };
+    return ok({ id: customer.id });
   } catch (error) {
-    console.error('Error creating customer:', error);
-    return { success: false, error: 'Failed to create customer' };
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
+    return failed('Error creating customer:', error, 'Failed to create customer.');
   }
 }
 
@@ -121,8 +125,8 @@ export async function updateCustomer(
 ): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -136,7 +140,7 @@ export async function updateCustomer(
     });
 
     if (!existingCustomer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     await prisma.customer.update({
@@ -147,18 +151,20 @@ export async function updateCustomer(
     revalidatePath(protectedRoutes.customers);
     revalidatePath(protectedRoutes.customerEdit(id));
 
-    return { success: true };
+    return ok();
   } catch (error) {
-    console.error('Error updating customer:', error);
-    return { success: false, error: 'Failed to update customer' };
+    if (error instanceof z.ZodError) {
+      return zodValidationFailure(error);
+    }
+    return failed('Error updating customer:', error, 'Failed to update customer.');
   }
 }
 
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   try {
     const authResult = await getAuthenticatedUser();
-    if (!authResult.success || !authResult.data) {
-      return { success: false, error: authResult.error };
+    if (!authResult.success) {
+      return authResult;
     }
 
     const { userId } = authResult.data;
@@ -178,25 +184,31 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     });
 
     if (!customer) {
-      return { success: false, error: 'Customer not found' };
+      return fail('NOT_FOUND', 'Customer not found.');
     }
 
     if (customer._count.invoices > 0) {
-      return {
-        success: false,
-        error: `Cannot delete customer with ${customer._count.invoices} invoice(s). Please delete or reassign invoices first.`,
-      };
+      return hasInvoicesConflict('customer', customer._count.invoices);
     }
 
-    await prisma.customer.delete({
-      where: { id },
-    });
+    try {
+      await prisma.customer.delete({
+        where: { id },
+      });
+    } catch (deleteError) {
+      if (isRestrictForeignKeyError(deleteError)) {
+        // An invoice was saved between the count above and this delete (Restrict FK, P2003):
+        // recount and report the same CONFLICT, never FAILED (sad.md §8 Hard rule, AC-22).
+        const invoiceCount = await prisma.invoice.count({ where: { customerId: id } });
+        return hasInvoicesConflict('customer', invoiceCount);
+      }
+      throw deleteError;
+    }
 
     revalidatePath(protectedRoutes.customers);
 
-    return { success: true };
+    return ok();
   } catch (error) {
-    console.error('Error deleting customer:', error);
-    return { success: false, error: 'Failed to delete customer' };
+    return failed('Error deleting customer:', error, 'Failed to delete customer.');
   }
 }

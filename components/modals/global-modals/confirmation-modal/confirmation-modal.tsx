@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { ConfirmationModalProps } from './types';
 
 export function ConfirmationModal({
@@ -17,29 +20,53 @@ export function ConfirmationModal({
   onConfirm,
   title,
   description,
+  body,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   variant = 'default',
+  confirmDisabled = false,
+  hideConfirm = false,
 }: ConfirmationModalProps) {
+  const [pending, setPending] = useState(false);
+
   const handleConfirm = () => {
-    onConfirm();
+    const result = onConfirm();
+
+    if (result && typeof result.then === 'function') {
+      setPending(true);
+      // A rejected call is what the proxy's 401 looks like to a client action (contract
+      // "Boundary"), so it goes to sign-in; the busy state clears either way.
+      result
+        .catch(() => goToSignIn())
+        .finally(() => setPending(false));
+      return;
+    }
+
     onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={pending ? undefined : onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {body}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
             {cancelText}
           </Button>
-          <Button variant={variant} onClick={handleConfirm}>
-            {confirmText}
-          </Button>
+          {!hideConfirm && (
+            <Button
+              variant={variant}
+              onClick={handleConfirm}
+              disabled={pending || confirmDisabled}
+            >
+              {pending && <Spinner />}
+              {confirmText}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

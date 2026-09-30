@@ -8,6 +8,7 @@ import {
   format,
   startOfMonth,
   startOfYear,
+  subDays,
   subMonths,
   subYears,
 } from 'date-fns';
@@ -31,8 +32,14 @@ type DatePreset =
   | 'all-time'
   | 'custom';
 
+// T24 (spec.md §5 AC-25) — the filter shows the range the page actually applied
+// (`appliedRange`), not a range re-derived from the raw link values, per
+// docs/features/architecture-hardening/tasks/t24-dashboard-link-params.md (Checklist item 4;
+// contracts/server-actions.md §Link parameters, Dashboard: "The page returns `appliedRange` to
+// the date filter"). `endExclusive` is the next local midnight after the last included day
+// (sad.md §8 "Time and time zones"), so the displayed end date is one day before it.
 interface DashboardFiltersProps {
-  dateRange: DateRange | undefined;
+  appliedRange?: { start: Date; endExclusive: Date } | undefined;
   onDateRangeChange: (
     range: { from?: Date; to?: Date } | undefined,
     preset?: string
@@ -76,7 +83,7 @@ function getPresetDateRange(preset: DatePreset): DateRange | undefined {
 }
 
 export function DashboardFilters({
-  dateRange,
+  appliedRange,
   onDateRangeChange,
 }: DashboardFiltersProps) {
   const [preset, setPreset] = useState<DatePreset>('this-month');
@@ -103,11 +110,18 @@ export function DashboardFilters({
     [onDateRangeChange]
   );
 
-  const displayText = useMemo(() => {
-    if (!dateRange?.from) return 'All Time';
-    if (!dateRange.to) return format(dateRange.from, 'LLL dd, y');
-    return `${format(dateRange.from, 'LLL dd, y')} - ${format(dateRange.to, 'LLL dd, y')}`;
-  }, [dateRange]);
+  // The calendar and the label both show the range the server applied, last day inclusive.
+  const selectedRange = useMemo<DateRange | undefined>(
+    () =>
+      appliedRange
+        ? { from: appliedRange.start, to: subDays(appliedRange.endExclusive, 1) }
+        : undefined,
+    [appliedRange]
+  );
+
+  const displayText = selectedRange?.from && selectedRange.to
+    ? `${format(selectedRange.from, 'LLL dd, y')} - ${format(selectedRange.to, 'LLL dd, y')}`
+    : 'All Time';
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -117,7 +131,7 @@ export function DashboardFilters({
             variant="outline"
             className={cn(
               'w-60 justify-start text-left font-normal',
-              !dateRange && 'text-muted-foreground'
+              !appliedRange && 'text-muted-foreground'
             )}
             aria-label="Select date range"
             aria-expanded={isOpen}
@@ -150,8 +164,8 @@ export function DashboardFilters({
           <Calendar
             initialFocus
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
+            defaultMonth={selectedRange?.from}
+            selected={selectedRange}
             onSelect={handleCalendarSelect}
             numberOfMonths={2}
           />
