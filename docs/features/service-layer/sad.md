@@ -127,49 +127,71 @@ Each tactical decision in later sections traces to one of these seeds. A tactica
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
+The app keeps its layered-by-convention Next.js monolith and gains one real layer. **Web adapters** (RSC pages, `'use server'` actions, route handlers) own everything tied to a request: session, cookies, `revalidatePath`, `unstable_cache`, redirects. **Business functions** in `lib/services/` own every rule and every data access, take an `ActingFreelancer` (ADR-0001) and return `ActionResult<T>` (ADR-0002). Prisma and PostgreSQL stay below them. There are no ports and adapters beyond this split and no repository abstraction: business functions call the Prisma client directly, as actions do today, which keeps the move mechanical and the parity diff small. The layer lives in the same package, and its boundary is enforced by `server-only`, a lint rule and a unit check (ADR-0006). The single surface `backend-service` is drawn as its three logical containers (web adapters, business layer, proxy). The browser UI is unchanged and is drawn only as the caller.
 
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
-
-**Internal decomposition:**
+**Internal decomposition** (★ new, ✎ changed, ✗ removed):
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+lib/services/                                  ★ request-free business layer (ADR-0006); every file imports 'server-only'
+├── _shared/
+│   ├── acting-freelancer.ts                   ★ ActingFreelancer brand + the ONLY place it is constructed from raw values (ADR-0001)
+│   ├── time-zone.ts                           ★ resolveTimeZone(): accepted only if Intl AND pg_timezone_names know it, else UTC
+│   ├── list-query.ts                          ★ ListQuery zod schema, Page<T>, paginate() helper with the id tiebreak (ADR-0005)
+│   ├── owner-scope.ts                         ★ P2025 → NOT_FOUND mapping for owner-scoped writes (ADR-0003)
+│   └── result-helpers.ts                      ✎ moved from lib/actions/action-result-helpers.ts: failed(), zodValidationFailure(), hasInvoicesConflict()…
+├── customers/ products/ custom-prices/        ★ one module per domain: list (search + paging), get, create, update, delete
+├── sender-profiles/ bank-accounts/            ★ same shape; sender-profile delete keeps the HAS_INVOICES guard
+├── invoices/
+│   ├── invoices.ts                            ★ create, update (totals-changed check), status change, duplicate, get, list (AC-26 filters)
+│   ├── numbering.ts                           ✎ moved from lib/actions/invoice-actions/numbering.ts (row lock, normalized key; hardening ADR-0004/0005)
+│   └── editor-data.ts                         ★ customers + products + custom prices for a new invoice (AC-25)
+├── dashboard/
+│   ├── dashboard.ts                           ★ one function per section, same outputs as today's actions
+│   └── queries.ts                             ★ the only dashboard SQL; every query owner-joined through SenderProfile.userId (ADR-0004)
+├── account/                                   ★ deletion summary + all-or-nothing deletion (hardening ADR-0007), data export read
+└── profile/                                   ★ profile update, dashboard setup check
+lib/actions/**                                 ✎ thin wrappers: actingFreelancerFromSession() → business function → revalidatePath on success
+lib/actions/login-actions.ts                   — unchanged (sign-in stays in the browser flow, spec §3)
+lib/helpers/auth-helpers.ts                    ✎ + actingFreelancerFromSession(): session + tz cookie → ActingFreelancer, or UNAUTHORIZED
+app/api/user/export/route.ts                   ✎ reads through lib/services/account instead of Prisma
+app/api/convert-image/route.ts                 ✎ owned-profile lookup through lib/services/sender-profiles
+types/result.ts                                ★ the ActionResult union, moved here (ADR-0002); types/actions.ts re-exports it
+eslint.config.mjs                              ✎ no-restricted-imports for lib/services/** (next/headers, next/cache, next/navigation, @/auth, next-auth)
+                                                 + a ban on `as ActingFreelancer` outside _shared/acting-freelancer.ts
+tests/integration/services/**                  ★ request-free tests per business function + a foreign-record test per id-taking function
+tests/unit/service-layer-boundary.test.ts      ★ no 'use server' under lib/services, no lib/services import from 'use client' files
+lib/actions/dashboard-actions.ts (in-memory)   ✗ deleted after the dashboard parity values are recorded (spec §1 change 5)
+lib/actions/invoice-actions/…getInvoices()     ✗ the unused list-all-invoices function and its test (spec §1 change 5)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title service-layer - Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer", "Signed-in account holder")
+    Person_Ext(visitor, "Visitor", "No signed-in session")
+    System_Ext(assistant, "Assistant (planned)", "Later feature; must authenticate the Freelancer before calling")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(forge, "Invoice Forge") {
+        Container(browser, "Browser UI", "React 19 client components", "Unchanged: pages, forms, pickers, editor, dashboard")
+        Container(proxy, "Proxy", "proxy.ts, next-auth edge config", "Deny by default; sends Visitors to sign in")
+        Container(adapters, "Web adapters", "Next.js 16 RSC pages, server actions, route handlers", "backend-service edge: session and tz cookie to ActingFreelancer, revalidatePath, caching")
+        Container(services, "Business layer", "lib/services, TypeScript, server-only", "backend-service core: every rule and query, owner-scoped, request-free")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "PostgreSQL", "Neon, Prisma 7 + adapter-pg", "Sender profiles, customers, products, custom prices, bank accounts, invoices")
+    System_Ext(sentry, "Sentry", "Error monitoring and traces")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, browser, "Uses", "HTTPS")
+    Rel(visitor, proxy, "Any request", "HTTPS")
+    Rel(browser, proxy, "Page loads and server-action calls", "HTTPS")
+    Rel(proxy, adapters, "Forwards signed-in requests")
+    Rel(adapters, services, "Calls with ActingFreelancer, gets ActionResult", "in-process")
+    Rel(assistant, services, "Will call through its own authenticating adapter", "in-process, later")
+    Rel(services, db, "Owner-scoped reads, writes, aggregate SQL", "Prisma, pg")
+    Rel(services, sentry, "Reports unexpected failures once", "HTTPS")
 ```
 
 ## 6. Runtime view
