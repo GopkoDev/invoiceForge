@@ -224,6 +224,22 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     expect(out).toContain('Invalid `prisma.invoice.findUnique()` invocation');
   });
 
+  // T63 W-01: adapter-pg reads the P2011 field list with /Key \(([^)]+)\)/ from a 23502 detail,
+  // which is `Failing row contains (<every column value>)`, so a match can only be user data.
+  it('a null-constraint error loses its reason, which can quote a row value (T63 W-01)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const nullViolation = new Prisma.PrismaClientKnownRequestError(
+      `\nInvalid \`prisma.invoice.create()\` invocation:\n\n\nNull constraint violation on the fields: (\`${IBAN}\`)`,
+      { code: 'P2011', clientVersion: '7.2.0' }
+    );
+    expect(inspect(nullViolation)).toContain(IBAN);
+    const out = inspect(redactError(nullViolation));
+    expect(out).not.toContain(IBAN);
+    expect(out).toContain('PrismaClientKnownRequestError [P2011]');
+    expect(out).toContain('Invalid `prisma.invoice.create()` invocation');
+  });
+
   it('a unique-constraint error keeps its reason, which names columns only (T61 V-02)', async () => {
     const { Prisma } = await import('@prisma/client');
     const { redactError } = await import('@/lib/helpers/prisma-error-scrub');

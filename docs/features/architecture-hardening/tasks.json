@@ -1332,7 +1332,7 @@
         "T58"
       ],
       "acs": [],
-      "dod": "Review 2026-09-30-4 V-02 fixed. scrubPrismaError keeps the final reason paragraph only when the error code is in an allowlist of codes whose message holds no values (P1000–P1017, P2000, P2002, P2003, P2011, P2021, P2022, P2025, P2034, P2037); every other code, and an error without a code, is cut whole after the invocation line. Tests: a P2007 whose reason quotes a secret marker loses it in both redactError and beforeSend; P1001 and P2002 still keep their reason.",
+      "dod": "Review 2026-09-30-4 V-02 fixed. scrubPrismaError keeps the final reason paragraph only when the error code is in an allowlist of codes whose message holds no values (P1000–P1017, P2000, P2002, P2003, P2021, P2022, P2025, P2034, P2037); every other code, and an error without a code, is cut whole after the invocation line. Tests: a P2007 whose reason quotes a secret marker loses it in both redactError and beforeSend; P1001 and P2002 still keep their reason.",
       "files_hint": [
         "lib/helpers/prisma-error-scrub.ts",
         "sentry.server.config.ts",

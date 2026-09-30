@@ -238,6 +238,40 @@ describe('Prisma call arguments never reach Sentry (T54 S-01, S-02)', () => {
     expect(inspect(crumb.data.arguments[1])).not.toContain(BOGUS);
   });
 
+  // T63 W-01: adapter-pg reads the P2011 field list from a 23502 detail that holds the failing
+  // row's values, so the reason can quote user data.
+  it('beforeSend cuts the reason of a null-constraint error, which can quote a row value', () => {
+    const nullViolation = new Prisma.PrismaClientKnownRequestError(
+      `\nInvalid \`prisma.invoice.create()\` invocation:\n\n\nNull constraint violation on the fields: (\`${BOGUS}\`)`,
+      { code: 'P2011', clientVersion: '7.2.0' }
+    );
+    const out = beforeSend(
+      {
+        exception: {
+          values: [
+            {
+              type: 'PrismaClientKnownRequestError',
+              value: nullViolation.message,
+            },
+          ],
+        },
+      },
+      { originalException: nullViolation }
+    ) as {
+      tags?: Record<string, string>;
+      exception: { values: { value: string }[] };
+    };
+    expect(JSON.stringify(out)).not.toContain(BOGUS);
+    expect(out.tags?.prisma_code).toBe('P2011');
+
+    const crumb = beforeBreadcrumb({
+      category: 'console',
+      message: 'createInvoice failed',
+      data: { arguments: ['createInvoice failed', nullViolation] },
+    }) as { data: { arguments: unknown[] } };
+    expect(inspect(crumb.data.arguments[1])).not.toContain(BOGUS);
+  });
+
   it('beforeSend keeps the reason of a unique-constraint error, which names columns only', () => {
     const unique = new Prisma.PrismaClientKnownRequestError(
       '\nInvalid `prisma.user.create()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)',

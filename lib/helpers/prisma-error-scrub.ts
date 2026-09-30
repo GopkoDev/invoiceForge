@@ -23,15 +23,15 @@ export function scrubPrismaText(text: string): string {
 // 2026-09-30-3 U-03) — but only for codes whose reason holds no values. The pg adapter builds some
 // reasons from the driver message, which can quote the rejected input (P2007 `invalid input syntax
 // for type uuid: "<value>"`, P2020, P2023, raw-query P2010), so every other code, and an error
-// without one, is cut whole (review 2026-09-30-4 V-02). The kept codes name columns, fields,
-// tables, models or the server, never a row value (checked against @prisma/client 7.2 and
-// @prisma/adapter-pg).
+// without one, is cut whole (review 2026-09-30-4 V-02). P2011 is cut too: adapter-pg reads its
+// field list from a 23502 detail that holds the failing row's values (review 2026-09-30-5 W-01).
+// The kept codes name columns, fields, tables, models or the server, never a row value (checked
+// against @prisma/client 7.2 and @prisma/adapter-pg).
 const VALUE_FREE_REASON_CODES = new Set([
   ...Array.from({ length: 18 }, (_, i) => `P${1000 + i}`), // P1000–P1017
   'P2000',
   'P2002',
   'P2003',
-  'P2011',
   'P2021',
   'P2022',
   'P2025',
