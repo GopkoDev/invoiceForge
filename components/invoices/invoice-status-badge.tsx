@@ -9,10 +9,12 @@ interface InvoiceStatusBadgeProps {
   paidAt?: Date | string | null;
 }
 
-// Formats consistently on server and client, matching InvoicesDataTable's own date columns.
+// Pinned to UTC so the SSR pass and the browser format the same instant as the same day (N-16,
+// review-2026-09-28); an un-zoned toLocaleDateString differs between server and client zones.
 function formatPaidDate(date: Date | string): string {
   const d = new Date(date);
   return d.toLocaleDateString('en-US', {
+    timeZone: 'UTC',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

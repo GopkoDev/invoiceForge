@@ -115,6 +115,26 @@ describe.runIf(containerRuntimeAvailable)(
       expect(result.data[0].paid).toBe(100);
       expect(result.data[0].expected).toBe(100);
     });
+
+    // N-11 (review-2026-09-28): a midnight spring-forward day east of UTC (Cairo 2026-04-24) made
+    // the day-key loop list one day twice and skip the next.
+    it('lists every local day exactly once across a midnight DST day (Africa/Cairo 2026-04-23..25)', async () => {
+      const freelancer = await createFreelancer(prisma, { email: 'chart-dst@example.com' });
+      authMock.mockResolvedValue({ user: { id: freelancer.id } });
+
+      // Cairo: +02:00 until 2026-04-23T22:00Z, +03:00 after; 04-24 has 23h.
+      const appliedRange = {
+        start: new Date('2026-04-22T22:00:00.000Z'),
+        endExclusive: new Date('2026-04-25T21:00:00.000Z'),
+      };
+
+      const result = await getDashboardChartData('USD', appliedRange, 'Africa/Cairo');
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      expect(result.data.map((p) => p.date)).toEqual(['2026-04-23', '2026-04-24', '2026-04-25']);
+    });
   }
 );
 

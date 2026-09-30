@@ -107,9 +107,9 @@ function wallClockMatches(
  * A handful of zones (e.g. America/Santiago, America/Havana) spring their clocks forward at
  * local midnight, so local midnight itself does not exist there on a transition day — the wall
  * clock jumps straight from 23:59:59 to 01:00:00. Neither guess can reproduce a nonexistent wall
- * clock, and in that gap case this resolves to the transition instant itself (the first guess,
- * computed from the offset in effect just before the desired time), which is the earliest
- * instant whose local day is the requested one.
+ * clock, and in that gap case this resolves to the transition instant itself (the later of the
+ * two guesses, whichever offset sign the zone has), which is the earliest instant whose local
+ * day is the requested one.
  */
 function zonedTimeToUtc(
   year: number,
@@ -136,8 +136,9 @@ function zonedTimeToUtc(
   }
 
   // Neither guess reproduces the requested wall clock: it falls in a spring-forward gap.
-  // Resolve to the transition instant (guess1Ms), the earliest instant on the requested day.
-  return new Date(guess1Ms);
+  // Resolve to the transition instant: the LATER of the two guesses. West of UTC that is guess1
+  // and east of UTC guess2 (N-11, review-2026-09-28), so take the max instead of assuming a sign.
+  return new Date(Math.max(guess1Ms, guess2Ms));
 }
 
 /** The UTC instant of local midnight, on the local calendar day that `date` falls on in `timeZone`. */

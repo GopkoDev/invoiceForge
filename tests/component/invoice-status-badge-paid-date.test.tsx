@@ -34,6 +34,20 @@ describe('InvoiceStatusBadge — paid date (T35, AC-18, F-15)', () => {
     expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
   });
 
+  // N-16 (review-2026-09-28): no time zone meant the server and the browser could format the
+  // same instant as different days (hydration mismatch). It must not depend on the process zone.
+  it('renders the same day regardless of the process time zone', () => {
+    const original = process.env.TZ;
+    try {
+      process.env.TZ = 'Pacific/Kiritimati'; // +14: 2026-09-21T23:30Z is already Sep 22 locally
+      render(<InvoiceStatusBadge status="PAID" paidAt={new Date('2026-09-21T23:30:00Z')} />);
+      expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+
   it('shows no date for a non-Paid invoice, even if paidAt is set (defensive)', () => {
     render(<InvoiceStatusBadge status="PENDING" paidAt={null} />);
 

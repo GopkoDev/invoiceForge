@@ -163,6 +163,24 @@ describe('localDayRange (unit, AC-27 — inclusive local range, exclusive next-m
     expect((end.getTime() - start.getTime()) / (60 * 60 * 1000)).toBe(23);
   });
 
+  // N-11 (review-2026-09-28): east of UTC the gap fallback returned the EARLIER instant, so the
+  // day started an hour before the transition and the previous day lost its last hour.
+  it('a DST spring-forward-at-midnight day east of UTC (Africa/Cairo 2026-04-24) starts at the transition instant', () => {
+    const [start, end] = localDayRange('2026-04-24', '2026-04-24', 'Africa/Cairo');
+
+    // Egypt moves +02:00 -> +03:00 at exactly 2026-04-23T22:00:00Z; local midnight does not exist.
+    expect(start.toISOString()).toBe('2026-04-23T22:00:00.000Z');
+    expect((end.getTime() - start.getTime()) / (60 * 60 * 1000)).toBe(23);
+  });
+
+  it('a DST spring-forward-at-midnight day east of UTC (Asia/Beirut 2026-03-29) starts at the transition instant', () => {
+    const [start, end] = localDayRange('2026-03-29', '2026-03-29', 'Asia/Beirut');
+
+    // Lebanon moves +02:00 -> +03:00 at exactly 2026-03-28T22:00:00Z.
+    expect(start.toISOString()).toBe('2026-03-28T22:00:00.000Z');
+    expect((end.getTime() - start.getTime()) / (60 * 60 * 1000)).toBe(23);
+  });
+
   it('the previous day keeps its full last hour when the next day springs forward at midnight (America/Santiago)', () => {
     // Sept 5's range end == Sept 6's range start; the bug made this boundary an hour early
     // (2026-09-06T03:00:00Z), dropping Sept 5 23:00-23:59 local from Sept 5's own range.
