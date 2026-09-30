@@ -18,7 +18,13 @@ vi.mock('@/lib/helpers/auth-helpers', () => ({
   getAuthenticatedUser: async () => ({ success: true, data: { userId: 'user-1' } }),
 }));
 vi.mock('@/auth', () => ({ auth: async () => ({ user: { id: 'user-1' } }) }));
-vi.mock('next/cache', () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+vi.mock('next/cache', () => ({
+  revalidatePath: () => {},
+  revalidateTag: () => {},
+  // T49 R-09: without unstable_cache the dashboard case failed on the mock's "no export
+  // defined" error instead of reaching the rejecting prisma proxy.
+  unstable_cache: (fn: unknown) => fn,
+}));
 
 const captureExceptionMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
@@ -65,6 +71,8 @@ describe('every action module reports a FAILED cause once (T43, N-10, AC-28)', (
 
   it.each(cases)('%s', async (_name, run) => {
     const result = await run();
+    // the cause must be the prisma rejection, not a mock-setup error (T49 R-09)
+    expect(String(captureExceptionMock.mock.calls[0]?.[0])).toContain('db down');
 
     expect(result.code).toBe('FAILED');
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);

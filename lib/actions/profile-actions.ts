@@ -33,7 +33,7 @@ export async function updateProfile(
     });
 
     if (!currentUser) {
-      return fail('FAILED', 'Failed to update profile. Please try again.');
+      return fail('UNAUTHORIZED', 'Not signed in.');
     }
 
     const currentEmail = currentUser.email;

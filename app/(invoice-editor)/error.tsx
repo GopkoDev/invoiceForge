@@ -1,6 +1,7 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useEffect, useTransition } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { useRouter } from 'next/navigation';
 import { LoadError } from '@/components/layout/content-area/load-error';
 
@@ -16,8 +17,11 @@ export default function InvoiceEditorError({
   // "retrying" state and blocking a second click.
   const [isPending, startTransition] = useTransition();
 
-  // N-10: no Sentry.captureException here — the loader's failed() already reported the cause
-  // once (test-plan.md:109), and instrumentation.ts skips the 'load_failed' request error.
+  // R-05: a server error carries a digest and failed() already reported it; an error without
+  // one was raised in the browser and nothing else will report it.
+  useEffect(() => {
+    if (!error.digest) Sentry.captureException(error);
+  }, [error]);
 
   // F-37 (see app/(protected)/error.tsx, same fix): refresh() before reset(), both inside
   // startTransition, so retry actually recovers instead of re-rendering the cached failure.

@@ -265,6 +265,7 @@ export async function createInvoice(
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
   let wasAllocated = false;
+  let allocatedNumber = '';
 
   try {
     const authResult = await getAuthenticatedUser();
@@ -309,6 +310,7 @@ export async function createInvoice(
       );
       const { invoiceNumber, invoiceNumberKey } = resolved;
       wasAllocated = resolved.wasAllocated;
+      allocatedNumber = invoiceNumber;
 
       // Stored amounts come only from the shared exact-decimal module (ADR-0006); whatever the
       // browser sent for items[].total/subtotal/etc. is ignored (AC-13).
@@ -388,7 +390,14 @@ export async function createInvoice(
       // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
       // shouldn't happen past the row lock — alert so it's investigated.
       if (wasAllocated) {
-        captureMessage('invoice_number_conflict', { extra: { data } });
+        // Ids, the number and the flag only — never the form body (sad.md:746).
+        captureMessage('invoice_number_conflict', {
+          extra: {
+            senderProfileId: data.senderProfileId,
+            invoiceNumber: allocatedNumber,
+            wasAllocated,
+          },
+        });
       }
       return invoiceNumberConflict();
     }
@@ -408,6 +417,7 @@ export async function updateInvoice(
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
   let wasAllocated = false;
+  let allocatedNumber = '';
 
   try {
     const authResult = await getAuthenticatedUser();
@@ -496,6 +506,7 @@ export async function updateInvoice(
       }
       const { invoiceNumber, invoiceNumberKey } = resolvedNumber;
       wasAllocated = resolvedNumber.wasAllocated;
+      allocatedNumber = invoiceNumber;
 
       // Stored amounts come only from the shared exact-decimal module (ADR-0006); whatever the
       // browser sent for items[].total/subtotal/etc. is ignored (AC-13).
@@ -618,7 +629,14 @@ export async function updateInvoice(
       // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
       // shouldn't happen past the row lock — alert so it's investigated.
       if (wasAllocated) {
-        captureMessage('invoice_number_conflict', { extra: { id, data } });
+        captureMessage('invoice_number_conflict', {
+          extra: {
+            id,
+            senderProfileId: data.senderProfileId,
+            invoiceNumber: allocatedNumber,
+            wasAllocated,
+          },
+        });
       }
       return invoiceNumberConflict();
     }
@@ -685,7 +703,7 @@ export async function getInvoice(
 
     const serialized = serializeInvoice(invoice);
     if (!serialized) {
-      return fail('FAILED', 'Failed to serialize invoice.');
+      return failed('Invoice serialize failed:', new Error(`Invoice ${id} could not be serialized`), 'Failed to serialize invoice.');
     }
 
     // AC-17's legacy flags (contracts/server-actions.md §getInvoiceEditorData / getInvoice, verbatim).

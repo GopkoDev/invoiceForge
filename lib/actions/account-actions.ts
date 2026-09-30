@@ -56,7 +56,7 @@ export async function deleteUserAccount(): Promise<ActionResult<void>> {
     });
 
     if (!user) {
-      return fail('FAILED', "Your account couldn't be deleted. Nothing was removed.");
+      return fail('UNAUTHORIZED', 'Not signed in.');
     }
 
     await prisma.$transaction([

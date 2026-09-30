@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { ActionResult, ok, fail } from '@/types/actions';
+import { failed } from '@/lib/actions/action-result-helpers';
 
 /**
  * Get authenticated user session
@@ -19,7 +20,10 @@ export async function getAuthenticatedUser(): Promise<
 
     return ok({ userId: session.user.id });
   } catch (error) {
-    console.error('Error checking authentication:', error);
-    return fail('FAILED', 'Something went wrong. Please try again.');
+    return failed(
+      'Error checking authentication:',
+      error,
+      'Something went wrong. Please try again.'
+    );
   }
 }
