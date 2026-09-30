@@ -7,7 +7,6 @@
 import { NextResponse } from 'next/server';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { auth } from '@/auth';
-import { prisma } from '@/prisma';
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
@@ -41,6 +40,8 @@ export async function requireSession(): Promise<RequireSessionResult> {
     return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
   }
 
+  // Lazy: keeps the no-session path importable without DATABASE_URL (prisma.ts throws at import).
+  const { prisma } = await import('@/prisma');
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!user) {
     return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
