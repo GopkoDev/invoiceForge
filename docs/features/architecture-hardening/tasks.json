@@ -1308,6 +1308,55 @@
       ],
       "file": "docs/features/architecture-hardening/_review/review-2026-09-30-3.md",
       "source": "review-2026-09-30-3"
+    },
+    {
+      "id": "T60",
+      "title": "Narrow the sad.md logging contract to application log sites and record the Auth.js logger exception",
+      "layer": "docs",
+      "deps": [
+        "T57"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-01 resolved by narrowing the contract. sad.md:746 says Prisma call arguments are cut from Sentry events and from the application's own server log lines, and names Auth.js's built-in logger (auth.ts sets no logger; adapter and session-callback errors are logged with their stack) as a known exception with its exposure (OAuth tokens or email in an adapter validation error).",
+      "files_hint": [
+        "docs/features/architecture-hardening/sad.md"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T61",
+      "title": "Keep the Prisma reason paragraph only for an allowlist of value-free error codes",
+      "layer": "app",
+      "deps": [
+        "T58"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-02 fixed. scrubPrismaError keeps the final reason paragraph only when the error code is in an allowlist of codes whose message holds no values (P1000–P1017, P2000, P2002, P2003, P2011, P2021, P2022, P2025, P2034, P2037); every other code, and an error without a code, is cut whole after the invocation line. Tests: a P2007 whose reason quotes a secret marker loses it in both redactError and beforeSend; P1001 and P2002 still keep their reason.",
+      "files_hint": [
+        "lib/helpers/prisma-error-scrub.ts",
+        "sentry.server.config.ts",
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "tests/unit/sentry-prisma-args-scrub-t49.test.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
+    },
+    {
+      "id": "T62",
+      "title": "Test redactError's cause-chain, string and no-invocation branches and fix its docstring",
+      "layer": "test",
+      "deps": [
+        "T57"
+      ],
+      "acs": [],
+      "dod": "Review 2026-09-30-4 V-03 fixed. The T57 test adds: failed(ctx, new Error('outer', { cause: realValidationError })) whose util.inspect output holds no marker; a string argument containing the invocation text that comes back scrubbed; a PrismaClientValidationError with a message like 'boom\\n{ email: \"SECRET\" }' that logs '[arguments redacted]' only. Each of the three mutations named in the review fails a test. The redactError docstring matches its real output.",
+      "files_hint": [
+        "tests/unit/prisma-log-scrub-t57.test.ts",
+        "lib/helpers/prisma-error-scrub.ts"
+      ],
+      "file": "docs/features/architecture-hardening/_review/review-2026-09-30-4.md",
+      "source": "review-2026-09-30-4"
     }
   ]
 }
