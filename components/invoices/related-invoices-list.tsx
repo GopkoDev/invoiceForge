@@ -73,7 +73,8 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
         toast.error(result.error || 'Failed to load invoice');
       }
     } catch {
-      toast.error('Failed to load invoice');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }
@@ -93,6 +94,9 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
       const pdf = await downloadInvoicePdf(result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +116,9 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
       const pdf = await printInvoicePdf(result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     } finally {
       setIsLoading(false);
     }

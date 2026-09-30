@@ -1,6 +1,10 @@
 'use client';
 
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
@@ -75,6 +79,7 @@ export function CustomerForm({
           : await createCustomer(data);
 
       if (!result.success) {
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to save customer');
         return;
       }
@@ -85,7 +90,8 @@ export function CustomerForm({
       router.push(protectedRoutes.customers);
       router.refresh();
     } catch {
-      toast.error('Failed to save customer');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     }
   };
 

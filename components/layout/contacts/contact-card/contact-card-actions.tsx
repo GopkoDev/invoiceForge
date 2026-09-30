@@ -9,7 +9,10 @@ import { AlertCircle, Eye, Trash2 } from 'lucide-react';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { useModal } from '@/store/use-modal-store';
 import { ActionResult } from '@/types/actions';
-import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface ContactCardActionsProps {
   id: string;
@@ -43,8 +46,16 @@ export function ContactCardActions({
 
   const handleConfirm = async () => {
     setIsDeleting(true);
-    const result = await deleteAction(id);
-    setIsDeleting(false);
+    let result: ActionResult;
+    try {
+      result = await deleteAction(id);
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
+      return;
+    } finally {
+      setIsDeleting(false);
+    }
 
     if (result.success) {
       confirmationModal.close();

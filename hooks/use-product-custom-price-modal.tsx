@@ -2,6 +2,10 @@
 
 import { useCallback } from 'react';
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { useModal } from '@/store/use-modal-store';
 import { createCustomPrice } from '@/lib/actions/custom-price-actions';
 import { getCustomers } from '@/lib/actions/customer-actions';
@@ -36,12 +40,20 @@ export function useProductCustomPriceModal({
       },
       onFormSubmit: (data: CustomPriceSchemaValues) => createCustomPrice(data),
       onLoadProducts: async () => {
-        const result = await getCustomers();
-        if (!result.success) {
-          toast.error(result.error || 'Failed to load customers');
+        try {
+          const result = await getCustomers();
+          if (!result.success) {
+            if (!redirectIfUnauthorized(result)) {
+              toast.error(result.error || 'Failed to load customers');
+            }
+            return [];
+          }
+          return result.data;
+        } catch {
+          // AC-21: a rejected call is treated like UNAUTHORIZED.
+          goToSignIn();
           return [];
         }
-        return result.data;
       },
     });
   }, [customPriceModal, productId, productPrice, productCurrency, productUnit]);

@@ -30,7 +30,10 @@ import {
   deleteCustomPrice,
 } from '@/lib/actions/custom-price-actions';
 import { ProductInfo } from '@/components/custom-prices/custom-price-entity-cell';
-import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { formatCurrency } from '@/lib/helpers';
 import { getProducts } from '@/lib/actions/product-actions';
 
@@ -77,11 +80,17 @@ export function CustomerCustomPrices({
   const hasCustomPrices = customPrices.length > 0;
 
   const loadProductsList = useCallback(async () => {
-    const result = await getProducts({ onlyActive: true });
-    if (result.success) {
-      return result.data;
-    } else {
+    try {
+      const result = await getProducts({ onlyActive: true });
+      if (result.success) {
+        return result.data;
+      }
+      if (redirectIfUnauthorized(result)) return [];
       toast.error(result.error || 'Failed to load products');
+      return [];
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
       return [];
     }
   }, []);

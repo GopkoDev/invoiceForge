@@ -1,6 +1,10 @@
 'use client';
 
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
@@ -78,6 +82,7 @@ export function ProductForm({
     const result = await updateProduct(defaultValues.id, data);
 
     if (!result.success) {
+      if (redirectIfUnauthorized(result)) return;
       toast.error(result.error || 'Failed to update product');
       return;
     }
@@ -92,6 +97,7 @@ export function ProductForm({
       if (!isEditing) {
         const result = await createProduct(data);
         if (!result.success) {
+          if (redirectIfUnauthorized(result)) return;
           toast.error(result.error || 'Failed to create product');
           return;
         }
@@ -109,6 +115,7 @@ export function ProductForm({
           defaultValues.id
         );
 
+        if (redirectIfUnauthorized(customPricesResult)) return;
         if (!customPricesResult.success || !customPricesResult.data) {
           toast.error('Failed to load custom prices');
           return;
@@ -137,7 +144,8 @@ export function ProductForm({
 
       await handleUpdate(data);
     } catch {
-      toast.error('Failed to save product');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     }
   };
 

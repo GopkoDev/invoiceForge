@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -146,7 +150,15 @@ export function CustomPriceModal({
 
   const onSubmit = async (data: CustomPriceSchemaValues) => {
     setNotFoundError(null);
-    const result = await onFormSubmit(data);
+    let result: Awaited<ReturnType<typeof onFormSubmit>>;
+    try {
+      result = await onFormSubmit(data);
+    } catch {
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
+      return;
+    }
+    if (redirectIfUnauthorized(result)) return;
 
     if (result.success) {
       toast.success(

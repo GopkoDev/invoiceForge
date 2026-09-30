@@ -1,6 +1,10 @@
 'use client';
 
 import { toast } from 'sonner';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
@@ -71,6 +75,7 @@ export function SenderProfileForm({
           : await createSenderProfile(data);
 
       if (!result.success) {
+        if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to save sender profile');
 
         if (result.error?.includes('This invoice prefix is already in use.')) {
@@ -110,7 +115,8 @@ export function SenderProfileForm({
         router.refresh();
       }
     } catch {
-      toast.error('Failed to save sender profile');
+      // AC-21: a rejected call is treated like UNAUTHORIZED.
+      goToSignIn();
     }
   };
 

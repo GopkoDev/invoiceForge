@@ -7,7 +7,10 @@ import { toast } from 'sonner';
 import { InvoiceFormData } from '@/types/invoice/types';
 import { InvoiceEditorState, InvoiceEditorInitData, TotalsChanged } from './types';
 import { ActionFailure } from '@/types/actions';
-import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 import {
   generateInvoiceNumber,
   createInvoice,
@@ -439,7 +442,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           }
         }
       } catch {
-        toast.error('Error saving invoice');
+        // AC-21: a rejected save is treated like UNAUTHORIZED.
+        goToSignIn();
       } finally {
         set({ isSaving: false });
       }
