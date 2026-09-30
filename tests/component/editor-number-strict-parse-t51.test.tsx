@@ -10,6 +10,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SummarySection } from '@/components/invoice-editor/summary-section';
 import { InvoiceItemFields } from '@/components/invoice-editor/invoice-item-fields';
+import { parseDecimalDraft } from '@/hooks/use-number-draft';
 import { useInvoiceItemHandlers } from '@/hooks/use-invoice-item-handlers';
 
 vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
@@ -38,6 +39,34 @@ function ItemHarness({ itemId, layout }: { itemId: string; layout?: 'desktop' | 
   );
 }
 
+
+describe('parseDecimalDraft trims surrounding whitespace (S-08)', () => {
+  it.each([
+    [' 5', 5],
+    ['5 ', 5],
+    [' -1.5 ', -1.5],
+  ])('%j parses to %d', (raw, expected) => {
+    expect(parseDecimalDraft(raw)).toBe(expected);
+  });
+
+  it.each([[' '], ['   '], [''], ['5 5'], [' 0x10 ']])('%j stays NaN', (raw) => {
+    expect(parseDecimalDraft(raw)).toBeNaN();
+  });
+});
+
+describe('SummarySection keeps whitespace-padded numbers (S-08)', () => {
+  beforeEach(() => useInvoiceEditorStore.getState().reset());
+
+  it.each([[' 5'], ['5 ']])('typing %j into discount stores 5', async (typed) => {
+    const user = userEvent.setup();
+    render(<SummarySection />);
+    const input = screen.getAllByRole('textbox')[0] as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, typed);
+    expect(input.value).toBe(typed);
+    expect(useInvoiceEditorStore.getState().formData.discount).toBe(5);
+  });
+});
 
 const NAN_CASES = [['0x10'], ['1e3'], [' ']] as const;
 

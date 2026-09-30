@@ -277,7 +277,8 @@ describe('invoice editor save (R-03)', () => {
     updateInvoiceMock.mockRejectedValue(new Error('boom'));
     await useInvoiceEditorStore.getState().saveInvoice();
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
-    expect(toastError).not.toHaveBeenCalledWith('Error saving invoice');
+    expect(toastError).not.toHaveBeenCalled();
+    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
   });
 });
 

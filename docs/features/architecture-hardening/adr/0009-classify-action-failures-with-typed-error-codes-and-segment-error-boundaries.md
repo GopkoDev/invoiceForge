@@ -27,7 +27,7 @@ Actions return `ActionResult<T> = { success, data?, error? }` (`types/actions.ts
 
 ## Considered options
 
-1. **Typed error code in `ActionResult`, plus segment error boundaries.** Add `code: 'UNAUTHORIZED' | 'NOT_FOUND' | 'VALIDATION' | 'CONFLICT' | 'FAILED'`, keeping `error` as the user-facing message and adding optional `fieldErrors`. Pages branch on the code: `NOT_FOUND` → `notFound()` (SCR-16), `UNAUTHORIZED` → sign-in (SCR-01), `FAILED` → throw a sanitized error caught by new `error.tsx` files in `(protected)` and `(invoice-editor)` (SCR-17: retry via `reset()` + `router.refresh()`, and Sentry capture).
+1. **Typed error code in `ActionResult`, plus segment error boundaries.** Add `code: 'UNAUTHORIZED' | 'NOT_FOUND' | 'VALIDATION' | 'CONFLICT' | 'FAILED'`, keeping `error` as the user-facing message and adding optional `fieldErrors`. Pages branch on the code: `NOT_FOUND` → `notFound()` (SCR-16), `UNAUTHORIZED` → sign-in (SCR-01), `FAILED` → throw a sanitized error caught by new `error.tsx` files in `(protected)` and `(invoice-editor)` (SCR-17: retry via `reset()` + `router.refresh()`, and no second Sentry capture: see the 2026-09-30 amendment).
 2. **Leave the type alone; each of the eight data pages renders an inline error component** on `success: false`, telling "not found" apart by matching the error message. Smaller type change, but string matching breaks silently when a message changes (and there are no tests), the logic is copied eight times, and Sentry reporting has to be remembered on each page.
 
 ## Decision outcome
@@ -52,3 +52,7 @@ Actions return `ActionResult<T> = { success, data?, error? }` (`types/actions.ts
 - Spec: [[../spec.md]] AC-23, AC-28, AC-29, §6.1
 - SAD: [[../sad.md]] §8
 - Related ADR: [[0001-deny-by-default-in-proxy-with-public-allowlist]]
+
+## Amendment 2026-09-30
+
+The reporting path changed after this decision was accepted. The server reports the cause of a `FAILED` result once, through `captureException` in the action helper. The segment error boundary no longer reports a load failure a second time; it reports only errors that originate in the browser (client-side render errors). Option 1's "and Sentry capture" therefore means server-side capture for load failures, not capture by the boundary.

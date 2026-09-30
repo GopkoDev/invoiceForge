@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
+import { isNextAuthCatchAll, type BuiltRoute } from './support/route-sweep-exclusion';
 import { APP_E2E_URL } from './support/app-server';
 import { authRoutes, isPublicPath, protectedRoutes } from '../../config/routes.config';
 
@@ -27,7 +28,6 @@ const REPO_ROOT = process.cwd(); // Playwright runs from the repo root (playwrig
 // by the second webServer's `next build`). Read inside the tests, not at import time, because
 // the build only exists once the webServer is up. Keys are app-dir entries
 // ("/(protected)/customers/[id]/page"), values the URL path ("/customers/[id]").
-type BuiltRoute = { entry: string; urlPath: string; kind: 'page' | 'route' };
 
 function readBuiltRoutes(): BuiltRoute[] {
   const manifestPath = path.join(REPO_ROOT, '.next', 'app-path-routes-manifest.json');
@@ -52,8 +52,6 @@ function concretePath(urlPath: string): string {
 // next-auth's catch-all handler owns many public endpoints (config/routes.config.ts lists them
 // explicitly); a fake segment under it says nothing, so it is left out of both sweeps. Only this
 // one route is excluded: any other catch-all stays in the sweep (R-12).
-const NEXTAUTH_CATCH_ALL = '/api/auth/[...nextauth]';
-const isCatchAll = (route: BuiltRoute) => route.urlPath === NEXTAUTH_CATCH_ALL;
 
 // Route handlers are called with the method they really export, read from the source file.
 function exportedMethods(entry: string): string[] {
@@ -83,7 +81,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
   });
 
   test('the sweep exclusion matches exactly one manifest entry', async () => {
-    const excluded = readBuiltRoutes().filter(isCatchAll);
+    const excluded = readBuiltRoutes().filter(isNextAuthCatchAll);
 
     expect(excluded).toHaveLength(1);
   });
@@ -92,7 +90,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     playwright,
   }) => {
     const protectedInBuild = readBuiltRoutes().filter(
-      (route) => !isCatchAll(route) && !isPublicPath(concretePath(route.urlPath))
+      (route) => !isNextAuthCatchAll(route) && !isPublicPath(concretePath(route.urlPath))
     );
     expect(protectedInBuild.length).toBeGreaterThan(0);
     const context = await playwright.request.newContext({ maxRedirects: 0 });
@@ -120,7 +118,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
 
   test('every allowlisted built path returns 200 with no redirect to sign-in', async ({ playwright }) => {
     const publicInBuild = readBuiltRoutes().filter(
-      (route) => !isCatchAll(route) && isPublicPath(concretePath(route.urlPath))
+      (route) => !isNextAuthCatchAll(route) && isPublicPath(concretePath(route.urlPath))
     );
     expect(publicInBuild.length).toBeGreaterThan(0);
     const context = await playwright.request.newContext({ maxRedirects: 0 });

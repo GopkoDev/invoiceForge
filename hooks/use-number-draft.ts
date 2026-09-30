@@ -6,10 +6,12 @@ import { useState } from 'react';
 // and falls back to the stored value when something else changed it (e.g. picking a product).
 // R-14: Number(raw) also accepts "0x10" and "1e3" and turns empty input into 0 — a silent rewrite.
 // Only a plain decimal parses; anything else is NaN so the schema says "... must be a number.".
+// S-08: surrounding whitespace is trimmed first (Number() always did), so " 5" and "5 " parse to 5
+// while whitespace-only input trims to "" and stays NaN.
 const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)$/;
 
 export function parseDecimalDraft(raw: string): number {
-  return DECIMAL.test(raw) ? Number(raw) : NaN;
+  return DECIMAL.test(raw.trim()) ? Number(raw.trim()) : NaN;
 }
 
 export function useNumberDraft(value: number, onChange: (raw: string) => void) {

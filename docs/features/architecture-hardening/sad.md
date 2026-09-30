@@ -203,7 +203,7 @@ C4Container
     Rel(server, google, "Delegates sign-in", "OAuth 2.0")
     Rel(server, smtp, "Sends sign-in links", "SMTP")
     Rel(server, sentry, "Reports server errors", "HTTPS")
-    Rel(browser, sentry, "Reports load failures", "HTTPS via /monitoring")
+    Rel(browser, sentry, "Reports client-side render errors", "HTTPS via /monitoring")
 ```
 
 ## 6. Runtime view

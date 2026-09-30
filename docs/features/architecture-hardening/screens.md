@@ -405,7 +405,7 @@ Wireframe: the existing page is unchanged. The added states are SCR-14 and SCR-1
 
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
 |---|---|---|---|
-| default | A page load throws `FAILED` into the new segment boundary (`(protected)/error.tsx`, `(invoice-editor)/error.tsx`). It renders inside the app shell (the sidebar stays) and reports to Sentry. The text is plain language only, "We couldn't load your data", and never the raw error (AC-28; flow 12; ADR-0009) | `Empty` (primitive), `Button` | wireframe below |
+| default | A page load throws `FAILED` into the new segment boundary (`(protected)/error.tsx`, `(invoice-editor)/error.tsx`). It renders inside the app shell (the sidebar stays). The server reports the cause once; the boundary reports only browser-originated errors. The text is plain language only, "We couldn't load your data", and never the raw error (AC-28; flow 12; ADR-0009) | `Empty` (primitive), `Button` | wireframe below |
 | retrying | "Try again" pressed: the `Button` shows a `Spinner` and is disabled, then `reset()` + `router.refresh()` run | `Button`, `Spinner` | — |
 | still-failing | The retry fails again → back to default. The failure is reported again | `Empty`, `Button` | wireframe below |
 | empty / not-found | N/A, **by design**: AC-28 forbids showing a load failure as either | — | — |
