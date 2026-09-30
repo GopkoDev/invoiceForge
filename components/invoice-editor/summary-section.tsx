@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Calculator } from 'lucide-react';
+import { useNumberDraft } from '@/hooks/use-number-draft';
 import {
   useSummary,
   useInvoiceCurrency,
@@ -35,6 +36,16 @@ export function SummarySection() {
   ) => {
     updateField(field, Number(value));
   };
+
+  const discountInput = useNumberDraft(discount, (raw) =>
+    handleNumericChange(raw, 'discount')
+  );
+  const shippingInput = useNumberDraft(shipping, (raw) =>
+    handleNumericChange(raw, 'shipping')
+  );
+  const taxRateInput = useNumberDraft(taxRate, (raw) =>
+    handleNumericChange(raw, 'taxRate')
+  );
 
   const taxableAmount = subtotal - discount + shipping;
 
@@ -73,10 +84,8 @@ export function SummarySection() {
               <span className="text-muted-foreground">−</span>
               <Input
                 type="text"
-                value={discount}
-                onChange={(e) =>
-                  handleNumericChange(e.target.value, 'discount')
-                }
+                value={discountInput.value}
+                onChange={(e) => discountInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
                 aria-invalid={!!fieldErrors?.discount}
               />
@@ -94,10 +103,8 @@ export function SummarySection() {
               <span className="text-muted-foreground">+</span>
               <Input
                 type="text"
-                value={shipping}
-                onChange={(e) =>
-                  handleNumericChange(e.target.value, 'shipping')
-                }
+                value={shippingInput.value}
+                onChange={(e) => shippingInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
                 aria-invalid={!!fieldErrors?.shipping}
               />
@@ -126,8 +133,8 @@ export function SummarySection() {
             <div className="flex items-center">
               <Input
                 type="text"
-                value={taxRate}
-                onChange={(e) => handleNumericChange(e.target.value, 'taxRate')}
+                value={taxRateInput.value}
+                onChange={(e) => taxRateInput.onChange(e.target.value)}
                 className="h-8 w-16 text-right"
                 aria-invalid={!!fieldErrors?.taxRate}
               />

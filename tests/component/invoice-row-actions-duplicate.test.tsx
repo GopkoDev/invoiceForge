@@ -66,6 +66,20 @@ describe('SCR-02 duplicated state (T35, AC-12, F-14)', () => {
     expect(routerPush).not.toHaveBeenCalled();
   });
 
+  it('T41 N-07: a source with rule-breaking amounts toasts the action\'s plain-list message, never "Please fix the highlighted fields."', async () => {
+    const user = userEvent.setup();
+    const message = "This invoice can't be duplicated. Price can't be negative.";
+    duplicateInvoiceMock.mockResolvedValue(fail('FAILED', message));
+
+    render(<InvoiceRowActions invoiceId="inv-1" invoiceNumber="INV-0001" status="DRAFT" />);
+
+    await openMenuAndDuplicate(user);
+
+    expect(toastError).toHaveBeenCalledWith(message);
+    expect(toastError).not.toHaveBeenCalledWith('Please fix the highlighted fields.');
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
   it('still toasts the result error and stays on the list when duplication fails', async () => {
     const user = userEvent.setup();
     duplicateInvoiceMock.mockResolvedValue(fail('NOT_FOUND', 'Invoice not found.'));

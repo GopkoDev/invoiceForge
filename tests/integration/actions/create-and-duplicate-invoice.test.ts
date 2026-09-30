@@ -250,6 +250,31 @@ describe.runIf(containerRuntimeAvailable)(
       expect(invoiceCount).toBe(1); // only the pre-seeded row; nothing new was saved
     });
 
+    it('T41 N-08 / AC-08: a manual number that is a case/space variant of a NULL-key legacy number is blocked with CONFLICT, counter unchanged, 0 rows added', async () => {
+      const owner = await seedOwner();
+      await seedInvoiceRow(prisma, {
+        senderProfile: owner.senderProfile,
+        customer: owner.customer,
+        bankAccount: owner.bankAccount,
+        overrides: { invoiceNumber: ' Inv-777 ', invoiceNumberKey: null },
+      });
+
+      const result = await createInvoice(buildForm(owner, { invoiceNumber: 'INV-777' }));
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.code).toBe('CONFLICT');
+      expect(result.fieldErrors?.invoiceNumber).toContain(
+        'This invoice number is already used in this sender profile.'
+      );
+
+      const updatedProfile = await prisma.senderProfile.findUniqueOrThrow({ where: { id: owner.senderProfile.id } });
+      expect(updatedProfile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter);
+
+      const invoiceCount = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
+      expect(invoiceCount).toBe(1); // only the pre-seeded NULL-key row
+    });
+
     it('AC-09: a manually taken proposed number is skipped and the sequence advances past it', async () => {
       const owner = await seedOwner();
       const taken = formatInvoiceNumber(owner.senderProfile.invoicePrefix, owner.senderProfile.invoiceCounter + 1);
@@ -490,7 +515,7 @@ describe.runIf(containerRuntimeAvailable)(
     // quantity/rate but never validated them, so a legacy invoice whose stored rate is negative
     // (broke the rules before this feature existed) produced a new, equally invalid copy instead
     // of being blocked.
-    it('F-05: duplicating a legacy invoice with a rule-breaking amount is rejected as VALIDATION, and nothing is saved', async () => {
+    it('F-05: duplicating a legacy invoice with a rule-breaking amount is refused as FAILED with a plain-list message (T41 N-07), and nothing is saved', async () => {
       const owner = await seedOwner();
       const original = await seedInvoiceRow(prisma, {
         senderProfile: owner.senderProfile,
@@ -506,8 +531,9 @@ describe.runIf(containerRuntimeAvailable)(
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.code).toBe('VALIDATION');
-      expect(result.fieldErrors?.['items.0.price']).toContain("Price can't be negative.");
+      expect(result.code).toBe('FAILED');
+      expect(result.fieldErrors).toBeUndefined();
+      expect(result.error).toContain("Price can't be negative.");
 
       const after = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
       expect(after).toBe(before);

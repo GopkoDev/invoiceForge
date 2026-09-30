@@ -4,6 +4,7 @@ import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
   invoiceFormSchema,
+  invoiceAmountsSchema,
   InvoiceFormValues,
 } from '@/lib/validations/invoice';
 import { revalidatePath } from 'next/cache';
@@ -1035,12 +1036,15 @@ export async function duplicateInvoice(
       return fail('NOT_FOUND', 'Sender profile not found.');
     }
 
-    // F-05: the source invoice may be a legacy row whose amounts already break the rules (e.g. a
-    // negative rate) — run it through the same schema createInvoice/updateInvoice use before
-    // recomputing, instead of blindly copying a possibly rule-breaking source into a new invoice.
-    const parsed = invoiceFormSchema.safeParse(transformInvoiceToFormData(originalInvoice));
+    // F-05/N-07: the source invoice may be a legacy row whose amounts already break the rules
+    // (e.g. a negative rate) — check only the amount rules before recomputing, instead of blindly
+    // copying a rule-breaking source. Other form rules (names, units, relations) don't concern a
+    // copy, and the contract has no VALIDATION for this action: refuse with FAILED and a plain
+    // list message the row toast shows as is.
+    const parsed = invoiceAmountsSchema.safeParse(transformInvoiceToFormData(originalInvoice));
     if (!parsed.success) {
-      return zodValidationFailure(parsed.error);
+      const reasons = [...new Set(parsed.error.issues.map((issue) => issue.message))].join(' ');
+      return fail('FAILED', `This invoice can't be duplicated. ${reasons}`);
     }
     const validatedData = parsed.data;
 
