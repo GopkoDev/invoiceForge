@@ -1,6 +1,7 @@
 import { getPaginatedInvoices } from '@/lib/actions/invoice-actions/invoice-actions';
 import { invoiceListParamsSchema } from '@/lib/validations/search-params';
 import { InvoicesListContainer } from '@/components/invoices';
+import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 import { unwrapPageResult } from '@/components/layout/content-area';
 
 interface InvoicesPageProps {
@@ -18,5 +19,7 @@ export default async function InvoicesPage({
   const result = await getPaginatedInvoices(query);
   const data = unwrapPageResult(result);
 
-  return <InvoicesListContainer data={data} />;
+  const timeZone = await getRequestTimeZone();
+
+  return <InvoicesListContainer data={data} timeZone={timeZone} />;
 }

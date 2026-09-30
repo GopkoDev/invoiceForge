@@ -33,6 +33,7 @@ interface InvoicesDataTableProps {
   sortBy: InvoiceSortField;
   sortOrder: SortDirection;
   onSort: (field: InvoiceSortField) => void;
+  timeZone?: string;
 }
 
 // Helper function to format dates consistently on server and client
@@ -83,6 +84,7 @@ export function InvoicesDataTable({
   sortBy,
   sortOrder,
   onSort,
+  timeZone,
 }: InvoicesDataTableProps) {
   const columns = useMemo<ColumnDef<InvoiceListItem>[]>(
     () => [
@@ -129,6 +131,7 @@ export function InvoicesDataTable({
           <InvoiceStatusBadge
             status={row.original.status}
             paidAt={row.original.paidAt}
+            timeZone={timeZone}
           />
         ),
       },
@@ -189,7 +192,7 @@ export function InvoicesDataTable({
         ),
       },
     ],
-    [sortBy, sortOrder, onSort]
+    [sortBy, sortOrder, onSort, timeZone]
   );
 
   const table = useReactTable({

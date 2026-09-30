@@ -13,6 +13,7 @@ import type { InvoiceListParams } from '@/lib/validations/search-params';
 
 interface InvoicesListContainerProps {
   data: PaginatedInvoiceList & { applied: InvoiceListParams };
+  timeZone?: string;
 }
 
 const TAB_OPTIONS = [
@@ -21,7 +22,7 @@ const TAB_OPTIONS = [
   { value: 'drafts', label: 'Drafts' },
 ] as const;
 
-export function InvoicesListContainer({ data }: InvoicesListContainerProps) {
+export function InvoicesListContainer({ data, timeZone }: InvoicesListContainerProps) {
   const {
     filters,
     localSearch,
@@ -117,6 +118,7 @@ export function InvoicesListContainer({ data }: InvoicesListContainerProps) {
           sortBy={filters.sortBy as InvoiceSortField}
           sortOrder={filters.sortOrder}
           onSort={handleSort}
+          timeZone={timeZone}
         />
       )}
 

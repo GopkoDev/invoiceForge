@@ -34,18 +34,33 @@ describe('InvoiceStatusBadge — paid date (T35, AC-18, F-15)', () => {
     expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
   });
 
-  // N-16 (review-2026-09-28): no time zone meant the server and the browser could format the
-  // same instant as different days (hydration mismatch). It must not depend on the process zone.
-  it('renders the same day regardless of the process time zone', () => {
-    const original = process.env.TZ;
-    try {
-      process.env.TZ = 'Pacific/Kiritimati'; // +14: 2026-09-21T23:30Z is already Sep 22 locally
-      render(<InvoiceStatusBadge status="PAID" paidAt={new Date('2026-09-21T23:30:00Z')} />);
-      expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
-    } finally {
-      if (original === undefined) delete process.env.TZ;
-      else process.env.TZ = original;
-    }
+  // T50 (R-07, AC-18, ADR-0010): the day is the Freelancer's day from the tz cookie, passed as
+  // `timeZone`; it must not depend on the process zone.
+  it('shows the Kiritimati day when that zone is passed', () => {
+    render(
+      <InvoiceStatusBadge
+        status="PAID"
+        paidAt={new Date('2026-09-21T23:30:00Z')}
+        timeZone="Pacific/Kiritimati"
+      />
+    );
+    expect(screen.getByText(/Sep 22, 2026/)).toBeInTheDocument();
+  });
+
+  it('shows the New York day for a 02:00Z paid timestamp', () => {
+    render(
+      <InvoiceStatusBadge
+        status="PAID"
+        paidAt={new Date('2026-09-22T02:00:00Z')}
+        timeZone="America/New_York"
+      />
+    );
+    expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
+  });
+
+  it('falls back to the UTC day when no zone is passed', () => {
+    render(<InvoiceStatusBadge status="PAID" paidAt={new Date('2026-09-22T02:00:00Z')} />);
+    expect(screen.getByText(/Sep 22, 2026/)).toBeInTheDocument();
   });
 
   it('shows no date for a non-Paid invoice, even if paidAt is set (defensive)', () => {
@@ -80,6 +95,21 @@ describe('InvoicesDataTable — passes paidAt through to the row (T35, AC-18, F-
       />
     );
 
+    expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
+  });
+});
+
+describe('InvoicesDataTable — passes timeZone to the badge (T50, R-07, AC-18)', () => {
+  it('formats a Paid row in the given zone', () => {
+    render(
+      <InvoicesDataTable
+        invoices={[{ ...baseInvoice, paidAt: new Date('2026-09-22T02:00:00Z') }]}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={() => {}}
+        timeZone="America/New_York"
+      />
+    );
     expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
   });
 });
