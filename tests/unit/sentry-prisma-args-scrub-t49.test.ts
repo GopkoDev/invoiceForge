@@ -204,6 +204,82 @@ describe('Prisma call arguments never reach Sentry (T54 S-01, S-02)', () => {
     expect(out.tags?.prisma_code).toBe('P2010');
   });
 
+  // T61 V-02: the reason is kept only for an allowlist of codes whose message holds no values. For
+  // P2007 the pg adapter quotes the driver message, and that quotes the rejected input.
+  it('beforeSend cuts the reason of a request error whose code may quote a value', () => {
+    const invalid = new Prisma.PrismaClientKnownRequestError(
+      `\nInvalid \`prisma.invoice.findUnique()\` invocation:\n\n\nInvalid input value: invalid input syntax for type uuid: "${BOGUS}"`,
+      { code: 'P2007', clientVersion: '7.2.0' }
+    );
+    const out = beforeSend(
+      {
+        exception: {
+          values: [
+            { type: 'PrismaClientKnownRequestError', value: invalid.message },
+          ],
+        },
+      },
+      { originalException: invalid }
+    ) as {
+      tags?: Record<string, string>;
+      exception: { values: { value: string }[] };
+    };
+    expect(JSON.stringify(out)).not.toContain(BOGUS);
+    expect(out.exception.values[0].value).toContain(
+      'Invalid `prisma.invoice.findUnique()` invocation'
+    );
+    expect(out.tags?.prisma_code).toBe('P2007');
+
+    const crumb = beforeBreadcrumb({
+      category: 'console',
+      message: 'getInvoice failed',
+      data: { arguments: ['getInvoice failed', invalid] },
+    }) as { data: { arguments: unknown[] } };
+    expect(inspect(crumb.data.arguments[1])).not.toContain(BOGUS);
+  });
+
+  it('beforeSend keeps the reason of a unique-constraint error, which names columns only', () => {
+    const unique = new Prisma.PrismaClientKnownRequestError(
+      '\nInvalid `prisma.user.create()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)',
+      { code: 'P2002', clientVersion: '7.2.0' }
+    );
+    const out = beforeSend(
+      {
+        exception: {
+          values: [
+            { type: 'PrismaClientKnownRequestError', value: unique.message },
+          ],
+        },
+      },
+      { originalException: unique }
+    ) as { exception: { values: { value: string }[] } };
+    expect(out.exception.values[0].value).toContain(
+      'Unique constraint failed on the fields: (`email`)'
+    );
+  });
+
+  it("beforeSend does not lend the thrown error's code to a linked cause", () => {
+    const cause = `\nInvalid \`prisma.invoice.findUnique()\` invocation:\n\n\nInvalid input value: invalid input syntax for type uuid: "${BOGUS}"`;
+    const top = new Prisma.PrismaClientKnownRequestError(
+      '\nInvalid `prisma.user.create()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)',
+      { code: 'P2002', clientVersion: '7.2.0' }
+    );
+    // Sentry lists linked causes first and the thrown error last.
+    const out = beforeSend(
+      {
+        exception: {
+          values: [
+            { type: 'PrismaClientKnownRequestError', value: cause },
+            { type: 'PrismaClientKnownRequestError', value: top.message },
+          ],
+        },
+      },
+      { originalException: top }
+    ) as { exception: { values: { value: string }[] } };
+    expect(JSON.stringify(out)).not.toContain(BOGUS);
+    expect(out.exception.values[1].value).toContain('Unique constraint failed');
+  });
+
   it('beforeBreadcrumb leaves non-console crumbs untouched', () => {
     const crumb = { category: 'http', message: 'GET /x' };
     expect(beforeBreadcrumb({ ...crumb })).toEqual(crumb);

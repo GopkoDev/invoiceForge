@@ -208,6 +208,45 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     expect(logged()).toContain("Can't reach database server");
   });
 
+  // T61 V-02: the reason is kept only for codes whose message holds no values. The pg adapter
+  // builds a P2007 reason from the driver message, which quotes the rejected input.
+  it('a request error whose code may quote a value loses its reason (T61 V-02)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const invalid = new Prisma.PrismaClientKnownRequestError(
+      `\nInvalid \`prisma.invoice.findUnique()\` invocation:\n\n\nInvalid input value: invalid input syntax for type uuid: "${EMAIL}"`,
+      { code: 'P2007', clientVersion: '7.2.0' }
+    );
+    expect(inspect(invalid)).toContain(EMAIL);
+    const out = inspect(redactError(invalid));
+    expect(out).not.toContain(EMAIL);
+    expect(out).toContain('PrismaClientKnownRequestError [P2007]');
+    expect(out).toContain('Invalid `prisma.invoice.findUnique()` invocation');
+  });
+
+  it('a unique-constraint error keeps its reason, which names columns only (T61 V-02)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const unique = new Prisma.PrismaClientKnownRequestError(
+      '\nInvalid `prisma.user.create()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)',
+      { code: 'P2002', clientVersion: '7.2.0' }
+    );
+    expect(inspect(redactError(unique))).toContain(
+      'Unique constraint failed on the fields: (`email`)'
+    );
+  });
+
+  it('an initialization error keeps its reason through its errorCode (T61 V-02)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const init = new Prisma.PrismaClientInitializationError(
+      "\nInvalid `prisma.user.findUnique()` invocation:\n\n\nCan't reach database server at `db:5432`",
+      '7.2.0',
+      'P1001'
+    );
+    expect(inspect(redactError(init))).toContain("Can't reach database server");
+  });
+
   it('a non-Prisma error is still logged in full', async () => {
     const { failed } = await import('@/lib/actions/action-result-helpers');
     failed('getProducts failed', new Error('db down'), 'Something went wrong.');

@@ -26,12 +26,19 @@ export function scrubPrismaEvent<T extends ScrubbableEvent>(event: T, hint?: { o
   // The cut message no longer tells an outage from a conflict; the Prisma code does (U-03).
   const code = prismaErrorCode(hint?.originalException);
   if (code) event.tags = { ...event.tags, prisma_code: code };
-  for (const ex of event.exception?.values ?? []) {
+  // The code belongs to the thrown error, which Sentry lists last; a linked cause gets none (V-02).
+  const values = event.exception?.values ?? [];
+  const original = hint?.originalException;
+  for (const ex of values) {
     if (typeof ex.value !== 'string') continue;
+    const exCode =
+      ex === values[values.length - 1] && original instanceof Error && ex.type === original.name
+        ? code
+        : undefined;
     ex.value =
       ex.type === 'PrismaClientValidationError' && !hasPrismaInvocation(ex.value)
         ? `PrismaClientValidationError${REDACTED}`
-        : scrubPrismaError(ex.type, ex.value);
+        : scrubPrismaError(ex.value, exCode);
   }
   return event;
 }
@@ -46,7 +53,7 @@ export function scrubPrismaBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T):
       typeof arg === 'string'
         ? scrubPrismaText(arg)
         : arg instanceof Error
-          ? scrubPrismaError(arg.name, `${arg.name}: ${arg.message}`)
+          ? scrubPrismaError(`${arg.name}: ${arg.message}`, prismaErrorCode(arg))
           : arg,
     );
   }
