@@ -59,9 +59,9 @@
 | T51 | [Parse editor numbers strictly and write the duplicate refusal into the contract](../_review/review-2026-09-30.md) | app | Dmytro Hopko | S | T41 | done |
 | T52 | [Exclude only the next-auth catch-all from the sweep and classify SIIT and local-use NAT64 addresses](../_review/review-2026-09-30.md) | infra | Dmytro Hopko | S | T44, T46 | done |
 | T53 | [Update design-system.md and sad.md for the retrying state, the ConfirmationModal rejection rule and the reporting path](../_review/review-2026-09-30.md) | docs | Dmytro Hopko | S | T48, T49 | done |
-| T54 | [Scrub Prisma argument values from Sentry events and breadcrumbs, with a test on a real payload](../_review/review-2026-09-30-2.md) | app | Dmytro Hopko | S | T49 | todo |
-| T55 | [Pin the update conflict payload, every AC-28 loader, the uncovered T48 call sites, the paid-date zone wiring and the unreported duplicate refusal](../_review/review-2026-09-30-2.md) | test | Dmytro Hopko | M | T48, T49, T50, T51 | todo |
-| T56 | [Trim editor number drafts, unit-test the sweep predicate, tighten two T48 tests and fix the remaining reporting-path docs](../_review/review-2026-09-30-2.md) | app | Dmytro Hopko | S | T48, T51, T52, T53 | todo |
+| T54 | [Scrub Prisma argument values from Sentry events and breadcrumbs, with a test on a real payload](../_review/review-2026-09-30-2.md) | app | Dmytro Hopko | S | T49 | done |
+| T55 | [Pin the update conflict payload, every AC-28 loader, the uncovered T48 call sites, the paid-date zone wiring and the unreported duplicate refusal](../_review/review-2026-09-30-2.md) | test | Dmytro Hopko | M | T48, T49, T50, T51 | done |
+| T56 | [Trim editor number drafts, unit-test the sweep predicate, tighten two T48 tests and fix the remaining reporting-path docs](../_review/review-2026-09-30-2.md) | app | Dmytro Hopko | S | T48, T51, T52, T53 | done |
 
 **Total:** 57 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`, T48–T53 from `_review/review-2026-09-30.md`, T54–T56 from `_review/review-2026-09-30-2.md`), ~38 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
