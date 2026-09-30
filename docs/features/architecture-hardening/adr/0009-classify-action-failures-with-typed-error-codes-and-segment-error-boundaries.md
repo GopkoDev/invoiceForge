@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead"]
-updated_at: "2026-09-26"
+updated_at: "2026-09-30"
 feature_size: "M"
 ticket: "code-review 2026-09-26: A6, A7, A5, F3"
 ---
@@ -27,7 +27,7 @@ Actions return `ActionResult<T> = { success, data?, error? }` (`types/actions.ts
 
 ## Considered options
 
-1. **Typed error code in `ActionResult`, plus segment error boundaries.** Add `code: 'UNAUTHORIZED' | 'NOT_FOUND' | 'VALIDATION' | 'CONFLICT' | 'FAILED'`, keeping `error` as the user-facing message and adding optional `fieldErrors`. Pages branch on the code: `NOT_FOUND` → `notFound()` (SCR-16), `UNAUTHORIZED` → sign-in (SCR-01), `FAILED` → throw a sanitized error caught by new `error.tsx` files in `(protected)` and `(invoice-editor)` (SCR-17: retry via `reset()` + `router.refresh()`, and no second Sentry capture: see the 2026-09-30 amendment).
+1. **Typed error code in `ActionResult`, plus segment error boundaries.** Add `code: 'UNAUTHORIZED' | 'NOT_FOUND' | 'VALIDATION' | 'CONFLICT' | 'FAILED'`, keeping `error` as the user-facing message and adding optional `fieldErrors`. Pages branch on the code: `NOT_FOUND` → `notFound()` (SCR-16), `UNAUTHORIZED` → sign-in (SCR-01), `FAILED` → throw a sanitized error caught by new `error.tsx` files in `(protected)` and `(invoice-editor)` (SCR-17: retry via `reset()` + `router.refresh()`, and Sentry capture).
 2. **Leave the type alone; each of the eight data pages renders an inline error component** on `success: false`, telling "not found" apart by matching the error message. Smaller type change, but string matching breaks silently when a message changes (and there are no tests), the logic is copied eight times, and Sentry reporting has to be remembered on each page.
 
 ## Decision outcome
