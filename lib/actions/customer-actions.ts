@@ -1,214 +1,50 @@
 'use server';
 
-import { prisma } from '@/prisma';
-import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import {
-  customerFormSchema,
-  CustomerFormValues,
-} from '@/lib/validations/customer';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
-import { CustomerWithRelations } from '@/types/customer/types';
-import { ActionResult, ok, fail } from '@/types/actions';
-import { z } from 'zod';
-import {
-  zodValidationFailure,
-  hasInvoicesConflict,
-  isRestrictForeignKeyError,
-  failed,
-} from '@/lib/actions/action-result-helpers';
+import type { CustomerFormValues } from '@/lib/validations/customer';
+import type { CustomerWithRelations } from '@/types/customer/types';
+import type { ActionResult } from '@/types/actions';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import * as customers from '@/lib/services/customers/customers';
 
-export async function getCustomers(): Promise<
-  ActionResult<CustomerWithRelations[]>
-> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-
-    const customers = await prisma.customer.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        _count: {
-          select: {
-            invoices: true,
-            customPrices: true,
-          },
-        },
-      },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return ok(customers);
-  } catch (error) {
-    return failed('Error fetching customers:', error, 'Failed to fetch customers.');
-  }
+export async function getCustomers(): Promise<ActionResult<CustomerWithRelations[]>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await customers.listCustomers(actor.data);
+  if (!result.success) return result;
+  return { success: true, data: result.data.items };
 }
 
-export async function getCustomer(
-  id: string
-): Promise<ActionResult<CustomerWithRelations>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id,
-        userId,
-      },
-      include: {
-        _count: {
-          select: {
-            invoices: true,
-            customPrices: true,
-          },
-        },
-      },
-    });
-
-    if (!customer) {
-      return fail('NOT_FOUND', 'Customer not found.');
-    }
-
-    return ok(customer);
-  } catch (error) {
-    return failed('Error fetching customer:', error, 'Failed to fetch customer.');
-  }
+export async function getCustomer(id: string): Promise<ActionResult<CustomerWithRelations>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  return customers.getCustomer(actor.data, id);
 }
 
-export async function createCustomer(
-  data: CustomerFormValues
-): Promise<ActionResult<{ id: string }>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-    const validatedData = customerFormSchema.parse(data);
-
-    const customer = await prisma.customer.create({
-      data: {
-        userId,
-        ...validatedData,
-      },
-    });
-
-    revalidatePath(protectedRoutes.customers);
-
-    return ok({ id: customer.id });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return zodValidationFailure(error);
-    }
-    return failed('Error creating customer:', error, 'Failed to create customer.');
-  }
+export async function createCustomer(data: CustomerFormValues): Promise<ActionResult<{ id: string }>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await customers.createCustomer(actor.data, data);
+  if (result.success) revalidatePath(protectedRoutes.customers);
+  return result;
 }
 
-export async function updateCustomer(
-  id: string,
-  data: CustomerFormValues
-): Promise<ActionResult> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-    const validatedData = customerFormSchema.parse(data);
-
-    const existingCustomer = await prisma.customer.findFirst({
-      where: {
-        id,
-        userId,
-      },
-    });
-
-    if (!existingCustomer) {
-      return fail('NOT_FOUND', 'Customer not found.');
-    }
-
-    await prisma.customer.update({
-      where: { id },
-      data: validatedData,
-    });
-
+export async function updateCustomer(id: string, data: CustomerFormValues): Promise<ActionResult> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await customers.updateCustomer(actor.data, id, data);
+  if (result.success) {
     revalidatePath(protectedRoutes.customers);
     revalidatePath(protectedRoutes.customerEdit(id));
-
-    return ok();
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return zodValidationFailure(error);
-    }
-    return failed('Error updating customer:', error, 'Failed to update customer.');
   }
+  return result;
 }
 
 export async function deleteCustomer(id: string): Promise<ActionResult> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id,
-        userId,
-      },
-      include: {
-        _count: {
-          select: {
-            invoices: true,
-          },
-        },
-      },
-    });
-
-    if (!customer) {
-      return fail('NOT_FOUND', 'Customer not found.');
-    }
-
-    if (customer._count.invoices > 0) {
-      return hasInvoicesConflict('customer', customer._count.invoices);
-    }
-
-    try {
-      await prisma.customer.delete({
-        where: { id },
-      });
-    } catch (deleteError) {
-      if (isRestrictForeignKeyError(deleteError)) {
-        // An invoice was saved between the count above and this delete (Restrict FK, P2003):
-        // recount and report the same CONFLICT, never FAILED (sad.md §8 Hard rule, AC-22).
-        const invoiceCount = await prisma.invoice.count({ where: { customerId: id } });
-        return hasInvoicesConflict('customer', invoiceCount);
-      }
-      throw deleteError;
-    }
-
-    revalidatePath(protectedRoutes.customers);
-
-    return ok();
-  } catch (error) {
-    return failed('Error deleting customer:', error, 'Failed to delete customer.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await customers.deleteCustomer(actor.data, id);
+  if (result.success) revalidatePath(protectedRoutes.customers);
+  return result;
 }

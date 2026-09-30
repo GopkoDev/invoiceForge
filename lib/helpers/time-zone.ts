@@ -16,8 +16,13 @@ const FALLBACK_TIME_ZONE = 'UTC';
  * never throws.
  */
 export async function getRequestTimeZone(): Promise<string> {
-  const store = await cookies();
-  const value = store.get('tz')?.value;
+  let value: string | undefined;
+  try {
+    value = (await cookies()).get('tz')?.value;
+  } catch {
+    // No request scope (e.g. a request-free caller of a wrapper): same UTC fallback, never throw.
+    return FALLBACK_TIME_ZONE;
+  }
 
   if (!value || value.length > MAX_TZ_COOKIE_LENGTH) {
     return FALLBACK_TIME_ZONE;
