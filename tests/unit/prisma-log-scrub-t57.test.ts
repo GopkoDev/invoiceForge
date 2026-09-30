@@ -252,18 +252,38 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     );
   });
 
-  it('an initialization error keeps its reason through its errorCode (T61 V-02)', async () => {
+  // T64 W-02: at a model call site Prisma 7.2's RequestHandler rethrows an initialization error
+  // with the invocation context but without its errorCode
+  // (`new PrismaClientInitializationError(message, clientVersion)`), so it has no code to allow
+  // its reason and the reason is cut.
+  it('a call-site initialization error, which carries no errorCode, loses its reason (T64 W-02)', async () => {
     const { Prisma } = await import('@prisma/client');
     const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
     const init = new Prisma.PrismaClientInitializationError(
       "\nInvalid `prisma.user.findUnique()` invocation:\n\n\nCan't reach database server at `db:5432`",
+      '7.2.0'
+    );
+    expect(init.errorCode).toBeUndefined();
+    const out = redactError(init);
+    expect(out).toBe(
+      'PrismaClientInitializationError: \nInvalid `prisma.user.findUnique()` invocation [arguments redacted]'
+    );
+  });
+
+  // The errorCode survives only on an initialization error thrown at client start-up, whose
+  // message has no invocation line. The log line then carries the same code as the Sentry
+  // prisma_code tag.
+  it('a start-up initialization error keeps its errorCode label (T64 W-02)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const init = new Prisma.PrismaClientInitializationError(
+      "Can't reach database server at `db:5432`",
       '7.2.0',
       'P1001'
     );
-    const out = inspect(redactError(init));
-    expect(out).toContain("Can't reach database server");
-    // The log line carries the same code as the Sentry prisma_code tag.
-    expect(out).toContain('PrismaClientInitializationError [P1001]:');
+    expect(redactError(init)).toBe(
+      "PrismaClientInitializationError [P1001]: Can't reach database server at `db:5432`"
+    );
   });
 
   // T62 V-03: the cause chain, a string argument and a validation error without an invocation line

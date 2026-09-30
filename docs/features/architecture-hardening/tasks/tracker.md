@@ -69,7 +69,7 @@
 | T61 | [Keep the Prisma reason paragraph only for an allowlist of value-free error codes](../_review/review-2026-09-30-4.md) | app | Dmytro Hopko | S | T58 | done |
 | T62 | [Test redactError's cause-chain, string and no-invocation branches and fix its docstring](../_review/review-2026-09-30-4.md) | test | Dmytro Hopko | S | T57 | done |
 | T63 | [Drop P2011 from the value-free reason allowlist](../_review/review-2026-09-30-5.md) | app | Dmytro Hopko | S | T61 | done |
-| T64 | [Build the initialization-error test from the shape Prisma 7.2 actually throws](../_review/review-2026-09-30-5.md) | test | Dmytro Hopko | S | T61 | todo |
+| T64 | [Build the initialization-error test from the shape Prisma 7.2 actually throws](../_review/review-2026-09-30-5.md) | test | Dmytro Hopko | S | T61 | done |
 
 **Total:** 65 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`, T48–T53 from `_review/review-2026-09-30.md`, T54–T56 from `_review/review-2026-09-30-2.md`, T57–T59 from `_review/review-2026-09-30-3.md`, T60–T62 from `_review/review-2026-09-30-4.md`, T63–T64 from `_review/review-2026-09-30-5.md`), ~42 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
