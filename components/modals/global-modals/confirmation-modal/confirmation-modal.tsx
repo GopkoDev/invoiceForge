@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { ConfirmationModalProps } from './types';
 
 export function ConfirmationModal({
@@ -33,7 +34,11 @@ export function ConfirmationModal({
 
     if (result && typeof result.then === 'function') {
       setPending(true);
-      result.catch(() => {}).finally(() => setPending(false));
+      // A rejected call is what the proxy's 401 looks like to a client action (contract
+      // "Boundary"), so it goes to sign-in; the busy state clears either way.
+      result
+        .catch(() => goToSignIn())
+        .finally(() => setPending(false));
       return;
     }
 

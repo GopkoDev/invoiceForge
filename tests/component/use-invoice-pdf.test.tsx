@@ -12,6 +12,7 @@ import { renderHook } from '@testing-library/react';
 import type { InvoiceFormData } from '@/types/invoice/types';
 
 const routerPush = vi.fn();
+const assignMock = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush }),
 }));
@@ -64,12 +65,17 @@ import { useInvoicePdf } from '@/hooks/use-invoice-pdf';
 describe('useInvoicePdf redirect on unauthorized (SCR-01)', () => {
   beforeEach(() => {
     routerPush.mockReset();
+    assignMock.mockReset();
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, assign: assignMock },
+      writable: true,
+    });
     toastWarning.mockReset();
     downloadPdfFromFormDataMock.mockReset();
     printPdfFromFormDataMock.mockReset();
   });
 
-  it('redirects to /login when the download path resolves { unauthorized: true }', async () => {
+  it('routes to the cookie-clearing sign-in route when the download path resolves { unauthorized: true }', async () => {
     downloadPdfFromFormDataMock.mockResolvedValue({ success: false, unauthorized: true });
 
     const { result } = renderHook(() => useInvoicePdf());
@@ -78,10 +84,11 @@ describe('useInvoicePdf redirect on unauthorized (SCR-01)', () => {
       await result.current.DownloadButton.props.onClick();
     });
 
-    expect(routerPush).toHaveBeenCalledWith('/login');
+    expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session');
+    expect(routerPush).not.toHaveBeenCalled();
   });
 
-  it('redirects to /login when the print path resolves { unauthorized: true }', async () => {
+  it('routes to the cookie-clearing sign-in route when the print path resolves { unauthorized: true }', async () => {
     printPdfFromFormDataMock.mockResolvedValue({ success: false, unauthorized: true });
 
     const { result } = renderHook(() => useInvoicePdf());
@@ -90,7 +97,8 @@ describe('useInvoicePdf redirect on unauthorized (SCR-01)', () => {
       await result.current.PrintButton.props.onClick();
     });
 
-    expect(routerPush).toHaveBeenCalledWith('/login');
+    expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session');
+    expect(routerPush).not.toHaveBeenCalled();
   });
 
   it('does not redirect on a normal successful download', async () => {

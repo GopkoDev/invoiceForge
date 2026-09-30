@@ -21,7 +21,7 @@ import {
   getAccountDeletionSummary,
 } from '@/lib/actions/account-actions';
 import { authRoutes } from '@/config/routes.config';
-import { goToSignIn } from '@/lib/helpers/client-session-redirect';
+import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 
 const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
 const FALLBACK_EXPORT_FILENAME = 'invoice-forge-data.json';
@@ -173,10 +173,10 @@ export function GdprSettings() {
 
   async function loadSummary() {
     showDialog({ ...dialogStateRef.current, summary: { status: 'counting' } });
-    // F-36: a rejected call must still resolve out of "counting" into the SCR-08 failed state
-    // (with its Retry), rather than leaving the skeleton up forever.
     try {
       const result = await getAccountDeletionSummary();
+      // AC-21: a stale session goes to sign-in, not to the count-failed Alert.
+      if (redirectIfUnauthorized(result)) return;
       showDialog({
         ...dialogStateRef.current,
         summary: result.success
@@ -184,8 +184,9 @@ export function GdprSettings() {
           : { status: 'failed' },
       });
     } catch (error) {
+      // A rejected call is the proxy's 401 as a client sees it (contract "Boundary"): sign-in.
       console.error('Error counting invoices for account deletion:', error);
-      showDialog({ ...dialogStateRef.current, summary: { status: 'failed' } });
+      goToSignIn();
     }
   }
 
@@ -208,28 +209,39 @@ export function GdprSettings() {
     // flight, including the body's Export/Retry buttons ConfirmationModal's own pending-disable
     // (Confirm/Cancel only) never reaches.
     showDialog({ ...dialogStateRef.current, deleting: true });
-    // F-36: a rejected call (network failure, thrown before the server ever returns an
-    // ActionResult) must land on the same toast + close as a FAILED result, not leave Confirm
-    // with no feedback at all.
+    let result: Awaited<ReturnType<typeof deleteUserAccount>>;
     try {
-      const result = await deleteUserAccount();
+      result = await deleteUserAccount();
+    } catch (error) {
+      // A rejected call is the proxy's 401 as a client sees it (contract "Boundary"): sign-in.
+      console.error('Error deleting account:', error);
+      goToSignIn();
+      return;
+    }
 
-      if (!result.success) {
-        closeDialog();
-        toast.error(result.error);
-        return;
-      }
+    // AC-21: a stale session goes to sign-in, not a "Not signed in." toast.
+    if (redirectIfUnauthorized(result)) return;
 
+    if (!result.success) {
+      closeDialog();
+      toast.error(result.error);
+      return;
+    }
+
+    try {
       await signOut({ callbackUrl: authRoutes.signIn, redirect: true });
     } catch (error) {
-      console.error('Error deleting account:', error);
-      closeDialog();
-      toast.error("Your account couldn't be deleted. Nothing was removed.");
+      // The account is already gone (AC-20), so never claim "Nothing was removed"; the
+      // cookie-clearing route finishes the sign-out.
+      console.error('Error signing out after account deletion:', error);
+      goToSignIn();
     }
   }
 
   const openDeleteDialog = () => {
     dialogOpenRef.current = true;
+    // N-12: a previous attempt's `deleting`/`exporting` flags must not carry into a reopened dialog.
+    dialogStateRef.current = { summary: { status: 'counting' }, exporting: false, deleting: false };
     void loadSummary();
   };
 

@@ -326,23 +326,22 @@ describe('GdprSettings — UNAUTHORIZED and rejected calls (T39, F-34, F-36, AC-
     expect(toastError).not.toHaveBeenCalledWith("Your data couldn't be exported. Try again.");
   });
 
-  // F-36: loadSummary() never catches a rejected getAccountDeletionSummary() call, so the
-  // dialog hangs on the counting skeleton forever instead of showing the SCR-08 failed state.
-  it('shows the failed summary state (not an endless "counting") when the summary call rejects', async () => {
+  // F-36 / T42 N-09: a rejected summary call is a rejected action call, which the contract
+  // (server-actions.md "Boundary", screens.md "Error routing") sends to sign-in — not to the
+  // count-failed state a FAILED result gets.
+  it('routes a rejected summary call to sign-in', async () => {
     const user = userEvent.setup();
     getAccountDeletionSummaryMock.mockRejectedValue(new Error('network error'));
 
     renderSettings();
     await openDeleteDialog(user);
 
-    expect(await screen.findByText("Couldn't count your invoices.")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Yes, Delete My Account' })).toBeDisabled();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session'));
   });
 
-  // F-36: handleDeleteAccount() never catches a rejected deleteUserAccount() call, so Confirm
-  // gives no feedback at all (the dialog just sits there) instead of the same toast + close a
-  // FAILED result gets.
-  it('toasts and closes the dialog (same as a FAILED result) when deleteUserAccount rejects', async () => {
+  // F-36 / T42 N-09: a rejected deleteUserAccount() call goes to sign-in (no toast, nothing
+  // signed out client-side).
+  it('routes a rejected deleteUserAccount call to sign-in', async () => {
     const user = userEvent.setup();
     getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));
     deleteUserAccountMock.mockRejectedValue(new Error('network error'));
@@ -353,10 +352,7 @@ describe('GdprSettings — UNAUTHORIZED and rejected calls (T39, F-34, F-36, AC-
 
     await user.click(screen.getByRole('button', { name: 'Yes, Delete My Account' }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(screen.queryByText('Delete your account?')).not.toBeInTheDocument()
-    );
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session'));
     expect(signOutMock).not.toHaveBeenCalled();
   });
 });

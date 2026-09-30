@@ -30,6 +30,7 @@ import {
   deleteCustomPrice,
 } from '@/lib/actions/custom-price-actions';
 import { ProductInfo } from '@/components/custom-prices/custom-price-entity-cell';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { formatCurrency } from '@/lib/helpers';
 import { getProducts } from '@/lib/actions/product-actions';
 
@@ -131,12 +132,14 @@ export function CustomerCustomPrices({
             customerId,
             price.productId
           );
+          confirmationModal.close();
+          // AC-21: a stale session goes to sign-in, not a toast.
+          if (redirectIfUnauthorized(result)) return;
           if (result.success) {
             toast.success('Custom price deleted successfully');
           } else {
             toast.error(result.error || 'Failed to delete custom price');
           }
-          confirmationModal.close();
         },
       });
     },

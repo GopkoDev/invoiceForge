@@ -1,9 +1,8 @@
 import { useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { authRoutes } from '@/config/routes.config';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import {
   useFormData,
   useSelectedSenderProfile,
@@ -19,7 +18,6 @@ import {
 } from '@/lib/helpers/invoice-pdf-helpers';
 
 export function useInvoicePdf() {
-  const router = useRouter();
   const formData = useFormData();
   const senderProfile = useSelectedSenderProfile();
   const customer = useSelectedCustomer();
@@ -48,7 +46,7 @@ export function useInvoicePdf() {
       taxAmount,
       total
     );
-    if (result.unauthorized) router.push(authRoutes.signIn);
+    if (result.unauthorized) goToSignIn();
   }, [
     pdfFormData,
     senderProfile,
@@ -58,7 +56,6 @@ export function useInvoicePdf() {
     taxAmount,
     total,
     hasUnsavedChanges,
-    router,
   ]);
 
   const handlePrint = useCallback(async () => {
@@ -73,7 +70,7 @@ export function useInvoicePdf() {
       taxAmount,
       total
     );
-    if (result.unauthorized) router.push(authRoutes.signIn);
+    if (result.unauthorized) goToSignIn();
   }, [
     pdfFormData,
     senderProfile,
@@ -83,7 +80,6 @@ export function useInvoicePdf() {
     taxAmount,
     total,
     hasUnsavedChanges,
-    router,
   ]);
 
   const DownloadButton = (

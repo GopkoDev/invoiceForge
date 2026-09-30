@@ -37,7 +37,10 @@ import {
   downloadInvoicePdf,
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
-import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
@@ -65,7 +68,7 @@ export function InvoiceRowActions({
       const result = await getInvoice(invoiceId);
       if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to load invoice');
       }
     } catch {
@@ -90,7 +93,9 @@ export function InvoiceRowActions({
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await downloadInvoicePdf(result.data);
+      const pdf = await downloadInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
@@ -107,7 +112,9 @@ export function InvoiceRowActions({
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await printInvoicePdf(result.data);
+      const pdf = await printInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
@@ -122,7 +129,7 @@ export function InvoiceRowActions({
         toast.success(`Duplicated as ${result.data.invoiceNumber}`);
         onDataChange?.();
         router.refresh();
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to duplicate invoice');
       }
       setOpen(false);
@@ -136,7 +143,7 @@ export function InvoiceRowActions({
         toast.success('Invoice deleted successfully');
         onDataChange?.();
         router.refresh();
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to delete invoice');
       }
       setOpen(false);
@@ -150,7 +157,7 @@ export function InvoiceRowActions({
         toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
         onDataChange?.();
         router.refresh();
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to update invoice status');
       }
       setOpen(false);

@@ -29,6 +29,7 @@ import {
   deleteCustomPrice,
 } from '@/lib/actions/custom-price-actions';
 import { CustomerInfo } from '@/components/custom-prices/custom-price-entity-cell';
+import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { formatCurrency } from '@/lib/helpers';
 import { useProductCustomPriceModal } from '@/hooks/use-product-custom-price-modal';
 import type { Currency } from '@prisma/client';
@@ -94,12 +95,14 @@ export function ProductCustomPrices({
             price.customerId,
             productId
           );
+          confirmationModal.close();
+          // AC-21: a stale session goes to sign-in, not a toast.
+          if (redirectIfUnauthorized(result)) return;
           if (result.success) {
             toast.success('Custom price deleted successfully');
           } else {
             toast.error(result.error || 'Failed to delete custom price');
           }
-          confirmationModal.close();
         },
       });
     },

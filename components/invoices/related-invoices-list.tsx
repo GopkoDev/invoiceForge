@@ -36,7 +36,10 @@ import {
   printInvoicePdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
 import { toast } from 'sonner';
-import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface RelatedInvoicesListProps {
   invoices: InvoiceListItem[];
@@ -66,7 +69,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
       const result = await getInvoice(invoiceId);
       if (result.success) {
         invoicePdfPreviewModal.open({ invoice: result.data });
-      } else {
+      } else if (!redirectIfUnauthorized(result)) {
         toast.error(result.error || 'Failed to load invoice');
       }
     } catch {
@@ -87,7 +90,9 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await downloadInvoicePdf(result.data);
+      const pdf = await downloadInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +109,9 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      await printInvoicePdf(result.data);
+      const pdf = await printInvoicePdf(result.data);
+      // N-05: a 401 on the logo fetch is reported as a result, not thrown.
+      if (pdf.unauthorized) goToSignIn();
     } finally {
       setIsLoading(false);
     }

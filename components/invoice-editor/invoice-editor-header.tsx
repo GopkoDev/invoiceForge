@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -18,6 +17,7 @@ import {
 } from '@/store/invoice-editor-store';
 import { EditorSaveStatus } from './invoice-editor-save-status';
 import { useEditorHeaderButtons } from '@/hooks/use-editor-header-buttons';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 
 export function InvoiceEditorHeader() {
   const invoiceNumber = useInvoiceNumber();
@@ -38,18 +38,7 @@ export function InvoiceEditorHeader() {
   const isSaved = !hasUnsavedChanges;
   const isNew = !invoiceId;
 
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  useUnsavedChangesGuard(hasUnsavedChanges);
 
   const InvoiceName = (
     <h1 className="truncate text-base font-semibold md:text-lg">

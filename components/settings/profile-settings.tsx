@@ -32,6 +32,10 @@ import {
 import { updateProfile } from '@/lib/actions/profile-actions';
 import { TriangleAlert } from 'lucide-react';
 import { authRoutes } from '@/config/routes.config';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 export function ProfileSettings({ user }: { user: SessionUser }) {
   const confirmationModal = useModal('confirmationModal');
@@ -61,6 +65,8 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
       const result = await updateProfile(data);
 
       if (!result.success) {
+        // AC-21: a stale session goes to sign-in, not a toast.
+        if (redirectIfUnauthorized(result)) return;
         if (result.fieldErrors) {
           for (const [field, messages] of Object.entries(result.fieldErrors)) {
             form.setError(field as keyof ProfileFormValues, {
@@ -81,7 +87,8 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
         router.refresh();
       }
     } catch {
-      toast.error('Failed to update profile');
+      // A rejected call is the proxy's 401 as a client sees it: sign-in.
+      goToSignIn();
     }
   };
 

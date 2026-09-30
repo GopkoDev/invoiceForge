@@ -35,6 +35,10 @@ import {
   deleteProduct,
   toggleProductActive,
 } from '@/lib/actions/product-actions';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 interface ProductsTableProps {
   products: SerializedProduct[];
@@ -55,19 +59,27 @@ export function ProductsTable({ products }: ProductsTableProps) {
       cancelText: 'Cancel',
       onConfirm: async () => {
         setLoadingId(product.id);
-        const result = await deleteProduct(product.id);
-        setLoadingId(null);
+        try {
+          const result = await deleteProduct(product.id);
 
-        // F-40: the ConfirmationModal contract leaves closing to the caller once an async
-        // onConfirm settles — close it here on both outcomes, or a second click re-fires the
-        // delete on a dialog that never went away.
-        confirmationModal.close();
+          // F-40: the ConfirmationModal contract leaves closing to the caller once an async
+          // onConfirm settles — close it here on both outcomes, or a second click re-fires the
+          // delete on a dialog that never went away.
+          confirmationModal.close();
 
-        if (result.success) {
-          toast.success('Product deleted successfully');
-          router.refresh();
-        } else {
-          toast.error(result.error || 'Failed to delete product');
+          // AC-21: a stale session goes to sign-in, not a toast.
+          if (redirectIfUnauthorized(result)) return;
+
+          if (result.success) {
+            toast.success('Product deleted successfully');
+            router.refresh();
+          } else {
+            toast.error(result.error || 'Failed to delete product');
+          }
+        } finally {
+          // A rejected call propagates to ConfirmationModal (it routes to sign-in); the busy
+          // state clears either way (N-13).
+          setLoadingId(null);
         }
       },
       onClose: confirmationModal.close,
@@ -76,17 +88,23 @@ export function ProductsTable({ products }: ProductsTableProps) {
 
   const handleToggleActive = async (product: SerializedProduct) => {
     setLoadingId(product.id);
-    const result = await toggleProductActive(product.id);
+    try {
+      const result = await toggleProductActive(product.id);
 
-    if (result.success) {
-      toast.success(
-        `Product ${product.isActive ? 'deactivated' : 'activated'} successfully`
-      );
-      router.refresh();
-    } else {
-      toast.error(result.error || 'Failed to update product status');
+      if (result.success) {
+        toast.success(
+          `Product ${product.isActive ? 'deactivated' : 'activated'} successfully`
+        );
+        router.refresh();
+      } else if (!redirectIfUnauthorized(result)) {
+        toast.error(result.error || 'Failed to update product status');
+      }
+    } catch {
+      // A rejected call is the proxy's 401 as a client sees it: sign-in.
+      goToSignIn();
+    } finally {
+      setLoadingId(null);
     }
-    setLoadingId(null);
   };
 
   return (
