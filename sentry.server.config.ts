@@ -3,7 +3,13 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from '@sentry/nextjs';
-import { REDACTED, hasPrismaInvocation, scrubPrismaText } from '@/lib/helpers/prisma-error-scrub';
+import {
+  REDACTED,
+  hasPrismaInvocation,
+  prismaErrorCode,
+  scrubPrismaError,
+  scrubPrismaText,
+} from '@/lib/helpers/prisma-error-scrub';
 
 // Prisma call arguments are cut here, before an event or a console breadcrumb leaves the process
 // (review 2026-09-30-2 S-01; sad.md "no request body is logged"). The scrub itself is shared with
@@ -12,16 +18,20 @@ import { REDACTED, hasPrismaInvocation, scrubPrismaText } from '@/lib/helpers/pr
 type ScrubbableEvent = {
   message?: string;
   exception?: { values?: { type?: string; value?: string }[] };
+  tags?: { [key: string]: unknown };
 };
 
-export function scrubPrismaEvent<T extends ScrubbableEvent>(event: T): T {
+export function scrubPrismaEvent<T extends ScrubbableEvent>(event: T, hint?: { originalException?: unknown }): T {
   if (typeof event.message === 'string') event.message = scrubPrismaText(event.message);
+  // The cut message no longer tells an outage from a conflict; the Prisma code does (U-03).
+  const code = prismaErrorCode(hint?.originalException);
+  if (code) event.tags = { ...event.tags, prisma_code: code };
   for (const ex of event.exception?.values ?? []) {
     if (typeof ex.value !== 'string') continue;
     ex.value =
       ex.type === 'PrismaClientValidationError' && !hasPrismaInvocation(ex.value)
         ? `PrismaClientValidationError${REDACTED}`
-        : scrubPrismaText(ex.value);
+        : scrubPrismaError(ex.type, ex.value);
   }
   return event;
 }
@@ -36,7 +46,7 @@ export function scrubPrismaBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T):
       typeof arg === 'string'
         ? scrubPrismaText(arg)
         : arg instanceof Error
-          ? scrubPrismaText(`${arg.name}: ${arg.message}`)
+          ? scrubPrismaError(arg.name, `${arg.name}: ${arg.message}`)
           : arg,
     );
   }
@@ -66,7 +76,7 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     // Configuration for production environment
     environment: process.env.NODE_ENV,
 
-    beforeSend: (event) => scrubPrismaEvent(event),
+    beforeSend: (event, hint) => scrubPrismaEvent(event, hint),
     beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }

@@ -16,6 +16,36 @@ export function scrubPrismaText(text: string): string {
   return text.replace(PRISMA_INVOCATION, `$1${REDACTED}`);
 }
 
+// A request or initialization error ends with the engine's reason ("Can't reach database server",
+// "Unique constraint failed on the fields: (`email`)"), which names what went wrong without the
+// call arguments, so it is kept for triage (review 2026-09-30-3 U-03). A raw-query failure is cut
+// whole: its reason quotes the driver message, and that can quote row values.
+const REASON_SAFE_TYPES = new Set([
+  'PrismaClientKnownRequestError',
+  'PrismaClientInitializationError',
+]);
+const UNSAFE_REASON = /^Raw query failed/;
+
+/** scrubPrismaText, keeping the final reason paragraph for the error types that carry one safely. */
+export function scrubPrismaError(
+  type: string | undefined,
+  text: string
+): string {
+  const match =
+    type && REASON_SAFE_TYPES.has(type) ? PRISMA_INVOCATION.exec(text) : null;
+  if (!match) return scrubPrismaText(text);
+  const paragraphs = match[0].split(/\n\s*\n/).map((p) => p.trim());
+  const reason = paragraphs.length > 1 ? paragraphs[paragraphs.length - 1] : '';
+  if (!reason || UNSAFE_REASON.test(reason)) return scrubPrismaText(text);
+  return `${text.slice(0, match.index)}${match[1]}${REDACTED}\n\n${reason}`;
+}
+
+/** The Prisma error code (P1001, P2002, ...) of a thrown value, if it has one. */
+export function prismaErrorCode(error: unknown): string | undefined {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^P\d{4}$/.test(code) ? code : undefined;
+}
+
 const MAX_CAUSE_DEPTH = 5;
 
 /**
@@ -28,7 +58,7 @@ export function redactError(error: unknown, depth = 0): unknown {
   if (typeof error === 'string') return scrubPrismaText(error);
   if (!(error instanceof Error)) return error;
 
-  const scrubbed = scrubPrismaText(error.message);
+  const scrubbed = scrubPrismaError(error.name, error.message);
   const isPrisma = error.name.startsWith('PrismaClient');
   const cause =
     error.cause !== undefined && depth < MAX_CAUSE_DEPTH

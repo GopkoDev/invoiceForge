@@ -196,6 +196,18 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     expectRedactedLog();
   });
 
+  it('a request error keeps its reason and code in the log line (T58 U-03)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const known = new Prisma.PrismaClientKnownRequestError(
+      "\nInvalid `prisma.user.findUnique()` invocation:\n\n\nCan't reach database server at `db:5432`",
+      { code: 'P1001', clientVersion: '7.2.0' }
+    );
+    const { failed } = await import('@/lib/actions/action-result-helpers');
+    failed('getProducts failed', known, 'Something went wrong.');
+    expect(logged()).toContain('PrismaClientKnownRequestError [P1001]');
+    expect(logged()).toContain("Can't reach database server");
+  });
+
   it('a non-Prisma error is still logged in full', async () => {
     const { failed } = await import('@/lib/actions/action-result-helpers');
     failed('getProducts failed', new Error('db down'), 'Something went wrong.');
