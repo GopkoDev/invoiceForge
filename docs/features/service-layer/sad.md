@@ -318,29 +318,32 @@ ADR files live under `docs/features/service-layer/adr/NNNN-<title>.md`. The conv
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-volume and rollout scenarios the spec measures. Numbers are quoted from spec §6.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Tenant isolation**
+- **When:** any caller (a web wrapper, a request-free test, later an Assistant) acting for Freelancer A reads, changes or deletes a record of Freelancer B by its identifier, asks for a list that belongs to B, or saves an invoice referring to B's customer, sender profile, bank account or product.
+- **Then:** the answer is exactly what an identifier that never existed gets, and B's record stays unchanged (AC-08, AC-09, AC-19). Target: "100% of business functions that take a record identifier have a foreign-record test (read, change, delete) proving AC-08".
+- **How verify:** `tests/integration/services/**` has, for every id-taking business function, a test that seeds two Freelancers, calls the function as A with B's id, asserts `NOT_FOUND` and asserts B's row is byte-identical afterwards. `review` checks the inventory against the function list. Every dashboard query also has a two-Freelancer test proving B's invoices never count toward A's figures.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2. Behaviour parity**
+- **When:** the web app runs on the new layer after each wave.
+- **Then:** "0 changed or removed expected values in existing automated tests (sole exception: the test of the removed list-all-invoices function)". For the dashboard: "0 differences above 0.01 per amount; 0 differences in counts, group membership or listed invoices (Debtor / sender-account names and tie order excluded; checked by AC-06)".
+- **How verify:** the full suite runs green in CI on every PR, and the test diff is reviewed in `review` for changed expectations. The dashboard parity test runs the AC-05 fixture (float-drift totals, several currencies, a renamed Customer, a top-three tie, a DST switch in range) through the old and the new implementation during development. Before release, the old output is recorded as fixed expected values and the old code is deleted.
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Request independence and browser isolation**
+- **When:** a business function is called without any browser request, or the codebase is checked in CI.
+- **Then:** "100% of business functions callable with only the acting Freelancer (+ time zone) and no browser request; 0 uses of session, cookie, header or page-refresh facilities inside the business layer" and "0 business-layer functions marked as browser-callable; 0 imports of the business layer from browser-side code".
+- **How verify:** an integration test per business function calls it with only `actingFreelancerForTest(...)`. There are no request mocks, and the `@/auth` mocks disappear for business-function tests. ESLint `no-restricted-imports` on `lib/services/**`, the `server-only` import (fails `next build` on a client import) and `tests/unit/service-layer-boundary.test.ts` (no `'use server'` under `lib/services`) all run in CI.
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-4. Dashboard cost does not grow with history**
+- **When:** the dashboard loads for a Freelancer with any number of invoices.
+- **Then:** "rows returned by each dashboard query ≤ the number of groups or items displayed", and dashboard load latency p95 "≤ today's baseline (no regression)". The reduction target is still open (spec §8 OQ-1, §11).
+- **How verify:** the dashboard parity test captures the query log and asserts the row count per query. The latency baseline comes from production performance traces over a 7-day window before and after release, per `dashboard.<section>` Sentry span (§7).
+
+**QG-5. Rollout without downtime**
+- **When:** each of the four waves (§7) is released or rolled back.
+- **Then:** "0 minutes of planned downtime; no stored-data change".
+- **How verify:** the deploy log shows no migration in any wave. A rollback is a redeploy of the previous build.
 
 ## 11. Risks and technical debt
 
