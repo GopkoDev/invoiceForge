@@ -53,12 +53,12 @@
 | T45 | [Fix midnight spring-forward day bounds east of UTC, unique chart day keys and the paid-date zone](../_review/review-2026-09-28.md) | ports | Dmytro Hopko | M | T38 | done |
 | T46 | [Log NOT_HTTPS and RATE_LIMITED logo refusals and pin the ::/96 rule](../_review/review-2026-09-28.md) | infra | Dmytro Hopko | S | T36 | done |
 | T47 | [Refresh the F-13 deferral note, the architecture map and the screens design-system reference](../_review/review-2026-09-28.md) | docs | Dmytro Hopko | S | T43, T42 | done |
-| T48 | [Route UNAUTHORIZED and rejected calls to sign-in at the remaining form, editor and row-action call sites](../_review/review-2026-09-30.md) | ui | Dmytro Hopko | M | T42 | todo |
-| T49 | [Report every FAILED once, including auth and client render errors, and keep form data out of Sentry](../_review/review-2026-09-30.md) | app | Dmytro Hopko | M | T43 | todo |
-| T50 | [Show the paid date in the Freelancer's zone from the tz cookie](../_review/review-2026-09-30.md) | ui | Dmytro Hopko | S | T45 | todo |
-| T51 | [Parse editor numbers strictly and write the duplicate refusal into the contract](../_review/review-2026-09-30.md) | app | Dmytro Hopko | S | T41 | todo |
-| T52 | [Exclude only the next-auth catch-all from the sweep and classify SIIT and local-use NAT64 addresses](../_review/review-2026-09-30.md) | infra | Dmytro Hopko | S | T44, T46 | todo |
-| T53 | [Update design-system.md and sad.md for the retrying state, the ConfirmationModal rejection rule and the reporting path](../_review/review-2026-09-30.md) | docs | Dmytro Hopko | S | T48, T49 | todo |
+| T48 | [Route UNAUTHORIZED and rejected calls to sign-in at the remaining form, editor and row-action call sites](../_review/review-2026-09-30.md) | ui | Dmytro Hopko | M | T42 | done |
+| T49 | [Report every FAILED once, including auth and client render errors, and keep form data out of Sentry](../_review/review-2026-09-30.md) | app | Dmytro Hopko | M | T43 | done |
+| T50 | [Show the paid date in the Freelancer's zone from the tz cookie](../_review/review-2026-09-30.md) | ui | Dmytro Hopko | S | T45 | done |
+| T51 | [Parse editor numbers strictly and write the duplicate refusal into the contract](../_review/review-2026-09-30.md) | app | Dmytro Hopko | S | T41 | done |
+| T52 | [Exclude only the next-auth catch-all from the sweep and classify SIIT and local-use NAT64 addresses](../_review/review-2026-09-30.md) | infra | Dmytro Hopko | S | T44, T46 | done |
+| T53 | [Update design-system.md and sad.md for the retrying state, the ConfirmationModal rejection rule and the reporting path](../_review/review-2026-09-30.md) | docs | Dmytro Hopko | S | T48, T49 | done |
 
 **Total:** 54 tasks (T32–T40 are review follow-ups from `_review/review-2026-09-27.md`, T41–T47 from `_review/review-2026-09-28.md`, T48–T53 from `_review/review-2026-09-30.md`), ~36 person-days (S = ½ day, M/L = 1 day; L means a full, dense day, not more).
 
