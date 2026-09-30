@@ -244,9 +244,15 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         ...computedValues,
       });
 
-      const result = await generateInvoiceNumber(id);
-      if (result.success) {
-        set({ invoiceNumberHint: result.data });
+      try {
+        const result = await generateInvoiceNumber(id);
+        if (redirectIfUnauthorized(result)) return;
+        if (result.success) {
+          set({ invoiceNumberHint: result.data });
+        }
+      } catch {
+        // AC-21: a rejected call is treated like UNAUTHORIZED.
+        goToSignIn();
       }
     },
 

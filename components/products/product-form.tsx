@@ -79,17 +79,22 @@ export function ProductForm({
   const handleUpdate = async (data: ProductFormValues) => {
     if (!defaultValues?.id) return;
 
-    const result = await updateProduct(defaultValues.id, data);
+    try {
+      const result = await updateProduct(defaultValues.id, data);
 
-    if (!result.success) {
-      if (redirectIfUnauthorized(result)) return;
-      toast.error(result.error || 'Failed to update product');
-      return;
+      if (!result.success) {
+        if (redirectIfUnauthorized(result)) return;
+        toast.error(result.error || 'Failed to update product');
+        return;
+      }
+
+      toast.success('Product updated successfully');
+      router.push(protectedRoutes.products);
+      router.refresh();
+    } catch {
+      // AC-21: also reached from the currency-change modal, outside onSubmit's try/catch.
+      goToSignIn();
     }
-
-    toast.success('Product updated successfully');
-    router.push(protectedRoutes.products);
-    router.refresh();
   };
 
   const onSubmit = async (data: ProductFormValues) => {

@@ -3,6 +3,7 @@
 // rejected call to sign-in, never toast "Not signed in."/a generic error, never reject into the
 // error boundary, and never leave a busy state or dialog stuck.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { Component, type ReactNode } from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail } from '@/types/actions';
@@ -13,6 +14,7 @@ const duplicateMock = vi.fn();
 const deleteMock = vi.fn();
 const statusMock = vi.fn();
 const updateInvoiceMock = vi.fn();
+const generateNumberMock = vi.fn();
 vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   duplicateInvoice: (...a: unknown[]) => duplicateMock(...a),
   deleteInvoice: (...a: unknown[]) => deleteMock(...a),
@@ -20,7 +22,7 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   getInvoice: (...a: unknown[]) => getInvoiceMock(...a),
   updateInvoice: (...a: unknown[]) => updateInvoiceMock(...a),
   createInvoice: vi.fn(),
-  generateInvoiceNumber: vi.fn(),
+  generateInvoiceNumber: (...a: unknown[]) => generateNumberMock(...a),
 }));
 
 vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
@@ -33,6 +35,17 @@ vi.mock('@/lib/actions/customer-actions', () => ({
   createCustomer: (...a: unknown[]) => createCustomerMock(...a),
   updateCustomer: vi.fn(),
   getCustomers: vi.fn(),
+}));
+
+const updateProductMock = vi.fn();
+vi.mock('@/lib/actions/product-actions', () => ({
+  createProduct: vi.fn(),
+  updateProduct: (...a: unknown[]) => updateProductMock(...a),
+}));
+
+const getProductCustomPricesMock = vi.fn();
+vi.mock('@/lib/actions/custom-price-actions', () => ({
+  getProductCustomPrices: (...a: unknown[]) => getProductCustomPricesMock(...a),
 }));
 
 const createBankMock = vi.fn();
@@ -56,6 +69,10 @@ const { CustomerForm } = await import('@/components/customers/customer-form');
 const { CustomPriceModal } = await import('@/components/modals/customer/custom-price-modal');
 const { ContactCardActions } = await import(
   '@/components/layout/contacts/contact-card/contact-card-actions'
+);
+const { ProductForm } = await import('@/components/products/product-form');
+const { ProductModalContainer } = await import(
+  '@/components/modals/product/product-modal-container'
 );
 const { CustomerModalContainer } = await import(
   '@/components/modals/customer/customer-modal-container'
@@ -91,6 +108,9 @@ beforeEach(() => {
     deleteMock,
     statusMock,
     updateInvoiceMock,
+    generateNumberMock,
+    updateProductMock,
+    getProductCustomPricesMock,
     createCustomerMock,
     createBankMock,
     toastError,
@@ -265,5 +285,103 @@ describe('ContactCardActions rejected delete (R-04)', () => {
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
     const trigger = document.querySelector('button svg.lucide-trash-2')!.closest('button')!;
     await waitFor(() => expect(trigger).toBeEnabled());
+  });
+});
+
+// Review fix pass: an error boundary around the component turns a rejection that escapes the
+// async transition into a visible fallback, so "never reaches the error boundary" is asserted.
+class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <p>boundary fallback</p> : this.props.children;
+  }
+}
+
+describe('InvoiceRowActions transition rejections stay out of the error boundary (R-01)', () => {
+  for (const [label, mock] of [
+    ['Duplicate', duplicateMock],
+    ['Delete', deleteMock],
+    ['Mark as Pending', statusMock],
+  ] as const) {
+    it(`a delayed rejected ${label} is caught, the menu trigger is re-enabled and no fallback shows`, async () => {
+      mock.mockImplementation(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('boom')), 20))
+      );
+      const user = userEvent.setup();
+      render(
+        <Boundary>
+          <InvoiceRowActions invoiceId="inv-1" invoiceNumber="INV-0001" status="DRAFT" />
+        </Boundary>
+      );
+      await user.click(screen.getByRole('button', { name: /actions for/i }));
+      await user.click(await screen.findByText(label));
+      await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /actions for/i })).toBeEnabled()
+      );
+      expect(screen.queryByText('boundary fallback')).not.toBeInTheDocument();
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+  }
+});
+
+describe('ProductForm currency-change confirm (R-03)', () => {
+  it('a rejected updateProduct after the confirm routes to sign-in', async () => {
+    getProductCustomPricesMock.mockResolvedValue({
+      success: true,
+      data: [{ price: 5, customer: { id: 'c-1', name: 'Acme' } }],
+    });
+    updateProductMock.mockRejectedValue(new Error('boom'));
+    const user = userEvent.setup();
+    render(
+      <>
+        <ProductForm
+          isEditing
+          customPricesCount={1}
+          defaultValues={{
+            id: 'p-1',
+            name: 'Widget',
+            description: '',
+            unit: 'hours',
+            price: '10',
+            currency: 'USD',
+            isActive: true,
+          }}
+        />
+        <ProductModalContainer />
+      </>
+    );
+    await user.click(screen.getByRole('combobox', { name: /Currency/ }));
+    await user.click(await screen.findByRole('option', { name: /EUR/ }));
+    await user.click(screen.getByRole('button', { name: /update product|save/i }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm Currency Change' }));
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('selectSenderProfile number lookup (R-03)', () => {
+  function seedTwoProfiles() {
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.setState({
+      formData: { ...useInvoiceEditorStore.getState().formData, senderProfileId: 'sp-0' },
+    });
+  }
+
+  it('a rejected generateInvoiceNumber routes to sign-in without an unhandled rejection', async () => {
+    seedTwoProfiles();
+    generateNumberMock.mockRejectedValue(new Error('boom'));
+    await useInvoiceEditorStore.getState().selectSenderProfile('sp-1');
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
+  });
+
+  it('an UNAUTHORIZED generateInvoiceNumber routes to sign-in', async () => {
+    seedTwoProfiles();
+    generateNumberMock.mockResolvedValue(unauthorized());
+    await useInvoiceEditorStore.getState().selectSenderProfile('sp-1');
+    expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
   });
 });
