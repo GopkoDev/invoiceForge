@@ -138,7 +138,7 @@ proxy.ts                                   ✎ matcher covers /api; allowlist fr
 config/routes.config.ts                    ✎ single publicRoutes allowlist (AC-05)
 app/
 ├── (protected)/layout.tsx                 ✎ requireLiveUser() (ADR-0002); tz-cookie client island (ADR-0010)
-├── (protected)/error.tsx                  ★ load-error boundary: retry + Sentry (ADR-0009, SCR-17)
+├── (protected)/error.tsx                  ★ load-error boundary: retry; Sentry for client-originated errors only (ADR-0009, SCR-17)
 ├── (invoice-editor)/layout.tsx            ✎ requireLiveUser()
 ├── (invoice-editor)/error.tsx             ★ load-error boundary for the editor
 ├── (protected)/dashboard/page.tsx         ✎ params via schema (A3); Suspense keyed on currency (A9)
@@ -718,7 +718,7 @@ Migrations are applied with `prisma migrate deploy` before the release that need
 **Monitoring:**
 - Metrics, as structured log lines: `logo_fetch outcome=<ok|NOT_HTTPS|NOT_IMAGE|TOO_LARGE|RATE_LIMITED|UNAVAILABLE> reason=<size|timeout|blocked_ip|…>`, which gives the size-cap, time-cap and refusal counts spec §6 measures "in logs". The upstream host and IP go to the log only, never to the response.
 - Alerts (Sentry): any "number already used" on a system-assigned number (target 0 per month; it indicates an allocator bug); any unhandled error on the list or dashboard pages (target 0 per month); a spike in `UNAVAILABLE reason=blocked_ip` (a likely SSRF probe).
-- Load failures (AC-28): reported by the new `error.tsx` boundaries and by `captureException` in the server paths that throw into them.
+- Load failures (AC-28): reported **once**, by the loader's `failed()` (which captures the cause) — `instrumentation.ts` `onRequestError` skips the resulting `load_failed` error, and the `error.tsx` boundaries capture only errors with no `digest` (raised in the browser, which nothing else reports).
 - Tracing: the existing Sentry performance traces (10% sample in production, `sentry.server.config.ts:18`) give invoice-save and data-export p95 over a 7-day window. Their targets are open (§11).
 
 **Scaling thresholds** (design estimates, current scale is 3 accounts and 27 invoices on the configured database):
@@ -735,7 +735,7 @@ Default is the repo's convention set (`docs/architecture-map.md` §Conventions).
 | Authentication | next-auth JWT sessions. **Deny by default**: the proxy covers `/api`, and one `publicRoutes` allowlist is the only way to make a path public. **A token without a live account is a Visitor** everywhere in the Node layer | ADR-0001, ADR-0002; `config/routes.config.ts` |
 | Authorization | `getAuthenticatedUser()` (actions) or `requireSession()` (route handlers) runs **first, before any input is parsed**. Every query is scoped by `userId`. A record that isn't the caller's returns `NOT_FOUND`, identical to a missing one | architecture-map §Conventions; ADR-0009; AC-23, AC-29 |
 | Input validation | Every action re-runs the entity's zod schema, **with no `as` casts that bypass it** (L8). **Link parameters are parsed with fallback-to-default schemas**: page ≥ 1, page size ∈ {10, 20, 30, 50, 100} (the sizes the list offers, `components/invoices/invoices-table-footer.tsx:29`), sort field, order, status and tab from enums; anything invalid becomes its default, and the controls show what was applied | `lib/validations/`, `lib/validations/search-params.ts` |
-| Error handling | Actions return `ActionResult<T>` and never throw to the client. **Typed `code`** (`UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `FAILED`) plus a plain-language `error` and optional `fieldErrors`. Pages map `FAILED` to the segment `error.tsx` (retry + Sentry). Raw database or upstream text is logged, never returned | ADR-0009; `types/actions.ts` |
+| Error handling | Actions return `ActionResult<T>` and never throw to the client. **Typed `code`** (`UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `FAILED`) plus a plain-language `error` and optional `fieldErrors`. Pages map `FAILED` to the segment `error.tsx` (retry); the cause is reported once by `failed()`, and the boundary reports only client-originated errors. Raw database or upstream text is logged, never returned | ADR-0009; `types/actions.ts` |
 | Money | `Decimal(10,2)` at rest. All amounts are computed by **one pure exact-decimal module** shared by editor and server, rounding half-up. The server ignores client-sent totals | ADR-0006 |
 | Invoice numbering | The number is unique within a sender profile on a **normalized key** (lower-case, trimmed). An empty field means system-assigned and is allocated under a profile row lock; a filled field is manual and never moves the sequence | ADR-0004, ADR-0005 |
 | Status and paid date | **One transition function**, `applyStatusChange()`: entering Paid sets `paidAt` to now; saving an already-Paid invoice keeps it; leaving Paid clears it; an unknown status is rejected | `lib/helpers/invoice-status.ts`; AC-18, AC-19 |
