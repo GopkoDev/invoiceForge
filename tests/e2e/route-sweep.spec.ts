@@ -4,101 +4,134 @@
 // Pages redirect to sign-in; data routes and server actions are refused as UNAUTHORIZED with no
 // data; only the deliberately public set (config/routes.config.ts) returns content.
 //
+// T44 (review-2026-09-28 N-02): the route list is the built manifest itself, not a hand-kept
+// array; allowlisted paths must return exactly 200 with no redirect; route handlers are called
+// with the method they really export.
+//
 // Runs against the second webServer (playwright.config.ts, start-app-server.mjs) — a production
 // build of the real app on a throwaway Postgres container, never the static harness page the
 // smoke spec uses. Uses Playwright's `request` API context directly (no browser/JS needed to
 // observe an HTTP redirect or a JSON refusal body) with `maxRedirects: 0`, so a 307/302's own
 // Location header is asserted instead of following it.
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import { APP_E2E_URL } from './support/app-server';
-import {
-  protectedRoutes,
-  protectedRoutesArray,
-  publicRoutesArray,
-  authRoutesArray,
-  legalRoutesArray,
-} from '../../config/routes.config';
+import { authRoutes, isPublicPath, protectedRoutes } from '../../config/routes.config';
 
 const FAKE_ID = 'route-sweep-fake-id-0000000001';
+const REPO_ROOT = process.cwd(); // Playwright runs from the repo root (playwright.config.ts lives there)
 
-// Every private page path the built app actually has (config/routes.config.ts's own roots, plus
-// the concrete nested/dynamic ones — a prefix match on any of the roots below already covers
-// them at the proxy, but each is still requested for real so a future proxy regression that
-// narrowed the prefix match would be caught here too).
-const PROTECTED_PAGE_PATHS = [
-  ...protectedRoutesArray,
-  protectedRoutes.settingsProfile,
-  protectedRoutes.settingsPrivacy,
-  protectedRoutes.senderProfilesNew,
-  protectedRoutes.senderProfileDetail(FAKE_ID),
-  protectedRoutes.senderProfileEdit(FAKE_ID),
-  protectedRoutes.customersNew,
-  protectedRoutes.customerDetail(FAKE_ID),
-  protectedRoutes.customerEdit(FAKE_ID),
-  protectedRoutes.productsNew,
-  protectedRoutes.productEdit(FAKE_ID),
-  protectedRoutes.productCustomPrices(FAKE_ID),
-  protectedRoutes.invoicesNew,
-  protectedRoutes.invoiceEdit(FAKE_ID),
-];
+// The manifest the production build itself emits (.next/app-path-routes-manifest.json, written
+// by the second webServer's `next build`). Read inside the tests, not at import time, because
+// the build only exists once the webServer is up. Keys are app-dir entries
+// ("/(protected)/customers/[id]/page"), values the URL path ("/customers/[id]").
+type BuiltRoute = { entry: string; urlPath: string; kind: 'page' | 'route' };
 
-// Every app/api/* route the app actually built, other than next-auth's own handler (which must
-// stay public — it's how a session gets created).
-const DATA_ROUTE_PATHS = ['/api/convert-image', '/api/user/export'];
+function readBuiltRoutes(): BuiltRoute[] {
+  const manifestPath = path.join(REPO_ROOT, '.next', 'app-path-routes-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, string>;
+  return (
+    Object.entries(manifest)
+      .map(([entry, urlPath]) => ({
+        entry,
+        urlPath,
+        kind: (entry.endsWith('/route') ? 'route' : 'page') as BuiltRoute['kind'],
+      }))
+      // Next's own internal entries (/_not-found, /_global-error) are not app routes.
+      .filter((route) => !route.urlPath.startsWith('/_'))
+  );
+}
 
-// The deliberately public set (config/routes.config.ts isPublicPath) — a request with no cookie
-// must return real content, not a refusal.
-const ALLOWLISTED_GET_PATHS = [
-  ...publicRoutesArray,
-  ...authRoutesArray,
-  ...legalRoutesArray,
-  '/favicon.ico',
-  '/robots.txt',
-  '/sitemap.xml',
-  '/manifest.json',
-  '/opengraph-image',
-  '/twitter-image',
-  '/icon.png',
-  '/icon.svg',
-  '/apple-icon.png',
-];
+// Dynamic segments (and a catch-all's) are filled with a fake id.
+function concretePath(urlPath: string): string {
+  return urlPath.replace(/\[\.\.\.[^\]]+\]/g, FAKE_ID).replace(/\[[^\]]+\]/g, FAKE_ID);
+}
+
+// next-auth's catch-all handler owns many public endpoints (config/routes.config.ts lists them
+// explicitly); a fake segment under it says nothing, so it is left out of both sweeps.
+const isCatchAll = (route: BuiltRoute) => route.urlPath.includes('[...');
+
+// Route handlers are called with the method they really export, read from the source file.
+function exportedMethods(entry: string): string[] {
+  const source = fs.readFileSync(path.join(REPO_ROOT, 'app', `${entry}.ts`), 'utf8');
+  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].filter((method) =>
+    new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(source)
+  );
+  expect(methods, `${entry} exports no recognised HTTP method`).not.toHaveLength(0);
+  return methods;
+}
+
+const UNAUTHORIZED_BODY = { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' };
+
+// Public paths whose handler is a redirect by design (the stale-cookie sweeper 302s to sign-in).
+const PUBLIC_REDIRECTS: Record<string, string> = { '/api/auth/clear-session': authRoutes.signIn };
 
 test.describe('AC-05 route sweep — every built non-public route denies a cookie-less request', () => {
   test.beforeEach(async ({}, testInfo) => {
     await skipWithoutContainerRuntime(testInfo);
   });
 
-  for (const path of PROTECTED_PAGE_PATHS) {
-    test(`page ${path} redirects to sign-in with no session`, async ({ playwright }) => {
-      const context = await playwright.request.newContext({ maxRedirects: 0 });
-      try {
-        const response = await context.get(`${APP_E2E_URL}${path}`);
+  test('the manifest is read and includes the nested routes the old hand list missed', async () => {
+    const urlPaths = readBuiltRoutes().map((route) => route.urlPath);
 
-        expect([302, 307]).toContain(response.status());
-        const location = response.headers()['location'];
-        expect(location).toBeTruthy();
-        expect(new URL(location!, APP_E2E_URL).pathname).toBe('/login');
-      } finally {
-        await context.dispose();
+    expect(urlPaths).toContain(protectedRoutes.senderProfileEditTab('[id]'));
+    expect(urlPaths).toContain(protectedRoutes.senderProfileEditBankAccounts('[id]'));
+  });
+
+  test('every protected built path is denied with no session (pages redirect, handlers 401)', async ({
+    playwright,
+  }) => {
+    const protectedInBuild = readBuiltRoutes().filter(
+      (route) => !isCatchAll(route) && !isPublicPath(concretePath(route.urlPath))
+    );
+    expect(protectedInBuild.length).toBeGreaterThan(0);
+    const context = await playwright.request.newContext({ maxRedirects: 0 });
+    try {
+      for (const route of protectedInBuild) {
+        const url = `${APP_E2E_URL}${concretePath(route.urlPath)}`;
+        if (route.kind === 'page') {
+          const response = await context.get(url);
+          expect([302, 307], `page ${route.urlPath}`).toContain(response.status());
+          const location = response.headers()['location'];
+          expect(location, `page ${route.urlPath} location`).toBeTruthy();
+          expect(new URL(location!, APP_E2E_URL).pathname, `page ${route.urlPath}`).toBe(authRoutes.signIn);
+        } else {
+          for (const method of exportedMethods(route.entry)) {
+            const response = await context.fetch(url, { method, ...(method === 'GET' ? {} : { data: {} }) });
+            expect(response.status(), `${method} ${route.urlPath}`).toBe(401);
+            expect(await response.json(), `${method} ${route.urlPath}`).toEqual(UNAUTHORIZED_BODY);
+          }
+        }
       }
-    });
-  }
+    } finally {
+      await context.dispose();
+    }
+  });
 
-  for (const path of DATA_ROUTE_PATHS) {
-    test(`data route ${path} is refused as not signed in, with no data`, async ({ playwright }) => {
-      const context = await playwright.request.newContext();
-      try {
-        const response = await context.post(`${APP_E2E_URL}${path}`, { data: {} });
-
-        expect(response.status()).toBe(401);
-        const body = await response.json();
-        expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
-      } finally {
-        await context.dispose();
+  test('every allowlisted built path returns 200 with no redirect to sign-in', async ({ playwright }) => {
+    const publicInBuild = readBuiltRoutes().filter(
+      (route) => !isCatchAll(route) && isPublicPath(concretePath(route.urlPath))
+    );
+    expect(publicInBuild.length).toBeGreaterThan(0);
+    const context = await playwright.request.newContext({ maxRedirects: 0 });
+    try {
+      for (const route of publicInBuild) {
+        const response = await context.get(`${APP_E2E_URL}${concretePath(route.urlPath)}`);
+        const redirectTarget = PUBLIC_REDIRECTS[route.urlPath];
+        if (redirectTarget) {
+          expect(response.status(), route.urlPath).toBe(302);
+          expect(new URL(response.headers()['location']!, APP_E2E_URL).pathname, route.urlPath).toBe(redirectTarget);
+        } else {
+          expect(response.status(), route.urlPath).toBe(200);
+          expect(response.headers()['location'], `${route.urlPath} must not redirect`).toBeUndefined();
+        }
       }
-    });
-  }
+    } finally {
+      await context.dispose();
+    }
+  });
 
   test('a server action (Next-Action header) with no session is refused with no data', async ({ playwright }) => {
     const context = await playwright.request.newContext();
@@ -109,26 +142,11 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       });
 
       expect(response.status()).toBe(401);
-      const body = await response.json();
-      expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
+      expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
     } finally {
       await context.dispose();
     }
   });
-
-  for (const path of ALLOWLISTED_GET_PATHS) {
-    test(`allowlisted ${path} returns content with no session`, async ({ playwright }) => {
-      const context = await playwright.request.newContext({ maxRedirects: 0 });
-      try {
-        const response = await context.get(`${APP_E2E_URL}${path}`);
-
-        expect(response.status()).toBeGreaterThanOrEqual(200);
-        expect(response.status()).toBeLessThan(400);
-      } finally {
-        await context.dispose();
-      }
-    });
-  }
 
   test('an unseen path (added in the future, not on the allowlist) still denies by default', async ({
     playwright,
@@ -138,8 +156,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       const response = await context.get(`${APP_E2E_URL}/api/a-route-nobody-listed-yet`);
 
       expect(response.status()).toBe(401);
-      const body = await response.json();
-      expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
+      expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
     } finally {
       await context.dispose();
     }
