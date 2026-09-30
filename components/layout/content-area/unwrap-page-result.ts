@@ -24,8 +24,8 @@ export function unwrapPageResult<T>(result: ActionResult<T>): T {
     redirect(CLEAR_SESSION_PATH);
   }
 
-  // F-38: attach the loader's own ActionResult as `cause` so the segment `error.tsx` boundary's
-  // Sentry.captureException(error) sees the real code/message, not just the string
-  // "load_failed" for every AC-28 load failure.
+  // N-10: the loader's failed() already sent the real cause to Sentry once (test-plan.md:109),
+  // so nothing is captured here. `cause` is kept for the server log and dev overlay only —
+  // production strips it before the client boundary sees the error.
   throw new Error('load_failed', { cause: result });
 }

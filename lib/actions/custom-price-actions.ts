@@ -16,7 +16,7 @@ import {
 } from '@/types/custom-price/types';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import { failed, zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 const NOT_FOUND_MESSAGE = 'Customer or product not found.';
 
@@ -89,8 +89,7 @@ export async function getCustomerCustomPrices(
       customPrices.map((cp) => serializeCustomPrice(cp as CustomPriceWithRelations)),
     );
   } catch (error) {
-    console.error('Error fetching custom prices:', error);
-    return fail('FAILED', 'Failed to fetch custom prices.');
+    return failed('Error fetching custom prices:', error, 'Failed to fetch custom prices.');
   }
 }
 
@@ -141,8 +140,7 @@ export async function createCustomPrice(
 
     return ok({ id: customPrice.id });
   } catch (error) {
-    console.error('Error creating custom price:', error);
-    return fail('FAILED', 'Failed to create custom price.');
+    return failed('Error creating custom price:', error, 'Failed to create custom price.');
   }
 }
 
@@ -197,8 +195,7 @@ export async function updateCustomPrice(
 
     return ok();
   } catch (error) {
-    console.error('Error updating custom price:', error);
-    return fail('FAILED', 'Failed to update custom price.');
+    return failed('Error updating custom price:', error, 'Failed to update custom price.');
   }
 }
 
@@ -258,8 +255,7 @@ export async function getProductCustomPrices(
       customPrices.map((cp) => serializeCustomPrice(cp as CustomPriceWithRelations)),
     );
   } catch (error) {
-    console.error('Error fetching product custom prices:', error);
-    return fail('FAILED', 'Failed to fetch custom prices.');
+    return failed('Error fetching product custom prices:', error, 'Failed to fetch custom prices.');
   }
 }
 
@@ -312,7 +308,6 @@ export async function deleteCustomPrice(
 
     return ok();
   } catch (error) {
-    console.error('Error deleting custom price:', error);
-    return fail('FAILED', 'Failed to delete custom price.');
+    return failed('Error deleting custom price:', error, 'Failed to delete custom price.');
   }
 }

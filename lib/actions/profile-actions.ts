@@ -2,7 +2,7 @@
 
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import { failed, zodValidationFailure } from '@/lib/actions/action-result-helpers';
 import {
   profileFormSchema,
   ProfileFormValues,
@@ -79,7 +79,6 @@ export async function updateProfile(
 
     return ok();
   } catch (error) {
-    console.error('Error updating profile:', error);
-    return fail('FAILED', 'Failed to update profile. Please try again.');
+    return failed('Error updating profile:', error, 'Failed to update profile. Please try again.');
   }
 }

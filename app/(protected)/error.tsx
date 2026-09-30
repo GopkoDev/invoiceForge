@@ -1,7 +1,6 @@
 'use client';
 
-import { startTransition, useEffect } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoadError } from '@/components/layout/content-area/load-error';
 
@@ -13,10 +12,12 @@ export default function ProtectedError({
   reset: () => void;
 }) {
   const router = useRouter();
+  // N-17: isPending stays true until the refresh transition lands, driving the SCR-17
+  // "retrying" state and blocking a second click.
+  const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
+  // N-10: no Sentry.captureException here — the loader's failed() already reported the cause
+  // once (test-plan.md:109), and instrumentation.ts skips the 'load_failed' request error.
 
   // F-37: reset() before refresh() re-renders the segment from the still-cached error payload
   // before the refetch lands, so the first "Try again" can never recover. refresh() has to run
@@ -29,5 +30,9 @@ export default function ProtectedError({
     });
   }
 
-  return <LoadError onRetry={handleRetry} errorDigest={error.digest} />;
+  return <LoadError
+      onRetry={handleRetry}
+      retrying={isPending}
+      errorDigest={error.digest}
+    />;
 }

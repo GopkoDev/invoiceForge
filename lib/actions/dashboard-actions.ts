@@ -3,7 +3,8 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult, ok, fail } from '@/types/actions';
+import { ActionResult, ok } from '@/types/actions';
+import { failed } from '@/lib/actions/action-result-helpers';
 import {
   CurrencyTab,
   DashboardSummaryStats,
@@ -83,8 +84,7 @@ export async function getDashboardCurrencyTabs(): Promise<
     const data = await getCachedCurrencyTabs();
     return ok(data);
   } catch (error) {
-    console.error('Error fetching dashboard currency tabs:', error);
-    return fail('FAILED', 'Failed to fetch currency tabs.');
+    return failed('Error fetching dashboard currency tabs:', error, 'Failed to fetch currency tabs.');
   }
 }
 
@@ -186,8 +186,7 @@ export async function getDashboardSummaryStats(
       allFuturePaymentsCount: allFutureResult._count,
     });
   } catch (error) {
-    console.error('Error fetching dashboard summary stats:', error);
-    return fail('FAILED', 'Failed to fetch summary statistics.');
+    return failed('Error fetching dashboard summary stats:', error, 'Failed to fetch summary statistics.');
   }
 }
 
@@ -346,8 +345,7 @@ export async function getDashboardChartData(
 
     return ok(chartData);
   } catch (error) {
-    console.error('Error fetching dashboard chart data:', error);
-    return fail('FAILED', 'Failed to fetch chart data.');
+    return failed('Error fetching dashboard chart data:', error, 'Failed to fetch chart data.');
   }
 }
 
@@ -509,8 +507,7 @@ export async function getDashboardSenderAccounts(
 
     return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard sender accounts:', error);
-    return fail('FAILED', 'Failed to fetch sender accounts.');
+    return failed('Error fetching dashboard sender accounts:', error, 'Failed to fetch sender accounts.');
   }
 }
 
@@ -560,8 +557,7 @@ export async function getDashboardRecentInvoices(
 
     return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard recent invoices:', error);
-    return fail('FAILED', 'Failed to fetch recent invoices.');
+    return failed('Error fetching dashboard recent invoices:', error, 'Failed to fetch recent invoices.');
   }
 }
 
@@ -637,8 +633,7 @@ export async function getDashboardDebtors(
 
     return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard debtors:', error);
-    return fail('FAILED', 'Failed to fetch debtors.');
+    return failed('Error fetching dashboard debtors:', error, 'Failed to fetch debtors.');
   }
 }
 
@@ -711,7 +706,6 @@ export async function getDashboardExpectedPayments(
 
     return ok(result);
   } catch (error) {
-    console.error('Error fetching dashboard expected payments:', error);
-    return fail('FAILED', 'Failed to fetch expected payments.');
+    return failed('Error fetching dashboard expected payments:', error, 'Failed to fetch expected payments.');
   }
 }

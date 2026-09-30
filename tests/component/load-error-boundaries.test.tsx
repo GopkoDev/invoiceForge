@@ -10,7 +10,7 @@
 // no internals" (component level) is what this file covers; the integration row (each
 // of the nine AC-28 loaders actually resolving to FAILED through a real segment) is
 // out of scope here — it needs an app boot / DB and belongs with T26.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const captureException = vi.fn();
+afterEach(() => captureException.mockClear());
 vi.mock('@sentry/nextjs', () => ({
   captureException: (...args: unknown[]) => captureException(...args),
 }));
@@ -70,7 +71,9 @@ describe('LoadError (component) — SCR-17', () => {
 });
 
 describe('(protected)/error.tsx — AC-28 default and still-failing states', () => {
-  it('reports the error to Sentry on mount', () => {
+  // T43 (N-10): the action's failed() already reported the cause; the boundary reporting again
+  // made every page failure 2-3 events (test-plan.md:109: one).
+  it('does not report a second Sentry event for an error the action already reported', () => {
     const error = Object.assign(new Error('secret db connection string leaked'), {
       digest: 'abc123',
     });
@@ -78,7 +81,7 @@ describe('(protected)/error.tsx — AC-28 default and still-failing states', () 
 
     render(<ProtectedError error={error} reset={reset} />);
 
-    expect(captureException).toHaveBeenCalledWith(error);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it('never renders the raw error.message', () => {
@@ -116,28 +119,17 @@ describe('(protected)/error.tsx — AC-28 default and still-failing states', () 
     const refreshOrder = refresh.mock.invocationCallOrder[0];
     expect(refreshOrder).toBeLessThan(resetOrder);
   });
-
-  it('reports again when the retry itself fails (still-failing state)', () => {
-    const firstError = Object.assign(new Error('load failed'), { digest: 'a' });
-    const { rerender } = render(<ProtectedError error={firstError} reset={vi.fn()} />);
-    expect(captureException).toHaveBeenCalledTimes(1);
-
-    const secondError = Object.assign(new Error('load failed again'), { digest: 'b' });
-    rerender(<ProtectedError error={secondError} reset={vi.fn()} />);
-
-    expect(captureException).toHaveBeenCalledTimes(2);
-  });
 });
 
 describe('(invoice-editor)/error.tsx — AC-28', () => {
-  it('reports the error to Sentry and renders the same SCR-17 copy with retry', async () => {
+  it('renders the same SCR-17 copy with retry and adds no second Sentry report', async () => {
     const user = userEvent.setup();
     const error = Object.assign(new Error('editor load failed'), { digest: 'xyz' });
     const reset = vi.fn();
 
     render(<InvoiceEditorError error={error} reset={reset} />);
 
-    expect(captureException).toHaveBeenCalledWith(error);
+    expect(captureException).not.toHaveBeenCalled();
     expect(screen.getByText(/we couldn't load your data/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /try again/i }));

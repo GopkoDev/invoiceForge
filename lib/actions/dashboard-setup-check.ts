@@ -2,7 +2,8 @@
 
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult, ok, fail } from '@/types/actions';
+import { ActionResult, ok } from '@/types/actions';
+import { failed } from '@/lib/actions/action-result-helpers';
 
 export interface SetupCheckResult {
   hasSenderProfiles: boolean;
@@ -46,7 +47,6 @@ export async function checkDashboardSetup(): Promise<
       isComplete: hasSenderProfiles && hasBankAccounts && hasCustomers,
     });
   } catch (error) {
-    console.error('Error checking dashboard setup:', error);
-    return fail('FAILED', 'Failed to check setup status.');
+    return failed('Error checking dashboard setup:', error, 'Failed to check setup status.');
   }
 }

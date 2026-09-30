@@ -12,7 +12,7 @@ import { BankAccountWithRelations } from '@/types/sender-profile/types';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { BankAccount } from '@prisma/client';
 import { z } from 'zod';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import { failed, zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 export async function createBankAccount(
   senderProfileId: string,
@@ -60,9 +60,7 @@ export async function createBankAccount(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error creating bank account:', error);
-
-    return fail('FAILED', 'Failed to create bank account. Please try again.');
+    return failed('Error creating bank account:', error, 'Failed to create bank account. Please try again.');
   }
 }
 
@@ -122,9 +120,7 @@ export async function updateBankAccount(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error updating bank account:', error);
-
-    return fail('FAILED', 'Failed to update bank account. Please try again.');
+    return failed('Error updating bank account:', error, 'Failed to update bank account. Please try again.');
   }
 }
 
@@ -170,9 +166,7 @@ export async function deleteBankAccount(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting bank account:', error);
-
-    return fail('FAILED', 'Failed to delete bank account. Please try again.');
+    return failed('Error deleting bank account:', error, 'Failed to delete bank account. Please try again.');
   }
 }
 
@@ -211,8 +205,6 @@ export async function getBankAccounts(
 
     return ok(bankAccounts);
   } catch (error) {
-    console.error('Error fetching bank accounts:', error);
-
-    return fail('FAILED', 'Failed to fetch bank accounts. Please try again.');
+    return failed('Error fetching bank accounts:', error, 'Failed to fetch bank accounts. Please try again.');
   }
 }

@@ -11,7 +11,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import { ProductWithRelations, SerializedProduct } from '@/types/product/types';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { z } from 'zod';
-import { zodValidationFailure } from '@/lib/actions/action-result-helpers';
+import { failed, zodValidationFailure } from '@/lib/actions/action-result-helpers';
 
 // Helper to serialize Decimal to number for client components
 function serializeProduct(product: ProductWithRelations): SerializedProduct {
@@ -58,8 +58,7 @@ export async function getProducts({
 
     return ok(products.map(serializeProduct));
   } catch (error) {
-    console.error('Error fetching products:', error);
-    return fail('FAILED', 'Failed to fetch products.');
+    return failed('Error fetching products:', error, 'Failed to fetch products.');
   }
 }
 
@@ -95,8 +94,7 @@ export async function getProduct(
 
     return ok(serializeProduct(product));
   } catch (error) {
-    console.error('Error fetching product:', error);
-    return fail('FAILED', 'Failed to fetch product.');
+    return failed('Error fetching product:', error, 'Failed to fetch product.');
   }
 }
 
@@ -127,8 +125,7 @@ export async function createProduct(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error creating product:', error);
-    return fail('FAILED', 'Failed to create product.');
+    return failed('Error creating product:', error, 'Failed to create product.');
   }
 }
 
@@ -195,8 +192,7 @@ export async function updateProduct(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
-    console.error('Error updating product:', error);
-    return fail('FAILED', 'Failed to update product.');
+    return failed('Error updating product:', error, 'Failed to update product.');
   }
 }
 
@@ -243,8 +239,7 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error deleting product:', error);
-    return fail('FAILED', 'Failed to delete product.');
+    return failed('Error deleting product:', error, 'Failed to delete product.');
   }
 }
 
@@ -279,7 +274,6 @@ export async function toggleProductActive(id: string): Promise<ActionResult> {
 
     return ok();
   } catch (error) {
-    console.error('Error toggling product status:', error);
-    return fail('FAILED', 'Failed to update product status.');
+    return failed('Error toggling product status:', error, 'Failed to update product status.');
   }
 }

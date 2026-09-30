@@ -19,10 +19,14 @@ interface LoadErrorProps {
   // support tooling, but it must never be rendered — see the edge case "Error message
   // contains SQL text: never displayed, only the plain-language copy" (T25 AC-28).
   errorDigest?: string;
+  // The boundary's useTransition isPending: true while the refresh is in flight (SCR-17
+  // "retrying"), since a synchronous onRetry returns before the refetch lands.
+  retrying?: boolean;
 }
 
-export function LoadError({ onRetry }: LoadErrorProps) {
+export function LoadError({ onRetry, retrying = false }: LoadErrorProps) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const busy = retrying || isRetrying;
 
   async function handleRetry() {
     setIsRetrying(true);
@@ -45,8 +49,8 @@ export function LoadError({ onRetry }: LoadErrorProps) {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={handleRetry} disabled={isRetrying}>
-          {isRetrying ? <Spinner /> : null}
+        <Button onClick={handleRetry} disabled={busy}>
+          {busy ? <Spinner /> : null}
           Try again
         </Button>
       </EmptyContent>
