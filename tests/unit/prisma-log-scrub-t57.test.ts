@@ -247,6 +247,48 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     expect(inspect(redactError(init))).toContain("Can't reach database server");
   });
 
+  // T62 V-03: the cause chain, a string argument and a validation error without an invocation line
+  // each take their own branch in redactError. Here every console argument goes through
+  // util.inspect, strings included, so nothing hides behind the string shortcut in logged().
+  it('failed() redacts a Prisma error carried as the cause of a plain Error (T62 V-03)', async () => {
+    const { failed } = await import('@/lib/actions/action-result-helpers');
+    failed(
+      'updateSenderProfile failed',
+      new Error('outer', { cause: realError }),
+      'Something went wrong.'
+    );
+    const out = consoleError.mock.calls
+      .flat()
+      .map((a) => inspect(a, { depth: 10 }))
+      .join('\n');
+    for (const m of MARKERS) expect(out).not.toContain(m);
+    expect(out).toContain('outer');
+    expect(out).toContain('[cause] PrismaClientValidationError');
+  });
+
+  it('a string holding the invocation text comes back scrubbed (T62 V-03)', async () => {
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    for (const m of MARKERS) expect(realError.message).toContain(m);
+    const out = redactError(realError.message);
+    expect(typeof out).toBe('string');
+    for (const m of MARKERS) expect(out).not.toContain(m);
+    expect(out).toMatch(
+      /Invalid `[^`]*senderProfile\.update\(\)` invocation \[arguments redacted\]$/
+    );
+  });
+
+  it('a validation error without an invocation line logs no message text (T62 V-03)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
+    const bare = new Prisma.PrismaClientValidationError(
+      `boom\n{ email: "${EMAIL}" }`,
+      { clientVersion: '7.2.0' }
+    );
+    expect(redactError(bare)).toBe(
+      'PrismaClientValidationError: [arguments redacted]'
+    );
+  });
+
   it('a non-Prisma error is still logged in full', async () => {
     const { failed } = await import('@/lib/actions/action-result-helpers');
     failed('getProducts failed', new Error('db down'), 'Something went wrong.');

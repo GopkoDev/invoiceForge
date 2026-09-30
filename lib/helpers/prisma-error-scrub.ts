@@ -71,10 +71,14 @@ export function prismaErrorCode(error: unknown): string | undefined {
 const MAX_CAUSE_DEPTH = 5;
 
 /**
- * What a server log line may carry for a caught error: the error itself when it holds no Prisma
- * call arguments, otherwise a one-line `Name [code]: message` with the arguments cut (a validation
- * error without the invocation line loses its whole message). An Error `cause` is redacted the
- * same way.
+ * What a server log line may carry for a caught error. A string comes back scrubbed and any
+ * other non-Error value unchanged. A non-Prisma Error whose message and cause need no scrubbing
+ * comes back as itself. Anything else becomes a string `Name [code]: message`, where a message
+ * with an invocation line is cut after it (`... invocation [arguments redacted]`). For a
+ * value-free code (scrubPrismaError) the reason paragraph follows after a blank line. A
+ * validation error without the invocation line keeps only `[arguments redacted]`. An Error
+ * `cause` is redacted the same way (up to MAX_CAUSE_DEPTH levels) and appended as an indented
+ * `[cause] Name: message` line.
  */
 export function redactError(error: unknown, depth = 0): unknown {
   if (typeof error === 'string') return scrubPrismaText(error);
