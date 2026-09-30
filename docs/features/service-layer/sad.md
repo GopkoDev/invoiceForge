@@ -65,37 +65,44 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+Invoice Forge lets a Freelancer keep sender profiles, customers, products, custom prices, bank accounts and invoices, and see a dashboard of revenue, Debtors and Expected payments. This feature does not move the system boundary: the same people and systems talk to it as today. What changes is where trust is established. Identity is verified once, at the edge of the system (the session in a web wrapper, or later the Assistant layer), and then passed inward as an explicit acting Freelancer. The Assistant is drawn as a planned actor: this feature only prepares the functions it will call.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: Next.js 16 monolith on Vercel; 63 exported functions in lib/actions (3,885 lines) own auth + rules + Prisma + revalidation; the architecture map is stale (ded1be7), so the scan was re-run on 6cf4c6e -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| Freelancer | Person | Uses every page, form, picker and the dashboard in the browser; signed in |
+| Visitor | Person (external) | Reaches pages or endpoints without a session; is sent to sign in (AC-10) |
+| Assistant (planned) | System (external, future feature) | Will read and change one authenticated Freelancer's data without a browser session. Not built here (spec §3) |
+| Google OAuth | System (external) | Sign-in provider (unchanged) |
+| SMTP server | System (external) | Sends magic-link sign-in email (unchanged) |
+| Sentry | System (external) | Receives server and client errors and performance traces; the dashboard latency baseline comes from here |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+The trust boundary stays where it is: nothing from the browser or from an Assistant is trusted until a wrapper has authenticated it. Business functions sit inside the boundary and never face a client directly (ADR-0006).
+
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title service-layer - System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(freelancer, "Freelancer", "Signed-in account holder who owns sender profiles, customers, products and invoices")
+    Person_Ext(visitor, "Visitor", "No signed-in session, incl. scripts and bots")
+    System_Ext(assistant, "Assistant (planned)", "AI chat or MCP client acting for one authenticated Freelancer; later feature")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(forge, "Invoice Forge", "Invoicing web app; business rules move into one request-free layer")
+    System_Ext(google, "Google OAuth", "Sign-in provider")
+    System_Ext(smtp, "SMTP server", "Magic-link email")
+    System_Ext(sentry, "Sentry", "Error monitoring and performance traces")
+
+    Rel(freelancer, forge, "Manages invoicing data, views dashboard", "HTTPS")
+    Rel(visitor, forge, "Reaches public pages, is sent to sign in", "HTTPS")
+    Rel(assistant, forge, "Will call business functions for one Freelancer", "future authenticated channel")
+    Rel(forge, google, "Delegates sign-in", "OAuth 2.0")
+    Rel(forge, smtp, "Sends sign-in links", "SMTP")
+    Rel(forge, sentry, "Reports errors and traces", "HTTPS")
 ```
 
 ## 4. Solution strategy
