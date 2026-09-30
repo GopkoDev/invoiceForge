@@ -50,8 +50,10 @@ function concretePath(urlPath: string): string {
 }
 
 // next-auth's catch-all handler owns many public endpoints (config/routes.config.ts lists them
-// explicitly); a fake segment under it says nothing, so it is left out of both sweeps.
-const isCatchAll = (route: BuiltRoute) => route.urlPath.includes('[...');
+// explicitly); a fake segment under it says nothing, so it is left out of both sweeps. Only this
+// one route is excluded: any other catch-all stays in the sweep (R-12).
+const NEXTAUTH_CATCH_ALL = '/api/auth/[...nextauth]';
+const isCatchAll = (route: BuiltRoute) => route.urlPath === NEXTAUTH_CATCH_ALL;
 
 // Route handlers are called with the method they really export, read from the source file.
 function exportedMethods(entry: string): string[] {
@@ -78,6 +80,12 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
 
     expect(urlPaths).toContain(protectedRoutes.senderProfileEditTab('[id]'));
     expect(urlPaths).toContain(protectedRoutes.senderProfileEditBankAccounts('[id]'));
+  });
+
+  test('the sweep exclusion matches exactly one manifest entry', async () => {
+    const excluded = readBuiltRoutes().filter(isCatchAll);
+
+    expect(excluded).toHaveLength(1);
   });
 
   test('every protected built path is denied with no session (pages redirect, handlers 401)', async ({

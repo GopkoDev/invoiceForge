@@ -160,6 +160,20 @@ function isPrivateIPv6(groups: number[]): boolean {
     const c = (groups[7] >> 8) & 0xff;
     return isPrivateIPv4(a, b, c);
   }
+  // SIIT, ::ffff:0:0:0/96 (RFC 6145), IPv4 in the last 32 bits (R-13)
+  if (groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0xffff && groups[5] === 0) {
+    const a = (groups[6] >> 8) & 0xff;
+    const b = groups[6] & 0xff;
+    const c = (groups[7] >> 8) & 0xff;
+    return isPrivateIPv4(a, b, c);
+  }
+  // Local-use NAT64, 64:ff9b:1::/48 (RFC 8215), IPv4 in the last 32 bits (R-13)
+  if (groups[0] === 0x0064 && groups[1] === 0xff9b && groups[2] === 1) {
+    const a = (groups[6] >> 8) & 0xff;
+    const b = groups[6] & 0xff;
+    const c = (groups[7] >> 8) & 0xff;
+    return isPrivateIPv4(a, b, c);
+  }
   // NAT64, 64:ff9b::/96
   if (groups[0] === 0x0064 && groups[1] === 0xff9b && groups[2] === 0 && groups[3] === 0 && groups[4] === 0 && groups[5] === 0) {
     const a = (groups[6] >> 8) & 0xff;

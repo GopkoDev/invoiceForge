@@ -48,6 +48,8 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['::ffff:10.0.0.1', 6], // IPv4-mapped RFC1918
     ['::ffff:169.254.169.254', 6], // IPv4-mapped metadata
     ['64:ff9b::7f00:1', 6], // NAT64-mapped loopback (64:ff9b::/96 + 127.0.0.1)
+    ['::ffff:0:127.0.0.1', 6], // SIIT, ::ffff:0:0:0/96 + 127.0.0.1 (R-13)
+    ['64:ff9b:1::a00:1', 6], // local-use NAT64, 64:ff9b:1::/48 (RFC 8215) + 10.0.0.1 (R-13)
     ['192.0.0.1', 4], // IETF protocol assignments, 192.0.0.0/24 (F-23)
     ['198.18.0.1', 4], // benchmarking, 198.18.0.0/15 (F-23)
     ['198.19.255.255', 4], // benchmarking upper bound, 198.18.0.0/15 (F-23)
@@ -64,6 +66,8 @@ describe('isPrivateOrInternalAddress (AC-03, sad.md §11 risk row)', () => {
     ['1.1.1.1', 4],
     ['93.184.216.34', 4],
     ['2001:4860:4860::8888', 6],
+    ['::ffff:0:8.8.8.8', 6], // SIIT embedding a public IPv4 stays safe (R-13)
+    ['64:ff9b:1::808:808', 6], // local-use NAT64 embedding a public IPv4 stays safe (R-13)
   ])('classifies public address %s as safe', (address, family) => {
     expect(isPrivateOrInternalAddress(address, family)).toBe(false);
   });
