@@ -196,31 +196,70 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+Participants are the §5 containers. The two seeded flows cover the two shapes every business function takes: an owner-scoped change behind a web wrapper, and a request-free aggregate read. The `sequences` stage extends this section to every §5 acceptance criterion.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: a Freelancer changes a record through a web wrapper (e.g. update a customer, AC-03, AC-08, AC-09)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor F as Freelancer
+    participant UI as Browser UI
+    participant WA as Web adapters
+    participant BL as Business layer
+    participant DB as PostgreSQL
+    F->>UI: saves the customer form
+    UI->>WA: calls the update-customer action
+    WA->>WA: builds ActingFreelancer from session and tz cookie
+    alt no session or account no longer exists
+        WA-->>UI: UNAUTHORIZED, sent to sign in
+    else signed in
+        WA->>BL: updateCustomer(actor, id, input)
+        BL->>BL: validates input with the customer schema
+        alt input invalid
+            BL-->>WA: VALIDATION with field errors
+            WA-->>UI: same messages next to the same fields
+        else input valid
+            BL->>DB: update where id and owner match
+            alt no row for this id and owner (missing or foreign)
+                DB-->>BL: record not found
+                BL-->>WA: NOT_FOUND
+                WA-->>UI: same not-found outcome as today
+            else row updated
+                DB-->>BL: updated
+                BL-->>WA: success
+                WA->>WA: revalidates the customer list and detail pages
+                WA-->>UI: success
+                UI-->>F: sees the change without reloading
+            end
+        end
+    end
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: a request-free caller reads the Debtors section (an integration test today, the Assistant later; AC-06, AC-07, AC-21, AC-22)**
+
+```mermaid
+sequenceDiagram
+    participant C as Trusted caller (test or Assistant adapter)
+    participant BL as Business layer
+    participant DB as PostgreSQL
+    C->>BL: builds ActingFreelancer via its trusted factory
+    BL->>DB: checks the time zone is known to PostgreSQL (cached per process)
+    alt zone unknown to Intl or PostgreSQL
+        BL->>BL: uses UTC
+    else zone known to both
+        BL->>BL: uses the given zone
+    end
+    C->>BL: getDebtors(actor, currency)
+    BL->>DB: one aggregate query joined on the owner, grouped by customer
+    DB-->>BL: one row per Debtor with exact sum, count and latest name
+    BL->>BL: parses rows, orders by total then name, keeps the top three
+    alt unexpected database failure
+        BL->>BL: reports the cause to error monitoring once
+        BL-->>C: FAILED with a plain-language message
+    else rows parsed
+        BL-->>C: success with the same Debtors the dashboard shows
+    end
+```
 
 ## 7. Deployment view
 
