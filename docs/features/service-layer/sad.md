@@ -284,21 +284,24 @@ There is no infrastructure change. The app stays one Vercel project (functions i
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
+The default is the convention set of architecture-hardening (`docs/features/architecture-hardening/sad.md` §8), which this feature preserves. **Bold** marks where it adds or overrides a convention.
 
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Authentication | Unchanged: next-auth JWT sessions, deny-by-default proxy, a token without a live account is a Visitor. **Only web adapters (and later the Assistant's own adapter) authenticate. Business functions never do** | hardening ADR-0001, ADR-0002; spec §6.1 |
+| Authorization | **Identity enters the layer only as an `ActingFreelancer`, built by a trusted factory.** Wrappers build it before parsing any input (hardening AC-23 order preserved). **Every read and every write inside a business function carries the owner filter in its own query**, including raw SQL. A foreign record answers `NOT_FOUND`, exactly like a missing one. `as ActingFreelancer` is banned by lint outside the factory module | ADR-0001, ADR-0003, ADR-0006 |
+| Input validation | **Business functions validate their own input with the entity's zod schema and refuse invalid values** (`VALIDATION` + `fieldErrors` naming the value and what is allowed, AC-13, AC-26). Pages still correct malformed links to documented defaults before calling (hardening AC-25/26), and the invoices page always passes its page size (10) | `lib/validations/`, `lib/validations/search-params.ts` |
+| Error handling | **Business functions return `ActionResult<T>` themselves** (typed `code`, plain-language `error`, optional `fieldErrors`, `details`). `failed()` inside the business function reports the cause once, and wrappers pass results through untouched. Only wrappers produce `UNAUTHORIZED` | ADR-0002; `types/result.ts` |
+| Lists | **Every list takes an optional `{ search, page, pageSize }` and returns `Page<T>`.** No page means the full list as page 1. A page out of range answers page 1. Every order ends with `id`. Search is case-insensitive `ILIKE` on the name fields of spec §1 (never on account number or IBAN) and is at most 100 characters. There is no page-size cap in the layer | ADR-0005 |
+| Money | Unchanged: `Decimal(10,2)` at rest, one exact-decimal module (hardening ADR-0006). **Dashboard sums are `SUM(numeric)` in SQL, carried as decimal strings, with no `toNumber()` before the edge** | ADR-0004 |
+| Time and time zones | Stored as UTC, with range ends exclusive at the next local midnight. **The zone is resolved once, in the `ActingFreelancer` factory: accepted only if both `Intl` and PostgreSQL `pg_timezone_names` know it (looked up once per process), else UTC** (closes spec §8 OQ-2). SQL buckets use `AT TIME ZONE` with the same resolved zone | hardening ADR-0010; §4 inline note |
+| Transactions | **Business functions own their transactions.** Internal helpers take `Prisma.TransactionClient`. No public `tx` parameter. Numbering row lock and all-or-nothing account deletion are unchanged | hardening ADR-0005, ADR-0007 |
+| Cache invalidation | **Only web adapters call `revalidatePath` and `unstable_cache`**, after a successful result, with the same paths and tags as today (AC-03). The business layer never touches page caches | ADR-0006 |
+| Logging and observability | Unchanged: `console.error(redactError(...))` + Sentry with scrubbed Prisma arguments. **Dashboard queries run inside named Sentry spans** (§7) | `sentry.server.config.ts`, `lib/helpers/prisma-error-scrub.ts` |
+| Layer boundary | **`lib/services/**` imports `server-only`, never declares `'use server'`, and never imports `next/headers`, `next/cache`, `next/navigation`, `@/auth` or `next-auth`**, checked by ESLint, `next build` and a unit test | ADR-0006 |
+| ID strategy | `cuid()`; unchanged | `prisma/schema/` |
+| Internationalisation | N/A: English only | — |
+| Events | N/A: no events or queues. All calls are in-process function calls | — |
 
 ## 9. Architecture decisions
 
