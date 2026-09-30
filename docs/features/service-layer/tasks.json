@@ -1,0 +1,436 @@
+{
+  "slug": "service-layer",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Enforce the lib/services boundary: server-only, lint rules, boundary test, build in CI",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [],
+      "dod": "server-only is a dependency, ESLint rejects next/headers|next/cache|next/navigation|@/auth|next-auth imports and 'as ActingFreelancer' casts under lib/services, tests/unit/service-layer-boundary.test.ts passes (fails on a planted 'use server' or client import), and CI runs pnpm build.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "eslint.config.mjs",
+        "tests/unit/service-layer-boundary.test.ts",
+        ".github/workflows/test.yml",
+        "lib/services/"
+      ],
+      "file": "docs/features/service-layer/tasks/t01-layer-boundary.md"
+    },
+    {
+      "id": "T2",
+      "title": "Move the result contract and result helpers into the shared business-layer kernel",
+      "layer": "domain",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "types/result.ts holds the ActionResult union and types/actions.ts re-exports it; failed()/zodValidationFailure()/hasInvoicesConflict() live in lib/services/_shared/result-helpers.ts with the old path re-exporting; owner-scope maps P2025 to NOT_FOUND (unit test); the existing failed-reports-once tests pass unchanged.",
+      "files_hint": [
+        "types/result.ts",
+        "types/actions.ts",
+        "lib/services/_shared/result-helpers.ts",
+        "lib/services/_shared/owner-scope.ts",
+        "lib/actions/action-result-helpers.ts",
+        "tests/unit/services/owner-scope.test.ts"
+      ],
+      "file": "docs/features/service-layer/tasks/t02-result-kernel.md"
+    },
+    {
+      "id": "T3",
+      "title": "Add the branded ActingFreelancer, its three factories and the Intl-and-PostgreSQL time-zone resolution",
+      "layer": "domain",
+      "deps": [
+        "T2"
+      ],
+      "acs": [
+        "AC-10",
+        "AC-21",
+        "AC-22"
+      ],
+      "dod": "actingFreelancerFromSession() returns UNAUTHORIZED without a live account and an ActingFreelancer otherwise; actingFreelancerForTest() works without a request; resolveTimeZone() keeps a zone only if Intl and pg_timezone_names both know it, else UTC (integration test with a zone missing from one side); the pure day-bound helpers live in lib/services/_shared/time-zone.ts and lib/helpers/time-zone.ts re-exports them.",
+      "files_hint": [
+        "lib/services/_shared/acting-freelancer.ts",
+        "lib/services/_shared/time-zone.ts",
+        "lib/helpers/time-zone.ts",
+        "lib/helpers/session-actor.ts",
+        "tests/support/acting-freelancer.ts",
+        "tests/integration/services/_shared/"
+      ],
+      "file": "docs/features/service-layer/tasks/t03-acting-freelancer.md"
+    },
+    {
+      "id": "T4",
+      "title": "Add the shared ListQuery schema, the Page envelope and the paginate helper",
+      "layer": "domain",
+      "deps": [
+        "T2"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14"
+      ],
+      "dod": "Unit tests cover the full-list-as-page-1 case, a page without a size (10), page 99 falling back to page 1, the empty list (page 1, 0 pages), and VALIDATION for page/pageSize 0, -5, 2.5 and a 101-character search, with the contract's fieldErrors messages.",
+      "files_hint": [
+        "lib/services/_shared/list-query.ts",
+        "tests/unit/services/list-query.test.ts"
+      ],
+      "file": "docs/features/service-layer/tasks/t04-list-query.md"
+    },
+    {
+      "id": "T5",
+      "title": "Wrap the current dashboard actions in dashboard.<section> Sentry spans to start the latency baseline",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [],
+      "dod": "Each of the seven dashboard actions runs inside a Sentry span named dashboard.<section> (unit test with a mocked startSpan), and the dashboard's outputs and existing tests are unchanged.",
+      "files_hint": [
+        "lib/actions/dashboard-actions.ts",
+        "tests/unit/lib/actions/dashboard-spans.test.ts"
+      ],
+      "file": "docs/features/service-layer/tasks/t05-dashboard-spans.md"
+    },
+    {
+      "id": "T6",
+      "title": "Move customers into lib/services/customers with search, paging and owner-scoped writes",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-08",
+        "AC-09",
+        "AC-11",
+        "AC-17"
+      ],
+      "dod": "listCustomers/getCustomer/createCustomer/updateCustomer/deleteCustomer pass request-free integration tests, including search 'ACME' page 1 size 2 (AC-11), HAS_INVOICES with the race recount (AC-17) and a foreign-record test per id-taking function; customer-actions.ts is a thin wrapper and the existing customer tests pass unchanged.",
+      "files_hint": [
+        "lib/services/customers/",
+        "lib/actions/customer-actions.ts",
+        "tests/integration/services/customers/"
+      ],
+      "file": "docs/features/service-layer/tasks/t06-customers.md"
+    },
+    {
+      "id": "T7",
+      "title": "Move products into lib/services/products with search, paging and owner-scoped writes",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-08",
+        "AC-11"
+      ],
+      "dod": "listProducts (incl. onlyActive)/getProduct/createProduct/updateProduct/deleteProduct/toggleProductActive pass request-free integration tests, including the used-in-invoices CONFLICT and a foreign-record test per id-taking function; product-actions.ts is a thin wrapper and the existing product tests pass unchanged.",
+      "files_hint": [
+        "lib/services/products/",
+        "lib/actions/product-actions.ts",
+        "tests/integration/services/products/"
+      ],
+      "file": "docs/features/service-layer/tasks/t07-products.md"
+    },
+    {
+      "id": "T8",
+      "title": "Move custom prices into lib/services/custom-prices with parent-scoped lists and owner-scoped writes",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-11"
+      ],
+      "dod": "listCustomerCustomPrices/listProductCustomPrices return NOT_FOUND for a foreign or missing parent and a Page otherwise; create/update/delete are owner-scoped through customer and product; foreign-record tests pass; custom-price-actions.ts is a thin wrapper and the existing tests pass unchanged.",
+      "files_hint": [
+        "lib/services/custom-prices/",
+        "lib/actions/custom-price-actions.ts",
+        "tests/integration/services/custom-prices/"
+      ],
+      "file": "docs/features/service-layer/tasks/t08-custom-prices.md"
+    },
+    {
+      "id": "T9",
+      "title": "Move sender profiles into lib/services/sender-profiles and route the convert-image logo lookup through it",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-17"
+      ],
+      "dod": "listSenderProfiles/getSenderProfile/getSenderProfileLogo/create/update/deleteSenderProfile pass request-free integration tests, including HAS_INVOICES with the race recount and foreign-record tests; convert-image reads the logo through the layer with its HTTP responses unchanged; existing tests pass unchanged.",
+      "files_hint": [
+        "lib/services/sender-profiles/",
+        "lib/actions/sender-profile-actions.ts",
+        "app/api/convert-image/route.ts",
+        "tests/integration/services/sender-profiles/"
+      ],
+      "file": "docs/features/service-layer/tasks/t09-sender-profiles.md"
+    },
+    {
+      "id": "T10",
+      "title": "Move bank accounts into lib/services/bank-accounts with a parent-scoped list",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-08"
+      ],
+      "dod": "listBankAccounts (NOT_FOUND on a foreign profile, never searching accountNumber or iban)/create/update/deleteBankAccount pass request-free and foreign-record integration tests; getBankAccounts(id, limit) maps limit to page 1; the wrapper keeps today's revalidatePath list; existing tests pass unchanged.",
+      "files_hint": [
+        "lib/services/bank-accounts/",
+        "lib/actions/bank-account-actions.ts",
+        "tests/integration/services/bank-accounts/"
+      ],
+      "file": "docs/features/service-layer/tasks/t10-bank-accounts.md"
+    },
+    {
+      "id": "T11",
+      "title": "Move profile, account deletion, data export and the dashboard setup check into the layer",
+      "layer": "app",
+      "deps": [
+        "T3"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-20"
+      ],
+      "dod": "updateProfile/getAccountDeletionSummary/deleteAccount/getAccountExport/checkSetup pass request-free integration tests; a failure partway through deleteAccount removes nothing (AC-20); a vanished User row returns NOT_FOUND and the wrappers map it to today's UNAUTHORIZED / export 500; the export route's HTTP response is unchanged.",
+      "files_hint": [
+        "lib/services/profile/",
+        "lib/services/account/",
+        "lib/actions/profile-actions.ts",
+        "lib/actions/account-actions.ts",
+        "lib/actions/dashboard-setup-check.ts",
+        "app/api/user/export/route.ts",
+        "tests/integration/services/account/"
+      ],
+      "file": "docs/features/service-layer/tasks/t11-profile-account.md"
+    },
+    {
+      "id": "T12",
+      "title": "Move invoice numbering, getInvoice, the editor data and the next-number preview into lib/services/invoices",
+      "layer": "app",
+      "deps": [
+        "T3"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-09",
+        "AC-25"
+      ],
+      "dod": "numbering.ts lives in lib/services/invoices with the old path re-exporting; getInvoice/getInvoiceEditorData/peekNextInvoiceNumber pass request-free and foreign-record integration tests; the editor data carries the Customer's custom price (AC-25); the wrappers and existing tests are unchanged.",
+      "files_hint": [
+        "lib/services/invoices/numbering.ts",
+        "lib/services/invoices/editor-data.ts",
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/numbering.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/services/invoices/"
+      ],
+      "file": "docs/features/service-layer/tasks/t12-invoice-reads-numbering.md"
+    },
+    {
+      "id": "T13",
+      "title": "Add listInvoices with validated filters and local-date bounds, and delete the unused list-all function",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T4",
+        "T12"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-21",
+        "AC-22",
+        "AC-26"
+      ],
+      "dod": "listInvoices returns an InvoicePage identical to the invoices page for the same filters, refuses unknown status/tab/sort and reversed or one-ended date ranges with VALIDATION, counts the Kyiv 00:30 1 October invoice in October; getPaginatedInvoices maps items to invoices; getInvoicesByCustomer/BySenderProfile go through it; getInvoices() and its test are deleted.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/services/invoices/",
+        "tests/unit/lib/actions/failed-reports-once.test.ts"
+      ],
+      "file": "docs/features/service-layer/tasks/t13-invoice-list.md"
+    },
+    {
+      "id": "T14",
+      "title": "Move createInvoice into the layer with owned references and numbering under the row lock",
+      "layer": "app",
+      "deps": [
+        "T12"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-16",
+        "AC-19"
+      ],
+      "dod": "createInvoice (request-free) takes the next sequence number when none is given, blocks a typed duplicate with the sender-profile message, answers NOT_FOUND and stores nothing for a foreign customer/sender profile/bank account/product, and two concurrent saves never share a number; the existing create-invoice tests pass unchanged.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/helpers.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "lib/actions/invoice-actions/helpers.ts",
+        "tests/integration/services/invoices/"
+      ],
+      "file": "docs/features/service-layer/tasks/t14-create-invoice.md"
+    },
+    {
+      "id": "T15",
+      "title": "Move updateInvoice and updateInvoiceStatus into the layer with the totals check and the paid-date rule",
+      "layer": "app",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-18",
+        "AC-19",
+        "AC-23"
+      ],
+      "dod": "updateInvoice returns CONFLICT TOTALS_CHANGED for an unconfirmed legacy total and NOT_FOUND for a foreign invoice or reference; updateInvoiceStatus refuses an unknown status, reads-then-writes under the owner in one transaction and applies the paid-date rule; request-free and foreign-record tests pass; existing update tests pass unchanged.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/services/invoices/"
+      ],
+      "file": "docs/features/service-layer/tasks/t15-update-invoice-status.md"
+    },
+    {
+      "id": "T16",
+      "title": "Move duplicateInvoice and deleteInvoice into the layer",
+      "layer": "app",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-24"
+      ],
+      "dod": "duplicateInvoice creates a draft dated today in the actor's zone, due in 30 days, with the next sequence number and the original unchanged; deleteInvoice refuses a non-draft with CONFLICT; both answer NOT_FOUND for a foreign invoice with B's row unchanged; existing tests pass unchanged.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/services/invoices/"
+      ],
+      "file": "docs/features/service-layer/tasks/t16-duplicate-delete-invoice.md"
+    },
+    {
+      "id": "T17",
+      "title": "Build the dashboard SQL for currency tabs, summary stats and the chart, with the old-vs-new parity harness",
+      "layer": "app",
+      "deps": [
+        "T3",
+        "T5"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-07",
+        "AC-21",
+        "AC-22"
+      ],
+      "dod": "getCurrencyTabs/getSummaryStats/getChartData run owner-joined parameterized $queryRaw inside dashboard.<section> spans; DashboardPeriod local dates are resolved in actor.timeZone; the AC-05 fixture parity test compares them with the old actions to the cent and asserts rows per query; a two-Freelancer test shows B's invoices never count.",
+      "files_hint": [
+        "lib/services/dashboard/",
+        "tests/integration/services/dashboard/"
+      ],
+      "file": "docs/features/service-layer/tasks/t17-dashboard-sql-summary-chart.md"
+    },
+    {
+      "id": "T18",
+      "title": "Build the dashboard SQL for sender accounts, recent invoices, Debtors and Expected payments",
+      "layer": "app",
+      "deps": [
+        "T17"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "getSenderAccounts/getRecentInvoices/getDebtors/getExpectedPayments pass the AC-05 parity test, the AC-06 naming and tie-order test and the row-count assertions; each query is owner-joined and has a two-Freelancer test.",
+      "files_hint": [
+        "lib/services/dashboard/",
+        "tests/integration/services/dashboard/"
+      ],
+      "file": "docs/features/service-layer/tasks/t18-dashboard-sql-lists.md"
+    },
+    {
+      "id": "T19",
+      "title": "Switch the dashboard wrappers to the layer, pass local-date periods, record parity values and delete the in-memory code",
+      "layer": "ports",
+      "deps": [
+        "T18"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "dashboardParamsSchema returns local {from,to} dates; the seven dashboard actions are thin wrappers (currency tabs still in unstable_cache 60 s); the parity test runs on recorded expected values; the old in-memory bodies are deleted; dashboard page tests pass unchanged.",
+      "files_hint": [
+        "lib/actions/dashboard-actions.ts",
+        "lib/validations/search-params.ts",
+        "app/(protected)/dashboard/",
+        "tests/integration/services/dashboard/",
+        "tests/unit/lib/validations/dashboard-params.test.ts",
+        "tests/integration/actions/dashboard-chart-data-tz.test.ts",
+        "tests/unit/lib/actions/failed-reports-once.test.ts"
+      ],
+      "file": "docs/features/service-layer/tasks/t19-dashboard-wrappers-cutover.md"
+    },
+    {
+      "id": "T20",
+      "title": "Close the move: zero data-store calls in lib/actions, inventory checks for request-free and foreign-record tests",
+      "layer": "tests",
+      "deps": [
+        "T6",
+        "T7",
+        "T8",
+        "T9",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T15",
+        "T16",
+        "T19"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-07",
+        "AC-08",
+        "AC-10"
+      ],
+      "dod": "A unit check finds 0 prisma imports under lib/actions (except login-actions) and app route handlers; an inventory test fails if any exported business function lacks a request-free test or (when it takes an id) a foreign-record test; functions left unused by the move are deleted; the full suite is green.",
+      "files_hint": [
+        "lib/actions/",
+        "app/api/user/export/route.ts",
+        "app/api/convert-image/route.ts",
+        "tests/unit/service-layer-inventory.test.ts",
+        "tests/integration/services/"
+      ],
+      "file": "docs/features/service-layer/tasks/t20-close-the-move.md"
+    }
+  ]
+}

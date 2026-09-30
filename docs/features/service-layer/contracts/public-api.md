@@ -32,7 +32,8 @@ export type ActingFreelancer = {
 
 | Factory | Where | Input | Output |
 |---|---|---|---|
-| `actingFreelancerFromSession()` | `lib/helpers/auth-helpers.ts` (web only) | the next-auth session + the `tz` cookie | `ActionResult<ActingFreelancer>`. `UNAUTHORIZED` "Not signed in." when there is no session or the account no longer exists (AC-10). Built **before** any argument is parsed (hardening AC-23 order) |
+| `actingFreelancerFromSession()` | `lib/helpers/session-actor.ts` (web only; `server-only`, **not** `'use server'`: `auth-helpers.ts` is a `'use server'` file, so an export there would be browser-callable) | the next-auth session + the `tz` cookie | `ActionResult<ActingFreelancer>`. `UNAUTHORIZED` "Not signed in." when there is no session or the account no longer exists (AC-10). Built **before** any argument is parsed (hardening AC-23 order) |
+| `actingFreelancerForRoute()` | `lib/helpers/session-actor.ts` (route handlers only) | `requireSession()` + the `tz` cookie | `{ ok: true; actor: ActingFreelancer } \| { ok: false; response: Response }`. The `response` is today's `requireSession()` 401 body, unchanged |
 | `actingFreelancerForTest(userId, timeZone?)` | `tests/support/` | raw values | `Promise<ActingFreelancer>` |
 | *(later)* the Assistant factory | the Assistant feature | its own authentication | — (not built here, spec §3) |
 
@@ -149,8 +150,8 @@ Input schemas are the existing ones in `lib/validations/` (=), and the business 
 | `listCustomerCustomPrices(actor, customerId, query?: ListQuery)` ★ | `Page<SerializedCustomPrice>` = | parent `NOT_FOUND` "Customer not found." (flow 4). Search on product `name`, customer `name`. Order `product.name asc, id` | `getCustomerCustomPrices(customerId)` → `data.items` |
 | `listProductCustomPrices(actor, productId, query?: ListQuery)` ★ | `Page<SerializedCustomPrice>` = | parent `NOT_FOUND` "Product not found.". Same search. Order `customer.name asc, id` | `getProductCustomPrices(productId)` → `data.items` |
 | `createCustomPrice(actor, input: CustomPriceSchemaValues)` | `{ id: string }` | `VALIDATION` → `NOT_FOUND` (customer or product missing or foreign, AC-19 by analogy) | `createCustomPrice(data)` |
-| `updateCustomPrice(actor, id, input: UpdateCustomPriceValues)` | `void` | `VALIDATION` → `NOT_FOUND` | `updateCustomPrice(id, data)` |
-| `deleteCustomPrice(actor, id)` ✎ | `void` | `NOT_FOUND` | `deleteCustomPrice(id, customerId, productId?)`. The wrapper keeps the two extra ids **only** to choose the paths it revalidates |
+| `updateCustomPrice(actor, id, input: UpdateCustomPriceValues)` ✎ | `{ customerId: string; productId: string }` (for the wrapper's revalidation) | `VALIDATION` → `NOT_FOUND` | `updateCustomPrice(id, data)` |
+| `deleteCustomPrice(actor, id, customerId)` ✎ | `{ customerId: string; productId: string }` | `NOT_FOUND` "Customer not found." (customer missing or foreign) → `NOT_FOUND` "Custom price not found." (no price with this id under that customer), as today | `deleteCustomPrice(id, customerId, productId?)`. `productId?` stays in the wrapper signature and is no longer needed for revalidation |
 
 ### 2.4 Sender profiles — `lib/services/sender-profiles/` (owner: `SenderProfile.userId = A`)
 
@@ -170,7 +171,7 @@ Input schemas are the existing ones in `lib/validations/` (=), and the business 
 | `listBankAccounts(actor, senderProfileId, query?: ListQuery)` ★ | `Page<BankAccountWithRelations>` = | parent `NOT_FOUND` "Sender profile not found.". Search on `bankName`, `accountName` (**never** `accountNumber` or `iban`). Order `isDefault desc, createdAt desc, id` | `getBankAccounts(id, limit?)` → `limit` becomes `{ page: 1, pageSize: limit }`, then `data.items` |
 | `createBankAccount(actor, senderProfileId, input: BankAccountFormValues)` | `BankAccount` = | `VALIDATION` → `NOT_FOUND` (profile) | `createBankAccount(senderProfileId, data)` |
 | `updateBankAccount(actor, id, input: BankAccountFormValues)` | `BankAccount` = | `VALIDATION` → `NOT_FOUND` | `updateBankAccount(id, data)` |
-| `deleteBankAccount(actor, id)` | `void` | `NOT_FOUND` · `CONFLICT` "Cannot delete bank account with existing invoices. Please delete or reassign invoices first." (=, no `details`) † | `deleteBankAccount(id)` |
+| `deleteBankAccount(actor, id)` ✎ | `{ senderProfileId: string }` (for the wrapper's revalidation) | `NOT_FOUND` · `CONFLICT` "Cannot delete bank account with existing invoices. Please delete or reassign invoices first." (=, no `details`) † | `deleteBankAccount(id)` |
 
 ### 2.6 Invoices — `lib/services/invoices/` (owner: `senderProfile.userId = A`. On writes, the referenced `customer`, `bankAccount` and every item `product` must also belong to A)
 
@@ -229,7 +230,7 @@ type InvoicePage = Page<InvoiceListItem> & {       // InvoiceListItem =
 type DashboardPeriod = { from: LocalDate; to: LocalDate };   // ★ inclusive local dates, read in actor.timeZone
 ```
 
-- **`period` omitted = all time** (today's `appliedRange === undefined`). The page wrapper still computes its current-month fallback, but as local dates: `dashboardParamsSchema` returns `{ from, to }` instead of `Date` bounds.
+- **`period` omitted = all time** (today's `appliedRange === undefined`). The page wrapper still computes its current-month fallback, but as local dates: `dashboardParamsSchema` also returns `period: { from, to }` next to today's `appliedRange` (kept, so its existing tests' expected values stay unchanged).
 - The layer turns `period` into `[startOfLocalDay(from), startOfLocalDay(to + 1))` in `actor.timeZone`, and SQL buckets use `AT TIME ZONE` with that same zone (AC-21, AC-22).
 - `VALIDATION` `fieldErrors.period` "Give both dates as YYYY-MM-DD, with the start on or before the end." for a malformed or reversed period · `fieldErrors.currency` "Unknown currency." for a value outside `Currency` ★.
 - Return types are today's DTOs in `types/dashboard/types.ts`, unchanged (=). Every amount is `SUM(numeric)` converted to `number` once (sad.md §8 Money). Each section runs in the Sentry span `dashboard.<section>`.
@@ -243,7 +244,7 @@ type DashboardPeriod = { from: LocalDate; to: LocalDate };   // ★ inclusive lo
 | `getRecentInvoices(actor, currency)` | `RecentInvoice[]` | ≤ items shown | `getDashboardRecentInvoices(currency)` |
 | `getDebtors(actor, currency)` | `DebtorInfo[]` (≤ 3) | ≤ 3 | `getDashboardDebtors(currency)`. The name comes from the latest overdue invoice (issue date, then created). Ties on the exact total are ordered by name (AC-06) |
 | `getExpectedPayments(actor, currency)` | `ExpectedPaymentGroup[]` | ≤ items shown | `getDashboardExpectedPayments(currency)` |
-| `checkSetup(actor)` | `SetupCheckResult` = | 4 counts | `checkDashboardSetup()` |
+| `checkSetup(actor)` | `SetupCheckResult` = | 4 counts | `checkDashboardSetup()`. Lives in `lib/services/profile/` (sad.md §5), listed here for its caller |
 
 Every section also answers `FAILED` (reported once), per flow 2.
 
