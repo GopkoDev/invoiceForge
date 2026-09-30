@@ -9,7 +9,7 @@
 | T2 | Move the result contract and result helpers into the shared business-layer kernel | domain | Dmytro Hopko | S | T1 | todo |
 | T3 | Add the branded ActingFreelancer, its three factories and the Intl-and-PostgreSQL time-zone resolution | domain | Dmytro Hopko | M | T2 | todo |
 | T4 | Add the shared ListQuery schema, the Page envelope and the paginate helper | domain | Dmytro Hopko | S | T2 | todo |
-| T5 | Wrap the current dashboard actions in dashboard.<section> Sentry spans to start the latency baseline | wiring | Dmytro Hopko | S | — | todo |
+| T5 | Wrap the current dashboard actions in dashboard.<section> Sentry spans to start the latency baseline | wiring | Dmytro Hopko | S | — | done |
 | T6 | Move customers into lib/services/customers with search, paging and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | todo |
 | T7 | Move products into lib/services/products with search, paging and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | todo |
 | T8 | Move custom prices into lib/services/custom-prices with parent-scoped lists and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | todo |

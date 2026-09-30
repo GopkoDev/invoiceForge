@@ -1,6 +1,7 @@
 'use server';
 
 import { unstable_cache } from 'next/cache';
+import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import { ActionResult, ok } from '@/types/actions';
@@ -23,6 +24,13 @@ import {
   formatLocalDateKey,
   startOfLocalDay,
 } from '@/lib/helpers/time-zone';
+
+// Latency baseline (service-layer T5; spec §6, sad §7). Each exported action runs inside a Sentry
+// span `dashboard.<section>`; T17/T18/T19 reuse these names verbatim:
+//   dashboard.currency-tabs, dashboard.summary-stats, dashboard.chart, dashboard.sender-accounts,
+//   dashboard.recent-invoices, dashboard.debtors, dashboard.expected-payments
+// The currency-tabs span wraps the whole action, i.e. around unstable_cache, so the cached value is
+// untouched and a cache hit still records a (short) span.
 
 const CACHE_TAGS = {
   dashboard: 'dashboard',
@@ -60,7 +68,7 @@ async function _fetchCurrencyTabs(userId: string): Promise<CurrencyTab[]> {
  * Get available currency tabs based on user's bank accounts
  * Cached for 60 seconds per user
  */
-export async function getDashboardCurrencyTabs(): Promise<
+async function _getDashboardCurrencyTabs(): Promise<
   ActionResult<CurrencyTab[]>
 > {
   try {
@@ -91,7 +99,7 @@ export async function getDashboardCurrencyTabs(): Promise<
 /**
  * Get dashboard summary statistics filtered by currency and date range
  */
-export async function getDashboardSummaryStats(
+async function _getDashboardSummaryStats(
   currency: Currency,
   appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<DashboardSummaryStats>> {
@@ -195,7 +203,7 @@ export async function getDashboardSummaryStats(
  * - Paid line: historical data + flat projection at today's value into future
  * - Expected line: overlays paid in past + cumulative planned payments in future
  */
-export async function getDashboardChartData(
+async function _getDashboardChartData(
   currency: Currency,
   appliedRange?: DashboardAppliedRange,
   timeZone: string = 'UTC'
@@ -352,7 +360,7 @@ export async function getDashboardChartData(
 /**
  * Get sender account metrics filtered by currency and date range
  */
-export async function getDashboardSenderAccounts(
+async function _getDashboardSenderAccounts(
   currency: Currency,
   appliedRange?: DashboardAppliedRange
 ): Promise<ActionResult<SenderAccountMetrics[]>> {
@@ -514,7 +522,7 @@ export async function getDashboardSenderAccounts(
 /**
  * Get recent invoices for the table (last 10, selected currency)
  */
-export async function getDashboardRecentInvoices(
+async function _getDashboardRecentInvoices(
   currency: Currency
 ): Promise<ActionResult<RecentInvoice[]>> {
   try {
@@ -564,7 +572,7 @@ export async function getDashboardRecentInvoices(
 /**
  * Get debtors (customers with overdue invoices) - filtered by currency
  */
-export async function getDashboardDebtors(
+async function _getDashboardDebtors(
   currency: Currency
 ): Promise<ActionResult<DebtorInfo[]>> {
   try {
@@ -640,7 +648,7 @@ export async function getDashboardDebtors(
 /**
  * Get expected payments (pending invoices) - filtered by currency
  */
-export async function getDashboardExpectedPayments(
+async function _getDashboardExpectedPayments(
   currency: Currency
 ): Promise<ActionResult<ExpectedPaymentGroup[]>> {
   try {
@@ -708,4 +716,48 @@ export async function getDashboardExpectedPayments(
   } catch (error) {
     return failed('Error fetching dashboard expected payments:', error, 'Failed to fetch expected payments.');
   }
+}
+
+// Public actions: each runs its implementation inside a dashboard.<section> span.
+
+export async function getDashboardCurrencyTabs() {
+  return Sentry.startSpan({ name: 'dashboard.currency-tabs', op: 'function' }, () =>
+    _getDashboardCurrencyTabs()
+  );
+}
+
+export async function getDashboardSummaryStats(currency: Currency, appliedRange?: DashboardAppliedRange) {
+  return Sentry.startSpan({ name: 'dashboard.summary-stats', op: 'function' }, () =>
+    _getDashboardSummaryStats(currency, appliedRange)
+  );
+}
+
+export async function getDashboardChartData(currency: Currency, appliedRange?: DashboardAppliedRange, timeZone: string = 'UTC') {
+  return Sentry.startSpan({ name: 'dashboard.chart', op: 'function' }, () =>
+    _getDashboardChartData(currency, appliedRange, timeZone)
+  );
+}
+
+export async function getDashboardSenderAccounts(currency: Currency, appliedRange?: DashboardAppliedRange) {
+  return Sentry.startSpan({ name: 'dashboard.sender-accounts', op: 'function' }, () =>
+    _getDashboardSenderAccounts(currency, appliedRange)
+  );
+}
+
+export async function getDashboardRecentInvoices(currency: Currency) {
+  return Sentry.startSpan({ name: 'dashboard.recent-invoices', op: 'function' }, () =>
+    _getDashboardRecentInvoices(currency)
+  );
+}
+
+export async function getDashboardDebtors(currency: Currency) {
+  return Sentry.startSpan({ name: 'dashboard.debtors', op: 'function' }, () =>
+    _getDashboardDebtors(currency)
+  );
+}
+
+export async function getDashboardExpectedPayments(currency: Currency) {
+  return Sentry.startSpan({ name: 'dashboard.expected-payments', op: 'function' }, () =>
+    _getDashboardExpectedPayments(currency)
+  );
 }

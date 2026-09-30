@@ -35,7 +35,11 @@ vi.mock('@/auth', () => ({ auth: () => authMock() }));
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }));
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: vi.fn(),
+  // T5: dashboard actions run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+}));
 
 type ActionResult<T> =
   | { success: true; data: T }

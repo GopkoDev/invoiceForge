@@ -35,6 +35,8 @@ vi.mock('@/lib/helpers/time-zone', async (importOriginal) => ({
 const captureExceptionMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
   captureException: (...args: unknown[]) => captureExceptionMock(...args),
+  // T5: dashboard actions run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
 }));
 
 const cases: Array<[string, () => Promise<{ success: boolean; code?: string }>]> = [
