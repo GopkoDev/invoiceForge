@@ -30,7 +30,7 @@ Every export of a `'use server'` file is a browser-callable endpoint. A business
 
 ## Decision outcome
 
-**Chosen:** Option 1. It gives the same two guarantees through checks that already run on every PR (lint, build, unit), without rebuilding workspaces, tsconfig paths, the Prisma client location, Vitest configs, the Vercel build and CI. That rebuild is about 2–3 extra days and a parity risk, for an MCP process that isn't designed yet.
+**Chosen:** Option 1. It gives the same two guarantees through checks on every PR: lint, unit, and `next build`, which this feature adds to `.github/workflows/test.yml` because it isn't there today. It does this without rebuilding workspaces, tsconfig paths, the Prisma client location, Vitest configs, the Vercel build and CI. That rebuild is about 2–3 extra days and a parity risk, for an MCP process that isn't designed yet.
 
 ## Consequences
 
@@ -41,6 +41,7 @@ Every export of a `'use server'` file is a browser-callable endpoint. A business
 **Negative**
 - The boundary rests on a lint rule plus a test, not on package resolution. A disabled rule or a new forbidden module needs review to catch it.
 - Adds the `server-only` dependency.
+- CI gains a `pnpm build` step (about 2–4 minutes per PR) with placeholder env values.
 
 **Neutral**
 - If the MCP server later runs as its own process, extracting `lib/services` into a package is a move of one folder with its imports already clean.

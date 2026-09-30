@@ -9,10 +9,6 @@ target_surfaces: [backend-service]
 
 # Software Architecture Document — service-layer
 
-<!-- 12 Arc42 sections. Empty section → <!-- N/A: <one-line reason> -->. -->
-<!-- C4 Context (L1) lives inline in §3. C4 Container (L2) lives inline in §5. -->
-<!-- Numbers in §10 come VERBATIM from spec.md §6 NFR — no inventing, no rounding. -->
-
 ## 1. Introduction and goals
 
 **Intent.** Invoice Forge keeps all of its business rules and data access inside about sixty `'use server'` actions in `lib/actions/`. Each of them reads the caller's identity from the next-auth session and the time zone from the `tz` cookie, runs the rules and queries, and refreshes pages. This feature extracts the rules and queries into one **request-free business layer**, `lib/services/`. Every business function takes the acting Freelancer (and their time zone) as an explicit input and limits every read and every write to that Freelancer's records itself. The web actions become thin wrappers: they identify the Freelancer from the session, call the business function, and refresh the same pages as today. Every record list gains optional search and page-number paging with an honest total. Dashboard figures are computed by PostgreSQL rather than in memory. The Freelancer sees no change except the five deliberate ones in spec §1. The first consumer after the web app is the Assistant (the in-app AI chat and the MCP server, both later features), which has no browser session.
@@ -40,9 +36,9 @@ target_surfaces: [backend-service]
 - Next.js 16.1.1 App Router + React 19.2.3. RSC pages call `'use server'` actions directly for reads (e.g. `app/(protected)/customers/page.tsx`). Every export of a `'use server'` file is a browser-callable endpoint.
 - PostgreSQL on Neon (through its pooler) via Prisma 7.2 + `@prisma/adapter-pg`. The schema is split in `prisma/schema/`, with no `previewFeatures` in the generator. Money columns are `Decimal(10,2)`. Raw SQL precedent: the invoice-number row lock (`lib/actions/invoice-actions/numbering.ts`, `$queryRaw … FOR UPDATE`).
 - next-auth 5.0.0-beta.30 with JWT sessions. `getAuthenticatedUser()` (`lib/helpers/auth-helpers.ts`) is the only identity source in actions, and the sign-in flow (`lib/actions/login-actions.ts`) stays untouched (spec §3).
-- The time zone comes from the `tz` cookie via `getRequestTimeZone()` (`lib/helpers/time-zone.ts`, validated with `Intl`, falling back to UTC). The day-bound helpers in that file are already pure.
+- The time zone comes from the `tz` cookie via `getRequestTimeZone()` (`lib/helpers/time-zone.ts`, validated with `Intl`, falling back to UTC). The day-bound helpers in that file take the zone as a plain string, but the file imports `cookies` from `next/headers` at the top level (`time-zone.ts:8`), so the business layer can't import it as it is. The file is split (§5).
 - Caching uses `unstable_cache` (dashboard currency tabs, 60 s) and `revalidatePath(protectedRoutes.*)` after every mutation. Both are Next.js facilities.
-- Tests: Vitest 5 (`vitest.config.ts` for unit/component/contract, `vitest.integration.config.ts` for integration against a throwaway Postgres via `@testcontainers/postgresql`), Playwright e2e. CI (`.github/workflows/test.yml`) runs lint, `tsc --noEmit`, unit and integration on every PR.
+- Tests: Vitest 5 (`vitest.config.ts` for unit/component/contract, `vitest.integration.config.ts` for integration against a throwaway Postgres via `@testcontainers/postgresql`), Playwright e2e. CI (`.github/workflows/test.yml`) runs lint, `tsc --noEmit`, unit and integration on every PR. It does not run `next build` today, and this feature adds it (ADR-0006).
 - Sentry 10 (production only, 10% trace sample, `sentry.server.config.ts:74`), with Prisma arguments scrubbed.
 - No stored-data change and no data migration (spec §3). The feature is code-only.
 - The `server-only` package is not installed yet. It is added as a dependency (ADR-0006).
@@ -114,8 +110,8 @@ C4Context
 1. **An explicit, branded acting Freelancer on every business function** (ADR-0001). The first argument of every function is an `ActingFreelancer { userId, timeZone }`. Its type can only be produced by trusted factories: `actingFreelancerFromSession()` in the web layer, a factory the Assistant feature will add after it authenticates, and a test factory. The factory also resolves the time zone once, so no function reads a cookie or forgets the zone. This serves quality goals 1 and 3, and it makes every place that establishes identity greppable.
 2. **One result contract across both layers** (ADR-0002). Business functions return the existing `ActionResult<T>` union (moved to a neutral `types/result.ts`, with `ActionResult` kept as an alias). Wrappers pass it through unchanged, so messages, field errors, typed codes and the "reported exactly once" rule stay byte-identical (quality goal 2, AC-02, AC-04). The Assistant gets the same typed codes and field errors (AC-13, AC-26).
 3. **The owner filter lives in every write's own `where` clause** (ADR-0003). The current check-then-write-by-bare-id pattern (`findFirst({ id, userId })` then `update({ where: { id } })`) is replaced by writes whose unique `where` carries the owner too, e.g. `{ id, userId }` or `{ id, senderProfile: { userId } }`. A miss (Prisma `P2025`) maps to the same `NOT_FOUND`. Reads are owner-filtered the same way, and a foreign-record test per function proves it (quality goal 1, AC-08, AC-19, spec §6.1 check-then-write abuse case).
-4. **Dashboard figures aggregated by PostgreSQL in parameterized raw SQL** (ADR-0004). Each dashboard section is one `$queryRaw` tagged-template query: sums on `numeric`, local-day and local-month buckets via `AT TIME ZONE`, and "name from the most recent invoice" via `DISTINCT ON`. Each query is owner-joined through `SenderProfile.userId` and its rows are parsed with zod. The number of rows read no longer grows with invoice history, and the sums are exact (quality goal 2, spec §6 data-read row, AC-05, AC-06).
-5. **Page-number paging with one shared page envelope** (ADR-0005). Every list accepts an optional `{ search, page, pageSize }` and returns `Page<T> = { items, total, page, pageSize, totalPages, hasMore }`. With no page requested, the full list comes back as page 1. A page out of range falls back to page 1, every sort order ends with the record id, and search is a case-insensitive substring match (`ILIKE`) on the fields spec §1 names. This one contract is seen by six lists, the web pickers and the future Assistant (AC-11 to AC-14).
+4. **Dashboard figures aggregated by PostgreSQL in parameterized raw SQL** (ADR-0004). Each dashboard section is one `$queryRaw` tagged-template query: sums on `numeric`, local-day and local-month buckets via `AT TIME ZONE`, "name from the most recent invoice" via `DISTINCT ON`, and ordering and top-three limits (`ORDER BY … LIMIT`) in SQL. Each query is owner-joined through `SenderProfile.userId` and its rows are parsed with zod. The number of rows read no longer grows with invoice history, and the sums are exact (quality goal 2, spec §6 data-read row, AC-05, AC-06).
+5. **Page-number paging with one shared page envelope** (ADR-0005). Every list accepts an optional `{ search, page, pageSize }` and returns `Page<T> = { items, total, page, pageSize, totalPages, hasMore }`. With no page requested, the full list comes back as page 1. A page given without a page size uses 10. A page out of range falls back to page 1, every sort order ends with the record id, and search is a case-insensitive substring match (`ILIKE`) on the fields spec §1 names. This one contract is seen by six lists, the web pickers and the future Assistant (AC-11 to AC-14).
 
 **Inline strategy notes (no ADR: reversible, or fixed by an upstream decision):**
 - **Time-zone resolution** (closes spec §8 OQ-2 at its default). A zone is accepted only if both `Intl` and PostgreSQL (`pg_timezone_names`, looked up once per process) know it; otherwise UTC is used, as for an unknown zone (AC-22). The check lives in the `ActingFreelancer` factories, so JS day bounds and SQL `AT TIME ZONE` buckets always use the same zone (AC-21).
@@ -135,7 +131,8 @@ The app keeps its layered-by-convention Next.js monolith and gains one real laye
 lib/services/                                  ★ request-free business layer (ADR-0006); every file imports 'server-only'
 ├── _shared/
 │   ├── acting-freelancer.ts                   ★ ActingFreelancer brand + the ONLY place it is constructed from raw values (ADR-0001)
-│   ├── time-zone.ts                           ★ resolveTimeZone(): accepted only if Intl AND pg_timezone_names know it, else UTC
+│   ├── time-zone.ts                           ★ resolveTimeZone() (accepted only if Intl AND pg_timezone_names know it, else UTC) + the pure day-bound
+│   │                                            helpers moved from lib/helpers/time-zone.ts (localDayRange, startOfLocalDay, formatLocalDateKey…)
 │   ├── list-query.ts                          ★ ListQuery zod schema, Page<T>, paginate() helper with the id tiebreak (ADR-0005)
 │   ├── owner-scope.ts                         ★ P2025 → NOT_FOUND mapping for owner-scoped writes (ADR-0003)
 │   └── result-helpers.ts                      ✎ moved from lib/actions/action-result-helpers.ts: failed(), zodValidationFailure(), hasInvoicesConflict()…
@@ -153,6 +150,7 @@ lib/services/                                  ★ request-free business layer (
 lib/actions/**                                 ✎ thin wrappers: actingFreelancerFromSession() → business function → revalidatePath on success
 lib/actions/login-actions.ts                   — unchanged (sign-in stays in the browser flow, spec §3)
 lib/helpers/auth-helpers.ts                    ✎ + actingFreelancerFromSession(): session + tz cookie → ActingFreelancer, or UNAUTHORIZED
+lib/helpers/time-zone.ts                       ✎ keeps only getRequestTimeZone() (reads the cookie) + re-exports the moved pure helpers
 app/api/user/export/route.ts                   ✎ reads through lib/services/account instead of Prisma
 app/api/convert-image/route.ts                 ✎ owned-profile lookup through lib/services/sender-profiles
 types/result.ts                                ★ the ActionResult union, moved here (ADR-0002); types/actions.ts re-exports it
@@ -160,7 +158,8 @@ eslint.config.mjs                              ✎ no-restricted-imports for lib
                                                  + a ban on `as ActingFreelancer` outside _shared/acting-freelancer.ts
 tests/integration/services/**                  ★ request-free tests per business function + a foreign-record test per id-taking function
 tests/unit/service-layer-boundary.test.ts      ★ no 'use server' under lib/services, no lib/services import from 'use client' files
-lib/actions/dashboard-actions.ts (in-memory)   ✗ deleted after the dashboard parity values are recorded (spec §1 change 5)
+lib/actions/dashboard-actions.ts               ✎ same export names, now thin wrappers (+ unstable_cache for currency tabs). The in-memory
+                                                 bodies are deleted after the dashboard parity values are recorded (spec §1 change 5)
 lib/actions/invoice-actions/…getInvoices()     ✗ the unused list-all-invoices function and its test (spec §1 change 5)
 ```
 
@@ -250,9 +249,9 @@ sequenceDiagram
         BL->>BL: uses the given zone
     end
     C->>BL: getDebtors(actor, currency)
-    BL->>DB: one aggregate query joined on the owner, grouped by customer
-    DB-->>BL: one row per Debtor with exact sum, count and latest name
-    BL->>BL: parses rows, orders by total then name, keeps the top three
+    BL->>DB: one aggregate query joined on the owner, grouped by customer, ordered by total then name, limited to three
+    DB-->>BL: at most three rows with exact sum, count and latest name
+    BL->>BL: parses rows and converts each rounded sum to a number once
     alt unexpected database failure
         BL->>BL: reports the cause to error monitoring once
         BL-->>C: FAILED with a plain-language message
@@ -267,14 +266,14 @@ There is no infrastructure change. The app stays one Vercel project (functions i
 
 | Wave | Moves into `lib/services` | Also ships | Rollback-safe because |
 |---|---|---|---|
-| 1 | `_shared` (ActingFreelancer, time zone, list query, owner scope, result helpers), customers, products, custom prices | ESLint boundary rule, boundary unit test, `server-only` dependency. The first owner-scoped writes confirm Prisma's relation filter in a unique `where` (§11) | code only |
+| 1 | `_shared` (ActingFreelancer, time zone, list query, owner scope, result helpers), customers, products, custom prices | ESLint boundary rule, boundary unit test, `server-only` dependency, `pnpm build` step in CI. `dashboard.<section>` Sentry spans around the **old** dashboard actions, to start the latency baseline. The first owner-scoped writes confirm Prisma's relation filter in a unique `where` (§11) | code only |
 | 2 | sender profiles, bank accounts, profile, account deletion and export, dashboard setup check | `convert-image` owned-profile lookup through the layer | code only |
 | 3 | invoices: list with filters, numbering, create, update, status, duplicate, editor data | the unused list-all-invoices function and its test are deleted | code only |
 | 4 | dashboard sections on SQL (ADR-0004) | parity test run old-vs-new, then its old outputs recorded as fixed expected values, then the old in-memory code deleted (spec §1 change 5) | code only; until the old code is deleted, the previous build is a complete fallback |
 
 **Monitoring:**
 - Errors: unchanged. `failed()` inside business functions reports each unexpected cause to Sentry once. The `invoice_number_conflict` message still fires on a system-proposed number clash (spec §6 error-reporting row).
-- Latency: Sentry performance traces (10% sample in production) give the dashboard p95 per section. Each dashboard section's query runs inside a named Sentry span (`dashboard.<section>`), so the before/after 7-day windows (spec §6, §7) compare like with like. The baseline window is taken before wave 4 ships.
+- Latency: Sentry performance traces (10% sample in production) give the dashboard p95 per section. Each dashboard section runs inside a named Sentry span (`dashboard.<section>`), added around the old actions in wave 1 and kept around the new queries in wave 4. The before/after 7-day windows (spec §6, §7) therefore compare the same span. At least 7 days of baseline accumulate before wave 4 ships.
 - Alerts: the existing Sentry alerts stay (allocator conflict on a system number, unhandled errors on list or dashboard pages). No new alert.
 
 **Scaling thresholds** (design estimates. Current scale is a handful of accounts with tens of invoices each):
@@ -292,13 +291,13 @@ The default is the convention set of architecture-hardening (`docs/features/arch
 | Authorization | **Identity enters the layer only as an `ActingFreelancer`, built by a trusted factory.** Wrappers build it before parsing any input (hardening AC-23 order preserved). **Every read and every write inside a business function carries the owner filter in its own query**, including raw SQL. A foreign record answers `NOT_FOUND`, exactly like a missing one. `as ActingFreelancer` is banned by lint outside the factory module | ADR-0001, ADR-0003, ADR-0006 |
 | Input validation | **Business functions validate their own input with the entity's zod schema and refuse invalid values** (`VALIDATION` + `fieldErrors` naming the value and what is allowed, AC-13, AC-26). Pages still correct malformed links to documented defaults before calling (hardening AC-25/26), and the invoices page always passes its page size (10) | `lib/validations/`, `lib/validations/search-params.ts` |
 | Error handling | **Business functions return `ActionResult<T>` themselves** (typed `code`, plain-language `error`, optional `fieldErrors`, `details`). `failed()` inside the business function reports the cause once, and wrappers pass results through untouched. Only wrappers produce `UNAUTHORIZED` | ADR-0002; `types/result.ts` |
-| Lists | **Every list takes an optional `{ search, page, pageSize }` and returns `Page<T>`.** No page means the full list as page 1. A page out of range answers page 1. Every order ends with `id`. Search is case-insensitive `ILIKE` on the name fields of spec §1 (never on account number or IBAN) and is at most 100 characters. There is no page-size cap in the layer | ADR-0005 |
-| Money | Unchanged: `Decimal(10,2)` at rest, one exact-decimal module (hardening ADR-0006). **Dashboard sums are `SUM(numeric)` in SQL, carried as decimal strings, with no `toNumber()` before the edge** | ADR-0004 |
+| Lists | **Every list takes an optional `{ search, page, pageSize }` and returns `Page<T>`.** No page means the full list as page 1. A page without a page size uses 10. A page out of range answers page 1. Every order ends with `id`. Search is case-insensitive `ILIKE` on the name fields of spec §1 (never on account number or IBAN) and is at most 100 characters. There is no page-size cap in the layer | ADR-0005 |
+| Money | Unchanged: `Decimal(10,2)` at rest, one exact-decimal module (hardening ADR-0006). **Dashboard sums are `SUM(numeric)` in SQL. The row parser converts each already-exact two-decimal sum to a `number` once, so business functions return today's dashboard DTOs (`types/dashboard/types.ts`) unchanged. No JS addition of amounts** | ADR-0004 |
 | Time and time zones | Stored as UTC, with range ends exclusive at the next local midnight. **The zone is resolved once, in the `ActingFreelancer` factory: accepted only if both `Intl` and PostgreSQL `pg_timezone_names` know it (looked up once per process), else UTC** (closes spec §8 OQ-2). SQL buckets use `AT TIME ZONE` with the same resolved zone | hardening ADR-0010; §4 inline note |
 | Transactions | **Business functions own their transactions.** Internal helpers take `Prisma.TransactionClient`. No public `tx` parameter. Numbering row lock and all-or-nothing account deletion are unchanged | hardening ADR-0005, ADR-0007 |
 | Cache invalidation | **Only web adapters call `revalidatePath` and `unstable_cache`**, after a successful result, with the same paths and tags as today (AC-03). The business layer never touches page caches | ADR-0006 |
 | Logging and observability | Unchanged: `console.error(redactError(...))` + Sentry with scrubbed Prisma arguments. **Dashboard queries run inside named Sentry spans** (§7) | `sentry.server.config.ts`, `lib/helpers/prisma-error-scrub.ts` |
-| Layer boundary | **`lib/services/**` imports `server-only`, never declares `'use server'`, and never imports `next/headers`, `next/cache`, `next/navigation`, `@/auth` or `next-auth`**, checked by ESLint, `next build` and a unit test | ADR-0006 |
+| Layer boundary | **`lib/services/**` imports `server-only`, never declares `'use server'`, and never imports `next/headers`, `next/cache`, `next/navigation`, `@/auth` or `next-auth`**, checked by ESLint, `next build` (added to CI) and a unit test | ADR-0006 |
 | ID strategy | `cuid()`; unchanged | `prisma/schema/` |
 | Internationalisation | N/A: English only | — |
 | Events | N/A: no events or queues. All calls are in-process function calls | — |
@@ -318,7 +317,7 @@ ADR files live under `docs/features/service-layer/adr/NNNN-<title>.md`. The conv
 
 ## 10. Quality requirements
 
-Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-volume and rollout scenarios the spec measures. Numbers are quoted from spec §6.
+Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-volume, error-reporting and rollout scenarios the spec measures. Numbers are quoted from spec §6.
 
 **QG-1. Tenant isolation**
 - **When:** any caller (a web wrapper, a request-free test, later an Assistant) acting for Freelancer A reads, changes or deletes a record of Freelancer B by its identifier, asks for a list that belongs to B, or saves an invoice referring to B's customer, sender profile, bank account or product.
@@ -333,14 +332,19 @@ Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-
 **QG-3. Request independence and browser isolation**
 - **When:** a business function is called without any browser request, or the codebase is checked in CI.
 - **Then:** "100% of business functions callable with only the acting Freelancer (+ time zone) and no browser request; 0 uses of session, cookie, header or page-refresh facilities inside the business layer" and "0 business-layer functions marked as browser-callable; 0 imports of the business layer from browser-side code".
-- **How verify:** an integration test per business function calls it with only `actingFreelancerForTest(...)`. There are no request mocks, and the `@/auth` mocks disappear for business-function tests. ESLint `no-restricted-imports` on `lib/services/**`, the `server-only` import (fails `next build` on a client import) and `tests/unit/service-layer-boundary.test.ts` (no `'use server'` under `lib/services`) all run in CI.
+- **How verify:** an integration test per business function calls it with only `actingFreelancerForTest(...)`. There are no request mocks, and the `@/auth` mocks disappear for business-function tests. ESLint `no-restricted-imports` on `lib/services/**`, the `server-only` import (fails `next build` on a client import) and `tests/unit/service-layer-boundary.test.ts` (no `'use server'` under `lib/services`) all run in CI. `pnpm build` is added to `.github/workflows/test.yml` in wave 1 (it isn't there today), with placeholder env values for the build.
 
 **QG-4. Dashboard cost does not grow with history**
 - **When:** the dashboard loads for a Freelancer with any number of invoices.
 - **Then:** "rows returned by each dashboard query ≤ the number of groups or items displayed", and dashboard load latency p95 "≤ today's baseline (no regression)". The reduction target is still open (spec §8 OQ-1, §11).
-- **How verify:** the dashboard parity test captures the query log and asserts the row count per query. The latency baseline comes from production performance traces over a 7-day window before and after release, per `dashboard.<section>` Sentry span (§7).
+- **How verify:** the dashboard parity test captures the query log and asserts the row count per query. The latency baseline comes from production performance traces over a 7-day window before and after release, per `dashboard.<section>` Sentry span. The spans exist from wave 1, so the "before" window is real (§7).
 
-**QG-5. Rollout without downtime**
+**QG-5. Error reporting unchanged**
+- **When:** a business function hits an unexpected failure, or the number allocator hits a clash on a system-proposed invoice number.
+- **Then:** "each unexpected failure reported exactly once; the invoice-number-conflict alert still fires on a system-proposed number clash".
+- **How verify:** the existing failure-reporting tests (`failed()` reports-once, the delete-* Sentry tests, the invoice-conflict payload test) run unchanged against the business functions they now call, and the web wrappers add no second report (ADR-0002).
+
+**QG-6. Rollout without downtime**
 - **When:** each of the four waves (§7) is released or rolled back.
 - **Then:** "0 minutes of planned downtime; no stored-data change".
 - **How verify:** the deploy log shows no migration in any wave. A rollback is a redeploy of the previous build.
@@ -352,7 +356,7 @@ Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-
 | Behaviour drift while moving 63 functions: a message, an order, a refreshed path or a paid-date rule changes silently | High | Move domain by domain (§7), with the existing suite as an oracle (0 changed expectations, reviewed in `review`). Wrappers keep today's `revalidatePath` lists verbatim. Only the five spec §1 changes are allowed | Dmytro Hopko |
 | A raw dashboard query or a new business function forgets the owner filter, so a Freelancer sees another's data | High | ADR-0003 owner-in-`where` rule, with all dashboard SQL in one file with an owner join. A foreign-record test per id-taking function and per dashboard query (QG-1). Security review before release | Dmytro Hopko / Security Lead |
 | Prisma rejects a relation filter inside a unique `where` for some model (e.g. `Invoice` via `senderProfile`, `CustomPrice` via `customer`) | Medium | Confirm in wave 1 with the first owner-scoped writes. Fallback per ADR-0003: `updateMany`/`deleteMany` with the owner filter and `count === 0 → NOT_FOUND` | Dmytro Hopko |
-| The dashboard latency reduction target is still unset (spec §8 OQ-1 was due before design) | Medium | Record the 7-day baseline per dashboard span before wave 4. Ship on "no regression" and set the reduction target from the baseline. The spec §8 OQ-1 row stays the tracker | Dmytro Hopko |
+| The dashboard latency reduction target is still unset (spec §8 OQ-1 was due before design) | Medium | Spans ship in wave 1, and the 7-day baseline per dashboard span is recorded before wave 4. Ship on "no regression" and set the reduction target from the baseline. The spec §8 OQ-1 row stays the tracker | Dmytro Hopko |
 | The `ActingFreelancer` brand can be bypassed with a cast, and business functions trust their caller | Medium | A lint ban on `as ActingFreelancer` outside the factory module. No business function is reachable from the browser (ADR-0006). The Assistant feature must specify its authenticating layer (spec §3) | Dmytro Hopko |
 | Unpaged full lists are unbounded for a non-browser caller | Medium | Out of scope here (spec §3). Caps belong to the Assistant tool layer, and spec §8 OQ-3 is due before `sdd:specify` of the AI-chat / MCP feature | Dmytro Hopko |
 | A time zone known to `Intl` but not to PostgreSQL (or the reverse) gives different day buckets in JS and SQL | Low | Accept a zone only if both know it, else UTC (§8). A test with a zone missing from one database | Dmytro Hopko |

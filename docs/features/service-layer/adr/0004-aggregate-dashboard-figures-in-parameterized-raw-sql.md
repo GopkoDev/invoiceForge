@@ -26,7 +26,7 @@ The dashboard sections (`lib/actions/dashboard-actions.ts`: summary stats, chart
 
 ## Considered options
 
-1. **`$queryRaw` tagged templates + zod row parsing.** One parameterized query per section in `lib/services/dashboard/queries.ts`. Every query joins `SenderProfile` and filters `sp."userId" = ${actor.userId}`. Rows are parsed with zod (`numeric` → decimal string, `bigint` count → number).
+1. **`$queryRaw` tagged templates + zod row parsing.** One parameterized query per section in `lib/services/dashboard/queries.ts`. Every query joins `SenderProfile` and filters `sp."userId" = ${actor.userId}`. Ordering and top-three limits (`ORDER BY … LIMIT`) happen in SQL. Rows are parsed with zod: `bigint` count → number, and each exact two-decimal `numeric` sum → `number` once, so business functions return today's dashboard DTOs unchanged.
 2. **Prisma TypedSQL.** `.sql` files in `prisma/sql/` compiled to typed functions by `prisma generate --sql`.
 
 ## Decision outcome

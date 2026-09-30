@@ -25,7 +25,7 @@ Only the invoices list pages today (`getPaginatedInvoices`: offset paging, page 
 
 ## Considered options
 
-1. **Page-number paging with one `Page<T>` envelope.** A shared `ListQuery = { search?, page?, pageSize? }` (zod-validated: whole numbers ≥ 1, search ≤ 100 characters). It returns `Page<T> = { items, total, page, pageSize, totalPages, hasMore }` and is implemented once as a helper over `count` + `findMany({ skip, take, orderBy: [...order, { id }] })`.
+1. **Page-number paging with one `Page<T>` envelope.** A shared `ListQuery = { search?, page?, pageSize? }` (zod-validated: whole numbers ≥ 1, search ≤ 100 characters, and a page without a page size uses 10, per AC-12). It returns `Page<T> = { items, total, page, pageSize, totalPages, hasMore }` and is implemented once as a helper over `count` + `findMany({ skip, take, orderBy: [...order, { id }] })`.
 
 No second option was offered. Cursor paging (resume after the last id seen) cannot express AC-14's "page 99 answers page 1" or the invoices page's numbered pages, so the spec already excludes it.
 
