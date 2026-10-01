@@ -20,7 +20,7 @@
 | T13 | Add listInvoices with validated filters and local-date bounds, and delete the unused list-all function | app | Dmytro Hopko | M | T3, T4, T12 | done |
 | T14 | Move createInvoice into the layer with owned references and numbering under the row lock | app | Dmytro Hopko | M | T12 | done |
 | T15 | Move updateInvoice and updateInvoiceStatus into the layer with the totals check and the paid-date rule | app | Dmytro Hopko | M | T14 | done |
-| T16 | Move duplicateInvoice and deleteInvoice into the layer | app | Dmytro Hopko | S | T14 | todo |
+| T16 | Move duplicateInvoice and deleteInvoice into the layer | app | Dmytro Hopko | S | T14 | done |
 | T17 | Build the dashboard SQL for currency tabs, summary stats and the chart, with the old-vs-new parity harness | app | Dmytro Hopko | M | T3, T5 | done |
 | T18 | Build the dashboard SQL for sender accounts, recent invoices, Debtors and Expected payments | app | Dmytro Hopko | M | T17 | done |
 | T19 | Switch the dashboard wrappers to the layer, pass local-date periods, record parity values and delete the in-memory code | ports | Dmytro Hopko | M | T18 | done |

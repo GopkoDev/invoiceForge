@@ -21,6 +21,7 @@ import {
 } from '@/lib/services/_shared/list-query';
 import { localDayRange } from '@/lib/services/_shared/time-zone';
 import {
+  transformInvoiceToFormData,
   buildBankAccountSnapshot,
   buildCustomerSnapshot,
   buildSenderSnapshot,
@@ -32,7 +33,7 @@ import {
 } from '@/lib/actions/invoice-actions/helpers';
 import { invoiceListSelect } from '@/lib/actions/invoice-actions/select-queries';
 import { captureMessage } from '@sentry/nextjs';
-import { invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
+import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import {
@@ -766,3 +767,163 @@ export async function updateInvoiceStatus(
   }
 }
 
+
+// Duplicate an existing invoice (Flow 6, duplicate branch, AC-12). In one transaction: allocate
+// from the original's sender-profile sequence (same allocator and format as createInvoice),
+// insert the copy with recomputed amounts, status DRAFT, paidAt null.
+export async function duplicateInvoice(
+  actor: ActingFreelancer,
+  id: string
+): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
+  try {
+    const { userId } = actor;
+
+    const originalInvoice = await prisma.invoice.findFirst({
+      where: { id, senderProfile: { userId } },
+      include: { items: true },
+    });
+
+    if (!originalInvoice) {
+      return fail('NOT_FOUND', 'Invoice not found.');
+    }
+
+    const senderProfile = await prisma.senderProfile.findFirst({
+      where: { id: originalInvoice.senderProfileId, userId },
+      select: { id: true },
+    });
+
+    if (!senderProfile) {
+      return fail('NOT_FOUND', 'Sender profile not found.');
+    }
+
+    // F-05/N-07: the source invoice may be a legacy row whose amounts already break the rules
+    // (e.g. a negative rate) — check only the amount rules before recomputing, instead of blindly
+    // copying a rule-breaking source. Other form rules (names, units, relations) don't concern a
+    // copy, and the contract has no VALIDATION for this action: refuse with FAILED and a plain
+    // list message the row toast shows as is.
+    const parsed = invoiceAmountsSchema.safeParse(transformInvoiceToFormData(originalInvoice));
+    if (!parsed.success) {
+      const reasons = [...new Set(parsed.error.issues.map((issue) => issue.message))].join(' ');
+      return fail('FAILED', `This invoice can't be duplicated. ${reasons}`);
+    }
+    const validatedData = parsed.data;
+
+    // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
+    // the original's quantity x rate rather than copying its (possibly stale) stored figures.
+    const amounts = computeInvoiceAmounts({
+      items: validatedData.items.map((item) => ({
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      discount: validatedData.discount,
+      shipping: validatedData.shipping,
+      taxRate: validatedData.taxRate,
+    });
+
+    const newInvoice = await prisma.$transaction(async (tx) => {
+      const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
+        tx,
+        senderProfile.id
+      );
+
+      const created = await tx.invoice.create({
+        data: {
+          invoiceNumber,
+          invoiceNumberKey,
+          senderProfileId: originalInvoice.senderProfileId,
+          customerId: originalInvoice.customerId,
+          bankAccountId: originalInvoice.bankAccountId,
+          issueDate: new Date(),
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          paymentTerms: originalInvoice.paymentTerms,
+          status: 'DRAFT',
+          currency: originalInvoice.currency,
+          poNumber: null,
+          senderName: originalInvoice.senderName,
+          senderLegalName: originalInvoice.senderLegalName,
+          senderTaxId: originalInvoice.senderTaxId,
+          senderAddress: originalInvoice.senderAddress,
+          senderCity: originalInvoice.senderCity,
+          senderCountry: originalInvoice.senderCountry,
+          senderPostalCode: originalInvoice.senderPostalCode,
+          senderPhone: originalInvoice.senderPhone,
+          senderEmail: originalInvoice.senderEmail,
+          senderWebsite: originalInvoice.senderWebsite,
+          senderLogo: originalInvoice.senderLogo,
+          customerName: originalInvoice.customerName,
+          customerCompanyName: originalInvoice.customerCompanyName,
+          customerTaxId: originalInvoice.customerTaxId,
+          customerEmail: originalInvoice.customerEmail,
+          customerPhone: originalInvoice.customerPhone,
+          customerAddress: originalInvoice.customerAddress,
+          customerCity: originalInvoice.customerCity,
+          customerCountry: originalInvoice.customerCountry,
+          customerPostalCode: originalInvoice.customerPostalCode,
+          bankName: originalInvoice.bankName,
+          bankAccountNumber: originalInvoice.bankAccountNumber,
+          bankIban: originalInvoice.bankIban,
+          bankSwift: originalInvoice.bankSwift,
+          accountName: originalInvoice.accountName,
+          subtotal: amounts.subtotal,
+          taxRate: originalInvoice.taxRate,
+          taxAmount: amounts.taxAmount,
+          discount: originalInvoice.discount,
+          shipping: originalInvoice.shipping,
+          total: amounts.total,
+          amountPaid: 0,
+          notes: originalInvoice.notes,
+          terms: originalInvoice.terms,
+          items: {
+            create: originalInvoice.items.map((item, index) => ({
+              productId: item.productId,
+              name: item.name,
+              description: item.description,
+              unit: item.unit,
+              quantity: item.quantity,
+              rate: item.rate,
+              amount: amounts.items[index].amount,
+              currency: item.currency,
+            })),
+          },
+        },
+      });
+
+      return created;
+    });
+
+    return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      // F-39: contracts/server-actions.md §duplicateInvoice lists only UNAUTHORIZED, NOT_FOUND,
+      // FAILED — never CONFLICT, since duplicate has no invoiceNumber field on screen to attach
+      // a fieldError to (unlike createInvoice/updateInvoice's manual-number path). A P2002 here
+      // can only mean allocateInvoiceNumber's own row lock and key check were bypassed — an
+      // allocator bug, so it gets the same backstop alert those two raise.
+      captureMessage('invoice_number_conflict', { extra: { id } });
+      return fail('FAILED', 'Failed to duplicate invoice.');
+    }
+    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.');
+  }
+}
+
+export async function deleteInvoice(actor: ActingFreelancer, id: string): Promise<ActionResult> {
+  try {
+    const { userId } = actor;
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, senderProfile: { userId } },
+      select: { status: true },
+    });
+    if (!invoice) return fail('NOT_FOUND', 'Invoice not found.');
+    if (invoice.status !== 'DRAFT') {
+      return fail('CONFLICT', 'Only draft invoices can be deleted. Consider cancelling instead.');
+    }
+
+    const deleted = await prisma.invoice.deleteMany({
+      where: { id, status: 'DRAFT', senderProfile: { userId } },
+    });
+    if (deleted.count === 0) return fail('NOT_FOUND', 'Invoice not found.');
+    return ok();
+  } catch (error) {
+    return failed('Error deleting invoice:', error, 'Failed to delete invoice.');
+  }
+}
