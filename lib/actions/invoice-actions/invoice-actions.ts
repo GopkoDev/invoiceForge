@@ -19,11 +19,6 @@ import {
 } from '@/lib/actions/action-result-helpers';
 import {
   InvoiceEditorData,
-  InvoiceSenderProfile,
-  InvoiceBankAccount,
-  InvoiceCustomer,
-  InvoiceProduct,
-  InvoiceCustomPrice,
   SerializedInvoice,
   InvoiceListItem,
   PaginatedInvoiceList,
@@ -38,25 +33,20 @@ import {
   isInvoiceKeyTaken,
   lockSenderProfileRow,
   normalizeInvoiceNumber,
-  peekNextInvoiceNumber,
 } from './numbering';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import * as invoiceReads from '@/lib/services/invoices/invoices';
+import * as editorData from '@/lib/services/invoices/editor-data';
 
 import {
-  senderProfileSelect,
-  bankAccountSelect,
-  customerSelect,
-  productSelect,
-  customPriceSelect,
   invoiceListSelect,
 } from './select-queries';
 
 import {
-  serializeInvoice,
   serializeDecimal,
   buildSenderSnapshot,
   buildCustomerSnapshot,
   buildBankAccountSnapshot,
-  computeInvoiceLegacyInfo,
   transformInvoiceToFormData,
   verifyInvoiceRelations,
   verifyItemProductsOwnership,
@@ -134,126 +124,30 @@ class InvoiceTotalsChangedError extends Error {
   }
 }
 
-// Returns the next proposed invoice number as a hint only (AC-06): never the number actually
-// saved — that only ever comes from allocateInvoiceNumber inside the save transaction.
+// Returns the next proposed invoice number as a hint only (AC-06).
 export async function generateInvoiceNumber(
   senderProfileId: string
 ): Promise<ActionResult<string>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const profile = await prisma.senderProfile.findFirst({
-      where: { id: senderProfileId, userId: authResult.data.userId },
-      select: { id: true },
-    });
-
-    if (!profile) {
-      return fail('NOT_FOUND', 'Sender profile not found.');
-    }
-
-    const invoiceNumber = await peekNextInvoiceNumber(senderProfileId);
-    if (invoiceNumber === null) {
-      return fail('NOT_FOUND', 'Sender profile not found.');
-    }
-
-    return ok(invoiceNumber);
-  } catch (error) {
-    return failed('Error generating invoice number:', error, 'Failed to generate invoice number.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  return invoiceReads.peekNextInvoiceNumber(actor.data, senderProfileId);
 }
 
 // Get all data needed for invoice editor
 export async function getInvoiceEditorData(
   invoiceId?: string
 ): Promise<ActionResult<InvoiceEditorData>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-
-    const [senderProfiles, customers, products, customPrices, existingInvoice] =
-      await Promise.all([
-        prisma.senderProfile.findMany({
-          where: { userId },
-          select: {
-            ...senderProfileSelect,
-            bankAccounts: { select: bankAccountSelect },
-          },
-          orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
-        }),
-        prisma.customer.findMany({
-          where: { userId },
-          select: customerSelect,
-          orderBy: { name: 'asc' },
-        }),
-        prisma.product.findMany({
-          where: { userId, isActive: true },
-          select: productSelect,
-          orderBy: { name: 'asc' },
-        }),
-        prisma.customPrice.findMany({
-          where: { product: { userId } },
-          select: customPriceSelect,
-        }),
-        invoiceId
-          ? prisma.invoice.findFirst({
-              where: { id: invoiceId, senderProfile: { userId } },
-              include: { items: true },
-            })
-          : null,
-      ]);
-
-    // Extract bank accounts from sender profiles
-    const bankAccounts: InvoiceBankAccount[] = senderProfiles.flatMap(
-      (p) => p.bankAccounts
-    );
-
-    // Transform products and custom prices (need to serialize Decimal)
-    const transformedProducts: InvoiceProduct[] = products.map((p) => ({
-      ...p,
-      price: serializeDecimal(p.price),
-    }));
-
-    const transformedCustomPrices: InvoiceCustomPrice[] = customPrices.map(
-      (cp) => ({
-        ...cp,
-        price: serializeDecimal(cp.price),
-      })
-    );
-
-    // Remove bankAccounts from sender profiles for the response
-    const transformedProfiles: InvoiceSenderProfile[] = senderProfiles.map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ bankAccounts: _bankAccounts, ...profile }) => profile
-    );
-
-    // AC-17's legacy flags, computed once here off the invoice as stored (contracts/server-actions.md
-    // §getInvoiceEditorData / getInvoice, verbatim).
-    const legacy = existingInvoice
-      ? await computeInvoiceLegacyInfo(prisma, existingInvoice)
-      : null;
-
-    return ok({
-      senderProfiles: transformedProfiles,
-      bankAccounts,
-      customers: customers as InvoiceCustomer[],
-      products: transformedProducts,
-      customPrices: transformedCustomPrices,
-      initialData: existingInvoice
-        ? transformInvoiceToFormData(existingInvoice)
-        : undefined,
-      invoiceId,
-      legacy,
-    });
-  } catch (error) {
-    return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await editorData.getInvoiceEditorData(actor.data, invoiceId);
+  if (!result.success && result.code === 'NOT_FOUND' && invoiceId) {
+    // Parity: a missing or foreign invoice id yields the editor data without initialData, and the
+    // edit page calls notFound() on it.
+    const base = await editorData.getInvoiceEditorData(actor.data);
+    if (!base.success) return base;
+    return { success: true, data: { ...base.data, invoiceId } };
   }
+  return result;
 }
 
 // Create a new invoice (Flow 2). The number, amounts and paid date are decided server-side, in
@@ -678,38 +572,9 @@ export async function deleteInvoice(id: string): Promise<ActionResult> {
 export async function getInvoice(
   id: string
 ): Promise<ActionResult<SerializedInvoice>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const invoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId: authResult.data.userId } },
-      include: {
-        items: true,
-        senderProfile: true,
-        customer: true,
-        bankAccount: true,
-      },
-    });
-
-    if (!invoice) {
-      return fail('NOT_FOUND', 'Invoice not found.');
-    }
-
-    const serialized = serializeInvoice(invoice);
-    if (!serialized) {
-      return failed('Invoice serialize failed:', new Error(`Invoice ${id} could not be serialized`), 'Failed to serialize invoice.');
-    }
-
-    // AC-17's legacy flags (contracts/server-actions.md §getInvoiceEditorData / getInvoice, verbatim).
-    const legacy = await computeInvoiceLegacyInfo(prisma, invoice);
-
-    return ok({ ...serialized, legacy });
-  } catch (error) {
-    return failed('Error fetching invoice:', error, 'Failed to fetch invoice.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  return invoiceReads.getInvoice(actor.data, id);
 }
 
 // Get all invoices list
