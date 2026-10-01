@@ -138,7 +138,7 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await snapshot(a.invoice.id)).toEqual(before);
   });
 
-  it("AC-08: B's invoice id to duplicate is NOT_FOUND (same as a missing id), nothing created, B unchanged", async () => {
+  it("AC-08 foreign record: duplicateInvoice with B's invoice id is NOT_FOUND (same as a missing id), nothing created, B unchanged", async () => {
     const a = await seedWithInvoice('t16-a@example.com');
     const b = await seedWithInvoice('t16-b@example.com');
     const actor = await actingFreelancerForTest(a.user.id);
@@ -152,7 +152,7 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await counter(b.senderProfile.id)).toBe(4);
   });
 
-  it("AC-08: B's draft id to delete is NOT_FOUND (same as a missing id) and B's rows are unchanged", async () => {
+  it("AC-08 foreign record: deleteInvoice with B's draft id is NOT_FOUND (same as a missing id) and B's rows are unchanged", async () => {
     const a = await seedWithInvoice('t16-a@example.com');
     const b = await seedWithInvoice('t16-b@example.com', { status: 'DRAFT' });
     const actor = await actingFreelancerForTest(a.user.id);

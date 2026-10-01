@@ -10,7 +10,7 @@ import {
   InvoiceListItem,
   PaginatedInvoiceList,
 } from '@/types/invoice/types';
-import { InvoiceStatus } from '@prisma/client';
+import type { InvoiceStatus } from '@prisma/client';
 import { InvoiceListParams } from '@/lib/validations/search-params';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import * as invoiceReads from '@/lib/services/invoices/invoices';

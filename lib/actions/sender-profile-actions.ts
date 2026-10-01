@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { SenderProfileFormValues } from '@/lib/validations/sender-profile';
 import { SenderProfileWithRelations } from '@/types/sender-profile/types';
-import { SenderProfile } from '@prisma/client';
+import type { SenderProfile } from '@prisma/client';
 import { ActionResult, ok } from '@/types/actions';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import * as senderProfiles from '@/lib/services/sender-profiles/sender-profiles';
