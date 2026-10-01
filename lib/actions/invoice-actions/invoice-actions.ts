@@ -14,10 +14,11 @@ import type { InvoiceStatus } from '@prisma/client';
 import { InvoiceListParams } from '@/lib/validations/search-params';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import * as invoiceReads from '@/lib/services/invoices/invoices';
-import { type SavedInvoice } from '@/lib/services/invoices/invoices';
+import { type SavedInvoice as ServiceSavedInvoice } from '@/lib/services/invoices/invoices';
 import * as editorData from '@/lib/services/invoices/editor-data';
 
-export type { SavedInvoice };
+// A type alias, not `export type { … }`: Next's 'use server' transform treats a re-export as an action export and the build fails.
+export type SavedInvoice = ServiceSavedInvoice;
 
 // Returns the next proposed invoice number as a hint only (AC-06).
 export async function generateInvoiceNumber(

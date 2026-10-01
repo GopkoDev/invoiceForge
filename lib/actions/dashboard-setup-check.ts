@@ -2,9 +2,10 @@
 
 import { ActionResult } from '@/types/actions';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
-import { checkSetup, type SetupCheckResult } from '@/lib/services/profile/setup-check';
+import { checkSetup, type SetupCheckResult as ServiceSetupCheckResult } from '@/lib/services/profile/setup-check';
 
-export type { SetupCheckResult };
+// A type alias, not `export type { … }`: Next's 'use server' transform treats a re-export as an action export and the build fails.
+export type SetupCheckResult = ServiceSetupCheckResult;
 
 export async function checkDashboardSetup(): Promise<
   ActionResult<SetupCheckResult>
