@@ -20,7 +20,7 @@ updated_at: "2026-10-01"
 | `ActingFreelancer.timeZone` | ADR-0001 + sad.md §4 inline note (Intl ∩ `pg_timezone_names`, else UTC) | high |
 | `ActionResult.*` / `ActionErrorDetails.*` | repo `types/actions.ts` (moved to `types/result.ts`, ADR-0002) | high |
 | `ListQuery.search` (≤ 100, trimmed) | ADR-0005 + spec AC-13 + `search-params.ts` `MAX_SEARCH_LENGTH` | high |
-| `ListQuery.page` / `pageSize` (int ≥ 1, no cap) | ADR-0005, spec AC-12/13, spec §3 | high |
+| `ListQuery.page` / `pageSize` (int, 1 to 2147483647, the 32-bit limit of skip/take) | ADR-0005, spec AC-12/13, spec §3, T21/T28 | high |
 | `Page.items/total/page/pageSize/totalPages/hasMore` | ADR-0005 | high |
 | `Page.pageSize` for an unpaged full list = `total` | derived from AC-12 ("page 1, one page in all") | medium |
 | `listCustomers` search fields / order | data-model.md §Entities (`name`, `companyName`, `email`); order = `customer-actions.ts:45` + `id` | high |
@@ -51,7 +51,7 @@ No `low` rows. No field was invented without an origin.
 
 1. **Function ↔ data-model** *(core)* — ✓. Every §2 function reads or writes at least one `data-model.md` entity through its owner path. `getAccountExport` also reads `Account` and `EmailHistory` (auth schema), which are not in the data-model ER. They are read-only, owner-filtered by `userId`, and unchanged from today, so they are accepted as out of the ER scope.
 2. **Error code ↔ repo error definition** *(core)* — ✓. The repo form is the `ActionErrorCode` union in `types/actions.ts`. Every code in the contract is one of its five. `details.kind` uses only `TOTALS_CHANGED` and `HAS_INVOICES`, both existing. Business functions never emit `UNAUTHORIZED` (ADR-0002), and the tenant-gone case was resolved as `NOT_FOUND` + wrapper mapping (§1.4).
-3. **Validation ↔ constraint** *(core)* — ✓. The search limit of 100 equals `MAX_SEARCH_LENGTH` and AC-13. The enums equal `search-params.ts` and `InvoiceStatus`. Entity form rules are the unchanged zod schemas (which match `Decimal(10,2)` ≤ 99 999 999.99 per hardening). Page size has no cap, per spec §3 and ADR-0005, while the web page's `PAGE_SIZE_OPTIONS` stays a page-side correction. That difference is intended, not a conflict.
+3. **Validation ↔ constraint** *(core)* — ✓. The search limit of 100 equals `MAX_SEARCH_LENGTH` and AC-13. The enums equal `search-params.ts` and `InvoiceStatus`. Entity form rules are the unchanged zod schemas (which match `Decimal(10,2)` ≤ 99 999 999.99 per hardening). Page and page size have no business cap, per spec §3 and ADR-0005. The only limit is the 32-bit range of skip/take (1 to 2147483647, added by T21/T28), while the web page's `PAGE_SIZE_OPTIONS` stays a page-side correction. That difference is intended, not a conflict.
 4. **Contract ↔ sequence** *(supporting)* — ⚠ Every `alt` branch of flows 1–12 has an outcome in the contract. The reverse direction found branches with no flow (next section).
 
 ### Back-feed (coverage cross-check)
