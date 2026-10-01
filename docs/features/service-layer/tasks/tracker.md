@@ -15,7 +15,7 @@
 | T8 | Move custom prices into lib/services/custom-prices with parent-scoped lists and owner-scoped writes | app | Dmytro Hopko | M | T3, T4 | done |
 | T9 | Move sender profiles into lib/services/sender-profiles and route the convert-image logo lookup through it | app | Dmytro Hopko | M | T3, T4 | done |
 | T10 | Move bank accounts into lib/services/bank-accounts with a parent-scoped list | app | Dmytro Hopko | M | T3, T4 | done |
-| T11 | Move profile, account deletion, data export and the dashboard setup check into the layer | app | Dmytro Hopko | M | T3 | todo |
+| T11 | Move profile, account deletion, data export and the dashboard setup check into the layer | app | Dmytro Hopko | M | T3 | done |
 | T12 | Move invoice numbering, getInvoice, the editor data and the next-number preview into lib/services/invoices | app | Dmytro Hopko | M | T3 | todo |
 | T13 | Add listInvoices with validated filters and local-date bounds, and delete the unused list-all function | app | Dmytro Hopko | M | T3, T4, T12 | todo |
 | T14 | Move createInvoice into the layer with owned references and numbering under the row lock | app | Dmytro Hopko | M | T12 | todo |
