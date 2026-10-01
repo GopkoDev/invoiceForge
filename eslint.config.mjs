@@ -39,7 +39,11 @@ const eslintConfig = defineConfig([
       ],
       // ADR-0006: resolves every import form (relative, alias, dynamic, require) to its real file,
       // so lib/services never reaches the web actions and a local ./actions module stays allowed.
-      "import/no-restricted-paths": ["error", { zones: [{ target: "./lib/services", from: "./lib/actions" }] }],
+      "import/no-restricted-paths": [
+        "error",
+        // basePath anchors the zones to the repo root, not to the directory ESLint runs from.
+        { basePath: import.meta.dirname, zones: [{ target: "./lib/services", from: "./lib/actions" }] },
+      ],
     },
   },
   {

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // T1 (service-layer): the lib/services boundary. Serves spec §6 NFRs
 // "Business layer not reachable from the browser" and "Request-independence".
@@ -151,6 +151,19 @@ describe('lib/services ESLint rules (T1)', () => {
       `import { f } from 'lib/actions/customer-actions';\nexport const a = f;\n`,
     ]) {
       expect(hitsBoundary(await lint('lib/services/x/probe.ts', code)), code).toBe(true);
+    }
+  });
+
+  it('rejects relative imports of lib/actions when ESLint runs from inside lib/services (T32, S-1)', async () => {
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'lib/services'));
+    try {
+      const msgs = await lint(
+        'lib/services/x/probe.ts',
+        `import { f } from '../../actions/customer-actions';\nexport const a = f;\n`,
+      );
+      expect(msgs.map((m) => m.ruleId)).toContain('import/no-restricted-paths');
+    } finally {
+      cwd.mockRestore();
     }
   });
 
