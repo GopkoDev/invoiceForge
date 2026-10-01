@@ -218,6 +218,50 @@ describe.runIf(containerRuntimeAvailable)('dashboard names, order, isolation (T1
     });
   });
 
+  describe('sender name and the period (AC-06, spec §1 change 1)', () => {
+    const paidOn = (s: Seed, n: number, issueDate: Date, names: { senderName: string; bankName: string; accountName: string }) =>
+      createInvoice(testClient, {
+        senderProfile: s.profile,
+        customer: s.customer,
+        bankAccount: s.bank.USD,
+        items: [{ name: 'Work', quantity: 1, rate: 10, amount: 10 }],
+        overrides: {
+          invoiceNumber: `${s.profile.invoicePrefix}-S${n}`,
+          status: 'PAID',
+          total: 10,
+          subtotal: 10,
+          currency: 'USD',
+          issueDate,
+          ...names,
+        },
+      });
+
+    it('a renamed sender profile appears once, under the name on the latest issue date, even when created first', async () => {
+      const s = await seedFreelancer(testClient, ['USD']);
+      await paidOn(s, 1, day(20), { senderName: '1 Newest Sender', bankName: 'B', accountName: 'H' }); // created first
+      await paidOn(s, 2, day(5), { senderName: '9 Oldest Sender', bankName: 'B', accountName: 'H' });
+      const actor = await actingFreelancerForTest(s.userId, 'UTC');
+      const senders = data(await svc.getSenderAccounts(actor, 'USD'));
+      expect(senders).toHaveLength(1);
+      expect(senders[0]).toMatchObject({ senderProfileId: s.profileId, senderName: '1 Newest Sender', totalReceived: 20 });
+    });
+
+    it('the names come only from invoices inside the period; a newer one outside it supplies none', async () => {
+      const s = await seedFreelancer(testClient, ['USD']);
+      await paidOn(s, 1, day(10), { senderName: '2 In Period', bankName: '2 In Bank', accountName: '2 In Holder' });
+      await paidOn(s, 2, day(25), { senderName: '1 Out Of Period', bankName: '1 Out Bank', accountName: '1 Out Holder' });
+      const actor = await actingFreelancerForTest(s.userId, 'UTC');
+      const inPeriod = data(await svc.getSenderAccounts(actor, 'USD', { from: '2026-01-01', to: '2026-01-15' }));
+      expect(inPeriod).toHaveLength(1);
+      expect(inPeriod[0]).toMatchObject({ senderName: '2 In Period', totalReceived: 10 });
+      expect(inPeriod[0].accounts[0]).toMatchObject({ bankName: '2 In Bank', accountName: '2 In Holder', received: 10 });
+      // Without a period the newest invoice is in scope and supplies the names.
+      const all = data(await svc.getSenderAccounts(actor, 'USD'));
+      expect(all[0]).toMatchObject({ senderName: '1 Out Of Period', totalReceived: 20 });
+      expect(all[0].accounts[0]).toMatchObject({ bankName: '1 Out Bank', accountName: '1 Out Holder' });
+    });
+  });
+
   describe('recent invoices and expected payments', () => {
     it('recent invoices: the 10 newest created, newest first, in the currency', async () => {
       const s = await seedFreelancer(testClient, ['USD', 'EUR']);

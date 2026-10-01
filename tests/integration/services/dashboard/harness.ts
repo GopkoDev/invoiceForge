@@ -96,6 +96,7 @@ const d = (iso: string) => new Date(iso);
 
 /** The AC-05 fixture: float drift, 2 currencies, renamed Customer, Debtor tie, DST switch. */
 export async function seedParityFixture(prisma: PrismaClient) {
+  seq = 0; // fixture invoice numbers are the same in every run, so the snapshot can name them
   const s = await seedFreelancer(prisma, ['USD', 'EUR']);
   // Extra Customers so T18 can add Debtor / top-three tie sections to the same fixture.
   const c2 = await createCustomer(prisma, s.userId, { name: '2 Second Customer' });
@@ -153,7 +154,9 @@ export async function seedParityFixture(prisma: PrismaClient) {
 
 // T19: one normalised, JSON-able view of every dashboard section. The same function reads the old
 // actions (while they existed, to record the expected values) and the new layer functions. It leaves
-// out the ids, Debtor / sender-account names and tie order (AC-05: compared by AC-06 instead).
+// out the generated ids, Debtor / sender-account names and tie order (AC-05: compared by AC-06
+// instead). T24: it names the records instead, through the stable labels of fixtureLabels(), so a
+// query that picks other records with the same amounts no longer passes.
 type R<T> = { success: true; data: T } | { success: false; code: string; error: string };
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Period = { from: string; to: string };
@@ -167,14 +170,35 @@ export type DashboardReader = {
   expected: (c: string) => Promise<R<Row[]>>;
 };
 
+/** Generated id -> stable fixture label, for sender profiles, accounts, Customers and invoices. */
+export type Labels = Record<string, string>;
+
+export async function fixtureLabels(prisma: PrismaClient): Promise<Labels> {
+  const labels: Labels = {};
+  const profiles = await prisma.senderProfile.findMany();
+  const profileName = new Map(profiles.map((p) => [p.id, p.name]));
+  for (const p of profiles) labels[p.id] = p.name;
+  for (const b of await prisma.bankAccount.findMany()) labels[b.id] = `${b.bankName}/${b.accountName}/${b.currency}`;
+  // The first Customer's name carries a random suffix; the others are fixed.
+  for (const c of await prisma.customer.findMany()) labels[c.id] = c.name.replace(/^(1 Customer) .*$/, '$1');
+  for (const i of await prisma.invoice.findMany()) {
+    labels[i.id] = `${profileName.get(i.senderProfileId)}#${i.invoiceNumber.slice(i.invoiceNumber.lastIndexOf('-') + 1)}`;
+  }
+  return labels;
+}
+
 function unwrapR<T>(r: R<T>): T {
   if (!r.success) throw new Error(`expected success, got ${r.code}: ${r.error}`);
   return r.data;
 }
 const iso = (v: Date) => v.toISOString();
 
-export async function snapshotDashboard(api: DashboardReader) {
+export async function snapshotDashboard(api: DashboardReader, labels: Labels) {
   const out: Record<string, unknown> = {};
+  const label = (id: string) => {
+    if (!(id in labels)) throw new Error(`no fixture label for record ${id}`);
+    return labels[id];
+  };
   out.tabs = unwrapR(await api.tabs()).map((t) => t.currency);
   const periods: Array<[string, Period | undefined]> = [
     ['dst', DST_PERIOD],
@@ -202,6 +226,9 @@ export async function snapshotDashboard(api: DashboardReader) {
           accounts: s.accounts.map((a: Row) => [cents(a.received), cents(a.planned)]).sort(),
         }))
         .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+      out[`${currency}.senders.${name}.records`] = unwrapR(await api.senders(currency, period))
+        .map((s) => ({ sender: label(s.senderProfileId), accounts: s.accounts.map((a: Row) => label(a.accountId)).sort() }))
+        .sort((a, b) => a.sender.localeCompare(b.sender));
     }
     out[`${currency}.recent`] = unwrapR(await api.recent(currency)).map((i) => [
       cents(i.total),
@@ -211,6 +238,9 @@ export async function snapshotDashboard(api: DashboardReader) {
       // The factory's default due date of a PAID invoice follows the real clock; not comparable.
       i.status === 'PAID' ? null : iso(i.dueDate),
     ]);
+    out[`${currency}.recent.records`] = unwrapR(await api.recent(currency)).map((i) => label(i.id));
+    out[`${currency}.debtors.records`] = unwrapR(await api.debtors(currency)).map((x) => label(x.customerId));
+    out[`${currency}.expected.records`] = unwrapR(await api.expected(currency)).map((g) => g.invoices.map((i: Row) => label(i.id)));
     out[`${currency}.debtors`] = unwrapR(await api.debtors(currency)).map((x) => [cents(x.total), x.count, x.currencies]);
     out[`${currency}.expected`] = unwrapR(await api.expected(currency)).map((g) => ({
       currency: g.currency,

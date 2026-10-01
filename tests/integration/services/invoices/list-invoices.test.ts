@@ -193,6 +193,37 @@ describe.runIf(containerRuntimeAvailable)('listInvoices service (T13)', () => {
     ).toEqual([i3.id, i2.id, i1.id]);
   });
 
+  // Three invoices whose values rank differently on every field, so one field cannot pass for another.
+  it.each([
+    ['createdAt', 'createdAt', [1, 3, 2]],
+    ['issueDate', 'issueDate', [2, 1, 3]],
+    ['dueDate', 'dueDate', [3, 2, 1]],
+    ['total', 'total', [2, 3, 1]],
+    ['invoiceNumber', 'invoiceNumber', [3, 1, 2]],
+  ] as const)('AC-26: sorts by %s ascending and descending', async (_n, sortField, ascOrder) => {
+    const a = await seed('t13-a@example.com');
+    const fixtures = [
+      { n: 1, invoiceNumber: 'C-0001', total: 300, issueDate: '2026-05-02', dueDate: '2026-07-03', createdAt: '2026-04-01' },
+      { n: 2, invoiceNumber: 'D-0002', total: 100, issueDate: '2026-05-01', dueDate: '2026-07-02', createdAt: '2026-04-03' },
+      { n: 3, invoiceNumber: 'A-0003', total: 200, issueDate: '2026-05-03', dueDate: '2026-07-01', createdAt: '2026-04-02' },
+    ];
+    const byN = new Map<number, string>();
+    for (const f of fixtures) {
+      const inv = await a.make(f.n, {
+        invoiceNumber: f.invoiceNumber,
+        total: f.total,
+        issueDate: new Date(`${f.issueDate}T10:00:00Z`),
+        dueDate: new Date(`${f.dueDate}T10:00:00Z`),
+      });
+      await prisma.invoice.update({ where: { id: inv.id }, data: { createdAt: new Date(`${f.createdAt}T10:00:00Z`) } });
+      byN.set(f.n, inv.id);
+    }
+    const actor = await actingFreelancerForTest(a.user.id);
+    const expected = ascOrder.map((n) => byN.get(n)!);
+    expect(ids(await listInvoices(actor, { sortField, sortDirection: 'asc' }))).toEqual(expected);
+    expect(ids(await listInvoices(actor, { sortField, sortDirection: 'desc' }))).toEqual([...expected].reverse());
+  });
+
   it('AC-26: equal sort values paginate by id without repeat or skip', async () => {
     const a = await seed('t13-a@example.com');
     const issueDate = new Date('2026-05-05T10:00:00Z');

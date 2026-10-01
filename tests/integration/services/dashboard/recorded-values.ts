@@ -1,6 +1,8 @@
 // T19 (spec.md §1 change 5, §6 Dashboard parity): the old in-memory dashboard actions' output on the
-// AC-05 fixture, recorded before they are deleted. Amounts are in cents; ids, names and tie order are
-// left out (AC-05). Produced by snapshotDashboard() in harness.ts against the old code on 2026-10-01.
+// AC-05 fixture, recorded before they are deleted. Amounts are in cents; generated ids, names and tie
+// order are left out (AC-05). The '*.records' keys (T24) name the records the sections picked, by
+// fixture label (fixtureLabels() in harness.ts), as read from the layer functions on 2026-10-01. The rest was produced by snapshotDashboard() in
+// harness.ts against the old code on 2026-10-01.
 export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
   "tabs": [
     "USD",
@@ -554,5 +556,102 @@ export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
         ]
       ]
     }
+  ],
+  "USD.senders.dst.records": [
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/USD"
+      ]
+    }
+  ],
+  "USD.senders.weekly.records": [
+    {
+      "sender": "0 Other Profile",
+      "accounts": [
+        "Other Bank/Other Holder/USD"
+      ]
+    },
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/USD"
+      ]
+    }
+  ],
+  "USD.senders.all.records": [
+    {
+      "sender": "0 Other Profile",
+      "accounts": [
+        "Other Bank/Other Holder/USD"
+      ]
+    },
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/USD"
+      ]
+    }
+  ],
+  "USD.recent.records": [
+    "0 Other Profile#000001",
+    "Test Sender Profile#000019",
+    "Test Sender Profile#000018",
+    "Test Sender Profile#000017",
+    "Test Sender Profile#000016",
+    "Test Sender Profile#000015",
+    "Test Sender Profile#000014",
+    "Test Sender Profile#000011",
+    "Test Sender Profile#000010",
+    "Test Sender Profile#000009"
+  ],
+  "USD.debtors.records": [
+    "1 Customer",
+    "2 Second Customer",
+    "3 Third Customer"
+  ],
+  "USD.expected.records": [
+    [
+      "Test Sender Profile#000006",
+      "Test Sender Profile#000019",
+      "Test Sender Profile#000007"
+    ]
+  ],
+  "EUR.senders.dst.records": [
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/EUR"
+      ]
+    }
+  ],
+  "EUR.senders.weekly.records": [
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/EUR"
+      ]
+    }
+  ],
+  "EUR.senders.all.records": [
+    {
+      "sender": "Test Sender Profile",
+      "accounts": [
+        "Test Bank/Test Freelancer/EUR"
+      ]
+    }
+  ],
+  "EUR.recent.records": [
+    "Test Sender Profile#000020",
+    "Test Sender Profile#000013",
+    "Test Sender Profile#000012"
+  ],
+  "EUR.debtors.records": [
+    "1 Customer"
+  ],
+  "EUR.expected.records": [
+    [
+      "Test Sender Profile#000020"
+    ]
   ]
 };

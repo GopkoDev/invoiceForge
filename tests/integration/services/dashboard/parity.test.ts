@@ -10,7 +10,7 @@ import { startTestDatabase, type TestDatabase } from '../../../support/db/contai
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
-import { FIXTURE_NOW, KYIV, createQueryRecorder, seedParityFixture, snapshotDashboard } from './harness';
+import { FIXTURE_NOW, KYIV, createQueryRecorder, fixtureLabels, seedParityFixture, snapshotDashboard } from './harness';
 import { RECORDED_OLD_DASHBOARD } from './recorded-values';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
@@ -60,6 +60,7 @@ describe.runIf(containerRuntimeAvailable)('dashboard parity on recorded values (
   });
 
   it('every section equals the recorded old output: amounts to the cent, counts, groups, listed invoices', async () => {
+    const labels = await fixtureLabels(testClient);
     const snapshot = await snapshotDashboard({
       tabs: () => svc.getCurrencyTabs(actor),
       stats: (c, p) => svc.getSummaryStats(actor, c as 'USD', p),
@@ -68,7 +69,7 @@ describe.runIf(containerRuntimeAvailable)('dashboard parity on recorded values (
       recent: (c) => svc.getRecentInvoices(actor, c as 'USD'),
       debtors: (c) => svc.getDebtors(actor, c as 'USD'),
       expected: (c) => svc.getExpectedPayments(actor, c as 'USD'),
-    });
+    }, labels);
     expect(snapshot).toEqual(RECORDED_OLD_DASHBOARD);
   });
 

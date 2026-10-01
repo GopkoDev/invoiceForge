@@ -201,6 +201,23 @@ describe.runIf(containerRuntimeAvailable)('updateInvoice service (T15, AC-02, AC
       expect(await snapshot(b.invoice.id)).toEqual(before);
     });
 
+    it("A's invoice moved onto B's sender profile: NOT_FOUND, nothing stored, B's counter unchanged", async () => {
+      const a = await seedWithInvoice('t15-a@example.com');
+      const b = await seedFor('t15-b@example.com');
+      const actor = await actingFreelancerForTest(a.user.id);
+      const before = await snapshot(a.invoice.id);
+      const counterBefore = (await prisma.senderProfile.findUniqueOrThrow({ where: { id: b.senderProfile.id } })).invoiceCounter;
+      const res = await svc.updateInvoice(
+        actor,
+        a.invoice.id,
+        form(a, '1-INV-1', { senderProfileId: b.senderProfile.id, bankAccountId: b.bankAccount.id })
+      );
+      expect(res).toMatchObject({ success: false, code: 'NOT_FOUND' });
+      expect(await snapshot(a.invoice.id)).toEqual(before);
+      const counterAfter = (await prisma.senderProfile.findUniqueOrThrow({ where: { id: b.senderProfile.id } })).invoiceCounter;
+      expect(counterAfter).toBe(counterBefore);
+    });
+
     const cases: Array<[string, (b: Seed) => Record<string, unknown>]> = [
       ['customer', (b) => ({ customerId: b.customer.id })],
       ['bank account', (b) => ({ bankAccountId: b.bankAccount.id })],
