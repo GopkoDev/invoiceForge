@@ -35,6 +35,6 @@
 | T28 | [Close the remaining list and owner gaps: order the editor bank accounts, a clear page-cap message, tests for the item-delete owner and the foreign-profile NOT_FOUND](../_review/review-2026-10-01-2.md) | app | Dmytro Hopko | S | T21, T22 | done |
 | T29 | [Align the session factories on a failed time-zone lookup and make the boundary checks catch relative imports](../_review/review-2026-10-01-2.md) | wiring | Dmytro Hopko | S | T23, T25 | done |
 | T30 | [Pin the convert-image time-zone-failure response and bring the sync report's page cap in line with the contract](../_review/review-2026-10-02.md) | tests | Dmytro Hopko | S | T29 | done |
-| T31 | [Close the remaining import forms the services-to-actions boundary checks miss](../_review/review-2026-10-02.md) | wiring | Dmytro Hopko | S | T29 | todo |
+| T31 | [Close the remaining import forms the services-to-actions boundary checks miss](../_review/review-2026-10-02.md) | wiring | Dmytro Hopko | S | T29 | done |
 
 **Total:** 31 tasks (T21–T25 are review follow-ups from `_review/review-2026-10-01.md`; T26–T29 from `_review/review-2026-10-01-2.md`; T30–T31 from `_review/review-2026-10-02.md`), ~23.5 person-days (S ≈ 0.5 d, M ≈ 1 d).

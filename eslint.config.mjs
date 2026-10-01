@@ -34,9 +34,12 @@ const eslintConfig = defineConfig([
         "error",
         {
           paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
-          patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*", "**/actions", "**/actions/**"],
+          patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*", "lib/actions", "lib/actions/*"],
         },
       ],
+      // ADR-0006: resolves every import form (relative, alias, dynamic, require) to its real file,
+      // so lib/services never reaches the web actions and a local ./actions module stays allowed.
+      "import/no-restricted-paths": ["error", { zones: [{ target: "./lib/services", from: "./lib/actions" }] }],
     },
   },
   {

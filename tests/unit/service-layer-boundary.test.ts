@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
@@ -18,8 +18,17 @@ function walk(dir: string): string[] {
 
 const read = (p: string) => readFileSync(p, 'utf8');
 const firstStatement = (src: string) => src.replace(/^\s*(\/\/.*\n|\/\*[\s\S]*?\*\/)*\s*/g, '');
-const importsActions = (src: string) =>
-  /(?:from\s+|import\(\s*)['"](?:@\/lib\/actions|(?:\.\.?\/)+(?:[^'"]*\/)?actions)(?:\/[^'"]*)?['"]/.test(src);
+// Every module specifier: `from '…'`, side-effect `import '…'`, `import(…)` and `require(…)`, in any quote.
+// A template literal contributes its static prefix (up to the first `${`).
+const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"`])([^'"`$]*)/g;
+const targetsActions = (spec: string, file: string) => {
+  if (/^(?:@\/)?lib\/actions(?:\/|$)/.test(spec)) return true;
+  if (!spec.startsWith('.')) return false;
+  const inActions = relative(join(root, 'lib/actions'), resolve(root, dirname(file), spec));
+  return inActions === '' || (!inActions.startsWith('..') && !isAbsolute(inActions));
+};
+const importsActions = (src: string, file = 'lib/services/x/probe.ts') =>
+  [...src.matchAll(SPECIFIER)].some((m) => targetsActions(m[2], file));
 const rel = (p: string) => relative(root, p);
 
 describe('lib/services boundary (T1)', () => {
@@ -55,7 +64,7 @@ describe('lib/services boundary (T1)', () => {
   });
 
   it('no lib/services file imports from lib/actions (T25, S-12)', () => {
-    const offenders = serviceFiles.filter((f) => importsActions(read(f)));
+    const offenders = serviceFiles.filter((f) => importsActions(read(f), rel(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
@@ -65,6 +74,26 @@ describe('lib/services boundary (T1)', () => {
     expect(importsActions(`const m = await import('../../actions/x');`)).toBe(true);
     expect(importsActions(`import { x } from '@/lib/actions/x';`)).toBe(true);
     expect(importsActions(`import { x } from '../_shared/x';`)).toBe(false);
+  });
+
+  it('the boundary matcher catches every import form and resolves relative paths (T31, N-2)', () => {
+    for (const src of [
+      `import '../../actions/x';`,
+      `import '@/lib/actions/x';`,
+      `export { x } from '../../actions/x';`,
+      `const m = require('../../actions/x');`,
+      `// eslint-disable-next-line @typescript-eslint/no-require-imports\nconst m = require("@/lib/actions/x");`,
+      'const m = await import(`../../actions/${name}`);',
+      'const m = await import(`@/lib/actions/x`);',
+      `import { x } from 'lib/actions/x';`,
+      `import { x } from 'lib/actions';`,
+    ]) {
+      expect(importsActions(src), src).toBe(true);
+    }
+    // A local module that happens to be called "actions" is not lib/actions.
+    expect(importsActions(`import { x } from './actions';`)).toBe(false);
+    expect(importsActions(`import { x } from '../actions/x';`)).toBe(false);
+    expect(importsActions(`import { x } from '../actions/x';`, 'lib/services/probe.ts')).toBe(true);
   });
 
   it('select-queries lives in lib/services/invoices and the lib/actions re-export shims are gone (T25, S-12)', () => {
@@ -102,11 +131,32 @@ describe('lib/services ESLint rules (T1)', () => {
     expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
   });
 
+  const boundaryRules = ['no-restricted-imports', 'import/no-restricted-paths'];
+  const hitsBoundary = (msgs: { ruleId: string | null }[]) => msgs.some((m) => boundaryRules.includes(m.ruleId ?? ''));
+
   it('rejects relative imports of lib/actions under lib/services (T29, R-09)', async () => {
-    for (const spec of ['../../actions/x', '../../../lib/actions/invoice-actions/y']) {
+    for (const spec of ['../../actions/invoice-actions/invoice-actions', '../../../lib/actions/customer-actions']) {
       const msgs = await lint('lib/services/x/probe.ts', `import { f } from '${spec}';\nexport const a = f;\n`);
-      expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
+      expect(hitsBoundary(msgs), spec).toBe(true);
     }
+  });
+
+  it('rejects side-effect, dynamic, require and baseUrl imports of lib/actions under lib/services (T31, N-2)', async () => {
+    for (const code of [
+      `import '@/lib/actions/customer-actions';\n`,
+      `import '../../actions/customer-actions';\n`,
+      `export const a = () => import('../../actions/customer-actions');\n`,
+      `export const a = () => import('@/lib/actions/customer-actions');\n`,
+      `// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const a = require('../../actions/customer-actions');\n`,
+      `import { f } from 'lib/actions/customer-actions';\nexport const a = f;\n`,
+    ]) {
+      expect(hitsBoundary(await lint('lib/services/x/probe.ts', code)), code).toBe(true);
+    }
+  });
+
+  it('allows a local module named actions under lib/services (T31, N-2)', async () => {
+    const msgs = await lint('lib/services/x/probe.ts', `import { f } from './actions';\nexport const a = f;\n`);
+    expect(hitsBoundary(msgs)).toBe(false);
   });
 
   it('rejects "as ActingFreelancer" casts outside the factory module', async () => {
