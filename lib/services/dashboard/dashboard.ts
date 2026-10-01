@@ -1,13 +1,30 @@
 import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import type { Currency } from '@prisma/client';
-import type { ChartDataPoint, CurrencyTab, DashboardSummaryStats } from '@/types/dashboard';
+import type {
+  ChartDataPoint,
+  CurrencyTab,
+  DashboardSummaryStats,
+  DebtorInfo,
+  ExpectedPaymentGroup,
+  RecentInvoice,
+  SenderAccountMetrics,
+} from '@/types/dashboard';
 import { ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { currentLocalMonth, formatLocalDateKey } from '@/lib/services/_shared/time-zone';
 import { parseDashboardInput, periodBounds, type DashboardPeriod } from './period';
-import { queryChartBuckets, queryCurrencyTabs, querySummaryStats, type ChartBucketing } from './queries';
+import {
+  queryChartBuckets,
+  queryCurrencyTabs,
+  queryDebtors,
+  queryExpectedPayments,
+  queryRecentInvoices,
+  querySenderAccounts,
+  querySummaryStats,
+  type ChartBucketing,
+} from './queries';
 
 export type { DashboardPeriod, LocalDate } from './period';
 
@@ -114,6 +131,118 @@ export async function getChartData(
       return ok(points);
     } catch (error) {
       return failed('Error fetching dashboard chart data:', error, 'Failed to fetch chart data.');
+    }
+  });
+}
+
+const cents = (n: number) => Math.round(n * 100);
+
+export async function getSenderAccounts(
+  actor: ActingFreelancer,
+  currency: Currency,
+  period?: DashboardPeriod,
+): Promise<ActionResult<SenderAccountMetrics[]>> {
+  return Sentry.startSpan({ name: 'dashboard.sender-accounts', op: 'function' }, async () => {
+    const input = parseDashboardInput(currency, period);
+    if (!input.success) return input;
+    try {
+      const [start, endExclusive] = input.period ? periodBounds(input.period, actor.timeZone) : [null, null];
+      const rows = await querySenderAccounts(actor, input.currency, start, endExclusive);
+      // Rows arrive ordered by profile, so each profile's accounts are contiguous. Account sums are
+      // exact; the profile totals add whole cents.
+      const senders: SenderAccountMetrics[] = [];
+      for (const row of rows) {
+        let sender = senders[senders.length - 1];
+        if (!sender || sender.senderProfileId !== row.senderProfileId) {
+          sender = {
+            senderProfileId: row.senderProfileId,
+            senderName: row.senderName,
+            totalReceived: 0,
+            totalPlanned: 0,
+            accounts: [],
+            allFuturePlanned: row.allFuturePlanned,
+          };
+          senders.push(sender);
+        }
+        sender.accounts.push({
+          accountId: row.accountId,
+          accountName: row.accountName,
+          bankName: row.bankName,
+          received: row.received,
+          planned: row.planned,
+        });
+        sender.totalReceived = (cents(sender.totalReceived) + cents(row.received)) / 100;
+        sender.totalPlanned = (cents(sender.totalPlanned) + cents(row.planned)) / 100;
+      }
+      return ok(senders);
+    } catch (error) {
+      return failed('Error fetching dashboard sender accounts:', error, 'Failed to fetch sender accounts.');
+    }
+  });
+}
+
+export async function getRecentInvoices(
+  actor: ActingFreelancer,
+  currency: Currency,
+): Promise<ActionResult<RecentInvoice[]>> {
+  return Sentry.startSpan({ name: 'dashboard.recent-invoices', op: 'function' }, async () => {
+    const input = parseDashboardInput(currency, undefined);
+    if (!input.success) return input;
+    try {
+      const rows = await queryRecentInvoices(actor, input.currency);
+      return ok(
+        rows.map((r): RecentInvoice => ({
+          ...r,
+          status: r.status as RecentInvoice['status'],
+          currency: r.currency as Currency,
+        })),
+      );
+    } catch (error) {
+      return failed('Error fetching dashboard recent invoices:', error, 'Failed to fetch recent invoices.');
+    }
+  });
+}
+
+export async function getDebtors(actor: ActingFreelancer, currency: Currency): Promise<ActionResult<DebtorInfo[]>> {
+  return Sentry.startSpan({ name: 'dashboard.debtors', op: 'function' }, async () => {
+    const input = parseDashboardInput(currency, undefined);
+    if (!input.success) return input;
+    try {
+      const rows = await queryDebtors(actor, input.currency);
+      return ok(rows.map((r): DebtorInfo => ({ ...r, currencies: [input.currency] })));
+    } catch (error) {
+      return failed('Error fetching dashboard debtors:', error, 'Failed to fetch debtors.');
+    }
+  });
+}
+
+export async function getExpectedPayments(
+  actor: ActingFreelancer,
+  currency: Currency,
+): Promise<ActionResult<ExpectedPaymentGroup[]>> {
+  return Sentry.startSpan({ name: 'dashboard.expected-payments', op: 'function' }, async () => {
+    const input = parseDashboardInput(currency, undefined);
+    if (!input.success) return input;
+    try {
+      const rows = await queryExpectedPayments(actor, input.currency);
+      if (rows.length === 0) return ok([]);
+      return ok([
+        {
+          currency: input.currency,
+          invoices: rows.map((r) => ({
+            id: r.id,
+            invoiceNumber: r.invoiceNumber,
+            customerName: r.customerName,
+            total: r.total,
+            currency: input.currency,
+            dueDate: r.dueDate,
+          })),
+          total: rows[0].groupTotal,
+          count: rows[0].groupCount,
+        },
+      ]);
+    } catch (error) {
+      return failed('Error fetching dashboard expected payments:', error, 'Failed to fetch expected payments.');
     }
   });
 }

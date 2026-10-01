@@ -70,12 +70,13 @@ export async function addInvoice(
     issueDate?: Date;
     dueDate?: Date;
     customerName?: string;
+    customer?: Seed['customer'];
   }
 ) {
   seq += 1;
   return createInvoice(s.prisma, {
     senderProfile: s.profile,
-    customer: s.customer,
+    customer: o.customer ?? s.customer,
     bankAccount: s.bank[o.currency] ?? Object.values(s.bank)[0],
     items: [{ name: 'Work', quantity: 1, rate: o.total, amount: o.total }],
     overrides: {
@@ -97,8 +98,9 @@ const d = (iso: string) => new Date(iso);
 export async function seedParityFixture(prisma: PrismaClient) {
   const s = await seedFreelancer(prisma, ['USD', 'EUR']);
   // Extra Customers so T18 can add Debtor / top-three tie sections to the same fixture.
-  await createCustomer(prisma, s.userId, { name: '2 Second Customer' });
-  await createCustomer(prisma, s.userId, { name: '3 Third Customer' });
+  const c2 = await createCustomer(prisma, s.userId, { name: '2 Second Customer' });
+  const c3 = await createCustomer(prisma, s.userId, { name: '3 Third Customer' });
+  const c4 = await createCustomer(prisma, s.userId, { name: '4 Fourth Customer' });
 
   // USD paid: 0.10 + 0.20 (+0.30) drift, straddling the DST switch and local midnight.
   await addInvoice(s, { currency: 'USD', status: 'PAID', total: 0.1, issueDate: d('2026-03-25T10:00:00Z') });
@@ -117,5 +119,34 @@ export async function seedParityFixture(prisma: PrismaClient) {
   // EUR.
   await addInvoice(s, { currency: 'EUR', status: 'PAID', total: 250.25, issueDate: d('2026-03-27T09:00:00Z') });
   await addInvoice(s, { currency: 'EUR', status: 'OVERDUE', total: 40, issueDate: d('2026-03-03T09:00:00Z'), dueDate: d('2026-03-28T09:00:00Z') });
+
+  // T18 (AC-05): Debtors 151 / 60 / 30 / 30 in USD, so places 3 and 4 tie at the top-three
+  // cut-off. C2 is renamed between its two overdue invoices.
+  const at = (day: string) => d(`2026-03-${day}T09:00:00Z`);
+  await addInvoice(s, { currency: 'USD', status: 'OVERDUE', total: 20, customer: c2, customerName: 'Second Old Name', issueDate: at('04'), dueDate: at('20') });
+  await addInvoice(s, { currency: 'USD', status: 'OVERDUE', total: 40, customer: c2, customerName: 'Second New Name', issueDate: at('06'), dueDate: at('21') });
+  await addInvoice(s, { currency: 'USD', status: 'OVERDUE', total: 0.1, customer: c3, issueDate: at('05'), dueDate: at('22') });
+  await addInvoice(s, { currency: 'USD', status: 'OVERDUE', total: 29.9, customer: c3, issueDate: at('05'), dueDate: at('22') });
+  await addInvoice(s, { currency: 'USD', status: 'OVERDUE', total: 30, customer: c4, issueDate: at('05'), dueDate: at('23') });
+  // More pending invoices (distinct due dates) so Expected payments shows 3 of more than 3.
+  await addInvoice(s, { currency: 'USD', status: 'PENDING', total: 12.34, customer: c2, issueDate: at('20'), dueDate: at('31') });
+  await addInvoice(s, { currency: 'EUR', status: 'PENDING', total: 8.8, customer: c3, issueDate: at('20'), dueDate: at('30') });
+  // A second sender profile with its own account and a paid invoice.
+  const profile2 = await createSenderProfile(prisma, s.userId, { name: '0 Other Profile', isDefault: false });
+  const bank2 = await createBankAccount(prisma, profile2.id, { currency: 'USD', bankName: 'Other Bank', accountName: 'Other Holder' });
+  await createInvoice(prisma, {
+    senderProfile: profile2,
+    customer: c4,
+    bankAccount: bank2,
+    items: [{ name: 'Work', quantity: 1, rate: 15.15, amount: 15.15 }],
+    overrides: {
+      invoiceNumber: `${profile2.invoicePrefix}-000001`,
+      status: 'PAID',
+      total: 15.15,
+      subtotal: 15.15,
+      currency: 'USD',
+      issueDate: d('2026-03-12T09:00:00Z'), // outside DST_PERIOD: keeps the T17 drift test exact
+    },
+  });
   return s;
 }

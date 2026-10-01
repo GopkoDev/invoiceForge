@@ -22,7 +22,7 @@
 | T15 | Move updateInvoice and updateInvoiceStatus into the layer with the totals check and the paid-date rule | app | Dmytro Hopko | M | T14 | todo |
 | T16 | Move duplicateInvoice and deleteInvoice into the layer | app | Dmytro Hopko | S | T14 | todo |
 | T17 | Build the dashboard SQL for currency tabs, summary stats and the chart, with the old-vs-new parity harness | app | Dmytro Hopko | M | T3, T5 | done |
-| T18 | Build the dashboard SQL for sender accounts, recent invoices, Debtors and Expected payments | app | Dmytro Hopko | M | T17 | todo |
+| T18 | Build the dashboard SQL for sender accounts, recent invoices, Debtors and Expected payments | app | Dmytro Hopko | M | T17 | done |
 | T19 | Switch the dashboard wrappers to the layer, pass local-date periods, record parity values and delete the in-memory code | ports | Dmytro Hopko | M | T18 | todo |
 | T20 | Close the move: zero data-store calls in lib/actions, inventory checks for request-free and foreign-record tests | tests | Dmytro Hopko | S | T6–T13, T15, T16, T19 | todo |
 
