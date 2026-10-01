@@ -690,6 +690,21 @@
       ],
       "file": "docs/features/service-layer/_review/review-2026-10-02.md",
       "source": "review-2026-10-02"
+    },
+    {
+      "id": "T32",
+      "title": "Anchor the services-to-actions ESLint zone rule to the repo root",
+      "layer": "wiring",
+      "deps": [
+        "T31"
+      ],
+      "acs": [],
+      "dod": "Re-review 2026-10-02-2 S-1 fixed. The import/no-restricted-paths rule in eslint.config.mjs sets basePath to the config file's directory (import.meta.dirname), so the zone lib/services -> lib/actions resolves the same way whatever directory ESLint runs from. Verified: running eslint from inside lib/services on a file that imports '../../actions/...' reports the violation, the same as running it from the repo root. Unit tests and lint are green.",
+      "files_hint": [
+        "eslint.config.mjs"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-02-2.md",
+      "source": "review-2026-10-02-2"
     }
   ]
 }
