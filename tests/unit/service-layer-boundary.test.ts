@@ -18,6 +18,8 @@ function walk(dir: string): string[] {
 
 const read = (p: string) => readFileSync(p, 'utf8');
 const firstStatement = (src: string) => src.replace(/^\s*(\/\/.*\n|\/\*[\s\S]*?\*\/)*\s*/g, '');
+const importsActions = (src: string) =>
+  /(?:from\s+|import\(\s*)['"](?:@\/lib\/actions|(?:\.\.?\/)+(?:[^'"]*\/)?actions)(?:\/[^'"]*)?['"]/.test(src);
 const rel = (p: string) => relative(root, p);
 
 describe('lib/services boundary (T1)', () => {
@@ -53,8 +55,16 @@ describe('lib/services boundary (T1)', () => {
   });
 
   it('no lib/services file imports from lib/actions (T25, S-12)', () => {
-    const offenders = serviceFiles.filter((f) => /from\s+['"]@\/lib\/actions[^'"]*['"]|import\(\s*['"]@\/lib\/actions/.test(read(f)));
+    const offenders = serviceFiles.filter((f) => importsActions(read(f)));
     expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it('the boundary matcher also rejects relative imports into lib/actions (T29, R-09)', () => {
+    expect(importsActions(`import { x } from '../../actions/x';`)).toBe(true);
+    expect(importsActions(`import { x } from '../../../lib/actions/invoice-actions/y';`)).toBe(true);
+    expect(importsActions(`const m = await import('../../actions/x');`)).toBe(true);
+    expect(importsActions(`import { x } from '@/lib/actions/x';`)).toBe(true);
+    expect(importsActions(`import { x } from '../_shared/x';`)).toBe(false);
   });
 
   it('select-queries lives in lib/services/invoices and the lib/actions re-export shims are gone (T25, S-12)', () => {
@@ -90,6 +100,13 @@ describe('lib/services ESLint rules (T1)', () => {
       `import { failed } from '@/lib/actions/action-result-helpers';\nexport const a = failed;\n`,
     );
     expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
+  });
+
+  it('rejects relative imports of lib/actions under lib/services (T29, R-09)', async () => {
+    for (const spec of ['../../actions/x', '../../../lib/actions/invoice-actions/y']) {
+      const msgs = await lint('lib/services/x/probe.ts', `import { f } from '${spec}';\nexport const a = f;\n`);
+      expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
+    }
   });
 
   it('rejects "as ActingFreelancer" casts outside the factory module', async () => {

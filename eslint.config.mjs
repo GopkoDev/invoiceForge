@@ -29,13 +29,12 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["lib/services/**/*.ts"],
-    ignores: ["lib/helpers/session-actor.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
-          patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*"],
+          patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*", "**/actions", "**/actions/**"],
         },
       ],
     },

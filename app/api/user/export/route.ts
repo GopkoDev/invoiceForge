@@ -18,7 +18,7 @@ function utcDateString(date: Date): string {
 }
 
 export async function GET() {
-  const session = await actingFreelancerForRoute();
+  const session = await actingFreelancerForRoute(() => NextResponse.json(EXPORT_FAILED_BODY, { status: 500 }));
   if (!session.ok) {
     return session.response;
   }

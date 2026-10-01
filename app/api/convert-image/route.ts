@@ -36,7 +36,9 @@ const REFUSAL_BODIES: Record<SafeFetchRefusalCode, { status: number; body: { suc
 };
 
 export async function POST(request: NextRequest) {
-  const session = await actingFreelancerForRoute();
+  const session = await actingFreelancerForRoute(() =>
+    NextResponse.json(REFUSAL_BODIES.UNAVAILABLE.body, { status: REFUSAL_BODIES.UNAVAILABLE.status }),
+  );
   if (!session.ok) {
     return session.response;
   }

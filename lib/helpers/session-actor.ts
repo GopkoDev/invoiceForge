@@ -1,5 +1,5 @@
 import 'server-only';
-import type { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 import { createActingFreelancer, type ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -17,18 +17,24 @@ export async function actingFreelancerFromSession(): Promise<ActionResult<Acting
   }
 }
 
-/** For route handlers: the unchanged requireSession() 401 response, or the ActingFreelancer. */
-export async function actingFreelancerForRoute(): Promise<
-  { ok: true; actor: ActingFreelancer } | { ok: false; response: NextResponse }
-> {
+const defaultFailureResponse = () =>
+  NextResponse.json({ success: false, code: 'FAILED', error: 'Something went wrong. Please try again.' }, { status: 500 });
+
+/**
+ * For route handlers: the unchanged requireSession() 401 response, or the ActingFreelancer. When the
+ * time-zone lookup fails the error is reported once and the route's own documented failure response
+ * (`failureResponse`) is returned, so each route keeps its own body.
+ */
+export async function actingFreelancerForRoute(
+  failureResponse: () => NextResponse = defaultFailureResponse,
+): Promise<{ ok: true; actor: ActingFreelancer } | { ok: false; response: NextResponse }> {
   const { requireSession } = await import('@/lib/helpers/route-auth');
   const session = await requireSession();
   if (!session.ok) return session;
   try {
     return { ok: true, actor: await createActingFreelancer(session.userId, await getRequestTimeZone()) };
   } catch (error) {
-    // A failed time-zone lookup must not become the framework's default 500: the route works in UTC.
     failed('Error resolving the acting freelancer:', error, 'Something went wrong. Please try again.');
-    return { ok: true, actor: await createActingFreelancer(session.userId) };
+    return { ok: false, response: failureResponse() };
   }
 }

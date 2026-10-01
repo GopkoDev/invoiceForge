@@ -33,6 +33,6 @@
 | T26 | [Restore the user-facing messages: the generic logo warning on a failed lookup and the old preview-list failure messages](../_review/review-2026-10-01-2.md) | ports | Dmytro Hopko | S | T23 | done |
 | T27 | [Re-record the record identities in the dashboard parity snapshot from the old dashboard actions](../_review/review-2026-10-01-2.md) | tests | Dmytro Hopko | S | T24 | done |
 | T28 | [Close the remaining list and owner gaps: order the editor bank accounts, a clear page-cap message, tests for the item-delete owner and the foreign-profile NOT_FOUND](../_review/review-2026-10-01-2.md) | app | Dmytro Hopko | S | T21, T22 | done |
-| T29 | [Align the session factories on a failed time-zone lookup and make the boundary checks catch relative imports](../_review/review-2026-10-01-2.md) | wiring | Dmytro Hopko | S | T23, T25 | todo |
+| T29 | [Align the session factories on a failed time-zone lookup and make the boundary checks catch relative imports](../_review/review-2026-10-01-2.md) | wiring | Dmytro Hopko | S | T23, T25 | done |
 
 **Total:** 29 tasks (T21–T25 are review follow-ups from `_review/review-2026-10-01.md`; T26–T29 from `_review/review-2026-10-01-2.md`), ~22.5 person-days (S ≈ 0.5 d, M ≈ 1 d).

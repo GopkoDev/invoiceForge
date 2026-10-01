@@ -33,7 +33,7 @@ export type ActingFreelancer = {
 | Factory | Where | Input | Output |
 |---|---|---|---|
 | `actingFreelancerFromSession()` | `lib/helpers/session-actor.ts` (web only; `server-only`, **not** `'use server'`: `auth-helpers.ts` is a `'use server'` file, so an export there would be browser-callable) | the next-auth session + the `tz` cookie | `ActionResult<ActingFreelancer>`. `UNAUTHORIZED` "Not signed in." when there is no session or the account no longer exists (AC-10). Built **before** any argument is parsed (hardening AC-23 order) |
-| `actingFreelancerForRoute()` | `lib/helpers/session-actor.ts` (route handlers only) | `requireSession()` + the `tz` cookie | `{ ok: true; actor: ActingFreelancer } \| { ok: false; response: Response }`. The `response` is today's `requireSession()` 401 body, unchanged |
+| `actingFreelancerForRoute()` | `lib/helpers/session-actor.ts` (route handlers only) | `requireSession()` + the `tz` cookie | `{ ok: true; actor: ActingFreelancer } \| { ok: false; response: Response }`. The `response` is today's `requireSession()` 401 body, unchanged; if the one-time time-zone lookup fails, the error is reported once to Sentry and `response` is the route's own documented failure body (passed in as `failureResponse`: `/api/user/export` → 500 `EXPORT_FAILED` body, `/api/convert-image` → 502 `UNAVAILABLE` "The logo could not be loaded from this link."). `actingFreelancerFromSession()` likewise reports once and returns `FAILED` — neither factory falls back to UTC on a failed lookup |
 | `actingFreelancerForTest(userId, timeZone?)` | `tests/support/` | raw values | `Promise<ActingFreelancer>` |
 | *(later)* the Assistant factory | the Assistant feature | its own authentication | — (not built here, spec §3) |
 
