@@ -25,5 +25,10 @@
 | T18 | Build the dashboard SQL for sender accounts, recent invoices, Debtors and Expected payments | app | Dmytro Hopko | M | T17 | done |
 | T19 | Switch the dashboard wrappers to the layer, pass local-date periods, record parity values and delete the in-memory code | ports | Dmytro Hopko | M | T18 | done |
 | T20 | Close the move: zero data-store calls in lib/actions, inventory checks for request-free and foreign-record tests | tests | Dmytro Hopko | S | T6–T13, T15, T16, T19 | done |
+| T21 | [Harden list input and ordering: own-key status check, page bounds, literal search wildcards, id tiebreak on editor data and filter options](../_review/review-2026-10-01.md) | app | Dmytro Hopko | S | T13 | todo |
+| T22 | [Put the owner in the where clause of numbering, the invoice-items delete, the bank-account default reset and the custom-price lists (ADR-0003)](../_review/review-2026-10-01.md) | app | Dmytro Hopko | M | T8, T10, T14, T15 | todo |
+| T23 | [Restore wrapper parity: currency-tab creation order, preview lists without a limit, one Sentry event per logo failure, the shared session factory and the route time-zone fallback](../_review/review-2026-10-01.md) | ports | Dmytro Hopko | M | T3, T8–T10, T13, T19 | todo |
+| T24 | [Pin the untested promises: foreign sender profile on update, every invoice sort, the sender-name and in-period naming rule, record identity in the parity snapshot](../_review/review-2026-10-01.md) | tests | Dmytro Hopko | S | T13, T15, T18, T19 | todo |
+| T25 | [Cut the services-to-actions import edge: import helpers and numbering from lib/services, move select-queries into the layer, delete the shims](../_review/review-2026-10-01.md) | wiring | Dmytro Hopko | S | T20, T22 | todo |
 
-**Total:** 20 tasks, ~17 person-days (S ≈ 0.5 d, M ≈ 1 d).
+**Total:** 25 tasks (T21–T25 are review follow-ups from `_review/review-2026-10-01.md`), ~20.5 person-days (S ≈ 0.5 d, M ≈ 1 d).

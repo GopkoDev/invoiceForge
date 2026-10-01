@@ -431,6 +431,140 @@
         "tests/integration/services/"
       ],
       "file": "docs/features/service-layer/tasks/t20-close-the-move.md"
+    },
+    {
+      "id": "T21",
+      "title": "Harden list input and ordering: own-key status check, page bounds, literal search wildcards, id tiebreak on editor data and filter options",
+      "layer": "app",
+      "deps": [
+        "T13"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-13",
+        "AC-25",
+        "AC-26"
+      ],
+      "dod": "Review 2026-10-01 S-01, S-07, S-09, S-10 fixed. listInvoices refuses status 'constructor', 'toString' and '__proto__' with VALIDATION \"Unknown status.\" (a z.nativeEnum union, as in search-params.ts), and the refusal table covers them. listQuerySchema caps page and pageSize at 2^31-1 with the existing messages, so 1e20 is VALIDATION, not FAILED. An integration test searches '%' and '_' on customers and custom prices and expects only literal matches; if it fails, ilikeAny and the custom-price search escape backslash, % and _. Every editor-data and filter-option list ends its orderBy with { id: 'asc' }, custom prices get an explicit order, and a test with two equal-named records pins a stable order.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/_shared/list-query.ts",
+        "lib/services/custom-prices/custom-prices.ts",
+        "lib/services/invoices/editor-data.ts",
+        "tests/integration/services/invoices/list-invoices.test.ts",
+        "tests/unit/services/list-query.test.ts"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01.md",
+      "source": "review-2026-10-01"
+    },
+    {
+      "id": "T22",
+      "title": "Put the owner in the where clause of numbering, the invoice-items delete, the bank-account default reset and the custom-price lists (ADR-0003)",
+      "layer": "app",
+      "deps": [
+        "T8",
+        "T10",
+        "T14",
+        "T15"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-15",
+        "AC-16",
+        "AC-19"
+      ],
+      "dod": "Review 2026-10-01 S-05 fixed. lockSenderProfileRow, allocateInvoiceNumber and peekNextInvoiceNumber take the actor (or userId) and match AND \"userId\" = ${userId}; zero rows becomes NOT_FOUND, not a TypeError. The invoiceItem.deleteMany in updateInvoice filters by invoice.senderProfile.userId. Both bank-account updateMany calls add senderProfile: { userId }. The custom-price list where clauses add customer/product: { userId }. Foreign-record tests call each numbering helper with B's profile as A and assert NOT_FOUND and B's invoiceCounter unchanged.",
+      "files_hint": [
+        "lib/services/invoices/numbering.ts",
+        "lib/services/invoices/invoices.ts",
+        "lib/services/bank-accounts/bank-accounts.ts",
+        "lib/services/custom-prices/custom-prices.ts",
+        "tests/integration/services/invoices/"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01.md",
+      "source": "review-2026-10-01"
+    },
+    {
+      "id": "T23",
+      "title": "Restore wrapper parity: currency-tab creation order, preview lists without a limit, one Sentry event per logo failure, the shared session factory and the route time-zone fallback",
+      "layer": "ports",
+      "deps": [
+        "T9",
+        "T10",
+        "T8",
+        "T13",
+        "T19",
+        "T3"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-04",
+        "AC-05",
+        "AC-10"
+      ],
+      "dod": "Review 2026-10-01 S-02, S-03, S-04, S-06, S-11 fixed. queryCurrencyTabs orders by MIN(createdAt), MIN(id) per currency; harness.ts no longer sorts tabs, and a test with USD created before EUR expects [USD, EUR]. getInvoicesByCustomer/getInvoicesBySenderProfile pass page/pageSize only when limit is given (as getBankAccounts does) and keep their old failure messages. convert-image returns a 500 without throwing a new Error (or throws 'load_failed'), with a unit test asserting exactly one captureException. bank-account-actions and custom-price-actions use actingFreelancerFromSession from @/lib/helpers/session-actor; a no-restricted-imports rule limits createActingFreelancer to session-actor.ts and tests/support, and the inventory test checks the import source. actingFreelancerForRoute falls back to UTC (or returns FAILED) when the time-zone lookup throws, and /api/user/export then returns its EXPORT_FAILED body.",
+      "files_hint": [
+        "lib/services/dashboard/queries.ts",
+        "tests/integration/services/dashboard/harness.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "app/api/convert-image/route.ts",
+        "lib/actions/bank-account-actions.ts",
+        "lib/actions/custom-price-actions.ts",
+        "lib/helpers/session-actor.ts",
+        "eslint.config.mjs",
+        "tests/unit/service-layer-inventory.test.ts"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01.md",
+      "source": "review-2026-10-01"
+    },
+    {
+      "id": "T24",
+      "title": "Pin the untested promises: foreign sender profile on update, every invoice sort, the sender-name and in-period naming rule, record identity in the parity snapshot",
+      "layer": "tests",
+      "deps": [
+        "T15",
+        "T13",
+        "T18",
+        "T19"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-06",
+        "AC-19",
+        "AC-26"
+      ],
+      "dod": "Review 2026-10-01 S-08 fixed. update-invoice.test.ts has a sender-profile case (A's invoice onto B's profile → NOT_FOUND, nothing stored, B's counter unchanged). list-invoices.test.ts runs it.each over the five sort fields × asc/desc on fixtures with distinct values. naming-order.test.ts covers a renamed sender (newer invoice created first) and a newest invoice outside the period. The parity snapshot carries stable record identifiers (invoice numbers or fixture labels) for sender accounts, Debtors, recent invoices and expected payments. No existing expected value changes.",
+      "files_hint": [
+        "tests/integration/services/invoices/update-invoice.test.ts",
+        "tests/integration/services/invoices/list-invoices.test.ts",
+        "tests/integration/services/dashboard/naming-order.test.ts",
+        "tests/integration/services/dashboard/harness.ts"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01.md",
+      "source": "review-2026-10-01"
+    },
+    {
+      "id": "T25",
+      "title": "Cut the services-to-actions import edge: import helpers and numbering from lib/services, move select-queries into the layer, delete the shims",
+      "layer": "wiring",
+      "deps": [
+        "T20",
+        "T22"
+      ],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Review 2026-10-01 S-12 fixed. Nothing under lib/services imports from @/lib/actions; select-queries.ts lives in lib/services/invoices; the lib/actions/invoice-actions/{helpers,numbering}.ts and action-result-helpers.ts re-export shims are deleted where nothing else uses them. A boundary lint rule or the inventory test fails on any lib/services → lib/actions import. Full suite, lint, tsc and pnpm build are green.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/editor-data.ts",
+        "lib/actions/invoice-actions/select-queries.ts",
+        "lib/actions/invoice-actions/helpers.ts",
+        "lib/actions/invoice-actions/numbering.ts",
+        "eslint.config.mjs"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01.md",
+      "source": "review-2026-10-01"
     }
   ]
 }
