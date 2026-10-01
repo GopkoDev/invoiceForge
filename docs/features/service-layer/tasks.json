@@ -654,6 +654,42 @@
       ],
       "file": "docs/features/service-layer/_review/review-2026-10-01-2.md",
       "source": "review-2026-10-01-2"
+    },
+    {
+      "id": "T30",
+      "title": "Pin the convert-image time-zone-failure response and bring the sync report's page cap in line with the contract",
+      "layer": "tests",
+      "deps": [
+        "T29"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-13"
+      ],
+      "dod": "Re-review 2026-10-02 N-1 and N-3 fixed. A unit test makes the time-zone lookup fail for POST /api/convert-image and asserts status 502, the UNAVAILABLE body from contracts/public-api.md and the warning that fetchLogoDataUrl shows ('The logo could not be loaded from this link.'). The test fails if the failureResponse argument at app/api/convert-image/route.ts:39 is dropped. contracts/api-sync-report.md lines 23 and 54 state the 1 to 2147483647 page and page-size range, matching public-api.md section 1.3. Unit tests are green.",
+      "files_hint": [
+        "tests/unit/api/convert-image-tz-failure.test.ts",
+        "app/api/convert-image/route.ts",
+        "docs/features/service-layer/contracts/api-sync-report.md"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-02.md",
+      "source": "review-2026-10-02"
+    },
+    {
+      "id": "T31",
+      "title": "Close the remaining import forms the services-to-actions boundary checks miss",
+      "layer": "wiring",
+      "deps": [
+        "T29"
+      ],
+      "acs": [],
+      "dod": "Re-review 2026-10-02 N-2 fixed. The regex in tests/unit/service-layer-boundary.test.ts rejects side-effect imports, static and dynamic imports (including template-literal specifiers), require calls and baseUrl imports ('lib/actions/...') from lib/services into lib/actions, and the test has cases for each form. The ESLint no-restricted-imports patterns in eslint.config.mjs target lib/actions only and no longer reject an unrelated local ./actions module under lib/services. Unit tests and lint are green.",
+      "files_hint": [
+        "tests/unit/service-layer-boundary.test.ts",
+        "eslint.config.mjs"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-02.md",
+      "source": "review-2026-10-02"
     }
   ]
 }
