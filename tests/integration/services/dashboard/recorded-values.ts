@@ -1,8 +1,14 @@
 // T19 (spec.md §1 change 5, §6 Dashboard parity): the old in-memory dashboard actions' output on the
-// AC-05 fixture, recorded before they are deleted. Amounts are in cents; generated ids, names and tie
-// order are left out (AC-05). The '*.records' keys (T24) name the records the sections picked, by
-// fixture label (fixtureLabels() in harness.ts), as read from the layer functions on 2026-10-01. The rest was produced by snapshotDashboard() in
-// harness.ts against the old code on 2026-10-01.
+// AC-05 fixture, recorded before they were deleted. Amounts are in cents; generated ids, names and tie
+// order are left out (AC-05). The '*.records' keys name the records the sections picked, by fixture
+// label (fixtureLabels() in harness.ts).
+//
+// Every key, the '*.records' keys included, was produced by snapshotDashboard() and fixtureLabels()
+// in harness.ts run against the OLD dashboard actions (lib/actions/dashboard-actions.ts at commit
+// ed84e76, the commit before T19 switched the wrappers to the layer), over seedParityFixture(), in a
+// throwaway worktree. Re-review 2026-10-01 R-04 (T27): the records were first read from the new
+// layer, so they could not prove old-vs-new parity; they were re-sourced from the old code and came
+// out identical.
 export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
   "tabs": [
     "USD",
