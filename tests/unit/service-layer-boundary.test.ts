@@ -52,6 +52,19 @@ describe('lib/services boundary (T1)', () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
+  it('no lib/services file imports from lib/actions (T25, S-12)', () => {
+    const offenders = serviceFiles.filter((f) => /from\s+['"]@\/lib\/actions[^'"]*['"]|import\(\s*['"]@\/lib\/actions/.test(read(f)));
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it('select-queries lives in lib/services/invoices and the lib/actions re-export shims are gone (T25, S-12)', () => {
+    expect(existsSync(join(root, 'lib/services/invoices/select-queries.ts'))).toBe(true);
+    for (const f of ['select-queries', 'helpers', 'numbering']) {
+      expect(existsSync(join(root, `lib/actions/invoice-actions/${f}.ts`))).toBe(false);
+    }
+    expect(existsSync(join(root, 'lib/actions/action-result-helpers.ts'))).toBe(false);
+  });
+
   it('runs pnpm build in the CI unit job', () => {
     expect(read(join(root, '.github/workflows/test.yml'))).toMatch(/run:\s*pnpm build/);
   });
@@ -70,6 +83,14 @@ describe('lib/services ESLint rules (T1)', () => {
       expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
     },
   );
+
+  it('rejects imports of @/lib/actions under lib/services (T25, S-12)', async () => {
+    const msgs = await lint(
+      'lib/services/x/probe.ts',
+      `import { failed } from '@/lib/actions/action-result-helpers';\nexport const a = failed;\n`,
+    );
+    expect(msgs.map((m) => m.ruleId)).toContain('no-restricted-imports');
+  });
 
   it('rejects "as ActingFreelancer" casts outside the factory module', async () => {
     const inServices = await lint('lib/services/x/probe.ts', cast);

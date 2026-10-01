@@ -17,12 +17,12 @@ import {
   customerSelect,
   productSelect,
   senderProfileSelect,
-} from '@/lib/actions/invoice-actions/select-queries';
+} from '@/lib/services/invoices/select-queries';
 import {
   computeInvoiceLegacyInfo,
   serializeDecimal,
   transformInvoiceToFormData,
-} from '@/lib/actions/invoice-actions/helpers';
+} from '@/lib/services/invoices/helpers';
 
 /** Everything the new/edit invoice editor needs (AC-25: includes the Customer's custom prices). */
 export async function getInvoiceEditorData(

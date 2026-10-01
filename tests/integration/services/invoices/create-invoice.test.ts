@@ -201,11 +201,9 @@ describe.runIf(containerRuntimeAvailable)('createInvoice service (T14, AC-15, AC
     }
   });
 
-  it('helpers module lives in lib/services/invoices and the old path re-exports it', async () => {
+  it('helpers module lives in lib/services/invoices', async () => {
     const moved = (await import('@/lib/services/invoices/helpers')) as Record<string, unknown>;
     expect(typeof moved.verifyInvoiceRelations).toBe('function');
-    const old = (await import('@/lib/actions/invoice-actions/helpers')) as Record<string, unknown>;
-    expect(old.verifyInvoiceRelations).toBe(moved.verifyInvoiceRelations);
   });
 });
 

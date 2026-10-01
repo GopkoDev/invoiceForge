@@ -30,7 +30,7 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: (...a: unknown[]) => captureExceptionMock(...a),
 }));
 
-vi.mock('@/lib/actions/invoice-actions/numbering', () => ({
+vi.mock('@/lib/services/invoices/numbering', () => ({
   allocateInvoiceNumber: vi.fn().mockResolvedValue({
     invoiceNumber: 'INV-2026-0002',
     invoiceNumberKey: 'inv-2026-0002',

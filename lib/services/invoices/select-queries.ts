@@ -1,3 +1,4 @@
+import 'server-only';
 import type { Prisma } from '@prisma/client';
 
 export const senderProfileSelect = {

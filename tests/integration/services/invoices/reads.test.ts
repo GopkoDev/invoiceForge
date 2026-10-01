@@ -70,11 +70,9 @@ describe.runIf(containerRuntimeAvailable)('invoice reads service (T12, AC-07, AC
     return { user, senderProfile, bankAccount, customer, product, invoice };
   }
 
-  it('numbering module lives in lib/services/invoices and the old path re-exports it', async () => {
+  it('numbering module lives in lib/services/invoices', async () => {
     expect(typeof numbering.normalizeInvoiceNumber).toBe('function');
     expect(typeof numbering.allocateInvoiceNumber).toBe('function');
-    const old = await import('@/lib/actions/invoice-actions/numbering');
-    expect(old.normalizeInvoiceNumber).toBe(numbering.normalizeInvoiceNumber);
   });
 
   it('getInvoice returns the own invoice with its legacy info', async () => {

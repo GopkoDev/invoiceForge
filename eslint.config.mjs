@@ -35,7 +35,7 @@ const eslintConfig = defineConfig([
         "error",
         {
           paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
-          patterns: ["next-auth/*"],
+          patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*"],
         },
       ],
     },

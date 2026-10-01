@@ -3,7 +3,7 @@ import type { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 import { createActingFreelancer, type ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import { failed } from '@/lib/actions/action-result-helpers';
+import { failed } from '@/lib/services/_shared/result-helpers';
 import { ok, type ActionResult } from '@/types/result';
 
 /** Session + tz cookie -> ActingFreelancer, or UNAUTHORIZED (AC-10). Web layer only. */

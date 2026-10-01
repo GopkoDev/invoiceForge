@@ -31,8 +31,8 @@ import {
   serializeInvoice,
   verifyInvoiceRelations,
   verifyItemProductsOwnership,
-} from '@/lib/actions/invoice-actions/helpers';
-import { invoiceListSelect } from '@/lib/actions/invoice-actions/select-queries';
+} from '@/lib/services/invoices/helpers';
+import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage } from '@sentry/nextjs';
 import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
@@ -43,7 +43,7 @@ import {
   lockSenderProfileRow,
   normalizeInvoiceNumber,
   peekNextInvoiceNumber as peekNextNumber,
-} from '@/lib/actions/invoice-actions/numbering';
+} from '@/lib/services/invoices/numbering';
 import { SenderProfileNotFoundError } from '@/lib/services/invoices/numbering-errors';
 
 function isRecordNotFoundError(error: unknown): boolean {

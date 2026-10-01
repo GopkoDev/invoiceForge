@@ -1,6 +1,6 @@
 // T2 (spec.md §5 AC-04; sad.md §4 choice 3, ADR-0003) — the owner-scope helper maps a Prisma
 // P2025 (or a count of 0) to NOT_FOUND and never turns any other error into NOT_FOUND; the result
-// contract and helpers live in the shared kernel with the old paths re-exporting them.
+// contract and helpers live in the shared kernel (the lib/actions shims are gone, T25).
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -9,8 +9,6 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 import { fail } from '@/types/result';
 import * as legacyTypes from '@/types/actions';
 import * as kernelTypes from '@/types/result';
-import * as legacyHelpers from '@/lib/actions/action-result-helpers';
-import * as kernelHelpers from '@/lib/services/_shared/result-helpers';
 import {
   isRecordNotFoundError,
   notFoundIfNoneAffected,
@@ -62,13 +60,5 @@ describe('result kernel moves (AC-04)', () => {
   it('types/actions re-exports the same ok/fail as types/result', () => {
     expect(legacyTypes.ok).toBe(kernelTypes.ok);
     expect(legacyTypes.fail).toBe(kernelTypes.fail);
-  });
-
-  it('the old helpers path re-exports the same bindings as the shared kernel', () => {
-    expect(legacyHelpers.failed).toBe(kernelHelpers.failed);
-    expect(legacyHelpers.zodValidationFailure).toBe(kernelHelpers.zodValidationFailure);
-    expect(legacyHelpers.hasInvoicesConflict).toBe(kernelHelpers.hasInvoicesConflict);
-    expect(legacyHelpers.isUniqueConstraintError).toBe(kernelHelpers.isUniqueConstraintError);
-    expect(legacyHelpers.isRestrictForeignKeyError).toBe(kernelHelpers.isRestrictForeignKeyError);
   });
 });

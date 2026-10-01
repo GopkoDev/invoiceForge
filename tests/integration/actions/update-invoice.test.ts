@@ -132,7 +132,7 @@ describe.runIf(containerRuntimeAvailable)(
         '@/lib/actions/invoice-actions/invoice-actions'
       )) as unknown as { updateInvoice: UpdateInvoice; getInvoice: GetInvoice });
       ({ formatInvoiceNumber, normalizeInvoiceNumber } = (await import(
-        '@/lib/actions/invoice-actions/numbering'
+        '@/lib/services/invoices/numbering'
       )) as unknown as {
         formatInvoiceNumber: FormatInvoiceNumber;
         normalizeInvoiceNumber: NormalizeInvoiceNumber;
