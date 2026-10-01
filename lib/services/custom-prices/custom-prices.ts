@@ -80,7 +80,7 @@ export async function listCustomerCustomPrices(
       select: { id: true },
     });
     if (!customer) return fail('NOT_FOUND', 'Customer not found.');
-    return ok(await listCustomPrices({ customerId }, [{ product: { name: 'asc' } }], parsed.data));
+    return ok(await listCustomPrices({ customerId, customer: { userId: actor.userId } }, [{ product: { name: 'asc' } }], parsed.data));
   } catch (error) {
     return failed('Error fetching custom prices:', error, 'Failed to fetch custom prices.');
   }
@@ -99,7 +99,7 @@ export async function listProductCustomPrices(
       select: { id: true },
     });
     if (!product) return fail('NOT_FOUND', 'Product not found.');
-    return ok(await listCustomPrices({ productId }, [{ customer: { name: 'asc' } }], parsed.data));
+    return ok(await listCustomPrices({ productId, product: { userId: actor.userId } }, [{ customer: { name: 'asc' } }], parsed.data));
   } catch (error) {
     return failed('Error fetching product custom prices:', error, 'Failed to fetch custom prices.');
   }

@@ -70,7 +70,7 @@ export async function createBankAccount(
 
     if (parsed.data.isDefault) {
       await prisma.bankAccount.updateMany({
-        where: { senderProfileId },
+        where: { senderProfileId, senderProfile: { userId: actor.userId } },
         data: { isDefault: false },
       });
     }
@@ -100,7 +100,11 @@ export async function updateBankAccount(
 
     if (parsed.data.isDefault && !existing.isDefault) {
       await prisma.bankAccount.updateMany({
-        where: { senderProfileId: existing.senderProfileId, id: { not: id } },
+        where: {
+          senderProfileId: existing.senderProfileId,
+          id: { not: id },
+          senderProfile: { userId: actor.userId },
+        },
         data: { isDefault: false },
       });
     }

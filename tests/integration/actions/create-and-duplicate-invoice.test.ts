@@ -98,7 +98,7 @@ type DuplicateInvoice = (id: string) => Promise<ActionResult<{ id: string; invoi
 type GetInvoice = (id: string) => Promise<ActionResult<{ legacy: unknown }>>;
 type FormatInvoiceNumber = (prefix: string, n: number) => string;
 type NormalizeInvoiceNumber = (s: string) => string;
-type PeekNextInvoiceNumber = (senderProfileId: string) => Promise<string | null>;
+type PeekNextInvoiceNumber = (senderProfileId: string, userId: string) => Promise<string | null>;
 
 describe.runIf(containerRuntimeAvailable)(
   'createInvoice / duplicateInvoice (T13, AC-06..AC-10, AC-12..AC-15)',
@@ -298,7 +298,7 @@ describe.runIf(containerRuntimeAvailable)(
 
     it('AC-10: a manual number equal to the hint, still free, is kept and the sequence does not move', async () => {
       const owner = await seedOwner();
-      const hint = await peekNextInvoiceNumber(owner.senderProfile.id);
+      const hint = await peekNextInvoiceNumber(owner.senderProfile.id, owner.freelancer.id);
       expect(hint).not.toBeNull();
 
       const result = await createInvoice(buildForm(owner, { invoiceNumber: hint as string }));

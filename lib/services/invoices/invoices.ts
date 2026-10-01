@@ -44,6 +44,7 @@ import {
   normalizeInvoiceNumber,
   peekNextInvoiceNumber as peekNextNumber,
 } from '@/lib/actions/invoice-actions/numbering';
+import { SenderProfileNotFoundError } from '@/lib/services/invoices/numbering-errors';
 
 function isRecordNotFoundError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
@@ -96,7 +97,7 @@ export async function peekNextInvoiceNumber(
     });
     if (!profile) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
 
-    const invoiceNumber = await peekNextNumber(senderProfileId);
+    const invoiceNumber = await peekNextNumber(senderProfileId, actor.userId);
     if (invoiceNumber === null) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     return ok(invoiceNumber);
   } catch (error) {
@@ -309,11 +310,12 @@ export function invoiceNumberConflict(): ActionResult<never> {
 export async function resolveManualOrAllocatedNumber(
   tx: Prisma.TransactionClient,
   senderProfileId: string,
+  userId: string,
   invoiceNumber: string,
   excludeInvoiceId?: string
 ): Promise<{ invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean }> {
   if (invoiceNumber === '') {
-    const allocated = await allocateInvoiceNumber(tx, senderProfileId);
+    const allocated = await allocateInvoiceNumber(tx, senderProfileId, userId);
     return { ...allocated, wasAllocated: true };
   }
 
@@ -321,7 +323,7 @@ export async function resolveManualOrAllocatedNumber(
   // allocation for the same profile always serialize instead of racing — otherwise both can pass
   // this check before either commits, and the loser surfaces as a raw P2002 (wrongly alerting the
   // allocator-bug backstop below when the loser happened to be system-assigned).
-  await lockSenderProfileRow(tx, senderProfileId);
+  await lockSenderProfileRow(tx, senderProfileId, userId);
 
   const invoiceNumberKey = normalizeInvoiceNumber(invoiceNumber);
   if (await isInvoiceKeyTaken(tx, senderProfileId, invoiceNumberKey, excludeInvoiceId)) {
@@ -374,6 +376,7 @@ export async function createInvoice(
       const resolved = await resolveManualOrAllocatedNumber(
         tx,
         senderProfile.id,
+        userId,
         validatedData.invoiceNumber
       );
       const { invoiceNumber, invoiceNumberKey } = resolved;
@@ -452,6 +455,9 @@ export async function createInvoice(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
+    }
+    if (error instanceof SenderProfileNotFoundError) {
+      return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }
     if (error instanceof InvoiceNumberConflictError || isUniqueConstraintError(error)) {
       // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
@@ -579,6 +585,7 @@ export async function updateInvoice(
         resolvedNumber = await resolveManualOrAllocatedNumber(
           tx,
           validatedData.senderProfileId,
+          userId,
           validatedData.invoiceNumber,
           existingInvoice.id
         );
@@ -632,7 +639,9 @@ export async function updateInvoice(
         validatedData.status
       );
 
-      await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: id, invoice: { senderProfile: { userId } } },
+      });
 
       return tx.invoice.update({
         where: { id, senderProfile: { userId } },
@@ -704,6 +713,9 @@ export async function updateInvoice(
     }
     if (isRecordNotFoundError(error)) {
       return fail('NOT_FOUND', 'Invoice not found.');
+    }
+    if (error instanceof SenderProfileNotFoundError) {
+      return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }
     if (error instanceof InvoiceNumberConflictError || isUniqueConstraintError(error)) {
       // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
@@ -825,7 +837,8 @@ export async function duplicateInvoice(
     const newInvoice = await prisma.$transaction(async (tx) => {
       const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
         tx,
-        senderProfile.id
+        senderProfile.id,
+        userId
       );
 
       const created = await tx.invoice.create({
@@ -895,6 +908,9 @@ export async function duplicateInvoice(
 
     return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
   } catch (error) {
+    if (error instanceof SenderProfileNotFoundError) {
+      return fail('NOT_FOUND', PROFILE_NOT_FOUND);
+    }
     if (isUniqueConstraintError(error)) {
       // F-39: contracts/server-actions.md §duplicateInvoice lists only UNAUTHORIZED, NOT_FOUND,
       // FAILED — never CONFLICT, since duplicate has no invoiceNumber field on screen to attach

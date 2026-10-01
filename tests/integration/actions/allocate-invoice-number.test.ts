@@ -44,7 +44,8 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 type Allocation = { invoiceNumber: string; invoiceNumberKey: string };
 type AllocateInvoiceNumber = (
   tx: Prisma.TransactionClient,
-  senderProfileId: string
+  senderProfileId: string,
+  userId: string
 ) => Promise<Allocation>;
 type NormalizeInvoiceNumber = (s: string) => string;
 
@@ -126,7 +127,7 @@ describe.runIf(containerRuntimeAvailable)(
       const { senderProfile, customer, bankAccount } = await seedProfile();
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -161,7 +162,7 @@ describe.runIf(containerRuntimeAvailable)(
       await insertManual(senderProfile, customer, bankAccount, ` ${second.toLowerCase()} `);
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -193,7 +194,7 @@ describe.runIf(containerRuntimeAvailable)(
       });
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -212,12 +213,12 @@ describe.runIf(containerRuntimeAvailable)(
 
       const [allocA, allocB] = await Promise.all([
         prisma.$transaction(async (tx) => {
-          const alloc = await allocateInvoiceNumber(tx, a.senderProfile.id);
+          const alloc = await allocateInvoiceNumber(tx, a.senderProfile.id, a.senderProfile.userId);
           await insertAllocated(tx, a.senderProfile, a.customer, a.bankAccount, alloc);
           return alloc;
         }),
         prisma.$transaction(async (tx) => {
-          const alloc = await allocateInvoiceNumber(tx, b.senderProfile.id);
+          const alloc = await allocateInvoiceNumber(tx, b.senderProfile.id, b.senderProfile.userId);
           await insertAllocated(tx, b.senderProfile, b.customer, b.bankAccount, alloc);
           return alloc;
         }),
@@ -247,12 +248,12 @@ describe.runIf(containerRuntimeAvailable)(
           for (let i = 0; i < 20; i += 1) {
             const iterationResults = await Promise.all([
               clientA.$transaction(async (tx) => {
-                const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+                const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
                 await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
                 return alloc;
               }),
               clientB.$transaction(async (tx) => {
-                const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+                const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
                 await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
                 return alloc;
               }),
