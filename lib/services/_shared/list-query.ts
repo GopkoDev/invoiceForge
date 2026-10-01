@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ok, type ActionResult } from '@/types/result';
 import { zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 
-/** Default page size when a page is requested without one (AC-12). No upper cap (spec §3). */
+/** Default page size when a page is requested without one (AC-12). No practical upper cap beyond the 32-bit limit below. */
 const DEFAULT_PAGE_SIZE = 10;
 
 /** Largest page or page size accepted: Prisma's skip/take are 32-bit, so anything above throws. */
@@ -11,6 +11,8 @@ const MAX_PAGE_VALUE = 2 ** 31 - 1;
 
 const PAGE_MESSAGE = 'Page must be a whole number of at least 1.';
 const PAGE_SIZE_MESSAGE = 'Page size must be a whole number of at least 1.';
+const PAGE_RANGE_MESSAGE = `Page must be a whole number from 1 to ${MAX_PAGE_VALUE}.`;
+const PAGE_SIZE_RANGE_MESSAGE = `Page size must be a whole number from 1 to ${MAX_PAGE_VALUE}.`;
 
 export const listQuerySchema = z.object({
   search: z.string().trim().max(100, 'Search text can be at most 100 characters.').optional(),
@@ -18,13 +20,13 @@ export const listQuerySchema = z.object({
     .number({ message: PAGE_MESSAGE })
     .int(PAGE_MESSAGE)
     .min(1, PAGE_MESSAGE)
-    .max(MAX_PAGE_VALUE, PAGE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_RANGE_MESSAGE)
     .optional(),
   pageSize: z
     .number({ message: PAGE_SIZE_MESSAGE })
     .int(PAGE_SIZE_MESSAGE)
     .min(1, PAGE_SIZE_MESSAGE)
-    .max(MAX_PAGE_VALUE, PAGE_SIZE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_SIZE_RANGE_MESSAGE)
     .optional(),
 });
 

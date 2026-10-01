@@ -35,7 +35,7 @@ export async function getInvoiceEditorData(
     const [senderProfiles, customers, products, customPrices, existingInvoice] = await Promise.all([
       prisma.senderProfile.findMany({
         where: { userId },
-        select: { ...senderProfileSelect, bankAccounts: { select: bankAccountSelect } },
+        select: { ...senderProfileSelect, bankAccounts: { select: bankAccountSelect, orderBy: { id: 'asc' } } },
         orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
       }),
       prisma.customer.findMany({ where: { userId }, select: customerSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),

@@ -78,8 +78,8 @@ type LocalDate = string;       // ★ 'YYYY-MM-DD', a real calendar date, read i
 // lib/services/_shared/list-query.ts
 type ListQuery = {
   search?: string;    // trimmed; '' = no search; ≤ 100 characters; case-insensitive substring (ILIKE)
-  page?: number;      // integer ≥ 1
-  pageSize?: number;  // integer ≥ 1; no upper cap in the layer (spec §3)
+  page?: number;      // integer, 1 to 2147483647
+  pageSize?: number;  // integer, 1 to 2147483647 (the 32-bit limit of skip/take)
 };
 
 type Page<T> = {
@@ -105,7 +105,9 @@ type Page<T> = {
 | `fieldErrors` key | Refused when | Message ★ |
 |---|---|---|
 | `page` | not an integer, or < 1 | "Page must be a whole number of at least 1." |
+| `page` | > 2147483647 | "Page must be a whole number from 1 to 2147483647." |
 | `pageSize` | not an integer, or < 1 | "Page size must be a whole number of at least 1." |
+| `pageSize` | > 2147483647 | "Page size must be a whole number from 1 to 2147483647." |
 | `search` | longer than 100 characters | "Search text can be at most 100 characters." |
 
 The `error` of a `VALIDATION` result from a list is "Invalid list request." Messages marked ★ are new (they have no parity oracle, since web pages correct links before calling, per hardening AC-25/26).

@@ -10,6 +10,7 @@ import { createFreelancer } from '../../support/factories/user';
 import { createCustomer } from '../../support/factories/customer';
 import { createProduct } from '../../support/factories/product';
 import { createSenderProfile } from '../../support/factories/sender-profile';
+import { createBankAccount } from '../../support/factories/bank-account';
 import { createCustomPrice } from '../../support/factories/custom-price';
 import { actingFreelancerForTest } from '../../support/acting-freelancer';
 
@@ -80,6 +81,10 @@ describe.runIf(containerRuntimeAvailable)('list hardening (T21)', () => {
     for (const [i, p] of prods.entries()) {
       await createCustomPrice(prisma, p.id, cust[0].id, { id: `cp${3 - i}` });
     }
+    // Bank accounts nest under the profile; reverse insertion order again, equal names.
+    for (const id of ['b3', 'b1', 'b2']) {
+      await createBankAccount(prisma, 's1', { id, bankName: 'Same', isDefault: false });
+    }
     const actor = await actingFreelancerForTest(user.id);
     const res = await editor.getInvoiceEditorData(actor);
     expect(res.success).toBe(true);
@@ -88,5 +93,6 @@ describe.runIf(containerRuntimeAvailable)('list hardening (T21)', () => {
     expect(idsOf(res.data.products)).toEqual(['p1', 'p2', 'p3']);
     expect(idsOf(res.data.customPrices)).toEqual(['cp1', 'cp2', 'cp3']);
     expect(idsOf(res.data.senderProfiles)).toEqual(['s1', 's2', 's3']);
+    expect(idsOf(res.data.bankAccounts)).toEqual(['b1', 'b2', 'b3']);
   });
 });

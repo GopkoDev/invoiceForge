@@ -122,6 +122,17 @@ describe('parseListQuery (AC-13)', () => {
     expect(parseListQuery({ pageSize: 10000 })).toMatchObject({ success: true });
   });
 
+  it.each([2 ** 31, 1e12])('names the allowed range when page or pageSize is %s (T28, R-07)', (value) => {
+    expect(parseListQuery({ page: value })).toMatchObject({
+      success: false,
+      fieldErrors: { page: ['Page must be a whole number from 1 to 2147483647.'] },
+    });
+    expect(parseListQuery({ pageSize: value })).toMatchObject({
+      success: false,
+      fieldErrors: { pageSize: ['Page size must be a whole number from 1 to 2147483647.'] },
+    });
+  });
+
   it.each([0, -5, 2.5])('refuses page %s', (value) => {
     expect(parseListQuery({ page: value })).toMatchObject({
       success: false,
