@@ -3,7 +3,6 @@
 import { prisma } from '@/prisma';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
 import {
-  invoiceFormSchema,
   invoiceAmountsSchema,
   InvoiceFormValues,
 } from '@/lib/validations/invoice';
@@ -11,9 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { captureMessage } from '@sentry/nextjs';
 import { protectedRoutes } from '@/config/routes.config';
 import { ActionResult, ok, fail } from '@/types/actions';
-import { z } from 'zod';
 import {
-  zodValidationFailure,
   isUniqueConstraintError,
   failed,
 } from '@/lib/actions/action-result-helpers';
@@ -24,53 +21,21 @@ import {
   PaginatedInvoiceList,
 } from '@/types/invoice/types';
 import { InvoiceStatus } from '@prisma/client';
-import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import { InvoiceListParams } from '@/lib/validations/search-params';
 import {
   allocateInvoiceNumber,
-  isInvoiceKeyTaken,
-  normalizeInvoiceNumber,
 } from './numbering';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import * as invoiceReads from '@/lib/services/invoices/invoices';
-import {
-  InvoiceNumberConflictError,
-  invoiceNumberConflict,
-  resolveManualOrAllocatedNumber,
-  type SavedInvoice,
-} from '@/lib/services/invoices/invoices';
+import { type SavedInvoice } from '@/lib/services/invoices/invoices';
 import * as editorData from '@/lib/services/invoices/editor-data';
 
 import {
-  buildSenderSnapshot,
-  buildCustomerSnapshot,
-  buildBankAccountSnapshot,
   transformInvoiceToFormData,
-  verifyInvoiceRelations,
-  verifyItemProductsOwnership,
 } from './helpers';
 
 export type { SavedInvoice };
-
-const LEGACY_SHARED_NUMBER_MESSAGE =
-  'This invoice number is also used by another invoice. Change it to a free one to save.';
-
-/** Thrown inside updateInvoice's transaction for AC-17's shared-number case (step 4): the
- * invoice's own key is NULL or shared, and the submitted number is unchanged. */
-class InvoiceLegacySharedNumberError extends Error {}
-
-/** Thrown inside updateInvoice's transaction for AC-17's totals case (step 5): the stored total
- * disagrees with a recompute of the invoice's own stored lines, and confirmedTotals doesn't (yet)
- * echo the current (stored, recomputed) pair. */
-class InvoiceTotalsChangedError extends Error {
-  constructor(
-    public readonly oldTotal: string,
-    public readonly newTotal: string
-  ) {
-    super('TOTALS_CHANGED');
-  }
-}
 
 // Returns the next proposed invoice number as a hint only (AC-06).
 export async function generateInvoiceNumber(
@@ -110,240 +75,20 @@ export async function createInvoice(
   return result;
 }
 
-// Update an existing invoice (Flows 2, 6 move, 7 legacy, 8 status from the editor). The checks
-// run in the order fixed by contracts/server-actions.md §updateInvoice, verbatim: UNAUTHORIZED ->
-// VALIDATION (schema) -> NOT_FOUND (invoice, or new relations not owned) -> the move/manual number
-// rules (AC-11) -> the legacy shared-number check (AC-17) -> the legacy totals confirmation
-// (AC-17) -> applyStatusChange (AC-18, AC-19), all inside one transaction.
+// Update an existing invoice: the web wrapper — session, then the business function, then the
+// page refresh on success.
 export async function updateInvoice(
   id: string,
   data: InvoiceFormValues
 ): Promise<ActionResult<SavedInvoice>> {
-  // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
-  // knows whether to alert Sentry (checklist: only for system-assigned numbers).
-  let wasAllocated = false;
-  let allocatedNumber = '';
-
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-    const parsed = invoiceFormSchema.safeParse(data);
-    if (!parsed.success) {
-      return zodValidationFailure(parsed.error);
-    }
-    const validatedData = parsed.data;
-
-    // Verify invoice exists and belongs to the caller
-    const existingInvoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId } },
-      include: { items: true },
-    });
-    if (!existingInvoice) {
-      return fail('NOT_FOUND', 'Invoice not found.');
-    }
-
-    // Verify ownership and get snapshot data for the (possibly new) relations
-    const relationsResult = await verifyInvoiceRelations(
-      userId,
-      validatedData.senderProfileId,
-      validatedData.customerId,
-      validatedData.bankAccountId
-    );
-    if (!relationsResult.success) {
-      return relationsResult;
-    }
-
-    // F-48: every item's productId, if any, must belong to this same Freelancer.
-    const productOwnershipResult = await verifyItemProductsOwnership(
-      userId,
-      validatedData.items
-    );
-    if (!productOwnershipResult.success) {
-      return productOwnershipResult;
-    }
-
-    const { senderProfile, customer, bankAccount } = relationsResult.data;
-    const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
-
-    const invoice = await prisma.$transaction(async (tx) => {
-      // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
-      // move clears the number field and always applies the manual/allocate rules under B; an
-      // unmoved, unchanged number instead runs the legacy shared-number check, and only when
-      // it's free does it keep the number; a changed, non-empty number falls through to the same manual rules (AC-08,
-      // AC-10). A's counter is never touched either way.
-      const numberUnchanged =
-        !moved &&
-        validatedData.invoiceNumber !== '' &&
-        normalizeInvoiceNumber(validatedData.invoiceNumber) ===
-          normalizeInvoiceNumber(existingInvoice.invoiceNumber);
-
-      let resolvedNumber: { invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean };
-      if (numberUnchanged) {
-        const effectiveKey = existingInvoice.invoiceNumberKey;
-        const sharedNumber = await isInvoiceKeyTaken(
-          tx,
-          existingInvoice.senderProfileId,
-          effectiveKey,
-          existingInvoice.id
-        );
-        if (sharedNumber) {
-          throw new InvoiceLegacySharedNumberError();
-        }
-        resolvedNumber = {
-          invoiceNumber: existingInvoice.invoiceNumber,
-          invoiceNumberKey: effectiveKey,
-          wasAllocated: false,
-        };
-      } else {
-        resolvedNumber = await resolveManualOrAllocatedNumber(
-          tx,
-          validatedData.senderProfileId,
-          validatedData.invoiceNumber,
-          existingInvoice.id
-        );
-      }
-      const { invoiceNumber, invoiceNumberKey } = resolvedNumber;
-      wasAllocated = resolvedNumber.wasAllocated;
-      allocatedNumber = invoiceNumber;
-
-      // Stored amounts come only from the shared exact-decimal module (ADR-0006); whatever the
-      // browser sent for items[].total/subtotal/etc. is ignored (AC-13).
-      const amounts = computeInvoiceAmounts({
-        items: validatedData.items.map((item) => ({
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        discount: validatedData.discount,
-        shipping: validatedData.shipping,
-        taxRate: validatedData.taxRate,
-      });
-
-      // Step 5 (AC-17, flow 7): the invoice is legacy-by-totals when a recompute of its own
-      // stored lines disagrees with its stored total. Only then does a mismatch against the
-      // freshly submitted amounts need confirmedTotals to echo (stored, recomputed) exactly.
-      const existingRecomputed = computeInvoiceAmounts({
-        items: existingInvoice.items.map((item) => ({
-          quantity: item.quantity.toString(),
-          price: item.rate.toString(),
-        })),
-        discount: existingInvoice.discount.toString(),
-        shipping: existingInvoice.shipping.toString(),
-        taxRate: existingInvoice.taxRate.toString(),
-      });
-      const storedTotal = existingInvoice.total.toFixed(2);
-      const isLegacyTotals = storedTotal !== existingRecomputed.total;
-
-      if (isLegacyTotals) {
-        const newTotal = amounts.total;
-        const confirmed = validatedData.confirmedTotals;
-        const confirmedMatches =
-          confirmed !== undefined &&
-          confirmed.oldTotal === storedTotal &&
-          confirmed.newTotal === newTotal;
-        if (!confirmedMatches) {
-          throw new InvoiceTotalsChangedError(storedTotal, newTotal);
-        }
-      }
-
-      // Step 6 (AC-18, AC-19): the one status/paid-date transition function.
-      const { status, paidAt } = applyStatusChange(
-        { status: existingInvoice.status, paidAt: existingInvoice.paidAt },
-        validatedData.status
-      );
-
-      await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
-
-      return tx.invoice.update({
-        where: { id },
-        data: {
-          invoiceNumber,
-          invoiceNumberKey,
-          senderProfileId: validatedData.senderProfileId,
-          customerId: validatedData.customerId,
-          bankAccountId: validatedData.bankAccountId,
-          issueDate: validatedData.issueDate,
-          dueDate: validatedData.dueDate,
-          paymentTerms: validatedData.paymentTerms,
-          status,
-          paidAt,
-          currency: validatedData.currency,
-          poNumber: validatedData.poNumber,
-          ...buildSenderSnapshot(senderProfile),
-          ...buildCustomerSnapshot(customer),
-          ...buildBankAccountSnapshot(bankAccount),
-          subtotal: amounts.subtotal,
-          taxRate: validatedData.taxRate,
-          taxAmount: amounts.taxAmount,
-          discount: validatedData.discount,
-          shipping: validatedData.shipping,
-          total: amounts.total,
-          notes: validatedData.notes,
-          terms: validatedData.terms,
-          items: {
-            create: validatedData.items.map((item, index) => ({
-              productId:
-                item.productId && item.productId !== 'custom'
-                  ? item.productId
-                  : null,
-              name: item.productName,
-              description: item.description || null,
-              unit: item.unit,
-              quantity: item.quantity,
-              rate: item.price,
-              amount: amounts.items[index].amount,
-            })),
-          },
-        },
-      });
-    });
-
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await invoiceReads.updateInvoice(actor.data, id, data);
+  if (result.success) {
     revalidatePath(protectedRoutes.invoices);
     revalidatePath(protectedRoutes.invoiceEdit(id));
-    return ok({
-      id: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      subtotal: Number(invoice.subtotal),
-      taxAmount: Number(invoice.taxAmount),
-      total: Number(invoice.total),
-      status: invoice.status,
-      paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return zodValidationFailure(error);
-    }
-    if (error instanceof InvoiceLegacySharedNumberError) {
-      return fail('CONFLICT', LEGACY_SHARED_NUMBER_MESSAGE, {
-        fieldErrors: { invoiceNumber: [LEGACY_SHARED_NUMBER_MESSAGE] },
-      });
-    }
-    if (error instanceof InvoiceTotalsChangedError) {
-      const message = `The total of this invoice changes from ${error.oldTotal} to ${error.newTotal}. Confirm to save.`;
-      return fail('CONFLICT', message, {
-        details: { kind: 'TOTALS_CHANGED', oldTotal: error.oldTotal, newTotal: error.newTotal },
-      });
-    }
-    if (error instanceof InvoiceNumberConflictError || isUniqueConstraintError(error)) {
-      // Allocator bug backstop (sad §7): a unique violation on a system-assigned number still
-      // shouldn't happen past the row lock — alert so it's investigated.
-      if (wasAllocated) {
-        captureMessage('invoice_number_conflict', {
-          extra: {
-            id,
-            senderProfileId: data.senderProfileId,
-            invoiceNumber: allocatedNumber,
-            wasAllocated,
-          },
-        });
-      }
-      return invoiceNumberConflict();
-    }
-    return failed('Error updating invoice:', error, 'Failed to update invoice.');
   }
+  return result;
 }
 
 // Delete invoice
@@ -410,55 +155,19 @@ export async function getInvoicesBySenderProfile(
   return result.success ? ok(result.data.items) : result;
 }
 
-// Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
-// amount, number or legacy checks (AC-17 last sentence). The status/paid-date rule itself lives
-// once in applyStatusChange (sad.md §8).
+// Update invoice status (Flow 8, list branch): the web wrapper.
 export async function updateInvoiceStatus(
   id: string,
   status: string
 ): Promise<ActionResult<{ status: InvoiceStatus; paidAt: string | null }>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const parsedStatus = z.nativeEnum(InvoiceStatus, {
-      errorMap: () => ({ message: 'Unknown status.' }),
-    }).safeParse(status);
-
-    if (!parsedStatus.success) {
-      return fail('VALIDATION', 'Unknown status.', {
-        fieldErrors: { status: ['Unknown status.'] },
-      });
-    }
-
-    const invoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId: authResult.data.userId } },
-      select: { status: true, paidAt: true },
-    });
-
-    if (!invoice) {
-      return fail('NOT_FOUND', 'Invoice not found.');
-    }
-
-    const { status: nextStatus, paidAt } = applyStatusChange(
-      invoice,
-      parsedStatus.data
-    );
-
-    await prisma.invoice.update({
-      where: { id },
-      data: { status: nextStatus, paidAt },
-    });
-
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await invoiceReads.updateInvoiceStatus(actor.data, id, status);
+  if (result.success) {
     revalidatePath(protectedRoutes.invoices);
     revalidatePath(protectedRoutes.invoiceEdit(id));
-
-    return ok({ status: nextStatus, paidAt: paidAt ? paidAt.toISOString() : null });
-  } catch (error) {
-    return failed('Error updating invoice status:', error, 'Failed to update invoice status.');
   }
+  return result;
 }
 
 // Get paginated invoices with filters and sorting. Takes already-parsed params from
