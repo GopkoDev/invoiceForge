@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     // A lookup failure was an unhandled 500 before the move; keep the status. The service's
     // failed() already reported it, so return a response instead of throwing a second event.
     return NextResponse.json(
-      { success: false, code: 'FAILED', error: 'Sender profile logo lookup failed.' },
+      { success: false, code: 'FAILED', error: 'The logo could not be loaded from this link.' },
       { status: 500 }
     );
   }

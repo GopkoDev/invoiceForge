@@ -44,4 +44,19 @@ describe('POST /api/convert-image — a failed lookup (T23, S-03)', () => {
     expect(captureException).toHaveBeenCalledTimes(1);
     expect(status).toBe(500);
   });
+
+  it("shows the generic plain-language warning through fetchLogoDataUrl, not an internal message (T26, R-01)", async () => {
+    findFirstMock.mockRejectedValue(new Error('connection reset'));
+    const { POST } = await import('@/app/api/convert-image/route');
+    const { fetchLogoDataUrl } = await import('@/lib/utils/image-to-base64');
+    vi.stubGlobal('fetch', async (_url: string, init: { body: string }) =>
+      POST(new Request('http://localhost/api/convert-image', { method: 'POST', body: init.body }) as never)
+    );
+    try {
+      const result = await fetchLogoDataUrl('sp-warning', 'https://example.com/logo.png');
+      expect(result).toEqual({ warning: 'The logo could not be loaded from this link.' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

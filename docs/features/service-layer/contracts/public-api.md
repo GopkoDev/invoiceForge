@@ -212,7 +212,7 @@ type InvoicePage = Page<InvoiceListItem> & {       // InvoiceListItem =
 
 | Function | Returns | Outcomes | Web wrapper |
 |---|---|---|---|
-| `listInvoices(actor, query?: InvoiceListQuery)` ★ | `InvoicePage` | `VALIDATION` (list + filters) | `getPaginatedInvoices(params)` ✎ maps `items → invoices` and adds its own `applied` (the corrected link params), so the page sees today's `PaginatedInvoiceList & { applied }`. `getInvoicesByCustomer(id, limit)` / `getInvoicesBySenderProfile(id, limit)` → `{ customerId \| senderProfileId, page: 1, pageSize: limit }` → `data.items` |
+| `listInvoices(actor, query?: InvoiceListQuery)` ★ | `InvoicePage` | `VALIDATION` (list + filters) | `getPaginatedInvoices(params)` ✎ maps `items → invoices` and adds its own `applied` (the corrected link params), so the page sees today's `PaginatedInvoiceList & { applied }`. `getInvoicesByCustomer(id, limit)` / `getInvoicesBySenderProfile(id, limit)` → `{ customerId \| senderProfileId }` (plus `page: 1, pageSize: limit` only when a limit is given) → `data.items`; a `FAILED` result keeps the old "Failed to fetch customer invoices." / "Failed to fetch sender profile invoices." messages |
 | `getInvoice(actor, id)` | `SerializedInvoice` = | `NOT_FOUND` "Invoice not found." | `getInvoice(id)` |
 | `getInvoiceEditorData(actor, invoiceId?)` | `InvoiceEditorData` = (customers, products, sender profiles with bank accounts, custom prices, and the invoice + legacy info when `invoiceId` is given) | `NOT_FOUND` (invoice) · `FAILED` (flow 11, AC-25) | `getInvoiceEditorData(invoiceId?)` |
 | `peekNextInvoiceNumber(actor, senderProfileId)` | `string` | `NOT_FOUND` "Sender profile not found." No lock, no side effect | `generateInvoiceNumber(senderProfileId)` |

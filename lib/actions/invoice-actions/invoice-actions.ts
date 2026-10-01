@@ -100,7 +100,10 @@ export async function getInvoicesByCustomer(
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
   const result = await invoiceReads.listInvoices(actor.data, { customerId, ...(limit ? { page: 1, pageSize: limit } : {}) });
-  return result.success ? ok(result.data.items) : result;
+  if (!result.success) {
+    return result.code === 'FAILED' ? { ...result, error: 'Failed to fetch customer invoices.' } : result;
+  }
+  return ok(result.data.items);
 }
 
 // Get invoices by sender profile ID
@@ -111,7 +114,10 @@ export async function getInvoicesBySenderProfile(
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
   const result = await invoiceReads.listInvoices(actor.data, { senderProfileId, ...(limit ? { page: 1, pageSize: limit } : {}) });
-  return result.success ? ok(result.data.items) : result;
+  if (!result.success) {
+    return result.code === 'FAILED' ? { ...result, error: 'Failed to fetch sender profile invoices.' } : result;
+  }
+  return ok(result.data.items);
 }
 
 // Update invoice status (Flow 8, list branch): the web wrapper.
