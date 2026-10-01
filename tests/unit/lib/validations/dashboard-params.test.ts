@@ -94,3 +94,32 @@ describe('dashboardParamsSchema (unit, AC-25)', () => {
     expect(parsed.appliedRange).toBeDefined();
   });
 });
+
+// T19 (service-layer, AC-01): the schema additionally returns `period` as local dates, next to the
+// unchanged `appliedRange`. Fallback rules are the same as for `appliedRange`.
+describe('dashboardParamsSchema period output (T19, AC-01)', () => {
+  it('a valid from<=to range gives the same local dates as period', () => {
+    const parsed = dashboardParamsSchema(TZ, NOW).parse({ from: '2026-09-01', to: '2026-09-15' });
+    expect(parsed.period).toEqual({ from: '2026-09-01', to: '2026-09-15' });
+  });
+
+  it.each([
+    ['malformed', { from: 'abc', to: 'xyz' }],
+    ['to missing', { from: '2026-09-05' }],
+    ['reversed', { from: '2026-10-05', to: '2026-10-01' }],
+    ['empty', {}],
+  ])('%s falls back to the current local month as local dates', (_label, raw) => {
+    const parsed = dashboardParamsSchema(TZ, NOW).parse(raw);
+    expect(parsed.period).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+  });
+
+  it('preset=all-time gives period undefined (all time) and appliedRange undefined', () => {
+    const parsed = dashboardParamsSchema(TZ, NOW).parse({
+      from: '2026-09-01',
+      to: '2026-09-15',
+      preset: 'all-time',
+    });
+    expect(parsed.period).toBeUndefined();
+    expect(parsed.appliedRange).toBeUndefined();
+  });
+});

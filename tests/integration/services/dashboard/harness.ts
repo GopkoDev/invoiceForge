@@ -150,3 +150,74 @@ export async function seedParityFixture(prisma: PrismaClient) {
   });
   return s;
 }
+
+// T19: one normalised, JSON-able view of every dashboard section. The same function reads the old
+// actions (while they existed, to record the expected values) and the new layer functions. It leaves
+// out the ids, Debtor / sender-account names and tie order (AC-05: compared by AC-06 instead).
+type R<T> = { success: true; data: T } | { success: false; code: string; error: string };
+type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Period = { from: string; to: string };
+export type DashboardReader = {
+  tabs: () => Promise<R<Row[]>>;
+  stats: (c: string, p?: Period) => Promise<R<Row>>;
+  chart: (c: string, p: Period) => Promise<R<Row[]>>;
+  senders: (c: string, p?: Period) => Promise<R<Row[]>>;
+  recent: (c: string) => Promise<R<Row[]>>;
+  debtors: (c: string) => Promise<R<Row[]>>;
+  expected: (c: string) => Promise<R<Row[]>>;
+};
+
+function unwrapR<T>(r: R<T>): T {
+  if (!r.success) throw new Error(`expected success, got ${r.code}: ${r.error}`);
+  return r.data;
+}
+const iso = (v: Date) => v.toISOString();
+
+export async function snapshotDashboard(api: DashboardReader) {
+  const out: Record<string, unknown> = {};
+  out.tabs = unwrapR(await api.tabs()).map((t) => t.currency).sort();
+  const periods: Array<[string, Period | undefined]> = [
+    ['dst', DST_PERIOD],
+    ['weekly', WEEKLY_PERIOD],
+    ['all', undefined],
+  ];
+  for (const currency of ['USD', 'EUR']) {
+    for (const [name, period] of periods) {
+      const stats = unwrapR(await api.stats(currency, period));
+      out[`${currency}.stats.${name}`] = Object.fromEntries(
+        Object.entries(stats).map(([k, v]) => [k, k.endsWith('Count') ? v : cents(v as number)]),
+      );
+      if (period) {
+        out[`${currency}.chart.${name}`] = unwrapR(await api.chart(currency, period)).map((p) => [
+          p.date,
+          cents(p.paid),
+          cents(p.expected),
+        ]);
+      }
+      out[`${currency}.senders.${name}`] = unwrapR(await api.senders(currency, period))
+        .map((s) => ({
+          received: cents(s.totalReceived),
+          planned: cents(s.totalPlanned),
+          future: cents(s.allFuturePlanned),
+          accounts: s.accounts.map((a: Row) => [cents(a.received), cents(a.planned)]).sort(),
+        }))
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    }
+    out[`${currency}.recent`] = unwrapR(await api.recent(currency)).map((i) => [
+      cents(i.total),
+      i.status,
+      i.currency,
+      iso(i.issueDate),
+      // The factory's default due date of a PAID invoice follows the real clock; not comparable.
+      i.status === 'PAID' ? null : iso(i.dueDate),
+    ]);
+    out[`${currency}.debtors`] = unwrapR(await api.debtors(currency)).map((x) => [cents(x.total), x.count, x.currencies]);
+    out[`${currency}.expected`] = unwrapR(await api.expected(currency)).map((g) => ({
+      currency: g.currency,
+      total: cents(g.total),
+      count: g.count,
+      invoices: g.invoices.map((i: Row) => [cents(i.total), iso(i.dueDate)]),
+    }));
+  }
+  return out;
+}

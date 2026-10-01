@@ -3,17 +3,31 @@
 // the inner result unchanged.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/prisma', () => ({
-  prisma: {
-    bankAccount: { findMany: async () => [] },
-    invoice: {
-      findMany: async () => [],
-      aggregate: async () => ({ _sum: { total: null }, _count: 0 }),
-    },
-  },
+// T19: the spans live in lib/services/dashboard now; the wrappers resolve the session actor and
+// delegate, so the data-store queries underneath are stubbed instead of prisma.
+vi.mock('@/lib/helpers/session-actor', () => ({
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'user-1', timeZone: 'UTC' },
+  }),
 }));
-vi.mock('@/lib/helpers/auth-helpers', () => ({
-  getAuthenticatedUser: async () => ({ success: true, data: { userId: 'user-1' } }),
+vi.mock('@/lib/services/dashboard/queries', () => ({
+  queryCurrencyTabs: async () => [],
+  querySummaryStats: async () => ({
+    totalReceived: 0,
+    receivedCount: 0,
+    totalPlanned: 0,
+    plannedCount: 0,
+    totalOverdue: 0,
+    overdueCount: 0,
+    allFuturePayments: 0,
+    allFuturePaymentsCount: 0,
+  }),
+  queryChartBuckets: async () => [],
+  querySenderAccounts: async () => [],
+  queryRecentInvoices: async () => [],
+  queryDebtors: async () => [],
+  queryExpectedPayments: async () => [],
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: () => {},

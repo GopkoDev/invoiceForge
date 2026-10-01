@@ -33,10 +33,17 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
 
+// T19: the zone now comes from the session actor (tz cookie), not from an argument.
+const tzCookie = vi.hoisted(() => ({ value: 'UTC' }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ get: (n: string) => (n === 'tz' ? { value: tzCookie.value } : undefined) }),
+}));
+
 vi.mock('next/cache', () => ({ revalidatePath: () => {}, unstable_cache: (fn: unknown) => fn }));
 
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: vi.fn(),
+  captureException: vi.fn(),
   // T5: dashboard actions run inside a span; pass the callback straight through.
   startSpan: (_options: unknown, callback: () => unknown) => callback(),
 }));
@@ -47,8 +54,7 @@ type ActionResult<T> =
 type ChartDataPointLike = { date: string; paid: number; expected: number };
 type GetDashboardChartData = (
   currency: string,
-  appliedRange: { start: Date; endExclusive: Date } | undefined,
-  timeZone: string
+  period: { from: string; to: string } | undefined
 ) => Promise<ActionResult<ChartDataPointLike[]>>;
 
 describe.runIf(containerRuntimeAvailable)(
@@ -103,12 +109,10 @@ describe.runIf(containerRuntimeAvailable)(
 
       // appliedRange for the single local day 2026-09-15 in America/New_York (EDT, UTC-4):
       // [2026-09-15T04:00:00Z, 2026-09-16T04:00:00Z).
-      const appliedRange = {
-        start: new Date('2026-09-15T04:00:00.000Z'),
-        endExclusive: new Date('2026-09-16T04:00:00.000Z'),
-      };
+      tzCookie.value = 'America/New_York';
+      const period = { from: '2026-09-15', to: '2026-09-15' };
 
-      const result = await getDashboardChartData('USD', appliedRange, 'America/New_York');
+      const result = await getDashboardChartData('USD', period);
 
       expect(result.success).toBe(true);
       if (!result.success) return;
@@ -127,12 +131,10 @@ describe.runIf(containerRuntimeAvailable)(
       authMock.mockResolvedValue({ user: { id: freelancer.id } });
 
       // Cairo: +02:00 until 2026-04-23T22:00Z, +03:00 after; 04-24 has 23h.
-      const appliedRange = {
-        start: new Date('2026-04-22T22:00:00.000Z'),
-        endExclusive: new Date('2026-04-25T21:00:00.000Z'),
-      };
+      tzCookie.value = 'Africa/Cairo';
+      const period = { from: '2026-04-23', to: '2026-04-25' };
 
-      const result = await getDashboardChartData('USD', appliedRange, 'Africa/Cairo');
+      const result = await getDashboardChartData('USD', period);
 
       expect(result.success).toBe(true);
       if (!result.success) return;

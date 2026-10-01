@@ -82,7 +82,7 @@ export default async function DashboardPage({
   const currency = validateCurrency(params.currency, currencyTabs);
 
   const timeZone = await getRequestTimeZone();
-  const { appliedRange } = dashboardParamsSchema(timeZone).parse(params);
+  const { appliedRange, period } = dashboardParamsSchema(timeZone).parse(params);
 
   const setupStatus = unwrapPageResult(setupStatusResult);
 
@@ -107,7 +107,7 @@ export default async function DashboardPage({
         key={`stats-${currencyKey}-${rangeKey}`}
         fallback={<DashboardStatsCardsSkeleton />}
       >
-        <StatsSection currency={currency} appliedRange={appliedRange} />
+        <StatsSection currency={currency} appliedRange={period} />
       </Suspense>
 
       <Suspense
@@ -118,7 +118,7 @@ export default async function DashboardPage({
           </div>
         }
       >
-        <ChartSection currency={currency} appliedRange={appliedRange} timeZone={timeZone} />
+        <ChartSection currency={currency} appliedRange={period} />
       </Suspense>
 
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
@@ -144,7 +144,7 @@ export default async function DashboardPage({
           </div>
         }
       >
-        <SenderAccountsSection currency={currency} appliedRange={appliedRange} />
+        <SenderAccountsSection currency={currency} appliedRange={period} />
       </Suspense>
 
       <Suspense

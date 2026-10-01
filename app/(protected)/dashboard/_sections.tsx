@@ -15,7 +15,7 @@ import {
   getDashboardExpectedPayments,
 } from '@/lib/actions/dashboard-actions';
 import { unwrapPageResult } from '@/components/layout/content-area';
-import type { DashboardAppliedRange } from '@/lib/validations/search-params';
+import type { DashboardLocalPeriod } from '@/lib/validations/search-params';
 
 // T26 (spec.md §5 AC-28) — the dashboard's async Suspense sections, split out so
 // `tests/component/dashboard-section-outcome-routing.test.tsx` can drive each loader's
@@ -28,7 +28,7 @@ export async function StatsSection({
   appliedRange,
 }: {
   currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
+  appliedRange: DashboardLocalPeriod | undefined;
 }) {
   const result = await getDashboardSummaryStats(currency, appliedRange);
   const stats = unwrapPageResult(result);
@@ -38,13 +38,11 @@ export async function StatsSection({
 export async function ChartSection({
   currency,
   appliedRange,
-  timeZone,
 }: {
   currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
-  timeZone: string;
+  appliedRange: DashboardLocalPeriod | undefined;
 }) {
-  const result = await getDashboardChartData(currency, appliedRange, timeZone);
+  const result = await getDashboardChartData(currency, appliedRange);
   const data = unwrapPageResult(result);
   return (
     <div className="px-4 lg:px-6">
@@ -74,7 +72,7 @@ export async function SenderAccountsSection({
   appliedRange,
 }: {
   currency: Currency;
-  appliedRange: DashboardAppliedRange | undefined;
+  appliedRange: DashboardLocalPeriod | undefined;
 }) {
   const result = await getDashboardSenderAccounts(currency, appliedRange);
   const accounts = unwrapPageResult(result);
