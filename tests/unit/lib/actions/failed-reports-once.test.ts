@@ -80,7 +80,6 @@ const cases: Array<[string, () => Promise<{ success: boolean; code?: string }>]>
       (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoiceEditorData('i1'),
   ],
   ['invoice', async () => (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoice('i1')],
-  ['invoices', async () => (await import('@/lib/actions/invoice-actions/invoice-actions')).getInvoices()],
   [
     'invoices by customer',
     async () =>

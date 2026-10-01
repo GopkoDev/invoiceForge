@@ -26,7 +26,6 @@ import {
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
-import { getRequestTimeZone, localDayRange } from '@/lib/helpers/time-zone';
 import { InvoiceListParams } from '@/lib/validations/search-params';
 import {
   allocateInvoiceNumber,
@@ -39,11 +38,6 @@ import * as invoiceReads from '@/lib/services/invoices/invoices';
 import * as editorData from '@/lib/services/invoices/editor-data';
 
 import {
-  invoiceListSelect,
-} from './select-queries';
-
-import {
-  serializeDecimal,
   buildSenderSnapshot,
   buildCustomerSnapshot,
   buildBankAccountSnapshot,
@@ -577,61 +571,15 @@ export async function getInvoice(
   return invoiceReads.getInvoice(actor.data, id);
 }
 
-// Get all invoices list
-export async function getInvoices(): Promise<ActionResult<InvoiceListItem[]>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const invoices = await prisma.invoice.findMany({
-      where: { senderProfile: { userId: authResult.data.userId } },
-      select: invoiceListSelect,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return ok(
-      invoices.map((inv) => ({
-        ...inv,
-        total: serializeDecimal(inv.total),
-      })),
-    );
-  } catch (error) {
-    return failed('Error fetching invoices:', error, 'Failed to fetch invoices.');
-  }
-}
-
 // Get invoices by customer ID
 export async function getInvoicesByCustomer(
   customerId: string,
   limit?: number
 ): Promise<ActionResult<InvoiceListItem[]>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        customerId,
-        senderProfile: { userId: authResult.data.userId },
-      },
-      select: invoiceListSelect,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
-    return ok(
-      invoices.map((inv) => ({
-        ...inv,
-        total: serializeDecimal(inv.total),
-      })),
-    );
-  } catch (error) {
-    return failed('Error fetching customer invoices:', error, 'Failed to fetch customer invoices.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await invoiceReads.listInvoices(actor.data, { customerId, page: 1, pageSize: limit });
+  return result.success ? ok(result.data.items) : result;
 }
 
 // Get invoices by sender profile ID
@@ -639,31 +587,10 @@ export async function getInvoicesBySenderProfile(
   senderProfileId: string,
   limit?: number
 ): Promise<ActionResult<InvoiceListItem[]>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        senderProfileId,
-        senderProfile: { userId: authResult.data.userId },
-      },
-      select: invoiceListSelect,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
-    return ok(
-      invoices.map((inv) => ({
-        ...inv,
-        total: serializeDecimal(inv.total),
-      })),
-    );
-  } catch (error) {
-    return failed('Error fetching sender profile invoices:', error, 'Failed to fetch sender profile invoices.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await invoiceReads.listInvoices(actor.data, { senderProfileId, page: 1, pageSize: limit });
+  return result.success ? ok(result.data.items) : result;
 }
 
 // Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
@@ -724,164 +651,65 @@ export async function updateInvoiceStatus(
 export async function getPaginatedInvoices(
   params: Partial<InvoiceListParams>
 ): Promise<ActionResult<PaginatedInvoiceList & { applied: InvoiceListParams }>> {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
 
-    const {
-      page: requestedPage = 1,
-      pageSize = 10,
-      tab = 'all',
-      search = '',
-      status = 'all',
-      customerId,
-      senderProfileId,
-      sortField = 'createdAt',
-      sortDirection = 'desc',
-      dateFrom,
-      dateTo,
-    } = params;
+  const {
+    page: requestedPage = 1,
+    pageSize = 10,
+    tab = 'all',
+    search = '',
+    status = 'all',
+    customerId,
+    senderProfileId,
+    sortField = 'createdAt',
+    sortDirection = 'desc',
+    dateFrom,
+    dateTo,
+  } = params;
 
-    const userId = authResult.data.userId;
-    // Day boundaries use the validated browser time zone from the `tz` cookie, falling back to
-    // UTC (sad.md §8 Hard rule "Time and time zones"; ADR-0010).
-    const timeZone = await getRequestTimeZone();
+  const result = await invoiceReads.listInvoices(actor.data, {
+    page: requestedPage,
+    pageSize,
+    tab,
+    search,
+    status,
+    customerId,
+    senderProfileId,
+    sortField,
+    sortDirection,
+    // The page's link parser already drops a half or reversed range; only a full one is applied.
+    ...(dateFrom && dateTo ? { dateFrom, dateTo } : {}),
+  });
+  if (!result.success) return result;
 
-    const baseWhere = {
-      senderProfile: { userId },
-    };
+  const { items, total, page, totalPages, filterOptions, totalInvoices } = result.data;
+  const applied: InvoiceListParams = {
+    page,
+    pageSize,
+    sortField,
+    sortDirection,
+    // F-33 (review-2026-09-27) — off the "all" tab, the tab controls the status filter and
+    // `status` is ignored by the query, so echo 'all' rather than a filter that isn't applied.
+    status: tab === 'all' ? status : 'all',
+    tab,
+    customerId,
+    senderProfileId,
+    search,
+    dateFrom: dateFrom && dateTo ? dateFrom : undefined,
+    dateTo: dateFrom && dateTo ? dateTo : undefined,
+  };
 
-    const getTabStatusFilter = () => {
-      if (tab === 'drafts') {
-        return { status: 'DRAFT' as InvoiceStatus };
-      }
-      if (tab === 'final') {
-        return { status: { not: 'DRAFT' as InvoiceStatus } };
-      }
-      return {};
-    };
-
-    const buildFilters = () => {
-      const filters: Record<string, unknown> = {};
-
-      if (search) {
-        filters.OR = [
-          { invoiceNumber: { contains: search, mode: 'insensitive' } },
-          { customerName: { contains: search, mode: 'insensitive' } },
-          { senderName: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-
-      // Status filter (only if not filtered by tab)
-      if (status !== 'all' && tab === 'all') {
-        filters.status = status;
-      }
-
-      if (customerId) {
-        filters.customerId = customerId;
-      }
-
-      if (senderProfileId) {
-        filters.senderProfileId = senderProfileId;
-      }
-
-      // Date bounds (contracts/server-actions.md §Link parameters, verbatim): [startOfDay(from,
-      // tz), startOfDay(to + 1 day, tz)), so the last day is included in full and the end is
-      // exclusive at the next local midnight (AC-27, ADR-0010).
-      if (dateFrom && dateTo) {
-        const [gte, lt] = localDayRange(dateFrom, dateTo, timeZone);
-        filters.issueDate = { gte, lt };
-      }
-
-      return filters;
-    };
-
-    const tabFilter = getTabStatusFilter();
-    const additionalFilters = buildFilters();
-
-    const where = {
-      ...baseWhere,
-      ...tabFilter,
-      ...additionalFilters,
-    };
-
-    const orderBy = {
-      [sortField]: sortDirection,
-    };
-
-    // The clamp to page 1 (task file §Edge cases, "?page=999 beyond the last page") is only
-    // knowable once `total` is counted, so the count and the page-scoped fetch are sequenced.
-    const [total, totalInvoices, customers, senderProfiles] = await Promise.all([
-      prisma.invoice.count({ where }),
-      // Total invoices without any filters (for empty state detection)
-      prisma.invoice.count({ where: baseWhere }),
-      // Get unique customers for filter dropdown
-      prisma.customer.findMany({
-        where: { userId },
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' },
-      }),
-      // Get sender profiles for filter dropdown
-      prisma.senderProfile.findMany({
-        where: { userId },
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' },
-      }),
-    ]);
-
-    const totalPages = Math.ceil(total / pageSize);
-    // F-32 (review-2026-09-27) — a filter matching zero invoices (`totalPages === 0`) used to
-    // skip the clamp entirely (`totalPages > 0` was false), leaving an absurd requested page
-    // (e.g. `?page=1e20`) unclamped and overflowing Prisma's `skip` below.
-    const page = totalPages === 0 || requestedPage > totalPages ? 1 : requestedPage;
-
-    const invoices = await prisma.invoice.findMany({
-      where,
-      select: invoiceListSelect,
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
-
-    const applied: InvoiceListParams = {
-      page,
-      pageSize,
-      sortField,
-      sortDirection,
-      // F-33 (review-2026-09-27) — off the "all" tab, the tab controls the status filter and
-      // `status` is ignored by the query (getTabStatusFilter/buildFilters above), so echoing the
-      // raw requested status here would show a filter pill/Clear button for a filter that isn't
-      // actually applied.
-      status: tab === 'all' ? status : 'all',
-      tab,
-      customerId,
-      senderProfileId,
-      search,
-      dateFrom: dateFrom && dateTo ? dateFrom : undefined,
-      dateTo: dateFrom && dateTo ? dateTo : undefined,
-    };
-
-    return ok({
-      invoices: invoices.map((inv) => ({
-        ...inv,
-        total: serializeDecimal(inv.total),
-      })),
-      total,
-      page,
-      pageSize,
-      totalPages,
-      filterOptions: {
-        customers,
-        senderProfiles,
-      },
-      totalInvoices,
-      applied,
-    });
-  } catch (error) {
-    return failed('Error fetching paginated invoices:', error, 'Failed to fetch invoices.');
-  }
+  return ok({
+    invoices: items,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    filterOptions,
+    totalInvoices,
+    applied,
+  });
 }
 
 // Duplicate an existing invoice (Flow 6, duplicate branch, AC-12). In one transaction: allocate

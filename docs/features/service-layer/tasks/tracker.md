@@ -17,7 +17,7 @@
 | T10 | Move bank accounts into lib/services/bank-accounts with a parent-scoped list | app | Dmytro Hopko | M | T3, T4 | done |
 | T11 | Move profile, account deletion, data export and the dashboard setup check into the layer | app | Dmytro Hopko | M | T3 | done |
 | T12 | Move invoice numbering, getInvoice, the editor data and the next-number preview into lib/services/invoices | app | Dmytro Hopko | M | T3 | done |
-| T13 | Add listInvoices with validated filters and local-date bounds, and delete the unused list-all function | app | Dmytro Hopko | M | T3, T4, T12 | todo |
+| T13 | Add listInvoices with validated filters and local-date bounds, and delete the unused list-all function | app | Dmytro Hopko | M | T3, T4, T12 | done |
 | T14 | Move createInvoice into the layer with owned references and numbering under the row lock | app | Dmytro Hopko | M | T12 | todo |
 | T15 | Move updateInvoice and updateInvoiceStatus into the layer with the totals check and the paid-date rule | app | Dmytro Hopko | M | T14 | todo |
 | T16 | Move duplicateInvoice and deleteInvoice into the layer | app | Dmytro Hopko | S | T14 | todo |
