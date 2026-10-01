@@ -13,7 +13,7 @@ import type {
   SerializedCustomPrice,
 } from '@/types/custom-price/types';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import { paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
+import { escapeLike, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
 import { notFoundOnMiss } from '@/lib/services/_shared/owner-scope';
 import { failed, zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 
@@ -46,8 +46,8 @@ async function listCustomPrices(
       : {
           ...parent,
           OR: [
-            { product: { name: { contains: search, mode: 'insensitive' } } },
-            { customer: { name: { contains: search, mode: 'insensitive' } } },
+            { product: { name: { contains: escapeLike(search), mode: 'insensitive' } } },
+            { customer: { name: { contains: escapeLike(search), mode: 'insensitive' } } },
           ],
         };
   return paginate({

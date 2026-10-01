@@ -114,11 +114,16 @@ describe.runIf(containerRuntimeAvailable)('listInvoices service (T13)', () => {
 
   it.each([
     ['status', { status: 'BOGUS' }, 'status'],
+    ['status constructor', { status: 'constructor' }, 'status'],
+    ['status toString', { status: 'toString' }, 'status'],
+    ['status __proto__', { status: '__proto__' }, 'status'],
     ['tab', { tab: 'weird' }, 'tab'],
     ['sortField', { sortField: 'customerName' }, 'sortField'],
     ['sortDirection', { sortDirection: 'up' }, 'sortDirection'],
     ['page', { page: 0 }, 'page'],
     ['pageSize', { pageSize: 2.5 }, 'pageSize'],
+    ['huge page', { page: 1e20 }, 'page'],
+    ['huge pageSize', { pageSize: 1e20 }, 'pageSize'],
     ['search', { search: 'x'.repeat(101) }, 'search'],
     ['dateFrom only', { dateFrom: '2026-09-01' }, 'dateFrom'],
     ['dateTo only', { dateTo: '2026-09-30' }, 'dateTo'],
@@ -133,6 +138,15 @@ describe.runIf(containerRuntimeAvailable)('listInvoices service (T13)', () => {
     expect(res.code).toBe('VALIDATION');
     expect(res.fieldErrors).toHaveProperty(key);
     expect(res.data).toBeUndefined();
+  });
+
+  it.each(['%', '_'])('AC-11: searching %s matches only literal text', async (term) => {
+    const a = await seed('t13-a@example.com');
+    await a.make(1);
+    const lit = await a.make(2, {}, { customer: await createCustomer(prisma, a.user.id, { name: `50${term} off` }) });
+    const actor = await actingFreelancerForTest(a.user.id);
+    const res = await listInvoices(actor, { search: term });
+    expect(ids(res)).toEqual([lit.id]);
   });
 
   it('refusal messages name the allowed values', async () => {

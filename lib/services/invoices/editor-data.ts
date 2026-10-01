@@ -36,15 +36,17 @@ export async function getInvoiceEditorData(
       prisma.senderProfile.findMany({
         where: { userId },
         select: { ...senderProfileSelect, bankAccounts: { select: bankAccountSelect } },
-        orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
       }),
-      prisma.customer.findMany({ where: { userId }, select: customerSelect, orderBy: { name: 'asc' } }),
+      prisma.customer.findMany({ where: { userId }, select: customerSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
       prisma.product.findMany({
         where: { userId, isActive: true },
         select: productSelect,
-        orderBy: { name: 'asc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
       }),
-      prisma.customPrice.findMany({ where: { product: { userId } }, select: customPriceSelect }),
+      prisma.customPrice.findMany({ where: { product: { userId } }, select: customPriceSelect,
+        orderBy: [{ product: { name: 'asc' } }, { id: 'asc' }],
+      }),
       invoiceId
         ? prisma.invoice.findFirst({
             where: { id: invoiceId, senderProfile: { userId } },

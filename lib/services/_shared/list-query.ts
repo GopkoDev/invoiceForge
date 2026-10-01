@@ -6,6 +6,9 @@ import { zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 /** Default page size when a page is requested without one (AC-12). No upper cap (spec §3). */
 const DEFAULT_PAGE_SIZE = 10;
 
+/** Largest page or page size accepted: Prisma's skip/take are 32-bit, so anything above throws. */
+const MAX_PAGE_VALUE = 2 ** 31 - 1;
+
 const PAGE_MESSAGE = 'Page must be a whole number of at least 1.';
 const PAGE_SIZE_MESSAGE = 'Page size must be a whole number of at least 1.';
 
@@ -15,11 +18,13 @@ export const listQuerySchema = z.object({
     .number({ message: PAGE_MESSAGE })
     .int(PAGE_MESSAGE)
     .min(1, PAGE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_MESSAGE)
     .optional(),
   pageSize: z
     .number({ message: PAGE_SIZE_MESSAGE })
     .int(PAGE_SIZE_MESSAGE)
     .min(1, PAGE_SIZE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_SIZE_MESSAGE)
     .optional(),
 });
 
@@ -66,10 +71,15 @@ export async function paginate<T>(args: {
   return { items, total, page, pageSize, totalPages, hasMore: page < totalPages };
 }
 
+/** Escapes `\`, `%` and `_` so Postgres ILIKE (behind Prisma `contains`) reads them literally. */
+export function escapeLike(search: string): string {
+  return search.replace(/[\\%_]/g, '\\$&');
+}
+
 /** Case-insensitive substring match over any of `fields`; an empty search adds no filter. */
 export function ilikeAny(fields: string[], search: string): { OR?: Record<string, unknown>[] } {
   if (search === '') return {};
   return {
-    OR: fields.map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })),
+    OR: fields.map((field) => ({ [field]: { contains: escapeLike(search), mode: 'insensitive' } })),
   };
 }

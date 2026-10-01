@@ -15,6 +15,7 @@ import {
   zodValidationFailure,
 } from '@/lib/services/_shared/result-helpers';
 import {
+  escapeLike,
   listQuerySchema,
   paginate,
   type Page,
@@ -107,6 +108,7 @@ export async function peekNextInvoiceNumber(
   }
 }
 
+const STATUS_MESSAGE = 'Unknown status.';
 const DATE_MESSAGE =
   'Give both dates as YYYY-MM-DD, with the start on or before the end.';
 const SORT_FIELDS = [
@@ -131,9 +133,9 @@ const localDate = z.string({ message: DATE_MESSAGE }).refine((value) => {
 export const invoiceListQuerySchema = listQuerySchema
   .extend({
     status: z
-      .string({ message: 'Unknown status.' })
-      .refine((value) => value === 'all' || value in InvoiceStatus, 'Unknown status.')
-      .transform((value) => value as InvoiceStatus | 'all')
+      .union([z.literal('all'), z.nativeEnum(InvoiceStatus)], {
+        errorMap: () => ({ message: STATUS_MESSAGE }),
+      })
       .optional(),
     tab: z
       .enum(['all', 'drafts', 'final'], {
@@ -217,9 +219,9 @@ export async function listInvoices(
 
     if (search) {
       where.OR = [
-        { invoiceNumber: { contains: search, mode: 'insensitive' } },
-        { customerName: { contains: search, mode: 'insensitive' } },
-        { senderName: { contains: search, mode: 'insensitive' } },
+        { invoiceNumber: { contains: escapeLike(search), mode: 'insensitive' } },
+        { customerName: { contains: escapeLike(search), mode: 'insensitive' } },
+        { senderName: { contains: escapeLike(search), mode: 'insensitive' } },
       ];
     }
     if (customerId) where.customerId = customerId;
@@ -248,12 +250,12 @@ export async function listInvoices(
       prisma.customer.findMany({
         where: { userId: actor.userId },
         select: { id: true, name: true },
-        orderBy: { name: 'asc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
       }),
       prisma.senderProfile.findMany({
         where: { userId: actor.userId },
         select: { id: true, name: true },
-        orderBy: { name: 'asc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
       }),
     ]);
 

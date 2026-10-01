@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { ilikeAny, paginate, parseListQuery } from '@/lib/services/_shared/list-query';
+import { escapeLike, ilikeAny, paginate, parseListQuery } from '@/lib/services/_shared/list-query';
 
 type Row = { id: string };
 type FindArgs = { skip?: number; take?: number; orderBy: unknown[] };
@@ -162,5 +162,20 @@ describe('ilikeAny', () => {
 
   it('adds no filter for an empty search', () => {
     expect(ilikeAny(['name'], '')).toEqual({});
+  });
+});
+
+describe('T21 hardening (S-09, S-10)', () => {
+  it('refuses a page or page size above 2^31-1 as VALIDATION', () => {
+    for (const key of ['page', 'pageSize']) {
+      const res = parseListQuery({ [key]: 1e20 });
+      expect(res.success).toBe(false);
+      expect(parseListQuery({ [key]: 2 ** 31 - 1 }).success).toBe(true);
+    }
+  });
+
+  it('escapes backslash, percent and underscore for ILIKE', () => {
+    expect(escapeLike('a%b_c\\d')).toBe('a\\%b\\_c\\\\d');
+    expect(ilikeAny(['name'], '%').OR).toEqual([{ name: { contains: '\\%', mode: 'insensitive' } }]);
   });
 });
