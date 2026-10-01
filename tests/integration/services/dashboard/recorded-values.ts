@@ -3,8 +3,8 @@
 // left out (AC-05). Produced by snapshotDashboard() in harness.ts against the old code on 2026-10-01.
 export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
   "tabs": [
-    "EUR",
-    "USD"
+    "USD",
+    "EUR"
   ],
   "USD.stats.dst": {
     "totalReceived": 123516,

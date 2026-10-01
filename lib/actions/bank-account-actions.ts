@@ -6,17 +6,8 @@ import type { BankAccountFormValues } from '@/lib/validations/bank-account';
 import type { BankAccountWithRelations } from '@/types/sender-profile/types';
 import { ok, type ActionResult } from '@/types/actions';
 import type { BankAccount } from '@prisma/client';
-import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { createActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import * as bankAccounts from '@/lib/services/bank-accounts/bank-accounts';
-
-// Bank accounts never read the browser time zone, so the actor is built from the session alone.
-async function actingFreelancerFromSession(): Promise<ActionResult<ActingFreelancer>> {
-  const user = await getAuthenticatedUser();
-  if (!user.success) return user;
-  return ok(await createActingFreelancer(user.data.userId));
-}
 
 function revalidateBankAccountPages(senderProfileId: string) {
   revalidatePath(protectedRoutes.senderProfiles);

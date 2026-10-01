@@ -64,8 +64,12 @@ export async function POST(request: NextRequest) {
 
   const profile = await getSenderProfileLogo(actor, senderProfileId);
   if (!profile.success && profile.code !== 'NOT_FOUND') {
-    // A lookup failure was an unhandled throw (HTTP 500) before the move; keep it so.
-    throw new Error('Sender profile logo lookup failed.');
+    // A lookup failure was an unhandled 500 before the move; keep the status. The service's
+    // failed() already reported it, so return a response instead of throwing a second event.
+    return NextResponse.json(
+      { success: false, code: 'FAILED', error: 'Sender profile logo lookup failed.' },
+      { status: 500 }
+    );
   }
 
   if (!profile.success || !profile.data.logo) {

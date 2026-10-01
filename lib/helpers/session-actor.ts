@@ -24,5 +24,11 @@ export async function actingFreelancerForRoute(): Promise<
   const { requireSession } = await import('@/lib/helpers/route-auth');
   const session = await requireSession();
   if (!session.ok) return session;
-  return { ok: true, actor: await createActingFreelancer(session.userId, await getRequestTimeZone()) };
+  try {
+    return { ok: true, actor: await createActingFreelancer(session.userId, await getRequestTimeZone()) };
+  } catch (error) {
+    // A failed time-zone lookup must not become the framework's default 500: the route works in UTC.
+    failed('Error resolving the acting freelancer:', error, 'Something went wrong. Please try again.');
+    return { ok: true, actor: await createActingFreelancer(session.userId) };
+  }
 }

@@ -2,6 +2,12 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const createActingFreelancerPath = {
+  name: "@/lib/services/_shared/acting-freelancer",
+  importNames: ["createActingFreelancer"],
+  message: "Use actingFreelancerFromSession / actingFreelancerForRoute from @/lib/helpers/session-actor.",
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -14,12 +20,21 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    // ADR-0001: only the trusted factories build an ActingFreelancer. Everything else goes through
+    // actingFreelancerFromSession / actingFreelancerForRoute in lib/helpers/session-actor.ts.
+    ignores: ["lib/helpers/session-actor.ts", "tests/support/**"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: [createActingFreelancerPath] }],
+    },
+  },
+  {
     files: ["lib/services/**/*.ts"],
+    ignores: ["lib/helpers/session-actor.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth"],
+          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
           patterns: ["next-auth/*"],
         },
       ],

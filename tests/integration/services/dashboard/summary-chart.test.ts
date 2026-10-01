@@ -7,6 +7,7 @@ import { startTestDatabase, type TestDatabase } from '../../../support/db/contai
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
+import { createBankAccount } from '../../../support/factories/bank-account';
 import { KYIV, addInvoice, createQueryRecorder, seedFreelancer } from './harness';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
@@ -80,6 +81,20 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
     await addInvoice(b, { currency: 'USD', status: 'OVERDUE', total: 3000, issueDate: at, dueDate: new Date('2026-09-05T09:00:00Z') });
     return { a, b, actor: await actingFreelancerForTest(a.userId, 'UTC') };
   }
+
+  // T23 (review 2026-10-01 S-02): tabs keep the order the bank accounts were created in, because
+  // the dashboard opens the first tab when the link has no ?currency=.
+  describe('currency tab order (T23, S-02)', () => {
+    it.each([
+      [['USD', 'EUR'] as const],
+      [['EUR', 'USD'] as const],
+    ])('lists %j in creation order, one tab per currency', async (created) => {
+      const s = await seedFreelancer(testClient, [...created]);
+      await createBankAccount(testClient, s.profileId, { currency: created[0], isDefault: false });
+      const actor = await actingFreelancerForTest(s.userId, 'UTC');
+      expect(data(await svc.getCurrencyTabs(actor)).map((t) => t.currency)).toEqual([...created]);
+    });
+  });
 
   describe('two Freelancers (QG-1)', () => {
     it('getCurrencyTabs never includes B currencies', async () => {

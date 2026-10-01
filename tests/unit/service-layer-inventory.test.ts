@@ -152,3 +152,32 @@ describe('part 3: every use-server action builds the ActingFreelancer first (AC-
     expect(offenders).toEqual([]);
   });
 });
+
+// T23 (review 2026-10-01 S-04): the session factory is the shared one, not a private copy that
+// reaches for the raw constructor (ADR-0001 "trusted factories only").
+describe('part 4: actions get the actor from the shared session factory (AC-10)', () => {
+  const actionFiles = walk(join(root, 'lib/actions')).filter(
+    (f) => !f.endsWith('login-actions.ts') && /^['"]use server['"]/.test(code(read(f)).trimStart()),
+  );
+
+  it('each action file using actingFreelancerFromSession imports it from @/lib/helpers/session-actor', () => {
+    const offenders: string[] = [];
+    for (const f of actionFiles) {
+      const src = code(read(f));
+      if (!/\bactingFreelancerFromSession\b/.test(src)) continue;
+      const imported =
+        /import\s*\{[^}]*\bactingFreelancerFromSession\b[^}]*\}\s*from\s*['"]@\/lib\/helpers\/session-actor['"]/.test(src);
+      if (!imported) offenders.push(rel(f));
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('no module outside session-actor.ts imports createActingFreelancer', () => {
+    const files = [...walk(join(root, 'lib')), ...walk(join(root, 'app')), ...walk(join(root, 'components'))];
+    const offenders = files
+      .filter((f) => !/lib\/helpers\/session-actor\.ts$|lib\/services\/_shared\/acting-freelancer\.ts$/.test(f))
+      .filter((f) => /import[^;]*\bcreateActingFreelancer\b[^;]*from/.test(code(read(f))))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
+});

@@ -8,8 +8,7 @@ import {
 } from '@/lib/validations/custom-price';
 import { SerializedCustomPrice } from '@/types/custom-price/types';
 import { ActionResult, ok } from '@/types/actions';
-import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { createActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import {
   createCustomPrice as createCustomPriceService,
   deleteCustomPrice as deleteCustomPriceService,
@@ -17,14 +16,6 @@ import {
   listProductCustomPrices,
   updateCustomPrice as updateCustomPriceService,
 } from '@/lib/services/custom-prices/custom-prices';
-
-// Custom prices never depend on the time zone, so the actor is built from the session alone
-// (no `tz` cookie read); the zone resolves to UTC.
-async function actingFreelancerFromSession() {
-  const user = await getAuthenticatedUser();
-  if (!user.success) return user;
-  return ok(await createActingFreelancer(user.data.userId));
-}
 
 export async function getCustomerCustomPrices(
   customerId: string

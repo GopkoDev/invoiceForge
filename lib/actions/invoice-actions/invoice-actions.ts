@@ -99,7 +99,7 @@ export async function getInvoicesByCustomer(
 ): Promise<ActionResult<InvoiceListItem[]>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
-  const result = await invoiceReads.listInvoices(actor.data, { customerId, page: 1, pageSize: limit });
+  const result = await invoiceReads.listInvoices(actor.data, { customerId, ...(limit ? { page: 1, pageSize: limit } : {}) });
   return result.success ? ok(result.data.items) : result;
 }
 
@@ -110,7 +110,7 @@ export async function getInvoicesBySenderProfile(
 ): Promise<ActionResult<InvoiceListItem[]>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
-  const result = await invoiceReads.listInvoices(actor.data, { senderProfileId, page: 1, pageSize: limit });
+  const result = await invoiceReads.listInvoices(actor.data, { senderProfileId, ...(limit ? { page: 1, pageSize: limit } : {}) });
   return result.success ? ok(result.data.items) : result;
 }
 

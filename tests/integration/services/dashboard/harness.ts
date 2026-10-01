@@ -175,7 +175,7 @@ const iso = (v: Date) => v.toISOString();
 
 export async function snapshotDashboard(api: DashboardReader) {
   const out: Record<string, unknown> = {};
-  out.tabs = unwrapR(await api.tabs()).map((t) => t.currency).sort();
+  out.tabs = unwrapR(await api.tabs()).map((t) => t.currency);
   const periods: Array<[string, Period | undefined]> = [
     ['dst', DST_PERIOD],
     ['weekly', WEEKLY_PERIOD],

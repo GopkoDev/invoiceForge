@@ -12,13 +12,16 @@ const num = z.number();
 
 const currencyRow = z.object({ currency: z.string() });
 
+// Tabs keep the order each currency was first added in: the dashboard opens the first tab when the
+// link names no currency.
 export async function queryCurrencyTabs(actor: ActingFreelancer) {
   const rows = await prisma.$queryRaw<unknown[]>`
-    SELECT DISTINCT ba."currency"::text AS currency
+    SELECT ba."currency"::text AS currency
     FROM "BankAccount" ba
     JOIN "SenderProfile" sp ON sp."id" = ba."senderProfileId"
     WHERE sp."userId" = ${actor.userId}
-    ORDER BY currency`;
+    GROUP BY ba."currency"
+    ORDER BY MIN(ba."createdAt"), MIN(ba."id")`;
   return z.array(currencyRow).parse(rows).map((r) => r.currency as Currency);
 }
 
