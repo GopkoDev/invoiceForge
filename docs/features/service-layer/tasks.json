@@ -565,6 +565,95 @@
       ],
       "file": "docs/features/service-layer/_review/review-2026-10-01.md",
       "source": "review-2026-10-01"
+    },
+    {
+      "id": "T26",
+      "title": "Restore the user-facing messages: the generic logo warning on a failed lookup and the old preview-list failure messages",
+      "layer": "ports",
+      "deps": [
+        "T23"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-01"
+      ],
+      "dod": "Re-review 2026-10-01 R-01 and R-03 fixed. On a failed sender-profile logo lookup, /api/convert-image still returns 500 with one Sentry event, but the client shows 'The logo could not be loaded from this link.' A test runs the route response through fetchLogoDataUrl and checks that warning. When getInvoicesByCustomer and getInvoicesBySenderProfile fail with FAILED, they return 'Failed to fetch customer invoices.' and 'Failed to fetch sender profile invoices.' as before, and a unit test asserts both. The public-api.md:215 row says page and pageSize are passed only when a limit is given. Unit tests, lint and tsc are green.",
+      "files_hint": [
+        "app/api/convert-image/route.ts",
+        "lib/utils/image-to-base64.ts",
+        "tests/unit/api/convert-image-lookup-failure.test.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "docs/features/service-layer/contracts/public-api.md"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01-2.md",
+      "source": "review-2026-10-01-2"
+    },
+    {
+      "id": "T27",
+      "title": "Re-record the record identities in the dashboard parity snapshot from the old dashboard actions",
+      "layer": "tests",
+      "deps": [
+        "T24"
+      ],
+      "acs": [
+        "AC-05"
+      ],
+      "dod": "Re-review 2026-10-01 R-04 fixed. The *.records keys in recorded-values.ts are produced once by running snapshotDashboard and fixtureLabels against the old lib/actions/dashboard-actions.ts, in a throwaway worktree at the commit before T19. The file header names that commit as the source. The parity test passes against the layer. If the old and new code pick different records, stop and report it instead of re-pinning.",
+      "files_hint": [
+        "tests/integration/services/dashboard/recorded-values.ts",
+        "tests/integration/services/dashboard/harness.ts",
+        "tests/integration/services/dashboard/parity.test.ts"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01-2.md",
+      "source": "review-2026-10-01-2"
+    },
+    {
+      "id": "T28",
+      "title": "Close the remaining list and owner gaps: order the editor bank accounts, a clear page-cap message, tests for the item-delete owner and the foreign-profile NOT_FOUND",
+      "layer": "app",
+      "deps": [
+        "T21",
+        "T22"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-13",
+        "AC-08",
+        "AC-19"
+      ],
+      "dod": "Re-review 2026-10-01 R-02, R-05, R-06 and R-07 fixed. In editor-data, the nested bankAccounts select ends its orderBy with { id: 'asc' }, and the AC-25 test in list-hardening.test.ts asserts the bank-account order. When page or pageSize is above the cap, the error says the allowed range (1 to 2147483647). The list-query.ts comment and public-api.md section 1.3 both describe the cap. owner-in-where.test.ts asserts the owner clause in the where of invoiceItem.deleteMany. Unit tests mock the numbering to throw SenderProfileNotFoundError and assert { success: false, code: 'NOT_FOUND', error: 'Sender profile not found.' } for create, update and duplicate. The full suite, lint and tsc are green.",
+      "files_hint": [
+        "lib/services/invoices/editor-data.ts",
+        "lib/services/_shared/list-query.ts",
+        "tests/integration/services/list-hardening.test.ts",
+        "tests/unit/services/owner-in-where.test.ts",
+        "tests/unit/services/list-query.test.ts",
+        "docs/features/service-layer/contracts/public-api.md"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01-2.md",
+      "source": "review-2026-10-01-2"
+    },
+    {
+      "id": "T29",
+      "title": "Align the session factories on a failed time-zone lookup and make the boundary checks catch relative imports",
+      "layer": "wiring",
+      "deps": [
+        "T23",
+        "T25"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Re-review 2026-10-01 R-08 and R-09 fixed. When the time-zone lookup fails, actingFreelancerForRoute and actingFreelancerFromSession behave the same way, and public-api.md section 1 documents that behaviour. The comment in session-actor-route-tz.test.ts is correct, and the test asserts captureException is called once. Both the regex in service-layer-boundary.test.ts and the ESLint no-restricted-imports patterns reject relative imports from lib/services into lib/actions. The ignores entry in eslint.config.mjs that does nothing is removed. Unit tests and lint are green.",
+      "files_hint": [
+        "lib/helpers/session-actor.ts",
+        "tests/unit/lib/helpers/session-actor-route-tz.test.ts",
+        "tests/unit/service-layer-boundary.test.ts",
+        "eslint.config.mjs",
+        "docs/features/service-layer/contracts/public-api.md"
+      ],
+      "file": "docs/features/service-layer/_review/review-2026-10-01-2.md",
+      "source": "review-2026-10-01-2"
     }
   ]
 }
