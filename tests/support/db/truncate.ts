@@ -19,6 +19,7 @@ const APP_TABLES = [
   'Session',
   'Account',
   'LogoFetchWindow',
+  'LimitEvent',
   'User',
 ];
 
