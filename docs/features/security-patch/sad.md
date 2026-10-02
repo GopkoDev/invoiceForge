@@ -229,31 +229,88 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+Two seed flows cover the riskiest runtime paths: the sign-in-link request, where limits, timing and TLS meet, and the edge decision for a request without a verified session. Participants are the §5 containers. The `sequences` stage adds a flow or branch for every remaining §5 AC: dashboard period fallback and refusal, export reservation and release, the relay check, the retention purge.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: Sign-in link request (every route — action on /login or direct call to the sign-in service)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor V as Visitor
+    participant H as Route handlers (sign-in service + email provider)
+    participant L as Limits
+    participant DB as Neon PostgreSQL
+    participant M as SMTP mail server
+    participant S as Sentry
+
+    V->>H: requests a Sign-in link for an address
+    H->>H: normalizeIdentifier applies the address rule (max 254 chars, ASCII only)
+    alt address invalid
+        H-->>V: enter a valid email address (nothing sent, nothing counted)
+    else address well-formed
+        H->>L: may a link be sent to this address from this source
+        L->>DB: per-key locks, record this request for the source, count requests per source (5 min) and sent links per address (1 h)
+        alt limit store unavailable
+            DB-->>L: error
+            L-->>H: limits unavailable
+            H-->>V: sign-in by email temporarily unavailable, try again or use Google
+        else address or source limit reached
+            L->>DB: record refusal
+            L->>L: check refusals in 3 consecutive UTC hours
+            opt third consecutive hour and no alert today
+                L->>S: targeted-lockout alert carrying the address digest only
+            end
+            L-->>H: limited
+            H->>H: hold until the response floor
+            H-->>V: check your inbox
+        else allowed
+            L-->>H: allowed
+            H->>M: send link over TLS, certificate checked against host
+            alt TLS offered and certificate valid
+                M-->>H: accepted
+                H->>L: record link sent for the address
+                L->>DB: insert sent event
+                H->>H: hold until the response floor
+                H-->>V: check your inbox
+            else no TLS or invalid certificate
+                M-->>H: refused before any content is sent
+                H->>S: report send failure
+                H-->>V: could not send, try again
+            end
+        end
+    end
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: A request without a verified session at the edge**
+
+```mermaid
+sequenceDiagram
+    actor C as Visitor or caller
+    participant P as Edge proxy
+    participant W as Web pages
+    participant A as Server actions
+
+    C->>P: any request
+    P->>P: read session, apply isVerifiedSession
+    Note over P: a thrown or malformed check counts as Visitor and session cookies are left untouched
+    alt verified session
+        P->>W: pass through (pages, actions, API)
+    else not GET, HEAD or OPTIONS, outside the sign-in service and the sign-in page
+        P-->>C: not signed in, no data
+    else public path
+        P->>W: render public page, no redirect loop
+    else data request
+        P-->>C: not signed in, no data
+    else private page
+        P-->>C: redirect to sign-in with callback
+    end
+    opt action posted to the sign-in page
+        P->>A: forwarded
+        A->>A: non-sign-in action resolves the session first and refuses
+        A-->>C: not signed in, no data
+    end
+```
+
+**Response floor (inline decision).** Every "check your inbox" response, for a sent or a limited link, completes no earlier than a configured floor *F* plus a small random jitter. *F* defaults to the p90 send time measured on preview, capped at 1.2 s so the sign-in p95 stays within the spec's ≤ 1.5 s. A sent link that takes longer than *F* responds when the send finishes. Both response-time distributions collapse onto *F*, which keeps the medians within the spec's ≤ 150 ms. Sending after the response was rejected, because AC-16 must report a failed send in the same response. Holding only the limited request for a measured median was rejected, because serverless instances share no memory and the two tails would still differ.
 
 ## 7. Deployment view
 
