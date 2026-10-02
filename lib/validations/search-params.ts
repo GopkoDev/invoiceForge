@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { InvoiceStatus } from '@prisma/client';
 import type { InvoiceSortField, InvoiceTab, SortDirection } from '@/types/invoice/types';
-import { currentLocalMonth, localDayRange } from '@/lib/helpers/time-zone';
+import { currentLocalMonth, formatLocalDateKey, localDayRange } from '@/lib/helpers/time-zone';
 
 // T23 (spec.md §5 AC-26, AC-27) — invoice-list link parameters are parsed with fallback-to-default
 // schemas, so a malformed or tampered link never throws and always opens with a documented
@@ -143,6 +143,7 @@ export const invoiceListParamsSchema = z
 // already validated by getRequestTimeZone() (T22) — and `now` is injectable so the current-month
 // fallback is deterministic under test.
 export type DashboardAppliedRange = { start: Date; endExclusive: Date };
+export type DashboardLocalPeriod = { from: string; to: string };
 
 const presetSchema = z
   .preprocess((value) => firstString(value), z.string().optional())
@@ -168,22 +169,40 @@ export function dashboardParamsSchema(timeZone: string, now: Date = new Date()) 
       to: dateSchema,
       preset: presetSchema,
     })
-    .transform(({ from, to, preset }): { appliedRange: DashboardAppliedRange | undefined } => {
-      if (preset === 'all-time') {
-        return { appliedRange: undefined };
+    .transform(
+      ({
+        from,
+        to,
+        preset,
+      }): {
+        appliedRange: DashboardAppliedRange | undefined;
+        period: DashboardLocalPeriod | undefined;
+      } => {
+        if (preset === 'all-time') {
+          return { appliedRange: undefined, period: undefined };
+        }
+
+        const validFrom = from !== undefined && isValidIsoDate(from) ? from : undefined;
+        const validTo = to !== undefined && isValidIsoDate(to) ? to : undefined;
+
+        if (validFrom !== undefined && validTo !== undefined && validFrom <= validTo) {
+          const [start, endExclusive] = localDayRange(validFrom, validTo, zone);
+          return {
+            appliedRange: { start, endExclusive },
+            period: { from: validFrom, to: validTo },
+          };
+        }
+
+        const [start, endExclusive] = currentLocalMonth(zone, now);
+        return {
+          appliedRange: { start, endExclusive },
+          period: {
+            from: formatLocalDateKey(start, zone),
+            to: formatLocalDateKey(new Date(endExclusive.getTime() - 1), zone),
+          },
+        };
       }
-
-      const validFrom = from !== undefined && isValidIsoDate(from) ? from : undefined;
-      const validTo = to !== undefined && isValidIsoDate(to) ? to : undefined;
-
-      if (validFrom !== undefined && validTo !== undefined && validFrom <= validTo) {
-        const [start, endExclusive] = localDayRange(validFrom, validTo, zone);
-        return { appliedRange: { start, endExclusive } };
-      }
-
-      const [start, endExclusive] = currentLocalMonth(zone, now);
-      return { appliedRange: { start, endExclusive } };
-    });
+    );
 }
 
 export type InvoiceListParams = {

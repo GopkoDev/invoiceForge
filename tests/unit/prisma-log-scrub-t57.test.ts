@@ -108,7 +108,7 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
   });
 
   it('failed() logs a redacted form of the error', async () => {
-    const { failed } = await import('@/lib/actions/action-result-helpers');
+    const { failed } = await import('@/lib/services/_shared/result-helpers');
     failed('updateSenderProfile failed', realError, 'Something went wrong.');
     expectRedactedLog();
   });
@@ -202,7 +202,7 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
       "\nInvalid `prisma.user.findUnique()` invocation:\n\n\nCan't reach database server at `db:5432`",
       { code: 'P1001', clientVersion: '7.2.0' }
     );
-    const { failed } = await import('@/lib/actions/action-result-helpers');
+    const { failed } = await import('@/lib/services/_shared/result-helpers');
     failed('getProducts failed', known, 'Something went wrong.');
     expect(logged()).toContain('PrismaClientKnownRequestError [P1001]');
     expect(logged()).toContain("Can't reach database server");
@@ -289,7 +289,7 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
   // each take their own branch in redactError. Here every console argument goes through
   // util.inspect, strings included, so nothing hides behind the string shortcut in logged().
   it('failed() redacts a Prisma error carried as the cause of a plain Error (T62 V-03)', async () => {
-    const { failed } = await import('@/lib/actions/action-result-helpers');
+    const { failed } = await import('@/lib/services/_shared/result-helpers');
     failed(
       'updateSenderProfile failed',
       new Error('outer', { cause: realError }),
@@ -328,7 +328,7 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
   });
 
   it('a non-Prisma error is still logged in full', async () => {
-    const { failed } = await import('@/lib/actions/action-result-helpers');
+    const { failed } = await import('@/lib/services/_shared/result-helpers');
     failed('getProducts failed', new Error('db down'), 'Something went wrong.');
     expect(logged()).toContain('db down');
   });

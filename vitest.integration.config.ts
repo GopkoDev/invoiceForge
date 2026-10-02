@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: 'node',
+    setupFiles: ['tests/support/server-only-mock.ts'],
     include: ['tests/integration/**/*.test.ts'],
     exclude: ['node_modules/**'],
     // Container start + `prisma migrate deploy` can take a while on a cold pull.

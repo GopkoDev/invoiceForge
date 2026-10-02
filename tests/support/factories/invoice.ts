@@ -8,7 +8,7 @@ import type {
   PrismaClient,
   SenderProfile,
 } from '@prisma/client';
-import { normalizeInvoiceNumber } from '@/lib/actions/invoice-actions/numbering';
+import { normalizeInvoiceNumber } from '@/lib/services/invoices/numbering';
 
 export interface InvoiceItemInput {
   productId?: string | null;

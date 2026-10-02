@@ -24,10 +24,10 @@
 // `${prefix}-${currentYear}-${String(n).padStart(4, '0')}`, since T12 only relocates the format,
 // it does not redesign it.
 //
-// RED (T12 not yet implemented): lib/actions/invoice-actions/numbering.ts does not exist yet, so
+// RED (T12 not yet implemented): lib/services/invoices/numbering.ts does not exist yet, so
 // this import fails to resolve.
 import { describe, expect, it } from 'vitest';
-import { normalizeInvoiceNumber, formatInvoiceNumber } from '@/lib/actions/invoice-actions/numbering';
+import { normalizeInvoiceNumber, formatInvoiceNumber } from '@/lib/services/invoices/numbering';
 
 describe('normalizeInvoiceNumber (AC-08, POSIX-whitespace parity with migration 03)', () => {
   it.each([

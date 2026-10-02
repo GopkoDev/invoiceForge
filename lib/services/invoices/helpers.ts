@@ -1,3 +1,4 @@
+import 'server-only';
 import { prisma } from '@/prisma';
 import { SerializedInvoice, InvoiceFormData, InvoiceLegacyInfo } from '@/types/invoice/types';
 import { Prisma } from '@prisma/client';
@@ -8,7 +9,7 @@ import type {
   Customer,
   BankAccount,
 } from '@prisma/client';
-import { ActionResult, ok, fail } from '@/types/actions';
+import { ActionResult, ok, fail } from '@/types/result';
 import { isInvoiceKeyTaken } from './numbering';
 
 export function serializeDecimal<T extends number>(

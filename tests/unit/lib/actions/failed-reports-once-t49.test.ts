@@ -25,8 +25,8 @@ const prismaMock = {
 vi.mock('@/prisma', () => ({ prisma: prismaMock }));
 
 const serializeMock = vi.fn();
-vi.mock('@/lib/actions/invoice-actions/helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/actions/invoice-actions/helpers')>()),
+vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
   serializeInvoice: (...a: unknown[]) => serializeMock(...a),
 }));
 

@@ -39,7 +39,7 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captu
 
 // duplicateInvoice always auto-allocates (never a manual number), so this test skips the real
 // row-locked allocator entirely and drives the P2002-despite-the-lock path directly.
-vi.mock('@/lib/actions/invoice-actions/numbering', () => ({
+vi.mock('@/lib/services/invoices/numbering', () => ({
   allocateInvoiceNumber: vi.fn().mockResolvedValue({
     invoiceNumber: 'INV-2026-0002',
     invoiceNumberKey: 'inv-2026-0002',

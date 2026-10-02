@@ -23,6 +23,7 @@ jobs:
       - run: pnpm exec prisma generate
       - run: pnpm lint
       - run: pnpm exec tsc --noEmit
+      # `next build` (the ADR-0006 server-only guard) runs on every PR as the Vercel preview deploy.
       - run: pnpm test:unit
 
   integration:

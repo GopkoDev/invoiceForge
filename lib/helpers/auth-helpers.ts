@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { ActionResult, ok, fail } from '@/types/actions';
-import { failed } from '@/lib/actions/action-result-helpers';
+import { failed } from '@/lib/services/_shared/result-helpers';
 
 /**
  * Get authenticated user session

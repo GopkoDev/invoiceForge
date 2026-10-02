@@ -8,8 +8,8 @@
 //   refusal codes.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireSession } from '@/lib/helpers/route-auth';
-import { prisma } from '@/prisma';
+import { actingFreelancerForRoute } from '@/lib/helpers/session-actor';
+import { getSenderProfileLogo } from '@/lib/services/sender-profiles/sender-profiles';
 import { consumeLogoFetch } from '@/lib/security/logo-rate-limit';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import {
@@ -36,11 +36,14 @@ const REFUSAL_BODIES: Record<SafeFetchRefusalCode, { status: number; body: { suc
 };
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await actingFreelancerForRoute(() =>
+    NextResponse.json(REFUSAL_BODIES.UNAVAILABLE.body, { status: REFUSAL_BODIES.UNAVAILABLE.status }),
+  );
   if (!session.ok) {
     return session.response;
   }
-  const { userId } = session;
+  const { actor } = session;
+  const { userId } = actor;
 
   let json: unknown;
   try {
@@ -61,18 +64,24 @@ export async function POST(request: NextRequest) {
   }
   const { senderProfileId } = parsed.data;
 
-  const profile = await prisma.senderProfile.findFirst({
-    where: { id: senderProfileId, userId },
-    select: { logo: true },
-  });
+  const profile = await getSenderProfileLogo(actor, senderProfileId);
+  if (!profile.success && profile.code !== 'NOT_FOUND') {
+    // A lookup failure was an unhandled 500 before the move; keep the status. The service's
+    // failed() already reported it, so return a response instead of throwing a second event.
+    return NextResponse.json(
+      { success: false, code: 'FAILED', error: 'The logo could not be loaded from this link.' },
+      { status: 500 }
+    );
+  }
 
-  if (!profile || !profile.logo) {
+  if (!profile.success || !profile.data.logo) {
     return NextResponse.json(NOT_FOUND_BODY, { status: 404 });
   }
+  const logo = profile.data.logo;
 
   // F-21: a refusal that would happen before any real fetch (the stored link's own scheme) must
   // not spend the caller's quota - only real fetch attempts count towards the limit.
-  const scheme = validateFetchUrl(profile.logo);
+  const scheme = validateFetchUrl(logo);
   if (!scheme.ok) {
     // N-19: this short-circuit skips safeFetchImage, so it logs the refusal itself.
     logOutcome(scheme.code, scheme.reason);
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await safeFetchImage(profile.logo);
+  const result = await safeFetchImage(logo);
 
   if (!result.ok) {
     const refusal = REFUSAL_BODIES[result.code];

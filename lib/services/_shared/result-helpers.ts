@@ -1,6 +1,7 @@
+import 'server-only';
 import { z } from 'zod';
 import { captureException } from '@sentry/nextjs';
-import { ActionFailure, fail } from '@/types/actions';
+import { ActionFailure, fail } from '@/types/result';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 /**

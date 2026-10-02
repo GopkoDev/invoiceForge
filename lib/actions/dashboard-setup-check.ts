@@ -1,52 +1,16 @@
 'use server';
 
-import { prisma } from '@/prisma';
-import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { ActionResult, ok } from '@/types/actions';
-import { failed } from '@/lib/actions/action-result-helpers';
+import { ActionResult } from '@/types/actions';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { checkSetup, type SetupCheckResult as ServiceSetupCheckResult } from '@/lib/services/profile/setup-check';
 
-export interface SetupCheckResult {
-  hasSenderProfiles: boolean;
-  hasBankAccounts: boolean;
-  hasCustomers: boolean;
-  hasProducts: boolean;
-  isComplete: boolean;
-}
+// A type alias, not `export type { … }`: Next's 'use server' transform treats a re-export as an action export and the build fails.
+export type SetupCheckResult = ServiceSetupCheckResult;
 
 export async function checkDashboardSetup(): Promise<
   ActionResult<SetupCheckResult>
 > {
-  try {
-    const authResult = await getAuthenticatedUser();
-    if (!authResult.success) {
-      return authResult;
-    }
-
-    const { userId } = authResult.data;
-
-    const [senderProfileCount, bankAccountCount, customerCount, productCount] =
-      await Promise.all([
-        prisma.senderProfile.count({ where: { userId } }),
-        prisma.bankAccount.count({
-          where: { senderProfile: { userId } },
-        }),
-        prisma.customer.count({ where: { userId } }),
-        prisma.product.count({ where: { userId } }),
-      ]);
-
-    const hasSenderProfiles = senderProfileCount > 0;
-    const hasBankAccounts = bankAccountCount > 0;
-    const hasCustomers = customerCount > 0;
-    const hasProducts = productCount > 0;
-
-    return ok({
-      hasSenderProfiles,
-      hasBankAccounts,
-      hasCustomers,
-      hasProducts,
-      isComplete: hasSenderProfiles && hasBankAccounts && hasCustomers,
-    });
-  } catch (error) {
-    return failed('Error checking dashboard setup:', error, 'Failed to check setup status.');
-  }
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  return checkSetup(actor.data);
 }

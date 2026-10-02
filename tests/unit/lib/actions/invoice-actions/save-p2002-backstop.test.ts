@@ -25,8 +25,8 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }));
 
-vi.mock('@/lib/actions/invoice-actions/helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/actions/invoice-actions/helpers')>()),
+vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },
@@ -37,7 +37,7 @@ vi.mock('@/lib/actions/invoice-actions/helpers', async (importOriginal) => ({
   buildBankAccountSnapshot: vi.fn().mockReturnValue({}),
 }));
 
-vi.mock('@/lib/actions/invoice-actions/numbering', () => ({
+vi.mock('@/lib/services/invoices/numbering', () => ({
   allocateInvoiceNumber: vi.fn().mockResolvedValue({
     invoiceNumber: 'INV-2026-0002',
     invoiceNumberKey: 'inv-2026-0002',

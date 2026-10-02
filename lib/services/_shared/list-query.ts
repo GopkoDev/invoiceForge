@@ -1,0 +1,87 @@
+import 'server-only';
+import { z } from 'zod';
+import { ok, type ActionResult } from '@/types/result';
+import { zodValidationFailure } from '@/lib/services/_shared/result-helpers';
+
+/** Default page size when a page is requested without one (AC-12). No practical upper cap beyond the 32-bit limit below. */
+const DEFAULT_PAGE_SIZE = 10;
+
+/** Largest page or page size accepted: Prisma's skip/take are 32-bit, so anything above throws. */
+const MAX_PAGE_VALUE = 2 ** 31 - 1;
+
+const PAGE_MESSAGE = 'Page must be a whole number of at least 1.';
+const PAGE_SIZE_MESSAGE = 'Page size must be a whole number of at least 1.';
+const PAGE_RANGE_MESSAGE = `Page must be a whole number from 1 to ${MAX_PAGE_VALUE}.`;
+const PAGE_SIZE_RANGE_MESSAGE = `Page size must be a whole number from 1 to ${MAX_PAGE_VALUE}.`;
+
+export const listQuerySchema = z.object({
+  search: z.string().trim().max(100, 'Search text can be at most 100 characters.').optional(),
+  page: z
+    .number({ message: PAGE_MESSAGE })
+    .int(PAGE_MESSAGE)
+    .min(1, PAGE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_RANGE_MESSAGE)
+    .optional(),
+  pageSize: z
+    .number({ message: PAGE_SIZE_MESSAGE })
+    .int(PAGE_SIZE_MESSAGE)
+    .min(1, PAGE_SIZE_MESSAGE)
+    .max(MAX_PAGE_VALUE, PAGE_SIZE_RANGE_MESSAGE)
+    .optional(),
+});
+
+export type ListQuery = z.infer<typeof listQuerySchema>;
+
+export type Page<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
+export function parseListQuery(input: unknown): ActionResult<ListQuery> {
+  const parsed = listQuerySchema.safeParse(input ?? {});
+  if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
+  return ok(parsed.data);
+}
+
+type OrderBy = Record<string, unknown>;
+
+export async function paginate<T>(args: {
+  count: () => Promise<number>;
+  findMany: (args: { skip?: number; take?: number; orderBy: OrderBy[] }) => Promise<T[]>;
+  orderBy: OrderBy[];
+  query: ListQuery;
+}): Promise<Page<T>> {
+  const { count, findMany, orderBy, query } = args;
+  const total = await count();
+  const finalOrder = [...orderBy, { id: 'asc' }];
+
+  if (query.page === undefined && query.pageSize === undefined) {
+    const items = await findMany({ orderBy: finalOrder });
+    return { items, total, page: 1, pageSize: total, totalPages: total > 0 ? 1 : 0, hasMore: false };
+  }
+
+  const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+  const totalPages = Math.ceil(total / pageSize);
+  let page = query.page ?? 1;
+  if (page > totalPages) page = 1;
+
+  const items = await findMany({ skip: (page - 1) * pageSize, take: pageSize, orderBy: finalOrder });
+  return { items, total, page, pageSize, totalPages, hasMore: page < totalPages };
+}
+
+/** Escapes `\`, `%` and `_` so Postgres ILIKE (behind Prisma `contains`) reads them literally. */
+export function escapeLike(search: string): string {
+  return search.replace(/[\\%_]/g, '\\$&');
+}
+
+/** Case-insensitive substring match over any of `fields`; an empty search adds no filter. */
+export function ilikeAny(fields: string[], search: string): { OR?: Record<string, unknown>[] } {
+  if (search === '') return {};
+  return {
+    OR: fields.map((field) => ({ [field]: { contains: escapeLike(search), mode: 'insensitive' } })),
+  };
+}

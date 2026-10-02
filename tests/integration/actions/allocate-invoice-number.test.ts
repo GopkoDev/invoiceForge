@@ -25,7 +25,7 @@
 // Seams: same-process app code (tests/README.md option 1) — the module is pure Prisma, no auth,
 // so no mocks are needed; only DATABASE_URL + vi.resetModules() + dynamic import.
 //
-// RED (T12 not yet implemented): lib/actions/invoice-actions/numbering.ts does not exist, so
+// RED (T12 not yet implemented): lib/services/invoices/numbering.ts does not exist, so
 // `allocateInvoiceNumber` fails to import.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient, Prisma, SenderProfile, Customer, BankAccount } from '@prisma/client';
@@ -44,7 +44,8 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 type Allocation = { invoiceNumber: string; invoiceNumberKey: string };
 type AllocateInvoiceNumber = (
   tx: Prisma.TransactionClient,
-  senderProfileId: string
+  senderProfileId: string,
+  userId: string
 ) => Promise<Allocation>;
 type NormalizeInvoiceNumber = (s: string) => string;
 
@@ -61,7 +62,7 @@ describe.runIf(containerRuntimeAvailable)(
       process.env.DATABASE_URL = db.connectionString;
       prisma = createTestPrismaClient(db.connectionString);
       ({ allocateInvoiceNumber, normalizeInvoiceNumber } = (await import(
-        '@/lib/actions/invoice-actions/numbering'
+        '@/lib/services/invoices/numbering'
       )) as unknown as {
         allocateInvoiceNumber: AllocateInvoiceNumber;
         normalizeInvoiceNumber: NormalizeInvoiceNumber;
@@ -126,7 +127,7 @@ describe.runIf(containerRuntimeAvailable)(
       const { senderProfile, customer, bankAccount } = await seedProfile();
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -150,7 +151,7 @@ describe.runIf(containerRuntimeAvailable)(
       // fixture. formatInvoiceNumber is exported alongside normalizeInvoiceNumber per the task's
       // API contract; import it too.
       const { formatInvoiceNumber } = (await import(
-        '@/lib/actions/invoice-actions/numbering'
+        '@/lib/services/invoices/numbering'
       )) as unknown as { formatInvoiceNumber: (prefix: string, n: number) => string };
 
       const first = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 1);
@@ -161,7 +162,7 @@ describe.runIf(containerRuntimeAvailable)(
       await insertManual(senderProfile, customer, bankAccount, ` ${second.toLowerCase()} `);
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -178,7 +179,7 @@ describe.runIf(containerRuntimeAvailable)(
     it('F-08: a legacy invoice with a NULL invoiceNumberKey blocks allocation of a case/whitespace variant, so the allocator skips to the next free number', async () => {
       const { senderProfile, customer, bankAccount } = await seedProfile();
       const { formatInvoiceNumber } = (await import(
-        '@/lib/actions/invoice-actions/numbering'
+        '@/lib/services/invoices/numbering'
       )) as unknown as { formatInvoiceNumber: (prefix: string, n: number) => string };
       const candidate = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 1);
       const next = formatInvoiceNumber(senderProfile.invoicePrefix, senderProfile.invoiceCounter + 2);
@@ -193,7 +194,7 @@ describe.runIf(containerRuntimeAvailable)(
       });
 
       const allocation = await prisma.$transaction(async (tx) => {
-        const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+        const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
         await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
         return alloc;
       });
@@ -212,12 +213,12 @@ describe.runIf(containerRuntimeAvailable)(
 
       const [allocA, allocB] = await Promise.all([
         prisma.$transaction(async (tx) => {
-          const alloc = await allocateInvoiceNumber(tx, a.senderProfile.id);
+          const alloc = await allocateInvoiceNumber(tx, a.senderProfile.id, a.senderProfile.userId);
           await insertAllocated(tx, a.senderProfile, a.customer, a.bankAccount, alloc);
           return alloc;
         }),
         prisma.$transaction(async (tx) => {
-          const alloc = await allocateInvoiceNumber(tx, b.senderProfile.id);
+          const alloc = await allocateInvoiceNumber(tx, b.senderProfile.id, b.senderProfile.userId);
           await insertAllocated(tx, b.senderProfile, b.customer, b.bankAccount, alloc);
           return alloc;
         }),
@@ -247,12 +248,12 @@ describe.runIf(containerRuntimeAvailable)(
           for (let i = 0; i < 20; i += 1) {
             const iterationResults = await Promise.all([
               clientA.$transaction(async (tx) => {
-                const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+                const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
                 await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
                 return alloc;
               }),
               clientB.$transaction(async (tx) => {
-                const alloc = await allocateInvoiceNumber(tx, senderProfile.id);
+                const alloc = await allocateInvoiceNumber(tx, senderProfile.id, senderProfile.userId);
                 await insertAllocated(tx, senderProfile, customer, bankAccount, alloc);
                 return alloc;
               }),
