@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isWebAddress, WEB_ADDRESS_MESSAGE } from '@/lib/validations/web-address';
 import { optionalString, phoneValidation } from '@/lib/helpers/zod-helpers';
 
 /**
@@ -30,7 +31,7 @@ export const senderProfileFormSchema = z.object({
   postalCode: optionalString(z.string().trim().max(20)),
   phone: optionalString(phoneValidation(z.string().trim().max(50))),
   email: optionalString(z.string().trim().email('Invalid email address')),
-  website: optionalString(z.string().trim().url('Invalid URL format')),
+  website: optionalString(z.string().trim().refine(isWebAddress, WEB_ADDRESS_MESSAGE)),
   logo: optionalString(z.string().trim().refine(isSecureHttpsUrl, SECURE_LOGO_MESSAGE)),
   invoicePrefix: z
     .string()
