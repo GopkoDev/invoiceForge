@@ -13,14 +13,25 @@
 // re-checks the container runtime (same `skipWithoutContainerRuntime` helper the smoke test
 // uses) and skips cleanly rather than trusting this placeholder's responses.
 import { execFileSync, spawn } from 'node:child_process';
+import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createSinkCertificate,
+  MAIL_SINK_HOST,
+  MAIL_SINK_PORT,
+  startMailSink,
+} from './mail-sink.mjs';
 
 const PORT = Number(process.env.APP_E2E_PORT ?? 4311);
 const PROBE_TIMEOUT_MS = 4000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
+// Shared with the specs (tests/e2e/support/app-server.ts E2E_RUNTIME_DIR): the throwaway database
+// URL and the mail sink's inbox, so a spec can seed data and read the Sign-in link.
+const runtimeDir = path.join(os.tmpdir(), 'invoceflow-e2e');
 
 async function isDockerAvailable() {
   return new Promise((resolve) => {
@@ -32,7 +43,9 @@ async function isDockerAvailable() {
     };
     let child;
     try {
-      child = spawn('docker', ['version', '--format', '{{.Server.Version}}'], { stdio: 'ignore' });
+      child = spawn('docker', ['version', '--format', '{{.Server.Version}}'], {
+        stdio: 'ignore',
+      });
     } catch {
       settle(false);
       return;
@@ -58,7 +71,9 @@ function startPlaceholderServer() {
     res.end(JSON.stringify({ skipped: true, reason: 'no container runtime' }));
   });
   server.listen(PORT, '127.0.0.1', () => {
-    console.log(`[e2e app server] no container runtime — placeholder listening on ${PORT}`);
+    console.log(
+      `[e2e app server] no container runtime — placeholder listening on ${PORT}`
+    );
   });
 }
 
@@ -72,16 +87,39 @@ async function startRealApp() {
     .start();
   const connectionString = container.getConnectionUri();
 
+  // The Sign-in link goes through the app's real TLS-only mail transport to a local sink (T20).
+  fs.rmSync(runtimeDir, { recursive: true, force: true });
+  const mailDir = path.join(runtimeDir, 'mail');
+  const { key, cert } = createSinkCertificate(runtimeDir);
+  const mailSink = startMailSink({ dir: mailDir, key, cert });
+  fs.writeFileSync(
+    path.join(runtimeDir, 'runtime.json'),
+    JSON.stringify({ databaseUrl: connectionString, mailDir })
+  );
+
   const appEnv = {
     ...process.env,
     DATABASE_URL: connectionString,
     NODE_ENV: 'production',
-    AUTH_SECRET: process.env.AUTH_SECRET || 'e2e-route-sweep-secret-do-not-use-in-prod',
+    // Fixed throwaway values: the e2e app never reaches Google, a real SMTP host or Sentry.
+    AUTH_GOOGLE_ID: 'e2e-google-id',
+    AUTH_GOOGLE_SECRET: 'e2e-google-secret',
+    EMAIL_SERVER_HOST: MAIL_SINK_HOST,
+    EMAIL_SERVER_PORT: String(MAIL_SINK_PORT),
+    EMAIL_SERVER_USER: 'e2e',
+    EMAIL_SERVER_PASSWORD: 'e2e',
+    CRON_SECRET: 'e2e-cron-secret-do-not-use-in-prod',
+    LIMIT_KEY_SECRET: 'e2e-limit-key-secret-do-not-use-in-prod',
+    NODE_EXTRA_CA_CERTS: cert,
+    AUTH_SECRET:
+      process.env.AUTH_SECRET || 'e2e-route-sweep-secret-do-not-use-in-prod',
     AUTH_URL: `http://127.0.0.1:${PORT}`,
     PORT: String(PORT),
   };
 
-  console.log('[e2e app server] applying migrations to the throwaway container...');
+  console.log(
+    '[e2e app server] applying migrations to the throwaway container...'
+  );
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     cwd: repoRoot,
     env: appEnv,
@@ -104,6 +142,7 @@ async function startRealApp() {
 
   const stop = async () => {
     server.kill('SIGTERM');
+    mailSink.close();
     await container.stop();
   };
   process.on('SIGTERM', stop);
