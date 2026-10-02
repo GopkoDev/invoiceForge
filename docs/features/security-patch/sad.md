@@ -308,6 +308,281 @@ sequenceDiagram
 
 **Response floor (inline decision).** Every "check your inbox" response, for a sent or a limited link, completes no earlier than a configured floor *F* plus a small random jitter. *F* defaults to the p90 send time measured on preview, capped at 1.2 s so the sign-in p95 stays within the spec's ≤ 1.5 s. A sent link that takes longer than *F* responds when the send finishes. Both response-time distributions collapse onto *F*, which keeps the medians within the spec's ≤ 150 ms. Sending after the response was rejected, because AC-16 must report a failed send in the same response. Holding only the limited request for a measured median was rejected, because serverless instances share no memory and the two tails would still differ.
 
+The flows below were added by the `sequences` stage. They use the generic runtime-view participants (`<user>`, `<ui>`, `<service>`, `<data-store>`, `<external-system>`, `<client>`); the §5 containers each stands for are named in the precondition note where it matters.
+
+### Flow 3: Dashboard opened from a link with a Dashboard period (US-03, AC-05, AC-07, AC-08, AC-09)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: Freelancer holds a genuine verified session from the real sign-in flow (SCR-04)
+    U->>UI: opens a dashboard link carrying a period
+    UI->>S: request the dashboard for the period in the link
+    S->>S: link reader applies the shared five-year rule on calendar dates, independent of time zone
+    alt no period, a preset, or a malformed value
+        S->>S: use that preset, the current month by default
+    else the all time preset
+        S->>S: use the full history, the cap does not apply
+    else custom period whose end date is at most its start plus 5 calendar years
+        S->>S: use the custom period (a 29 February start counts to 28 February)
+    else custom period longer than 5 years
+        S->>S: fall back to the current month, no error
+    end
+    S->>D: read invoice figures for the resolved period
+    D-->>S: figures
+    S-->>UI: dashboard figures and the resolved period
+    UI-->>U: dashboard opens directly, never bounced to sign-in
+    Note over U,D: Postcondition: a link never makes the server compute more than 5 years of chart days unless all time is chosen. Read only, nothing persisted
+```
+
+### Flow 4: Custom Dashboard period chosen in the filters (US-03, AC-07b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+
+    Note over U,UI: Precondition: Freelancer is on the dashboard period filters (SCR-04)
+    U->>UI: picks a custom from-to range
+    UI->>UI: applies the shared five-year rule in the browser
+    alt range of at most 5 years
+        UI->>S: request the dashboard for the custom period
+        Note over UI,S: the server applies the same rule again, as in flow 3
+        S-->>UI: dashboard figures
+        UI-->>U: dashboard shows the custom period
+    else range longer than 5 years
+        UI-->>U: filter not applied, notice that a custom period is at most 5 years and all time shows the full history
+    end
+    Note over U,UI: Postcondition: the filter never sends an over-long range. Nothing persisted
+```
+
+### Flow 5: Business-layer caller asks for an over-long period (US-04, AC-10)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as <client>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over C,S: Precondition: the caller acts for exactly one Freelancer (the future Assistant, today a direct business-layer test)
+    C->>S: ask for dashboard figures for a period
+    S->>S: apply the shared five-year rule before any query
+    alt custom period longer than 5 years
+        S-->>C: validation error in plain language, the period must be at most 5 years, nothing computed
+    else a preset, or a custom period within the cap
+        S->>D: read invoice figures for the period
+        D-->>S: figures
+        S-->>C: dashboard figures
+    end
+    Note over C,D: Postcondition: an over-long period never reaches the data store. A browser request gets the flow 3 fallback instead
+```
+
+### Flow 6: Full data export under the per-Freelancer limit (US-09, AC-23, AC-24, AC-25)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: Freelancer with a verified session on privacy and data settings (SCR-06)
+    U->>UI: requests a full data export
+    UI->>S: export my data
+    S->>D: take the per-key lock for this Freelancer, count export starts minus system-side failures in the past hour
+    alt fewer than 3 counted exports
+        S->>D: record export started, then release the lock
+        Note over S,D: persists LimitEvent (scope export, key Freelancer id, time), informs the scope, key and time index
+        S->>D: read all of this Freelancer's data
+        alt export produced
+            D-->>S: data
+            S-->>UI: export file
+            UI-->>U: file downloads, and it still counts if abandoned afterwards
+        else system-side failure
+            D-->>S: error
+            S->>D: record export failed, which frees the place
+            Note over S,D: persists LimitEvent (scope export, failed, same key)
+            S-->>UI: export failed, try again
+            UI-->>U: error message, stays on SCR-06
+        end
+    else 3 counted exports in the past hour
+        S-->>UI: rate limited, retry at the time the oldest counted start leaves the window
+        UI-->>U: you can export again at the given time, stays on SCR-06
+    end
+    Note over U,D: Postcondition: concurrent requests never run more than 3 exports per Freelancer per hour. The count is per Freelancer, so another Freelancer on the same network is unaffected
+```
+
+### Flow 7: Saving and showing a web or image address (US-08, AC-21)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: Freelancer edits a customer or a sender profile (SCR-07, SCR-08)
+    U->>UI: saves a website, logo or image address
+    UI->>UI: applies the shared web-address rule, http or https only
+    alt not a web address
+        UI-->>U: field message, the address must start with http or https
+    else web address
+        UI->>S: save the customer or sender profile
+        S->>S: applies the same web-address rule again
+        alt not a web address because the form was bypassed
+            S-->>UI: validation error, nothing saved
+            UI-->>U: field message, the address must start with http or https
+        else valid
+            S->>D: save the record
+            Note over S,D: persists Customer or SenderProfile (existing columns, no schema change)
+            D-->>S: saved
+            S-->>UI: saved
+            UI-->>U: detail page (SCR-09)
+        end
+    end
+    Note over U,D: Display of any stored value, on SCR-09 and in the invoice PDF (SCR-10)
+    U->>UI: opens a detail page or an invoice PDF
+    UI->>S: read the record or the copy kept on the invoice
+    S->>D: read
+    D-->>S: stored addresses, possibly legacy non-web values
+    S-->>UI: record
+    alt value passes the web-address rule
+        UI-->>U: clickable link or loaded image
+    else legacy non-web value
+        UI-->>U: plain text, never a link or a loaded image, stored data not rewritten
+    end
+```
+
+### Flow 8: Browser error reports and policy-violation reports (US-08, AC-22, runtime part of AC-20)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as <client>
+    participant S as <service>
+    participant X as <external-system>
+
+    Note over C,S: Precondition: a browser page under the enforced content-security policy, which allows connections to the app only
+    C->>S: posts an error envelope to the app's own tunnel
+    S->>S: read the project address in the envelope header
+    alt project address is the one configured for this environment
+        S->>X: forward the envelope to error tracking
+        X-->>S: accepted
+        S-->>C: accepted
+    else any other project address, or none readable
+        S-->>C: refused, nothing forwarded
+    end
+    opt the browser blocks a resource under the policy
+        C->>X: violation report to this environment's security endpoint
+    end
+    Note over C,X: Postcondition: the app's domain only ever delivers reports to its own project. The tunnel is not rate-limited (spec non-goal). Nothing persisted
+```
+
+### Flow 9: Completing sign-in with a Sign-in link or with Google (US-01, US-05, AC-02, AC-03, AC-14)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: Visitor on sign-in (SCR-01), or holding a Sign-in link in their mailbox
+    alt opens a Sign-in link
+        U->>UI: opens the link from the mailbox
+        UI->>S: sign-in callback with the single-use token
+        S->>D: consume the token, look up the account by the normalized email
+        Note over S,D: persists VerificationToken deletion (existing behaviour, unchanged)
+        Note over S,D: identity normalization is unchanged by the upgrade, one address belongs to exactly one account
+        alt token valid
+            D-->>S: the existing account for that address
+            S-->>UI: verified session for the existing account
+            UI-->>U: dashboard with all their data (SCR-04)
+        else token expired or already used
+            D-->>S: no valid token
+            S-->>UI: sign-in error
+            UI-->>U: sign-in page with the existing error message (SCR-01)
+        end
+    else chooses Google, even while the address is limited for links
+        U->>UI: sign in with Google
+        UI->>S: start Google sign-in
+        S->>X: redirect to the identity provider
+        X-->>S: callback with the verified identity
+        Note over S,X: the sign-in-email limits are never consulted on this path
+        S->>D: look up or link the account for that identity
+        D-->>S: account
+        S-->>UI: verified session
+        UI-->>U: dashboard (SCR-04)
+    end
+    Note over U,D: Postcondition: no second, empty account is ever created for an existing address
+```
+
+### Flow 10: Daily purge of limit records (scheduled, spec §6 retention, §6.1)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as <client>
+    participant S as <service>
+    participant D as <data-store>
+    participant X as <external-system>
+
+    Note over C,S: Trigger: daily schedule from the hosting platform
+    C->>S: run the limit-record purge, with the shared secret
+    alt secret missing or wrong
+        S-->>C: not authorized, nothing deleted
+    else secret valid
+        S->>S: idempotency check, a delete of rows older than 24 h is safe to run twice, so no run key is needed
+        S->>X: check-in, purge run started
+        S->>D: delete every limit record older than 24 h, across all keys
+        Note over S,D: persists deletion of LimitEvent rows by time alone, informs an index on the time column
+        D-->>S: rows deleted
+        S->>X: check-in, purge run succeeded
+        S-->>C: done
+    end
+    Note over S,X: no retry by the scheduler. The next daily run and the bounded purge on every limit write catch up
+    alt run failed or never started
+        X->>X: missed or failed check-in raises an alert to the app operator
+        Note over S,X: dead-letter equivalent, the missed-run alert in error tracking
+    end
+    Note over C,D: Postcondition: with any traffic no record outlives 24 h, without traffic at most about 48 h (SAD §11 accepted debt)
+```
+
+**Coverage (spec §4 user stories and §5 acceptance criteria → flows):**
+
+| User story | Flows | Acceptance criteria and where each is shown |
+|---|---|---|
+| US-01 | 9 | AC-02: flows 9 and 1 happy paths, behaviour unchanged after the upgrade (the preview sweep itself is a test, not a flow). AC-03: flow 9 link branch. AC-01, AC-27: N/A, a dependency audit and inspection at build time, not runtime behaviour. |
+| US-02 | 2, 3 | AC-04, AC-06: flow 2. AC-05: flow 3 (a genuine session opens the dashboard directly). |
+| US-03 | 3, 4 | AC-07, AC-08, AC-09: flow 3 branches. AC-07b: flow 4. |
+| US-04 | 5 | AC-10: flow 5. |
+| US-05 | 1, 9 | AC-11, AC-12, AC-13, AC-15: flow 1. AC-14: flow 9 Google branch. |
+| US-06 | 1 | AC-16, AC-17: flow 1. AC-26: N/A, a build-time gate that fails the deploy before any traffic (ADR-0008). |
+| US-07 | 2, 1 | AC-18: flow 2. AC-19: flow 1 (the sign-in action on the sign-in page) and flow 2 (the sign-in-page exemption). |
+| US-08 | 7, 8 | AC-21: flow 7. AC-22: flow 8. AC-20: flow 8 shows client errors and violation reports at runtime. The zero-violation release gate on preview is N/A, because it is a test gate, not a flow. |
+| US-09 | 6 | AC-23, AC-24, AC-25: flow 6. |
+
+**Notes from the `sequences` stage (flagged, not decided):**
+- Flows 1 and 2 above predate this stage and name §5 containers (Edge proxy, Neon PostgreSQL) instead of generic participants. They were left untouched, since this stage only adds flows.
+- Flow 10 has no scheduler retry. The missed-run alert plus the opportunistic purge on writes stand in for retry and dead-letter. This is already decided in ADR-0007, so no new ADR is needed.
+- The persist notes point `data-model` at these lookups:
+  - `LimitEvent` by scope, key and time (flows 1 and 6);
+  - `LimitEvent` by time alone (flow 10);
+  - `LimitEvent` by address digest or Freelancer id for account deletion (ADR-0007).
+- No participant beyond the §5 containers was needed.
+
 ## 7. Deployment view
 
 The topology is unchanged: one Next.js deployable on Vercel serverless functions in `iad1`, with the edge proxy in front, Neon PostgreSQL as the only datastore, and SMTP, Google and Sentry as external services. Production and every PR preview are separate Vercel deployments with their own settings. The feature adds three deployment elements:
