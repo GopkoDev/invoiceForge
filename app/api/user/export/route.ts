@@ -25,6 +25,13 @@ export async function GET() {
 
   const result = await getAccountExport(session.actor);
   if (!result.success) {
+    if (result.code === 'RATE_LIMITED' && result.details?.kind === 'RETRY_AT') {
+      const seconds = Math.ceil((new Date(result.details.retryAt).getTime() - Date.now()) / 1000);
+      return NextResponse.json(result, {
+        status: 429,
+        headers: { 'Retry-After': String(Math.min(3600, Math.max(1, seconds))) },
+      });
+    }
     return NextResponse.json(EXPORT_FAILED_BODY, { status: 500 });
   }
 

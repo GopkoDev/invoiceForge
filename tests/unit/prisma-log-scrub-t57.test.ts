@@ -136,6 +136,17 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     prismaMock.user.findUnique
       .mockResolvedValueOnce({ id: 'user-1' })
       .mockRejectedValueOnce(realError);
+    // T13: the export first reserves a place in the limit store (one transaction); let it succeed
+    // so the read failure under test is what gets logged.
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      limitEvent: {
+        count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: 'le-1' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    prismaMock.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
     const { GET } = await import('@/app/api/user/export/route');
     const res = await GET();
     expect(res.status).toBe(500);

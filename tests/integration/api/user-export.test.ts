@@ -41,7 +41,8 @@ import { createCustomer } from '../../support/factories/customer';
 import { createProduct } from '../../support/factories/product';
 import { createBankAccount } from '../../support/factories/bank-account';
 import { createInvoice } from '../../support/factories/invoice';
-import { assertMatchesContract } from '../../support/contract/validate';
+import { assertMatchesContract, SECURITY_PATCH_SPEC_PATH } from '../../support/contract/validate';
+import { createLimitEvent } from '../../support/factories/limit-event';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -214,6 +215,47 @@ describe.runIf(containerRuntimeAvailable)('GET /api/user/export (T27, AC-24)', (
     // No OAuth tokens: accounts is empty here (no Account row created), but the shape allowed by
     // the contract only ever carries provider/type/createdAt — never access/refresh tokens.
     expect(body.accounts).toEqual([]);
+  });
+
+  it('AC-24: the 4th export in the hour is 429 RATE_LIMITED with retryAt and Retry-After (T13)', async () => {
+    const freelancer = await createFreelancer(factoryPrisma);
+    authMock.mockResolvedValue({ user: { id: freelancer.id } });
+    const now = Date.now();
+    const oldest = new Date(now - 30 * 60_000);
+    for (const at of [oldest, new Date(now - 20 * 60_000), new Date(now - 10 * 60_000)]) {
+      await createLimitEvent(factoryPrisma, { scope: 'EXPORT', key: freelancer.id, userId: freelancer.id, outcome: 'STARTED', at });
+    }
+    const spies = spyOnCategoryReads();
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body).toEqual({
+      success: false,
+      code: 'RATE_LIMITED',
+      error: "You've reached the export limit. You can export again later.",
+      details: { kind: 'RETRY_AT', retryAt: new Date(oldest.getTime() + 3_600_000).toISOString() },
+    });
+    const retryAfter = Number(response.headers.get('retry-after'));
+    expect(Number.isInteger(retryAfter)).toBe(true);
+    expect(retryAfter).toBeGreaterThanOrEqual(1790);
+    expect(retryAfter).toBeLessThanOrEqual(1800);
+    for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+    await assertMatchesContract({ operationId: 'exportUserData', status: 429, body, specPath: SECURITY_PATCH_SPEC_PATH });
+  });
+
+  it('AC-25: another Freelancer is not affected by a Freelancer at the limit (T13)', async () => {
+    const limited = await createFreelancer(factoryPrisma);
+    const other = await createFreelancer(factoryPrisma);
+    for (let i = 0; i < 3; i++) {
+      await createLimitEvent(factoryPrisma, { scope: 'EXPORT', key: limited.id, userId: limited.id, outcome: 'STARTED', at: new Date() });
+    }
+    authMock.mockResolvedValue({ user: { id: other.id } });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
   });
 
   it('AC-24: a failing category read returns 500 FAILED with nothing partial and no internals', async () => {

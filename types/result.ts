@@ -11,14 +11,16 @@ export type ActionErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION'
   | 'CONFLICT'
-  | 'FAILED';
+  | 'FAILED'
+  | 'RATE_LIMITED';
 
 /** Exact 2-dp value from the shared decimal module (ADR-0006). */
 export type DecimalString = string;
 
 export type ActionErrorDetails =
   | { kind: 'TOTALS_CHANGED'; oldTotal: DecimalString; newTotal: DecimalString }
-  | { kind: 'HAS_INVOICES'; invoiceCount: number };
+  | { kind: 'HAS_INVOICES'; invoiceCount: number }
+  | { kind: 'RETRY_AT'; retryAt: string /* ISO UTC */ };
 
 export type ActionFailure = {
   success: false;

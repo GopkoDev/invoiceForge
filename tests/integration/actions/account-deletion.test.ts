@@ -49,6 +49,8 @@ import { createProduct } from '../../support/factories/product';
 import { createCustomPrice } from '../../support/factories/custom-price';
 import { createInvoice as seedInvoiceRow } from '../../support/factories/invoice';
 import { createLogoFetchWindow } from '../../support/factories/logo-fetch-window';
+import { addressLimitKey } from '@/lib/security/limits/keys';
+import { createLimitEvent, TEST_LIMIT_KEY_SECRET } from '../../support/factories/limit-event';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -242,6 +244,32 @@ describe.runIf(containerRuntimeAvailable)(
         logoFetchWindow: 1,
         verificationToken: 1,
       });
+    });
+
+    it('T13: deleteUserAccount removes EXPORT rows (cascade) and the SIGNIN_ADDRESS digest rows, leaves SIGNIN_SOURCE and other accounts', async () => {
+      process.env.LIMIT_KEY_SECRET = TEST_LIMIT_KEY_SECRET;
+      const owner = await seedFullAccount('limits-owner');
+      const other = await seedFullAccount('limits-other');
+      const addressKey = (email: string) => addressLimitKey(email);
+      for (const f of [owner.freelancer, other.freelancer]) {
+        await createLimitEvent(prisma, { scope: 'EXPORT', key: f.id, userId: f.id, outcome: 'STARTED' });
+        await createLimitEvent(prisma, { scope: 'SIGNIN_ADDRESS', key: addressKey(f.email), outcome: 'SENT' });
+      }
+      await createLimitEvent(prisma, { scope: 'SIGNIN_SOURCE', outcome: 'REQUESTED' });
+      authMock.mockResolvedValue({ user: { id: owner.freelancer.id } });
+
+      const result = await deleteUserAccount();
+
+      expect(result.success).toBe(true);
+      expect(await prisma.limitEvent.count({ where: { scope: 'EXPORT', key: owner.freelancer.id } })).toBe(0);
+      expect(
+        await prisma.limitEvent.count({ where: { scope: 'SIGNIN_ADDRESS', key: addressKey(owner.freelancer.email) } }),
+      ).toBe(0);
+      expect(await prisma.limitEvent.count({ where: { scope: 'SIGNIN_SOURCE' } })).toBe(1);
+      expect(await prisma.limitEvent.count({ where: { scope: 'EXPORT', key: other.freelancer.id } })).toBe(1);
+      expect(
+        await prisma.limitEvent.count({ where: { scope: 'SIGNIN_ADDRESS', key: addressKey(other.freelancer.email) } }),
+      ).toBe(1);
     });
 
     it('AC-20: deleteUserAccount returns UNAUTHORIZED without a live session, and deletes nothing', async () => {

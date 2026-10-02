@@ -20,7 +20,7 @@
 //     | { kind: 'TOTALS_CHANGED'; oldTotal: DecimalString; newTotal: DecimalString }
 //     | { kind: 'HAS_INVOICES'; invoiceCount: number };
 import { describe, expect, it } from 'vitest';
-import { ok, fail } from '@/types/actions';
+import { ok, fail, type ActionErrorCode, type ActionErrorDetails } from '@/types/actions';
 
 describe('ok() (types/actions.ts, ADR-0009)', () => {
   it('produces a success result carrying the data, with no code/error fields', () => {
@@ -79,5 +79,29 @@ describe('fail() (types/actions.ts, ADR-0009)', () => {
 
     expect(result.error).not.toContain('Prisma');
     expect(result.error).not.toBe(rawPrismaMessage);
+  });
+});
+
+describe('RATE_LIMITED result (security-patch T13, ADR-0005, AC-24)', () => {
+  it('carries a typed RETRY_AT detail with an ISO UTC retryAt', () => {
+    const result = fail(
+      'RATE_LIMITED',
+      "You've reached the export limit. You can export again later.",
+      { details: { kind: 'RETRY_AT', retryAt: '2026-10-02T10:42:17.000Z' } },
+    );
+
+    expect(result).toEqual({
+      success: false,
+      code: 'RATE_LIMITED',
+      error: "You've reached the export limit. You can export again later.",
+      details: { kind: 'RETRY_AT', retryAt: '2026-10-02T10:42:17.000Z' },
+    });
+  });
+
+  it('is part of the closed ActionErrorCode set (compile-time)', () => {
+    const code: ActionErrorCode = 'RATE_LIMITED';
+    const details: ActionErrorDetails = { kind: 'RETRY_AT', retryAt: '2026-10-02T10:42:17.000Z' };
+    expect(code).toBe('RATE_LIMITED');
+    expect(details.kind).toBe('RETRY_AT');
   });
 });
