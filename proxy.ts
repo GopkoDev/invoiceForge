@@ -7,6 +7,7 @@ import {
   routes,
   protectedRoutes,
   isPublicPath,
+  isRefusedAnonymousMutation,
 } from './config/routes.config';
 
 const { auth } = NextAuth(authConfig);
@@ -51,6 +52,15 @@ export default auth(async function proxy(req) {
   // Deliberately public: sign-in/sign-up, landing, legal pages, crawling/share/icon
   // assets and the next-auth handler itself. Everything else — including paths added
   // later — is private.
+  // ADR-0003 layer 1: the method rule runs before the public-path check, so no shape of
+  // request (header-less form post, JSON, any page) can reach an action anonymously.
+  if (isRefusedAnonymousMutation(req.method, pathname)) {
+    return NextResponse.json(
+      { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' },
+      { status: 401 }
+    );
+  }
+
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
