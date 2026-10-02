@@ -9,7 +9,8 @@ const BASE_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // data: - the PDF layout engine (yoga-layout) fetches its WebAssembly from a data: URL.
+  "connect-src 'self' data:",
   "frame-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",
