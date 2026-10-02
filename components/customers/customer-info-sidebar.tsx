@@ -1,6 +1,7 @@
 import { CustomerWithRelations } from '@/types/customer/types';
 import { ContactsDetailsSidebarContent } from '@/components/layout/contacts';
 import { formatFullAddress } from '@/lib/helpers';
+import { isWebAddress } from '@/lib/validations/web-address';
 
 interface CustomerInfoSidebarProps {
   customer: CustomerWithRelations;
@@ -29,7 +30,8 @@ export function CustomerInfoSidebar({ customer }: CustomerInfoSidebarProps) {
   return (
     <ContactsDetailsSidebarContent
       avatar={{
-        src: customer.image,
+        // AC-21: a stored non-web image is never loaded; initials show instead.
+        src: customer.image && isWebAddress(customer.image) ? customer.image : null,
         fallback: initials,
         alt: customer.name,
       }}
