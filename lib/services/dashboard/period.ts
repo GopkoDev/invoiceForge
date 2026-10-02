@@ -2,6 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import { Currency } from '@prisma/client';
 import { fail, type ActionFailure } from '@/types/result';
+import { PERIOD_TOO_LONG, isWithinMaxCustomPeriod } from '@/lib/validations/dashboard-period';
 import { localDayRange } from '@/lib/services/_shared/time-zone';
 
 /** Inclusive local calendar dates (YYYY-MM-DD), read in the actor's time zone. */
@@ -33,7 +34,10 @@ export function parseDashboardInput(currency: unknown, period: unknown): ParsedD
   const parsedPeriod = period === undefined ? undefined : periodSchema.safeParse(period);
   if (!parsedCurrency.success) fieldErrors.currency = [CURRENCY_MESSAGE];
   if (parsedPeriod && !parsedPeriod.success) fieldErrors.period = [PERIOD_MESSAGE];
-  if (!parsedCurrency.success || (parsedPeriod && !parsedPeriod.success)) {
+  else if (parsedPeriod && !isWithinMaxCustomPeriod(parsedPeriod.data.from, parsedPeriod.data.to)) {
+    fieldErrors.period = [PERIOD_TOO_LONG];
+  }
+  if (!parsedCurrency.success || Object.keys(fieldErrors).length > 0) {
     return fail('VALIDATION', 'Please fix the highlighted fields.', { fieldErrors });
   }
   return { success: true, currency: parsedCurrency.data, period: parsedPeriod?.data };
