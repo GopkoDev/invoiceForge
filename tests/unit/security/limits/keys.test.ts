@@ -7,10 +7,15 @@
 //   sourceLimitKey(ip: string): string       // lower-hex HMAC-SHA256(secret, IPv4 | IPv6 /64 prefix)
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addressLimitKey, foldAddress, sourceLimitKey } from '@/lib/security/limits/keys';
+import {
+  addressLimitKey,
+  foldAddress,
+  sourceLimitKey,
+} from '@/lib/security/limits/keys';
 
 const SECRET = 'unit-test-limit-key-secret';
-const hmac = (v: string) => createHmac('sha256', SECRET).update(v).digest('hex');
+const hmac = (v: string) =>
+  createHmac('sha256', SECRET).update(v).digest('hex');
 
 describe('limit keys (T8)', () => {
   let previous: string | undefined;
@@ -41,7 +46,9 @@ describe('limit keys (T8)', () => {
 
   describe('addressLimitKey', () => {
     it('groups every spelling of one Gmail mailbox', () => {
-      expect(addressLimitKey('User@Gmail.com')).toBe(addressLimitKey('u.s.e.r+x@gmail.com'));
+      expect(addressLimitKey('User@Gmail.com')).toBe(
+        addressLimitKey('u.s.e.r+x@gmail.com')
+      );
     });
     it('keeps john.doe and johndoe apart on a non-Gmail domain', () => {
       expect(addressLimitKey('john.doe@example.com')).not.toBe(
@@ -69,10 +76,14 @@ describe('limit keys (T8)', () => {
       );
     });
     it('gives IPv6 addresses in different /64 networks different keys', () => {
-      expect(sourceLimitKey('2001:db8:1:2::1')).not.toBe(sourceLimitKey('2001:db8:1:3::1'));
+      expect(sourceLimitKey('2001:db8:1:2::1')).not.toBe(
+        sourceLimitKey('2001:db8:1:3::1')
+      );
     });
     it('gives different IPv4 addresses different keys', () => {
-      expect(sourceLimitKey('203.0.113.7')).not.toBe(sourceLimitKey('203.0.113.8'));
+      expect(sourceLimitKey('203.0.113.7')).not.toBe(
+        sourceLimitKey('203.0.113.8')
+      );
     });
   });
 });

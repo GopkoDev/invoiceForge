@@ -43,7 +43,10 @@ export function LoginForm({
 
     if (!result.success) {
       if (result.code === 'VALIDATION' && result.fieldErrors?.email?.[0]) {
-        form.setError('email', { type: 'server', message: result.fieldErrors.email[0] });
+        form.setError('email', {
+          type: 'server',
+          message: result.fieldErrors.email[0],
+        });
         return;
       }
       toast.error(result.error);

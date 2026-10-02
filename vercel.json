@@ -9,7 +9,5 @@
       "schedule": "17 3 * * *"
     }
   ],
-  "regions": [
-    "iad1"
-  ]
+  "regions": ["iad1"]
 }

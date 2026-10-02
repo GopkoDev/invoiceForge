@@ -1,4 +1,5 @@
-export const WEB_ADDRESS_MESSAGE = 'The address must start with http:// or https://.';
+export const WEB_ADDRESS_MESSAGE =
+  'The address must start with http:// or https://.';
 
 /** True only for values whose parsed protocol is http: or https: (AC-21). */
 export function isWebAddress(value: string): boolean {

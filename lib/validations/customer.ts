@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { isWebAddress, WEB_ADDRESS_MESSAGE } from '@/lib/validations/web-address';
+import {
+  isWebAddress,
+  WEB_ADDRESS_MESSAGE,
+} from '@/lib/validations/web-address';
 import { Currency } from '@prisma/client';
 import { optionalString, phoneValidation } from '@/lib/helpers/zod-helpers';
 
@@ -9,8 +12,12 @@ export const customerFormSchema = z.object({
   taxId: optionalString(z.string().trim().max(100)),
   email: optionalString(z.string().trim().email('Invalid email')),
   phone: optionalString(phoneValidation(z.string().trim().max(50))),
-  website: optionalString(z.string().trim().refine(isWebAddress, WEB_ADDRESS_MESSAGE)),
-  image: optionalString(z.string().trim().refine(isWebAddress, WEB_ADDRESS_MESSAGE)),
+  website: optionalString(
+    z.string().trim().refine(isWebAddress, WEB_ADDRESS_MESSAGE)
+  ),
+  image: optionalString(
+    z.string().trim().refine(isWebAddress, WEB_ADDRESS_MESSAGE)
+  ),
   address: optionalString(z.string().trim().max(500)),
   city: optionalString(z.string().trim().max(100)),
   country: optionalString(z.string().trim().max(100)),

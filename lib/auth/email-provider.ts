@@ -5,10 +5,17 @@ import * as Sentry from '@sentry/nextjs';
 import { CredentialsSignin } from 'next-auth';
 import type { PrismaClient } from '@prisma/client';
 import { loginEmailSchema } from '@/lib/validations/auth';
-import { createLimitStore, LimitStoreUnavailable } from '@/lib/security/limits/limit-store';
+import {
+  createLimitStore,
+  LimitStoreUnavailable,
+} from '@/lib/security/limits/limit-store';
 import { createLockoutAlert } from '@/lib/security/limits/lockout-alert';
 import { LIMIT_SCOPES } from '@/lib/security/limits/scopes';
-import { addressLimitKey, clientSource, sourceLimitKey } from '@/lib/security/limits/keys';
+import {
+  addressLimitKey,
+  clientSource,
+  sourceLimitKey,
+} from '@/lib/security/limits/keys';
 import { SIGN_IN_ERROR_CODES } from '@/lib/auth/sign-in-messages';
 
 /**
@@ -80,7 +87,8 @@ const DEFAULT_JITTER_MS = 50;
 /** Hard bound on one SMTP send; the address lock's transaction outlives it. */
 const SEND_TIMEOUT_MS = 10_000;
 const ADDRESS_LOCK_TIMEOUT_MS = 30_000;
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -136,7 +144,8 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   /** Counts this request for the source; false when the source is already at its limit. */
   const admitSource = (sourceKey: string) =>
     store.withKeyLock('SIGNIN_SOURCE', sourceKey, async (limit) => {
-      if ((await limit.countInWindow()) >= LIMIT_SCOPES.SIGNIN_SOURCE.max) return false;
+      if ((await limit.countInWindow()) >= LIMIT_SCOPES.SIGNIN_SOURCE.max)
+        return false;
       await limit.record('REQUESTED');
       return true;
     });
@@ -146,12 +155,16 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
    * concurrent requests for one address queue instead of sending past the limit. The send is
    * bounded by SEND_TIMEOUT_MS, well inside the lock's transaction timeout.
    */
-  const sendUnderAddressLimit = (addressKey: string, send: () => Promise<unknown>) =>
+  const sendUnderAddressLimit = (
+    addressKey: string,
+    send: () => Promise<unknown>
+  ) =>
     store.withKeyLock(
       'SIGNIN_ADDRESS',
       addressKey,
       async (limit): Promise<'sent' | 'limited'> => {
-        if ((await limit.countInWindow()) >= LIMIT_SCOPES.SIGNIN_ADDRESS.max) return 'limited';
+        if ((await limit.countInWindow()) >= LIMIT_SCOPES.SIGNIN_ADDRESS.max)
+          return 'limited';
         try {
           await withTimeout(send(), SEND_TIMEOUT_MS);
         } catch {
@@ -163,10 +176,14 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       { timeoutMs: ADDRESS_LOCK_TIMEOUT_MS }
     );
 
-  async function sendVerificationRequest(params: SendVerificationParams): Promise<void> {
+  async function sendVerificationRequest(
+    params: SendVerificationParams
+  ): Promise<void> {
     const started = Date.now();
     const holdToFloor = () =>
-      sleep(Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now()));
+      sleep(
+        Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now())
+      );
 
     return withSpan(async (setOutcome) => {
       const { identifier, url, provider, request } = params;
@@ -191,7 +208,8 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
         } else {
           outcome = await sendUnderAddressLimit(addressKey, sendLink);
           // Outside the address lock: the alert takes the same key's lock itself.
-          if (outcome === 'limited') await alert.onAddressLimited(addressKey, new Date());
+          if (outcome === 'limited')
+            await alert.onAddressLimited(addressKey, new Date());
         }
       } catch (error) {
         if (error instanceof EmailSendFailed) {

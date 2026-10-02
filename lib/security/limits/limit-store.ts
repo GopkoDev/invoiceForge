@@ -137,15 +137,18 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
       let callbackFailed = false;
       try {
         const prisma = await getPrisma();
-        return await prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}::text || ':' || ${key}::text))`;
-          try {
-            return await fn(locked(tx, scope, key));
-          } catch (error) {
-            callbackFailed = true;
-            throw error;
-          }
-        }, options.timeoutMs ? { timeout: options.timeoutMs } : undefined);
+        return await prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}::text || ':' || ${key}::text))`;
+            try {
+              return await fn(locked(tx, scope, key));
+            } catch (error) {
+              callbackFailed = true;
+              throw error;
+            }
+          },
+          options.timeoutMs ? { timeout: options.timeoutMs } : undefined
+        );
       } catch (error) {
         if (callbackFailed || error instanceof LimitStoreUnavailable)
           throw error;

@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { loginEmailSchema } from '@/lib/validations/auth';
 
 const MESSAGE = 'Enter a valid email address.';
-const ofLength = (n: number) => `${'a'.repeat(n - '@example.test'.length)}@example.test`;
+const ofLength = (n: number) =>
+  `${'a'.repeat(n - '@example.test'.length)}@example.test`;
 
 describe('loginEmailSchema (AC-17)', () => {
   it.each([

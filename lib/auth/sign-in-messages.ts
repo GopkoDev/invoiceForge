@@ -2,7 +2,8 @@
 // 'use server' module may export only async functions.
 export const EMAIL_SIGNIN_UNAVAILABLE =
   'Sign-in by email is temporarily unavailable. Try again shortly, or sign in with Google.';
-export const EMAIL_SEND_FAILED = "We couldn't send the sign-in email. Try again.";
+export const EMAIL_SEND_FAILED =
+  "We couldn't send the sign-in email. Try again.";
 export const INVALID_EMAIL_ADDRESS = 'Enter a valid email address.';
 
 // OQ-2: the `code` the direct endpoint puts on /error?error=CredentialsSignin. Client-visible,

@@ -13,7 +13,11 @@ function isRealDate(value: string): boolean {
   const [y, m, d] = value.split('-').map(Number);
   const date = new Date(Date.UTC(2000, m - 1, d));
   date.setUTCFullYear(y);
-  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+  return (
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === d
+  );
 }
 
 const pad = (n: number, width: number) => String(n).padStart(width, '0');

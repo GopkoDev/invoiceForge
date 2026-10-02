@@ -12,12 +12,18 @@ import { startTestDatabase, type TestDatabase } from '../support/db/container';
 import { createTestPrismaClient } from '../support/db/client';
 import { truncateAllTables } from '../support/db/truncate';
 import { createFreelancer } from '../support/factories/user';
-import { createLimitEvent, limitKeyDigest } from '../support/factories/limit-event';
+import {
+  createLimitEvent,
+  limitKeyDigest,
+} from '../support/factories/limit-event';
 import type { PrismaClient } from '@prisma/client';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
-const MIGRATIONS_DIR = path.resolve(process.cwd(), 'docs/features/security-patch/migrations');
+const MIGRATIONS_DIR = path.resolve(
+  process.cwd(),
+  'docs/features/security-patch/migrations'
+);
 const UP_SQL = path.join(MIGRATIONS_DIR, '01_create_limit_event.up.sql');
 const DOWN_SQL = path.join(MIGRATIONS_DIR, '01_create_limit_event.down.sql');
 
@@ -49,7 +55,10 @@ describe.runIf(containerRuntimeAvailable)('LimitEvent table (T3)', () => {
   };
 
   it('is created by prisma migrate deploy with the column shape, indexes and cascade FK', async () => {
-    expect(await tableExists(), 'expected migrate deploy to create LimitEvent').toBe(true);
+    expect(
+      await tableExists(),
+      'expected migrate deploy to create LimitEvent'
+    ).toBe(true);
 
     const cols = await prisma.$queryRaw<
       { column_name: string; udt_name: string; is_nullable: string }[]
@@ -106,13 +115,19 @@ describe.runIf(containerRuntimeAvailable)('LimitEvent table (T3)', () => {
     await prisma.user.delete({ where: { id: freelancer.id } });
 
     const rows = await prisma.limitEvent.findMany();
-    expect(rows.map((r) => r.scope).sort()).toEqual(['SIGNIN_ADDRESS', 'SIGNIN_SOURCE']);
+    expect(rows.map((r) => r.scope).sort()).toEqual([
+      'SIGNIN_ADDRESS',
+      'SIGNIN_SOURCE',
+    ]);
   });
 
   it('down after up restores the previous schema, and up is idempotent', async () => {
     const up = fs.readFileSync(UP_SQL, 'utf8');
     const down = fs.readFileSync(DOWN_SQL, 'utf8');
-    expect(await tableExists(), 'expected promoted migration to have created LimitEvent').toBe(true);
+    expect(
+      await tableExists(),
+      'expected promoted migration to have created LimitEvent'
+    ).toBe(true);
 
     await prisma.$executeRawUnsafe(down);
     expect(await tableExists()).toBe(false);

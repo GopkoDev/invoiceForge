@@ -16,8 +16,8 @@ export default function VerifyRequestPage() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10">
-            <MailIcon className="size-6 text-primary" />
+          <div className="bg-primary/10 mx-auto mb-4 flex size-12 items-center justify-center rounded-full">
+            <MailIcon className="text-primary size-6" />
           </div>
           <CardDescription className="text-base font-semibold">
             Check your email
@@ -25,7 +25,8 @@ export default function VerifyRequestPage() {
         </CardHeader>
         <CardContent className="text-center">
           <p className="text-muted-foreground text-sm">
-            If this address can receive sign-in links, we&apos;ve sent one. Check your inbox.
+            If this address can receive sign-in links, we&apos;ve sent one.
+            Check your inbox.
           </p>
         </CardContent>
       </Card>

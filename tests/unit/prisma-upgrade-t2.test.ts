@@ -11,7 +11,10 @@ function installedVersion(pkg: string): string {
   for (;;) {
     const candidate = join(dir, 'package.json');
     if (existsSync(candidate)) {
-      const manifest = JSON.parse(readFileSync(candidate, 'utf8')) as { name?: string; version: string };
+      const manifest = JSON.parse(readFileSync(candidate, 'utf8')) as {
+        name?: string;
+        version: string;
+      };
       if (manifest.name === pkg) return manifest.version;
     }
     const parent = dirname(dir);
@@ -38,15 +41,20 @@ describe('T2 Prisma upgrade and accelerate removal (AC-27)', () => {
   }
 
   it('@prisma/extension-accelerate is not a dependency', () => {
-    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as Record<
-      string,
-      Record<string, string>
-    >;
-    const declared = { ...manifest.dependencies, ...manifest.devDependencies, ...manifest.optionalDependencies };
+    const manifest = JSON.parse(
+      readFileSync(join(root, 'package.json'), 'utf8')
+    ) as Record<string, Record<string, string>>;
+    const declared = {
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+      ...manifest.optionalDependencies,
+    };
     expect(Object.keys(declared)).not.toContain('@prisma/extension-accelerate');
   });
 
   it('@prisma/extension-accelerate is absent from the lockfile', () => {
-    expect(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')).not.toContain('extension-accelerate');
+    expect(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')).not.toContain(
+      'extension-accelerate'
+    );
   });
 });

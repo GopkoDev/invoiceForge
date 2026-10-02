@@ -35,18 +35,36 @@ import { DashboardFilters } from '@/components/dashboard/header/dashboard-filter
 // paging through years of months; the stub forwards exactly what react-day-picker would hand
 // to `onSelect` (local-midnight Dates).
 vi.mock('@/components/ui/calendar', () => ({
-  Calendar: ({ onSelect }: { onSelect: (r: { from?: Date; to?: Date }) => void }) => (
+  Calendar: ({
+    onSelect,
+  }: {
+    onSelect: (r: { from?: Date; to?: Date }) => void;
+  }) => (
     <div>
-      <button onClick={() => onSelect({ from: new Date(2021, 0, 1), to: new Date(2026, 0, 1) })}>
+      <button
+        onClick={() =>
+          onSelect({ from: new Date(2021, 0, 1), to: new Date(2026, 0, 1) })
+        }
+      >
         pick-exact-5y
       </button>
-      <button onClick={() => onSelect({ from: new Date(2021, 0, 1), to: new Date(2026, 0, 2) })}>
+      <button
+        onClick={() =>
+          onSelect({ from: new Date(2021, 0, 1), to: new Date(2026, 0, 2) })
+        }
+      >
         pick-5y-plus-1d
       </button>
-      <button onClick={() => onSelect({ from: new Date(2020, 1, 29), to: new Date(2025, 1, 28) })}>
+      <button
+        onClick={() =>
+          onSelect({ from: new Date(2020, 1, 29), to: new Date(2025, 1, 28) })
+        }
+      >
         pick-leap-start
       </button>
-      <button onClick={() => onSelect({ from: new Date(2021, 0, 1) })}>pick-start-only</button>
+      <button onClick={() => onSelect({ from: new Date(2021, 0, 1) })}>
+        pick-start-only
+      </button>
     </div>
   ),
 }));
@@ -89,7 +107,9 @@ describe('DashboardFilters (component, T7 five-year cap)', () => {
     const onChange = openFilter();
     fireEvent.click(await screen.findByText('pick-5y-plus-1d'));
     expect(await screen.findByText(PERIOD_TOO_LONG)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'All Time' , hidden: true }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'All Time', hidden: true })
+    );
     expect(onChange).toHaveBeenCalledWith(undefined, 'all-time');
     expect(screen.queryByText(PERIOD_TOO_LONG)).not.toBeInTheDocument();
   });
@@ -103,7 +123,10 @@ describe('DashboardFilters (component, AC-25)', () => {
     };
 
     render(
-      <DashboardFilters appliedRange={appliedRange} onDateRangeChange={vi.fn()} />,
+      <DashboardFilters
+        appliedRange={appliedRange}
+        onDateRangeChange={vi.fn()}
+      />
     );
 
     expect(screen.getByText(/sep 01, 2026/i)).toBeInTheDocument();

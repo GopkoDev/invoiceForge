@@ -17,7 +17,7 @@ export const REQUIRED_SETTINGS = [
 export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number];
 
 export function missingSettings(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = process.env
 ): RequiredSetting[] {
   return REQUIRED_SETTINGS.filter((name) => !env[name]);
 }

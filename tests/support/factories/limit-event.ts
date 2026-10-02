@@ -8,7 +8,9 @@ import type { LimitEvent, PrismaClient } from '@prisma/client';
 export const TEST_LIMIT_KEY_SECRET = 'test-only-limit-key-secret';
 
 export function limitKeyDigest(value: string): string {
-  return createHmac('sha256', TEST_LIMIT_KEY_SECRET).update(value).digest('hex');
+  return createHmac('sha256', TEST_LIMIT_KEY_SECRET)
+    .update(value)
+    .digest('hex');
 }
 
 export type LimitEventOverrides = Partial<
@@ -24,7 +26,8 @@ export async function createLimitEvent(
     throw new Error('createLimitEvent: EXPORT rows require userId');
   }
   const key =
-    overrides.key ?? (scope === 'EXPORT' ? overrides.userId! : limitKeyDigest('203.0.113.7'));
+    overrides.key ??
+    (scope === 'EXPORT' ? overrides.userId! : limitKeyDigest('203.0.113.7'));
   return prisma.limitEvent.create({
     data: {
       scope,

@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
         method: 'POST',
         headers: { 'content-type': 'application/x-sentry-envelope' },
         body,
-      },
+      }
     );
     if (!upstream.ok) return refuse(502);
     return new Response(await upstream.text(), { status: upstream.status });

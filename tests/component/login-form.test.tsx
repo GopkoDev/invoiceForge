@@ -16,7 +16,9 @@ vi.mock('@/lib/actions/login-actions', () => ({
   signInWithGoogle: (...a: unknown[]) => signInWithGoogleMock(...a),
 }));
 const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
+vi.mock('sonner', () => ({
+  toast: { error: (...a: unknown[]) => toastError(...a) },
+}));
 
 const { LoginForm } = await import('@/components/auth/login-form');
 
@@ -42,22 +44,32 @@ describe('LoginForm provider outcomes', () => {
       })
     );
     await submit('a@example.com');
-    expect(await screen.findByText('Enter a valid email address.')).toBeTruthy();
+    expect(
+      await screen.findByText('Enter a valid email address.')
+    ).toBeTruthy();
     expect(toastError).not.toHaveBeenCalled();
   });
 
   it('AC-15: unavailable toasts the message and Google stays enabled', async () => {
-    signInWithEmailMock.mockResolvedValue(fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE));
+    signInWithEmailMock.mockResolvedValue(
+      fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE)
+    );
     await submit('a@example.com');
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(EMAIL_SIGNIN_UNAVAILABLE));
-    const google = screen.getByRole('button', { name: /login with google/i }) as HTMLButtonElement;
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(EMAIL_SIGNIN_UNAVAILABLE)
+    );
+    const google = screen.getByRole('button', {
+      name: /login with google/i,
+    }) as HTMLButtonElement;
     expect(google.disabled).toBe(false);
   });
 
   it('AC-16: send failure toasts the generic message', async () => {
     signInWithEmailMock.mockResolvedValue(fail('FAILED', EMAIL_SEND_FAILED));
     await submit('a@example.com');
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(EMAIL_SEND_FAILED));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(EMAIL_SEND_FAILED)
+    );
   });
 
   it('AC-19: the button shows "Sending..." until the action returns', async () => {
@@ -73,7 +85,9 @@ describe('LoginForm provider outcomes', () => {
     const user = userEvent.setup();
     render(<LoginForm />);
     await user.click(screen.getByRole('checkbox'));
-    await user.click(screen.getByRole('button', { name: /login with google/i }));
+    await user.click(
+      screen.getByRole('button', { name: /login with google/i })
+    );
     expect(signInWithGoogleMock).toHaveBeenCalled();
   });
 });
@@ -83,9 +97,13 @@ describe('auth pages', () => {
     const { default: Page } = await import('@/app/(auth)/verify-request/page');
     render(<Page />);
     expect(
-      screen.getByText("If this address can receive sign-in links, we've sent one. Check your inbox.")
+      screen.getByText(
+        "If this address can receive sign-in links, we've sent one. Check your inbox."
+      )
     ).toBeTruthy();
-    expect(screen.queryByText(/has been sent to your email address/i)).toBeNull();
+    expect(
+      screen.queryByText(/has been sent to your email address/i)
+    ).toBeNull();
   });
 
   // OQ-2 (pinned in tests/integration/actions/login-actions.test.ts against the installed
@@ -94,28 +112,40 @@ describe('auth pages', () => {
     ['invalid_email', 'Enter a valid email address.'],
     ['email_unavailable', EMAIL_SIGNIN_UNAVAILABLE],
     ['send_failed', EMAIL_SEND_FAILED],
-  ])('/error maps the direct-endpoint code %s to its fixed message', async (code, message) => {
-    const { default: ErrorPage } = await import('@/app/(auth)/error/page');
-    const ui = await ErrorPage({
-      searchParams: Promise.resolve({ error: 'CredentialsSignin', code }),
-    });
-    render(ui);
-    expect(screen.getByText(message)).toBeTruthy();
-    expect(screen.queryByText('There is a problem with the server configuration.')).toBeNull();
-  });
+  ])(
+    '/error maps the direct-endpoint code %s to its fixed message',
+    async (code, message) => {
+      const { default: ErrorPage } = await import('@/app/(auth)/error/page');
+      const ui = await ErrorPage({
+        searchParams: Promise.resolve({ error: 'CredentialsSignin', code }),
+      });
+      render(ui);
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(
+        screen.queryByText('There is a problem with the server configuration.')
+      ).toBeNull();
+    }
+  );
 
   it('/error falls back to the default message for an unknown code', async () => {
     const { default: ErrorPage } = await import('@/app/(auth)/error/page');
     const ui = await ErrorPage({
-      searchParams: Promise.resolve({ error: 'CredentialsSignin', code: 'toString' }),
+      searchParams: Promise.resolve({
+        error: 'CredentialsSignin',
+        code: 'toString',
+      }),
     });
     render(ui);
-    expect(screen.getByText('An error occurred during sign in. Please try again.')).toBeTruthy();
+    expect(
+      screen.getByText('An error occurred during sign in. Please try again.')
+    ).toBeTruthy();
   });
 
   it('/error keeps the existing expired-link message', async () => {
     const { default: ErrorPage } = await import('@/app/(auth)/error/page');
-    const ui = await ErrorPage({ searchParams: Promise.resolve({ error: 'Verification' }) });
+    const ui = await ErrorPage({
+      searchParams: Promise.resolve({ error: 'Verification' }),
+    });
     render(ui);
     expect(screen.getByText(/no longer valid/)).toBeTruthy();
   });

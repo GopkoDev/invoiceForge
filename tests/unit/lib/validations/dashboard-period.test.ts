@@ -55,7 +55,10 @@ describe.each(['Pacific/Kiritimati', 'Etc/GMT+12', 'UTC'])(
 
 describe('dashboard-period module is dependency-free (ADR-0004)', () => {
   it('imports nothing and has no server/browser dependencies', () => {
-    const src = readFileSync(resolve(process.cwd(), 'lib/validations/dashboard-period.ts'), 'utf8');
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/validations/dashboard-period.ts'),
+      'utf8'
+    );
     expect(src).not.toMatch(/^\s*import\s/m);
     expect(src).not.toMatch(/from\s+['"]/);
     expect(src).not.toMatch(/server-only|next\/|node:|['"]react['"]/);

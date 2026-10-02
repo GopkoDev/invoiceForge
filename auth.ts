@@ -84,7 +84,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     // module is deliberately typed against the minimal shape it needs, not next-auth's own
     // (structurally compatible at runtime — JWT/Session are supersets of it).
     session: (params) =>
-      sessionCallback(params as unknown as Parameters<typeof sessionCallback>[0]),
+      sessionCallback(
+        params as unknown as Parameters<typeof sessionCallback>[0]
+      ),
     async redirect({ url, baseUrl }) {
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;

@@ -11,7 +11,9 @@ export const loginEmailSchema = z.object({
     .string()
     .refine(
       (value) =>
-        value.length <= 254 && /^[\x00-\x7F]*$/.test(value) && wellFormed.safeParse(value).success,
+        value.length <= 254 &&
+        /^[\x00-\x7F]*$/.test(value) &&
+        wellFormed.safeParse(value).success,
       INVALID_ADDRESS
     ),
 });

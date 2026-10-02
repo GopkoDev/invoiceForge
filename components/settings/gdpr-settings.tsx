@@ -21,7 +21,10 @@ import {
   getAccountDeletionSummary,
 } from '@/lib/actions/account-actions';
 import { authRoutes } from '@/config/routes.config';
-import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import {
+  goToSignIn,
+  redirectIfUnauthorized,
+} from '@/lib/helpers/client-session-redirect';
 
 const EXPORT_FAILED_MESSAGE = "Your data couldn't be exported. Try again.";
 const FALLBACK_EXPORT_FILENAME = 'invoice-forge-data.json';
@@ -53,13 +56,10 @@ function invoiceCountLine(count: number) {
     : `${count} invoices will be permanently lost.`;
 }
 
-type ExportOutcome =
-  | 'ok'
-  | 'unauthorized'
-  | 'failed'
-  | { rateLimited: string };
+type ExportOutcome = 'ok' | 'unauthorized' | 'failed' | { rateLimited: string };
 
-const RATE_LIMIT_FALLBACK_MESSAGE = "You've reached the export limit. Try again later.";
+const RATE_LIMIT_FALLBACK_MESSAGE =
+  "You've reached the export limit. Try again later.";
 
 function padTime(n: number) {
   return String(n).padStart(2, '0');
@@ -185,7 +185,12 @@ export function GdprSettings() {
               <AlertCircle />
               <AlertTitle className="flex items-center justify-between gap-2">
                 Couldn&apos;t count your invoices.
-                <Button size="sm" variant="outline" onClick={loadSummary} disabled={deleting}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={loadSummary}
+                  disabled={deleting}
+                >
                   Retry
                 </Button>
               </AlertTitle>
@@ -282,7 +287,11 @@ export function GdprSettings() {
   const openDeleteDialog = () => {
     dialogOpenRef.current = true;
     // N-12: a previous attempt's `deleting`/`exporting` flags must not carry into a reopened dialog.
-    dialogStateRef.current = { summary: { status: 'counting' }, exporting: false, deleting: false };
+    dialogStateRef.current = {
+      summary: { status: 'counting' },
+      exporting: false,
+      deleting: false,
+    };
     void loadSummary();
   };
 

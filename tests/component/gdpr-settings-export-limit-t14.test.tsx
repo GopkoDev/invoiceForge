@@ -25,9 +25,8 @@ vi.mock('sonner', () => ({
 }));
 
 const { GdprSettings } = await import('@/components/settings/gdpr-settings');
-const { SettingsModalContainer } = await import(
-  '@/components/modals/settings/settings-modal-container'
-);
+const { SettingsModalContainer } =
+  await import('@/components/modals/settings/settings-modal-container');
 const { useModalStore } = await import('@/store/use-modal-store');
 
 function deferred<T>() {
@@ -82,14 +81,19 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
 
   it('shows the export-again time as an inline alert and no toast on 429', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(limitedResponse(rateLimitedBody)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(limitedResponse(rateLimitedBody))
+    );
 
     renderSettings();
     await user.click(screen.getByRole('button', { name: /export my data/i }));
 
     expect(await screen.findByText(limitedText)).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /export my data/i })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /export my data/i })
+    ).toBeEnabled();
   });
 
   it('clears the alert when the next export attempt starts', async () => {
@@ -109,7 +113,9 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
 
     await user.click(screen.getByRole('button', { name: /export my data/i }));
     await waitFor(() =>
-      expect(screen.queryByText(/You've reached the export limit/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/You've reached the export limit/)
+      ).not.toBeInTheDocument()
     );
   });
 
@@ -117,11 +123,12 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          limitedResponse({ ...rateLimitedBody, details: { kind: 'RETRY_AT', retryAt: 'nope' } })
-        )
+      vi.fn().mockResolvedValue(
+        limitedResponse({
+          ...rateLimitedBody,
+          details: { kind: 'RETRY_AT', retryAt: 'nope' },
+        })
+      )
     );
 
     renderSettings();
@@ -134,12 +141,17 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
   it('shows the same alert when the delete dialog export is rate limited', async () => {
     const user = userEvent.setup();
     getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(limitedResponse(rateLimitedBody)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(limitedResponse(rateLimitedBody))
+    );
 
     renderSettings();
     await user.click(screen.getByRole('button', { name: /delete account/i }));
     await screen.findByText('2 invoices will be permanently lost.');
-    await user.click(screen.getByRole('button', { name: /export my data first/i }));
+    await user.click(
+      screen.getByRole('button', { name: /export my data first/i })
+    );
 
     expect(await screen.findByText(limitedText)).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
@@ -147,25 +159,35 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
 
   it('still toasts on 500 with no alert', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 500 })
+    );
 
     renderSettings();
     await user.click(screen.getByRole('button', { name: /export my data/i }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("Your data couldn't be exported. Try again.")
+      expect(toastError).toHaveBeenCalledWith(
+        "Your data couldn't be exported. Try again."
+      )
     );
     expect(screen.queryByText(/export limit/)).not.toBeInTheDocument();
   });
 
   it('still goes to sign-in on 401', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 401 })
+    );
 
     renderSettings();
     await user.click(screen.getByRole('button', { name: /export my data/i }));
 
-    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session'));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session')
+    );
     expect(screen.queryByText(/export limit/)).not.toBeInTheDocument();
   });
 });

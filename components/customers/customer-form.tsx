@@ -468,8 +468,8 @@ export function CustomerForm({
           {form.formState.isSubmitting
             ? 'Saving...'
             : isEditing
-            ? 'Update Customer'
-            : 'Create Customer'}
+              ? 'Update Customer'
+              : 'Create Customer'}
         </Button>
       </div>
     </form>
