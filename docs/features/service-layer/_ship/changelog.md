@@ -44,7 +44,7 @@ If no page is requested, the list returns the full set as page 1. If the page nu
 - Migration: none. The schema is unchanged and stored data is not touched.
 - Feature flag / config: none.
   - Each dashboard section now runs inside a named Sentry span, `dashboard.<section>`.
-  - CI runs `pnpm build` in addition to the existing checks.
+  - The `next build` boundary check runs on every PR as the Vercel preview build, not in GitHub Actions (ADR-0006).
 - Release shape:
   - SAD §7 planned four code-only waves. Wave 4 (dashboard SQL) was meant to ship after at least 7 days of `dashboard.<section>` latency baseline from the old code.
   - This branch holds all four waves, so merging it ships them as one release, with no before/after baseline.

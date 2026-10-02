@@ -633,7 +633,7 @@ There is no infrastructure change. The app stays one Vercel project (functions i
 
 | Wave | Moves into `lib/services` | Also ships | Rollback-safe because |
 |---|---|---|---|
-| 1 | `_shared` (ActingFreelancer, time zone, list query, owner scope, result helpers), customers, products, custom prices | ESLint boundary rule, boundary unit test, `server-only` dependency, `pnpm build` step in CI. `dashboard.<section>` Sentry spans around the **old** dashboard actions, to start the latency baseline. The first owner-scoped writes confirm Prisma's relation filter in a unique `where` (§11) | code only |
+| 1 | `_shared` (ActingFreelancer, time zone, list query, owner scope, result helpers), customers, products, custom prices | ESLint boundary rule, boundary unit test, `server-only` dependency, `next build` on every PR via the Vercel preview (ADR-0006, amended 2026-10-02). `dashboard.<section>` Sentry spans around the **old** dashboard actions, to start the latency baseline. The first owner-scoped writes confirm Prisma's relation filter in a unique `where` (§11) | code only |
 | 2 | sender profiles, bank accounts, profile, account deletion and export, dashboard setup check | `convert-image` owned-profile lookup through the layer | code only |
 | 3 | invoices: list with filters, numbering, create, update, status, duplicate, editor data | the unused list-all-invoices function and its test are deleted | code only |
 | 4 | dashboard sections on SQL (ADR-0004) | parity test run old-vs-new, then its old outputs recorded as fixed expected values, then the old in-memory code deleted (spec §1 change 5) | code only; until the old code is deleted, the previous build is a complete fallback |
@@ -699,7 +699,7 @@ Each top-3 goal from §1 expanded into a full scenario, plus the dashboard data-
 **QG-3. Request independence and browser isolation**
 - **When:** a business function is called without any browser request, or the codebase is checked in CI.
 - **Then:** "100% of business functions callable with only the acting Freelancer (+ time zone) and no browser request; 0 uses of session, cookie, header or page-refresh facilities inside the business layer" and "0 business-layer functions marked as browser-callable; 0 imports of the business layer from browser-side code".
-- **How verify:** an integration test per business function calls it with only `actingFreelancerForTest(...)`. There are no request mocks, and the `@/auth` mocks disappear for business-function tests. ESLint `no-restricted-imports` on `lib/services/**`, the `server-only` import (fails `next build` on a client import) and `tests/unit/service-layer-boundary.test.ts` (no `'use server'` under `lib/services`) all run in CI. `pnpm build` is added to `.github/workflows/test.yml` in wave 1 (it isn't there today), with placeholder env values for the build.
+- **How verify:** an integration test per business function calls it with only `actingFreelancerForTest(...)`. There are no request mocks, and the `@/auth` mocks disappear for business-function tests. ESLint `no-restricted-imports` on `lib/services/**`, the `server-only` import (fails `next build` on a client import) and `tests/unit/service-layer-boundary.test.ts` (no `'use server'` under `lib/services`) all run in CI. `next build` runs on every PR as the Vercel preview deploy, with the real environment (ADR-0006, amended 2026-10-02).
 
 **QG-4. Dashboard cost does not grow with history**
 - **When:** the dashboard loads for a Freelancer with any number of invoices.

@@ -118,7 +118,7 @@ Commit: `852cf52`, run on 2026-10-02.
 ## Operational notes
 
 - **Migration.** None. The schema is unchanged.
-- **Feature flag / config.** None. Each dashboard section now runs in a named Sentry span, `dashboard.<section>`. CI also runs `pnpm build`.
+- **Feature flag / config.** None. Each dashboard section now runs in a named Sentry span, `dashboard.<section>`. The `next build` boundary check runs as the Vercel preview build on every PR (ADR-0006).
 - **After deploy.** Compare the 7-day p95 of the `dashboard.<section>` spans with what production traces show for the previous build. The latency target is still open (spec §8).
 - **Rollback.** Redeploy the previous build. There is no stored-data change.
 - **Noise, not a regression.** `next build` logs `Error checking authentication: Dynamic server usage` for the protected routes during prerender. This is pre-existing and does not fail the build.
