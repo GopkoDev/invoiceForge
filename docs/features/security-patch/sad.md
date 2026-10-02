@@ -377,29 +377,51 @@ ADR files live under `docs/features/security-patch/adr/NNNN-<title>.md`. Decisio
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each top-3 goal from §1, expanded into testable scenarios. Every number is quoted from spec §6.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Fail-closed auth boundary**
+- **When:**
+  - the sign-in check returns anything other than a verified session (an Auth.js error object, a session without an account id, a thrown check);
+  - or a Visitor sends a mutation in any shape (with or without `Next-Action`, form-encoded, to a public page or to `/login` carrying a non-sign-in action);
+  - or the limit store is unavailable when a Sign-in link is requested.
+- **Then:**
+  - a private page redirects to sign-in, a data or action request is refused with no data, and no private code runs (AC-04, AC-18);
+  - public pages render without a redirect loop (AC-06), and session cookies are not cleared;
+  - the sign-in actions still work (AC-19);
+  - with the limit store down, the limiter fails closed: no email when limits cannot be checked (spec §6).
+- **How verify:**
+  - unit tests of the proxy decision table, feeding `req.auth` shapes and methods and paths;
+  - a CI unit scan that fails on any exported `'use server'` function outside `login-actions.ts` without a session check first (ADR-0003);
+  - an integration test with the limit store unavailable;
+  - the e2e page-access sweep on preview with a genuine session from the real sign-in flow (AC-05).
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2. Bounded abuse cost without enumeration**
+- **When:** a source or an address hits the Sign-in link limits, a link carries an over-long Dashboard period, or a Freelancer starts a fourth export within the hour.
+- **Then:**
+  - Sign-in link request, limited vs sent: median response times differ by ≤ 150 ms. Sign-in link request p95 ≤ 1.5 s.
+  - Dashboard load, any link including an over-long period, p95 ≤ 2 s.
+  - Limit-record retention: records older than 24 h are purged at least daily, by a sweep that covers every key.
+  - Targeted-lockout alert: an address refused at least once in each of 3 consecutive clock hours (UTC) raises one alert to the app operator, at most once per address per day, carrying only the address digest.
+  - Exports beyond 3 in an hour are refused with the retry time (AC-24).
+- **How verify:**
+  - an integration test with 50 limited and 50 sent requests, comparing medians. It runs twice: once with an instant fake SMTP and once with fake-SMTP latency drawn at random between 0 and the response floor *F* (§6), so the floor is proven against send variance and not only against an instant send;
+  - after release, sign-in and dashboard chart spans in error tracking (7-day window), with `auth.signin.email` medians compared by outcome (sent vs limited) in the ship stage;
+  - an integration test for the purge, plus a row count checked in the ship stage;
+  - an integration test for the lockout alert with an injected clock;
+  - integration tests for concurrent exports (AC-24, AC-25).
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
-
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Core flows survive the hardening**
+- **When:** the enforced content-security policy and the upgraded framework, sign-in and mail components run in a preview environment, then in production.
+- **Then:**
+  - every AC-20 flow completes with zero policy violations: Google and Sign-in link sign-in, the dashboard chart, invoice PDF download and print, a client-side error, and the full page-access sweep including settings, logo and customer-image previews, the Google profile picture, the data export and the legal pages;
+  - browser error events arrive within 5 min of a synthetic error on production;
+  - production advisories: 0 critical, 0 high;
+  - every environment variable the app reads is listed in the example env file under the exact name the app reads.
+- **How verify:**
+  - Playwright e2e on preview, collecting `securitypolicyviolation` events and CSP reports (gate: zero) before production release;
+  - a post-deploy smoke in the ship stage that throws a synthetic browser error and checks Sentry;
+  - an advisory audit of production packages in the ship stage;
+  - a unit test asserting that the required-settings list equals `env.example` (ADR-0008), plus the review checklist.
 
 ## 11. Risks and technical debt
 
