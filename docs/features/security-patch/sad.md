@@ -425,32 +425,40 @@ Each top-3 goal from §1, expanded into testable scenarios. Every number is quot
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| The framework, sign-in, mail and database-toolkit upgrades land in one change (spec §1 decision), so a regression is hard to bisect | High | Land the upgrade first in the branch and run the full unit + integration suite and the e2e page-access sweep on preview (AC-02, AC-03) before any hardening step builds on it; rollback is a revert of the upgrade commit | Dmytro Hopko |
+| The enforced content-security policy breaks a flow outside the AC-20 list (for example a third-party script added later) | Medium | Violation reports go to Sentry (§8); AC-20 gate on preview before production; the header lives in `next.config.ts`, so relaxing one directive is a one-line change | Dmytro Hopko |
+| Shared network addresses (carrier NAT, offices) reach 30 requests per 5 minutes, so a legitimate Visitor sees "check your inbox" but gets no email | Medium | Google sign-in is unaffected (AC-14); `auth.signin.email` spans by outcome show source-limited volume; IPv6 counted per /64 per spec §6.1; revisit the threshold if limited outcomes from real users appear | Dmytro Hopko |
+| SMTP sends regularly take longer than the response floor *F*, so slow sent responses become distinguishable from limited ones | Medium | *F* is configurable and set from the measured p90 send time on preview; ship-stage comparison of `auth.signin.email` medians by outcome (§10 QG-2) | Dmytro Hopko |
+| Auth.js beta hook signatures (`normalizeIdentifier`, `sendVerificationRequest`) or the `req.auth` shape change in a later beta | Medium | Contract tests of both hooks and of `isVerifiedSession` against real Auth.js output; re-check on every Auth.js upgrade (ADR-0001); replacing the beta library is deferred to the Assistant work (spec §3) | Dmytro Hopko |
+| Advisory-lock keys are 32-bit hashes, so two unrelated limit keys can occasionally share a lock and briefly serialize | Low | Harmless for correctness (only waiting); negligible at these volumes | Dmytro Hopko |
+| A limited Sign-in link request still leaves an unused `VerificationToken` row (Auth.js creates it before the send hook) | Low | The token expires on its own and its URL is never sent; the per-source limit bounds how many one source can create | Dmytro Hopko |
+| `next build` checks (required settings, ADR-0008; the `server-only` guard) run only in the Vercel preview deploy, not in CI | Low | Every PR gets a preview deploy, and merging requires it to be green | Dmytro Hopko |
+| `docs/architecture-map.md` reflects `ded1be7` and predates the service layer; this SAD was designed against a fresh scan at `e857fa5` | Low | Run `/sdd:survey` to refresh the map before the next feature | Dmytro Hopko |
+| Spec §8 OQ2: an existing account may use a non-ASCII email address that the AC-17 rule would lock out of email sign-in | Open question | Resolve before `sdd:tasks`; check production accounts first (default: refuse non-ASCII) | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- The content-security policy allows `'unsafe-inline'` scripts and styles. A per-request nonce policy is a follow-up (spec §3).
+- With no traffic and a late Hobby-plan cron run, a limit record can outlive 24 h (worst case ≈ 48 h) before the daily sweep removes it. Stale rows never affect a decision, and any traffic triggers the global opportunistic purge (ADR-0007).
+- The repo has two limiter styles: the logo counter (architecture-hardening ADR-0008) and the `LimitEvent` event log (ADR-0002). Moving logo fetches onto the event log is a later, separate change.
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
+Canonical domain terms come from [CONTEXT.md](../../../CONTEXT.md); the meanings below are as used in this SAD.
 
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Visitor | Anyone reaching the app or its endpoints without a verified session, including scripts and bots (CONTEXT). |
+| Freelancer | A signed-in account holder who sees only their own data (CONTEXT). |
+| Assistant | A program acting for exactly one Freelancer without a browser session (CONTEXT); here, a future business-layer caller. |
+| Sign-in link | A single-use emailed link that signs an address in as a Freelancer (CONTEXT). It is the thing the sign-in-email limits count. |
+| Dashboard period | A named preset (current month, all time) or a custom from–to range of at most 5 years (CONTEXT). Only custom ranges are capped. |
+| Verified session | A valid, signed session that carries a non-empty account id (spec §6.1). Anything else is a Visitor. Decided by `isVerifiedSession`. |
+| Source | The client network address as reported by the hosting platform; IPv4 per address, IPv6 per /64 network (spec §6.1). |
+| Limit key | The value a limit counts by: for an address, the keyed digest of its case-, tag- and Gmail-dot-folded form; for a source, the address or /64; for exports, the Freelancer id. It never decides account identity. |
+| Limit event | One row in `LimitEvent`: a counted or refused occurrence (link sent, request from source, refusal, export started or failed) with its scope, limit key and time. |
+| Response floor | The minimum time every "check your inbox" response takes, so a limited request is indistinguishable from a sent one. |
+| Targeted lockout | An attacker keeping a victim's address limited; detected when the address is refused in 3 consecutive UTC hours. |
+| App operator | Whoever receives alerts in the app's error-tracking project (lockout alert, CSP reports, missed purge runs). *Not in CONTEXT.md; candidate for `/sdd:glossary`.* |
+| Content-security policy | The browser header that restricts where scripts, styles, images, frames and form posts may come from. Enforced from the first release. |
