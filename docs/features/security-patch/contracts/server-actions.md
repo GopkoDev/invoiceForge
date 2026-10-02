@@ -62,7 +62,7 @@ export const EMAIL_SIGNIN_UNAVAILABLE =
 export const EMAIL_SEND_FAILED = "We couldn't send the sign-in email. Try again.";
 ```
 
-- **Mapping.** The action catches Auth.js's `AuthError` and reads the typed provider error from its `cause` (ADR-0001: the error type decides, never the message text). It then returns one of the two constants. The login form keeps toasting `result.error`. Tests assert against the exported constants.
+- **Mapping.** The typed provider errors are Auth.js `AuthError`s (`CredentialsSignin` subclasses, OQ-2), which `signIn()`'s raw mode rethrows as-is; the action matches them with `instanceof` (ADR-0001: the error type decides, never the message text). It then returns one of the two constants. The login form keeps toasting `result.error`. Tests assert against the exported constants.
 - **Validation.** `loginEmailSchema` (`lib/validations/auth.ts`) changes from `.max(100)` to **`.max(254)` + ASCII only**. Both messages are `Enter a valid email address.`. The same rule runs again in `normalizeIdentifier`, which is authoritative for direct calls.
 - **Limited is never an error.** No result, message, timing or status distinguishes limited from sent (spec §6.1 enumeration).
 

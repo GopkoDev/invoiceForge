@@ -9,6 +9,12 @@ import { AlertCircleIcon } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import type { Metadata } from 'next';
+import {
+  EMAIL_SEND_FAILED,
+  EMAIL_SIGNIN_UNAVAILABLE,
+  INVALID_EMAIL_ADDRESS,
+  SIGN_IN_ERROR_CODES,
+} from '@/lib/auth/sign-in-messages';
 import { authRoutes } from '@/config/routes.config';
 
 export const metadata: Metadata = {
@@ -18,6 +24,7 @@ export const metadata: Metadata = {
 interface ErrorPageProps {
   searchParams: Promise<{
     error?: string;
+    code?: string;
   }>;
 }
 
@@ -41,11 +48,24 @@ const errorMessages: Record<string, { title: string; description: string }> = {
   },
 };
 
+// OQ-2: the direct POST /api/auth/signin/nodemailer reports the typed provider errors as
+// ?error=CredentialsSignin&code=<code>, so direct callers get the same distinct messages as /login.
+const signInCodeMessages: Record<string, string> = {
+  [SIGN_IN_ERROR_CODES.invalidEmail]: INVALID_EMAIL_ADDRESS,
+  [SIGN_IN_ERROR_CODES.unavailable]: EMAIL_SIGNIN_UNAVAILABLE,
+  [SIGN_IN_ERROR_CODES.sendFailed]: EMAIL_SEND_FAILED,
+};
+
+function resolveError(error: string | undefined, code: string | undefined) {
+  if (error === 'CredentialsSignin' && code && Object.hasOwn(signInCodeMessages, code)) {
+    return { title: 'Unable to sign in', description: signInCodeMessages[code] };
+  }
+  return (error && Object.hasOwn(errorMessages, error) && errorMessages[error]) || errorMessages.Default;
+}
+
 export default async function ErrorPage({ searchParams }: ErrorPageProps) {
   const params = await searchParams;
-  const error = params.error || 'Default';
-  const errorInfo =
-    errorMessages[error as keyof typeof errorMessages] || errorMessages.Default;
+  const errorInfo = resolveError(params.error, params.code);
 
   return (
     <div className="flex flex-col gap-6">

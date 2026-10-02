@@ -25,7 +25,7 @@ export default function VerifyRequestPage() {
         </CardHeader>
         <CardContent className="text-center">
           <p className="text-muted-foreground text-sm">
-            A sign in link has been sent to your email address.
+            If this address can receive sign-in links, we&apos;ve sent one. Check your inbox.
           </p>
         </CardContent>
       </Card>

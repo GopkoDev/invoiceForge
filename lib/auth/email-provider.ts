@@ -2,28 +2,46 @@
 // address rule, the sign-in-email limits, the response floor and the TLS-only send.
 // Never logs or reports a raw address or network address.
 import * as Sentry from '@sentry/nextjs';
+import { CredentialsSignin } from 'next-auth';
 import type { PrismaClient } from '@prisma/client';
 import { loginEmailSchema } from '@/lib/validations/auth';
 import { createLimitStore, LimitStoreUnavailable } from '@/lib/security/limits/limit-store';
 import { createLockoutAlert } from '@/lib/security/limits/lockout-alert';
 import { LIMIT_SCOPES } from '@/lib/security/limits/scopes';
 import { addressLimitKey, clientSource, sourceLimitKey } from '@/lib/security/limits/keys';
+import { SIGN_IN_ERROR_CODES } from '@/lib/auth/sign-in-messages';
 
-export class InvalidEmailAddress extends Error {
+/**
+ * Base of the typed provider errors (ADR-0001: the error type decides, never the message text).
+ * They are Auth.js CredentialsSignin errors, the one Auth.js error type that carries a
+ * client-safe `code` (OQ-2, pinned on next-auth 5.0.0-beta.32 / @auth/core 0.41.3):
+ * - signIn() in raw mode (the /login action) rethrows an AuthError as-is, so the action sees
+ *   these classes. A plain Error would become a redirect to `?error=Configuration` instead.
+ * - the direct endpoint passes only client-safe types to the client, so it redirects to
+ *   `/error?error=CredentialsSignin&code=<code>` (`kind = 'error'` picks pages.error).
+ */
+abstract class SignInRefused extends CredentialsSignin {
+  static kind = 'error' as const;
+}
+
+export class InvalidEmailAddress extends SignInRefused {
+  code = SIGN_IN_ERROR_CODES.invalidEmail;
   constructor() {
     super('Enter a valid email address.');
     this.name = 'InvalidEmailAddress';
   }
 }
 
-export class EmailSigninUnavailable extends Error {
+export class EmailSigninUnavailable extends SignInRefused {
+  code = SIGN_IN_ERROR_CODES.unavailable;
   constructor() {
     super('Sign-in by email is temporarily unavailable');
     this.name = 'EmailSigninUnavailable';
   }
 }
 
-export class EmailSendFailed extends Error {
+export class EmailSendFailed extends SignInRefused {
+  code = SIGN_IN_ERROR_CODES.sendFailed;
   constructor() {
     super('Could not send the sign-in email');
     this.name = 'EmailSendFailed';
