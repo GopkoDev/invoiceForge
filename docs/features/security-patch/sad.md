@@ -362,17 +362,18 @@ The repo's conventions carry over unchanged. The rows marked *new* are specific 
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| [0001](adr/0001-enforce-sign-in-email-rules-inside-the-auth-js-email-provider-hooks.md) | Enforce sign-in email rules inside the Auth.js email provider hooks | Accepted | §4 |
+| [0002](adr/0002-count-limited-events-in-a-postgres-event-log-under-a-per-key-advisory-lock.md) | Count limited events in a Postgres event log under a per-key advisory lock | Accepted | §4 |
+| [0003](adr/0003-refuse-anonymous-mutations-in-the-proxy-by-method-and-backstop-with-a-scanned-action-guard.md) | Refuse anonymous mutations in the proxy by method, and backstop with a scanned action guard | Accepted | §4 |
+| [0004](adr/0004-share-one-calendar-date-five-year-period-rule-across-link-filter-and-business-layer.md) | Share one calendar-date five-year period rule across link, filter and business layer | Accepted | §4 |
+| [0005](adr/0005-limit-exports-in-the-business-layer-and-refuse-with-a-typed-rate-limited-result.md) | Limit exports in the business layer and refuse with a typed RATE_LIMITED result | Accepted | §5 |
+| [0006](adr/0006-forward-browser-error-reports-through-an-app-owned-tunnel-that-accepts-only-the-configured-dsn.md) | Forward browser error reports through an app-owned tunnel that accepts only the configured DSN | Accepted | §5 |
+| [0007](adr/0007-purge-limit-records-daily-with-a-vercel-cron-job-behind-a-bearer-secret.md) | Purge limit records daily with a Vercel Cron job behind a bearer secret | Accepted | §7 |
+| [0008](adr/0008-fail-the-build-when-a-required-setting-is-missing.md) | Fail the build when a required setting is missing | Accepted | §7 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/security-patch/adr/NNNN-<title>.md`. Decisions kept inline (below the blast-radius gate): target surfaces and UI architecture (§4), the verified-session predicate (§4 choice 5), the response floor (§6), and the header set (§8). Earlier ADRs this feature builds on, unchanged: architecture-hardening ADR-0001, ADR-0002, ADR-0008, ADR-0009; service-layer ADR-0001, ADR-0002, ADR-0006.
 
 ## 10. Quality requirements
 
