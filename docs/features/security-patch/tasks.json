@@ -1,0 +1,433 @@
+{
+  "slug": "security-patch",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Upgrade Next.js to 16.3.x, next-auth to 5.0.0-beta.32 and nodemailer to 10.x in one change",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03"
+      ],
+      "dod": "The three upgrades land in one commit with eslint-config-next in step; the full unit + integration suite passes; an integration test proves a pre-existing email account signs in to the same account after the upgrade (AC-03); the production advisory audit output is recorded for the ship notes.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "tests/integration/auth-session-callback.test.ts",
+        "tests/integration/auth/identity-normalization.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t01-upgrade-framework-auth-mail.md"
+    },
+    {
+      "id": "T2",
+      "title": "Upgrade Prisma to the latest 7.x and remove @prisma/extension-accelerate",
+      "layer": "wiring",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-27"
+      ],
+      "dod": "@prisma/client, prisma and @prisma/adapter-pg are on the latest 7.x, @prisma/extension-accelerate is no longer a dependency, prisma generate succeeds and the full unit + integration suite passes, in a commit separate from T1.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "file": "docs/features/security-patch/tasks/t02-prisma-upgrade-drop-accelerate.md"
+    },
+    {
+      "id": "T3",
+      "title": "Promote the LimitEvent migration with its Prisma model, factory and test cleanup",
+      "layer": "migration",
+      "deps": [
+        "T2"
+      ],
+      "acs": [],
+      "dod": "The staged 01_create_limit_event migration is promoted into prisma/migrations/, applies and reverts cleanly on the test container, prisma migrate diff is empty, the createLimitEvent factory exists, LimitEvent is truncated between tests, and an integration test shows the enums reject unknown values and a User delete cascades only export rows.",
+      "files_hint": [
+        "docs/features/security-patch/migrations/01_create_limit_event.up.sql",
+        "docs/features/security-patch/migrations/01_create_limit_event.down.sql",
+        "prisma/schema/auth.prisma",
+        "prisma/migrations/",
+        "tests/support/factories/limit-event.ts",
+        "tests/support/db/truncate.ts",
+        "tests/integration/limit-event-table.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t03-limit-event-table.md"
+    },
+    {
+      "id": "T4",
+      "title": "Make \"signed in\" mean a verified session in the proxy, requireSession and getAuthenticatedUser",
+      "layer": "ports",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "isVerifiedSession is the only signed-in test in proxy.ts, requireSession() and getAuthenticatedUser(); proxy unit tests show an Auth.js error object, an account-less session and a thrown check are each treated as a Visitor without clearing cookies, a genuine session passes, and public pages render without a redirect loop.",
+      "files_hint": [
+        "lib/helpers/verified-session.ts",
+        "auth.config.ts",
+        "proxy.ts",
+        "lib/helpers/route-auth.ts",
+        "lib/helpers/auth-helpers.ts",
+        "lib/helpers/session-actor.ts",
+        "tests/unit/proxy.test.ts",
+        "tests/unit/lib/helpers/"
+      ],
+      "file": "docs/features/security-patch/tasks/t04-verified-session-predicate.md"
+    },
+    {
+      "id": "T5",
+      "title": "Refuse anonymous non-GET requests in the proxy and fail CI on any server action without a session guard",
+      "layer": "ports",
+      "deps": [
+        "T4"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-19"
+      ],
+      "dod": "Proxy unit tests show every anonymous non-GET/HEAD/OPTIONS request outside /api/auth/* and POST /login gets the 401 NotSignedIn body with or without Next-Action; a unit scan fails on any exported 'use server' function outside login-actions.ts that does not resolve the session first, and passes on the current tree.",
+      "files_hint": [
+        "proxy.ts",
+        "config/routes.config.ts",
+        "lib/actions/",
+        "tests/unit/proxy.test.ts",
+        "tests/unit/action-session-guard-scan.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t05-refuse-anonymous-mutations.md"
+    },
+    {
+      "id": "T6",
+      "title": "Add the shared five-year Dashboard period rule and apply it in the link reader and the business layer",
+      "layer": "domain",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10"
+      ],
+      "dod": "A table test of isWithinMaxCustomPeriod passes (2021-01-01→2026-01-01 allowed, →2026-01-02 refused, 29 February starts, time-zone independence); the link reader falls back to the current month for an over-long period; parseDashboardInput returns VALIDATION with PERIOD_TOO_LONG before any query; all time is never capped.",
+      "files_hint": [
+        "lib/validations/dashboard-period.ts",
+        "lib/validations/search-params.ts",
+        "lib/services/dashboard/period.ts",
+        "tests/unit/lib/validations/",
+        "tests/integration/services/dashboard/"
+      ],
+      "file": "docs/features/security-patch/tasks/t06-five-year-period-rule.md"
+    },
+    {
+      "id": "T7",
+      "title": "Show the five-year notice in the dashboard filter and refuse to apply an over-long range",
+      "layer": "ui",
+      "deps": [
+        "T6"
+      ],
+      "acs": [
+        "AC-07b",
+        "AC-08"
+      ],
+      "dod": "A component test shows picking a range longer than 5 years does not navigate, keeps the popover open and shows PERIOD_TOO_LONG in an inline Alert, a range of exactly 5 years is applied, and the notice clears on the next valid pick.",
+      "files_hint": [
+        "components/dashboard/header/dashboard-filters.tsx",
+        "tests/component/dashboard-filters.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t07-dashboard-filter-notice.md"
+    },
+    {
+      "id": "T8",
+      "title": "Build the LimitEvent limit store with per-key advisory locks, limit keys and the opportunistic purge",
+      "layer": "infra",
+      "deps": [
+        "T3"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13"
+      ],
+      "dod": "Integration tests show exact sliding-window counts per scope under concurrency (no overshoot), sent-only address counting, source rows written only under the limit, the export reserve/release and retryAt = oldest start + 1 h, the bounded purge on write, and fail-closed typed errors when the store is down; unit tests show address keys fold case, +tag and Gmail dots and both address and source keys are HMAC digests.",
+      "files_hint": [
+        "lib/security/limits/limit-store.ts",
+        "lib/security/limits/scopes.ts",
+        "lib/security/limits/keys.ts",
+        "tests/unit/security/limits/",
+        "tests/integration/security/limits/"
+      ],
+      "file": "docs/features/security-patch/tasks/t08-limit-store.md"
+    },
+    {
+      "id": "T9",
+      "title": "Record address refusals per UTC hour and raise the targeted-lockout alert",
+      "layer": "infra",
+      "deps": [
+        "T8"
+      ],
+      "acs": [],
+      "dod": "An integration test with an injected clock shows at most one REFUSED row per address per UTC hour, one Sentry alert carrying only the digest after refusals in 3 consecutive UTC hours, and no second alert within 24 h.",
+      "files_hint": [
+        "lib/security/limits/lockout-alert.ts",
+        "lib/security/limits/limit-store.ts",
+        "tests/integration/security/limits/lockout-alert.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t09-lockout-alert.md"
+    },
+    {
+      "id": "T10",
+      "title": "Fail the build on a missing required setting and send mail only over verified TLS",
+      "layer": "wiring",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-26"
+      ],
+      "dod": "pnpm build fails first and names every missing required setting; a unit test asserts the required-settings list equals env.example; the SMTP config uses secure on 465 and requireTLS otherwise with certificate verification against the host, and a test shows no plaintext send when TLS is absent or the certificate is invalid.",
+      "files_hint": [
+        "lib/env/required-settings.ts",
+        "scripts/check-required-settings.ts",
+        "package.json",
+        "env.example",
+        "lib/get-email-server-config.ts",
+        "tests/unit/lib/env/",
+        "tests/unit/lib/get-email-server-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t10-mail-settings-and-tls.md"
+    },
+    {
+      "id": "T11",
+      "title": "Enforce the address rule, sign-in-email limits, response floor and TLS-only send in the Auth.js email provider hooks",
+      "layer": "app",
+      "deps": [
+        "T8",
+        "T9",
+        "T10"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-17"
+      ],
+      "dod": "Integration tests through both the /login action and the direct sign-in endpoint show: invalid addresses refused uncounted, the 5/h address and 30/5 min source limits with sent-only counting, limited responses identical to sent ones with median difference ≤ 150 ms (instant and random-latency SMTP), fail-closed with the store down, TLS failures reported, Google sign-in unaffected, and identity normalization unchanged.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "auth.ts",
+        "lib/validations/auth.ts",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/unit/lib/validations/"
+      ],
+      "file": "docs/features/security-patch/tasks/t11-email-provider-hooks.md"
+    },
+    {
+      "id": "T12",
+      "title": "Map sign-in provider outcomes to the fixed messages on the sign-in, check-inbox and error pages",
+      "layer": "ui",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-19"
+      ],
+      "dod": "Tests show signInWithEmail returns EMAIL_SIGNIN_UNAVAILABLE, EMAIL_SEND_FAILED and the VALIDATION field error by provider error type (never message text), the login form shows them, the check-inbox page shows the neutral copy, and the /error page maps each pinned Auth.js error type from the direct endpoint.",
+      "files_hint": [
+        "lib/actions/login-actions.ts",
+        "components/auth/login-form.tsx",
+        "app/(auth)/verify-request/page.tsx",
+        "app/(auth)/error/page.tsx",
+        "tests/integration/actions/login-actions.test.ts",
+        "tests/component/login-form.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t12-sign-in-messages.md"
+    },
+    {
+      "id": "T13",
+      "title": "Limit data exports per Freelancer in the business layer and return RATE_LIMITED with a retry time",
+      "layer": "app",
+      "deps": [
+        "T8"
+      ],
+      "acs": [
+        "AC-23",
+        "AC-24",
+        "AC-25"
+      ],
+      "dod": "ActionErrorCode gains RATE_LIMITED with RETRY_AT details and every exhaustive switch compiles; integration tests show 3 exports per Freelancer per hour under concurrency, a system-side failure frees the place, a second Freelancer is unaffected, the route returns 429 with Retry-After, and account deletion removes the account's export and address limit rows.",
+      "files_hint": [
+        "types/result.ts",
+        "lib/services/account/account.ts",
+        "app/api/user/export/route.ts",
+        "tests/unit/types/action-result.test.ts",
+        "tests/integration/services/account/account.test.ts",
+        "tests/integration/api/user-export.test.ts",
+        "tests/integration/actions/account-deletion.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t13-export-limit.md"
+    },
+    {
+      "id": "T14",
+      "title": "Show \"you can export again at …\" as an inline alert on the privacy settings screen",
+      "layer": "ui",
+      "deps": [
+        "T13"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "A component test shows a 429 RATE_LIMITED response renders an inline Alert with the retry time in local HH:mm and no toast, the export button stays enabled, and the alert clears on the next attempt.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "tests/component/gdpr-settings.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t14-export-limit-alert.md"
+    },
+    {
+      "id": "T15",
+      "title": "Add the daily limit-record purge job behind the Vercel Cron secret",
+      "layer": "ports",
+      "deps": [
+        "T8",
+        "T10"
+      ],
+      "acs": [],
+      "dod": "An integration test shows a missing or wrong bearer secret gets 401 and deletes nothing, a valid one deletes every LimitEvent row older than 24 h across all keys and returns the count, and the route is on the public allowlist with a daily crons entry in vercel.json.",
+      "files_hint": [
+        "app/api/cron/purge-limits/route.ts",
+        "vercel.json",
+        "config/routes.config.ts",
+        "tests/integration/api/purge-limits.test.ts",
+        "tests/unit/routes-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t15-purge-cron.md"
+    },
+    {
+      "id": "T16",
+      "title": "Accept only http(s) web addresses for website and image fields, in forms and the business layer",
+      "layer": "domain",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Unit tests show isWebAddress accepts only http: and https: URLs; customer website/image, sender-profile website and profile image schemas use it (logo stays https-only); an integration test shows a bypassed form saving a javascript: or data: address gets VALIDATION with field errors and nothing is saved.",
+      "files_hint": [
+        "lib/validations/web-address.ts",
+        "lib/validations/customer.ts",
+        "lib/validations/sender-profile.ts",
+        "lib/validations/profile.ts",
+        "lib/services/customers/",
+        "lib/services/sender-profiles/",
+        "lib/services/profile/",
+        "tests/unit/lib/validations/",
+        "tests/integration/services/customers/"
+      ],
+      "file": "docs/features/security-patch/tasks/t16-web-address-rule.md"
+    },
+    {
+      "id": "T17",
+      "title": "Render legacy non-web addresses as plain text and never load them as images",
+      "layer": "ui",
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Component tests show a stored non-web website renders as plain text without href, a non-web image or logo gets no src and shows fallback initials, the invoice PDF no longer renders a data: logo, and the editors show the http(s) field message from both the client resolver and server field errors.",
+      "files_hint": [
+        "components/layout/contacts/contact-card/contact-card.tsx",
+        "components/invoice-editor/invoice-pdf-document.tsx",
+        "components/settings/profile-settings.tsx",
+        "components/customers/",
+        "components/sender-profiles/",
+        "tests/component/"
+      ],
+      "file": "docs/features/security-patch/tasks/t17-legacy-address-display.md"
+    },
+    {
+      "id": "T18",
+      "title": "Replace the open Sentry rewrite with an app-owned tunnel that forwards only the configured DSN",
+      "layer": "ports",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "tunnelRoute is removed and the browser SDK uses tunnel '/monitoring'; integration tests show an envelope for the configured DSN is forwarded, one for any other host or project or with an unreadable header gets 403 with nothing forwarded, and an unreachable Sentry gives 502.",
+      "files_hint": [
+        "app/monitoring/route.ts",
+        "next.config.ts",
+        "instrumentation-client.ts",
+        "tests/integration/api/monitoring-tunnel.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t18-sentry-tunnel.md"
+    },
+    {
+      "id": "T19",
+      "title": "Serve the enforced content-security policy and transport headers from next.config.ts",
+      "layer": "wiring",
+      "deps": [
+        "T18"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "A unit test asserts next.config.ts headers() serves the exact CSP from sad.md §8 with the Sentry report endpoint, HSTS without subdomains or preload, the Permissions-Policy, X-XSS-Protection 0 and the kept headers for every route, and vercel.json no longer carries a headers block.",
+      "files_hint": [
+        "next.config.ts",
+        "vercel.json",
+        "tests/unit/security-headers.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t19-security-headers.md"
+    },
+    {
+      "id": "T20",
+      "title": "Gate the release on a zero-violation CSP e2e run, a genuine-session page sweep and a clean advisory audit",
+      "layer": "tests",
+      "deps": [
+        "T2",
+        "T5",
+        "T7",
+        "T12",
+        "T14",
+        "T15",
+        "T17",
+        "T19"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-05",
+        "AC-20"
+      ],
+      "dod": "The Playwright CSP gate on preview records zero securitypolicyviolation events across every AC-20 flow with the client error reaching Sentry, the page-access sweep passes with a session from the real sign-in flow, and ship-notes.md lists 0 critical/high production advisories plus every dev-only advisory with its reason.",
+      "files_hint": [
+        "tests/e2e/csp-gate.spec.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/e2e/support/",
+        "playwright.config.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/tasks/t20-preview-release-gate.md"
+    }
+  ]
+}
