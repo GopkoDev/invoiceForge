@@ -128,7 +128,8 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
     async withKeyLock<T>(
       scope: LimitScope,
       key: string,
-      fn: (limit: LockedLimit) => Promise<T>
+      fn: (limit: LockedLimit) => Promise<T>,
+      options: { timeoutMs?: number } = {}
     ): Promise<T> {
       // The store's own DB calls throw LimitStoreUnavailable themselves (guard); only a
       // genuine caller-callback error is re-thrown as-is. Lock, connect and commit failures
@@ -144,7 +145,7 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
             callbackFailed = true;
             throw error;
           }
-        });
+        }, options.timeoutMs ? { timeout: options.timeoutMs } : undefined);
       } catch (error) {
         if (callbackFailed || error instanceof LimitStoreUnavailable)
           throw error;
