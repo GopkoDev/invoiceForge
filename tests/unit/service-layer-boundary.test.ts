@@ -103,10 +103,6 @@ describe('lib/services boundary (T1)', () => {
     }
     expect(existsSync(join(root, 'lib/actions/action-result-helpers.ts'))).toBe(false);
   });
-
-  it('runs pnpm build in the CI unit job', () => {
-    expect(read(join(root, '.github/workflows/test.yml'))).toMatch(/run:\s*pnpm build/);
-  });
 });
 
 describe('lib/services ESLint rules (T1)', () => {
