@@ -176,6 +176,61 @@ describe('proxy (AC-04 / AC-06, verified session predicate)', () => {
   });
 });
 
+describe('proxy method rule (AC-18 / AC-19, refuse anonymous non-GET)', () => {
+  const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+  const JSON_H = { 'content-type': 'application/json' };
+
+  async function expectRefused(res: Response) {
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
+  }
+
+  it.each(['/', '/privacy', '/terms'])(
+    'refuses a POST to the public page %s, with or without Next-Action, form or JSON',
+    async (path) => {
+      const shapes: Record<string, string>[] = [
+        {},
+        { 'next-action': 'abc123' },
+        FORM,
+        { ...FORM, 'next-action': 'abc123' },
+        JSON_H,
+        { ...JSON_H, 'next-action': 'abc123' },
+      ];
+      for (const headers of shapes) {
+        await expectRefused(await callProxy(buildRequest(path, { method: 'POST', headers })));
+      }
+    }
+  );
+
+  it.each(['PUT', 'DELETE', 'PATCH'])('refuses an anonymous %s to a public page', async (method) => {
+    await expectRefused(await callProxy(buildRequest('/', { method })));
+  });
+
+  it('refuses a header-less form POST to a public static asset path', async () => {
+    await expectRefused(await callProxy(buildRequest('/robots.txt', { method: 'POST', headers: FORM })));
+  });
+
+  it('passes a POST to the sign-in service through', async () => {
+    const res = await callProxy(buildRequest('/api/auth/signin/nodemailer', { method: 'POST', headers: FORM }));
+    expect(res.status).toBe(200);
+  });
+
+  it('passes a POST to /login through (sign-in actions, AC-19)', async () => {
+    const res = await callProxy(buildRequest('/login', { method: 'POST', headers: { 'next-action': 'abc123' } }));
+    expect(res.status).toBe(200);
+  });
+
+  it.each(['GET', 'HEAD', 'OPTIONS'])('does not apply the method rule to %s on a public page', async (method) => {
+    const res = await callProxy(buildRequest('/', { method }));
+    expect(res.status).toBe(200);
+  });
+
+  it('leaves a signed-in POST unaffected', async () => {
+    const res = await callProxy(buildRequest('/dashboard', { method: 'POST', token: { user: { id: 'u1' } } }));
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('proxy matcher (sad.md §11, api is no longer excluded)', () => {
   it('covers /api paths and still excludes framework/infra paths', async () => {
     const { config } = await import('@/proxy');

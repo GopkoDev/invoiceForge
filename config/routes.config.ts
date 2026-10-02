@@ -138,3 +138,19 @@ export function isPublicPath(pathname: string): boolean {
 
   return nextAuthProviderPathPattern.test(pathname);
 }
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * ADR-0003 layer 1: without a verified session, only safe methods may pass the edge. The
+ * exceptions are deliberate: the sign-in service (`/api/auth/*`, governed by ADR-0001) and
+ * POSTs to the sign-in page, where the sign-in actions are posted (any other action posted
+ * there refuses itself with UNAUTHORIZED). A future public non-GET endpoint must be added here.
+ */
+export function isRefusedAnonymousMutation(method: string, pathname: string): boolean {
+  const upper = method.toUpperCase();
+  if (SAFE_METHODS.has(upper)) return false;
+  if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) return false;
+  if (upper === 'POST' && pathname === authRoutes.signIn) return false;
+  return true;
+}
