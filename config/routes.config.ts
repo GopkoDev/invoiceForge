@@ -96,6 +96,9 @@ const iconPathPattern = /^\/(apple-)?icon\d*(\.[a-z]+|\/[\w-]+)?$/;
 // cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
 export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
 
+// T15 (ADR-0007): Vercel Cron carries no session; the route guards itself with CRON_SECRET.
+export const PURGE_LIMITS_CRON_PATH = '/api/cron/purge-limits';
+
 // F-25: the next-auth (Auth.js v5) handler's own endpoints, listed explicitly instead of the
 // whole `/api/auth/` prefix, so a route added under it later is private by default unless it is
 // added here too. `/api/auth` itself is the base path the client SDK checks; signin/callback
@@ -127,7 +130,8 @@ export function isPublicPath(pathname: string): boolean {
     authRoutesArray.some((route) => pathname === route) ||
     legalRoutesArray.some((route) => pathname === route) ||
     staticAssetRoutes.some((route) => pathname === route) ||
-    nextAuthStaticPaths.some((route) => pathname === route)
+    nextAuthStaticPaths.some((route) => pathname === route) ||
+    pathname === PURGE_LIMITS_CRON_PATH
   ) {
     return true;
   }
