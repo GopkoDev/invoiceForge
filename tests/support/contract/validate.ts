@@ -29,6 +29,12 @@ function loadDocuments(): Promise<OpenApiDocument[]> {
   return documentsPromise;
 }
 
+/** The security-patch contract (adds RATE_LIMITED / 429 on exportUserData). */
+export const SECURITY_PATCH_SPEC_PATH = path.resolve(
+  process.cwd(),
+  'docs/features/security-patch/contracts/openapi.yaml'
+);
+
 function findOperation(
   docs: OpenApiDocument[],
   operationId: string
@@ -52,6 +58,8 @@ export interface AssertMatchesContractParams {
   status: number;
   body: unknown;
   contentType?: string;
+  /** Absolute path of one openapi file to validate against; defaults to searching every feature spec. */
+  specPath?: string;
 }
 
 /**
@@ -60,7 +68,9 @@ export interface AssertMatchesContractParams {
  * (e.g. a $ref-only response, or a status with no body) is treated as "nothing to check".
  */
 export async function assertMatchesContract(params: AssertMatchesContractParams): Promise<void> {
-  const docs = await loadDocuments();
+  const docs = params.specPath
+    ? [await SwaggerParser.dereference(params.specPath) as OpenApiDocument]
+    : await loadDocuments();
   const { operation, route } = findOperation(docs, params.operationId);
 
   const response = operation.responses?.[String(params.status)];
