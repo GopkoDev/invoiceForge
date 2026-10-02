@@ -135,49 +135,96 @@ Each tactical decision in later sections traces to one of these seeds. A tactica
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
+The feature keeps the repo's layering unchanged. Edge proxy → pages, server actions and route handlers → business layer (`lib/services`, `server-only`, `ActingFreelancer` in, `ActionResult` out) → Prisma. It adds three small modules, each with one job:
+- `lib/security/limits/` counts limited events (ADR-0002).
+- `lib/auth/email-provider.ts` holds the Auth.js email hooks (ADR-0001).
+- A dependency-free rules module under `lib/validations/` is shared by browser and server (ADR-0004).
 
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+Business functions stay the only place business rules live. Route handlers and actions only resolve the caller and map results. The export limit lives in the business layer and refuses with a typed `RATE_LIMITED` result ([ADR-0005](adr/0005-limit-exports-in-the-business-layer-and-refuse-with-a-typed-rate-limited-result.md)). The open error relay is replaced by an app-owned tunnel that forwards only the configured DSN ([ADR-0006](adr/0006-forward-browser-error-reports-through-an-app-owned-tunnel-that-accepts-only-the-configured-dsn.md)).
 
-**Internal decomposition:**
+**Internal decomposition (new or changed):**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+proxy.ts                                  # verified-session predicate; refuse anonymous non-GET before isPublicPath (ADR-0003); catch = Visitor, cookies untouched
+auth.config.ts                            # + edge-safe session callback copying the JWT account id to session.user.id
+auth.ts                                   # Nodemailer provider wired to lib/auth/email-provider.ts
+lib/
+├── auth/
+│   └── email-provider.ts                 # normalizeIdentifier (identity unchanged + 254/ASCII rule), sendVerificationRequest (limits, response floor, TLS-only send)
+├── security/
+│   ├── logo-rate-limit.ts                # unchanged (architecture-hardening ADR-0008)
+│   └── limits/
+│       ├── limit-store.ts                # LimitEvent check-and-record under pg_advisory_xact_lock, release, purge
+│       ├── scopes.ts                     # signin-address (5/h, sent only), signin-source (30/5 min), export (3/h, started minus failed)
+│       ├── keys.ts                       # address limit key (case, +tag, Gmail dots folded; keyed digest), source key (IPv4, IPv6 /64)
+│       └── lockout-alert.ts              # 3 consecutive UTC hours with a refusal → one Sentry alert per address digest per day
+├── helpers/
+│   ├── verified-session.ts               # isVerifiedSession(x): x?.user?.id is a non-empty string (edge-safe)
+│   ├── route-auth.ts                     # requireSession() uses the predicate
+│   └── auth-helpers.ts                   # getAuthenticatedUser() uses the predicate
+├── validations/
+│   ├── dashboard-period.ts               # isWithinMaxCustomPeriod, MAX_CUSTOM_PERIOD_YEARS = 5 (isomorphic, ADR-0004)
+│   ├── auth.ts                           # loginEmailSchema aligned to ≤ 254 chars, ASCII only
+│   ├── web-address.ts                    # http(s)-only rule for website / image / logo fields (AC-21)
+│   └── search-params.ts                  # dashboard link reader applies the shared period rule
+├── services/
+│   ├── dashboard/period.ts               # parseDashboardInput refuses > 5 years before any query (AC-10)
+│   └── account/account.ts                # getAccountExport reserves / releases an export place (ADR-0005)
+├── get-email-server-config.ts            # secure on 465, requireTLS otherwise, certificate checked against host
+└── env/required-settings.ts              # required-settings list read by the build check (§7)
+types/result.ts                           # + RATE_LIMITED code, RETRY_AT details
+app/
+├── monitoring/route.ts                   # app-owned tunnel, own DSN only (ADR-0006)
+└── api/
+    ├── user/export/route.ts              # maps RATE_LIMITED → 429 + Retry-After
+    └── cron/purge-limits/route.ts        # daily purge, Vercel Cron secret (§7)
+components/                               # three messages + field messages on existing screens; legacy non-web values as plain text
+prisma/schema/auth.prisma                 # + LimitEvent model (shape fixed by the data-model stage)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title security-patch - Containers
 
-    Person(actor, "<Actor>")
+    Person(visitor, "Visitor", "No verified session; may be a script")
+    Person(freelancer, "Freelancer", "Verified session")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "invoiceFlow (one Next.js deployable on Vercel)") {
+        Container(web, "Web pages", "React 19 RSC + client components", "Sign-in, dashboard filters, editors, privacy settings")
+        Container(proxy, "Edge proxy", "proxy.ts, Auth.js edge config", "Verified-session predicate, deny by default, refuses anonymous mutations by method")
+        Container(actions, "Server actions", "lib/actions, use server", "Each resolves the session first; login actions exempt")
+        Container(handlers, "Route handlers", "app/api, app/monitoring", "Sign-in service with email provider hooks, export, error tunnel, purge job")
+        Container(services, "Business layer", "lib/services, server-only", "Dashboard figures with period cap, account export with limit")
+        Container(limits, "Limits", "lib/security/limits", "Event-log limiter: check and record under a per-key lock, lockout alert, purge")
+        Container(rules, "Shared rules", "lib/validations, isomorphic", "Five-year period rule, email address rule, web-address rule")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "Neon PostgreSQL", "Prisma 7 + adapter-pg", "App data, LimitEvent, VerificationToken")
+    System_Ext(smtp, "SMTP mail server", "Sign-in link delivery over verified TLS")
+    System_Ext(sentry, "Sentry", "Errors, CSP reports, lockout alert")
+    System_Ext(google, "Google OAuth", "Google sign-in")
+    System_Ext(cron, "Vercel Cron", "Daily trigger for the purge job")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(visitor, proxy, "Every request", "HTTPS")
+    Rel(freelancer, proxy, "Every request", "HTTPS")
+    Rel(proxy, web, "Allowed page requests")
+    Rel(proxy, actions, "Allowed action calls")
+    Rel(proxy, handlers, "Allowed API calls")
+    Rel(web, rules, "Validates period and addresses in the browser")
+    Rel(actions, services, "Calls with ActingFreelancer")
+    Rel(handlers, services, "Calls with ActingFreelancer")
+    Rel(handlers, limits, "Checks sign-in limits")
+    Rel(services, limits, "Reserves and releases export runs")
+    Rel(services, rules, "Applies the five-year rule")
+    Rel(limits, db, "Counts and records events", "SQL")
+    Rel(services, db, "Reads and writes", "Prisma")
+    Rel(handlers, smtp, "Sends Sign-in links", "SMTP with TLS")
+    Rel(handlers, google, "OAuth sign-in", "OAuth 2.0")
+    Rel(handlers, sentry, "Forwards own-project envelopes only", "HTTPS")
+    Rel(limits, sentry, "Raises lockout alert", "HTTPS")
+    Rel(cron, handlers, "Triggers daily purge", "HTTPS + secret")
 ```
 
 ## 6. Runtime view
