@@ -52,7 +52,7 @@ The existing limiter (`LogoFetchWindow`, architecture-hardening ADR-0008) is a p
 - Retention and account deletion are simple deletes: by `at` for the sweep, and by `userId` cascade or by address digest on account deletion.
 
 **Negative**
-- More rows than a counter. They are bounded by the limits themselves (≤ 30 per source per 5 minutes, ≤ 5 sent plus refusals per address per hour) and by the 24 h purge.
+- More rows than a counter. They are bounded by the limits themselves, not by the attack rate. A source row is written only while the source is under its limit (≤ 30 per source per 5 minutes). At most 5 sent rows per address per hour, and refusal rows, kept only for the lockout alert, at most one per address per UTC hour. The 24 h purge bounds the rest.
 - The repo now has two limiter styles. The logo limiter keeps its counter (architecture-hardening ADR-0008) and is not migrated here.
 - Each limited request costs one short transaction and an index range scan on `(scope, key, at)`.
 

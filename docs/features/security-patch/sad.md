@@ -9,10 +9,6 @@ target_surfaces: [backend-service, web-frontend]
 
 # Software Architecture Document — security-patch
 
-<!-- 12 Arc42 sections. Empty section → <!-- N/A: <one-line reason> -->. -->
-<!-- C4 Context (L1) lives inline in §3. C4 Container (L2) lives inline in §5. -->
-<!-- Numbers in §10 come VERBATIM from spec.md §6 NFR — no inventing, no rounding. -->
-
 ## 1. Introduction and goals
 
 **Intent.** Close the holes in invoiceFlow's current public surface before it becomes a public portfolio demo and gains an in-app AI chat (spec §1, §2). The feature upgrades the framework, sign-in and mail components to versions with no critical or high production advisory. It makes "signed in" mean a verified session and nothing else. It bounds what a Visitor can make the app do: Sign-in link emails per address and per source, the custom Dashboard period, and data exports per Freelancer. It sends mail only over verified TLS and refuses anonymous server actions however the request is shaped. Finally, it gives the browser a baseline content-security policy and transport headers, and closes the open error-reporting relay. Every hole is closed at the point all callers pass through, not only in the page the brief cites.
@@ -43,7 +39,7 @@ target_surfaces: [backend-service, web-frontend]
 - nodemailer 7 → **10.x**.
 - Prisma 7.2 → **latest 7.x** (`@prisma/client`, `prisma`, `@prisma/adapter-pg`) over Neon PostgreSQL. The schema is split under `prisma/schema/` and migrated with `prisma migrate`. `@prisma/extension-accelerate` is removed (AC-27).
 - Hosting: Vercel serverless functions in `iad1`. No memory is shared between invocations, so any counter lives in Postgres, the only shared store.
-- Sentry 10 (`@sentry/nextjs`), production only; browser events go through the `/monitoring` tunnel.
+- Sentry 10 (`@sentry/nextjs`), production only. Today browser events go through the `/monitoring` tunnel rewrite (revisited in ADR-0006).
 - Tests: Vitest unit (`pnpm test:unit`) and integration against a throwaway Postgres container (`pnpm test:integration`), Playwright e2e (`pnpm test:e2e`). CI (`.github/workflows/test.yml`) runs lint, typecheck, unit and integration on every PR. `next build` runs in the Vercel preview deploy for every PR.
 
 **Organisational.**
@@ -55,7 +51,7 @@ target_surfaces: [backend-service, web-frontend]
 - Deny by default in `proxy.ts`, with one public allowlist in `config/routes.config.ts` (architecture-hardening ADR-0001). Route handlers re-check the session through `actingFreelancerForRoute()` / `requireSession()`.
 - A session without a live account is a Visitor (architecture-hardening ADR-0002).
 - Business functions live in `lib/services/` behind `server-only` and lint bans (service-layer ADR-0006). They take a branded `ActingFreelancer` (service-layer ADR-0001) and return the `ActionResult` union with typed codes (service-layer ADR-0002, architecture-hardening ADR-0009).
-- No new external service for rate limiting; Postgres is the counter store (architecture-hardening ADR-0008 precedent).
+- Preference for no new external service for rate limiting, with Postgres as the counter store (architecture-hardening ADR-0008 precedent; revisited in ADR-0002).
 - Zod schemas per entity in `lib/validations/`, shared by forms and actions. IDs are `cuid()`. Migrations are named `YYYYMMDDhhmmss_snake_case`.
 
 **Regulatory / external.**
@@ -114,7 +110,7 @@ C4Context
 
 ## 4. Solution strategy
 
-**Target surfaces.** `[backend-service, web-frontend]`. Both are parts of the existing Next.js deployable: server-side proxy, route handlers, server actions and the business layer on one side, browser-delivered pages on the other. The feature introduces no new container. It changes server behaviour and adds three messages and two field messages to existing screens (SCR-01, SCR-04, SCR-06, SCR-07, SCR-08 in `ux-flows.md`). Inline, no ADR: both surfaces are given by the repo, so there is no alternative to choose between.
+**Target surfaces.** `[backend-service, web-frontend]`. Both are parts of the existing Next.js deployable: server-side proxy, route handlers, server actions and the business layer on one side, browser-delivered pages on the other. The feature introduces no new container. It changes server behaviour and adds three messages and two field messages to existing screens (SCR-01, SCR-04, SCR-06, SCR-07, SCR-08 in `ux-flows.md`), and changes how legacy non-web addresses render on SCR-09 and in the invoice PDF, SCR-10 (AC-21). Inline, no ADR: both surfaces are given by the repo, so there is no alternative to choose between.
 
 **UI architecture (web-frontend).** Keep the existing hybrid: React Server Components render on the server, and client components handle interactive parts (the dashboard filters, the sign-in form, the export button). The new messages reuse the existing shadcn/ui primitives and tokens from `docs/design-system.md`. No new primitive and no new client state library. Inline: unchanged from today.
 
@@ -129,7 +125,7 @@ C4Context
    - `proxy.ts`, `requireSession()` and `getAuthenticatedUser()` / `actingFreelancerFromSession()` all use the predicate, so an Auth.js error object or any other truthy non-session is a Visitor (S2, AC-04).
    - The proxy's `catch` branch becomes the ordinary Visitor branch. Public paths render, private pages redirect to sign-in, data and action requests get the 401. It no longer clears session cookies, so a Freelancer is signed in again once the check recovers (AC-04, AC-06).
    - Inline: this extends architecture-hardening ADR-0001 and ADR-0002 rather than choosing between alternatives.
-6. **Upgrade in one change, then harden.** Next.js 16.3.x, next-auth 5.0.0-beta.32, nodemailer 10.x and Prisma's latest 7.x land in one change (spec §1 decision), followed by removal of `@prisma/extension-accelerate`. Every hardening step above is built against the upgraded APIs, so the provider hooks and the proxy are written once. Serves quality goal 3 (AC-01, AC-02, AC-27).
+6. **Upgrade in one change, then harden.** Next.js 16.3.x, next-auth 5.0.0-beta.32 and nodemailer 10.x land in one change (spec §1 decision). The database-toolkit upgrade to Prisma's latest 7.x and the removal of `@prisma/extension-accelerate` (spec §1 hygiene decision, AC-27) follow as a separate commit in the same feature, with the suite run between the two, so a regression bisects to one of them. Every hardening step above is built against the upgraded APIs, so the provider hooks and the proxy are written once. Serves quality goal 3 (AC-01, AC-02, AC-27).
 
 Each tactical decision in later sections traces to one of these seeds. A tactical decision that contradicts one is surfaced in §11.
 
@@ -248,13 +244,13 @@ sequenceDiagram
         H-->>V: enter a valid email address (nothing sent, nothing counted)
     else address well-formed
         H->>L: may a link be sent to this address from this source
-        L->>DB: per-key locks, record this request for the source, count requests per source (5 min) and sent links per address (1 h)
+        L->>DB: per-key locks, count requests per source (5 min) and sent links per address (1 h), record this request for the source only while the source is under its limit
         alt limit store unavailable
             DB-->>L: error
             L-->>H: limits unavailable
             H-->>V: sign-in by email temporarily unavailable, try again or use Google
         else address or source limit reached
-            L->>DB: record refusal
+            L->>DB: if the address limit refused, record at most one refusal per address per UTC hour
             L->>L: check refusals in 3 consecutive UTC hours
             opt third consecutive hour and no alert today
                 L->>S: targeted-lockout alert carrying the address digest only
@@ -334,7 +330,7 @@ One migration adds the `LimitEvent` table (its shape is fixed by the `data-model
 - Tracing stays at the existing request boundary; no new tracing.
 
 **Scaling thresholds:**
-- `LimitEvent` volume is bounded by the limits themselves. One source adds at most 30 request rows per 5 minutes. Sent-link rows are at most 5 per address per hour, and refusal rows are at most one per refused request. Export rows are at most 3 started rows per Freelancer per hour, plus any failures. With the 24 h purge, the table stays in the low thousands of rows even under a sustained single-source flood, so no partitioning is needed.
+- `LimitEvent` volume is bounded by the limits themselves, not by the attack rate. A source request row is written only while the source is under its limit, so one source adds at most 30 rows per 5 minutes, however fast it floods. Sent-link rows are at most 5 per address per hour, and refusal rows (needed only for the lockout alert) are at most one per address per UTC hour. Export rows are at most 3 started rows per Freelancer per hour, plus any failures. With the 24 h purge, the table stays in the low thousands of rows even under a sustained single-source flood, so no partitioning is needed.
 - Revisit the store only if limit checks show in sign-in spans as more than about 50 ms at p95. That would mean lock contention on one key or a missing index on `(scope, key, at)`.
 
 ## 8. Crosscutting concepts
@@ -373,7 +369,7 @@ The repo's conventions carry over unchanged. The rows marked *new* are specific 
 | [0007](adr/0007-purge-limit-records-daily-with-a-vercel-cron-job-behind-a-bearer-secret.md) | Purge limit records daily with a Vercel Cron job behind a bearer secret | Accepted | §7 |
 | [0008](adr/0008-fail-the-build-when-a-required-setting-is-missing.md) | Fail the build when a required setting is missing | Accepted | §7 |
 
-ADR files live under `docs/features/security-patch/adr/NNNN-<title>.md`. Decisions kept inline (below the blast-radius gate): target surfaces and UI architecture (§4), the verified-session predicate (§4 choice 5), the response floor (§6), and the header set (§8). Earlier ADRs this feature builds on, unchanged: architecture-hardening ADR-0001, ADR-0002, ADR-0008, ADR-0009; service-layer ADR-0001, ADR-0002, ADR-0006.
+ADR files live under `docs/features/security-patch/adr/`. Decisions kept inline (below the blast-radius gate): target surfaces and UI architecture (§4), the verified-session predicate (§4 choice 5), the response floor (§6), and the header set (§8). Earlier ADRs this feature builds on, unchanged: architecture-hardening ADR-0001, ADR-0002, ADR-0008, ADR-0009; service-layer ADR-0001, ADR-0002, ADR-0006.
 
 ## 10. Quality requirements
 
@@ -427,7 +423,7 @@ Each top-3 goal from §1, expanded into testable scenarios. Every number is quot
 
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| The framework, sign-in, mail and database-toolkit upgrades land in one change (spec §1 decision), so a regression is hard to bisect | High | Land the upgrade first in the branch and run the full unit + integration suite and the e2e page-access sweep on preview (AC-02, AC-03) before any hardening step builds on it; rollback is a revert of the upgrade commit | Dmytro Hopko |
+| The framework, sign-in and mail upgrades land in one change (spec §1 decision), so a regression is hard to bisect | High | Land that upgrade first in the branch, with the Prisma upgrade and accelerate removal as a separate following commit (AC-27), and run the full unit + integration suite and the e2e page-access sweep on preview (AC-02, AC-03) before any hardening step builds on it; rollback is a revert of the upgrade commit | Dmytro Hopko |
 | The enforced content-security policy breaks a flow outside the AC-20 list (for example a third-party script added later) | Medium | Violation reports go to Sentry (§8); AC-20 gate on preview before production; the header lives in `next.config.ts`, so relaxing one directive is a one-line change | Dmytro Hopko |
 | Shared network addresses (carrier NAT, offices) reach 30 requests per 5 minutes, so a legitimate Visitor sees "check your inbox" but gets no email | Medium | Google sign-in is unaffected (AC-14); `auth.signin.email` spans by outcome show source-limited volume; IPv6 counted per /64 per spec §6.1; revisit the threshold if limited outcomes from real users appear | Dmytro Hopko |
 | SMTP sends regularly take longer than the response floor *F*, so slow sent responses become distinguishable from limited ones | Medium | *F* is configurable and set from the measured p90 send time on preview; ship-stage comparison of `auth.signin.email` medians by outcome (§10 QG-2) | Dmytro Hopko |
