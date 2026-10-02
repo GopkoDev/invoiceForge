@@ -339,21 +339,26 @@ One migration adds the `LimitEvent` table (its shape is fixed by the `data-model
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
+The repo's conventions carry over unchanged. The rows marked *new* are specific to this feature.
 
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Logging | `console.error` with `redactError()` for expected noise; unexpected failures through `failed()`, which reports to Sentry exactly once. *New:* never log or report a raw email address or network address. Only the limit digest appears, and only in the lockout alert. | `lib/helpers/prisma-error-scrub.ts`, `lib/services/_shared/result-helpers.ts` |
+| Authentication | Deny by default in `proxy.ts` with one public allowlist (architecture-hardening ADR-0001). A session without a live account is a Visitor (architecture-hardening ADR-0002). *New:* "signed in" is decided by one predicate, `isVerifiedSession` (session carries a non-empty account id), used by the proxy, `requireSession()` and `getAuthenticatedUser()`. A failed check is a Visitor and never clears cookies. Anonymous mutations are refused by method (ADR-0003). | §4 choice 5, `lib/helpers/verified-session.ts` |
+| Error handling | `ActionResult` union with typed codes (service-layer ADR-0002, architecture-hardening ADR-0009). *New:* the `RATE_LIMITED` code with `details: { kind: 'RETRY_AT', retryAt }` (ADR-0005). Sign-in-provider outcomes "limits unavailable" and "send failed" are typed errors mapped to fixed messages on the sign-in page (ADR-0001). | `types/result.ts` |
+| ID strategy | `cuid()` for app models (unchanged); `LimitEvent` follows it. | `prisma/schema/` |
+| Rate limiting | Logo fetches: per-minute counter (architecture-hardening ADR-0008, unchanged). *New:* sign-in and export limits on the `LimitEvent` event log, with an exact sliding window under a per-key advisory lock (ADR-0002). Sign-in fails closed. A refused or failed request never counts towards the address limit. | `lib/security/limits/` |
+| Limit keys (personal data) | *New:* an address limit key folds letter case, any `+tag`, and dots in Gmail local parts, then is stored only as HMAC-SHA256 under `LIMIT_KEY_SECRET` (a required setting, ADR-0008). The digest cannot be reversed by a dictionary without the key, and it never decides account identity (AC-03). Records are kept ≤ 24 h (ADR-0007) and deleted on account deletion. | `lib/security/limits/keys.ts` |
+| Client address | *New:* taken only from the hosting platform (`@vercel/functions` `ipAddress()`), never from a header the client can set. IPv4 counts per address, IPv6 per /64 network (spec §6.1). | `lib/security/limits/keys.ts` |
+| Input rules shared by browser and server | *New:* dependency-free rules in `lib/validations/`, used by forms and by the server: the five-year Dashboard period (ADR-0004), the email address rule (≤ 254 characters, ASCII only; AC-17), and the web-address rule (http or https only; AC-21). | `lib/validations/dashboard-period.ts`, `auth.ts`, `web-address.ts` |
+| Unsafe stored URLs | *New:* website, image and logo values pass the web-address rule on save. On display, a value that fails the rule, including the copy on an issued invoice, is rendered as plain text: never an `href`, never an image `src`, on SCR-09 and in the invoice PDF (SCR-10). Stored data is not rewritten. | `lib/validations/web-address.ts` |
+| Browser security headers | *New:* served for every route from `next.config.ts` `headers()`, moved from `vercel.json` so they apply identically in preview, production and local runs. **Content-Security-Policy** (enforced): `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests`, plus a report endpoint. `'unsafe-inline'` for scripts covers Next.js's inline bootstrap; a per-request nonce policy is a follow-up (spec §3). **Strict-Transport-Security:** `max-age=63072000`, no `includeSubDomains`, no `preload`. **Permissions-Policy:** camera, microphone, geolocation and payment disabled. **X-XSS-Protection:** `0`. Kept as they are: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. The release gate is AC-20: zero violations on the listed flows in preview. | `next.config.ts` |
+| CSP violation reports | *New:* sent to Sentry's security endpoint for the current environment's DSN (`report-uri` and `report-to`), so a missed source shows up in error tracking before users report it. **Resolves spec §8 OQ1.** | `next.config.ts` |
+| HSTS scope | No subdomains until the mail provider's click-tracking subdomain is confirmed to serve HTTPS. **Resolves spec §8 OQ3** (default kept). | `next.config.ts` |
+| SMTP transport | *New:* `secure: true` on port 465, `requireTLS: true` on every other port. The certificate is verified against the configured host (`rejectUnauthorized` stays on, `servername` = host). Nothing is ever sent in clear text (AC-16). | `lib/get-email-server-config.ts` |
+| Internationalisation | N/A: single language (English UI). | — |
+| Observability | Sentry spans `dashboard.chart` (exists) and `auth.signin.email` (*new*, outcome only); the lockout alert; Sentry Crons for the purge job (§7). | §7 |
+| Events | N/A: no events or queues; direct calls only. | — |
 
 ## 9. Architecture decisions
 
