@@ -314,25 +314,28 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
+The topology is unchanged: one Next.js deployable on Vercel serverless functions in `iad1`, with the edge proxy in front, Neon PostgreSQL as the only datastore, and SMTP, Google and Sentry as external services. Production and every PR preview are separate Vercel deployments with their own settings. The feature adds three deployment elements:
+- a daily Vercel Cron job that purges limit records ([ADR-0007](adr/0007-purge-limit-records-daily-with-a-vercel-cron-job-behind-a-bearer-secret.md));
+- a build-time check that fails any deploy missing a required setting ([ADR-0008](adr/0008-fail-the-build-when-a-required-setting-is-missing.md));
+- response headers (content-security policy, strict transport, permissions policy) served for every route (§8).
 
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+One migration adds the `LimitEvent` table (its shape is fixed by the `data-model` stage). It is additive, so it needs no downtime.
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- Spans:
+  - `dashboard.chart` (exists) feeds the dashboard p95 ≤ 2 s NFR;
+  - a new `auth.signin.email` span records the outcome only (sent / limited / invalid / unavailable / failed), never the address, and feeds the sign-in p95 ≤ 1.5 s NFR and the floor check.
+- Alerts:
+  - the targeted-lockout alert (an address digest refused in 3 consecutive UTC hours, at most once per address per day);
+  - limit-store errors on the sign-in path (fail-closed, AC-15);
+  - SMTP TLS failures (AC-16);
+  - a missed purge run (Sentry Crons).
+- CSP violation reports land in Sentry (§8).
+- Tracing stays at the existing request boundary; no new tracing.
 
 **Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+- `LimitEvent` volume is bounded by the limits themselves. One source adds at most 30 request rows per 5 minutes. Sent-link rows are at most 5 per address per hour, and refusal rows are at most one per refused request. Export rows are at most 3 started rows per Freelancer per hour, plus any failures. With the 24 h purge, the table stays in the low thousands of rows even under a sustained single-source flood, so no partitioning is needed.
+- Revisit the store only if limit checks show in sign-in spans as more than about 50 ms at p95. That would mean lock contention on one key or a missing index on `(scope, key, at)`.
 
 ## 8. Crosscutting concepts
 
