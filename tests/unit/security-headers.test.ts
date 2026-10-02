@@ -13,7 +13,7 @@ const EXPECTED_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' data:",
   "frame-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",

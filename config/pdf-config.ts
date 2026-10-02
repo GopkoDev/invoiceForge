@@ -47,11 +47,10 @@ export const PDF_FONTS = {
     BODY: 10,
     SMALL: 8,
   },
-  // Font URLs for react-pdf
+  // Font URLs for react-pdf - served from public/ so the CSP needs no third-party host
   URLS: {
-    REGULAR:
-      'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf',
-    BOLD: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf',
+    REGULAR: '/fonts/roboto/roboto-regular.ttf',
+    BOLD: '/fonts/roboto/roboto-bold.ttf',
   },
 } as const;
 
