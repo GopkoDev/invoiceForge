@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: 'node',
+    // next-auth's root entry imports 'next/server' without an extension, which Node's ESM
+    // resolver refuses; inlining lets Vite resolve it, so the real Auth.js error classes load.
+    server: { deps: { inline: ['next-auth'] } },
     setupFiles: ['tests/support/server-only-mock.ts', 'tests/support/limit-key-env.ts'],
     include: ['tests/integration/**/*.test.ts'],
     exclude: ['node_modules/**'],
