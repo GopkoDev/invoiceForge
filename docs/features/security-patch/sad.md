@@ -65,37 +65,51 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+invoiceFlow is a Next.js invoicing app for Freelancers, about to be shared publicly as a demo. This feature does not add a new product capability. It hardens the existing boundary between the public internet (Visitors, including scripts and bots) and each Freelancer's private data, and it bounds what an anonymous or signed-in caller can make the app spend: emails, CPU and export runs.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: Next.js 16 App Router monolith on Vercel; deny-by-default proxy.ts, business layer in lib/services (server-only), Postgres via Prisma 7, Auth.js v5 beta with JWT sessions, Postgres sliding-window limiter precedent (LogoFetchWindow). Scanned at e857fa5; docs/architecture-map.md (ded1be7) predates the service layer. -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| Visitor | Person | Opens public pages; requests a Sign-in link or signs in with Google; may be a script calling endpoints directly. Untrusted. |
+| Freelancer | Person | Uses private pages, the dashboard (Dashboard period), the editors and the data export with a verified session |
+| Assistant | Person (future, external program) | Calls the business layer for exactly one Freelancer; today exercised only by direct business-layer tests (AC-10) |
+| Google OAuth | System (external) | Identity provider for Google sign-in; unaffected by the sign-in-email limits (AC-14) |
+| SMTP mail server | System (external) | Delivers Sign-in link emails. Must offer TLS with a certificate valid for its host name, or nothing is sent (AC-16). |
+| Sentry | System (external) | Error tracking: server and browser errors (browser events through the app's tunnel), CSP violation reports, the targeted-lockout alert to the app operator, dashboard and sign-in spans for the NFRs |
+| Neon PostgreSQL | System (external, managed) | The only shared store: app data, sessions' account lookup, and the new limit records |
+| Vercel | System (external platform) | Runs the app. It is the only trusted source of the client network address and runs the daily retention job (cron). The build there fails the deploy when required settings are missing (AC-26). |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+**Trust boundary.** Everything a Visitor sends is untrusted: headers, body, form fields, the `Next-Action` marker and query parameters. The client network address is taken only from the hosting platform, never from a header the client can set (spec §6.1). The Sign-in link address is untrusted until the link is opened (glossary: *Sign-in link*).
+
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title security-patch - System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(visitor, "Visitor", "Anyone without a verified session, including scripts and bots")
+    Person(freelancer, "Freelancer", "Signed-in account holder; owns invoices, customers, sender profiles")
+    Person_Ext(assistant, "Assistant", "Future program acting for one Freelancer via the business layer")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(app, "invoiceFlow", "Invoicing web app: public pages, sign-in, private pages, data export")
+
+    System_Ext(google, "Google OAuth", "Identity provider for Google sign-in")
+    System_Ext(smtp, "SMTP mail server", "Delivers Sign-in link emails over verified TLS only")
+    System_Ext(sentry, "Sentry", "Error tracking, CSP reports, lockout alert, performance spans")
+    SystemDb(db, "Neon PostgreSQL", "App data and short-lived limit records")
+    System_Ext(vercel, "Vercel", "Hosting, trusted client address, build gate, daily cron")
+
+    Rel(visitor, app, "Opens public pages, requests Sign-in links, signs in", "HTTPS")
+    Rel(freelancer, app, "Uses private pages, dashboard, export", "HTTPS")
+    Rel(assistant, app, "Asks for figures and changes for one Freelancer", "in-process call")
+    Rel(app, google, "Delegates Google sign-in", "OAuth 2.0")
+    Rel(app, smtp, "Sends Sign-in links", "SMTP with TLS")
+    Rel(app, sentry, "Reports errors, spans, alerts, CSP violations", "HTTPS")
+    Rel(app, db, "Reads and writes data and limit records", "Prisma over TLS")
+    Rel(vercel, app, "Runs, supplies client address, triggers daily purge", "platform")
 ```
 
 ## 4. Solution strategy
