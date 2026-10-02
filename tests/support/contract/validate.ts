@@ -9,35 +9,42 @@ import SwaggerParser from '@apidevtools/swagger-parser';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
-const SPEC_PATH = path.resolve(
-  process.cwd(),
-  'docs/features/architecture-hardening/contracts/openapi.yaml'
-);
+// One spec per feature; an operationId is looked up in each in turn.
+const SPEC_PATHS = [
+  'docs/features/architecture-hardening/contracts/openapi.yaml',
+  'docs/features/security-patch/contracts/openapi.yaml',
+].map((p) => path.resolve(process.cwd(), p));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OpenApiDocument = any;
 
-let documentPromise: Promise<OpenApiDocument> | undefined;
+let documentsPromise: Promise<OpenApiDocument[]> | undefined;
 
-function loadDocument(): Promise<OpenApiDocument> {
-  if (!documentPromise) {
-    documentPromise = SwaggerParser.dereference(SPEC_PATH) as Promise<OpenApiDocument>;
+function loadDocuments(): Promise<OpenApiDocument[]> {
+  if (!documentsPromise) {
+    documentsPromise = Promise.all(
+      SPEC_PATHS.map((specPath) => SwaggerParser.dereference(specPath) as Promise<OpenApiDocument>)
+    );
   }
-  return documentPromise;
+  return documentsPromise;
 }
 
 function findOperation(
-  doc: OpenApiDocument,
+  docs: OpenApiDocument[],
   operationId: string
 ): { route: string; method: string; operation: OpenApiDocument } {
-  for (const [route, methods] of Object.entries<OpenApiDocument>(doc.paths ?? {})) {
-    for (const [method, operation] of Object.entries<OpenApiDocument>(methods ?? {})) {
-      if (operation && typeof operation === 'object' && operation.operationId === operationId) {
-        return { route, method, operation };
+  for (const doc of docs) {
+    for (const [route, methods] of Object.entries<OpenApiDocument>(doc.paths ?? {})) {
+      for (const [method, operation] of Object.entries<OpenApiDocument>(methods ?? {})) {
+        if (operation && typeof operation === 'object' && operation.operationId === operationId) {
+          return { route, method, operation };
+        }
       }
     }
   }
-  throw new Error(`assertMatchesContract: no operationId "${operationId}" in ${SPEC_PATH}`);
+  throw new Error(
+    `assertMatchesContract: no operationId "${operationId}" in ${SPEC_PATHS.join(', ')}`
+  );
 }
 
 export interface AssertMatchesContractParams {
@@ -53,8 +60,8 @@ export interface AssertMatchesContractParams {
  * (e.g. a $ref-only response, or a status with no body) is treated as "nothing to check".
  */
 export async function assertMatchesContract(params: AssertMatchesContractParams): Promise<void> {
-  const doc = await loadDocument();
-  const { operation, route } = findOperation(doc, params.operationId);
+  const docs = await loadDocuments();
+  const { operation, route } = findOperation(docs, params.operationId);
 
   const response = operation.responses?.[String(params.status)];
   if (!response) {

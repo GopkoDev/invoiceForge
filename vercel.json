@@ -3,6 +3,12 @@
   "devCommand": "pnpm dev",
   "installCommand": "pnpm install",
   "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/purge-limits",
+      "schedule": "17 3 * * *"
+    }
+  ],
   "regions": [
     "iad1"
   ]
