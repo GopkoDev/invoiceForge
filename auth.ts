@@ -4,13 +4,14 @@ import { prisma } from '@/prisma';
 import authConfig from '@/auth.config';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { getEmailServerConfig } from './lib/get-email-server-config';
+import { createEmailProviderHooks } from './lib/auth/email-provider';
 import type { Adapter } from 'next-auth/adapters';
 import { jwtConfig } from './config/jwt.config';
 import { authRoutes } from './config/routes.config';
 import { siteConfig } from './config/site.config';
 import { sessionCallback } from './lib/helpers/session-callback';
 
-const emailServer = getEmailServerConfig();
+const emailHooks = createEmailProviderHooks();
 const emailFrom = siteConfig.branding.emailFrom;
 
 // Custom adapter that allows account linking with same email
@@ -43,8 +44,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     ...authConfig.providers,
     Nodemailer({
-      server: emailServer,
+      server: getEmailServerConfig(),
       from: emailFrom,
+      normalizeIdentifier: emailHooks.normalizeIdentifier,
+      sendVerificationRequest: emailHooks.sendVerificationRequest as never,
     }),
   ],
   pages: {
