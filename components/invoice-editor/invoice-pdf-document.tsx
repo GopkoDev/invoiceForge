@@ -187,9 +187,7 @@ export function InvoicePDFDocument({
   total,
   logoBase64,
 }: InvoicePDFDocumentProps) {
-  const logoSrc =
-    logoBase64 ||
-    (senderProfile?.logo?.startsWith('data:') ? senderProfile.logo : null);
+  const logoSrc = logoBase64 || null;
 
   return (
     <Document>

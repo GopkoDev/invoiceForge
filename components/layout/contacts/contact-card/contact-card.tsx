@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Mail, Phone, MapPin, Globe, FileText } from 'lucide-react';
 import { ContactCardInfo } from './contact-card-info';
+import { isWebAddress } from '@/lib/validations/web-address';
 import { EMPTY_DATA_LABEL } from '@/constants/empty-labels';
 
 interface ContactCardProps {
@@ -51,7 +52,7 @@ export function ContactCard({
       <CardHeader>
         <div className="flex items-start gap-4 overflow-hidden">
           <Avatar className="h-12 w-12">
-            {avatar?.src && <AvatarImage src={avatar.src} alt={title} />}
+            {avatar?.src && isWebAddress(avatar.src) && <AvatarImage src={avatar.src} alt={title} />}
             <AvatarFallback>{avatar?.fallback}</AvatarFallback>
           </Avatar>
 
@@ -109,9 +110,17 @@ export function ContactCard({
           />
 
           <ContactCardInfo
-            data={contactInfo.website?.replace(/^https?:\/\//, '') || null}
+            data={
+              contactInfo.website && isWebAddress(contactInfo.website)
+                ? contactInfo.website.replace(/^https?:\/\//, '')
+                : contactInfo.website || null
+            }
             IconComponent={Globe}
-            href={contactInfo.website || undefined}
+            href={
+              contactInfo.website && isWebAddress(contactInfo.website)
+                ? contactInfo.website
+                : undefined
+            }
             noDataLabel={EMPTY_DATA_LABEL}
           />
         </div>

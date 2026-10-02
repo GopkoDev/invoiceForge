@@ -81,6 +81,19 @@ export function CustomerForm({
       if (!result.success) {
         if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to save customer');
+
+        // SCR-07: a server VALIDATION refusal shows next to its field.
+        const fieldErrors = result.fieldErrors;
+        if (fieldErrors) {
+          for (const [name, messages] of Object.entries(fieldErrors)) {
+            if (messages?.[0]) {
+              form.setError(name as keyof CustomerFormValues, {
+                message: messages[0],
+              });
+            }
+          }
+        }
+
         return;
       }
 
