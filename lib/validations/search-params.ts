@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { InvoiceStatus } from '@prisma/client';
 import type { InvoiceSortField, InvoiceTab, SortDirection } from '@/types/invoice/types';
+import { isWithinMaxCustomPeriod } from '@/lib/validations/dashboard-period';
 import { currentLocalMonth, formatLocalDateKey, localDayRange } from '@/lib/helpers/time-zone';
 
 // T23 (spec.md §5 AC-26, AC-27) — invoice-list link parameters are parsed with fallback-to-default
@@ -185,7 +186,12 @@ export function dashboardParamsSchema(timeZone: string, now: Date = new Date()) 
         const validFrom = from !== undefined && isValidIsoDate(from) ? from : undefined;
         const validTo = to !== undefined && isValidIsoDate(to) ? to : undefined;
 
-        if (validFrom !== undefined && validTo !== undefined && validFrom <= validTo) {
+        if (
+          validFrom !== undefined &&
+          validTo !== undefined &&
+          validFrom <= validTo &&
+          isWithinMaxCustomPeriod(validFrom, validTo)
+        ) {
           const [start, endExclusive] = localDayRange(validFrom, validTo, zone);
           return {
             appliedRange: { start, endExclusive },
