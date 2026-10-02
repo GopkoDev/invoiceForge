@@ -20,7 +20,9 @@ export async function signInWithGoogle() {
 
 // F-50 (T08 DoD): returns the shared ActionResult shape, with a code on failure, like every
 // other server action in the app.
-export async function signInWithEmail(email: string): Promise<ActionResult<void>> {
+export async function signInWithEmail(
+  email: string
+): Promise<ActionResult<void>> {
   const validation = loginEmailSchema.safeParse({ email });
 
   if (!validation.success) {
@@ -43,8 +45,10 @@ export async function signInWithEmail(email: string): Promise<ActionResult<void>
         fieldErrors: { email: [INVALID_EMAIL_ADDRESS] },
       });
     }
-    if (error instanceof EmailSigninUnavailable) return fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE);
-    if (error instanceof EmailSendFailed) return fail('FAILED', EMAIL_SEND_FAILED);
+    if (error instanceof EmailSigninUnavailable)
+      return fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE);
+    if (error instanceof EmailSendFailed)
+      return fail('FAILED', EMAIL_SEND_FAILED);
     throw error;
   }
 

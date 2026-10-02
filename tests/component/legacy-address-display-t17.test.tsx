@@ -8,8 +8,12 @@ import { WEB_ADDRESS_MESSAGE } from '@/lib/validations/web-address';
 
 // Radix AvatarImage never renders <img> in jsdom (no load event); expose src deterministically.
 vi.mock('@/components/ui/avatar', () => ({
-  Avatar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  AvatarImage: ({ src }: { src?: string }) => <img data-testid="avatar-img" src={src} alt="" />,
+  Avatar: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  AvatarImage: ({ src }: { src?: string }) => (
+    <img data-testid="avatar-img" src={src} alt="" />
+  ),
   AvatarFallback: ({ children }: { children: React.ReactNode }) => (
     <span data-testid="avatar-fallback">{children}</span>
   ),
@@ -17,7 +21,13 @@ vi.mock('@/components/ui/avatar', () => ({
 
 vi.mock('@react-pdf/renderer', () => {
   const el = (name: string) => {
-    const Mock = ({ children, src }: { children?: React.ReactNode; src?: string }) => (
+    const Mock = ({
+      children,
+      src,
+    }: {
+      children?: React.ReactNode;
+      src?: string;
+    }) => (
       <div data-pdf={name} data-src={src}>
         {children}
       </div>
@@ -70,20 +80,29 @@ vi.mock('next/navigation', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 beforeEach(() => {
-  for (const m of [createCustomerMock, createSenderProfileMock, updateProfileMock, routerPush]) {
+  for (const m of [
+    createCustomerMock,
+    createSenderProfileMock,
+    updateProfileMock,
+    routerPush,
+  ]) {
     m.mockReset();
   }
 });
 
-const { ContactCard } = await import('@/components/layout/contacts/contact-card/contact-card');
-const { InvoicePDFDocument } = await import('@/components/invoice-editor/invoice-pdf-document');
-const { CustomerInfoSidebar } = await import('@/components/customers/customer-info-sidebar');
-const { SenderProfileInfoSidebar } = await import(
-  '@/components/sender-profiles/sender-profile-info-sidebar'
-);
-const { ProfileSettings } = await import('@/components/settings/profile-settings');
+const { ContactCard } =
+  await import('@/components/layout/contacts/contact-card/contact-card');
+const { InvoicePDFDocument } =
+  await import('@/components/invoice-editor/invoice-pdf-document');
+const { CustomerInfoSidebar } =
+  await import('@/components/customers/customer-info-sidebar');
+const { SenderProfileInfoSidebar } =
+  await import('@/components/sender-profiles/sender-profile-info-sidebar');
+const { ProfileSettings } =
+  await import('@/components/settings/profile-settings');
 const { CustomerForm } = await import('@/components/customers/customer-form');
-const { SenderProfileForm } = await import('@/components/sender-profiles/sender-profile-form');
+const { SenderProfileForm } =
+  await import('@/components/sender-profiles/sender-profile-form');
 
 const card = (website: string | null, image: string | null) => (
   <ContactCard
@@ -108,9 +127,15 @@ describe('ContactCard legacy addresses (T17, AC-21)', () => {
   });
 
   it('keeps a valid https website as a link and a valid https image as src', () => {
-    const { container } = render(card('https://acme.test', 'https://acme.test/a.png'));
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('https://acme.test');
-    expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe('https://acme.test/a.png');
+    const { container } = render(
+      card('https://acme.test', 'https://acme.test/a.png')
+    );
+    expect(container.querySelector('a')?.getAttribute('href')).toBe(
+      'https://acme.test'
+    );
+    expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe(
+      'https://acme.test/a.png'
+    );
   });
 });
 
@@ -177,12 +202,16 @@ const senderProfile = (logo: string | null) =>
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     _count: { invoices: 0, bankAccounts: 0 },
-  }) as unknown as React.ComponentProps<typeof SenderProfileInfoSidebar>['profile'];
+  }) as unknown as React.ComponentProps<
+    typeof SenderProfileInfoSidebar
+  >['profile'];
 
 describe('Detail sidebars legacy addresses (T17, AC-21, SCR-09)', () => {
   it('customer sidebar gives a stored data: image no src, shows initials and the website as text', () => {
     const { container } = render(
-      <CustomerInfoSidebar customer={customer('data:image/png;base64,AAAA', 'javascript:alert(1)')} />
+      <CustomerInfoSidebar
+        customer={customer('data:image/png;base64,AAAA', 'javascript:alert(1)')}
+      />
     );
     expect(screen.queryByTestId('avatar-img')).toBeNull();
     expect(screen.getByTestId('avatar-fallback').textContent).toBe('AC');
@@ -191,13 +220,21 @@ describe('Detail sidebars legacy addresses (T17, AC-21, SCR-09)', () => {
   });
 
   it('customer sidebar keeps a valid https image as src', () => {
-    render(<CustomerInfoSidebar customer={customer('https://acme.test/a.png', null)} />);
-    expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe('https://acme.test/a.png');
+    render(
+      <CustomerInfoSidebar
+        customer={customer('https://acme.test/a.png', null)}
+      />
+    );
+    expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe(
+      'https://acme.test/a.png'
+    );
   });
 
   it('sender profile sidebar gives a stored data: logo no src and shows the website as text', () => {
     const { container } = render(
-      <SenderProfileInfoSidebar profile={senderProfile('data:image/png;base64,AAAA')} />
+      <SenderProfileInfoSidebar
+        profile={senderProfile('data:image/png;base64,AAAA')}
+      />
     );
     expect(screen.queryByTestId('avatar-img')).toBeNull();
     expect(screen.getByTestId('avatar-fallback')).toBeTruthy();
@@ -206,7 +243,11 @@ describe('Detail sidebars legacy addresses (T17, AC-21, SCR-09)', () => {
   });
 
   it('sender profile sidebar keeps a valid https logo as src', () => {
-    render(<SenderProfileInfoSidebar profile={senderProfile('https://acme.test/logo.png')} />);
+    render(
+      <SenderProfileInfoSidebar
+        profile={senderProfile('https://acme.test/logo.png')}
+      />
+    );
     expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe(
       'https://acme.test/logo.png'
     );
@@ -214,7 +255,11 @@ describe('Detail sidebars legacy addresses (T17, AC-21, SCR-09)', () => {
 });
 
 describe('ProfileSettings avatar address (T17, AC-21, SCR-05)', () => {
-  const sessionUser = { id: 'user-1', name: 'Jane Doe', email: 'jane@acme.test' };
+  const sessionUser = {
+    id: 'user-1',
+    name: 'Jane Doe',
+    email: 'jane@acme.test',
+  };
 
   it.each(['javascript:alert(1)', 'data:image/png;base64,AAAA'])(
     'typed %s: shows the FieldError, previews initials and never uses the value as src',
@@ -251,7 +296,9 @@ describe('Editor forms map server fieldErrors to the field (T17, AC-21, SCR-07/S
     await user.click(screen.getByRole('button', { name: 'Create Customer' }));
 
     const message = await screen.findByText(WEB_ADDRESS_MESSAGE);
-    expect(message.closest('[data-slot="field"]')?.textContent).toContain('Website');
+    expect(message.closest('[data-slot="field"]')?.textContent).toContain(
+      'Website'
+    );
     expect(screen.getByLabelText('Website')).toHaveValue('https://acme.test');
     expect(routerPush).not.toHaveBeenCalled();
   });
@@ -269,7 +316,9 @@ describe('Editor forms map server fieldErrors to the field (T17, AC-21, SCR-07/S
     await user.click(screen.getByRole('button', { name: 'Create Customer' }));
 
     const message = await screen.findByText(WEB_ADDRESS_MESSAGE);
-    expect(message.closest('[data-slot="field"]')?.textContent).toContain('Image URL');
+    expect(message.closest('[data-slot="field"]')?.textContent).toContain(
+      'Image URL'
+    );
     await waitFor(() => expect(routerPush).not.toHaveBeenCalled());
   });
 
@@ -287,7 +336,9 @@ describe('Editor forms map server fieldErrors to the field (T17, AC-21, SCR-07/S
     await user.click(screen.getByRole('button', { name: /Create Profile/ }));
 
     const message = await screen.findByText(WEB_ADDRESS_MESSAGE);
-    expect(message.closest('[data-slot="field"]')?.textContent).toContain('Website');
+    expect(message.closest('[data-slot="field"]')?.textContent).toContain(
+      'Website'
+    );
     expect(routerPush).not.toHaveBeenCalled();
   });
 });

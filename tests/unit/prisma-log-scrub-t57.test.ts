@@ -146,7 +146,9 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    prismaMock.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
+    prismaMock.$transaction.mockImplementation(
+      async (fn: (t: typeof tx) => unknown) => fn(tx)
+    );
     const { GET } = await import('@/app/api/user/export/route');
     const res = await GET();
     expect(res.status).toBe(500);
@@ -292,8 +294,14 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     const { redactError } = await import('@/lib/helpers/prisma-error-scrub');
     const message =
       'Missing configured driver adapter. Engine type `client` requires an active driver adapter. Please check your PrismaClient initialization code.';
-    const init = new Prisma.PrismaClientInitializationError(message, '7.2.0', 'P2038');
-    expect(redactError(init)).toBe(`PrismaClientInitializationError [P2038]: ${message}`);
+    const init = new Prisma.PrismaClientInitializationError(
+      message,
+      '7.2.0',
+      'P2038'
+    );
+    expect(redactError(init)).toBe(
+      `PrismaClientInitializationError [P2038]: ${message}`
+    );
   });
 
   // T62 V-03: the cause chain, a string argument and a validation error without an invocation line

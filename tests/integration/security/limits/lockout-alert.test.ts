@@ -9,13 +9,28 @@
 //          checkLockout(digest, at): Promise<boolean>     // true when an alert was raised
 //          onAddressLimited(digest, at): Promise<void>    // record refusal + check; never throws on Sentry failure
 //        }
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
-import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
+import {
+  startTestDatabase,
+  type TestDatabase,
+} from '../../../support/db/container';
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
-import { createLimitEvent, limitKeyDigest } from '../../../support/factories/limit-event';
+import {
+  createLimitEvent,
+  limitKeyDigest,
+} from '../../../support/factories/limit-event';
 import { createFixedClock } from '../../../support/clock';
 import { createLimitStore } from '@/lib/security/limits/limit-store';
 import { createLockoutAlert } from '@/lib/security/limits/lockout-alert';
@@ -55,7 +70,9 @@ describe.runIf(containerRuntimeAvailable)('lockout alert (T9)', () => {
   const rawAddress = 'victim@example.com';
   const digest = limitKeyDigest(rawAddress);
   const rows = (outcome: 'REFUSED' | 'ALERTED') =>
-    prisma.limitEvent.findMany({ where: { scope: 'SIGNIN_ADDRESS', key: digest, outcome } });
+    prisma.limitEvent.findMany({
+      where: { scope: 'SIGNIN_ADDRESS', key: digest, outcome },
+    });
 
   function setup(start: string) {
     const clock = createFixedClock(at(start));
@@ -71,7 +88,10 @@ describe.runIf(containerRuntimeAvailable)('lockout alert (T9)', () => {
     const clock = createFixedClock(at('10:00'));
     const store = createLimitStore({ prisma, clock });
     for (let i = 0; i < 20; i++) {
-      await store.recordAddressRefusal(digest, new Date(at('10:00').getTime() + i * MIN));
+      await store.recordAddressRefusal(
+        digest,
+        new Date(at('10:00').getTime() + i * MIN)
+      );
     }
     expect(await rows('REFUSED')).toHaveLength(1);
     await store.recordAddressRefusal(digest, at('11:01'));
@@ -94,7 +114,10 @@ describe.runIf(containerRuntimeAvailable)('lockout alert (T9)', () => {
     await refuse('11:00');
     await refuse('12:00');
     const [message, context] = captureMessageMock.mock.calls[0];
-    expect(context).toMatchObject({ level: 'warning', extra: { addressDigest: digest } });
+    expect(context).toMatchObject({
+      level: 'warning',
+      extra: { addressDigest: digest },
+    });
     expect(Object.keys(context.extra)).toEqual(['addressDigest']);
     const serialized = JSON.stringify([message, context]);
     expect(serialized).not.toContain(rawAddress);
@@ -125,7 +148,8 @@ describe.runIf(containerRuntimeAvailable)('lockout alert (T9)', () => {
     await refuse('12:30');
     expect(captureMessageMock).toHaveBeenCalledTimes(1);
     const day = 24 * HOUR;
-    const shifted = (h: number) => new Date(at('12:30').getTime() + day + h * HOUR + MIN);
+    const shifted = (h: number) =>
+      new Date(at('12:30').getTime() + day + h * HOUR + MIN);
     const clock = createFixedClock(shifted(0));
     const alert = createLockoutAlert({ prisma, clock });
     for (const h of [0, 1, 2]) {
@@ -136,7 +160,12 @@ describe.runIf(containerRuntimeAvailable)('lockout alert (T9)', () => {
   });
 
   it('a source-limit refusal alone records nothing (no REFUSED row via other scopes)', async () => {
-    await createLimitEvent(prisma, { scope: 'SIGNIN_SOURCE', key: digest, outcome: 'REQUESTED', at: at('10:00') });
+    await createLimitEvent(prisma, {
+      scope: 'SIGNIN_SOURCE',
+      key: digest,
+      outcome: 'REQUESTED',
+      at: at('10:00'),
+    });
     const { alert } = setup('12:30');
     expect(await alert.checkLockout(digest, at('12:30'))).toBe(false);
     expect(captureMessageMock).not.toHaveBeenCalled();

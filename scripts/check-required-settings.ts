@@ -4,6 +4,8 @@ import { missingSettings } from '../lib/env/required-settings.ts';
 
 const missing = missingSettings(process.env);
 if (missing.length > 0) {
-  console.error(`Missing required settings:\n${missing.map((n) => `  - ${n}`).join('\n')}`);
+  console.error(
+    `Missing required settings:\n${missing.map((n) => `  - ${n}`).join('\n')}`
+  );
   process.exit(1);
 }

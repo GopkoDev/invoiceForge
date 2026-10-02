@@ -5,18 +5,35 @@
 // whose Nodemailer provider carries the real T11 hooks, so these tests pin the error shape the
 // installed version really delivers. Only the Next.js request scope (next/headers), the mail
 // transport, the verification-token adapter and Sentry are stand-ins.
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import NextAuth from 'next-auth';
 import type { Adapter } from 'next-auth/adapters';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import * as Sentry from '@sentry/nextjs';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
-import { startTestDatabase, type TestDatabase } from '../../support/db/container';
+import {
+  startTestDatabase,
+  type TestDatabase,
+} from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
 import { truncateAllTables } from '../../support/db/truncate';
-import { TEST_LIMIT_KEY_SECRET, createLimitEvent } from '../../support/factories/limit-event';
-import { createEmailProviderHooks, InvalidEmailAddress } from '@/lib/auth/email-provider';
+import {
+  TEST_LIMIT_KEY_SECRET,
+  createLimitEvent,
+} from '../../support/factories/limit-event';
+import {
+  createEmailProviderHooks,
+  InvalidEmailAddress,
+} from '@/lib/auth/email-provider';
 import { addressLimitKey } from '@/lib/security/limits/keys';
 import { LIMIT_SCOPES } from '@/lib/security/limits/scopes';
 
@@ -32,7 +49,11 @@ vi.mock('@sentry/nextjs', () => ({
 let requestIp = '198.51.100.1';
 vi.mock('next/headers', () => ({
   headers: async () =>
-    new Headers({ host: 'localhost:3000', 'x-forwarded-proto': 'http', 'x-real-ip': requestIp }),
+    new Headers({
+      host: 'localhost:3000',
+      'x-forwarded-proto': 'http',
+      'x-real-ip': requestIp,
+    }),
   cookies: async () => ({ set: () => undefined }),
 }));
 
@@ -42,7 +63,9 @@ let signInCalls = 0;
 vi.mock('@/auth', () => ({
   signIn: (...args: unknown[]) => {
     signInCalls++;
-    return (authInstance!.signIn as (...a: unknown[]) => Promise<unknown>)(...args);
+    return (authInstance!.signIn as (...a: unknown[]) => Promise<unknown>)(
+      ...args
+    );
   },
 }));
 
@@ -101,13 +124,22 @@ function tokenAdapter(): Adapter {
 
 /** A NextAuth() instance wired like auth.ts, with the real T11 hooks on the Nodemailer provider. */
 function useAuth(prisma: PrismaClient, transport: Transport) {
-  const hooks = createEmailProviderHooks({ prisma, transport, floorMs: 20, jitterMs: 5 });
+  const hooks = createEmailProviderHooks({
+    prisma,
+    transport,
+    floorMs: 20,
+    jitterMs: 5,
+  });
   authInstance = NextAuth({
     secret: 'test-secret-test-secret-test-secret',
     trustHost: true,
     adapter: tokenAdapter(),
     session: { strategy: 'jwt' },
-    pages: { signIn: '/login', verifyRequest: '/verify-request', error: '/error' },
+    pages: {
+      signIn: '/login',
+      verifyRequest: '/verify-request',
+      error: '/error',
+    },
     providers: [
       Nodemailer({
         server: { host: 'localhost', port: 2525 },
@@ -132,10 +164,16 @@ async function outcomeOf(email: string) {
 /** POST /api/auth/signin/nodemailer called directly, with a valid CSRF token, via the route handlers. */
 async function postDirect(auth: ReturnType<typeof NextAuth>, email: string) {
   type Handler = (r: Request) => Promise<Response>;
-  const { GET, POST } = auth.handlers as unknown as { GET: Handler; POST: Handler };
+  const { GET, POST } = auth.handlers as unknown as {
+    GET: Handler;
+    POST: Handler;
+  };
   const csrfRes = await GET(new Request(`${BASE}/api/auth/csrf`));
   const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
-  const cookie = csrfRes.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+  const cookie = csrfRes.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
   return POST(
     new Request(`${BASE}/api/auth/signin/nodemailer`, {
       method: 'POST',
@@ -149,7 +187,8 @@ async function postDirect(auth: ReturnType<typeof NextAuth>, email: string) {
   );
 }
 
-const errorRedirect = (code: string) => `${BASE}/error?error=CredentialsSignin&code=${code}`;
+const errorRedirect = (code: string) =>
+  `${BASE}/error?error=CredentialsSignin&code=${code}`;
 
 beforeEach(() => {
   authInstance = null;
@@ -163,7 +202,9 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
     expect(constants.EMAIL_SIGNIN_UNAVAILABLE).toBe(
       'Sign-in by email is temporarily unavailable. Try again shortly, or sign in with Google.'
     );
-    expect(constants.EMAIL_SEND_FAILED).toBe("We couldn't send the sign-in email. Try again.");
+    expect(constants.EMAIL_SEND_FAILED).toBe(
+      "We couldn't send the sign-in email. Try again."
+    );
   });
 
   it('AC-15: limits unavailable -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
@@ -182,19 +223,22 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
   it.each([
     ['over 254 characters', `${'a'.repeat(250)}@example.test`],
     ['non-ASCII', 'jürgen@example.test'],
-  ])('AC-17: %s is refused on /login before anything is sent', async (_label, email) => {
-    const transport = fakeTransport();
-    useAuth(brokenPrisma, transport);
-    const { returned } = await outcomeOf(email);
-    expect(returned).toEqual({
-      success: false,
-      code: 'VALIDATION',
-      error: constants.INVALID_EMAIL_ADDRESS,
-      fieldErrors: { email: [constants.INVALID_EMAIL_ADDRESS] },
-    });
-    expect(signInCalls).toBe(0);
-    expect(transport.mails).toHaveLength(0);
-  });
+  ])(
+    'AC-17: %s is refused on /login before anything is sent',
+    async (_label, email) => {
+      const transport = fakeTransport();
+      useAuth(brokenPrisma, transport);
+      const { returned } = await outcomeOf(email);
+      expect(returned).toEqual({
+        success: false,
+        code: 'VALIDATION',
+        error: constants.INVALID_EMAIL_ADDRESS,
+        fieldErrors: { email: [constants.INVALID_EMAIL_ADDRESS] },
+      });
+      expect(signInCalls).toBe(0);
+      expect(transport.mails).toHaveLength(0);
+    }
+  );
 
   it('AC-17: the provider refusal reaches the caller of signIn() as the typed InvalidEmailAddress itself', async () => {
     const auth = useAuth(brokenPrisma, fakeTransport());
@@ -220,95 +264,123 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
           type: 'oauth',
           clientId: 'test-client',
           clientSecret: 'test-secret',
-          authorization: 'https://accounts.google.com/o/oauth2/v2/auth?scope=openid+email',
+          authorization:
+            'https://accounts.google.com/o/oauth2/v2/auth?scope=openid+email',
           token: 'https://oauth2.googleapis.com/token',
           userinfo: 'https://openidconnect.googleapis.com/v1/userinfo',
           checks: ['state'],
         } as never,
       ],
     });
-    const thrown = (await actions.signInWithGoogle().catch((e: unknown) => e)) as {
+    const thrown = (await actions
+      .signInWithGoogle()
+      .catch((e: unknown) => e)) as {
       digest?: string;
     };
-    expect(thrown.digest).toMatch(/^NEXT_REDIRECT;\w+;https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/);
+    expect(thrown.digest).toMatch(
+      /^NEXT_REDIRECT;\w+;https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/
+    );
   });
 
   describe('OQ-2: the direct endpoint redirects to /error with a distinct code', () => {
     it('AC-17: an invalid address -> /error?error=CredentialsSignin&code=invalid_email', async () => {
       const transport = fakeTransport();
-      const res = await postDirect(useAuth(brokenPrisma, transport), 'jürgen@example.test');
+      const res = await postDirect(
+        useAuth(brokenPrisma, transport),
+        'jürgen@example.test'
+      );
       expect(res.status).toBe(302);
       expect(res.headers.get('location')).toBe(errorRedirect('invalid_email'));
       expect(transport.mails).toHaveLength(0);
     });
 
     it('AC-15: limits unavailable -> /error?error=CredentialsSignin&code=email_unavailable', async () => {
-      const res = await postDirect(useAuth(brokenPrisma, fakeTransport()), 'ana@example.test');
-      expect(res.headers.get('location')).toBe(errorRedirect('email_unavailable'));
+      const res = await postDirect(
+        useAuth(brokenPrisma, fakeTransport()),
+        'ana@example.test'
+      );
+      expect(res.headers.get('location')).toBe(
+        errorRedirect('email_unavailable')
+      );
     });
   });
 });
 
-describe.runIf(containerRuntimeAvailable)('signInWithEmail outcome mapping (real Auth.js + real DB)', () => {
-  let db: TestDatabase;
-  let prisma: PrismaClient;
+describe.runIf(containerRuntimeAvailable)(
+  'signInWithEmail outcome mapping (real Auth.js + real DB)',
+  () => {
+    let db: TestDatabase;
+    let prisma: PrismaClient;
 
-  beforeAll(async () => {
-    db = await startTestDatabase();
-    prisma = createTestPrismaClient(db.connectionString);
-  }, 60_000);
+    beforeAll(async () => {
+      db = await startTestDatabase();
+      prisma = createTestPrismaClient(db.connectionString);
+    }, 60_000);
 
-  afterAll(async () => {
-    await prisma?.$disconnect();
-    await db?.stop();
-  });
+    afterAll(async () => {
+      await prisma?.$disconnect();
+      await db?.stop();
+    });
 
-  beforeEach(async () => {
-    await truncateAllTables(prisma);
-  });
+    beforeEach(async () => {
+      await truncateAllTables(prisma);
+    });
 
-  it.each([
-    ['no STARTTLS offered', 'Connection requires STARTTLS'],
-    ['certificate not valid for the host', "Hostname/IP does not match certificate's altnames"],
-  ])('AC-16: %s -> FAILED with EMAIL_SEND_FAILED, reported to Sentry', async (_label, message) => {
-    useAuth(prisma, failingTransport(message));
-    const { returned, thrown } = await outcomeOf('ana@example.test');
-    expect(thrown).toBeUndefined();
-    expect(returned).toEqual({ success: false, code: 'FAILED', error: constants.EMAIL_SEND_FAILED });
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
-  });
-
-  it('AC-16 (OQ-2): a send failure on the direct endpoint -> /error?error=CredentialsSignin&code=send_failed', async () => {
-    const res = await postDirect(
-      useAuth(prisma, failingTransport('Connection requires STARTTLS')),
-      'ana@example.test'
+    it.each([
+      ['no STARTTLS offered', 'Connection requires STARTTLS'],
+      [
+        'certificate not valid for the host',
+        "Hostname/IP does not match certificate's altnames",
+      ],
+    ])(
+      'AC-16: %s -> FAILED with EMAIL_SEND_FAILED, reported to Sentry',
+      async (_label, message) => {
+        useAuth(prisma, failingTransport(message));
+        const { returned, thrown } = await outcomeOf('ana@example.test');
+        expect(thrown).toBeUndefined();
+        expect(returned).toEqual({
+          success: false,
+          code: 'FAILED',
+          error: constants.EMAIL_SEND_FAILED,
+        });
+        expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      }
     );
-    expect(res.headers.get('location')).toBe(errorRedirect('send_failed'));
-  });
 
-  it('AC-19: sent and limited both rethrow the same redirect to /verify-request', async () => {
-    const transport = fakeTransport();
-    useAuth(prisma, transport);
+    it('AC-16 (OQ-2): a send failure on the direct endpoint -> /error?error=CredentialsSignin&code=send_failed', async () => {
+      const res = await postDirect(
+        useAuth(prisma, failingTransport('Connection requires STARTTLS')),
+        'ana@example.test'
+      );
+      expect(res.headers.get('location')).toBe(errorRedirect('send_failed'));
+    });
 
-    requestIp = '198.51.100.20';
-    const sent = await outcomeOf('ana@example.test');
+    it('AC-19: sent and limited both rethrow the same redirect to /verify-request', async () => {
+      const transport = fakeTransport();
+      useAuth(prisma, transport);
 
-    for (let i = 0; i < LIMIT_SCOPES.SIGNIN_ADDRESS.max; i++) {
-      await createLimitEvent(prisma, {
-        scope: 'SIGNIN_ADDRESS',
-        key: addressLimitKey('bob@example.test'),
-        outcome: 'SENT',
-        at: new Date(Date.now() - 60_000),
-      });
-    }
-    requestIp = '198.51.100.21';
-    const limited = await outcomeOf('bob@example.test');
+      requestIp = '198.51.100.20';
+      const sent = await outcomeOf('ana@example.test');
 
-    expect(transport.mails.map((m) => m.to)).toEqual(['ana@example.test']);
-    expect(sent.returned).toBeUndefined();
-    expect(limited.returned).toBeUndefined();
-    // Auth.js's own verify-request route, which forwards to pages.verifyRequest (/verify-request).
-    expect(sent.thrown?.digest).toMatch(/^NEXT_REDIRECT;\w+;http:\/\/localhost:3000\/api\/auth\/verify-request\?/);
-    expect(limited.thrown?.digest).toBe(sent.thrown?.digest);
-  });
-});
+      for (let i = 0; i < LIMIT_SCOPES.SIGNIN_ADDRESS.max; i++) {
+        await createLimitEvent(prisma, {
+          scope: 'SIGNIN_ADDRESS',
+          key: addressLimitKey('bob@example.test'),
+          outcome: 'SENT',
+          at: new Date(Date.now() - 60_000),
+        });
+      }
+      requestIp = '198.51.100.21';
+      const limited = await outcomeOf('bob@example.test');
+
+      expect(transport.mails.map((m) => m.to)).toEqual(['ana@example.test']);
+      expect(sent.returned).toBeUndefined();
+      expect(limited.returned).toBeUndefined();
+      // Auth.js's own verify-request route, which forwards to pages.verifyRequest (/verify-request).
+      expect(sent.thrown?.digest).toMatch(
+        /^NEXT_REDIRECT;\w+;http:\/\/localhost:3000\/api\/auth\/verify-request\?/
+      );
+      expect(limited.thrown?.digest).toBe(sent.thrown?.digest);
+    });
+  }
+);

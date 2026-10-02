@@ -46,7 +46,10 @@ describe('required settings list (ADR-0008)', () => {
     const env = fullEnv();
     delete env.CRON_SECRET;
     env.LIMIT_KEY_SECRET = '';
-    expect(missingSettings(env).sort()).toEqual(['CRON_SECRET', 'LIMIT_KEY_SECRET']);
+    expect(missingSettings(env).sort()).toEqual([
+      'CRON_SECRET',
+      'LIMIT_KEY_SECRET',
+    ]);
     expect(missingSettings(fullEnv())).toEqual([]);
   });
 
@@ -60,7 +63,10 @@ describe('scripts/check-required-settings.ts (AC-26)', () => {
   const run = (env: Record<string, string>) =>
     spawnSync('node', ['scripts/check-required-settings.ts'], {
       cwd: root,
-      env: { PATH: process.env.PATH ?? '', ...env } as unknown as NodeJS.ProcessEnv,
+      env: {
+        PATH: process.env.PATH ?? '',
+        ...env,
+      } as unknown as NodeJS.ProcessEnv,
       encoding: 'utf8',
     });
 
@@ -79,10 +85,12 @@ describe('scripts/check-required-settings.ts (AC-26)', () => {
   });
 
   it('is the first step of pnpm build and dev is untouched', () => {
-    const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const pkg = JSON.parse(
+      readFileSync(path.join(root, 'package.json'), 'utf8')
+    );
     expect(pkg.scripts.build).toMatch(/check-required-settings/);
     expect(pkg.scripts.build.indexOf('check-required-settings')).toBeLessThan(
-      pkg.scripts.build.indexOf('next build'),
+      pkg.scripts.build.indexOf('next build')
     );
     expect(pkg.scripts.dev).not.toMatch(/check-required-settings/);
   });

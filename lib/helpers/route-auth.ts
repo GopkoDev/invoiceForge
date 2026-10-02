@@ -11,9 +11,15 @@ import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 import { isVerifiedSession } from '@/lib/helpers/verified-session';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
-export type RequireSessionResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
+export type RequireSessionResult =
+  | { ok: true; userId: string }
+  | { ok: false; response: NextResponse };
 
-const NOT_SIGNED_IN_BODY = { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' } as const;
+const NOT_SIGNED_IN_BODY = {
+  success: false,
+  code: 'UNAUTHORIZED',
+  error: 'Not signed in.',
+} as const;
 
 // Re-exported for existing importers; the path lives in routes.config so client-safe code
 // (e.g. unwrapPageResult) can use it without importing Prisma.
@@ -33,19 +39,34 @@ export async function requireSession(): Promise<RequireSessionResult> {
     unstable_rethrow(error);
     // Fail closed: a thrown auth() call (e.g. the session callback's DB lookup is down) is
     // treated as no session, never as a live user (T09 edge case table).
-    console.error('[requireSession] auth() failed, treating as no session:', redactError(error));
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+    console.error(
+      '[requireSession] auth() failed, treating as no session:',
+      redactError(error)
+    );
+    return {
+      ok: false,
+      response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }),
+    };
   }
 
   if (!userId) {
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }),
+    };
   }
 
   // Lazy: keeps the no-session path importable without DATABASE_URL (prisma.ts throws at import).
   const { prisma } = await import('@/prisma');
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
   if (!user) {
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }),
+    };
   }
 
   return { ok: true, userId: user.id };
@@ -68,7 +89,10 @@ export async function requireLiveUser(): Promise<LiveUser> {
   } catch (error) {
     // Next's own control-flow errors (dynamic-rendering bail-out, redirects) must propagate.
     unstable_rethrow(error);
-    console.error('[requireLiveUser] auth() failed, treating as no session:', redactError(error));
+    console.error(
+      '[requireLiveUser] auth() failed, treating as no session:',
+      redactError(error)
+    );
     userId = undefined;
   }
 

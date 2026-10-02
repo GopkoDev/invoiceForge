@@ -3,7 +3,10 @@ import { captureException } from '@sentry/nextjs';
 import { prisma } from '@/prisma';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { fail, ok, type ActionResult } from '@/types/result';
-import { createLimitStore, type Clock } from '@/lib/security/limits/limit-store';
+import {
+  createLimitStore,
+  type Clock,
+} from '@/lib/security/limits/limit-store';
 import { scopeConfig } from '@/lib/security/limits/scopes';
 import { addressLimitKey } from '@/lib/security/limits/keys';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -15,7 +18,7 @@ const ACCOUNT_NOT_FOUND = 'Account not found.';
  * (spec.md §5, AC-20), across every sender profile the Freelancer owns.
  */
 export async function getAccountDeletionSummary(
-  actor: ActingFreelancer,
+  actor: ActingFreelancer
 ): Promise<ActionResult<{ invoiceCount: number }>> {
   try {
     const invoiceCount = await prisma.invoice.count({
@@ -23,7 +26,10 @@ export async function getAccountDeletionSummary(
     });
     return ok({ invoiceCount });
   } catch (error) {
-    console.error('Error counting invoices for account deletion:', redactError(error));
+    console.error(
+      'Error counting invoices for account deletion:',
+      redactError(error)
+    );
     captureException(error);
     return fail('FAILED', 'Something went wrong. Please try again.');
   }
@@ -35,7 +41,9 @@ export async function getAccountDeletionSummary(
  * User cascades; VerificationToken rows for the account's email go too. Any failure
  * rolls back everything (AC-20). Only a session-verified wrapper may call this (spec §6.1).
  */
-export async function deleteAccount(actor: ActingFreelancer): Promise<ActionResult<void>> {
+export async function deleteAccount(
+  actor: ActingFreelancer
+): Promise<ActionResult<void>> {
   const { userId } = actor;
   try {
     const user = await prisma.user.findUnique({
@@ -49,7 +57,9 @@ export async function deleteAccount(actor: ActingFreelancer): Promise<ActionResu
         where: { scope: 'SIGNIN_ADDRESS', key: addressLimitKey(user.email) },
       }),
       prisma.invoice.deleteMany({ where: { senderProfile: { userId } } }),
-      prisma.verificationToken.deleteMany({ where: { identifier: user.email } }),
+      prisma.verificationToken.deleteMany({
+        where: { identifier: user.email },
+      }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
 
@@ -57,56 +67,74 @@ export async function deleteAccount(actor: ActingFreelancer): Promise<ActionResu
   } catch (error) {
     console.error('Error deleting user account:', redactError(error));
     captureException(error);
-    return fail('FAILED', "Your account couldn't be deleted. Nothing was removed.");
+    return fail(
+      'FAILED',
+      "Your account couldn't be deleted. Nothing was removed."
+    );
   }
 }
 
 async function readExport(userId: string) {
-  const [user, accounts, emailHistory, senderProfiles, customers, products, invoices] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          emailVerified: true,
-          image: true,
-          createdAt: true,
-          updatedAt: true,
+  const [
+    user,
+    accounts,
+    emailHistory,
+    senderProfiles,
+    customers,
+    products,
+    invoices,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        emailVerified: true,
+        image: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.account.findMany({
+      where: { userId },
+      select: { provider: true, type: true, createdAt: true },
+    }),
+    prisma.emailHistory.findMany({ where: { userId } }),
+    prisma.senderProfile.findMany({
+      where: { userId },
+      include: { bankAccounts: true },
+    }),
+    prisma.customer.findMany({
+      where: { userId },
+      include: {
+        customPrices: {
+          include: { product: { select: { name: true, unit: true } } },
         },
-      }),
-      prisma.account.findMany({
-        where: { userId },
-        select: { provider: true, type: true, createdAt: true },
-      }),
-      prisma.emailHistory.findMany({ where: { userId } }),
-      prisma.senderProfile.findMany({
-        where: { userId },
-        include: { bankAccounts: true },
-      }),
-      prisma.customer.findMany({
-        where: { userId },
-        include: {
-          customPrices: {
-            include: { product: { select: { name: true, unit: true } } },
-          },
+      },
+    }),
+    prisma.product.findMany({
+      where: { userId },
+      include: {
+        customPrices: {
+          include: { customer: { select: { name: true } } },
         },
-      }),
-      prisma.product.findMany({
-        where: { userId },
-        include: {
-          customPrices: {
-            include: { customer: { select: { name: true } } },
-          },
-        },
-      }),
-      prisma.invoice.findMany({
-        where: { senderProfile: { userId } },
-        include: { items: true },
-      }),
-    ]);
-  return { user, accounts, emailHistory, senderProfiles, customers, products, invoices };
+      },
+    }),
+    prisma.invoice.findMany({
+      where: { senderProfile: { userId } },
+      include: { items: true },
+    }),
+  ]);
+  return {
+    user,
+    accounts,
+    emailHistory,
+    senderProfiles,
+    customers,
+    products,
+    invoices,
+  };
 }
 
 type ExportRead = Awaited<ReturnType<typeof readExport>>;
@@ -118,7 +146,8 @@ export type AccountExport = Omit<ExportRead, 'user'> & {
 };
 
 const EXPORT_FAILED = "Your data couldn't be exported. Try again.";
-const EXPORT_RATE_LIMITED = "You've reached the export limit. You can export again later.";
+const EXPORT_RATE_LIMITED =
+  "You've reached the export limit. You can export again later.";
 
 /**
  * Every category the account owns, scoped by actor.userId (exportVersion 2.0, Session dropped).
@@ -129,25 +158,35 @@ const EXPORT_RATE_LIMITED = "You've reached the export limit. You can export aga
  */
 export async function getAccountExport(
   actor: ActingFreelancer,
-  overrides: { clock?: Clock } = {},
+  overrides: { clock?: Clock } = {}
 ): Promise<ActionResult<AccountExport>> {
   const { userId } = actor;
   const store = createLimitStore({ clock: overrides.clock });
   let reservedId: string;
   try {
-    const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    const exists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
     if (!exists) return fail('NOT_FOUND', ACCOUNT_NOT_FOUND);
 
-    const reservation = await store.withKeyLock('EXPORT', userId, async (limit): Promise<{ retryAt: Date } | { id: string }> => {
-      if ((await limit.countInWindow()) >= scopeConfig('EXPORT').max) {
-        const retryAt = await limit.retryAt();
-        if (retryAt) return { retryAt };
+    const reservation = await store.withKeyLock(
+      'EXPORT',
+      userId,
+      async (limit): Promise<{ retryAt: Date } | { id: string }> => {
+        if ((await limit.countInWindow()) >= scopeConfig('EXPORT').max) {
+          const retryAt = await limit.retryAt();
+          if (retryAt) return { retryAt };
+        }
+        return { id: (await limit.record('STARTED', { userId })).id };
       }
-      return { id: (await limit.record('STARTED', { userId })).id };
-    });
+    );
     if ('retryAt' in reservation) {
       return fail('RATE_LIMITED', EXPORT_RATE_LIMITED, {
-        details: { kind: 'RETRY_AT', retryAt: reservation.retryAt.toISOString() },
+        details: {
+          kind: 'RETRY_AT',
+          retryAt: reservation.retryAt.toISOString(),
+        },
       });
     }
     reservedId = reservation.id;
@@ -159,9 +198,14 @@ export async function getAccountExport(
 
   const releasePlace = async () => {
     try {
-      await store.withKeyLock('EXPORT', userId, (limit) => limit.markFailed(reservedId));
+      await store.withKeyLock('EXPORT', userId, (limit) =>
+        limit.markFailed(reservedId)
+      );
     } catch (releaseError) {
-      console.error('Error releasing an export place:', redactError(releaseError));
+      console.error(
+        'Error releasing an export place:',
+        redactError(releaseError)
+      );
       captureException(releaseError);
     }
   };

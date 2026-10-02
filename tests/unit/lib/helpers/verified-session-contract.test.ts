@@ -32,7 +32,10 @@ const { auth } = NextAuth({ ...authConfig, secret: SECRET, trustHost: true });
 
 type Wrapped = (req: NextRequest, ctx: unknown) => Promise<Response>;
 
-async function mintCookie(token: Record<string, unknown>, secret = SECRET): Promise<string> {
+async function mintCookie(
+  token: Record<string, unknown>,
+  secret = SECRET
+): Promise<string> {
   return `${COOKIE}=${await encode({ token, secret, salt: COOKIE })}`;
 }
 
@@ -54,13 +57,17 @@ async function reqAuthFor(cookie: string | null): Promise<unknown> {
 
 describe('isVerifiedSession against real Auth.js req.auth (AC-05)', () => {
   it('a genuine JWT carrying the account id (as the jwt callback sets it) is a verified session', async () => {
-    const session = await reqAuthFor(await mintCookie({ id: 'u1', sub: 'u1', email: 'a@b.test' }));
+    const session = await reqAuthFor(
+      await mintCookie({ id: 'u1', sub: 'u1', email: 'a@b.test' })
+    );
     expect(session).toMatchObject({ user: { id: 'u1' } });
     expect(isVerifiedSession(session)).toBe(true);
   });
 
   it('a validly signed JWT without an account id is a Visitor', async () => {
-    const session = await reqAuthFor(await mintCookie({ sub: 'u1', email: 'a@b.test' }));
+    const session = await reqAuthFor(
+      await mintCookie({ sub: 'u1', email: 'a@b.test' })
+    );
     expect(isVerifiedSession(session)).toBe(false);
   });
 
@@ -69,7 +76,10 @@ describe('isVerifiedSession against real Auth.js req.auth (AC-05)', () => {
   });
 
   it('a JWT signed with a different secret is a Visitor', async () => {
-    const cookie = await mintCookie({ id: 'u1', sub: 'u1' }, 'another-secret-also-32-characters-long!!');
+    const cookie = await mintCookie(
+      { id: 'u1', sub: 'u1' },
+      'another-secret-also-32-characters-long!!'
+    );
     expect(isVerifiedSession(await reqAuthFor(cookie))).toBe(false);
   });
 });

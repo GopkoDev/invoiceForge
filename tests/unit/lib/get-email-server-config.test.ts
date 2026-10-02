@@ -59,7 +59,9 @@ function startSmtp(offerStartTls: boolean) {
         const cmd = line.toUpperCase();
         if (cmd.startsWith('EHLO') || cmd.startsWith('HELO')) {
           socket.write(
-            offerStartTls ? '250-test\r\n250 STARTTLS\r\n' : '250-test\r\n250 AUTH PLAIN LOGIN\r\n',
+            offerStartTls
+              ? '250-test\r\n250 STARTTLS\r\n'
+              : '250-test\r\n250 AUTH PLAIN LOGIN\r\n'
           );
         } else if (cmd === 'STARTTLS' && offerStartTls) {
           socket.write('220 go ahead\r\n');
@@ -74,7 +76,11 @@ function startSmtp(offerStartTls: boolean) {
             state.gotData = true;
           });
           return;
-        } else if (cmd.startsWith('MAIL') || cmd.startsWith('AUTH') || cmd === 'DATA') {
+        } else if (
+          cmd.startsWith('MAIL') ||
+          cmd.startsWith('AUTH') ||
+          cmd === 'DATA'
+        ) {
           state.gotData = true;
           socket.write('250 ok\r\n');
         } else {
@@ -84,24 +90,32 @@ function startSmtp(offerStartTls: boolean) {
     });
   };
   const server = net.createServer(handle);
-  return new Promise<{ port: number; state: typeof state; close: () => void }>((resolve) =>
-    server.listen(0, '127.0.0.1', () =>
-      resolve({
-        port: (server.address() as net.AddressInfo).port,
-        state,
-        close: () => server.close(),
-      }),
-    ),
+  return new Promise<{ port: number; state: typeof state; close: () => void }>(
+    (resolve) =>
+      server.listen(0, '127.0.0.1', () =>
+        resolve({
+          port: (server.address() as net.AddressInfo).port,
+          state,
+          close: () => server.close(),
+        })
+      )
   );
 }
 
-const message = { from: 'a@example.com', to: 'b@example.com', subject: 's', text: 'secret link' };
+const message = {
+  from: 'a@example.com',
+  to: 'b@example.com',
+  subject: 's',
+  text: 'secret link',
+};
 
 describe('transport refuses clear text and unverified certificates (AC-16)', () => {
   it('server without STARTTLS: send rejects and nothing is sent', async () => {
     const smtp = await startSmtp(false);
     setMailEnv('127.0.0.1', smtp.port);
-    const transport = nodemailer.createTransport(getEmailServerConfig() as never);
+    const transport = nodemailer.createTransport(
+      getEmailServerConfig() as never
+    );
     await expect(transport.sendMail(message)).rejects.toThrow();
     expect(smtp.state.gotData).toBe(false);
     smtp.close();
@@ -110,7 +124,9 @@ describe('transport refuses clear text and unverified certificates (AC-16)', () 
   it('certificate not valid for the host name: send rejects', async () => {
     const smtp = await startSmtp(true);
     setMailEnv('127.0.0.1', smtp.port);
-    const transport = nodemailer.createTransport(getEmailServerConfig() as never);
+    const transport = nodemailer.createTransport(
+      getEmailServerConfig() as never
+    );
     await expect(transport.sendMail(message)).rejects.toThrow();
     expect(smtp.state.gotData).toBe(false);
     smtp.close();

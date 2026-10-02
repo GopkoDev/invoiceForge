@@ -29,10 +29,22 @@
 //      category read (customer.findMany) must still produce one clean 500 FAILED, not a partial
 //      body containing any other category. Timing-based proof of `Promise.all` would be flaky in
 //      CI and is intentionally not attempted here.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
-import { startTestDatabase, type TestDatabase } from '../../support/db/container';
+import {
+  startTestDatabase,
+  type TestDatabase,
+} from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
 import { truncateAllTables } from '../../support/db/truncate';
 import { createFreelancer } from '../../support/factories/user';
@@ -41,7 +53,10 @@ import { createCustomer } from '../../support/factories/customer';
 import { createProduct } from '../../support/factories/product';
 import { createBankAccount } from '../../support/factories/bank-account';
 import { createInvoice } from '../../support/factories/invoice';
-import { assertMatchesContract, SECURITY_PATCH_SPEC_PATH } from '../../support/contract/validate';
+import {
+  assertMatchesContract,
+  SECURITY_PATCH_SPEC_PATH,
+} from '../../support/contract/validate';
 import { createLimitEvent } from '../../support/factories/limit-event';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
@@ -52,234 +67,314 @@ vi.mock('@/auth', () => ({ auth: () => authMock() }));
 
 type GetHandler = () => Promise<Response>;
 
-describe.runIf(containerRuntimeAvailable)('GET /api/user/export (T27, AC-24)', () => {
-  let db: TestDatabase;
-  let factoryPrisma: PrismaClient;
-  // The exact singleton the route uses (Seam 2) — spying here observes the route's own calls.
-  let appPrisma: PrismaClient;
-  let GET: GetHandler;
+describe.runIf(containerRuntimeAvailable)(
+  'GET /api/user/export (T27, AC-24)',
+  () => {
+    let db: TestDatabase;
+    let factoryPrisma: PrismaClient;
+    // The exact singleton the route uses (Seam 2) — spying here observes the route's own calls.
+    let appPrisma: PrismaClient;
+    let GET: GetHandler;
 
-  beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.connectionString;
-    vi.resetModules();
-    factoryPrisma = createTestPrismaClient(db.connectionString);
-    ({ prisma: appPrisma } = (await import('@/prisma')) as { prisma: PrismaClient });
-    ({ GET } = (await import('@/app/api/user/export/route')) as { GET: GetHandler });
-  }, 60_000);
+    beforeAll(async () => {
+      db = await startTestDatabase();
+      process.env.DATABASE_URL = db.connectionString;
+      vi.resetModules();
+      factoryPrisma = createTestPrismaClient(db.connectionString);
+      ({ prisma: appPrisma } = (await import('@/prisma')) as {
+        prisma: PrismaClient;
+      });
+      ({ GET } = (await import('@/app/api/user/export/route')) as {
+        GET: GetHandler;
+      });
+    }, 60_000);
 
-  afterAll(async () => {
-    await factoryPrisma?.$disconnect();
-    await appPrisma?.$disconnect();
-    await db?.stop();
-  });
+    afterAll(async () => {
+      await factoryPrisma?.$disconnect();
+      await appPrisma?.$disconnect();
+      await db?.stop();
+    });
 
-  beforeEach(() => {
-    authMock.mockReset();
-  });
+    beforeEach(() => {
+      authMock.mockReset();
+    });
 
-  afterEach(async () => {
-    vi.restoreAllMocks();
-    await truncateAllTables(factoryPrisma);
-  });
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await truncateAllTables(factoryPrisma);
+    });
 
-  /** Spies on every category read the export makes, scoped to the app's own prisma singleton. */
-  function spyOnCategoryReads() {
-    return {
-      account: vi.spyOn(appPrisma.account, 'findMany'),
-      emailHistory: vi.spyOn(appPrisma.emailHistory, 'findMany'),
-      senderProfile: vi.spyOn(appPrisma.senderProfile, 'findMany'),
-      customer: vi.spyOn(appPrisma.customer, 'findMany'),
-      product: vi.spyOn(appPrisma.product, 'findMany'),
-      invoice: vi.spyOn(appPrisma.invoice, 'findMany'),
-    };
+    /** Spies on every category read the export makes, scoped to the app's own prisma singleton. */
+    function spyOnCategoryReads() {
+      return {
+        account: vi.spyOn(appPrisma.account, 'findMany'),
+        emailHistory: vi.spyOn(appPrisma.emailHistory, 'findMany'),
+        senderProfile: vi.spyOn(appPrisma.senderProfile, 'findMany'),
+        customer: vi.spyOn(appPrisma.customer, 'findMany'),
+        product: vi.spyOn(appPrisma.product, 'findMany'),
+        invoice: vi.spyOn(appPrisma.invoice, 'findMany'),
+      };
+    }
+
+    it('AC-24: refuses a Visitor with no session before any category is read', async () => {
+      authMock.mockResolvedValue(null);
+      const spies = spyOnCategoryReads();
+
+      const response = await GET();
+      const body = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(body).toEqual({
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'Not signed in.',
+      });
+      for (const spy of Object.values(spies)) {
+        expect(spy).not.toHaveBeenCalled();
+      }
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 401,
+        body,
+      });
+    });
+
+    it('AC-24: a stale token for a deleted account is refused before any category is read', async () => {
+      // No User row exists for this id — requireSession() must fail closed, and the export must
+      // never begin reading categories for a Visitor.
+      authMock.mockResolvedValue({
+        user: { id: 'deleted-account-0000000001' },
+      });
+      const spies = spyOnCategoryReads();
+
+      const response = await GET();
+      const body = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(body).toEqual({
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'Not signed in.',
+      });
+      for (const spy of Object.values(spies)) {
+        expect(spy).not.toHaveBeenCalled();
+      }
+    });
+
+    it('AC-24: a Freelancer with no data yet receives 200 with empty arrays', async () => {
+      const freelancer = await createFreelancer(factoryPrisma);
+      authMock.mockResolvedValue({ user: { id: freelancer.id } });
+
+      const response = await GET();
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({
+        exportDate: expect.any(String),
+        exportVersion: '2.0',
+        user: expect.objectContaining({
+          id: freelancer.id,
+          email: freelancer.email,
+        }),
+        accounts: [],
+        emailHistory: [],
+        senderProfiles: [],
+        customers: [],
+        products: [],
+        invoices: [],
+      });
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 200,
+        body,
+      });
+    });
+
+    it('AC-24: a signed-in Freelancer receives every AC-20 category except sessions, scoped to their own data, in a file named for the product', async () => {
+      const owner = await createFreelancer(factoryPrisma);
+      const stranger = await createFreelancer(factoryPrisma);
+
+      const ownerProfile = await createSenderProfile(factoryPrisma, owner.id);
+      await createBankAccount(factoryPrisma, ownerProfile.id);
+      const ownerCustomer = await createCustomer(factoryPrisma, owner.id, {
+        name: 'Owner Customer',
+      });
+      await createProduct(factoryPrisma, owner.id, { name: 'Owner Product' });
+      const ownerBankAccount = await createBankAccount(
+        factoryPrisma,
+        ownerProfile.id
+      );
+      await createInvoice(factoryPrisma, {
+        senderProfile: ownerProfile,
+        customer: ownerCustomer,
+        bankAccount: ownerBankAccount,
+      });
+
+      const strangerProfile = await createSenderProfile(
+        factoryPrisma,
+        stranger.id
+      );
+      const strangerCustomer = await createCustomer(
+        factoryPrisma,
+        stranger.id,
+        {
+          name: 'Stranger Customer',
+        }
+      );
+      await createProduct(factoryPrisma, stranger.id, {
+        name: 'Stranger Product',
+      });
+      const strangerBankAccount = await createBankAccount(
+        factoryPrisma,
+        strangerProfile.id
+      );
+      await createInvoice(factoryPrisma, {
+        senderProfile: strangerProfile,
+        customer: strangerCustomer,
+        bankAccount: strangerBankAccount,
+      });
+
+      authMock.mockResolvedValue({ user: { id: owner.id } });
+      const before = utcDateString(new Date());
+
+      const response = await GET();
+      const after = utcDateString(new Date());
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 200,
+        body,
+      });
+
+      // Product-named file, UTC date, per contract's Content-Disposition pattern.
+      const disposition = response.headers.get('content-disposition');
+      expect(disposition).toMatch(
+        /^attachment; filename="Invoice Forge export \d{4}-\d{2}-\d{2}\.json"$/
+      );
+      const [, fileDate] = disposition!.match(/(\d{4}-\d{2}-\d{2})/)!;
+      expect([before, after]).toContain(fileDate);
+
+      // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
+      // enforces this above, but assert it explicitly too since it's the AC's own wording.
+      expect(body).not.toHaveProperty('sessions');
+      expect(body.exportVersion).toBe('2.0');
+
+      // Scoped to the caller only — another Freelancer's data never appears.
+      const bodyText = JSON.stringify(body);
+      expect(bodyText).not.toContain('Stranger Customer');
+      expect(bodyText).not.toContain('Stranger Product');
+      expect(bodyText).not.toContain(stranger.id);
+
+      // The caller's own categories are all present.
+      expect(bodyText).toContain('Owner Customer');
+      expect(bodyText).toContain('Owner Product');
+      expect(body.senderProfiles).toHaveLength(1);
+      expect(body.customers).toHaveLength(1);
+      expect(body.products).toHaveLength(1);
+      expect(body.invoices).toHaveLength(1);
+
+      // No OAuth tokens: accounts is empty here (no Account row created), but the shape allowed by
+      // the contract only ever carries provider/type/createdAt — never access/refresh tokens.
+      expect(body.accounts).toEqual([]);
+    });
+
+    it('AC-24: the 4th export in the hour is 429 RATE_LIMITED with retryAt and Retry-After (T13)', async () => {
+      const freelancer = await createFreelancer(factoryPrisma);
+      authMock.mockResolvedValue({ user: { id: freelancer.id } });
+      const now = Date.now();
+      const oldest = new Date(now - 30 * 60_000);
+      for (const at of [
+        oldest,
+        new Date(now - 20 * 60_000),
+        new Date(now - 10 * 60_000),
+      ]) {
+        await createLimitEvent(factoryPrisma, {
+          scope: 'EXPORT',
+          key: freelancer.id,
+          userId: freelancer.id,
+          outcome: 'STARTED',
+          at,
+        });
+      }
+      const spies = spyOnCategoryReads();
+
+      const response = await GET();
+      const body = await response.json();
+
+      expect(response.status).toBe(429);
+      expect(body).toEqual({
+        success: false,
+        code: 'RATE_LIMITED',
+        error: "You've reached the export limit. You can export again later.",
+        details: {
+          kind: 'RETRY_AT',
+          retryAt: new Date(oldest.getTime() + 3_600_000).toISOString(),
+        },
+      });
+      const retryAfter = Number(response.headers.get('retry-after'));
+      expect(Number.isInteger(retryAfter)).toBe(true);
+      expect(retryAfter).toBeGreaterThanOrEqual(1790);
+      expect(retryAfter).toBeLessThanOrEqual(1800);
+      for (const spy of Object.values(spies))
+        expect(spy).not.toHaveBeenCalled();
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 429,
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
+      });
+    });
+
+    it('AC-25: another Freelancer is not affected by a Freelancer at the limit (T13)', async () => {
+      const limited = await createFreelancer(factoryPrisma);
+      const other = await createFreelancer(factoryPrisma);
+      for (let i = 0; i < 3; i++) {
+        await createLimitEvent(factoryPrisma, {
+          scope: 'EXPORT',
+          key: limited.id,
+          userId: limited.id,
+          outcome: 'STARTED',
+          at: new Date(),
+        });
+      }
+      authMock.mockResolvedValue({ user: { id: other.id } });
+
+      const response = await GET();
+
+      expect(response.status).toBe(200);
+    });
+
+    it('AC-24: a failing category read returns 500 FAILED with nothing partial and no internals', async () => {
+      const freelancer = await createFreelancer(factoryPrisma);
+      authMock.mockResolvedValue({ user: { id: freelancer.id } });
+      const failure = new Error(
+        'connection terminated unexpectedly: pg internal detail'
+      );
+      vi.spyOn(appPrisma.customer, 'findMany').mockRejectedValueOnce(failure);
+
+      const response = await GET();
+      const body = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(body).toEqual({
+        success: false,
+        code: 'FAILED',
+        error: "Your data couldn't be exported. Try again.",
+      });
+      expect(JSON.stringify(body)).not.toContain('pg internal detail');
+      // Nothing partial: no category array leaked into the error body.
+      expect(body).not.toHaveProperty('invoices');
+      expect(body).not.toHaveProperty('customers');
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 500,
+        body,
+      });
+    });
   }
-
-  it('AC-24: refuses a Visitor with no session before any category is read', async () => {
-    authMock.mockResolvedValue(null);
-    const spies = spyOnCategoryReads();
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
-    for (const spy of Object.values(spies)) {
-      expect(spy).not.toHaveBeenCalled();
-    }
-    await assertMatchesContract({ operationId: 'exportUserData', status: 401, body });
-  });
-
-  it('AC-24: a stale token for a deleted account is refused before any category is read', async () => {
-    // No User row exists for this id — requireSession() must fail closed, and the export must
-    // never begin reading categories for a Visitor.
-    authMock.mockResolvedValue({ user: { id: 'deleted-account-0000000001' } });
-    const spies = spyOnCategoryReads();
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(body).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
-    for (const spy of Object.values(spies)) {
-      expect(spy).not.toHaveBeenCalled();
-    }
-  });
-
-  it('AC-24: a Freelancer with no data yet receives 200 with empty arrays', async () => {
-    const freelancer = await createFreelancer(factoryPrisma);
-    authMock.mockResolvedValue({ user: { id: freelancer.id } });
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body).toEqual({
-      exportDate: expect.any(String),
-      exportVersion: '2.0',
-      user: expect.objectContaining({ id: freelancer.id, email: freelancer.email }),
-      accounts: [],
-      emailHistory: [],
-      senderProfiles: [],
-      customers: [],
-      products: [],
-      invoices: [],
-    });
-    await assertMatchesContract({ operationId: 'exportUserData', status: 200, body });
-  });
-
-  it('AC-24: a signed-in Freelancer receives every AC-20 category except sessions, scoped to their own data, in a file named for the product', async () => {
-    const owner = await createFreelancer(factoryPrisma);
-    const stranger = await createFreelancer(factoryPrisma);
-
-    const ownerProfile = await createSenderProfile(factoryPrisma, owner.id);
-    await createBankAccount(factoryPrisma, ownerProfile.id);
-    const ownerCustomer = await createCustomer(factoryPrisma, owner.id, { name: 'Owner Customer' });
-    await createProduct(factoryPrisma, owner.id, { name: 'Owner Product' });
-    const ownerBankAccount = await createBankAccount(factoryPrisma, ownerProfile.id);
-    await createInvoice(factoryPrisma, {
-      senderProfile: ownerProfile,
-      customer: ownerCustomer,
-      bankAccount: ownerBankAccount,
-    });
-
-    const strangerProfile = await createSenderProfile(factoryPrisma, stranger.id);
-    const strangerCustomer = await createCustomer(factoryPrisma, stranger.id, {
-      name: 'Stranger Customer',
-    });
-    await createProduct(factoryPrisma, stranger.id, { name: 'Stranger Product' });
-    const strangerBankAccount = await createBankAccount(factoryPrisma, strangerProfile.id);
-    await createInvoice(factoryPrisma, {
-      senderProfile: strangerProfile,
-      customer: strangerCustomer,
-      bankAccount: strangerBankAccount,
-    });
-
-    authMock.mockResolvedValue({ user: { id: owner.id } });
-    const before = utcDateString(new Date());
-
-    const response = await GET();
-    const after = utcDateString(new Date());
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    await assertMatchesContract({ operationId: 'exportUserData', status: 200, body });
-
-    // Product-named file, UTC date, per contract's Content-Disposition pattern.
-    const disposition = response.headers.get('content-disposition');
-    expect(disposition).toMatch(
-      /^attachment; filename="Invoice Forge export \d{4}-\d{2}-\d{2}\.json"$/
-    );
-    const [, fileDate] = disposition!.match(/(\d{4}-\d{2}-\d{2})/)!;
-    expect([before, after]).toContain(fileDate);
-
-    // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
-    // enforces this above, but assert it explicitly too since it's the AC's own wording.
-    expect(body).not.toHaveProperty('sessions');
-    expect(body.exportVersion).toBe('2.0');
-
-    // Scoped to the caller only — another Freelancer's data never appears.
-    const bodyText = JSON.stringify(body);
-    expect(bodyText).not.toContain('Stranger Customer');
-    expect(bodyText).not.toContain('Stranger Product');
-    expect(bodyText).not.toContain(stranger.id);
-
-    // The caller's own categories are all present.
-    expect(bodyText).toContain('Owner Customer');
-    expect(bodyText).toContain('Owner Product');
-    expect(body.senderProfiles).toHaveLength(1);
-    expect(body.customers).toHaveLength(1);
-    expect(body.products).toHaveLength(1);
-    expect(body.invoices).toHaveLength(1);
-
-    // No OAuth tokens: accounts is empty here (no Account row created), but the shape allowed by
-    // the contract only ever carries provider/type/createdAt — never access/refresh tokens.
-    expect(body.accounts).toEqual([]);
-  });
-
-  it('AC-24: the 4th export in the hour is 429 RATE_LIMITED with retryAt and Retry-After (T13)', async () => {
-    const freelancer = await createFreelancer(factoryPrisma);
-    authMock.mockResolvedValue({ user: { id: freelancer.id } });
-    const now = Date.now();
-    const oldest = new Date(now - 30 * 60_000);
-    for (const at of [oldest, new Date(now - 20 * 60_000), new Date(now - 10 * 60_000)]) {
-      await createLimitEvent(factoryPrisma, { scope: 'EXPORT', key: freelancer.id, userId: freelancer.id, outcome: 'STARTED', at });
-    }
-    const spies = spyOnCategoryReads();
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(429);
-    expect(body).toEqual({
-      success: false,
-      code: 'RATE_LIMITED',
-      error: "You've reached the export limit. You can export again later.",
-      details: { kind: 'RETRY_AT', retryAt: new Date(oldest.getTime() + 3_600_000).toISOString() },
-    });
-    const retryAfter = Number(response.headers.get('retry-after'));
-    expect(Number.isInteger(retryAfter)).toBe(true);
-    expect(retryAfter).toBeGreaterThanOrEqual(1790);
-    expect(retryAfter).toBeLessThanOrEqual(1800);
-    for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
-    await assertMatchesContract({ operationId: 'exportUserData', status: 429, body, specPath: SECURITY_PATCH_SPEC_PATH });
-  });
-
-  it('AC-25: another Freelancer is not affected by a Freelancer at the limit (T13)', async () => {
-    const limited = await createFreelancer(factoryPrisma);
-    const other = await createFreelancer(factoryPrisma);
-    for (let i = 0; i < 3; i++) {
-      await createLimitEvent(factoryPrisma, { scope: 'EXPORT', key: limited.id, userId: limited.id, outcome: 'STARTED', at: new Date() });
-    }
-    authMock.mockResolvedValue({ user: { id: other.id } });
-
-    const response = await GET();
-
-    expect(response.status).toBe(200);
-  });
-
-  it('AC-24: a failing category read returns 500 FAILED with nothing partial and no internals', async () => {
-    const freelancer = await createFreelancer(factoryPrisma);
-    authMock.mockResolvedValue({ user: { id: freelancer.id } });
-    const failure = new Error('connection terminated unexpectedly: pg internal detail');
-    vi.spyOn(appPrisma.customer, 'findMany').mockRejectedValueOnce(failure);
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(500);
-    expect(body).toEqual({
-      success: false,
-      code: 'FAILED',
-      error: "Your data couldn't be exported. Try again.",
-    });
-    expect(JSON.stringify(body)).not.toContain('pg internal detail');
-    // Nothing partial: no category array leaked into the error body.
-    expect(body).not.toHaveProperty('invoices');
-    expect(body).not.toHaveProperty('customers');
-    await assertMatchesContract({ operationId: 'exportUserData', status: 500, body });
-  });
-});
+);
 
 function utcDateString(date: Date): string {
   return date.toISOString().slice(0, 10);

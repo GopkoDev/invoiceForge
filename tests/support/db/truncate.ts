@@ -25,5 +25,7 @@ const APP_TABLES = [
 
 export async function truncateAllTables(prisma: PrismaClient): Promise<void> {
   const tableList = APP_TABLES.map((t) => `"${t}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+  await prisma.$executeRawUnsafe(
+    `TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`
+  );
 }

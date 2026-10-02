@@ -19,7 +19,11 @@ describe('isVerifiedSession (AC-04)', () => {
     ['user without id', { user: {} }, false],
     ['empty id', { user: { id: '' } }, false],
     ['numeric id', { user: { id: 5 } }, false],
-    ['Auth.js error-shaped object', { message: 'There was a problem with the server configuration.' }, false],
+    [
+      'Auth.js error-shaped object',
+      { message: 'There was a problem with the server configuration.' },
+      false,
+    ],
     ['verified session', { user: { id: 'u1' } }, true],
   ])('%s -> %s', (_n, input, expected) => {
     expect(isVerifiedSession(input)).toBe(expected);
@@ -30,11 +34,16 @@ describe('isVerifiedSession (AC-04)', () => {
 // (real JWT through the NextAuth wrapper) lives in verified-session-contract.test.ts.
 describe('edge session callback (unit)', () => {
   it('copies the JWT account id into session.user.id, which isVerifiedSession accepts', async () => {
-    const callback = authConfig.callbacks?.session as unknown as (a: unknown) => Promise<unknown> | unknown;
+    const callback = authConfig.callbacks?.session as unknown as (
+      a: unknown
+    ) => Promise<unknown> | unknown;
     expect(callback).toBeTypeOf('function');
     // Shape Auth.js hands the session callback after the jwt callback ran (token.id set at sign-in).
     const session = await callback({
-      session: { user: { name: null, email: 'a@b.test', image: null }, expires: new Date(Date.now() + 1e6).toISOString() },
+      session: {
+        user: { name: null, email: 'a@b.test', image: null },
+        expires: new Date(Date.now() + 1e6).toISOString(),
+      },
       token: { id: 'u1', sub: 'u1', email: 'a@b.test' },
     });
     expect(isVerifiedSession(session)).toBe(true);
@@ -43,7 +52,9 @@ describe('edge session callback (unit)', () => {
 
 describe('guards use the predicate (AC-04)', () => {
   beforeEach(() => authMock.mockReset());
-  const errorObject = { message: 'There was a problem with the server configuration.' };
+  const errorObject = {
+    message: 'There was a problem with the server configuration.',
+  };
 
   it('requireSession refuses an Auth.js error object with 401', async () => {
     authMock.mockResolvedValue(errorObject);

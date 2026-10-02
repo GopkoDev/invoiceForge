@@ -12,7 +12,8 @@ import {
 
 const T0 = new Date('2026-10-02T12:00:00.000Z');
 const clock = { now: () => T0 };
-const dbError = () => Promise.reject(new Error('Transaction already closed: 203.0.113.7:5432'));
+const dbError = () =>
+  Promise.reject(new Error('Transaction already closed: 203.0.113.7:5432'));
 
 type Failing = 'count' | 'findFirst' | 'create' | 'updateMany' | 'purge';
 
@@ -29,7 +30,9 @@ function failingTx(failing: Failing) {
     // the first $executeRaw is the advisory lock; the next one is the bounded purge
     $executeRaw: vi.fn(() => {
       executeCalls += 1;
-      return executeCalls > 1 && failing === 'purge' ? dbError() : Promise.resolve(0);
+      return executeCalls > 1 && failing === 'purge'
+        ? dbError()
+        : Promise.resolve(0);
     }),
     limitEvent: {
       count: failing === 'count' ? vi.fn(dbError) : ok(0),
@@ -53,15 +56,23 @@ describe('limit store DB-failure wrapping (T8)', () => {
   it.each(cases)(
     'a failing %s inside the lock rejects with LimitStoreUnavailable',
     async (failing, fn) => {
-      const store = createLimitStore({ prisma: fakePrisma(failingTx(failing)), clock });
-      const err = await store.withKeyLock('SIGNIN_SOURCE', 'k', fn).catch((e: unknown) => e);
+      const store = createLimitStore({
+        prisma: fakePrisma(failingTx(failing)),
+        clock,
+      });
+      const err = await store
+        .withKeyLock('SIGNIN_SOURCE', 'k', fn)
+        .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(LimitStoreUnavailable);
       expect((err as Error).message).not.toContain('203.0.113.7');
     }
   );
 
   it('the callback itself sees the typed error, so it can fail closed', async () => {
-    const store = createLimitStore({ prisma: fakePrisma(failingTx('count')), clock });
+    const store = createLimitStore({
+      prisma: fakePrisma(failingTx('count')),
+      clock,
+    });
     const seen = await store.withKeyLock('SIGNIN_SOURCE', 'k', (l) =>
       l.countInWindow().catch((e: unknown) => e)
     );
@@ -69,7 +80,10 @@ describe('limit store DB-failure wrapping (T8)', () => {
   });
 
   it('a genuine caller-callback error is re-thrown unchanged', async () => {
-    const store = createLimitStore({ prisma: fakePrisma(failingTx('count')), clock });
+    const store = createLimitStore({
+      prisma: fakePrisma(failingTx('count')),
+      clock,
+    });
     const own = new Error('caller bug');
     const err = await store
       .withKeyLock('SIGNIN_SOURCE', 'k', async () => {

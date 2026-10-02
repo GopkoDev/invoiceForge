@@ -23,7 +23,10 @@ let documentsPromise: Promise<OpenApiDocument[]> | undefined;
 function loadDocuments(): Promise<OpenApiDocument[]> {
   if (!documentsPromise) {
     documentsPromise = Promise.all(
-      SPEC_PATHS.map((specPath) => SwaggerParser.dereference(specPath) as Promise<OpenApiDocument>)
+      SPEC_PATHS.map(
+        (specPath) =>
+          SwaggerParser.dereference(specPath) as Promise<OpenApiDocument>
+      )
     );
   }
   return documentsPromise;
@@ -40,9 +43,17 @@ function findOperation(
   operationId: string
 ): { route: string; method: string; operation: OpenApiDocument } {
   for (const doc of docs) {
-    for (const [route, methods] of Object.entries<OpenApiDocument>(doc.paths ?? {})) {
-      for (const [method, operation] of Object.entries<OpenApiDocument>(methods ?? {})) {
-        if (operation && typeof operation === 'object' && operation.operationId === operationId) {
+    for (const [route, methods] of Object.entries<OpenApiDocument>(
+      doc.paths ?? {}
+    )) {
+      for (const [method, operation] of Object.entries<OpenApiDocument>(
+        methods ?? {}
+      )) {
+        if (
+          operation &&
+          typeof operation === 'object' &&
+          operation.operationId === operationId
+        ) {
           return { route, method, operation };
         }
       }
@@ -67,9 +78,11 @@ export interface AssertMatchesContractParams {
  * `operationId`'s `status` response. A documented response with no schema for the content type
  * (e.g. a $ref-only response, or a status with no body) is treated as "nothing to check".
  */
-export async function assertMatchesContract(params: AssertMatchesContractParams): Promise<void> {
+export async function assertMatchesContract(
+  params: AssertMatchesContractParams
+): Promise<void> {
   const docs = params.specPath
-    ? [await SwaggerParser.dereference(params.specPath) as OpenApiDocument]
+    ? [(await SwaggerParser.dereference(params.specPath)) as OpenApiDocument]
     : await loadDocuments();
   const { operation, route } = findOperation(docs, params.operationId);
 

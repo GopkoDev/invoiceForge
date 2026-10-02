@@ -132,16 +132,20 @@ export function DashboardFilters({
   const selectedRange = useMemo<DateRange | undefined>(
     () =>
       appliedRange
-        ? { from: appliedRange.start, to: subDays(appliedRange.endExclusive, 1) }
+        ? {
+            from: appliedRange.start,
+            to: subDays(appliedRange.endExclusive, 1),
+          }
         : undefined,
     [appliedRange]
   );
 
   const calendarSelected = rejectedRange ?? selectedRange;
 
-  const displayText = selectedRange?.from && selectedRange.to
-    ? `${format(selectedRange.from, 'LLL dd, y')} - ${format(selectedRange.to, 'LLL dd, y')}`
-    : 'All Time';
+  const displayText =
+    selectedRange?.from && selectedRange.to
+      ? `${format(selectedRange.from, 'LLL dd, y')} - ${format(selectedRange.to, 'LLL dd, y')}`
+      : 'All Time';
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -191,7 +195,10 @@ export function DashboardFilters({
           />
         </div>
         {rejectedRange && (
-          <Alert variant="destructive" className="rounded-t-none border-x-0 border-b-0">
+          <Alert
+            variant="destructive"
+            className="rounded-t-none border-x-0 border-b-0"
+          >
             <AlertDescription>{PERIOD_TOO_LONG}</AlertDescription>
           </Alert>
         )}

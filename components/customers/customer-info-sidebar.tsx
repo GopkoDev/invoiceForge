@@ -31,7 +31,10 @@ export function CustomerInfoSidebar({ customer }: CustomerInfoSidebarProps) {
     <ContactsDetailsSidebarContent
       avatar={{
         // AC-21: a stored non-web image is never loaded; initials show instead.
-        src: customer.image && isWebAddress(customer.image) ? customer.image : null,
+        src:
+          customer.image && isWebAddress(customer.image)
+            ? customer.image
+            : null,
         fallback: initials,
         alt: customer.name,
       }}

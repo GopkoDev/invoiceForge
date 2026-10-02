@@ -6,7 +6,9 @@ const OWN_DSN = 'https://publickey@o123.ingest.sentry.io/4500001';
 const ENVELOPE_URL = 'https://o123.ingest.sentry.io/api/4500001/envelope/';
 
 function envelope(dsn: string | undefined): string {
-  const header = JSON.stringify(dsn === undefined ? { event_id: 'abc' } : { event_id: 'abc', dsn });
+  const header = JSON.stringify(
+    dsn === undefined ? { event_id: 'abc' } : { event_id: 'abc', dsn }
+  );
   return `${header}\n{"type":"event"}\n{"message":"boom"}`;
 }
 
@@ -30,7 +32,9 @@ describe('POST /monitoring (AC-22)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', OWN_DSN);
-    fetchMock = vi.fn(async () => new Response('{"id":"abc"}', { status: 200 }));
+    fetchMock = vi.fn(
+      async () => new Response('{"id":"abc"}', { status: 200 })
+    );
     vi.stubGlobal('fetch', fetchMock);
   });
 
@@ -50,7 +54,7 @@ describe('POST /monitoring (AC-22)', () => {
 
   it('forwards a binary (non-UTF-8) payload after the header byte for byte', async () => {
     const header = new TextEncoder().encode(
-      `${JSON.stringify({ event_id: 'abc', dsn: OWN_DSN })}\n{"type":"replay_recording","length":6}\n`,
+      `${JSON.stringify({ event_id: 'abc', dsn: OWN_DSN })}\n{"type":"replay_recording","length":6}\n`
     );
     const payload = new Uint8Array([0xff, 0xfe, 0x80, 0x00, 0xc3, 0x28]);
     const sent = new Uint8Array(header.length + payload.length);
@@ -62,13 +66,21 @@ describe('POST /monitoring (AC-22)', () => {
     expect(res.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    const forwarded = new Uint8Array(await new Response(init.body).arrayBuffer());
+    const forwarded = new Uint8Array(
+      await new Response(init.body).arrayBuffer()
+    );
     expect(Array.from(forwarded)).toEqual(Array.from(sent));
   });
 
   it.each([
-    ['another project id on the same host', 'https://publickey@o123.ingest.sentry.io/999'],
-    ['the right project id on another host', 'https://publickey@evil.example.com/4500001'],
+    [
+      'another project id on the same host',
+      'https://publickey@o123.ingest.sentry.io/999',
+    ],
+    [
+      'the right project id on another host',
+      'https://publickey@evil.example.com/4500001',
+    ],
   ])('refuses %s with 403 and forwards nothing', async (_name, dsn) => {
     const { POST } = await loadRoute();
     const res = await POST(post(envelope(dsn)));
@@ -97,7 +109,9 @@ describe('POST /monitoring (AC-22)', () => {
   });
 
   it('answers 502 with an empty body when Sentry returns 500, without retrying', async () => {
-    fetchMock.mockResolvedValue(new Response('upstream detail', { status: 500 }));
+    fetchMock.mockResolvedValue(
+      new Response('upstream detail', { status: 500 })
+    );
     const { POST } = await loadRoute();
     const res = await POST(post(envelope(OWN_DSN)));
     expect(res.status).toBe(502);

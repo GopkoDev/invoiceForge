@@ -44,13 +44,18 @@ export function ok<T>(data?: T): ActionResult<T> {
 export function fail(
   code: ActionErrorCode,
   error: string,
-  extra?: { fieldErrors?: Record<string, string[]>; details?: ActionErrorDetails },
+  extra?: {
+    fieldErrors?: Record<string, string[]>;
+    details?: ActionErrorDetails;
+  }
 ): ActionFailure {
   return {
     success: false,
     code,
     error,
-    ...(extra?.fieldErrors !== undefined ? { fieldErrors: extra.fieldErrors } : {}),
+    ...(extra?.fieldErrors !== undefined
+      ? { fieldErrors: extra.fieldErrors }
+      : {}),
     ...(extra?.details !== undefined ? { details: extra.details } : {}),
   };
 }

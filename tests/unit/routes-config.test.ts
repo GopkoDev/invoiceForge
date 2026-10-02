@@ -74,7 +74,9 @@ describe('vercel.json crons (T15, ADR-0007)', () => {
     const config = JSON.parse(readFileSync('vercel.json', 'utf8')) as {
       crons?: { path: string; schedule: string }[];
     };
-    const entry = config.crons?.find((c) => c.path === '/api/cron/purge-limits');
+    const entry = config.crons?.find(
+      (c) => c.path === '/api/cron/purge-limits'
+    );
     expect(entry).toBeDefined();
     // five-field cron with fixed minute and hour, every day: "m h * * *"
     expect(entry?.schedule).toMatch(/^\d{1,2} \d{1,2} \* \* \*$/);

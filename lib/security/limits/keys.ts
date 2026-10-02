@@ -43,7 +43,9 @@ function ipv6Prefix64(ip: string): string {
   const l = left ? left.split(':') : [];
   const r = right ? right.split(':') : [];
   const fill =
-    right === undefined ? [] : Array<string>(Math.max(0, 8 - l.length - r.length)).fill('0');
+    right === undefined
+      ? []
+      : Array<string>(Math.max(0, 8 - l.length - r.length)).fill('0');
   return [...l, ...fill, ...r]
     .slice(0, 4)
     .map((h) => h.padStart(4, '0'))

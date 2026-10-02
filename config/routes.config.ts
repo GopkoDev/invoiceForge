@@ -151,10 +151,14 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
  * POSTs to the sign-in page, where the sign-in actions are posted (any other action posted
  * there refuses itself with UNAUTHORIZED). A future public non-GET endpoint must be added here.
  */
-export function isRefusedAnonymousMutation(method: string, pathname: string): boolean {
+export function isRefusedAnonymousMutation(
+  method: string,
+  pathname: string
+): boolean {
   const upper = method.toUpperCase();
   if (SAFE_METHODS.has(upper)) return false;
-  if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) return false;
+  if (pathname === '/api/auth' || pathname.startsWith('/api/auth/'))
+    return false;
   if (upper === 'POST' && pathname === authRoutes.signIn) return false;
   return true;
 }

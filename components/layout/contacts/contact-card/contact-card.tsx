@@ -52,14 +52,16 @@ export function ContactCard({
       <CardHeader>
         <div className="flex items-start gap-4 overflow-hidden">
           <Avatar className="h-12 w-12">
-            {avatar?.src && isWebAddress(avatar.src) && <AvatarImage src={avatar.src} alt={title} />}
+            {avatar?.src && isWebAddress(avatar.src) && (
+              <AvatarImage src={avatar.src} alt={title} />
+            )}
             <AvatarFallback>{avatar?.fallback}</AvatarFallback>
           </Avatar>
 
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg truncate block">{title}</CardTitle>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="block truncate text-lg">{title}</CardTitle>
 
-            <CardDescription className="text-xs truncate">
+            <CardDescription className="truncate text-xs">
               {description ? (
                 description
               ) : (
@@ -71,7 +73,10 @@ export function ContactCard({
           {badges.length > 0 && (
             <div className="flex gap-2">
               {badges.map((badge, index) => (
-                <Badge key={`${badge.label}-${index}`} variant={badge.variant || 'secondary'}>
+                <Badge
+                  key={`${badge.label}-${index}`}
+                  variant={badge.variant || 'secondary'}
+                >
                   {badge.label}
                 </Badge>
               ))}
@@ -80,10 +85,10 @@ export function ContactCard({
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4 h-full">
+      <CardContent className="flex h-full flex-col gap-4">
         <Separator />
 
-        <div className="space-y-2 text-sm mb-auto flex-1">
+        <div className="mb-auto flex-1 space-y-2 text-sm">
           <ContactCardInfo
             data={contactInfo.email || null}
             IconComponent={Mail}
@@ -128,7 +133,7 @@ export function ContactCard({
         {footer && (
           <>
             <Separator />
-            <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-between gap-4 text-xs">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 <span>{footer.invoicesCount} invoices</span>

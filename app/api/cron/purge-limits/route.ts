@@ -28,13 +28,24 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const checkInId = Sentry.captureCheckIn({ monitorSlug: MONITOR_SLUG, status: 'in_progress' });
+  const checkInId = Sentry.captureCheckIn({
+    monitorSlug: MONITOR_SLUG,
+    status: 'in_progress',
+  });
   try {
     const deleted = await createLimitStore().purgeOlderThan24h();
-    Sentry.captureCheckIn({ checkInId, monitorSlug: MONITOR_SLUG, status: 'ok' });
+    Sentry.captureCheckIn({
+      checkInId,
+      monitorSlug: MONITOR_SLUG,
+      status: 'ok',
+    });
     return NextResponse.json({ success: true, data: { deleted } });
   } catch {
-    Sentry.captureCheckIn({ checkInId, monitorSlug: MONITOR_SLUG, status: 'error' });
+    Sentry.captureCheckIn({
+      checkInId,
+      monitorSlug: MONITOR_SLUG,
+      status: 'error',
+    });
     return NextResponse.json(
       { success: false, code: 'FAILED', error: 'Purge failed.' },
       { status: 500 }
