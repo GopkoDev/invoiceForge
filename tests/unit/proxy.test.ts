@@ -106,24 +106,73 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     });
   });
 
-  it('treats a malformed session token as no session and clears both cookies', async () => {
+  it('treats a throwing check as a Visitor and never clears session cookies (AC-04)', async () => {
     const res = await callProxy(buildRequest('/dashboard', { token: 'reject' }));
 
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.status).toBeLessThan(400);
-    const setCookie = res.headers.get('set-cookie') ?? '';
-    expect(setCookie).toContain('authjs.session-token=;');
+    const redirectUrl = new URL(res.headers.get('location') as string);
+    expect(redirectUrl.pathname).toBe('/login');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/dashboard');
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+});
+
+// AC-04 / AC-06: "signed in" means a verified session (`user.id` non-empty string), nothing else.
+describe('proxy (AC-04 / AC-06, verified session predicate)', () => {
+  const unverified: Array<[string, unknown]> = [
+    ['empty object', {}],
+    ['user without id', { user: {} }],
+    ['empty id', { user: { id: '' } }],
+    ['Auth.js error object', { message: 'There was a problem with the server configuration.' }],
+    ['non-session truthy string', 'error'],
+  ];
+
+  it.each(unverified)('treats %s as a Visitor on a private page', async (_n, token) => {
+    const res = await callProxy(buildRequest('/dashboard', { token }));
+
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.status).toBeLessThan(400);
+    const redirectUrl = new URL(res.headers.get('location') as string);
+    expect(redirectUrl.pathname).toBe('/login');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/dashboard');
   });
 
-  it('marks the __Secure- cookie deletion Secure, or browsers on https ignore it', async () => {
-    const res = await callProxy(buildRequest('/dashboard', { token: 'reject' }));
+  it.each(unverified)('treats %s as a Visitor on /api/*: 401, no data', async (_n, token) => {
+    const res = await callProxy(buildRequest('/api/user/export', { token, method: 'POST' }));
 
-    const secureDeletion = res.headers
-      .getSetCookie()
-      .find((cookie) => cookie.startsWith('__Secure-authjs.session-token='));
-    expect(secureDeletion).toBeDefined();
-    expect(secureDeletion).toMatch(/;\s*Secure/i);
-    expect(secureDeletion).toMatch(/;\s*Path=\//i);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
+  });
+
+  it.each(unverified)('renders public /login and / for %s without a redirect (AC-06)', async (_n, token) => {
+    for (const path of ['/login', '/']) {
+      const res = await callProxy(buildRequest(path, { token }));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('location')).toBeNull();
+    }
+  });
+
+  it.each(['/login', '/', '/api/auth/session'])('renders public %s when the check throws, no cookie clearing', async (path) => {
+    const res = await callProxy(buildRequest(path, { token: 'reject' }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('answers /api/* with 401 when the check throws, no cookie clearing', async () => {
+    const res = await callProxy(buildRequest('/api/user/export', { token: 'reject', method: 'POST' }));
+
+    expect(res.status).toBe(401);
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('lets a verified session through to a private page', async () => {
+    const res = await callProxy(buildRequest('/dashboard', { token: { user: { id: 'u1' } } }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('location')).toBeNull();
   });
 });
 

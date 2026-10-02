@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { auth } from '@/auth';
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';
+import { isVerifiedSession } from '@/lib/helpers/verified-session';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 export type RequireSessionResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
@@ -27,7 +28,7 @@ export async function requireSession(): Promise<RequireSessionResult> {
 
   try {
     const session = await auth();
-    userId = session?.user?.id;
+    userId = isVerifiedSession(session) ? session.user.id : undefined;
   } catch (error) {
     unstable_rethrow(error);
     // Fail closed: a thrown auth() call (e.g. the session callback's DB lookup is down) is
@@ -63,7 +64,7 @@ export async function requireLiveUser(): Promise<LiveUser> {
 
   try {
     const session = await auth();
-    userId = session?.user?.id;
+    userId = isVerifiedSession(session) ? session.user.id : undefined;
   } catch (error) {
     // Next's own control-flow errors (dynamic-rendering bail-out, redirects) must propagate.
     unstable_rethrow(error);
