@@ -101,7 +101,7 @@ describe('required settings list (ADR-0008)', () => {
   // T24 / review F-11 (AC-26 "and the reverse holds too"): every setting app code reads is
   // documented in env.example. Platform-provided variables are the only exemption.
   it('every process.env.X read by app code appears in env.example', () => {
-    const platformProvided = new Set(['CI', 'NEXT_RUNTIME']);
+    const platformProvided = new Set(['CI', 'NEXT_RUNTIME', 'VERCEL']);
     const read = scannedEnvReads();
     const example = readEnvExample();
     const undocumented = [...read].filter(

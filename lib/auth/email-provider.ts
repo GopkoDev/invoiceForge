@@ -19,6 +19,7 @@ import {
   sourceLimitKey,
 } from '@/lib/security/limits/keys';
 import { SIGN_IN_ERROR_CODES } from '@/lib/auth/sign-in-messages';
+import { authRoutes } from '@/config/routes.config';
 
 /**
  * Base of the typed provider errors (ADR-0001: the error type decides, never the message text).
@@ -119,9 +120,21 @@ export interface SendVerificationParams {
 
 /** The part of Auth.js's callbacks.signIn params this callback reads. */
 export interface SignInCallbackParams {
+  user?: object | null;
   account?: { type?: string } | null;
   email?: { verificationRequest?: boolean };
 }
+
+/** The part of an Auth.js adapter guardAdapter wraps. */
+interface UserLookupAdapter {
+  getUserByEmail?: (email: string) => unknown;
+}
+
+/**
+ * R-03: marks the stand-in user guardAdapter returns when the Sign-in link request's own user
+ * lookup failed; callbacks.signIn refuses such a request with the AC-15 message.
+ */
+const LOOKUP_FAILED = Symbol('signin.lookupFailed');
 
 const DEFAULT_FLOOR_MS = 1000;
 const MAX_FLOOR_MS = 1200;
@@ -131,6 +144,17 @@ const SEND_TIMEOUT_MS = 10_000;
 /** Where Auth.js sends a sent request; a source-limited one gets the very same redirect. */
 const VERIFY_REQUEST_PATH =
   '/api/auth/verify-request?provider=nodemailer&type=email';
+/**
+ * AC-15 from callbacks.signIn (R-02, R-03, R-11). A thrown error would reach the direct endpoint
+ * only as AccessDenied, so the callback redirects to the same page and code a typed
+ * EmailSigninUnavailable gets; the /login action reads the code back (login-actions).
+ */
+const UNAVAILABLE_PATH = `${authRoutes.error}?${new URLSearchParams({
+  error: 'CredentialsSignin',
+  code: SIGN_IN_ERROR_CODES.unavailable,
+})}`;
+/** R-11: at most one "no platform client address" report per instance in this window. */
+const MISSING_SOURCE_REPORT_INTERVAL_MS = 10 * 60_000;
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -209,6 +233,14 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now())
     );
 
+  /**
+   * The address normalizeIdentifier just returned. Auth.js calls normalizeIdentifier only when it
+   * starts a Sign-in link request, and calls adapter.getUserByEmail with the result right after,
+   * with no await in between; guardAdapter reads and clears it synchronously on entry, so it can
+   * tell that lookup apart from every other one (OAuth, the link callback).
+   */
+  let pendingLinkLookup: string | undefined;
+
   function normalizeIdentifier(identifier: string): string {
     return withSpan((setOutcome) => {
       const email = identifier.trim().toLowerCase();
@@ -216,8 +248,62 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
         setOutcome('invalid');
         throw new InvalidEmailAddress();
       }
+      pendingLinkLookup = email;
       return email;
     });
+  }
+
+  /**
+   * R-03: with the database down, Auth.js's user lookup fails before callbacks.signIn and the
+   * Visitor would get error=Configuration. For the Sign-in link request's lookup only, a failure
+   * returns a marked stand-in user instead, which callbacks.signIn refuses with the AC-15 message.
+   * Every other lookup's failure is rethrown untouched.
+   */
+  function guardAdapter<A extends UserLookupAdapter>(adapter: A): A {
+    const getUserByEmail = adapter.getUserByEmail;
+    if (!getUserByEmail) return adapter;
+    return {
+      ...adapter,
+      async getUserByEmail(email: string) {
+        const forLinkRequest = pendingLinkLookup === email;
+        pendingLinkLookup = undefined;
+        try {
+          return await getUserByEmail.call(adapter, email);
+        } catch (error) {
+          if (!forLinkRequest) throw error;
+          return {
+            id: crypto.randomUUID(),
+            email,
+            emailVerified: null,
+            [LOOKUP_FAILED]: true,
+          };
+        }
+      },
+    };
+  }
+
+  /**
+   * The AC-15 refusal from callbacks.signIn: nothing counted, nothing sent. Reported like the send
+   * hook's, unless the caller already sent its own (rate-limited) report.
+   */
+  const refuseUnavailable = (started: number, report = true) =>
+    withSpan((setOutcome) => {
+      setOutcome('unavailable');
+      if (report) Sentry.captureException(new EmailSigninUnavailable());
+      return UNAVAILABLE_PATH;
+    }, started);
+
+  let lastMissingSourceReport = -Infinity;
+  /** R-11: rate-limited, so a stream of such requests cannot flood error tracking. */
+  function reportMissingSource() {
+    const now = Date.now();
+    if (now - lastMissingSourceReport < MISSING_SOURCE_REPORT_INTERVAL_MS)
+      return;
+    lastMissingSourceReport = now;
+    Sentry.captureMessage(
+      'auth.signin.email: request without a platform client address',
+      'warning'
+    );
   }
 
   /** Counts this request for the source; false when the source is already at its limit. */
@@ -231,27 +317,26 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
 
   /**
    * F-18: the source limit, run from callbacks.signIn before Auth.js creates a VerificationToken.
-   * A limited source is held to the floor and gets the same redirect as a sent request.
+   * A limited source is held to the floor and gets the same redirect as a sent request. When the
+   * source cannot be checked the request fails closed with the AC-15 message (spec §6, ADR-0002).
    */
   async function admitSignInRequest(headers: Headers): Promise<true | string> {
     const started = Date.now();
     const ip = clientSource(headers);
     if (!ip) {
-      // F-19: no platform address must not pool every such request into one shared bucket.
-      // The address limit still applies; the gap is reported so it is seen, never silent.
-      Sentry.captureMessage(
-        'auth.signin.email: request without a platform client address',
-        'warning'
-      );
+      // F-19 / R-11: never pool such requests into one shared bucket. On Vercel the platform
+      // always sets the address, so its absence means the source cannot be checked: fail closed.
+      // Only a local run (no hosting platform) skips the source step; the address limit applies.
+      reportMissingSource();
+      if (process.env.VERCEL) return refuseUnavailable(started, false);
       return true;
     }
     try {
       if (await admitSource(sourceLimitKey(ip))) return true;
     } catch (error) {
       if (!(error instanceof LimitStoreUnavailable)) throw error;
-      // An error thrown here reaches the Visitor only as AccessDenied. The send hook raises the
-      // typed AC-15 error instead: its address lock meets the same unavailable store.
-      return true;
+      // R-02: an unavailable source check refuses on its own, whatever the address lock would do.
+      return refuseUnavailable(started);
     }
     return withSpan(async (setOutcome) => {
       setOutcome('limited');
@@ -263,10 +348,12 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   /** Auth.js callbacks.signIn: only a Sign-in link request is subject to the source limit. */
   function signInCallback(getHeaders: () => Promise<Headers>) {
     return async ({
+      user,
       account,
       email,
     }: SignInCallbackParams): Promise<true | string> => {
       if (account?.type !== 'email' || !email?.verificationRequest) return true;
+      if (user && LOOKUP_FAILED in user) return refuseUnavailable(Date.now());
       return admitSignInRequest(await getHeaders());
     };
   }
@@ -350,5 +437,10 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     });
   }
 
-  return { normalizeIdentifier, sendVerificationRequest, signInCallback };
+  return {
+    guardAdapter,
+    normalizeIdentifier,
+    sendVerificationRequest,
+    signInCallback,
+  };
 }

@@ -37,7 +37,9 @@ function customAdapter(): Adapter {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
-  adapter: customAdapter(),
+  // R-03: a Sign-in link request whose user lookup cannot reach the database ends in the AC-15
+  // message (callbacks.signIn), not error=Configuration; every other lookup is untouched.
+  adapter: emailHooks.guardAdapter(customAdapter()),
   session: {
     strategy: 'jwt',
     maxAge: jwtConfig.expiresIn,
