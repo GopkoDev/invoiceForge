@@ -48,6 +48,9 @@ interface DialogState {
   // F-45: screens.md SCR-08 "deleting" row — every button in the dialog is disabled while the
   // confirmed delete is in flight, not just ConfirmationModal's own Confirm/Cancel footer.
   deleting: boolean;
+  // F-26: an export rate-limited from the dialog shows its D-S3 Alert in the dialog body — the
+  // page-level Alert sits behind the modal where the Freelancer can't see it.
+  rateLimitMessage: string | null;
 }
 
 function invoiceCountLine(count: number) {
@@ -132,6 +135,7 @@ export function GdprSettings() {
     summary: { status: 'counting' },
     exporting: false,
     deleting: false,
+    rateLimitMessage: null,
   });
 
   const handleExportData = async () => {
@@ -164,7 +168,7 @@ export function GdprSettings() {
   const showDialog = (next: DialogState) => {
     if (!dialogOpenRef.current) return;
     dialogStateRef.current = next;
-    const { summary, exporting, deleting } = next;
+    const { summary, exporting, deleting, rateLimitMessage } = next;
 
     confirmationModal.open({
       open: true,
@@ -194,6 +198,12 @@ export function GdprSettings() {
                   Retry
                 </Button>
               </AlertTitle>
+            </Alert>
+          )}
+          {rateLimitMessage && (
+            <Alert>
+              <AlertCircle />
+              <AlertTitle>{rateLimitMessage}</AlertTitle>
             </Alert>
           )}
           <Button
@@ -235,19 +245,26 @@ export function GdprSettings() {
   }
 
   async function handleExportFromDialog() {
-    showDialog({ ...dialogStateRef.current, exporting: true });
-    setRateLimitMessage(null);
+    showDialog({
+      ...dialogStateRef.current,
+      exporting: true,
+      rateLimitMessage: null,
+    });
     const outcome = await downloadDataExport();
-    if (typeof outcome === 'object') {
-      setRateLimitMessage(outcome.rateLimited);
-    } else if (outcome === 'unauthorized') {
+    const rateLimitMessage =
+      typeof outcome === 'object' ? outcome.rateLimited : null;
+    if (outcome === 'unauthorized') {
       // AC-21: a stale session must go to sign-in, not a generic "couldn't be exported" toast.
       goToSignIn();
       return;
     } else if (outcome === 'failed') {
       toast.error(EXPORT_FAILED_MESSAGE);
     }
-    showDialog({ ...dialogStateRef.current, exporting: false });
+    showDialog({
+      ...dialogStateRef.current,
+      exporting: false,
+      rateLimitMessage,
+    });
   }
 
   async function handleDeleteAccount() {
@@ -286,11 +303,13 @@ export function GdprSettings() {
 
   const openDeleteDialog = () => {
     dialogOpenRef.current = true;
-    // N-12: a previous attempt's `deleting`/`exporting` flags must not carry into a reopened dialog.
+    // N-12: a previous attempt's `deleting`/`exporting` flags (and its rate-limit Alert) must
+    // not carry into a reopened dialog.
     dialogStateRef.current = {
       summary: { status: 'counting' },
       exporting: false,
       deleting: false,
+      rateLimitMessage: null,
     };
     void loadSummary();
   };
