@@ -25,5 +25,15 @@
 | T18 | Replace the open Sentry rewrite with an app-owned tunnel that forwards only the configured DSN | ports | Dmytro Hopko | S | T1 | done |
 | T19 | Serve the enforced content-security policy and transport headers from next.config.ts | wiring | Dmytro Hopko | S | T18 | done |
 | T20 | Gate the release on a zero-violation CSP e2e run, a genuine-session page sweep and a clean advisory audit | tests | Dmytro Hopko | M | T2, T5, T7, T12, T14, T15, T17, T19 | done |
+| T21 | Keep the session when the session check fails: clear cookies only on a confirmed missing account, and add the AC-04/AC-06 e2e cases | ports | Dmytro Hopko | M | T4, T20 | todo |
+| T22 | Scan every 'use server' module for the session guard and cover all anonymous-mutation request shapes in e2e | tests | Dmytro Hopko | S | T5 | todo |
+| T23 | Never load a legacy non-web profile image in the navigation avatar | ui | Dmytro Hopko | S | T17 | todo |
+| T24 | Clear the remaining production advisory, enforce the audit in CI and harden the required-settings build check | wiring | Dmytro Hopko | M | T10, T20 | todo |
+| T25 | Run the CSP gate over the full page sweep and on preview, and pass Sentry rate limits through the tunnel | tests | Dmytro Hopko | M | T18, T20 | todo |
+| T26 | Make the sign-in limiter resilient: send outside the lock, admit sources before token creation, fix shared buckets and purge contention | app | Dmytro Hopko | M | T8, T11, T15 | todo |
+| T27 | Prove Google sign-in ignores email limits end to end, tag SMTP failure causes and test the TLS host-name check | tests | Dmytro Hopko | S | T11 | todo |
+| T28 | Test the five-year period rule through the dashboard loader | tests | Dmytro Hopko | S | T6 | todo |
+| T29 | Show the export-limit alert inside the delete-account dialog | ui | Dmytro Hopko | S | T14 | todo |
+| T30 | Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings | docs | Dmytro Hopko | S | T11 | todo |
 
-**Total:** 20 tasks, ~12 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
+**Total:** 30 tasks (T21–T30 from review-2026-10-03), ~12 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
