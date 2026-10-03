@@ -526,6 +526,44 @@ test.describe('AC-04 / AC-06 — a failing sign-in check never ends a session', 
     await page.close();
   });
 
+  // T31 (re-review R-01): the requests above are made one by one; a real browser loading a page
+  // also runs whatever the page's scripts fetch once they hydrate (a client session poller would
+  // call /api/auth/session, whose own failed check clears the cookie). So: the genuine cookie, a
+  // real page load on the failing server, every request settled, and the cookie is still there.
+  test('AC-04: hydrated sign-in and public pages on the failing server leave the genuine cookie untouched', async () => {
+    test.setTimeout(120_000);
+    const before = await sessionCookieValue();
+    expect(before, 'the real sign-in flow left a session cookie').toBeTruthy();
+
+    const page = await context.newPage();
+    const expiries: string[] = [];
+    page.on('response', async (response) => {
+      for (const header of sessionCookieExpiries(
+        await response.headersArray()
+      )) {
+        expiries.push(`${response.url()}: ${header.value}`);
+      }
+    });
+    for (const path of [authRoutes.signIn, '/', '/privacy']) {
+      const response = await page.goto(`${BROKEN_CHECK_URL}${path}`);
+      expect(response?.status(), path).toBe(200);
+      await page.waitForLoadState('networkidle');
+      expect(new URL(page.url()).pathname, path).toBe(path);
+    }
+    expect(expiries, 'no response may expire the session cookie').toEqual([]);
+    expect(
+      await sessionCookieValue(),
+      'a failed check in the browser must not touch the session cookie'
+    ).toBe(before);
+
+    const recovered = await page.goto(
+      `${APP_E2E_URL}${protectedRoutes.dashboard}`
+    );
+    expect(new URL(page.url()).pathname).toBe(protectedRoutes.dashboard);
+    expect(recovered?.status()).toBeLessThan(400);
+    await page.close();
+  });
+
   test('AC-06: the sign-in and landing pages render in one response while the check fails, and sign-in works once it recovers', async ({
     browser,
   }) => {
