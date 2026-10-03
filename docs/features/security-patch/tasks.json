@@ -647,6 +647,165 @@
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03.md",
       "source": "review-2026-10-03"
+    },
+    {
+      "id": "T31",
+      "title": "Stop Auth.js's session endpoint from ending the session on a failed check, and prove it with a real-cookie e2e",
+      "layer": "ports",
+      "deps": [
+        "T21"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Re-review R-01 fixed: SessionProvider removed from app/layout.tsx (nothing uses useSession) or /api/auth/session responses filtered by withoutSessionCookieExpiry for the session action only; e2e: with the genuine cookie, load /login and a public page on the broken-check server, wait for network idle and assert the cookie is unchanged, then recover on the healthy server and reach /dashboard.",
+      "files_hint": [
+        "app/layout.tsx",
+        "components/session-provider.tsx",
+        "app/api/auth/[...nextauth]/route.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T32",
+      "title": "Render a designed check-unavailable response from clear-session and amend AC-04, sad §6, ux-flows and screens",
+      "layer": "ui",
+      "deps": [
+        "T21"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Re-review R-04 fixed: a Node-side failed check returns a minimal HTML 503 consistent with LoadError (no-store, Retry-After, a Try again link back to the requested page), never Set-Cookie expiry; screens.md gains a check-unavailable state, ux-flows A3/A4 and the sad §6 US-02 flow show the 503 branch, AC-04 wording reflects it; tests assert content type, link and no cookie expiry.",
+      "files_hint": [
+        "app/api/auth/clear-session/route.ts",
+        "docs/features/security-patch/spec.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ux-flows.md",
+        "docs/features/security-patch/screens.md",
+        "tests/unit/api/clear-session.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T33",
+      "title": "Fail the sign-in-email path closed when limits or the database cannot be checked, and tighten the Google test",
+      "layer": "app",
+      "deps": [
+        "T26",
+        "T27"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "dod": "Re-review R-02, R-03, R-11, R-12 fixed: LimitStoreUnavailable in source admission refuses the request with the AC-15 message (no link sent); AdapterError and that cause map to EMAIL_SIGNIN_UNAVAILABLE in login-actions and the error page; a missing platform IP fails closed on Vercel and skips only locally (or the exception is recorded in ADR-0002 and spec §6.1), with the Sentry message rate-limited; full-flow tests through Auth(): source transaction alone fails -> AC-15 message, adapter DB unreachable -> AC-15 message; Google at-limit test sends x-real-ip and asserts no SIGNIN_SOURCE row and no captureMessage.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/actions/login-actions.ts",
+        "app/(auth)/error/page.tsx",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/integration/actions/login-actions.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T34",
+      "title": "Tag real TLS failures, clamp the response floor from below with equal start points, and stop abandoned pooled sends",
+      "layer": "app",
+      "deps": [
+        "T26",
+        "T27"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-16"
+      ],
+      "dod": "Re-review R-08, R-09, R-10 fixed: a fixed-value tls tag (e.g. altname | untrusted | starttls_missing) derived from nodemailer/Node error signatures without copying messages, tested through a real nodemailer transport against the TLS fixtures; SIGNIN_RESPONSE_FLOOR_MS clamped to >=300 ms with a test; source-limited and sent floors measured from the same start, with a timing test through Auth(); pool idle timeout raised or the sad.md:311 claim dropped, and maxRequeues 0 / bounded queue so a send abandoned by withTimeout is never delivered later.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/get-email-server-config.ts",
+        "docs/features/security-patch/sad.md",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/unit/lib/get-email-server-config.test.ts",
+        "tests/unit/lib/auth/response-floor.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T35",
+      "title": "Send every anonymous-action shape to public pages in e2e and close the guard-scan gaps",
+      "layer": "tests",
+      "deps": [
+        "T22"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Re-review R-05, R-14 fixed: the no-marker, form-encoded and Next-Action shapes POST to / and /privacy and assert 401 + UNAUTHORIZED_BODY; the /login case picks the action by exportedName and asserts a seeded other-account customer name never appears; the scan walks the repo root (excluding node_modules, .next, .git, docs, tests), reads .js/.jsx/.mjs too, and requires the guard identifier to be imported from its canonical module.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/unit/action-session-guard-scan.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T36",
+      "title": "Test the reverse env.example rule and pin the Node major across engines, CI and the SAD",
+      "layer": "wiring",
+      "deps": [
+        "T24"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Re-review R-06, R-13 fixed: a test parses env.example and asserts each name is in REQUIRED_SETTINGS, OPTIONAL_SETTINGS, the scanned process.env reads (including process.env['X']) or an explicit framework/build allowlist; adding GOOGLE_CLIENT_ID= fails it; engines.node is '>=22.18 <23', a .nvmrc exists and CI uses node-version-file; sad.md:36 agrees.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts",
+        "package.json",
+        ".nvmrc",
+        ".github/workflows/test.yml",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T37",
+      "title": "Align contracts and data-model with the code, tighten the loader and preview Sentry tests, refresh ship-notes",
+      "layer": "docs",
+      "deps": [
+        "T25",
+        "T26",
+        "T28"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-11",
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Re-review R-07, R-15, R-16, R-17 fixed: openapi /monitoring lists 413 and 429 with Retry-After and X-Sentry-Rate-Limits, sad flow 8 notes them; openapi, data-model and server-actions describe SENT as reserved before send and released on failure, the delete-by-id release and the expired VerificationToken purge; the loader test drives the page's period glue (or asserts getDashboardSenderAccounts too); the preview Sentry check matches the 'T20 synthetic client error' envelope; ship-notes shows the current e2e count and marks preview items 1-5 Blocking.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ship-notes.md",
+        "tests/integration/services/dashboard/period-cap-loader.test.ts",
+        "tests/e2e/csp-gate.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
     }
   ]
 }
