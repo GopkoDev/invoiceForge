@@ -3,8 +3,9 @@
 // preview deploy when BASE_URL is set. The session comes from the real Sign-in link flow
 // (support/genuine-session.ts). Google sign-in needs a real Google account and is covered by the
 // user's preview run (ship-notes.md); the Sign-in link, chart, invoice PDF preview + download +
-// print, a client-side error, settings (avatar), logo / customer-image previews, the data export
-// and the legal pages are covered here.
+// print, a client-side error, settings (avatar), logo / customer-image previews, the data export,
+// the legal pages are covered here (the landing page redirects a signed-in user, so the data-free describe checks it signed out). Every other private page is covered by the
+// genuine-session sweep in route-sweep.spec.ts, which attaches the same collector.
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import { APP_E2E_URL, BASE_URL_OVERRIDE } from './support/app-server';
@@ -15,11 +16,79 @@ import {
 import { signInWithSignInLink } from './support/genuine-session';
 import { seedWorkspace, type SeededWorkspace } from './support/seed';
 import { uniqueTestEmail } from '../support/factories/ids';
-import { protectedRoutes, legalRoutes } from '../../config/routes.config';
+import {
+  authRoutes,
+  legalRoutes,
+  protectedRoutes,
+  publicRoutes,
+} from '../../config/routes.config';
 
 const ON_PREVIEW = Boolean(BASE_URL_OVERRIDE);
 // A preview has the real Sentry DSN, so the tunnel must answer 200; the local build has none.
-const SENTRY_CONFIGURED = process.env.E2E_EXPECT_SENTRY === '1';
+const SENTRY_CONFIGURED = ON_PREVIEW || process.env.E2E_EXPECT_SENTRY === '1';
+
+// Throws a client-side error on the open page and checks what the tunnel answers.
+async function throwClientErrorThroughTunnel(page: Page) {
+  const throwError = () =>
+    page.evaluate(() =>
+      setTimeout(() => {
+        throw new Error('T20 synthetic client error');
+      }, 0)
+    );
+  if (SENTRY_CONFIGURED) {
+    const tunnel = page.waitForResponse(
+      (r) => r.url().endsWith('/monitoring') && r.request().method() === 'POST'
+    );
+    await throwError();
+    expect((await tunnel).status()).toBe(200);
+  } else {
+    // No DSN on the local build: the tunnel refuses (403) and nothing is forwarded.
+    await throwError();
+    const refused = await page.evaluate(
+      async () =>
+        (await fetch('/monitoring', { method: 'POST', body: '{}' })).status
+    );
+    expect(refused).toBe(403);
+  }
+}
+
+// The flows that need no seeded data, so they also run against a preview deploy (BASE_URL), where
+// the Given of AC-20 holds. A preview additionally has the real DSN, so the tunnel must answer 200.
+test.describe('AC-20 CSP release gate — data-free public flows (also on preview)', () => {
+  let context: BrowserContext;
+  let page: Page;
+  let csp: CspCollector;
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    if (!ON_PREVIEW) await skipWithoutContainerRuntime(testInfo);
+    context = await browser.newContext();
+    csp = await collectCspViolations(context);
+    page = await context.newPage();
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  for (const path of [
+    authRoutes.signIn,
+    publicRoutes.landing,
+    ...Object.values(legalRoutes),
+  ]) {
+    test(`${path} opens with zero violations`, async () => {
+      await page.goto(`${APP_E2E_URL}${path}`);
+      expect(new URL(page.url()).pathname).toBe(path);
+      await page.waitForLoadState('networkidle');
+      csp.expectNone(`public page ${path}`);
+    });
+  }
+
+  test('a client-side error is tunnelled (/monitoring answers 200 on preview) without a violation', async () => {
+    await page.goto(`${APP_E2E_URL}${authRoutes.signIn}`);
+    await throwClientErrorThroughTunnel(page);
+    csp.expectNone('client-side error on the sign-in page');
+  });
+});
 
 test.describe.configure({ mode: 'default', timeout: 150_000 });
 
@@ -35,7 +104,7 @@ test.describe('AC-20 CSP release gate — core flows complete with zero policy v
     await skipWithoutContainerRuntime(testInfo);
     test.skip(
       ON_PREVIEW,
-      'seeded data needs the local throwaway database; the user runs the preview checklist'
+      'seeded data needs the local throwaway database; the public flows above run on preview'
     );
     workspace = await seedWorkspace(email);
     context = await browser.newContext();
@@ -104,30 +173,7 @@ test.describe('AC-20 CSP release gate — core flows complete with zero policy v
 
   test('a client-side error is tunnelled without a violation', async () => {
     await open(protectedRoutes.dashboard);
-    if (SENTRY_CONFIGURED) {
-      const tunnel = page.waitForResponse(
-        (r) =>
-          r.url().endsWith('/monitoring') && r.request().method() === 'POST'
-      );
-      await page.evaluate(() =>
-        setTimeout(() => {
-          throw new Error('T20 synthetic client error');
-        }, 0)
-      );
-      expect((await tunnel).status()).toBe(200);
-    } else {
-      // No DSN on the local build: the tunnel refuses (403) and nothing is forwarded.
-      await page.evaluate(() =>
-        setTimeout(() => {
-          throw new Error('T20 synthetic client error');
-        }, 0)
-      );
-      const refused = await page.evaluate(
-        async () =>
-          (await fetch('/monitoring', { method: 'POST', body: '{}' })).status
-      );
-      expect(refused).toBe(403);
-    }
+    await throwClientErrorThroughTunnel(page);
     csp.expectNone('client-side error');
   });
 
@@ -170,7 +216,7 @@ test.describe('AC-20 CSP release gate — core flows complete with zero policy v
     for (const path of Object.values(legalRoutes)) {
       await open(path);
       await page.waitForLoadState('networkidle');
-      csp.expectNone(`legal page ${path}`);
+      csp.expectNone(`public page ${path}`);
     }
   });
 });
