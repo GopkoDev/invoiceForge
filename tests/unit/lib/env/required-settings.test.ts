@@ -49,6 +49,7 @@ function envReadsIn(source: string): string[] {
   // `{ X, Y: alias, Z = 'default' } = process.env`: the key before `:` or `=` is the name read.
   // T48 / F-02: a type annotation may sit between `}` and `=`, and comments inside the braces
   // are dropped before splitting so they don't glue onto the next name.
+  // T49 / G-01: string literals are blanked first, so a `//` in a URL default is not a comment.
   const destructured = [
     ...source.matchAll(
       new RegExp(
@@ -58,6 +59,7 @@ function envReadsIn(source: string): string[] {
     ),
   ].flatMap((m) =>
     m[1]
+      .replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''")
       .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
       .split(',')
       .map((part) => part.split(/[:=]/)[0].trim())
@@ -233,6 +235,16 @@ describe('required settings list (ADR-0008)', () => {
           `const {\n  COMMENTED_ONE, // why\n  COMMENTED_TWO, /* block, note */\n  COMMENTED_THREE: alias,\n} = process.env;`
       ).sort()
     ).toEqual(['COMMENTED_ONE', 'COMMENTED_THREE', 'COMMENTED_TWO', 'TYPED_ONE']);
+  });
+
+  // T49 / fifth re-review G-01: a `//` inside a string default is not a comment.
+  it('the scan keeps the destructured name after a URL default', () => {
+    expect(
+      envReadsIn(
+        `const { BASE_URL = 'https://x.example', AFTER_URL } = process.env;\n` +
+          `const {\n  QUOTED_URL = "http://y.example/*",\n  AFTER_QUOTED,\n  TICK_URL = \`//z\`,\n  AFTER_TICK, // note\n} = process.env;`
+      ).sort()
+    ).toEqual(['AFTER_QUOTED', 'AFTER_TICK', 'AFTER_URL', 'BASE_URL', 'QUOTED_URL', 'TICK_URL']);
   });
 
   it('the env.example parser picks up a bare or commented-out stale entry', () => {

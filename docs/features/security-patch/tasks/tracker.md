@@ -53,7 +53,7 @@
 | T46 | Refresh the maxRequeues comment and widen the forward env scan to optional-chain and destructuring reads | tests | Dmytro Hopko | S | T39, T41 | done |
 | T47 | Carry the AC-11 timeout counting rule into sad §8 and the test-plan | docs | Dmytro Hopko | S | T43 | done |
 | T48 | Catch typed and commented destructuring reads in the forward env scan | tests | Dmytro Hopko | S | T46 | done |
-| T49 | Keep destructured names after a // inside a string default in the forward env scan | tests | Dmytro Hopko | S | T48 | todo |
+| T49 | Keep destructured names after a // inside a string default in the forward env scan | tests | Dmytro Hopko | S | T48 | done |
 
 **Note on T40:** its DoD asked for 401 + UNAUTHORIZED_BODY on the forwarded Next-Action shape. The e2e asserts 200 with `{}` instead, because Next drops a non-RSC forwarded reply (`action-handler.js:205-226`). The action guard is covered by `tests/unit/action-session-guard-scan.test.ts` (T45, rereview-3 T-02).
 
