@@ -243,6 +243,97 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     }
   });
 
+  // AC-18: the other request shapes. A real, non-sign-in action id comes from the build's own
+  // server-reference manifest, so the framework would really dispatch it if the request got that far.
+  function readNonSignInActionId(): string {
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          REPO_ROOT,
+          '.next',
+          'server',
+          'server-reference-manifest.json'
+        ),
+        'utf8'
+      )
+    ) as {
+      node: Record<string, { filename: string; exportedName: string }>;
+    };
+    const entry = Object.entries(manifest.node).find(
+      ([, action]) => action.filename === 'lib/actions/customer-actions.ts'
+    );
+    expect(entry, 'a customer action in the manifest').toBeTruthy();
+    return entry![0];
+  }
+
+  test('a header-less JSON POST to a private page is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const response = await context.post(
+        `${APP_E2E_URL}${protectedRoutes.dashboard}`,
+        { data: {} }
+      );
+
+      expect(response.status()).toBe(401);
+      expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  test('a form-encoded POST naming an action is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId();
+      for (const target of [
+        protectedRoutes.dashboard,
+        protectedRoutes.customers,
+      ]) {
+        const response = await context.post(`${APP_E2E_URL}${target}`, {
+          form: { [`$ACTION_ID_${actionId}`]: '' },
+        });
+
+        expect(response.status(), target).toBe(401);
+        expect(await response.json(), target).toEqual(UNAUTHORIZED_BODY);
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  test('POST /login naming a non-sign-in action is refused and the action does not run', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId();
+      const header = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        headers: { 'Next-Action': actionId },
+        data: '[]',
+      });
+      // The action never runs: the page it was posted to does not own it (an inert `{}`), or it
+      // refuses itself through its own session guard. Either way no data comes back.
+      const inertOrRefused = (body: string) =>
+        body === '{}' || body.includes('UNAUTHORIZED');
+      expect(header.status()).toBeLessThan(500);
+      const headerBody = await header.text();
+      expect(inertOrRefused(headerBody), headerBody).toBe(true);
+      expect(headerBody).not.toContain('"success":true');
+
+      const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        form: { [`$ACTION_ID_${actionId}`]: '' },
+      });
+      expect(form.status()).toBeLessThan(500);
+      expect(await form.text()).not.toContain('"success":true');
+    } finally {
+      await context.dispose();
+    }
+  });
+
   test('an unseen path (added in the future, not on the allowlist) still denies by default', async ({
     playwright,
   }) => {

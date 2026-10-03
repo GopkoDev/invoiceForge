@@ -67,5 +67,7 @@ export function sourceLimitKey(ip: string): string {
 
 /** The client address as reported by the hosting platform, never a client-settable header. */
 export function clientSource(input: Request | Headers): string | undefined {
-  return ipAddress(input);
+  // next/headers' headers() object keeps the raw Node header map in its own `headers` field,
+  // which ipAddress() would mistake for a Request's; so a Headers always goes in wrapped.
+  return ipAddress(input instanceof Headers ? { headers: input } : input);
 }
