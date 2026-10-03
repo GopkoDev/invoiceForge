@@ -47,5 +47,9 @@
 | T40 | Keep the session cookie on Auth.js's session endpoint and make the /login anonymous-action e2e assert a real outcome | ports | Dmytro Hopko | S | T31, T35 | done |
 | T41 | Type injected settings records against the known setting names and report the AdapterError sign-in path | app | Dmytro Hopko | S | T33, T36 | done |
 | T42 | Bring test-plan, sad, ship-notes and env.example in line with the code | docs | Dmytro Hopko | S | T32, T34, T37 | done |
+| T43 | Record the timeout counting rule in AC-11, ADR-0002 and sad §11 | docs | Dmytro Hopko | S | T39 | todo |
+| T44 | Strip the session-cookie expiry from every Auth.js GET, not only the exact /api/auth/session path | ports | Dmytro Hopko | S | T40 | todo |
+| T45 | Correct the timeout and AdapterError contract text, add the session-route test-plan row, note the T40 assert change and re-run e2e | docs | Dmytro Hopko | S | T39, T40, T41, T44 | todo |
+| T46 | Refresh the maxRequeues comment and widen the forward env scan to optional-chain and destructuring reads | tests | Dmytro Hopko | S | T39, T41 | todo |
 
-**Total:** 42 tasks (T21–T30 from review-2026-10-03, T31–T37 from review-2026-10-03-rereview, T38–T42 from review-2026-10-03-rereview-2), ~17 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
+**Total:** 46 tasks (T21–T30 from review-2026-10-03, T31–T37 from review-2026-10-03-rereview, T38–T42 from review-2026-10-03-rereview-2, T43–T46 from review-2026-10-03-rereview-3), ~18 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.

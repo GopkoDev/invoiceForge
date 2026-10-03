@@ -921,6 +921,91 @@
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
       "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T43",
+      "title": "Record the timeout counting rule in AC-11, ADR-0002 and sad §11",
+      "layer": "docs",
+      "deps": [
+        "T39"
+      ],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Third re-review N-03 fixed with the owner's sign-off: AC-11's parenthesis says a send whose outcome is unknown because it hit the time bound counts towards the address limit; ADR-0002 Consequences records the same rule and the trade-off (late delivery cannot slip past the cap vs. a slow mail server can lock an address for up to an hour); sad §11 gains a risk row for that lockout with its mitigation/monitoring signal.",
+      "files_hint": [
+        "docs/features/security-patch/spec.md",
+        "docs/features/security-patch/adr/0002-count-limited-events-in-a-postgres-event-log-under-a-per-key-advisory-lock.md",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T44",
+      "title": "Strip the session-cookie expiry from every Auth.js GET, not only the exact /api/auth/session path",
+      "layer": "ports",
+      "deps": [
+        "T40"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Third re-review T-01 fixed: app/api/auth/[...nextauth]/route.ts passes every GET response through withoutSessionCookieExpiry (sign-out still clears the cookie on POST); tests/unit/api/auth-session-route.test.ts adds cases for /api/auth//session and /api/auth/session/ with an undecodable token / throwing session callback that keep the cookie, and a case proving POST sign-out still clears it.",
+      "files_hint": [
+        "app/api/auth/[...nextauth]/route.ts",
+        "tests/unit/api/auth-session-route.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T45",
+      "title": "Correct the timeout and AdapterError contract text, add the session-route test-plan row, note the T40 assert change and re-run e2e",
+      "layer": "docs",
+      "deps": [
+        "T39",
+        "T40",
+        "T41",
+        "T44"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-11",
+        "AC-15",
+        "AC-16",
+        "AC-18"
+      ],
+      "dod": "Third re-review N-01, N-02, N-05, T-02 fixed: openapi.yaml splits the send-failure bullet (TLS/auth refusal releases the reservation; a timeout keeps it and still returns code=send_failed); server-actions.md row 57 says the same; openapi's direct-endpoint AdapterError redirect is /error?error=Configuration; test-plan has an AC-04 unit row for the session-route strip and the no-client-session scan; tracker/tasks.json T40 carries a note that the forwarded Next-Action assert is 200 + {} because Next drops non-RSC forwarded replies (action-handler.js:205-226); pnpm test:e2e re-run against a fresh build and ship-notes' gate row updated with the result.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/test-plan.md",
+        "docs/features/security-patch/tasks/tracker.md",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T46",
+      "title": "Refresh the maxRequeues comment and widen the forward env scan to optional-chain and destructuring reads",
+      "layer": "tests",
+      "deps": [
+        "T39",
+        "T41"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-26"
+      ],
+      "dod": "Third re-review N-04, N-06 fixed: lib/get-email-server-config.ts states the current reason for maxRequeues: 0 (no reservation is released on a timeout any more); the forward scan in required-settings.test.ts also catches process.env?.X, env?.X and const { X } = process.env, with fixture cases for each shape.",
+      "files_hint": [
+        "lib/get-email-server-config.ts",
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
     }
   ]
 }
