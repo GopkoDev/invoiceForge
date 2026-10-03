@@ -1,4 +1,5 @@
-// T15 (ADR-0007, sad.md §6 flow 10): daily sweep of limit records older than 24 h, called by
+// T15 (ADR-0007, sad.md §6 flow 10): daily sweep of limit records older than 24 h (and, T26,
+// expired VerificationToken rows), called by
 // Vercel Cron with `Authorization: Bearer $CRON_SECRET`. A GET, safe under ADR-0003's proxy rules;
 // the path is on the public allowlist because the scheduler carries no session. Errors never
 // echo internals; runs are reported to Sentry Crons.
@@ -33,7 +34,10 @@ export async function GET(request: Request): Promise<Response> {
     status: 'in_progress',
   });
   try {
-    const deleted = await createLimitStore().purgeOlderThan24h();
+    const store = createLimitStore();
+    const deleted = await store.purgeOlderThan24h();
+    // F-18: expired Sign-in link tokens go in the same run; the body still counts limit rows.
+    await store.purgeExpiredVerificationTokens();
     Sentry.captureCheckIn({
       checkInId,
       monitorSlug: MONITOR_SLUG,

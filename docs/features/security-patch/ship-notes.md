@@ -87,5 +87,11 @@ Policy changes made during implement, approved by the user and recorded in `sad.
 6. Before deploying, set every required setting in Vercel (the build fails without them): `DATABASE_URL`,
    `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `EMAIL_SERVER_HOST`, `EMAIL_SERVER_PORT`,
    `EMAIL_SERVER_USER`, `EMAIL_SERVER_PASSWORD`, `NEXT_PUBLIC_SENTRY_DSN`, `CRON_SECRET`, `LIMIT_KEY_SECRET`.
-7. Apply the `LimitEvent` migration to production with `prisma migrate deploy` against the production URL.
-8. Only then release to production.
+7. Measure the sign-in response floor on the preview (sad.md §6, §10 QG-2): send at least 50 Sign-in
+   link requests to fresh addresses, read the p90 of the `auth.signin.email` spans with outcome `sent`,
+   and set `SIGNIN_RESPONSE_FLOOR_MS` to it in Vercel (values above 1200 are clamped to 1200; unset means
+   1000). Then send 50 more to fresh addresses and 50 to addresses already at their limit, and compare the
+   `auth.signin.email` span medians by outcome in Sentry: `sent` and `limited` must differ by ≤ 150 ms.
+   Repeat this comparison over the first 7 days after release.
+8. Apply the `LimitEvent` migration to production with `prisma migrate deploy` against the production URL.
+9. Only then release to production.

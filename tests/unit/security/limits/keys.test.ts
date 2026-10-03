@@ -85,5 +85,18 @@ describe('limit keys (T8)', () => {
         sourceLimitKey('203.0.113.8')
       );
     });
+    // T26 / review F-19: an IPv4-mapped IPv6 address is one IPv4 client, not a shared /64.
+    it('keys an IPv4-mapped IPv6 address (::ffff:a.b.c.d) as its IPv4 address', () => {
+      expect(sourceLimitKey('::ffff:203.0.113.7')).toBe(hmac('203.0.113.7'));
+      expect(sourceLimitKey('::FFFF:203.0.113.7')).toBe(hmac('203.0.113.7'));
+      expect(sourceLimitKey('0:0:0:0:0:ffff:cb00:7107')).toBe(
+        hmac('203.0.113.7')
+      );
+    });
+    it('gives two different IPv4-mapped addresses different keys', () => {
+      expect(sourceLimitKey('::ffff:203.0.113.7')).not.toBe(
+        sourceLimitKey('::ffff:198.51.100.9')
+      );
+    });
   });
 });

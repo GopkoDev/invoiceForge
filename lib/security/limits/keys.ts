@@ -29,8 +29,8 @@ export function addressLimitKey(email: string): string {
   return digest(foldAddress(email));
 }
 
-/** First four hextets of an IPv6 address (its /64 network), fully expanded. */
-function ipv6Prefix64(ip: string): string {
+/** All eight hextets of an IPv6 address, fully expanded (a dotted IPv4 tail folded in). */
+function expandIpv6(ip: string): string[] {
   let addr = ip.split('%')[0]!.toLowerCase();
   const v4 = addr.match(/^(.*:)(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (v4) {
@@ -46,17 +46,26 @@ function ipv6Prefix64(ip: string): string {
     right === undefined
       ? []
       : Array<string>(Math.max(0, 8 - l.length - r.length)).fill('0');
-  return [...l, ...fill, ...r]
-    .slice(0, 4)
-    .map((h) => h.padStart(4, '0'))
-    .join(':');
+  return [...l, ...fill, ...r].map((h) => h.padStart(4, '0'));
 }
 
+/** The IPv4 address behind an IPv4-mapped IPv6 address (::ffff:a.b.c.d), else undefined. */
+function mappedIpv4(hextets: string[]): string | undefined {
+  if (hextets.slice(0, 5).some((h) => h !== '0000') || hextets[5] !== 'ffff')
+    return undefined;
+  const [hi = 0, lo = 0] = hextets.slice(6).map((h) => parseInt(h, 16));
+  return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join('.');
+}
+
+// F-19: a mapped address is one IPv4 client. Keying it by its /64 would pool every IPv4 client
+// of a dual-stack listener into one shared source.
 export function sourceLimitKey(ip: string): string {
-  return digest(isIPv6(ip) ? `${ipv6Prefix64(ip)}::/64` : ip);
+  if (!isIPv6(ip)) return digest(ip);
+  const hextets = expandIpv6(ip);
+  return digest(mappedIpv4(hextets) ?? `${hextets.slice(0, 4).join(':')}::/64`);
 }
 
 /** The client address as reported by the hosting platform, never a client-settable header. */
-export function clientSource(request: Request): string | undefined {
-  return ipAddress(request);
+export function clientSource(input: Request | Headers): string | undefined {
+  return ipAddress(input);
 }

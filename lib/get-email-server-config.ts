@@ -7,6 +7,7 @@ export interface EmailServerConfig {
   requireTLS: boolean;
   tls: { rejectUnauthorized: true; servername: string };
   auth: { user: string; pass: string };
+  pool: true;
 }
 
 // Mail only ever leaves over verified TLS (AC-16): implicit TLS on 465, mandatory STARTTLS
@@ -24,5 +25,7 @@ export const getEmailServerConfig = (): EmailServerConfig => {
     requireTLS: port !== 465,
     tls: { rejectUnauthorized: true, servername: host },
     auth: { user, pass },
+    // F-21: reuse the TLS connection across sends, so a send rarely outlasts the response floor.
+    pool: true,
   };
 };

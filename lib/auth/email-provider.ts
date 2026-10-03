@@ -1,5 +1,7 @@
 // Auth.js email provider hooks (ADR-0001; sad.md §6 flow 1): the one enforcement point for the
 // address rule, the sign-in-email limits, the response floor and the TLS-only send.
+// The source limit runs in callbacks.signIn (signInCallback), before Auth.js writes a
+// VerificationToken; the address limit and the send run in sendVerificationRequest.
 // Never logs or reports a raw address or network address.
 import * as Sentry from '@sentry/nextjs';
 import { CredentialsSignin } from 'next-auth';
@@ -68,7 +70,7 @@ export interface MailTransport {
 export interface EmailProviderOptions {
   prisma?: PrismaClient;
   transport?: MailTransport;
-  /** Response floor F in ms (default 1000, capped at 1200). */
+  /** Response floor F in ms (default: SIGNIN_RESPONSE_FLOOR_MS, else 1000; capped at 1200). */
   floorMs?: number;
   /** Upper bound of the random jitter added to the floor, in ms. */
   jitterMs?: number;
@@ -81,14 +83,35 @@ export interface SendVerificationParams {
   request: Request;
 }
 
+/** The part of Auth.js's callbacks.signIn params this callback reads. */
+export interface SignInCallbackParams {
+  account?: { type?: string } | null;
+  email?: { verificationRequest?: boolean };
+}
+
 const DEFAULT_FLOOR_MS = 1000;
 const MAX_FLOOR_MS = 1200;
 const DEFAULT_JITTER_MS = 50;
-/** Hard bound on one SMTP send; the address lock's transaction outlives it. */
+/** Hard bound on one SMTP send. */
 const SEND_TIMEOUT_MS = 10_000;
-const ADDRESS_LOCK_TIMEOUT_MS = 30_000;
+/** Where Auth.js sends a sent request; a source-limited one gets the very same redirect. */
+const VERIFY_REQUEST_PATH =
+  '/api/auth/verify-request?provider=nodemailer&type=email';
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * F-21: the floor F from the optional SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time
+ * measured on preview), clamped to at most 1200 ms; an unset or unusable value gives 1000 ms.
+ */
+export function responseFloorMs(
+  env: Record<string, string | undefined> = process.env
+): number {
+  const raw = env.SIGNIN_RESPONSE_FLOOR_MS;
+  const value = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(value) || value < 0) return DEFAULT_FLOOR_MS;
+  return Math.min(value, MAX_FLOOR_MS);
+}
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -116,19 +139,33 @@ async function defaultTransport(): Promise<MailTransport> {
 
 type Outcome = 'sent' | 'limited' | 'invalid' | 'unavailable' | 'failed';
 
-function withSpan<T>(run: (setOutcome: (o: Outcome) => void) => T): T {
-  return Sentry.startSpan({ name: 'auth.signin.email', op: 'auth' }, (span) =>
-    run((outcome) => span.setAttribute('outcome', outcome))
+function withSpan<T>(
+  run: (setOutcome: (o: Outcome) => void) => T,
+  startTime?: number
+): T {
+  return Sentry.startSpan(
+    {
+      name: 'auth.signin.email',
+      op: 'auth',
+      ...(startTime === undefined ? {} : { startTime: new Date(startTime) }),
+    },
+    (span) => run((outcome) => span.setAttribute('outcome', outcome))
   );
 }
 
 export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
-  const floorMs = Math.min(options.floorMs ?? DEFAULT_FLOOR_MS, MAX_FLOOR_MS);
+  const floorMs = Math.min(options.floorMs ?? responseFloorMs(), MAX_FLOOR_MS);
   const jitterMs = options.jitterMs ?? DEFAULT_JITTER_MS;
   const storeOverrides = options.prisma ? { prisma: options.prisma } : {};
   const store = createLimitStore(storeOverrides);
   const alert = createLockoutAlert(storeOverrides);
   let transport = options.transport;
+
+  /** Holds a response until F (+ jitter) after `started`; a slower path is not held further. */
+  const holdToFloor = (started: number) =>
+    sleep(
+      Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now())
+    );
 
   function normalizeIdentifier(identifier: string): string {
     return withSpan((setOutcome) => {
@@ -151,42 +188,85 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     });
 
   /**
-   * Counts, sends and records SENT under one SIGNIN_ADDRESS lock (ADR-0002 §Decision 1), so
-   * concurrent requests for one address queue instead of sending past the limit. The send is
-   * bounded by SEND_TIMEOUT_MS, well inside the lock's transaction timeout.
+   * F-18: the source limit, run from callbacks.signIn before Auth.js creates a VerificationToken.
+   * A limited source is held to the floor and gets the same redirect as a sent request.
    */
-  const sendUnderAddressLimit = (
-    addressKey: string,
-    send: () => Promise<unknown>
-  ) =>
+  async function admitSignInRequest(headers: Headers): Promise<true | string> {
+    const started = Date.now();
+    const ip = clientSource(headers);
+    if (!ip) {
+      // F-19: no platform address must not pool every such request into one shared bucket.
+      // The address limit still applies; the gap is reported so it is seen, never silent.
+      Sentry.captureMessage(
+        'auth.signin.email: request without a platform client address',
+        'warning'
+      );
+      return true;
+    }
+    try {
+      if (await admitSource(sourceLimitKey(ip))) return true;
+    } catch (error) {
+      if (!(error instanceof LimitStoreUnavailable)) throw error;
+      // An error thrown here reaches the Visitor only as AccessDenied. The send hook raises the
+      // typed AC-15 error instead: its address lock meets the same unavailable store.
+      return true;
+    }
+    return withSpan(async (setOutcome) => {
+      setOutcome('limited');
+      await holdToFloor(started);
+      return VERIFY_REQUEST_PATH;
+    }, started);
+  }
+
+  /** Auth.js callbacks.signIn: only a Sign-in link request is subject to the source limit. */
+  function signInCallback(getHeaders: () => Promise<Headers>) {
+    return async ({
+      account,
+      email,
+    }: SignInCallbackParams): Promise<true | string> => {
+      if (account?.type !== 'email' || !email?.verificationRequest) return true;
+      return admitSignInRequest(await getHeaders());
+    };
+  }
+
+  /**
+   * F-17: counts the address and inserts a SENT reservation under one SIGNIN_ADDRESS lock
+   * (ADR-0002 §Decision 1), then commits, so concurrent requests for one address queue only
+   * for the count, never for the SMTP send.
+   */
+  const reserveAddress = (addressKey: string) =>
     store.withKeyLock(
       'SIGNIN_ADDRESS',
       addressKey,
-      async (limit): Promise<'sent' | 'limited'> => {
+      async (limit): Promise<{ id: string } | 'limited'> => {
         if ((await limit.countInWindow()) >= LIMIT_SCOPES.SIGNIN_ADDRESS.max)
           return 'limited';
-        try {
-          await withTimeout(send(), SEND_TIMEOUT_MS);
-        } catch {
-          throw new EmailSendFailed();
-        }
-        await limit.record('SENT');
-        return 'sent';
-      },
-      { timeoutMs: ADDRESS_LOCK_TIMEOUT_MS }
+        return limit.record('SENT');
+      }
     );
+
+  /** Sends outside any transaction; a failed send releases its reservation (it never counts). */
+  async function sendOrRelease(
+    reservationId: string,
+    send: () => Promise<unknown>
+  ): Promise<void> {
+    try {
+      await withTimeout(send(), SEND_TIMEOUT_MS);
+    } catch {
+      await store.release(reservationId).catch(() => {
+        Sentry.captureException(new LimitStoreUnavailable());
+      });
+      throw new EmailSendFailed();
+    }
+  }
 
   async function sendVerificationRequest(
     params: SendVerificationParams
   ): Promise<void> {
     const started = Date.now();
-    const holdToFloor = () =>
-      sleep(
-        Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now())
-      );
 
     return withSpan(async (setOutcome) => {
-      const { identifier, url, provider, request } = params;
+      const { identifier, url, provider } = params;
       const addressKey = addressLimitKey(identifier);
       const host = new URL(url).host;
       const sendLink = async () => {
@@ -202,14 +282,14 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
 
       let outcome: 'sent' | 'limited';
       try {
-        const sourceKey = sourceLimitKey(clientSource(request) ?? 'unknown');
-        if (!(await admitSource(sourceKey))) {
+        const reservation = await reserveAddress(addressKey);
+        if (reservation === 'limited') {
           outcome = 'limited';
-        } else {
-          outcome = await sendUnderAddressLimit(addressKey, sendLink);
           // Outside the address lock: the alert takes the same key's lock itself.
-          if (outcome === 'limited')
-            await alert.onAddressLimited(addressKey, new Date());
+          await alert.onAddressLimited(addressKey, new Date());
+        } else {
+          await sendOrRelease(reservation.id, sendLink);
+          outcome = 'sent';
         }
       } catch (error) {
         if (error instanceof EmailSendFailed) {
@@ -224,9 +304,9 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       }
 
       setOutcome(outcome);
-      await holdToFloor();
+      await holdToFloor(started);
     });
   }
 
-  return { normalizeIdentifier, sendVerificationRequest };
+  return { normalizeIdentifier, sendVerificationRequest, signInCallback };
 }

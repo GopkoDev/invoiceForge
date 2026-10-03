@@ -41,6 +41,13 @@ describe('getEmailServerConfig transport options', () => {
     });
   });
 
+  // T26 / review F-21: one pooled connection per instance, so a send does not pay the TCP + TLS
+  // handshake every time and sent responses stay close to the floor.
+  it('pools the SMTP connection', () => {
+    setMailEnv('smtp.example.com', 587);
+    expect(getEmailServerConfig()).toMatchObject({ pool: true });
+  });
+
   it('throws naming the setting instead of returning undefined', () => {
     setMailEnv('smtp.example.com', 587);
     vi.stubEnv('EMAIL_SERVER_HOST', '');

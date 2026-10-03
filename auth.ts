@@ -1,4 +1,5 @@
 import NextAuth from 'next-auth';
+import { headers } from 'next/headers';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/prisma';
 import authConfig from '@/auth.config';
@@ -71,6 +72,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   callbacks: {
+    // F-18: the sign-in-email source limit runs here, before Auth.js writes a VerificationToken.
+    // headers() is the incoming request's in both the route handler and the /login action.
+    signIn: emailHooks.signInCallback(() => headers()),
+
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
