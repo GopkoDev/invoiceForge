@@ -9,7 +9,7 @@ files_hint: ["tests/e2e/csp-gate.spec.ts", "tests/e2e/route-sweep.spec.ts", "tes
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T20 — Gate the release on a zero-violation CSP e2e run, a genuine-session page sweep and a clean advisory audit

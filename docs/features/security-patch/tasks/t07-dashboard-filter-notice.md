@@ -9,7 +9,7 @@ files_hint: ["components/dashboard/header/dashboard-filters.tsx", "tests/compone
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T7 — Show the five-year notice in the dashboard filter and refuse to apply an over-long range

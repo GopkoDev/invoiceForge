@@ -85,7 +85,7 @@ erDiagram
 |---|---|---|---|
 | `id` | TEXT | PK, `cuid()` (app-generated) | lets the export path update its own `STARTED` row to `FAILED` (ADR-0002) |
 | `scope` | `"LimitScope"` enum | NOT NULL | `SIGNIN_SOURCE` (30 per 5 min), `SIGNIN_ADDRESS` (5 sent per hour), `EXPORT` (3 started per hour) |
-| `key` | TEXT | NOT NULL | the Limit key (SAD §12). `SIGNIN_ADDRESS`: lower-case hex HMAC-SHA256 of the folded address under `LIMIT_KEY_SECRET`, never the raw address. `SIGNIN_SOURCE`: the IPv4 address, or the IPv6 /64 network, from `ipAddress()`. `EXPORT`: the Freelancer id |
+| `key` | TEXT | NOT NULL | the Limit key (SAD §12). `SIGNIN_ADDRESS`: lower-case hex HMAC-SHA256 of the folded address under `LIMIT_KEY_SECRET`, never the raw address. `SIGNIN_SOURCE`: lower-case hex HMAC-SHA256 digest (under `LIMIT_KEY_SECRET`, TD-1) of the IPv4 address, or the IPv6 /64 network, from `ipAddress()`, never the raw address. `EXPORT`: the Freelancer id |
 | `outcome` | `"LimitOutcome"` enum | NOT NULL | see the per-scope table below |
 | `at` | TIMESTAMP(3) | NOT NULL DEFAULT CURRENT_TIMESTAMP | event time in UTC. Windows, the retry time and the 24 h purge all read it. **The app always passes it explicitly** (see Time handling) |
 | `userId` | TEXT | NULL, FK → `User(id)` ON DELETE CASCADE | set only on `EXPORT` rows (same value as `key`). NULL for sign-in rows |

@@ -9,7 +9,7 @@ files_hint: ["lib/validations/web-address.ts", "lib/validations/customer.ts", "l
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T16 — Accept only http(s) web addresses for website and image fields, in forms and the business layer

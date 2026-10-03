@@ -12,6 +12,7 @@ vi.mock('@/components/ui/avatar', () => ({
     <div>{children}</div>
   ),
   AvatarImage: ({ src }: { src?: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element -- test stub of the Radix primitive
     <img data-testid="avatar-img" src={src} alt="" />
   ),
   AvatarFallback: ({ children }: { children: React.ReactNode }) => (

@@ -9,7 +9,7 @@ files_hint: ["lib/env/required-settings.ts", "scripts/check-required-settings.ts
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T10 — Fail the build on a missing required setting and send mail only over verified TLS

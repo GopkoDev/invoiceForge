@@ -9,7 +9,7 @@ files_hint: ["lib/actions/login-actions.ts", "components/auth/login-form.tsx", "
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T12 — Map sign-in provider outcomes to the fixed messages on the sign-in, check-inbox and error pages

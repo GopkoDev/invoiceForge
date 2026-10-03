@@ -9,7 +9,7 @@ files_hint: ["docs/features/security-patch/migrations/01_create_limit_event.up.s
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T3 — Promote the LimitEvent migration with its Prisma model, factory and test cleanup

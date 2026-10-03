@@ -9,7 +9,7 @@ files_hint: ["components/settings/gdpr-settings.tsx", "tests/component/gdpr-sett
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T14 — Show "you can export again at …" as an inline alert on the privacy settings screen

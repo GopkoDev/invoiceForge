@@ -9,7 +9,7 @@ files_hint: ["lib/security/limits/lockout-alert.ts", "lib/security/limits/limit-
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T9 — Record address refusals per UTC hour and raise the targeted-lockout alert

@@ -9,7 +9,7 @@ files_hint: ["app/api/cron/purge-limits/route.ts", "vercel.json", "config/routes
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T15 — Add the daily limit-record purge job behind the Vercel Cron secret

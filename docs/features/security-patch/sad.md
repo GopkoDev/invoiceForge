@@ -730,7 +730,7 @@ Canonical domain terms come from [CONTEXT.md](../../../CONTEXT.md); the meanings
 | Dashboard period | A named preset (current month, all time) or a custom from–to range of at most 5 years (CONTEXT). Only custom ranges are capped. |
 | Verified session | A valid, signed session that carries a non-empty account id (spec §6.1). Anything else is a Visitor. Decided by `isVerifiedSession`. |
 | Source | The client network address as reported by the hosting platform; IPv4 per address, IPv6 per /64 network (spec §6.1). |
-| Limit key | The value a limit counts by: for an address, the keyed digest of its case-, tag- and Gmail-dot-folded form; for a source, the address or /64; for exports, the Freelancer id. It never decides account identity. |
+| Limit key | The value a limit counts by: for an address, the keyed digest of its case-, tag- and Gmail-dot-folded form; for a source, the keyed digest (HMAC, TD-1) of the address or /64; for exports, the Freelancer id. It never decides account identity. |
 | Limit event | One row in `LimitEvent`: a counted or refused occurrence (link sent, request from source, refusal, export started or failed) with its scope, limit key and time. |
 | Response floor | The minimum time every "check your inbox" response takes, so a limited request is indistinguishable from a sent one. |
 | Targeted lockout | An attacker keeping a victim's address limited; detected when the address is refused in 3 consecutive UTC hours. |
