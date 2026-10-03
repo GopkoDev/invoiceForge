@@ -10,7 +10,8 @@ import { withoutSessionCookieExpiry } from '@/lib/helpers/session-cookies';
 // pathname. That is safe because no Auth.js GET legitimately clears the session cookie in this
 // config: GET signout only renders a page (the clear happens on POST, left untouched below), and the
 // callback's `sessionStore.clean()` only fires when `jwt` returns null, which auth.ts's `jwt` never
-// does. A refreshed (non-empty) session cookie and every other cookie pass through.
+// does. A response that writes a session cookie (a refresh, or a sign-in whose `SessionStore.chunk()`
+// expires stale chunk names) passes through whole, and every other cookie is kept.
 export async function GET(request: NextRequest): Promise<Response> {
   return withoutSessionCookieExpiry(await handlers.GET(request));
 }

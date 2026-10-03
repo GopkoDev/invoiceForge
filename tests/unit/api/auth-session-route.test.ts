@@ -51,6 +51,22 @@ describe('GET /api/auth/session (AC-04, S-04)', () => {
     ]);
   });
 
+  // T44 review: `SessionStore.chunk()` starts from `_clean()` over the chunks already on the
+  // request, so a sign-in that changes the chunk layout writes the new cookie AND expires the stale
+  // names. Those expiries must survive, or the browser joins old and new chunks into a bad token.
+  it('keeps stale-chunk expiries when the same response writes a new session cookie', async () => {
+    const rechunk = [
+      'authjs.session-token=new; Path=/; HttpOnly',
+      'authjs.session-token.0=; Max-Age=0; Path=/; HttpOnly',
+      'authjs.session-token.1=; Max-Age=0; Path=/; HttpOnly',
+    ];
+    respondWith(...rechunk);
+    const response = await GET(
+      request('/api/auth/callback/nodemailer?token=t')
+    );
+    expect(response.headers.getSetCookie()).toEqual(rechunk);
+  });
+
   it('keeps unrelated Set-Cookie lines on other Auth.js GET endpoints', async () => {
     respondWith('authjs.csrf-token=xyz; Path=/; HttpOnly');
     const response = await GET(request('/api/auth/csrf'));

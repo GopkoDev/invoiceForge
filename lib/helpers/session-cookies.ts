@@ -55,27 +55,32 @@ export function clearSessionCookies(
   }
 }
 
-// A Set-Cookie line that expires a session cookie: an empty value, as `sessionStore.clean()` and
-// `expireCookie` above both write it.
-function isSessionCookieExpiry(setCookie: string): boolean {
+// A Set-Cookie line for a session cookie: `'expiry'` for an empty value, as `sessionStore.clean()`
+// and `expireCookie` above both write it, `'write'` for a non-empty one, `null` otherwise.
+function sessionCookieLine(setCookie: string): 'expiry' | 'write' | null {
   const pair = setCookie.split(';', 1)[0];
   const eq = pair.indexOf('=');
-  return (
-    eq > 0 &&
-    isSessionCookieName(pair.slice(0, eq).trim()) &&
-    pair.slice(eq + 1).trim() === ''
-  );
+  if (eq <= 0 || !isSessionCookieName(pair.slice(0, eq).trim())) return null;
+  return pair.slice(eq + 1).trim() === '' ? 'expiry' : 'write';
 }
 
 /**
  * T21 (review-2026-10-03 F-02, AC-04): next-auth's middleware wrapper appends
  * `sessionStore.clean()` expiries for every session cookie it can't decode (a wrong or rotated
  * AUTH_SECRET), on top of whatever the proxy returns. Returns `response` without those lines, so
- * a failed edge check never ends the session; a refreshed (non-empty) session cookie is kept.
+ * a failed edge check never ends the session. A response that writes a non-empty session cookie is
+ * returned as is, stale-chunk expiries included.
  */
 export function withoutSessionCookieExpiry(response: Response): Response {
   const setCookies = response.headers.getSetCookie();
-  const kept = setCookies.filter((line) => !isSessionCookieExpiry(line));
+  // T44 review: a response that also writes a session cookie is a refresh or a sign-in whose
+  // `SessionStore.chunk()` expires the stale chunk names; those expiries must reach the browser.
+  if (setCookies.some((line) => sessionCookieLine(line) === 'write')) {
+    return response;
+  }
+  const kept = setCookies.filter(
+    (line) => sessionCookieLine(line) !== 'expiry'
+  );
   if (kept.length === setCookies.length) return response;
 
   const headers = new Headers();
