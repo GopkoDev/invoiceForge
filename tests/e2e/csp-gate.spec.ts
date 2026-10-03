@@ -14,6 +14,10 @@ import {
   type CspCollector,
 } from './support/csp-collector';
 import { signInWithSignInLink } from './support/genuine-session';
+import {
+  isErrorEnvelopeFor,
+  SYNTHETIC_CLIENT_ERROR,
+} from './support/sentry-envelope';
 import { seedWorkspace, type SeededWorkspace } from './support/seed';
 import { uniqueTestEmail } from '../support/factories/ids';
 import {
@@ -27,17 +31,22 @@ const ON_PREVIEW = Boolean(BASE_URL_OVERRIDE);
 // A preview has the real Sentry DSN, so the tunnel must answer 200; the local build has none.
 const SENTRY_CONFIGURED = ON_PREVIEW || process.env.E2E_EXPECT_SENTRY === '1';
 
-// Throws a client-side error on the open page and checks what the tunnel answers.
+// Throws a client-side error on the open page and checks what the tunnel answers. With a DSN, it
+// waits for the envelope that carries this error (R-16): session, replay, trace and log envelopes
+// use the same tunnel, so any other POST answering 200 says nothing about the error.
 async function throwClientErrorThroughTunnel(page: Page) {
   const throwError = () =>
-    page.evaluate(() =>
+    page.evaluate((message) => {
       setTimeout(() => {
-        throw new Error('T20 synthetic client error');
-      }, 0)
-    );
+        throw new Error(message);
+      }, 0);
+    }, SYNTHETIC_CLIENT_ERROR);
   if (SENTRY_CONFIGURED) {
     const tunnel = page.waitForResponse(
-      (r) => r.url().endsWith('/monitoring') && r.request().method() === 'POST'
+      (r) =>
+        r.url().endsWith('/monitoring') &&
+        r.request().method() === 'POST' &&
+        isErrorEnvelopeFor(r.request().postData(), SYNTHETIC_CLIENT_ERROR)
     );
     await throwError();
     expect((await tunnel).status()).toBe(200);

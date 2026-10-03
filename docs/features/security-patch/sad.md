@@ -504,6 +504,8 @@ sequenceDiagram
     Note over C,X: Postcondition: the app's domain only ever delivers reports to its own project. The tunnel is not rate-limited (spec non-goal). Nothing persisted
 ```
 
+Also on the tunnel: a body over 1 MiB is refused with 413 before anything is read or forwarded, and a 429 from error tracking is passed back with only its `Retry-After` and `X-Sentry-Rate-Limits` headers, so the SDK backs off (contracts/openapi.yaml `/monitoring`).
+
 ### Flow 9: Completing sign-in with a Sign-in link or with Google (US-01, US-05, AC-02, AC-03, AC-14)
 
 ```mermaid

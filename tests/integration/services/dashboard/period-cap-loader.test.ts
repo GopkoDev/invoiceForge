@@ -3,6 +3,10 @@
 // actions, which call the business layer. An over-long link falls back to the current month, the
 // exact-5-year link is applied, and the link reader and business rule agree on the boundary in
 // any zone and across a 29 February start.
+// T37 (review-2026-10-03-rereview R-15) — the loader is the real page: DashboardPage runs with the
+// link as its searchParams and the `tz` cookie as its zone, and every range-taking section it
+// renders (stats, chart, sender accounts) is run with the props the page gave it. No copy of the
+// page's `period` glue lives in this test.
 import {
   afterAll,
   afterEach,
@@ -60,6 +64,8 @@ vi.mock('@sentry/nextjs', () => ({
   startSpan: (_o: unknown, cb: () => unknown) => cb(),
 }));
 
+import type { ReactElement, ReactNode } from 'react';
+
 type Period = { from: string; to: string };
 type Res<T> =
   | { success: true; data: T }
@@ -69,10 +75,6 @@ type Actions = {
     c: string,
     p?: Period
   ) => Promise<Res<{ receivedCount: number }>>;
-  getDashboardChartData: (
-    c: string,
-    p?: Period
-  ) => Promise<Res<{ date: string; paid: number }[]>>;
 };
 
 const NOW = new Date('2026-09-27T12:00:00.000Z');
@@ -85,6 +87,8 @@ describe.runIf(containerRuntimeAvailable)(
     let db: TestDatabase;
     let actions: Actions;
     let parseLink: typeof import('@/lib/validations/search-params').dashboardParamsSchema;
+    let DashboardPage: typeof import('@/app/(protected)/dashboard/page').default;
+    let sections: typeof import('@/app/(protected)/dashboard/_sections');
     let seed: Awaited<ReturnType<typeof seedFreelancer>>;
 
     beforeAll(async () => {
@@ -96,6 +100,9 @@ describe.runIf(containerRuntimeAvailable)(
         (await import('@/lib/actions/dashboard-actions')) as unknown as Actions;
       ({ dashboardParamsSchema: parseLink } =
         await import('@/lib/validations/search-params'));
+      ({ default: DashboardPage } =
+        await import('@/app/(protected)/dashboard/page'));
+      sections = await import('@/app/(protected)/dashboard/_sections');
     }, 60_000);
 
     afterAll(async () => {
@@ -104,10 +111,14 @@ describe.runIf(containerRuntimeAvailable)(
     });
 
     beforeEach(async () => {
+      // Only Date is faked: the page reads "now" for the current month; Prisma's timers stay real.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(NOW);
       seed = await seedFreelancer(testClient, ['USD']);
       authMock.mockResolvedValue({ user: { id: seed.userId } });
     });
     afterEach(async () => {
+      vi.useRealTimers();
       authMock.mockReset();
       tzCookie.value = 'UTC';
       await truncateAllTables(testClient);
@@ -124,15 +135,74 @@ describe.runIf(containerRuntimeAvailable)(
     // The chart's `paid` series is cumulative, so the paid total is its last point.
     const sum = (chart: { paid: number }[]) => chart.at(-1)?.paid ?? 0;
 
-    /** What the dashboard page does: link params -> period -> stats and chart sections. */
+    type Props = { currency: string; appliedRange: Period | undefined };
+    const childrenOf = (node: ReactNode): ReactNode[] => {
+      if (Array.isArray(node)) return node.flatMap(childrenOf);
+      if (node && typeof node === 'object' && 'props' in node) {
+        const el = node as ReactElement<{ children?: ReactNode }>;
+        return [el, ...childrenOf(el.props.children)];
+      }
+      return [];
+    };
+    /** The one element of `type` in the page's tree (fails when the page renders it 0 or 2+ times). */
+    const only = (tree: ReactNode, type: unknown) => {
+      const found = childrenOf(tree).filter(
+        (n) => (n as ReactElement).type === type
+      ) as ReactElement<Props>[];
+      expect(found).toHaveLength(1);
+      return found[0].props;
+    };
+    /** The single prop a section passes to its presentational component. */
+    const rendered = async <T>(
+      section: (p: Props) => Promise<ReactElement>,
+      props: Props,
+      prop: string
+    ) => {
+      const out = await section(props);
+      const el = childrenOf(out).find(
+        (n) =>
+          prop in ((n as ReactElement<Record<string, unknown>>).props ?? {})
+      ) as ReactElement<Record<string, T>>;
+      return el.props[prop];
+    };
+
+    /**
+     * Renders the dashboard page for a link in a zone and runs its range-taking sections with the
+     * props the page gave them.
+     */
     async function load(zone: string, link: Record<string, string>) {
       tzCookie.value = zone;
-      const { period } = parseLink(zone, NOW).parse(link);
-      const stats = await actions.getDashboardSummaryStats('USD', period);
-      const chart = await actions.getDashboardChartData('USD', period);
-      if (!stats.success || !chart.success)
-        throw new Error('dashboard section failed');
-      return { period, stats: stats.data, chart: chart.data };
+      const tree = await DashboardPage({ searchParams: Promise.resolve(link) });
+      const statsProps = only(tree, sections.StatsSection);
+      const chartProps = only(tree, sections.ChartSection);
+      const sendersProps = only(tree, sections.SenderAccountsSection);
+      const period = statsProps.appliedRange;
+      // Every range-taking section gets the same applied period, in the selected currency.
+      for (const p of [chartProps, sendersProps]) {
+        expect(p.appliedRange).toEqual(period);
+        expect(p.currency).toBe('USD');
+      }
+      const run = sections as unknown as Record<
+        string,
+        (p: Props) => Promise<ReactElement>
+      >;
+      const stats = await rendered<{ receivedCount: number }>(
+        run.StatsSection,
+        statsProps,
+        'stats'
+      );
+      const chart = await rendered<{ date: string; paid: number }[]>(
+        run.ChartSection,
+        chartProps,
+        'data'
+      );
+      const senders = await rendered<{ totalReceived: number }[]>(
+        run.SenderAccountsSection,
+        sendersProps,
+        'senderAccounts'
+      );
+      const received = senders.reduce((a, x) => a + x.totalReceived, 0);
+      return { period, stats, chart, received };
     }
 
     it('an over-long link shows the current month, never a long day series (AC-07)', async () => {
@@ -147,6 +217,7 @@ describe.runIf(containerRuntimeAvailable)(
         expect(r.stats.receivedCount).toBe(1);
         expect(r.chart.length).toBeLessThanOrEqual(31);
         expect(sum(r.chart)).toBe(200);
+        expect(r.received).toBe(200);
       }
     });
 
@@ -163,6 +234,7 @@ describe.runIf(containerRuntimeAvailable)(
         expect(exact.period).toEqual({ from: '2021-01-01', to: '2026-01-01' });
         expect(exact.stats.receivedCount).toBe(1);
         expect(sum(exact.chart)).toBe(100);
+        expect(exact.received).toBe(100);
 
         const longer = await load(zone, {
           from: '2021-01-01',
@@ -173,6 +245,7 @@ describe.runIf(containerRuntimeAvailable)(
         );
         expect(longer.stats.receivedCount).toBe(1);
         expect(sum(longer.chart)).toBe(200);
+        expect(longer.received).toBe(200);
       }
     );
 
@@ -183,10 +256,12 @@ describe.runIf(containerRuntimeAvailable)(
         const ok = await load(zone, { from: '2020-02-29', to: '2025-02-28' });
         expect(ok.period).toEqual({ from: '2020-02-29', to: '2025-02-28' });
         expect(ok.stats.receivedCount).toBe(1);
+        expect(ok.received).toBe(100);
 
         const over = await load(zone, { from: '2020-02-29', to: '2025-03-01' });
         expect(over.period).toEqual(MONTH);
         expect(over.stats.receivedCount).toBe(0);
+        expect(over.received).toBe(0);
       }
     );
 
