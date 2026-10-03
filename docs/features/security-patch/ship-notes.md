@@ -7,7 +7,7 @@ against production or a preview; those items are the user's checklist at the end
 
 | Gate | Criterion | Measured | Status |
 |---|---|---|---|
-| Advisory audit, production packages (AC-01) | 0 critical, 0 high | 0 critical, 0 high, 1 moderate, 1 low | met |
+| Advisory audit, production packages (AC-01) | 0 critical, 0 high | No known vulnerabilities (0 of any severity) | met |
 | Local CSP gate, `tests/e2e/csp-gate.spec.ts` (AC-20) | zero policy violations | zero on every flow, including invoice PDF download and print | met (local) |
 | Local genuine-session sweep, `tests/e2e/route-sweep.spec.ts` (AC-02, AC-05) | every private page opens directly | passes | met (local) |
 | Database toolkit (AC-27) | latest 7.x, no accelerate extension | Prisma 7.10.0 (`prisma` and `@prisma/client`) | met |
@@ -25,29 +25,53 @@ What closed the gap (commit `chore(security-patch): clear high production adviso
   (`app/globals.css`), and devDependencies are installed for the build.
 - `@sentry/nextjs` bumped within major 10 (^10.36.0 → ^10.76.0).
 - `pnpm-workspace.yaml` overrides pin patched versions of transitive packages reached through the Sentry
-  build plugins and the optional `prisma` CLI peer of `@prisma/client`: `browserslist`, `deepmerge-ts`,
-  `fast-uri`, `lodash`, `mysql2`, `serialize-javascript`.
+  build plugins and the optional `prisma` CLI peer of `@prisma/client`: `@babel/core`, `browserslist`,
+  `deepmerge-ts`, `fast-uri`, `lodash`, `mysql2`, `serialize-javascript`.
 - T1 bumped `@auth/prisma-adapter` so the only `@auth/core` is the patched 0.41.3.
 
-### Remaining production-graph advisories (not gate-failing)
+### Production graph after T24: no advisories
 
-| Package | Severity | Advisory | Path |
-|---|---|---|---|
-| `uuid` | moderate | GHSA-w5hq-g745-h8pq | direct dependency |
-| `@babel/core` | low | GHSA-4x5r-pxfx-6jf8 | `@sentry/nextjs > @sentry/bundler-plugin-core` (build time) |
+CI runs `pnpm audit --prod --audit-level=high` on every PR (`.github/workflows/test.yml`), so a high or
+critical advisory on the production graph fails the build. T24 cleared the two that were left (review
+F-08, F-09); `pnpm audit --prod` now reports no known vulnerabilities:
 
-### Development-only advisories (40 high, listed, not gate-failing)
+| Package | Severity | Advisory | Path | Fix |
+|---|---|---|---|---|
+| `uuid` | moderate | GHSA-w5hq-g745-h8pq | direct dependency | Raised to `^13.0.1` (resolves 13.0.2). |
+| `@babel/core` | low | GHSA-4x5r-pxfx-6jf8 | `@sentry/nextjs > @sentry/bundler-plugin-core` (build time) | `pnpm-workspace.yaml` override `@babel/core@<7.29.6: ^7.29.6` (resolves 7.29.7). Every dependant declares a `^7` range (`@sentry/bundler-plugin-core` 5.3.0 declares `^7.18.5`), so the patched release is inside it. The same single copy also serves `next` and `eslint-config-next`. |
 
-`pnpm audit` over everything: 0 critical, 40 high, 51 moderate, 8 low. Every high comes through a
+### Development-only advisories (41 high, listed, not gate-failing)
+
+`pnpm audit` over everything: 0 critical, 41 high, 50 moderate, 7 low. Every high comes through a
 `devDependency` that runs only on a developer machine, in CI or during the build, never in the server or
 browser bundle, and never on untrusted input:
 
 | Dev dependency | Packages carrying high advisories | Why unreachable in production |
 |---|---|---|
 | `shadcn` (CLI) | `hono`, `@hono/node-server`, `@modelcontextprotocol/sdk`, `path-to-regexp`, `minimatch`, `@isaacs/brace-expansion`, `picomatch` | Run by hand to scaffold components; its MCP/HTTP server is never started by the app. |
-| `eslint`, `eslint-config-next` | `minimatch`, `brace-expansion`, `flatted`, `js-yaml`, `picomatch` | Lints this repository's own source only. |
+| `eslint`, `eslint-config-next` | `minimatch`, `brace-expansion`, `flatted`, `js-yaml`, `picomatch`, `braces` | Lints this repository's own source only. |
 | `@testcontainers/postgresql` | `minimatch`, `brace-expansion` | Integration tests only. |
 | `@tailwindcss/postcss` | `postcss`, `nanoid` | Build-time CSS compilation of this repository's own stylesheets. |
+
+### Development-only moderate and low advisories (50 moderate, 7 low, listed, not gate-failing)
+
+All of these are on the development graph (review F-09); none is reachable from the server or browser bundle.
+
+| Dev dependency | Moderate | Low | Reason |
+|---|---|---|---|
+| `shadcn` (CLI) | `@hono/node-server`, `hono`, `path-to-regexp`, `picomatch`, `qs` | `body-parser`, `diff`, `hono`, `postcss-selector-parser`, `qs` | Scaffolding CLI run by hand; its HTTP/MCP server is never started by the app. |
+| `eslint` | `@humanfs/node`, `ajv`, `brace-expansion`, `js-yaml` | none | Lints this repository's own source; no untrusted input. |
+| `eslint-config-next` | `picomatch` | none | Same as `eslint`. |
+| `@testcontainers/postgresql` | `brace-expansion` | none | Integration tests only. |
+| `@tailwindcss/postcss` | `postcss` | none | Build-time compilation of this repository's own stylesheets. |
+
+### Peer-range deviation: nodemailer (review F-13)
+
+`nodemailer` 10.0.13 is outside the peer range `@auth/core` 0.41.3 declares (`^7.0.7 || ^8.0.5`). It is a
+known, tested deviation: the app overrides `sendVerificationRequest` (`lib/auth/email-provider.ts`) and
+calls nodemailer itself, so `@auth/core` never reaches its own nodemailer code path. The send path is
+exercised by `tests/integration/auth/email-provider.test.ts` and by the e2e genuine-session sign-in.
+Revisit when `@auth/core` widens its peer range.
 
 ## Database toolkit (AC-27)
 

@@ -21,6 +21,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate
+      # AC-01: the production graph carries no high or critical advisory.
+      - run: pnpm audit --prod --audit-level=high
       - run: pnpm lint
       - run: pnpm exec tsc --noEmit
       # `next build` (the ADR-0006 server-only guard) runs on every PR as the Vercel preview deploy.
