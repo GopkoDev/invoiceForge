@@ -404,15 +404,20 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
         form: { [`$ACTION_ID_${actionId}`]: '' },
       });
-      for (const [shape, response] of [
-        ['Next-Action header', header],
-        ['form-encoded', form],
-      ] as const) {
-        expect(response.status(), shape).toBeLessThan(500);
-        const body = await response.text();
-        expect(body, shape).not.toContain(customerName);
-        expect(body, shape).not.toContain('"success":true');
-      }
+      // T40 (S-05): `getCustomers` is not in the /login worker, so neither shape reaches the
+      // action body, and this does not exercise the action's own session guard (the guard scan
+      // does). It covers the proxy and the framework's worker lookup in front of it: the header
+      // shape is answered with the page's inert `{}` and the form shape with the sign-in page
+      // itself, both 200, with nothing of the planted account in either.
+      expect(header.status(), 'Next-Action header').toBe(200);
+      expect(await header.text(), 'Next-Action header').toBe('{}');
+      expect(form.status(), 'form-encoded').toBe(200);
+      expect(form.headers()['content-type'], 'form-encoded').toContain(
+        'text/html'
+      );
+      const formBody = await form.text();
+      expect(formBody, 'form-encoded').not.toContain(customerName);
+      expect(formBody, 'form-encoded').not.toContain('"success":true');
     } finally {
       await context.dispose();
     }

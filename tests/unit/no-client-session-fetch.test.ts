@@ -9,20 +9,40 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '../..');
-const SCAN_DIRS = ['app', 'components', 'hooks', 'lib', 'store'];
 const SOURCE = /\.(tsx?|jsx?|mjs)$/;
+// T40 (S-04): the walk starts at the repo root with the guard scan's skips, so root files
+// (instrumentation-client.ts) and folders added later (config/, constants/) are covered. Never
+// source the app ships: dependencies, build output, VCS and tool state at any depth, and the
+// repo-root folders of docs, tests and test/report output.
+// Server-side files that name the endpoint as a string and fetch nothing: the public-path
+// allowlist, and the route that strips the cookie expiry from the endpoint's own response (T40).
+const SERVER_SIDE_MENTIONS = new Set([
+  'config/routes.config.ts',
+  'app/api/auth/[...nextauth]/route.ts',
+]);
+const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude']);
+const SKIP_AT_ROOT = new Set([
+  'docs',
+  'tests',
+  'test-results',
+  'playwright-report',
+  'coverage',
+]);
 
 // next-auth/react exports that mount or call the client session poller. signIn / signOut /
 // getCsrfToken / getProviders do not read /api/auth/session.
 const SESSION_CLIENT_EXPORTS = ['SessionProvider', 'useSession', 'getSession'];
 
-function listFiles(dir: string): string[] {
+function listFiles(dir: string, root = dir): string[] {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === 'node_modules' || entry.name === '.next') return [];
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return listFiles(full);
-    return SOURCE.test(entry.name) ? [full] : [];
+    if (entry.isDirectory()) {
+      if (SKIP_ANYWHERE.has(entry.name)) return [];
+      if (dir === root && SKIP_AT_ROOT.has(entry.name)) return [];
+      return listFiles(full, root);
+    }
+    return entry.isFile() && SOURCE.test(entry.name) ? [full] : [];
   });
 }
 
@@ -60,13 +80,25 @@ describe('no client-side session fetch (AC-04, R-01)', () => {
   });
 
   it('no app source mounts the session poller or fetches /api/auth/session', () => {
-    const offenders = SCAN_DIRS.flatMap((d) => listFiles(path.join(ROOT, d)))
+    const offenders = listFiles(ROOT)
       .map((f) => ({
         file: rel(f),
-        uses: sessionClientUses(fs.readFileSync(f, 'utf8')),
+        uses: sessionClientUses(fs.readFileSync(f, 'utf8')).filter(
+          (use) =>
+            !(SERVER_SIDE_MENTIONS.has(rel(f)) && use === '/api/auth/session')
+        ),
       }))
       .filter(({ uses }) => uses.length > 0);
     expect(offenders).toEqual([]);
+  });
+
+  it('the walk covers root files and folders the old directory list missed', () => {
+    const scanned = listFiles(ROOT).map(rel);
+    expect(scanned).toContain('instrumentation-client.ts');
+    expect(scanned.some((f) => f.startsWith('config/'))).toBe(true);
+    expect(scanned.some((f) => f.startsWith('constants/'))).toBe(true);
+    expect(scanned.some((f) => f.startsWith('node_modules/'))).toBe(false);
+    expect(scanned.some((f) => f.startsWith('tests/'))).toBe(false);
   });
 
   describe('planted shapes', () => {
