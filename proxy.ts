@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import NextAuth from 'next-auth';
 import authConfig from '@/auth.config';
 import { isVerifiedSession } from '@/lib/helpers/verified-session';
@@ -9,9 +9,21 @@ import {
   protectedRoutes,
   isPublicPath,
   isRefusedAnonymousMutation,
+  REQUEST_PATH_HEADER,
 } from './config/routes.config';
 
 const { auth } = NextAuth(authConfig);
+
+// T32 (R-04, AC-04): a verified request passes on with the requested path on a request header,
+// always overwriting a caller-supplied value, for requireLiveUser()'s "Try again" target.
+function nextWithRequestPath(req: NextRequest): NextResponse {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(
+    REQUEST_PATH_HEADER,
+    `${req.nextUrl.pathname}${req.nextUrl.search}`
+  );
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
 
 const authProxy = auth(async function proxy(req) {
   // A thrown or malformed check is a Visitor; session cookies are left untouched so a
@@ -35,7 +47,7 @@ const authProxy = auth(async function proxy(req) {
   // === LOGGED IN USER ===
   if (verified) {
     if (isProtectedRoute || isLegalRoute) {
-      return NextResponse.next();
+      return nextWithRequestPath(req);
     }
 
     if (isAuthPage) {
@@ -46,7 +58,7 @@ const authProxy = auth(async function proxy(req) {
       return NextResponse.redirect(new URL(protectedRoutes.dashboard, req.url));
     }
 
-    return NextResponse.next();
+    return nextWithRequestPath(req);
   }
 
   // === NOT LOGGED IN USER (AC-05: deny by default) ===

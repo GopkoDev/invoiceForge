@@ -105,7 +105,7 @@ Wireframe: the existing page is unchanged. Only its behaviour under a failing ch
 | default (link fallback) | A custom period longer than 5 years, or a malformed one, falls back **silently** to the current month, with no notice and no slow load (AC-07, AC-08 boundary; flow US-03 D1 → D2) | as default | existing page |
 | validation: period too long | In the filter `Calendar`, the Freelancer picks a range whose end is past start + 5 calendar years. **D-S2:** the range is not applied and there is no navigation. The `Popover` stays open with the selection visible, and an inline `Alert` under the calendar shows `PERIOD_TOO_LONG`. The notice clears on the next pick: a preset, or a range within the cap (AC-07b; flow US-03 F0 → F1; sad.md §6 flow 4 `else`) | `Popover`, `Calendar`, `Alert` | wireframe below |
 | empty | Unchanged: the existing per-section empty rendering for a period with no invoices | existing | existing |
-| error | Load fails → `LoadError` via the segment `error.tsx` (unchanged). A data request while the check fails is refused → redirect to SCR-01, and the session is not ended (AC-04; flow US-02 A3 → A7) | `LoadError` | existing |
+| error | Load fails → `LoadError` via the segment `error.tsx` (unchanged). A data request while the check fails is refused → `goToSignIn()` → the session-check route, which shows SCR-05 **check unavailable** while the check still fails and SCR-01 only once the account is definitively gone. The session is not ended (AC-04; flow US-02 A3 → A7 → A8) | `LoadError` | existing |
 
 ```text
 +------------------------------------------------------------+
@@ -127,13 +127,27 @@ Wireframe: the existing page is unchanged. Only its behaviour under a failing ch
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
 |---|---|---|---|
 | default | Verified session opens any private page directly, and is never bounced to sign-in (AC-05; flow US-02 A3) | existing pages | existing |
-| redirected | No verified session → SCR-01 (AC-04; flow US-02 A2 → A4) | — | SCR-01 |
+| redirected | No verified session at the edge → SCR-01 (AC-04; flow US-02 A2 → A4) | — | SCR-01 |
+| check unavailable | The edge saw a verified session, but the server-side account check fails. The layout's `requireLiveUser()` redirects to the session-check route, whose own check fails again, or which gets no session while a session cookie is present. That route answers `503` with `Cache-Control: no-store` and `Retry-After`, and never sets a cookie expiry. The page uses LoadError's wording: "We couldn't load your data", "Something went wrong on our side. Your data is safe and you are still signed in. Try again." The **Try again** link goes to the requested page, taken from `?next=` or a same-origin Referer. It is used only when it is a same-origin relative path that is not under `/api/`. Otherwise the link goes to `/dashboard` (AC-04; flow US-02 A2 → A8; sad.md §6 flow 2) | static HTML rendered by `app/api/auth/clear-session/route.ts`, with the `LoadError` copy and the `Empty`/`Button` tokens | wireframe below |
 | action refused | A data or action request while the check fails → `UNAUTHORIZED` → existing `goToSignIn()` routing. The session is not ended (AC-04; flow US-02 A7) | existing routing | — |
 | legacy address (lists) | **D-S4:** the Customers list and the Sender profiles list render through `ContactCard`. A stored website that fails `isWebAddress` renders as plain text with no `href`. A stored image or logo that fails it gets no `src` and shows `AvatarFallback` initials (AC-21 display rule; same rule as SCR-09) | `ContactCard`, `AvatarFallback` | see SCR-09 wireframe |
 | validation: profile image | Settings → Profile: an avatar URL that fails `isWebAddress` → `FieldError` "The address must start with http:// or https://." The avatar preview shows fallback initials, never the value as `src`. Nothing is saved (decision D-3, `contracts/server-actions.md` §Web-address rule) | `ProfileSettings`, `Field`, `FieldError`, `AvatarFallback` | — |
 | loading / empty / error | Unchanged: each route keeps its existing `loading.tsx`, empty state and `error.tsx` → `LoadError` | existing | existing |
 
-Wireframe: no new layout. The only changes are refusal routing, the plain-text rule and one field message.
+Wireframe: no new layout except **check unavailable**. A route handler serves this state, so it can't mount the React `LoadError`. It mirrors that component in static HTML instead, with no script, and it follows the light or dark system theme. The other changes are refusal routing, the plain-text rule and one field message.
+
+```text
++------------------------------------------------------------+
+|                                                            |
+|                          [ /!\ ]                           |
+|               We couldn't load your data                   |
+|    Something went wrong on our side. Your data is safe     |
+|          and you are still signed in. Try again.           |
+|                                                            |
+|                       [ Try again ]                        |
+|                  (→ the requested page)                    |
++------------------------------------------------------------+
+```
 
 ### SCR-06 — Privacy & data settings
 

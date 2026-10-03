@@ -13,6 +13,8 @@ vi.mock('next-auth', () => ({
   }),
 }));
 
+import { REQUEST_PATH_HEADER } from '@/config/routes.config';
+
 const BASE = 'https://app.example.test';
 
 function buildRequest(
@@ -200,6 +202,24 @@ describe('proxy (AC-04 / AC-06, verified session predicate)', () => {
     expect(res.status).toBe(401);
     expect(res.headers.getSetCookie()).toEqual([]);
   });
+
+  // T32 (R-04): layouts can't see the pathname, so the proxy forwards it on a request header for
+  // requireLiveUser()'s "Try again" target; a caller-supplied value is always overwritten.
+  it.each(['/dashboard', '/invoices/inv_1/edit?tab=items'])(
+    'forwards the requested path %s to a verified private page on a request header',
+    async (path) => {
+      const res = await callProxy(
+        buildRequest(path, {
+          token: { user: { id: 'u1' } },
+          headers: { [REQUEST_PATH_HEADER]: '//evil.example' },
+        })
+      );
+
+      expect(res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)).toBe(
+        path
+      );
+    }
+  );
 
   it('lets a verified session through to a private page', async () => {
     const res = await callProxy(

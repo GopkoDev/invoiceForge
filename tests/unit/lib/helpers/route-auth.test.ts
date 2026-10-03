@@ -52,7 +52,16 @@ vi.mock('next/navigation', async (importOriginal) => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
+// T32 (R-04): the proxy forwards the requested path on a request header so requireLiveUser()
+// can hand it to the cookie-clearing route for its "Try again" link. Outside a request scope (the
+// default here) headers() throws, which must never stop the redirect.
+const headersMock = vi.fn<() => Promise<Headers>>(() =>
+  Promise.reject(new Error('headers() called outside a request scope'))
+);
+vi.mock('next/headers', () => ({ headers: () => headersMock() }));
+
 import { requireLiveUser, requireSession } from '@/lib/helpers/route-auth';
+import { REQUEST_PATH_HEADER } from '@/config/routes.config';
 
 describe('requireLiveUser (AC-21, ADR-0002)', () => {
   beforeEach(() => {
@@ -88,6 +97,25 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
   // (tests/unit/api/clear-session.test.ts). It must NOT throw past the layout: a segment's
   // error.tsx never catches its own layout's error, so that would reach app/global-error.tsx
   // (a generic page with no retry) instead of sign-in or a 503 (review stage-1 blocking issue).
+  it('passes the requested page to the cookie-clearing route as ?next= (T32, R-04)', async () => {
+    authMock.mockRejectedValue(new Error('DB down'));
+    headersMock.mockResolvedValueOnce(
+      new Headers({ [REQUEST_PATH_HEADER]: '/invoices/inv_1/edit?tab=items' })
+    );
+
+    await expect(requireLiveUser()).rejects.toThrow(
+      `REDIRECT:/api/auth/clear-session?next=${encodeURIComponent('/invoices/inv_1/edit?tab=items')}`
+    );
+  });
+
+  it('redirects without ?next= when the requested-path header is absent (T32)', async () => {
+    authMock.mockResolvedValue(null);
+    headersMock.mockResolvedValueOnce(new Headers());
+
+    await requireLiveUser().catch(() => undefined);
+    expect(redirectMock).toHaveBeenCalledWith('/api/auth/clear-session');
+  });
+
   it('fails closed (redirects) when auth() itself throws, e.g. the session callback DB lookup is down', async () => {
     authMock.mockRejectedValue(new Error('DB down'));
 

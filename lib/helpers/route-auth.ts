@@ -6,9 +6,13 @@
 
 import { NextResponse } from 'next/server';
 import { redirect, unstable_rethrow } from 'next/navigation';
+import { headers } from 'next/headers';
 import type { Session } from 'next-auth';
 import { auth } from '@/auth';
-import { CLEAR_SESSION_PATH } from '@/config/routes.config';
+import {
+  CLEAR_SESSION_PATH,
+  REQUEST_PATH_HEADER,
+} from '@/config/routes.config';
 import { isVerifiedSession } from '@/lib/helpers/verified-session';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
@@ -120,8 +124,24 @@ export async function requireLiveUser(): Promise<LiveUser> {
   }
 
   if (!userId) {
-    redirect(CLEAR_SESSION_PATH);
+    redirect(await clearSessionTarget());
   }
 
   return { userId };
+}
+
+// T32 (R-04, AC-04): carries the requested page (forwarded by proxy.ts) to the cookie-clearing
+// route so its check-unavailable page can link "Try again" back to it. That route validates the
+// value again; without it the route falls back to the dashboard.
+async function clearSessionTarget(): Promise<string> {
+  let requestedPath: string | null = null;
+  try {
+    requestedPath = (await headers()).get(REQUEST_PATH_HEADER);
+  } catch (error) {
+    // A prerender bail-out must propagate; outside a request scope there is simply no path.
+    unstable_rethrow(error);
+  }
+  return requestedPath
+    ? `${CLEAR_SESSION_PATH}?${new URLSearchParams({ next: requestedPath })}`
+    : CLEAR_SESSION_PATH;
 }
