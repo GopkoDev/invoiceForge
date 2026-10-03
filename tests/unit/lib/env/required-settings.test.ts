@@ -33,7 +33,7 @@ function envReadsIn(source: string): string[] {
     'process\\.env',
     ...[
       ...source.matchAll(
-        /\b([A-Za-z_$][\w$]*)\s*(?::[^=)]+)?=\s*process\.env\b(?!\s*[.[?])/g
+        /\b([A-Za-z_$][\w$]*)\s*(?::[^=)]+)?=\s*process\.env\b(?!\s*(?:\?\.|[.[]))/g
       ),
     ].map((m) => m[1]),
   ].join('|');
@@ -49,7 +49,7 @@ function envReadsIn(source: string): string[] {
   const destructured = [
     ...source.matchAll(
       new RegExp(
-        `\\{([^{}]*)\\}\\s*=\\s*(?:${records})\\b(?!\\s*[.[?])`,
+        `\\{([^{}]*)\\}\\s*=\\s*(?:${records})\\b(?!\\s*(?:\\?\\.|[.[]))`,
         'g'
       )
     ),
@@ -204,7 +204,9 @@ describe('required settings list (ADR-0008)', () => {
           `const { DESTRUCTURED_ONE } = process.env;\n` +
           `const { DESTRUCTURED_TWO, DESTRUCTURED_THREE: alias, DESTRUCTURED_FOUR = 'd' } =\n` +
           `  process.env;\n` +
-          `const { notASetting } = other;`
+          `const { notASetting } = other;\n` +
+          `function g(env = process.env ?? {}) { return env.NULLISH_INJECTED; }\n` +
+          `const { NULLISH_DESTRUCTURED } = process.env ?? {};`
       ).sort()
     ).toEqual([
       'DESTRUCTURED_FOUR',
@@ -212,6 +214,8 @@ describe('required settings list (ADR-0008)', () => {
       'DESTRUCTURED_THREE',
       'DESTRUCTURED_TWO',
       'INJECTED_OPTIONAL',
+      'NULLISH_DESTRUCTURED',
+      'NULLISH_INJECTED',
       'OPTIONAL_BRACKET',
       'OPTIONAL_DOT',
     ]);
