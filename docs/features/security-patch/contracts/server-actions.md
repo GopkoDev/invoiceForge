@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-02"
+updated_at: "2026-10-03"
 feature_size: "M"
 ---
 
@@ -50,11 +50,11 @@ type ActionErrorDetails =
 
 | Outcome | Result | Notes |
 |---|---|---|
-| sent | redirect to `/verify-request` (`signIn` throws `NEXT_REDIRECT`) | `SENT` event recorded after SMTP accepted (AC-11) |
+| sent | redirect to `/verify-request` (the action calls `redirect()` on the URL `signIn` returns) | a `SENT` reservation is committed before the send and counts at once. A failed or timed-out send deletes it by id, so only an accepted send counts (AC-11) |
 | limited (address or source) | **identical** redirect to `/verify-request`, after the same response floor | nothing sent. A `REFUSED` event is recorded only when the address limit refused, and only once per UTC hour (AC-12, AC-13) |
 | address invalid | `fail('VALIDATION', 'Enter a valid email address.', { fieldErrors: { email: ['Enter a valid email address.'] } })` | nothing sent or counted (AC-17) |
-| limits unavailable | `fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE)` | fail-closed (AC-15) |
-| no TLS / invalid certificate | `fail('FAILED', EMAIL_SEND_FAILED)` | reported to Sentry (AC-16) |
+| limits unavailable | `fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE)` | fail-closed (AC-15). Covers a source or address check that cannot run, a database the user lookup cannot reach, and, on Vercel, a request with no platform address. Nothing is sent or counted |
+| no TLS / invalid certificate / send timed out | `fail('FAILED', EMAIL_SEND_FAILED)` | the `SENT` reservation is released; reported to Sentry with value-free tags (AC-16) |
 
 ```ts
 export const EMAIL_SIGNIN_UNAVAILABLE =
@@ -62,7 +62,11 @@ export const EMAIL_SIGNIN_UNAVAILABLE =
 export const EMAIL_SEND_FAILED = "We couldn't send the sign-in email. Try again.";
 ```
 
-- **Mapping.** The typed provider errors are Auth.js `AuthError`s (`CredentialsSignin` subclasses, OQ-2), which `signIn()`'s raw mode rethrows as-is; the action matches them with `instanceof` (ADR-0001: the error type decides, never the message text). It then returns one of the two constants. The login form keeps toasting `result.error`. Tests assert against the exported constants.
+- **Mapping.** The action calls `signIn('nodemailer', { redirect: false })`. Two kinds of refusal come back, and both are matched by type or code, never by message text (ADR-0001):
+  - **Thrown.** The typed provider errors are Auth.js `AuthError`s (`CredentialsSignin` subclasses, OQ-2), which `signIn()`'s raw mode rethrows as-is; the action matches them with `instanceof`. An `AuthError` of type `AdapterError` (the database is down before the hooks run) maps to `EMAIL_SIGNIN_UNAVAILABLE`.
+  - **Returned.** `callbacks.signIn` refuses an uncheckable request by returning `/error?error=CredentialsSignin&code=<code>`. `signInRefusalCode` (`lib/auth/sign-in-messages.ts`) reads a known code back, and the action returns that code's message from `SIGN_IN_CODE_MESSAGES`, the same table the `/error` page uses. Any other URL (sent or limited) is followed with `redirect()`.
+
+  The login form keeps toasting `result.error`. Tests assert against the exported constants.
 - **Validation.** `loginEmailSchema` (`lib/validations/auth.ts`) changes from `.max(100)` to **`.max(254)` + ASCII only**. Both messages are `Enter a valid email address.`. The same rule runs again in `normalizeIdentifier`, which is authoritative for direct calls.
 - **Limited is never an error.** No result, message, timing or status distinguishes limited from sent (spec §6.1 enumeration).
 

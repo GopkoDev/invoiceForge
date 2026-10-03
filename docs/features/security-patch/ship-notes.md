@@ -12,8 +12,12 @@ against production or a preview; those items are the user's checklist at the end
 | Local genuine-session sweep, `tests/e2e/route-sweep.spec.ts` (AC-02, AC-05) | every private page opens directly | passes | met (local) |
 | Database toolkit (AC-27) | latest 7.x, no accelerate extension | Prisma 7.10.0 (`prisma` and `@prisma/client`) | met |
 
-Local e2e: `pnpm test:e2e` 17/17 passed in five consecutive runs on the production build. The preview
-checklist at the end is still required before production.
+Local e2e: `pnpm test:e2e` has 30 tests on the production build. Run on 2026-10-03 after the re-review
+follow-ups (T31–T37): 28 passed, 1 skipped (the smoke check for a missing container runtime, which skips
+when Docker is present), and 1 timed out: the genuine-session sweep went past its 240 s limit while the
+machine ran at a load average of about 45. Run alone, it passed in 1.4 min. The CSP gate
+(`tests/e2e/csp-gate.spec.ts`) passed 13/13. The preview checklist at the end is still required before
+production, and its items 1–5 and 8 are blocking.
 
 ## Advisory audit (AC-01)
 
@@ -99,27 +103,31 @@ Policy changes made during implement, approved by the user and recorded in `sad.
 
 ## Preview checklist for the user (not run by the agent)
 
-1. Run the CSP gate against the preview: `BASE_URL=https://<preview> pnpm exec playwright test tests/e2e/csp-gate.spec.ts`.
+Items 1–5 are the preview gates for AC-02 and AC-20 that review F-31 carried to ship. They are as
+blocking as item 8: the release does not go to production until each one has passed on the preview.
+
+1. **Blocking (F-31, AC-20):** run the CSP gate against the preview: `BASE_URL=https://<preview> pnpm exec playwright test tests/e2e/csp-gate.spec.ts`.
    Automated on a preview: the data-free describe, which opens `/login`, `/`, `/privacy` and `/terms` with zero
-   policy violations and throws a client-side error on `/login`, expecting `/monitoring` to answer 200 (the
-   preview has the real DSN). Not automated on a preview: every flow that needs seeded data (dashboard chart,
+   policy violations and throws a client-side error on `/login`, then waits for the `/monitoring` POST whose
+   envelope carries that error (`T20 synthetic client error`) and expects it to answer 200 (the preview has the
+   real DSN). Session, replay, trace and log envelopes on the same tunnel do not satisfy it (review R-16). Not automated on a preview: every flow that needs seeded data (dashboard chart,
    invoice PDF preview, download and print, settings, image previews, data export) and the genuine-session
    sweep in `tests/e2e/route-sweep.spec.ts`; both skip because they need the local throwaway database. Locally
    the sweep checks every private page for violations. On the preview, walk those pages by hand with the
    browser console open. For the Sign-in link, set `E2E_SIGNIN_LINK_FILE=/some/path` and paste the link from
    your real mailbox into that file while the helper waits (120 s).
-2. Sign in with Google on the preview with a real Google account (not automated).
-3. Confirm the Sign-in link arrives in a real mailbox and opens every private page (AC-02).
-4. Download and print an invoice PDF on the preview and confirm the browser console shows no CSP violation.
-5. Throw a synthetic client error on the preview and confirm it reaches Sentry within 5 minutes, and that
+2. **Blocking (F-31, AC-02):** sign in with Google on the preview with a real Google account (not automated).
+3. **Blocking (F-31, AC-02):** confirm the Sign-in link arrives in a real mailbox and opens every private page (AC-02).
+4. **Blocking (F-31, AC-20):** download and print an invoice PDF on the preview and confirm the browser console shows no CSP violation.
+5. **Blocking (F-31, AC-20):** throw a synthetic client error on the preview and confirm it reaches Sentry within 5 minutes, and that
    Sentry shows zero CSP reports for the run (AC-20).
 6. Before deploying, set every required setting in Vercel (the build fails without them): `DATABASE_URL`,
    `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `EMAIL_SERVER_HOST`, `EMAIL_SERVER_PORT`,
    `EMAIL_SERVER_USER`, `EMAIL_SERVER_PASSWORD`, `NEXT_PUBLIC_SENTRY_DSN`, `CRON_SECRET`, `LIMIT_KEY_SECRET`.
 7. Measure the sign-in response floor on the preview (sad.md §6, §10 QG-2): send at least 50 Sign-in
    link requests to fresh addresses, read the p90 of the `auth.signin.email` spans with outcome `sent`,
-   and set `SIGNIN_RESPONSE_FLOOR_MS` to it in Vercel (values above 1200 are clamped to 1200; unset means
-   1000). Then send 50 more to fresh addresses and 50 to addresses already at their limit, and compare the
+   and set `SIGNIN_RESPONSE_FLOOR_MS` to it in Vercel (the value is clamped to 300–1200, so 0 cannot turn the
+   floor off; unset, negative or non-numeric means 1000). Then send 50 more to fresh addresses and 50 to addresses already at their limit, and compare the
    `auth.signin.email` span medians by outcome in Sentry: `sent` and `limited` must differ by ≤ 150 ms.
    Repeat this comparison over the first 7 days after release.
 8. **Blocking (TD-3, AC-17):** before merging, run a read-only query against the production `User` table

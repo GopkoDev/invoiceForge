@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-02"
+updated_at: "2026-10-03"
 feature_size: "M"
 ---
 
@@ -95,7 +95,7 @@ erDiagram
 | Scope | Outcome | Written when | Counted by |
 |---|---|---|---|
 | `SIGNIN_SOURCE` | `REQUESTED` | a well-formed request, recorded only while the source is under its limit (flow 1), so one source writes ≤ 30 rows per 5 min however fast it floods | source limit: `count(REQUESTED) where at > now − 5 min` ≥ 30 → limited |
-| `SIGNIN_ADDRESS` | `SENT` | after SMTP accepted the link (flow 1, AC-11). Refused, invalid and failed requests write nothing | address limit: `count(SENT) where at > now − 1 h` ≥ 5 → limited |
+| `SIGNIN_ADDRESS` | `SENT` | a **reservation**, inserted under the address lock while the address is under its limit and committed **before** the send (flow 1, F-17). If the send fails or times out, the row is deleted by its id, so a failed send never counts (AC-11). If that delete fails, the row stays and counts (fail-closed). Refused and invalid requests write nothing | address limit: `count(SENT) where at > now − 1 h` ≥ 5 → limited. A reservation counts from its insert, so concurrent requests for one address never exceed 5 |
 | `SIGNIN_ADDRESS` | `REFUSED` | the address limit refused a request; **at most one per address per UTC hour** (checked under the lock, flow 1) | lockout alert: a `REFUSED` row in each of the current and the two previous UTC hours |
 | `SIGNIN_ADDRESS` | `ALERTED` | the targeted-lockout alert was raised for this digest | alert dedupe: no new alert while an `ALERTED` row exists in the past 24 h ("at most once per address per day", spec §6) |
 | `EXPORT` | `STARTED` | before any data is read (flow 6, AC-24 reservation) | export limit: `count(STARTED) where at > now − 1 h` ≥ 3 → `RATE_LIMITED`; retry at `min(at) + 1 h` over the same rows |
@@ -103,8 +103,9 @@ erDiagram
 
 **Access patterns.** Every check and record for one key runs in one transaction under `pg_advisory_xact_lock(hashtext(scope || ':' || key))` (ADR-0002).
 - Window count, retry time, refusal-per-hour and alert-dedupe lookups: `WHERE "scope" = $1 AND "key" = $2 AND "at" > $cutoff [AND "outcome" IN (…)]` → `LimitEvent_scope_key_at_idx` (verified as an index-only scan). `outcome` is filtered after the index, which is cheap: a key holds at most about 30 rows in its window.
-- Export release: `UPDATE "LimitEvent" SET "outcome" = 'FAILED' WHERE "id" = $1` → PK.
-- Daily sweep (flow 10): `DELETE FROM "LimitEvent" WHERE "at" < $now − 24 h` → `LimitEvent_at_idx`.
+- Export release: `UPDATE "LimitEvent" SET "outcome" = 'FAILED' WHERE "id" = $1 AND "outcome" = 'STARTED'` → PK.
+- Sign-in release (a failed send): `DELETE FROM "LimitEvent" WHERE "id" = $1` → PK. It takes no lock: the row is the caller's own reservation, and removing it can only lower the count.
+- Daily sweep (flow 10): `DELETE FROM "LimitEvent" WHERE "at" < $now − 24 h` → `LimitEvent_at_idx`. The same run deletes expired Sign-in link tokens (see `VerificationToken` below).
 - Bounded opportunistic purge on every write (ADR-0007): `DELETE FROM "LimitEvent" WHERE "id" IN (SELECT "id" FROM "LimitEvent" WHERE "at" < $now − 24 h LIMIT 100)` → `LimitEvent_at_idx`. The batch size is an `implement` choice.
 - Account deletion: export rows cascade through `LimitEvent_userId_idx`. Address rows are deleted with `WHERE "scope" = 'SIGNIN_ADDRESS' AND "key" = $digest` → `LimitEvent_scope_key_at_idx` (prefix).
 
@@ -122,7 +123,7 @@ erDiagram
 This keeps windows exact whatever the session time zone is, and keeps them testable with the fake clock.
 
 **Convention deviations (deliberate, flagged in the audit):**
-- No `createdAt`/`updatedAt`. `at` is the event time, and the only mutation is the `STARTED → FAILED` flip. Precedent: `LogoFetchWindow` and `VerificationToken` have no audit columns.
+- No `createdAt`/`updatedAt`. `at` is the event time, and the only update is the `STARTED → FAILED` flip. A failed sign-in send deletes its `SENT` reservation instead of updating it. Precedent: `LogoFetchWindow` and `VerificationToken` have no audit columns.
 - The column names `key` and `at` come from ADR-0002 rather than the repo's usual `…At` style. Both are non-reserved words in Postgres, and Prisma quotes every identifier anyway.
 
 **Prisma schema (`prisma/schema/auth.prisma`, next to `LogoFetchWindow`):**
@@ -179,7 +180,8 @@ prisma.limitEvent.deleteMany({
 ### `VerificationToken` (unchanged)
 
 - AC-17's 254-character and ASCII-only rule is applied in `normalizeIdentifier` before Auth.js writes a token. There is no column change (`identifier` stays `TEXT`) and no `CHECK`.
-- A limited request still leaves one unused token row (SAD §11, Low). It expires on its own, and the per-source limit bounds how many one source can create.
+- An address-limited request still leaves one unused token row (SAD §11, Low), because Auth.js writes the token before the send hook runs. A source-limited or refused request writes none: `callbacks.signIn` stops it before the token is written. The per-source limit bounds how many tokens one source can create.
+- **Purge (F-18, flow 10).** The daily sweep also runs `DELETE FROM "VerificationToken" WHERE "expires" < $now`, with `$now` from the app's clock, so expired tokens never pile up. There is no index on `expires`, and none is added: the table holds only tokens issued in the last day or so, and the source limit bounds that number, so a sequential scan once a day is cheap.
 
 ### `Customer`, `SenderProfile` (unchanged schema; new write rule)
 
@@ -197,7 +199,7 @@ New only. Every other query in the §6 flows is served by an existing index or b
 
 | Index | Columns | Query it serves |
 |---|---|---|
-| `LimitEvent_pkey` ★ | (`id`) | flow 6: the export release flip `STARTED → FAILED` by id |
+| `LimitEvent_pkey` ★ | (`id`) | flow 6: the export release flip `STARTED → FAILED` by id. Flow 1: deleting a `SENT` reservation by id after a failed send |
 | `LimitEvent_scope_key_at_idx` ★ | (`scope`, `key`, `at`) | flow 1: the source count (5 min) and the address count (1 h), the refusal-per-UTC-hour check, the 3-consecutive-hours lockout check and the alert dedupe. Flow 6: the export count and the "export again at" `min(at)`. Account deletion: the address-digest delete (prefix) |
 | `LimitEvent_at_idx` ★ | (`at`) | flow 10: the global daily sweep across every key; ADR-0007: the bounded opportunistic purge on every write |
 | `LimitEvent_userId_idx` ★ | (`userId`) | FK index: the `User` delete cascade in account deletion (ADR-0007) |

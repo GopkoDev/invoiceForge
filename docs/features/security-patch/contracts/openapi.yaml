@@ -17,7 +17,7 @@ openapi: 3.1.0
 
 info:
   title: Invoice Forge — security-patch HTTP API
-  version: 0.2.0
+  version: 0.2.1
   contact:
     name: Dmytro Hopko
   description: |
@@ -90,18 +90,27 @@ paths:
         Order (sad.md §6 flow 1):
         1. `normalizeIdentifier` applies the address rule: ≤ 254 characters, ASCII only (AC-17).
            Identity normalization is unchanged (AC-03).
-        2. Per-key locks, then the source limit (30 requests per 5 min per IPv4 address or IPv6
-           /64, taken only from the platform) and the address limit (5 sent links per hour per
-           folded-address digest).
-        3. A limited request sends nothing and gets the same redirect as a sent one, after the
+        2. `callbacks.signIn`, before Auth.js writes a `VerificationToken`, runs the source limit
+           (30 requests per 5 min per IPv4 address or IPv6 /64, taken only from the platform)
+           under that source's lock, and records a `REQUESTED` event only while under the limit.
+           A request with no platform address fails closed on Vercel (AC-15); only a local run
+           with no hosting platform skips this step.
+        3. The send hook runs the address limit (5 sent links per hour per folded-address digest)
+           under that address's lock. While under the limit it inserts a `SENT` reservation and
+           commits, so the reservation counts before the mail is sent.
+        4. A limited request sends nothing and gets the same redirect as a sent one, after the
            same response floor *F* + jitter (AC-12, AC-13; spec §6 ≤ 150 ms median difference).
-        4. An allowed request sends over verified TLS only (AC-16), and a `SENT` event is
-           recorded only after the mail server accepts it (AC-11).
+           The floor is clamped to 300 ms–1.2 s and every outcome measures it from the same start.
+        5. An allowed request sends over verified TLS only (AC-16), outside any transaction. If
+           the send fails or times out, the `SENT` reservation is deleted by its id, so a failed
+           send never counts (AC-11). If that delete fails too, the row stays and counts
+           (fail-closed) and the failure goes to Sentry.
 
         This is the framework's form endpoint, not an app JSON API. Every outcome is a `302`.
-        The `error` query parameter carries the Auth.js error type, and the `/error` page maps
-        it to the plain-language message. Which type each provider failure surfaces as is beta
-        API and is pinned in implement (api-sync-report OQ-2).
+        A refusal redirects to `/error?error=CredentialsSignin&code=<code>`. The `code` is one of
+        `invalid_email`, `email_unavailable` or `send_failed`; it is client-safe and value-free,
+        and the `/error` page maps it to the plain-language message (OQ-2, pinned on
+        next-auth 5.0.0-beta.32 / @auth/core 0.41.3).
         Not idempotent-keyed. A retry is a new request and counts towards the source limit.
       operationId: requestSignInLink
       tags: [auth]
@@ -119,23 +128,29 @@ paths:
         "302":
           description: |
             Every outcome is a redirect:
-            - **Sent or limited (indistinguishable):** `Location: /verify-request?provider=nodemailer&type=email`,
-              the "check your inbox" page (AC-11, AC-12, AC-13).
-            - **Address invalid (AC-17):** `Location: /error?error=<type>`; the page says "Enter a
-              valid email address." Nothing is sent or counted.
-            - **Limits unavailable (AC-15):** `Location: /error?error=<type>`; the page says sign-in
-              by email is temporarily unavailable, try again shortly or sign in with Google.
-              Fail-closed: nothing is sent.
-            - **No TLS or invalid certificate (AC-16):** `Location: /error?error=<type>`; the page
-              says "could not send, try again". The failure is reported to Sentry.
+            - **Sent or limited (indistinguishable):** `Location: /api/auth/verify-request?provider=nodemailer&type=email`,
+              which redirects to the "check your inbox" page `/verify-request` (AC-11, AC-12, AC-13).
+            - **Address invalid (AC-17):** `code=invalid_email`; the page says "Enter a valid
+              email address." Nothing is sent or counted.
+            - **Limits unavailable (AC-15):** `code=email_unavailable`; the page says sign-in by
+              email is temporarily unavailable, try again shortly or sign in with Google. This
+              covers a limit store that cannot be checked (source or address step), a database
+              that cannot be reached for the user lookup, and, on Vercel, a request with no
+              platform address. Fail-closed: no token is written when the sign-in callback
+              refuses, and nothing is sent or counted.
+            - **No TLS or invalid certificate, or the send timed out (AC-16):** `code=send_failed`;
+              the page says "could not send, try again". The `SENT` reservation is released and
+              the failure is reported to Sentry with value-free tags.
             - **Missing or invalid CSRF token:** the Auth.js default (redirect to the sign-in page).
               Nothing is counted, because the hooks never run.
           headers:
             Location:
               schema: { type: string }
               examples:
-                checkInbox: { value: "/verify-request?provider=nodemailer&type=email" }
-                refused: { value: "/error?error=<AuthErrorType>" }
+                checkInbox: { value: "/api/auth/verify-request?provider=nodemailer&type=email" }
+                unavailable: { value: "/error?error=CredentialsSignin&code=email_unavailable" }
+                invalidAddress: { value: "/error?error=CredentialsSignin&code=invalid_email" }
+                sendFailed: { value: "/error?error=CredentialsSignin&code=send_failed" }
 
   /api/user/export:
     get:
@@ -212,24 +227,31 @@ paths:
 
   /api/cron/purge-limits:
     get:
-      summary: Delete every limit record older than 24 hours, across all keys (daily, Vercel Cron)
+      summary: Delete every limit record older than 24 hours and every expired Sign-in link token (daily, Vercel Cron)
       description: |
         Called once a day by Vercel Cron (ADR-0007, sad.md §6 flow 10). The secret is compared in
         constant time before anything else.
 
+        One run deletes, across all keys:
+        - every `LimitEvent` row whose `at` is older than 24 h;
+        - every `VerificationToken` row whose `expires` has passed. Auth.js writes one for each
+          admitted Sign-in link request, so this keeps the table bounded.
+
+        `data.deleted` counts the `LimitEvent` rows only.
+
         Sentry Crons check-ins are `in_progress` at the start and `ok` or `error` at the end. A
         missed or failed check-in alerts the app operator, which is the dead-letter equivalent.
 
-        The job is safe to run twice: deleting rows older than 24 h needs no run key, so there is
-        no `Idempotency-Key`. The scheduler does not retry. The next daily run and the bounded
-        purge on every limit write catch up.
+        The job is safe to run twice: deleting rows older than 24 h, or tokens already expired,
+        needs no run key, so there is no `Idempotency-Key`. The scheduler does not retry. The next
+        daily run and the bounded purge on every limit write catch up.
       operationId: purgeLimitRecords
       tags: [ops]
       security:
         - CronSecret: []
       responses:
         "200":
-          description: Purge done
+          description: Purge done. `data.deleted` is the number of `LimitEvent` rows removed; expired tokens are removed in the same run but not counted here.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PurgeResult" }
@@ -247,7 +269,7 @@ paths:
                 error: "Not authorized."
         "500":
           description: |
-            The delete failed. The Sentry Crons check-in is `error`, so the operator is alerted.
+            Either delete failed. The Sentry Crons check-in is `error`, so the operator is alerted.
             No §6 branch shows this yet (api-sync-report OQ-1).
           content:
             application/json:
@@ -269,8 +291,13 @@ paths:
         `NEXT_PUBLIC_SENTRY_DSN` for the current environment (AC-22).
 
         The route is outside the proxy matcher and carries no app data. It is not rate-limited
-        (spec §3 non-goal) and not idempotent-keyed: Sentry dedupes by event id. Responses carry
-        no app error body, because the SDK only reads the status.
+        by the app (spec §3 non-goal) and not idempotent-keyed: Sentry dedupes by event id.
+        Responses carry no app error body, because the SDK only reads the status and the
+        backoff headers. Of Sentry's response headers, only `Retry-After` and
+        `X-Sentry-Rate-Limits` are passed through (sad.md §6 flow 8).
+
+        The body is read up to 1 MiB (1 048 576 bytes). A larger body, by `Content-Length` or by
+        the bytes actually read, is refused with `413` before anything is parsed or forwarded.
       operationId: forwardErrorEnvelope
       tags: [ops]
       security: []
@@ -289,16 +316,36 @@ paths:
               {"message":"synthetic error","level":"error"}
       responses:
         "200":
-          description: Forwarded, and Sentry accepted it. Sentry's response body is passed through.
+          description: |
+            Forwarded, and Sentry accepted it (any 2xx keeps its status). Sentry's response body
+            is passed through, with `Retry-After` and `X-Sentry-Rate-Limits` when Sentry sent them.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/SentryRetryAfter"
+            X-Sentry-Rate-Limits:
+              $ref: "#/components/headers/SentryRateLimits"
         "403":
           description: |
-            The `dsn` names another host or project, is missing, or the header line is unreadable.
-            Nothing is forwarded (AC-22). Empty body.
+            No DSN is configured for this environment, or the `dsn` names another host or
+            project, is missing, or the header line is unreadable. Nothing is forwarded (AC-22).
+            Empty body.
+        "413":
+          description: |
+            The body is larger than 1 MiB. Nothing is parsed or forwarded. Empty body.
+        "429":
+          description: |
+            Forwarded, and Sentry answered 429 (rate limited). The status is kept so the SDK backs
+            off. Empty body; only the backoff headers are passed through.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/SentryRetryAfter"
+            X-Sentry-Rate-Limits:
+              $ref: "#/components/headers/SentryRateLimits"
         "502":
           description: |
-            The envelope was for the right project but Sentry was unreachable or answered with an
-            error. Empty body, and nothing is retried server-side. No §6 branch shows this yet
-            (api-sync-report OQ-1).
+            The envelope was for the right project but Sentry was unreachable or answered with
+            another error. Empty body, and nothing is retried server-side. No §6 branch shows
+            this yet (api-sync-report OQ-1).
 
 components:
   securitySchemes:
@@ -315,6 +362,16 @@ components:
       type: http
       scheme: bearer
       description: '`Authorization: Bearer $CRON_SECRET`, sent by Vercel Cron. `CRON_SECRET` is a required setting (ADR-0008).'
+
+  headers:
+    SentryRetryAfter:
+      description: Passed through from Sentry unchanged, only when Sentry sent it.
+      required: false
+      schema: { type: string }
+    SentryRateLimits:
+      description: Sentry's per-category backoff (`X-Sentry-Rate-Limits`), passed through unchanged, only when Sentry sent it.
+      required: false
+      schema: { type: string }
 
   responses:
     NotSignedIn:
