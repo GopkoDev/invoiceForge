@@ -29,9 +29,10 @@ export const getEmailServerConfig = (): EmailServerConfig => {
     // F-21: reuse the TLS connection for sends that follow each other closely on one instance
     // (an idle pooled connection closes after the 10 s socket timeout; sad.md response floor).
     pool: true,
-    // R-10: never re-queue a message whose connection closed (nodemailer's default is 5): the
-    // sign-in hook may have given up on it and released its reservation, so a later delivery
-    // would be a sent link the address limit never counted.
+    // R-10 / N-04: never re-queue a message whose connection closed mid-send (nodemailer's
+    // default is 5, retried with back-off on a new connection). The server may already have
+    // accepted the first copy, and a retry can land after the sign-in hook's time bound has told
+    // the Visitor the send failed - a duplicate or late link. One attempt, one reported outcome.
     maxRequeues: 0,
   };
 };

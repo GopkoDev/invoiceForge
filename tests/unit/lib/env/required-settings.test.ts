@@ -23,7 +23,8 @@ function readEnvExample(): string {
 
 /**
  * The setting names one source file reads directly: `process.env.X`, `process.env['X']` and
- * `process.env["X"]` (T36 / re-review R-06: the bracket form used to slip past this scan).
+ * `process.env["X"]` (T36 / re-review R-06: the bracket form used to slip past this scan), each
+ * also with `?.`, plus destructuring `const { X, Y: alias } = process.env` (T46 / N-06).
  */
 function envReadsIn(source: string): string[] {
   // T41 / S-06: a parameter that defaults to process.env (`env = process.env`) is an injected
@@ -32,18 +33,33 @@ function envReadsIn(source: string): string[] {
     'process\\.env',
     ...[
       ...source.matchAll(
-        /\b([A-Za-z_$][\w$]*)\s*(?::[^=)]+)?=\s*process\.env\b(?!\s*[.[])/g
+        /\b([A-Za-z_$][\w$]*)\s*(?::[^=)]+)?=\s*process\.env\b(?!\s*[.[?])/g
       ),
     ].map((m) => m[1]),
-  ];
-  return [
+  ].join('|');
+  const accessed = [
     ...source.matchAll(
       new RegExp(
-        `\\b(?:${records.join('|')})(?:\\.([A-Z][A-Z0-9_]*)|\\[\\s*['"]([A-Z][A-Z0-9_]*)['"]\\s*\\])`,
+        `\\b(?:${records})\\s*(?:\\??\\.\\s*([A-Z][A-Z0-9_]*)|(?:\\?\\.)?\\[\\s*['"]([A-Z][A-Z0-9_]*)['"]\\s*\\])`,
         'g'
       )
     ),
   ].map((m) => m[1] ?? m[2]);
+  // `{ X, Y: alias, Z = 'default' } = process.env`: the key before `:` or `=` is the name read.
+  const destructured = [
+    ...source.matchAll(
+      new RegExp(
+        `\\{([^{}]*)\\}\\s*=\\s*(?:${records})\\b(?!\\s*[.[?])`,
+        'g'
+      )
+    ),
+  ].flatMap((m) =>
+    m[1]
+      .split(',')
+      .map((part) => part.split(/[:=]/)[0].trim())
+      .filter((name) => /^[A-Z][A-Z0-9_]*$/.test(name))
+  );
+  return [...accessed, ...destructured];
 }
 
 /** Every setting name app code reads directly (see envReadsIn). */
@@ -177,6 +193,28 @@ describe('required settings list (ADR-0008)', () => {
         readFileSync(path.join(root, 'lib/auth/email-provider.ts'), 'utf8')
       )
     ).toContain('SIGNIN_RESPONSE_FLOOR_MS');
+  });
+
+  // T46 / third re-review N-06: optional chaining and destructuring are reads too.
+  it('the scan sees optional-chained and destructured reads', () => {
+    expect(
+      envReadsIn(
+        `const a = process.env?.OPTIONAL_DOT; const b = process.env?.['OPTIONAL_BRACKET'];\n` +
+          `function f(env = process.env) { return env?.INJECTED_OPTIONAL; }\n` +
+          `const { DESTRUCTURED_ONE } = process.env;\n` +
+          `const { DESTRUCTURED_TWO, DESTRUCTURED_THREE: alias, DESTRUCTURED_FOUR = 'd' } =\n` +
+          `  process.env;\n` +
+          `const { notASetting } = other;`
+      ).sort()
+    ).toEqual([
+      'DESTRUCTURED_FOUR',
+      'DESTRUCTURED_ONE',
+      'DESTRUCTURED_THREE',
+      'DESTRUCTURED_TWO',
+      'INJECTED_OPTIONAL',
+      'OPTIONAL_BRACKET',
+      'OPTIONAL_DOT',
+    ]);
   });
 
   it('the env.example parser picks up a bare or commented-out stale entry', () => {
