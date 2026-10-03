@@ -428,6 +428,225 @@
         "docs/features/security-patch/ship-notes.md"
       ],
       "file": "docs/features/security-patch/tasks/t20-preview-release-gate.md"
+    },
+    {
+      "id": "T21",
+      "title": "Keep the session when the session check fails: clear cookies only on a confirmed missing account, and add the AC-04/AC-06 e2e cases",
+      "layer": "ports",
+      "deps": [
+        "T4",
+        "T20"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-06"
+      ],
+      "dod": "Review F-01..F-04 fixed: requireSession/requireLiveUser return a distinct check-failed outcome; clear-session clears cookies only for a definitive no-live-account and otherwise routes to LoadError/503 without Set-Cookie expiry; the edge wrapper's decode-failure cookie wipe is stripped or bypassed and asserted in the real-wrapper contract test; integration test (Prisma throws in the session lookup -> no cookie expiry); e2e: check fails then recovers with the same cookie -> dashboard (AC-04); sign-in and landing load while the check is forced to fail (AC-06).",
+      "files_hint": [
+        "lib/helpers/route-auth.ts",
+        "app/api/auth/clear-session/route.ts",
+        "lib/helpers/client-session-redirect.ts",
+        "proxy.ts",
+        "tests/unit/lib/helpers/verified-session-contract.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T22",
+      "title": "Scan every 'use server' module for the session guard and cover all anonymous-mutation request shapes in e2e",
+      "layer": "tests",
+      "deps": [
+        "T5"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Review F-05, F-06 fixed: the guard scan walks app/, lib/, components/ for module-level and inline 'use server', exempts getAuthenticatedUser explicitly, fails on re-exports/default exports, and requires `const x = await guard()` + `if (!x.success) return`; e2e covers no-marker POST, form-encoded POST and POST /login naming a non-sign-in action -> refused, nothing runs.",
+      "files_hint": [
+        "tests/unit/action-session-guard-scan.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T23",
+      "title": "Never load a legacy non-web profile image in the navigation avatar",
+      "layer": "ui",
+      "deps": [
+        "T17"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Review F-07 fixed: UserAvatar applies isWebAddress(user.image) for every caller (nav-user, user-dropdown-content) and the per-caller filter in profile-settings is dropped; component test with data:/javascript: image -> fallback initial, no <img> src.",
+      "files_hint": [
+        "components/layout/user/user-avatar.tsx",
+        "components/settings/profile-settings.tsx",
+        "tests/component/legacy-address-display-t17.test.tsx"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T24",
+      "title": "Clear the remaining production advisory, enforce the audit in CI and harden the required-settings build check",
+      "layer": "wiring",
+      "deps": [
+        "T10",
+        "T20"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Review F-08..F-13 fixed: uuid ^13.0.1 (pnpm audit --prod shows no production advisory beyond justified dev tooling; @babel/core overridden or justified); CI unit job runs `pnpm audit --prod --audit-level=high`; release-gate test no longer greps strings; ship-notes lists every moderate/low dev advisory grouped by dev dependency with a reason and the nodemailer peer-range deviation; reverse env check (every process.env.X read by app code is in env.example); build uses `node --env-file-if-exists=.env` and package.json pins engines.node >=22.18.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        ".github/workflows/test.yml",
+        "tests/unit/release-gate-t20.test.ts",
+        "tests/unit/lib/env/required-settings.test.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T25",
+      "title": "Run the CSP gate over the full page sweep and on preview, and pass Sentry rate limits through the tunnel",
+      "layer": "tests",
+      "deps": [
+        "T18",
+        "T20"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Review F-14..F-16 fixed: the genuine-session sweep attaches collectCspViolations and asserts none per page; `/` added to the CSP gate; data-free public flows (/login, /, legal pages, synthetic client error with /monitoring 200) run in a describe not skipped on preview; ship-notes step 1 states exactly what is automated; /monitoring refuses >1 MB with 413 and passes 429 + Retry-After + X-Sentry-Rate-Limits through, with integration tests.",
+      "files_hint": [
+        "tests/e2e/csp-gate.spec.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "app/monitoring/route.ts",
+        "tests/integration/api/monitoring-tunnel.test.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T26",
+      "title": "Make the sign-in limiter resilient: send outside the lock, admit sources before token creation, fix shared buckets and purge contention",
+      "layer": "app",
+      "deps": [
+        "T8",
+        "T11",
+        "T15"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-15"
+      ],
+      "dod": "Review F-17..F-21 fixed: under the lock count+insert a SENT reservation and commit, send outside the transaction, release the row on send failure; source admission moves to callbacks.signIn (limited source -> neutral /verify-request, no VerificationToken row) and the daily purge deletes expired VerificationToken rows; sad.md §11 corrected; ::ffff:a.b.c.d keys as IPv4 and a missing platform IP is reported to Sentry instead of sharing 'unknown'; opportunistic purge uses FOR UPDATE SKIP LOCKED; response floor read from an optional setting clamped <=1200 ms, SMTP transport pooled, ship checklist gains the median-by-outcome step. Regression tests for each.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "auth.ts",
+        "lib/security/limits/keys.ts",
+        "lib/security/limits/limit-store.ts",
+        "app/api/cron/purge-limits/route.ts",
+        "lib/get-email-server-config.ts",
+        "lib/env/required-settings.ts",
+        "env.example",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T27",
+      "title": "Prove Google sign-in ignores email limits end to end, tag SMTP failure causes and test the TLS host-name check",
+      "layer": "tests",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-16"
+      ],
+      "dod": "Review F-22..F-24 fixed: Auth() driven through /api/auth/callback/google with stubbed token/userinfo while 5 SENT rows exist -> session cookie, redirect into the app, no LimitEvent row; the AC-16 Sentry event carries only value-free code/responseCode/command tags; TLS test with a trusted CA and a wrong-name cert expects ERR_TLS_CERT_ALTNAME_INVALID and asserts error codes.",
+      "files_hint": [
+        "tests/integration/auth/email-provider.test.ts",
+        "lib/auth/email-provider.ts",
+        "tests/unit/lib/get-email-server-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T28",
+      "title": "Test the five-year period rule through the dashboard loader",
+      "layer": "tests",
+      "deps": [
+        "T6"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "Review F-25 fixed: integration tests exercise the dashboard loader with an over-long link period (falls back per AC-07) and the boundary/leap cases (AC-08 parity with the filter and business layer).",
+      "files_hint": [
+        "tests/integration/services/dashboard/period-cap.test.ts",
+        "lib/services/dashboard/period.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T29",
+      "title": "Show the export-limit alert inside the delete-account dialog",
+      "layer": "ui",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "Review F-26 fixed: an export rate-limited from the delete dialog renders the same Alert inside the dialog body; the component test queries within(getByRole('dialog')).",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "tests/component/gdpr-settings-export-limit-t14.test.tsx"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T30",
+      "title": "Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings",
+      "layer": "docs",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-17"
+      ],
+      "dod": "Review F-27..F-30 fixed: ship-notes preview checklist gains the read-only production query for non-ASCII / non-zod-email accounts as a blocking item (owner records the answer in T11 and ticks spec §8 OQ2); data-model.md and sad.md §12 describe the SIGNIN_SOURCE key as an HMAC digest (TD-1); t01..t20 frontmatter status done; the two new lint warnings removed.",
+      "files_hint": [
+        "docs/features/security-patch/ship-notes.md",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/tasks/",
+        "tests/component/legacy-address-display-t17.test.tsx",
+        "tests/integration/api/purge-limits.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
     }
   ]
 }
