@@ -285,9 +285,20 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
       'dashboard',
       '/\r\nSet-Cookie:x=1',
       '/api/auth/clear-session?next=/dashboard',
+      // T38 (rereview-2 S-01): paths that normalise to a protocol-relative `//host`.
+      '/.//evil.example',
+      '/%2e%2e//evil.example',
     ])('never links "Try again" off-site or back here (next=%s)', async (next) => {
       const { html } = await checkUnavailable({
         search: `?next=${encodeURIComponent(next)}`,
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('ignores a same-origin Referer that normalises to //host (T38 S-01)', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://app.example.test/.//evil.example',
       });
 
       expect(tryAgainHref(html)).toBe('/dashboard');

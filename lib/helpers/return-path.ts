@@ -27,7 +27,11 @@ export function safeReturnPath(
     return null;
   }
   if (url.origin !== new URL(origin).origin) return null;
-  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return null;
+  // T38 (rereview-2 S-01): validate the NORMALISED path, not the raw input. URL parsing folds
+  // `/.//evil.com` and `/%2e%2e//evil.com` into `//evil.com`, a protocol-relative off-site href.
+  const { pathname } = url;
+  if (pathname.startsWith('//') || pathname.includes('\\')) return null;
+  if (pathname === '/api' || pathname.startsWith('/api/')) return null;
 
-  return `${url.pathname}${url.search}`;
+  return `${pathname}${url.search}`;
 }
