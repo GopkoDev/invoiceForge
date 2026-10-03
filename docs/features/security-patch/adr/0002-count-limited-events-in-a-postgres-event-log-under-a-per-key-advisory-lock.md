@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-02"
+updated_at: "2026-10-03"
 feature_size: "M"
 ticket: "security-patch"
 ---
@@ -21,7 +21,7 @@ This feature adds three limits:
 - Data exports: 3 started per Freelancer per hour.
 
 The existing limiter (`LogoFetchWindow`, architecture-hardening ADR-0008) is a per-Freelancer, per-minute counter with a foreign key to `User` and an approximate sliding estimate, so it cannot hold an address digest or a network source. The new rules also need things a counter does not hold:
-- Only links actually sent count; refused, invalid and failed requests do not (AC-11).
+- Only links actually sent count; refused, invalid and failed requests do not. A send that hits the send time bound has an unknown outcome and counts (AC-11).
 - An export counts from the moment it starts, a failure on the system's side frees its place again, and concurrent requests never run more than 3 (AC-24).
 - The "you can export again at …" time must be exact (AC-24).
 - The targeted-lockout alert needs refusals per address per clock hour (spec §6).
@@ -55,6 +55,7 @@ The existing limiter (`LogoFetchWindow`, architecture-hardening ADR-0008) is a p
 - More rows than a counter. They are bounded by the limits themselves, not by the attack rate. A source row is written only while the source is under its limit (≤ 30 per source per 5 minutes). At most 5 sent rows per address per hour, and refusal rows, kept only for the lockout alert, at most one per address per UTC hour. The 24 h purge bounds the rest.
 - The repo now has two limiter styles. The logo limiter keeps its counter (architecture-hardening ADR-0008) and is not migrated here.
 - Each limited request costs one short transaction and an index range scan on `(scope, key, at)`.
+- A send that hits the send time bound keeps its `SENT` reservation and counts, though the Visitor sees "could not send, try again" (AC-11, T39). The outcome is unknown, because a slow but live connection may still deliver the link, so releasing the reservation would let a late delivery slip past the 5-per-hour cap. The trade-off: a slow mail server can lock an address for up to an hour after 5 timeouts, and further requests then get the generic "check your inbox" with no email (sad §11). A definite failure (refused, TLS or auth error) still releases its reservation and never counts.
 
 **Neutral**
 - Migrating the logo limiter onto `LimitEvent` later is possible as its own change.
