@@ -9,7 +9,7 @@ files_hint: ["types/result.ts", "lib/services/account/account.ts", "app/api/user
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T13 — Limit data exports per Freelancer in the business layer and return RATE_LIMITED with a retry time

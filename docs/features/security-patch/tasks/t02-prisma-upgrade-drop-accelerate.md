@@ -9,7 +9,7 @@ files_hint: ["package.json", "pnpm-lock.yaml"]
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T2 — Upgrade Prisma to the latest 7.x and remove @prisma/extension-accelerate

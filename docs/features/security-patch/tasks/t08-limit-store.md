@@ -9,7 +9,7 @@ files_hint: ["lib/security/limits/limit-store.ts", "lib/security/limits/scopes.t
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T8 — Build the LimitEvent limit store with per-key advisory locks, limit keys and the opportunistic purge

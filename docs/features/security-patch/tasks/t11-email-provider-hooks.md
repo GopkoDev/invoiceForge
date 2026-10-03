@@ -9,7 +9,7 @@ files_hint: ["lib/auth/email-provider.ts", "auth.ts", "lib/validations/auth.ts",
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T11 — Enforce the address rule, sign-in-email limits, response floor and TLS-only send in the Auth.js email provider hooks

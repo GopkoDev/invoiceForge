@@ -9,7 +9,7 @@ files_hint: ["components/layout/contacts/contact-card/contact-card.tsx", "compon
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T17 — Render legacy non-web addresses as plain text and never load them as images

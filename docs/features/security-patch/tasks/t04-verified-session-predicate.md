@@ -9,7 +9,7 @@ files_hint: ["lib/helpers/verified-session.ts", "auth.config.ts", "proxy.ts", "l
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T4 — Make "signed in" mean a verified session in the proxy, requireSession and getAuthenticatedUser

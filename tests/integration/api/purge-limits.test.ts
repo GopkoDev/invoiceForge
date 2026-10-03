@@ -35,7 +35,9 @@ import { assertMatchesContract } from '../../support/contract/validate';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
-const captureCheckIn = vi.fn((_checkIn: { status: string }) => 'check-in-id');
+const captureCheckIn = vi.fn<(checkIn: { status: string }) => string>(
+  () => 'check-in-id'
+);
 vi.mock('@sentry/nextjs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sentry/nextjs')>();
   return {

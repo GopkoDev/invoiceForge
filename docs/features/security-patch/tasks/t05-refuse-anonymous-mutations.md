@@ -9,7 +9,7 @@ files_hint: ["proxy.ts", "config/routes.config.ts", "lib/actions/", "tests/unit/
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T5 — Refuse anonymous non-GET requests in the proxy and fail CI on any server action without a session guard

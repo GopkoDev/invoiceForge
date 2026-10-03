@@ -122,5 +122,10 @@ Policy changes made during implement, approved by the user and recorded in `sad.
    1000). Then send 50 more to fresh addresses and 50 to addresses already at their limit, and compare the
    `auth.signin.email` span medians by outcome in Sentry: `sent` and `limited` must differ by ≤ 150 ms.
    Repeat this comparison over the first 7 days after release.
-8. Apply the `LimitEvent` migration to production with `prisma migrate deploy` against the production URL.
-9. Only then release to production.
+8. **Blocking (TD-3, AC-17):** before merging, run a read-only query against the production `User` table
+   for accounts whose email contains a non-ASCII character or fails zod `.email()` (the sign-in address rule
+   in `lib/validations/auth.ts` refuses both, so such an account could no longer request a Sign-in link). The
+   agent never connects to production. Record the answer in `tasks/t11-email-provider-hooks.md` (TD-3 gate
+   and Definition of Done) and tick spec §8 OQ2. Any hit stops the release pending your decision.
+9. Apply the `LimitEvent` migration to production with `prisma migrate deploy` against the production URL.
+10. Only then release to production.

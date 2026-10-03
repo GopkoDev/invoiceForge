@@ -9,7 +9,7 @@ files_hint: ["lib/validations/dashboard-period.ts", "lib/validations/search-para
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T6 — Add the shared five-year Dashboard period rule and apply it in the link reader and the business layer

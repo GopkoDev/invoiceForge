@@ -9,7 +9,7 @@ files_hint: ["next.config.ts", "vercel.json", "tests/unit/security-headers.test.
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T19 — Serve the enforced content-security policy and transport headers from next.config.ts

@@ -9,7 +9,7 @@ files_hint: ["package.json", "pnpm-lock.yaml", "tests/integration/auth-session-c
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T1 — Upgrade Next.js to 16.3.x, next-auth to 5.0.0-beta.32 and nodemailer to 10.x in one change

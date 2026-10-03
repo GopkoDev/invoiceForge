@@ -9,7 +9,7 @@ files_hint: ["app/monitoring/route.ts", "next.config.ts", "instrumentation-clien
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T18 — Replace the open Sentry rewrite with an app-owned tunnel that forwards only the configured DSN
