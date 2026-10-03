@@ -806,6 +806,121 @@
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
       "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T38",
+      "title": "Validate the normalised return path so the check-unavailable 'Try again' link is never off-site",
+      "layer": "ui",
+      "deps": [
+        "T32"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Second re-review S-01 fixed: safeReturnPath rejects any value whose normalised pathname starts with // or contains a backslash, and runs the /api check on that normalised value; a unit test for return-path.ts covers /.//evil.com, /%2e%2e//evil.com, the Referer form https://<origin>/.//evil.com, //host, /api/ and a cross-origin Referer, all returning null; clear-session renders 'Try again' to / for those inputs.",
+      "files_hint": [
+        "lib/helpers/return-path.ts",
+        "app/api/auth/clear-session/route.ts",
+        "tests/unit/lib/helpers/return-path.test.ts",
+        "tests/unit/api/clear-session.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T39",
+      "title": "Keep the SENT reservation when a send times out and stop closing the shared pool",
+      "layer": "app",
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "Second re-review S-02, S-03 fixed (closes R-10): SEND_TIMEOUT is an unknown outcome, so the SENT reservation stays and counts and the pool is not closed; definite send failures still release the reservation; other Visitors' queued sends are unaffected by one timeout; the test SMTP server gets a slow-but-delivers mode and an integration test proves a timed-out send that is delivered stays counted; server-actions.md, data-model.md, openapi.yaml and sad §6 describe the timeout rule.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "tests/support/smtp-server.ts",
+        "tests/integration/auth/email-provider.test.ts",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T40",
+      "title": "Keep the session cookie on Auth.js's session endpoint and make the /login anonymous-action e2e assert a real outcome",
+      "layer": "ports",
+      "deps": [
+        "T31",
+        "T35"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-18"
+      ],
+      "dod": "Second re-review S-04, S-05 fixed: GET /api/auth/session responses pass through withoutSessionCookieExpiry (or equivalent) so a failed check never clears the cookie, with a unit test; the no-client-session scan walks the repo root with the guard scan's skips (covers instrumentation-client.ts, config/, constants/); the /login getCustomers e2e asserts 401 + UNAUTHORIZED_BODY for the forwarded Next-Action shape and the specific refused/not-found status for the form shape, and its comment states that it covers the proxy and worker lookup.",
+      "files_hint": [
+        "app/api/auth/[...nextauth]/route.ts",
+        "proxy.ts",
+        "tests/unit/no-client-session-fetch.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T41",
+      "title": "Type injected settings records against the known setting names and report the AdapterError sign-in path",
+      "layer": "app",
+      "deps": [
+        "T33",
+        "T36"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-26"
+      ],
+      "dod": "Second re-review S-06, S-07 fixed (closes R-06): injected settings records are typed Partial<Record<RequiredSetting | OptionalSetting, string>> (or the forward scan captures <param>.X where the param defaults to process.env), so an unlisted name fails tsc or the test; the login-actions AdapterError branch calls Sentry.captureException(new EmailSigninUnavailable()) with a test; the direct-endpoint error=Configuration behaviour is either aligned or documented in openapi.yaml.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/env",
+        "tests/unit/lib/env/required-settings.test.ts",
+        "lib/actions/login-actions.ts",
+        "tests/integration/actions/login-actions.test.ts",
+        "docs/features/security-patch/contracts/openapi.yaml"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T42",
+      "title": "Bring test-plan, sad, ship-notes and env.example in line with the code",
+      "layer": "docs",
+      "deps": [
+        "T32",
+        "T34",
+        "T37"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-04",
+        "AC-12",
+        "AC-22"
+      ],
+      "dod": "Second re-review S-08..S-11 fixed: test-plan has an AC-04 row for the check-unavailable 503 (no-store, Retry-After, no Set-Cookie, safe 'Try again' target); sad flow 8 says the 413 fires before anything is parsed or forwarded; ship-notes' gate row states the genuine-session sweep result truthfully (or the full suite is re-run green); sad §11 and env.example say the floor is clamped to 300-1200 ms.",
+      "files_hint": [
+        "docs/features/security-patch/test-plan.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ship-notes.md",
+        "env.example"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
     }
   ]
 }
