@@ -83,3 +83,59 @@ describe('isVerifiedSession against real Auth.js req.auth (AC-05)', () => {
     expect(isVerifiedSession(await reqAuthFor(cookie))).toBe(false);
   });
 });
+
+// T21 (review-2026-10-03 F-02, AC-04): when the edge cannot decode the session JWT (a wrong or
+// rotated AUTH_SECRET), next-auth's wrapper appends `sessionStore.clean()` cookie expiries to
+// whatever the proxy returns. proxy.ts is driven here through the REAL wrapper (the unit test in
+// tests/unit/proxy.test.ts stubs it, so it cannot see these cookies).
+describe('proxy.ts keeps the session cookies when the edge check fails (AC-04, F-02)', async () => {
+  process.env.AUTH_SECRET = SECRET;
+  process.env.AUTH_TRUST_HOST = 'true';
+  const { default: proxy } = (await import('@/proxy')) as unknown as {
+    default: Wrapped;
+  };
+  const WRONG_SECRET = 'another-secret-also-32-characters-long!!';
+
+  function request(path: string, cookie: string): NextRequest {
+    return new NextRequest(new URL(path, BASE), {
+      headers: { 'x-forwarded-proto': 'https', cookie },
+    });
+  }
+
+  function sessionCookieExpiries(res: Response): string[] {
+    return res.headers
+      .getSetCookie()
+      .filter((c) => /^(__Secure-)?authjs\.session-token(\.\d+)?=;/.test(c));
+  }
+
+  it('the raw wrapper does expire an undecodable session cookie (so the proxy must strip it)', async () => {
+    const wrapped = auth(() => undefined) as unknown as Wrapped;
+    const res = await wrapped(
+      request('/', await mintCookie({ id: 'u1', sub: 'u1' }, WRONG_SECRET)),
+      { params: Promise.resolve({}) }
+    );
+    expect(sessionCookieExpiries(res)).not.toEqual([]);
+  });
+
+  it.each(['/dashboard', '/login', '/', '/api/user/export'])(
+    'an undecodable session cookie on %s is left untouched',
+    async (path) => {
+      const cookie = await mintCookie({ id: 'u1', sub: 'u1' }, WRONG_SECRET);
+      const res = await proxy(request(path, `${cookie}; ${COOKIE}.0=chunk`), {
+        params: Promise.resolve({}),
+      });
+      expect(sessionCookieExpiries(res)).toEqual([]);
+    }
+  );
+
+  it('a genuine session still has its expiry refreshed through the proxy', async () => {
+    const res = await proxy(
+      request('/dashboard', await mintCookie({ id: 'u1', sub: 'u1' })),
+      { params: Promise.resolve({}) }
+    );
+    expect(res.headers.get('location')).toBeNull();
+    expect(
+      res.headers.getSetCookie().some((c) => c.startsWith(`${COOKIE}=ey`))
+    ).toBe(true);
+  });
+});

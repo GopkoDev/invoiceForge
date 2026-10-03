@@ -8,10 +8,17 @@
 // created"). This sends the browser through the same cookie-clearing route
 // (`CLEAR_SESSION_PATH`) a server redirect would use, rather than looping through the proxy with
 // an uncleared cookie.
+//
+// T21 (review-2026-10-03 F-01, AC-04): an UNAUTHORIZED code can also come from a failed check (the
+// DB lookup down), not only a dead session. That route re-checks and clears cookies only when the
+// account is definitively gone; on a failed check it answers 503 and the session survives.
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 
 /** True for an ActionResult failure that means "treat this device as signed out" (AC-21). */
-export function isUnauthorizedFailure(result: { success: boolean; code?: string }): boolean {
+export function isUnauthorizedFailure(result: {
+  success: boolean;
+  code?: string;
+}): boolean {
   return !result.success && result.code === 'UNAUTHORIZED';
 }
 
@@ -35,7 +42,10 @@ export function goToSignIn(): void {
  * Sends the device to sign-in when `result` is an UNAUTHORIZED failure. Returns whether it did,
  * so a caller can `if (redirectIfUnauthorized(result)) return;` before its own error handling.
  */
-export function redirectIfUnauthorized(result: { success: boolean; code?: string }): boolean {
+export function redirectIfUnauthorized(result: {
+  success: boolean;
+  code?: string;
+}): boolean {
   if (isUnauthorizedFailure(result)) {
     goToSignIn();
     return true;
