@@ -35,6 +35,7 @@ import { seedWorkspace, type SeededWorkspace } from './support/seed';
 import { uniqueTestEmail } from '../support/factories/ids';
 import {
   PURGE_LIMITS_CRON_PATH,
+  legalRoutes,
   authRoutes,
   isPublicPath,
   protectedRoutes,
@@ -249,7 +250,12 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
 
   // AC-18: the other request shapes. A real, non-sign-in action id comes from the build's own
   // server-reference manifest, so the framework would really dispatch it if the request got that far.
-  function readNonSignInActionId(): string {
+  // T35 (R-05): picked by its exported name, not by manifest order — getCustomers is the action that
+  // would return another account's data if it ran.
+  function readNonSignInActionId(
+    filename = 'lib/actions/customer-actions.ts',
+    exportedName = 'getCustomers'
+  ): string {
     const manifest = JSON.parse(
       fs.readFileSync(
         path.join(
@@ -264,11 +270,47 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       node: Record<string, { filename: string; exportedName: string }>;
     };
     const entry = Object.entries(manifest.node).find(
-      ([, action]) => action.filename === 'lib/actions/customer-actions.ts'
+      ([, action]) =>
+        action.filename === filename && action.exportedName === exportedName
     );
-    expect(entry, 'a customer action in the manifest').toBeTruthy();
+    expect(entry, `${filename}#${exportedName} in the manifest`).toBeTruthy();
     return entry![0];
   }
+
+  // T35 (R-05, test-plan.md row 70): ADR-0003 closed the hole of an action posted to a *public*
+  // page, so every anonymous-action shape is sent there too, not only to private pages.
+  test('every anonymous-action shape POSTed to a public page is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext({ maxRedirects: 0 });
+    try {
+      const actionId = readNonSignInActionId();
+      for (const target of ['/', legalRoutes.privacy]) {
+        const shapes = {
+          'no action marker (JSON)': () =>
+            context.post(`${APP_E2E_URL}${target}`, { data: {} }),
+          'form-encoded $ACTION_ID_': () =>
+            context.post(`${APP_E2E_URL}${target}`, {
+              form: { [`$ACTION_ID_${actionId}`]: '' },
+            }),
+          'Next-Action header': () =>
+            context.post(`${APP_E2E_URL}${target}`, {
+              headers: { 'Next-Action': actionId },
+              data: '[]',
+            }),
+        };
+        for (const [shape, send] of Object.entries(shapes)) {
+          const response = await send();
+          expect(response.status(), `${shape} → ${target}`).toBe(401);
+          expect(await response.json(), `${shape} → ${target}`).toEqual(
+            UNAUTHORIZED_BODY
+          );
+        }
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
 
   test('a header-less JSON POST to a private page is refused with no data', async ({
     playwright,
@@ -333,6 +375,44 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       });
       expect(form.status()).toBeLessThan(500);
       expect(await form.text()).not.toContain('"success":true');
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  // T35 (R-05): the absence of `"success":true` alone proves little, so another account's data is
+  // planted and must never come back, through either shape, from the action that would list it.
+  test("POST /login naming getCustomers never returns another account's customer", async ({
+    playwright,
+  }) => {
+    test.skip(
+      !!BASE_URL_OVERRIDE,
+      'seeded data needs the local throwaway database'
+    );
+    const customerName = `Other Account Customer ${Date.now().toString(36)}`;
+    await seedWorkspace(uniqueTestEmail('other-account'), { customerName });
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId(
+        'lib/actions/customer-actions.ts',
+        'getCustomers'
+      );
+      const header = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        headers: { 'Next-Action': actionId },
+        data: '[]',
+      });
+      const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        form: { [`$ACTION_ID_${actionId}`]: '' },
+      });
+      for (const [shape, response] of [
+        ['Next-Action header', header],
+        ['form-encoded', form],
+      ] as const) {
+        expect(response.status(), shape).toBeLessThan(500);
+        const body = await response.text();
+        expect(body, shape).not.toContain(customerName);
+        expect(body, shape).not.toContain('"success":true');
+      }
     } finally {
       await context.dispose();
     }
