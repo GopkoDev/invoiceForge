@@ -197,6 +197,126 @@ describe.runIf(containerRuntimeAvailable)(
       return Auth(posted.request, config);
     }
 
+    // Drives the real Auth.js core through the Google OIDC flow (signin -> authorization
+    // redirect -> callback) with discovery, token and userinfo stubbed, the hooks wired into
+    // callbacks.signIn exactly as for the email provider.
+    async function googleSignIn(hooks: Hooks, email: string) {
+      const fromNextAuth = createRequire(
+        require_.resolve('next-auth/package.json')
+      );
+      const { Auth, customFetch } = (await import(
+        pathToFileURL(fromNextAuth.resolve('@auth/core')).href
+      )) as {
+        Auth: (r: Request, c: Record<string, unknown>) => Promise<Response>;
+        customFetch: symbol;
+      };
+      const b64 = (o: unknown) =>
+        Buffer.from(JSON.stringify(o)).toString('base64url');
+      const now = Math.floor(Date.now() / 1000);
+      const idToken = [
+        b64({ alg: 'RS256', typ: 'JWT' }),
+        b64({
+          iss: 'https://accounts.google.com',
+          aud: 'google-client-id',
+          sub: 'google-sub-1',
+          email,
+          email_verified: true,
+          name: 'Ana',
+          iat: now,
+          exp: now + 3600,
+        }),
+        'c2ln',
+      ].join('.');
+      const json = (body: unknown) =>
+        new Response(JSON.stringify(body), {
+          headers: { 'content-type': 'application/json' },
+        });
+      const stubFetch = async (input: RequestInfo | URL) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.includes('.well-known/openid-configuration'))
+          return json({
+            issuer: 'https://accounts.google.com',
+            authorization_endpoint:
+              'https://accounts.google.com/o/oauth2/v2/auth',
+            token_endpoint: 'https://oauth2.googleapis.com/token',
+            userinfo_endpoint:
+              'https://openidconnect.googleapis.com/v1/userinfo',
+            jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+          });
+        if (url.includes('/token'))
+          return json({
+            access_token: 'at',
+            token_type: 'bearer',
+            id_token: idToken,
+          });
+        if (url.includes('userinfo'))
+          return json({ sub: 'google-sub-1', email, email_verified: true });
+        throw new Error(`unexpected fetch ${url}`);
+      };
+      const first = (authConfig.providers as unknown[])[0];
+      const base = (typeof first === 'function' ? first({}) : first) as Record<
+        string,
+        unknown
+      >;
+      const config = {
+        secret: 'test-secret-test-secret-test-secret',
+        trustHost: true,
+        basePath: '/api/auth',
+        adapter: PrismaAdapter(prisma),
+        session: { strategy: 'jwt' },
+        callbacks: {
+          signIn: hooks.signInCallback(async () => new Headers()),
+        },
+        providers: [
+          {
+            ...base,
+            options: {
+              clientId: 'google-client-id',
+              clientSecret: 'google-client-secret',
+            },
+            [customFetch]: stubFetch,
+          },
+        ],
+      };
+      const csrfRes = await Auth(new Request(`${BASE}/api/auth/csrf`), config);
+      const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
+      const jar = new Map<string, string>();
+      const absorb = (r: Response) =>
+        r.headers.getSetCookie().forEach((c) => {
+          const [pair] = c.split(';');
+          const i = pair.indexOf('=');
+          jar.set(pair.slice(0, i), pair.slice(i + 1));
+        });
+      const cookieHeader = () =>
+        [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+      absorb(csrfRes);
+      const start = await Auth(
+        new Request(`${BASE}/api/auth/signin/google`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            cookie: cookieHeader(),
+          },
+          body: new URLSearchParams({
+            csrfToken,
+            callbackUrl: `${BASE}/dashboard`,
+          }),
+        }),
+        config
+      );
+      absorb(start);
+      const state = new URL(start.headers.get('location')!).searchParams.get(
+        'state'
+      );
+      return Auth(
+        new Request(
+          `${BASE}/api/auth/callback/google?code=stub-code&state=${state}`,
+          { headers: { cookie: cookieHeader() } }
+        ),
+        config
+      );
+    }
+
     beforeAll(async () => {
       db = await startTestDatabase();
       prisma = createTestPrismaClient(db.connectionString);
@@ -491,6 +611,29 @@ describe.runIf(containerRuntimeAvailable)(
           await PrismaAdapter(prisma).getUserByEmail!('ana@example.test');
         expect(found?.id).toBe(user.id);
       });
+
+      // T27 / F-22: the structural check above cannot tell a limited address from an open one.
+      // This drives the real Auth.js core through /api/auth/callback/google (discovery, token and
+      // userinfo stubbed) while the address holds 5 SENT rows.
+      it('Google sign-in with 5 SENT rows for the address still gets a session and writes no LimitEvent', async () => {
+        await seedSent('ana@example.test', 5);
+        const before = await prisma.limitEvent.count();
+        const transport = fakeTransport();
+        const res = await googleSignIn(
+          hooksWith(transport),
+          'ana@example.test'
+        );
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe(`${BASE}/dashboard`);
+        expect(res.headers.getSetCookie().join('\n')).toMatch(
+          /authjs\.session-token=[^;]+/
+        );
+        expect(await prisma.limitEvent.count()).toBe(before);
+        expect(transport.mails).toHaveLength(0);
+        expect(
+          await prisma.user.findUnique({ where: { email: 'ana@example.test' } })
+        ).not.toBeNull();
+      });
     });
 
     describe('AC-15 limit store unavailable', () => {
@@ -542,6 +685,99 @@ describe.runIf(containerRuntimeAvailable)(
           expect(all.filter((r) => r.outcome === 'SENT')).toHaveLength(0);
         }
       );
+
+      // T27 / F-23: a cause the operator can act on (TLS vs timeout vs auth) without any value
+      // from the message, which can carry the address or the SMTP server's reply text.
+      type Hint = { tags?: Record<string, string> };
+      const reportedHint = () =>
+        vi.mocked(Sentry.captureException).mock.calls[0][1] as Hint;
+
+      it('tags the Sentry event with the value-free code, responseCode and command of the SMTP failure', async () => {
+        const transport = {
+          sendMail: async (): Promise<unknown> => {
+            throw Object.assign(
+              new Error('535 5.7.8 bad credentials for ana@example.test'),
+              { code: 'EAUTH', responseCode: 535, command: 'AUTH PLAIN' }
+            );
+          },
+        };
+        await send(
+          hooksWith(transport),
+          'ana@example.test',
+          '198.51.100.21'
+        ).catch(() => undefined);
+        expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+        expect(reportedHint().tags).toEqual({
+          code: 'EAUTH',
+          responseCode: '535',
+          command: 'AUTH PLAIN',
+        });
+        const reported = JSON.stringify(
+          vi.mocked(Sentry.captureException).mock.calls
+        );
+        expect(reported).not.toContain('ana@example.test');
+        expect(reported).not.toContain('bad credentials');
+      });
+
+      it('tags a TLS host-name failure with its code and nothing from its message', async () => {
+        const transport = {
+          sendMail: async (): Promise<unknown> => {
+            throw Object.assign(new Error('mismatch for smtp.internal.test'), {
+              code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+            });
+          },
+        };
+        await send(
+          hooksWith(transport),
+          'ana@example.test',
+          '198.51.100.22'
+        ).catch(() => undefined);
+        expect(reportedHint().tags).toEqual({
+          code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+        });
+        expect(JSON.stringify(reportedHint())).not.toContain(
+          'smtp.internal.test'
+        );
+      });
+
+      it('tags a send that exceeds the time bound so it is told apart from TLS and auth failures', async () => {
+        // Fake timers only around the bound: the DB work before and after runs on real ones.
+        // The send hook starts the bound's timer right after calling sendMail, so the fake clock
+        // goes on inside sendMail and is advanced from a microtask.
+        const hanging = {
+          sendMail: () => {
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+            void Promise.resolve()
+              .then(() => vi.advanceTimersByTimeAsync(10_001))
+              .finally(() => vi.useRealTimers());
+            return new Promise<unknown>(() => {});
+          },
+        };
+        await send(
+          hooksWith(hanging, 0),
+          'ana@example.test',
+          '198.51.100.24'
+        ).catch(() => undefined);
+        expect(reportedHint().tags).toEqual({ code: 'SEND_TIMEOUT' });
+      });
+
+      it('leaves out a code or command that is not a plain identifier', async () => {
+        const transport = {
+          sendMail: async (): Promise<unknown> => {
+            throw Object.assign(new Error('x'), {
+              code: 'ana@example.test',
+              responseCode: 'oops',
+              command: 'RCPT TO:<ana@example.test>',
+            });
+          },
+        };
+        await send(
+          hooksWith(transport),
+          'ana@example.test',
+          '198.51.100.25'
+        ).catch(() => undefined);
+        expect(reportedHint().tags ?? {}).toEqual({});
+      });
 
       it('never puts the raw address or source in the Sentry report', async () => {
         await send(

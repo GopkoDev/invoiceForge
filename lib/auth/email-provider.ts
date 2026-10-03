@@ -51,10 +51,44 @@ export class EmailSigninUnavailable extends SignInRefused {
 
 export class EmailSendFailed extends SignInRefused {
   code = SIGN_IN_ERROR_CODES.sendFailed;
-  constructor() {
+  /** F-23: value-free tags of the SMTP failure, for the Sentry event only. */
+  readonly causeTags: Record<string, string>;
+  constructor(causeTags: Record<string, string> = {}) {
     super('Could not send the sign-in email');
     this.name = 'EmailSendFailed';
+    this.causeTags = causeTags;
   }
+}
+
+/** Code of the error withTimeout raises, so a timeout is told apart from TLS and auth failures. */
+const SEND_TIMEOUT_CODE = 'SEND_TIMEOUT';
+
+/**
+ * F-23: only the nodemailer `code` (ESOCKET, EAUTH, ERR_TLS_CERT_ALTNAME_INVALID ...), the SMTP
+ * `responseCode` and the `command` name, and only when each is a plain identifier. The error
+ * message is never read: it can carry the address or the server's reply text.
+ */
+function sendFailureTags(cause: unknown): Record<string, string> {
+  const { code, responseCode, command } = (cause ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const tags: Record<string, string> = {};
+  if (typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code))
+    tags.code = code;
+  if (
+    typeof responseCode === 'number' &&
+    Number.isInteger(responseCode) &&
+    responseCode >= 100 &&
+    responseCode <= 599
+  )
+    tags.responseCode = String(responseCode);
+  if (
+    typeof command === 'string' &&
+    /^[A-Z]{1,12}( [A-Z]{1,12})?$/.test(command)
+  )
+    tags.command = command;
+  return tags;
 }
 
 export interface MailTransport {
@@ -116,7 +150,15 @@ export function responseFloorMs(
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('send timed out')), ms);
+    timer = setTimeout(
+      () =>
+        reject(
+          Object.assign(new Error('send timed out'), {
+            code: SEND_TIMEOUT_CODE,
+          })
+        ),
+      ms
+    );
   });
   return Promise.race([work, expired]).finally(() => clearTimeout(timer));
 }
@@ -252,11 +294,11 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   ): Promise<void> {
     try {
       await withTimeout(send(), SEND_TIMEOUT_MS);
-    } catch {
+    } catch (cause) {
       await store.release(reservationId).catch(() => {
         Sentry.captureException(new LimitStoreUnavailable());
       });
-      throw new EmailSendFailed();
+      throw new EmailSendFailed(sendFailureTags(cause));
     }
   }
 
@@ -294,7 +336,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       } catch (error) {
         if (error instanceof EmailSendFailed) {
           setOutcome('failed');
-          Sentry.captureException(error);
+          Sentry.captureException(error, { tags: error.causeTags });
           throw error;
         }
         if (!(error instanceof LimitStoreUnavailable)) throw error;
