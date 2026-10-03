@@ -64,17 +64,74 @@ export class EmailSendFailed extends SignInRefused {
 /** Code of the error withTimeout raises, so a timeout is told apart from TLS and auth failures. */
 const SEND_TIMEOUT_CODE = 'SEND_TIMEOUT';
 
+/** R-08: the fixed values of the `tls` tag. Nothing else is ever put in it. */
+export type TlsFailure = 'starttls_missing' | 'altname' | 'untrusted' | 'expired';
+
+/** Node TLS verification codes (kept by a transport that does not overwrite them). */
+const NODE_TLS_CODES: Readonly<Record<string, TlsFailure>> = {
+  ERR_TLS_CERT_ALTNAME_INVALID: 'altname',
+  DEPTH_ZERO_SELF_SIGNED_CERT: 'untrusted',
+  SELF_SIGNED_CERT_IN_CHAIN: 'untrusted',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'untrusted',
+  UNABLE_TO_GET_ISSUER_CERT: 'untrusted',
+  UNABLE_TO_GET_ISSUER_CERT_LOCALLY: 'untrusted',
+  CERT_UNTRUSTED: 'untrusted',
+  CERT_HAS_EXPIRED: 'expired',
+  CERT_NOT_YET_VALID: 'expired',
+};
+
+/**
+ * OpenSSL's fixed verification texts, which nodemailer 10 leaves as the only trace of the Node
+ * code it overwrites with ESOCKET. The message is compared whole against this list and never
+ * copied: a message that is not exactly one of these library strings yields no tag.
+ */
+const OPENSSL_VERIFY_TEXTS: Readonly<Record<string, TlsFailure>> = {
+  'self-signed certificate': 'untrusted',
+  'self-signed certificate in certificate chain': 'untrusted',
+  'unable to verify the first certificate': 'untrusted',
+  'unable to get local issuer certificate': 'untrusted',
+  'unable to get issuer certificate': 'untrusted',
+  'certificate not trusted': 'untrusted',
+  'certificate has expired': 'expired',
+  'certificate is not yet valid': 'expired',
+};
+
+/**
+ * R-08: which TLS failure an SMTP send error is, from its signature:
+ * - nodemailer's STARTTLS refusal: code ETLS on the STARTTLS command;
+ * - Node's host-name check: its `host`, `reason` and `cert` fields (nodemailer keeps them but
+ *   replaces the ERR_TLS_CERT_ALTNAME_INVALID code with ESOCKET);
+ * - a certificate the trust store refuses: Node's code, or OpenSSL's fixed verification text.
+ */
+function tlsFailure(cause: Record<string, unknown>): TlsFailure | undefined {
+  const { code, command, host, reason, cert, message } = cause;
+  if (code === 'ETLS' && command === 'STARTTLS') return 'starttls_missing';
+  if (typeof code === 'string' && Object.hasOwn(NODE_TLS_CODES, code))
+    return NODE_TLS_CODES[code];
+  if (
+    typeof host === 'string' &&
+    typeof reason === 'string' &&
+    typeof cert === 'object' &&
+    cert !== null
+  )
+    return 'altname';
+  if (typeof message === 'string' && Object.hasOwn(OPENSSL_VERIFY_TEXTS, message))
+    return OPENSSL_VERIFY_TEXTS[message];
+  return undefined;
+}
+
 /**
  * F-23: only the nodemailer `code` (ESOCKET, EAUTH, ERR_TLS_CERT_ALTNAME_INVALID ...), the SMTP
- * `responseCode` and the `command` name, and only when each is a plain identifier. The error
- * message is never read: it can carry the address or the server's reply text.
+ * `responseCode` and the `command` name, and only when each is a plain identifier, plus the
+ * fixed-value `tls` tag (R-08). No value from the error message, the server's reply or the
+ * certificate is ever copied: they can carry the address, the host or the reply text.
  */
 function sendFailureTags(cause: unknown): Record<string, string> {
-  const { code, responseCode, command } = (cause ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const fields = (cause ?? {}) as Record<string, unknown>;
+  const { code, responseCode, command } = fields;
   const tags: Record<string, string> = {};
+  const tls = tlsFailure(fields);
+  if (tls) tags.tls = tls;
   if (typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code))
     tags.code = code;
   if (
@@ -100,12 +157,21 @@ export interface MailTransport {
     text: string;
     html: string;
   }): Promise<unknown>;
+  close?(): void;
 }
 
 export interface EmailProviderOptions {
   prisma?: PrismaClient;
+  /** A fixed transport (tests); by default one is created with createTransport. */
   transport?: MailTransport;
-  /** Response floor F in ms (default: SIGNIN_RESPONSE_FLOOR_MS, else 1000; capped at 1200). */
+  /** Builds the SMTP transport (default: the verified-TLS pooled nodemailer transport). */
+  createTransport?: () => MailTransport | Promise<MailTransport>;
+  /** Hard bound on one SMTP send in ms (default 10 s). */
+  sendTimeoutMs?: number;
+  /**
+   * Response floor F in ms (default: SIGNIN_RESPONSE_FLOOR_MS clamped to 300..1200, else 1000).
+   * Passed explicitly (tests) it is capped at 1200 only.
+   */
   floorMs?: number;
   /** Upper bound of the random jitter added to the floor, in ms. */
   jitterMs?: number;
@@ -121,7 +187,8 @@ export interface SendVerificationParams {
 /** The part of Auth.js's callbacks.signIn params this callback reads. */
 export interface SignInCallbackParams {
   user?: object | null;
-  account?: { type?: string } | null;
+  /** For a Sign-in link request, providerAccountId is the normalized address. */
+  account?: { type?: string; providerAccountId?: string } | null;
   email?: { verificationRequest?: boolean };
 }
 
@@ -137,6 +204,7 @@ interface UserLookupAdapter {
 const LOOKUP_FAILED = Symbol('signin.lookupFailed');
 
 const DEFAULT_FLOOR_MS = 1000;
+const MIN_FLOOR_MS = 300;
 const MAX_FLOOR_MS = 1200;
 const DEFAULT_JITTER_MS = 50;
 /** Hard bound on one SMTP send. */
@@ -160,7 +228,8 @@ const sleep = (ms: number) =>
 
 /**
  * F-21: the floor F from the optional SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time
- * measured on preview), clamped to at most 1200 ms; an unset or unusable value gives 1000 ms.
+ * measured on preview), clamped to 300..1200 ms (R-09: 0 would switch the floor off); an unset
+ * or unusable value gives 1000 ms.
  */
 export function responseFloorMs(
   env: Record<string, string | undefined> = process.env
@@ -168,7 +237,7 @@ export function responseFloorMs(
   const raw = env.SIGNIN_RESPONSE_FLOOR_MS;
   const value = raw ? Number(raw) : NaN;
   if (!Number.isFinite(value) || value < 0) return DEFAULT_FLOOR_MS;
-  return Math.min(value, MAX_FLOOR_MS);
+  return Math.min(Math.max(value, MIN_FLOOR_MS), MAX_FLOOR_MS);
 }
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
@@ -226,12 +295,33 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   const store = createLimitStore(storeOverrides);
   const alert = createLockoutAlert(storeOverrides);
   let transport = options.transport;
+  const makeTransport = options.createTransport ?? defaultTransport;
+  const sendTimeoutMs = options.sendTimeoutMs ?? SEND_TIMEOUT_MS;
 
   /** Holds a response until F (+ jitter) after `started`; a slower path is not held further. */
   const holdToFloor = (started: number) =>
     sleep(
       Math.max(0, started + floorMs + Math.random() * jitterMs - Date.now())
     );
+
+  /**
+   * R-09: when callbacks.signIn admitted each address's request. A source-limited response is
+   * held from the start of the callback, so the send hook holds a sent (or address-limited)
+   * response from that same start instead of its own, later one.
+   */
+  const admittedAt = new Map<string, number>();
+  const ADMITTED_AT_MAX_ENTRIES = 1_000;
+  function rememberAdmission(email: string | undefined, started: number) {
+    if (!email) return;
+    // Bounded: an entry outlives its request only if Auth.js never reached the send hook.
+    if (admittedAt.size >= ADMITTED_AT_MAX_ENTRIES) admittedAt.clear();
+    admittedAt.set(email, started);
+  }
+  function takeAdmission(email: string): number | undefined {
+    const started = admittedAt.get(email);
+    admittedAt.delete(email);
+    return started;
+  }
 
   /**
    * The address normalizeIdentifier just returned. Auth.js calls normalizeIdentifier only when it
@@ -320,8 +410,11 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
    * A limited source is held to the floor and gets the same redirect as a sent request. When the
    * source cannot be checked the request fails closed with the AC-15 message (spec §6, ADR-0002).
    */
-  async function admitSignInRequest(headers: Headers): Promise<true | string> {
-    const started = Date.now();
+  async function admitSignInRequest(
+    headers: Headers,
+    started: number,
+    email: string | undefined
+  ): Promise<true | string> {
     const ip = clientSource(headers);
     if (!ip) {
       // F-19 / R-11: never pool such requests into one shared bucket. On Vercel the platform
@@ -329,10 +422,14 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       // Only a local run (no hosting platform) skips the source step; the address limit applies.
       reportMissingSource();
       if (process.env.VERCEL) return refuseUnavailable(started, false);
+      rememberAdmission(email, started);
       return true;
     }
     try {
-      if (await admitSource(sourceLimitKey(ip))) return true;
+      if (await admitSource(sourceLimitKey(ip))) {
+        rememberAdmission(email, started);
+        return true;
+      }
     } catch (error) {
       if (!(error instanceof LimitStoreUnavailable)) throw error;
       // R-02: an unavailable source check refuses on its own, whatever the address lock would do.
@@ -353,8 +450,13 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       email,
     }: SignInCallbackParams): Promise<true | string> => {
       if (account?.type !== 'email' || !email?.verificationRequest) return true;
-      if (user && LOOKUP_FAILED in user) return refuseUnavailable(Date.now());
-      return admitSignInRequest(await getHeaders());
+      const started = Date.now();
+      if (user && LOOKUP_FAILED in user) return refuseUnavailable(started);
+      return admitSignInRequest(
+        await getHeaders(),
+        started,
+        account.providerAccountId
+      );
     };
   }
 
@@ -374,14 +476,28 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       }
     );
 
+  /**
+   * R-10: a send given up at the time bound must never go out later, after its reservation was
+   * released. Closing the pooled transport rejects every message still waiting in its queue
+   * (the pool never re-queues: maxRequeues 0); the next send builds a fresh transport.
+   */
+  function abandonTransport() {
+    if (options.transport) return;
+    const abandoned = transport;
+    transport = undefined;
+    abandoned?.close?.();
+  }
+
   /** Sends outside any transaction; a failed send releases its reservation (it never counts). */
   async function sendOrRelease(
     reservationId: string,
     send: () => Promise<unknown>
   ): Promise<void> {
     try {
-      await withTimeout(send(), SEND_TIMEOUT_MS);
+      await withTimeout(send(), sendTimeoutMs);
     } catch (cause) {
+      if ((cause as { code?: unknown } | null)?.code === SEND_TIMEOUT_CODE)
+        abandonTransport();
       await store.release(reservationId).catch(() => {
         Sentry.captureException(new LimitStoreUnavailable());
       });
@@ -392,14 +508,14 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   async function sendVerificationRequest(
     params: SendVerificationParams
   ): Promise<void> {
-    const started = Date.now();
+    const started = takeAdmission(params.identifier) ?? Date.now();
 
     return withSpan(async (setOutcome) => {
       const { identifier, url, provider } = params;
       const addressKey = addressLimitKey(identifier);
       const host = new URL(url).host;
       const sendLink = async () => {
-        transport ??= await defaultTransport();
+        transport ??= await makeTransport();
         return transport.sendMail({
           to: identifier,
           from: provider.from ?? '',

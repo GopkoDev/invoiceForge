@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -35,14 +36,25 @@ import { createTestPrismaClient } from '../../support/db/client';
 import {
   databaseDown,
   sourceStoreDown,
+  sourceStoreSlow,
 } from '../../support/db/failing-prisma';
+import {
+  fixtureCa,
+  startSmtp,
+  type SmtpServer,
+} from '../../support/smtp-server';
 import { truncateAllTables } from '../../support/db/truncate';
 import { createFreelancer } from '../../support/factories/user';
 import {
   TEST_LIMIT_KEY_SECRET,
   createLimitEvent,
 } from '../../support/factories/limit-event';
-import { createEmailProviderHooks } from '@/lib/auth/email-provider';
+import nodemailer from 'nodemailer';
+import {
+  createEmailProviderHooks,
+  type MailTransport,
+} from '@/lib/auth/email-provider';
+import { getEmailServerConfig } from '@/lib/get-email-server-config';
 import { addressLimitKey, sourceLimitKey } from '@/lib/security/limits/keys';
 import authConfig from '@/auth.config';
 
@@ -835,10 +847,142 @@ describe.runIf(containerRuntimeAvailable)(
         ).catch(() => undefined);
         expect(reportedHint().tags).toEqual({
           code: 'ERR_TLS_CERT_ALTNAME_INVALID',
+          tls: 'altname',
         });
         expect(JSON.stringify(reportedHint())).not.toContain(
           'smtp.internal.test'
         );
+      });
+
+      // T34 / R-08: nodemailer 10 replaces the Node TLS code with ESOCKET (or ETLS), so the
+      // cause is told from the error's signature and tagged with a fixed value. These run a real
+      // nodemailer transport, built from the production config, against the TLS fixtures.
+      describe('real nodemailer transport against the TLS fixtures', () => {
+        let smtp: SmtpServer | undefined;
+        afterEach(() => {
+          smtp?.close();
+          smtp = undefined;
+          vi.unstubAllEnvs();
+        });
+
+        // The production config; the only deviations are trusting the fixture CA and, where a
+        // test needs a message to wait in the pool's queue, a single connection.
+        function realTransport(
+          port: number,
+          { trustCa = false, maxConnections }: { trustCa?: boolean; maxConnections?: number } = {}
+        ) {
+          vi.stubEnv('EMAIL_SERVER_HOST', '127.0.0.1');
+          vi.stubEnv('EMAIL_SERVER_PORT', String(port));
+          vi.stubEnv('EMAIL_SERVER_USER', 'user');
+          vi.stubEnv('EMAIL_SERVER_PASSWORD', 'pass');
+          const config = getEmailServerConfig();
+          return nodemailer.createTransport({
+            ...config,
+            ...(trustCa ? { tls: { ...config.tls, ca: fixtureCa } } : {}),
+            ...(maxConnections ? { maxConnections } : {}),
+          } as never) as unknown as MailTransport & { close(): void };
+        }
+
+        it.each([
+          [
+            'no STARTTLS offered',
+            { offerStartTls: false },
+            false,
+            'starttls_missing',
+          ],
+          [
+            'certificate not valid for the host name',
+            { certName: 'wrong-name' as const },
+            true,
+            'altname',
+          ],
+          [
+            'certificate from an untrusted (self-signed) issuer',
+            { certName: 'test' as const },
+            false,
+            'untrusted',
+          ],
+        ])(
+          '%s: EmailSendFailed with its fixed tls tag, nothing sent, no SENT row, no message text or address in the report',
+          async (_l, server, trustCa, tag) => {
+            smtp = await startSmtp(server);
+            const transport = realTransport(smtp.port, { trustCa });
+            try {
+              await expect(
+                send(
+                  createEmailProviderHooks({
+                    prisma,
+                    transport,
+                    floorMs: FLOOR_MS,
+                    jitterMs: JITTER_MS,
+                  }),
+                  'ana@example.test',
+                  '198.51.100.26'
+                )
+              ).rejects.toMatchObject({ name: 'EmailSendFailed' });
+            } finally {
+              transport.close();
+            }
+            expect(smtp.state.gotData).toBe(false);
+            expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+            expect(reportedHint().tags?.tls).toBe(tag);
+            const reported = JSON.stringify(reportedHint());
+            for (const leak of [
+              'ana@example.test',
+              '127.0.0.1',
+              'altnames',
+              'self-signed',
+              'STARTTLS not available',
+            ])
+              expect(reported).not.toContain(leak);
+            const all = await rows(
+              'SIGNIN_ADDRESS',
+              addressLimitKey('ana@example.test')
+            );
+            expect(all.filter((r) => r.outcome === 'SENT')).toHaveLength(0);
+          }
+        );
+
+        // R-10: a send the hook abandoned at its time bound must never go out later (it would be a
+        // sent link whose reservation was already released). The first send hangs at DATA and its
+        // connection then drops; the second waits behind it in the one-connection pool.
+        it('a pooled send abandoned at the time bound is never delivered later, nor is one queued behind it', async () => {
+          smtp = await startSmtp({
+            certName: 'right-name',
+            stallFirstDataMs: 600,
+          });
+          const port = smtp.port;
+          const created: { close(): void }[] = [];
+          const hooks = createEmailProviderHooks({
+            prisma,
+            createTransport: () => {
+              const pool = realTransport(port, {
+                trustCa: true,
+                maxConnections: 1,
+              });
+              created.push(pool);
+              return pool;
+            },
+            sendTimeoutMs: 300,
+            floorMs: FLOOR_MS,
+            jitterMs: JITTER_MS,
+          });
+          const results = await Promise.allSettled([
+            send(hooks, 'ana@example.test', '198.51.100.27'),
+            send(hooks, 'bob@example.test', '198.51.100.28'),
+          ]);
+          expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected']);
+          // Long enough for the dropped connection to be noticed and a re-queued or waiting
+          // message to be sent on a fresh connection.
+          await sleep(2_000);
+          created.forEach((t) => t.close());
+          expect(smtp.state.delivered).toBe(0);
+          expect(
+            await prisma.limitEvent.count({
+              where: { scope: 'SIGNIN_ADDRESS', outcome: 'SENT' },
+            })
+          ).toBe(0);
+        }, 15_000);
       });
 
       it('tags a send that exceeds the time bound so it is told apart from TLS and auth failures', async () => {
@@ -962,6 +1106,70 @@ describe.runIf(containerRuntimeAvailable)(
           expect(Math.abs(median(limited) - median(sent))).toBeLessThanOrEqual(
             150
           );
+        },
+        120_000
+      );
+
+      // T34 / R-09: a source-limited response is held from the start of callbacks.signIn; a sent
+      // one must be measured from that same start, or a slow source check makes sent responses
+      // longer by its duration. This drives the full Auth.js flow with a slow source transaction.
+      it(
+        'through Auth(), source-limited vs sent medians stay within 150 ms when the source check is slow',
+        async () => {
+          const SLOW_SOURCE_MS = 400;
+          const hooks = createEmailProviderHooks({
+            prisma: sourceStoreSlow(prisma, SLOW_SOURCE_MS),
+            transport: fakeTransport(),
+            floorMs: TIMING_FLOOR_MS,
+            jitterMs: JITTER_MS,
+          });
+          const N = 8;
+          const limitedIp = (i: number) => `192.0.2.${100 + i}`;
+          await prisma.limitEvent.createMany({
+            data: Array.from({ length: N }, (_, i) =>
+              Array.from({ length: 30 }, () => ({
+                scope: 'SIGNIN_SOURCE' as const,
+                key: sourceLimitKey(limitedIp(i)),
+                outcome: 'REQUESTED' as const,
+                at: new Date(Date.now() - 30_000),
+              }))
+            ).flat(),
+          });
+          const timedPost = async (email: string, ip: string) => {
+            const t = performance.now();
+            const res = await postSignIn(hooks, email, ip);
+            return { ms: performance.now() - t, location: res.headers.get('location') };
+          };
+          const median = (xs: number[]) =>
+            [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+          const limited: { ms: number; location: string | null }[] = [];
+          const sent: { ms: number; location: string | null }[] = [];
+          for (let i = 0; i < N; i += 4) {
+            const batch = [0, 1, 2, 3].map((j) => i + j);
+            limited.push(
+              ...(await Promise.all(
+                batch.map((k) => timedPost(`lim${k}@example.test`, limitedIp(k)))
+              ))
+            );
+            sent.push(
+              ...(await Promise.all(
+                batch.map((k) =>
+                  timedPost(`sent${k}@example.test`, `192.0.3.${100 + k}`)
+                )
+              ))
+            );
+          }
+          expect(new Set([...limited, ...sent].map((r) => r.location))).toEqual(
+            new Set([`${BASE}/api/auth/verify-request?provider=nodemailer&type=email`])
+          );
+          expect(
+            await prisma.limitEvent.count({
+              where: { scope: 'SIGNIN_ADDRESS', outcome: 'SENT' },
+            })
+          ).toBe(N);
+          expect(
+            Math.abs(median(limited.map((r) => r.ms)) - median(sent.map((r) => r.ms)))
+          ).toBeLessThanOrEqual(150);
         },
         120_000
       );
