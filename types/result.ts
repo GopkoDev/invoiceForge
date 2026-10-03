@@ -11,14 +11,16 @@ export type ActionErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION'
   | 'CONFLICT'
-  | 'FAILED';
+  | 'FAILED'
+  | 'RATE_LIMITED';
 
 /** Exact 2-dp value from the shared decimal module (ADR-0006). */
 export type DecimalString = string;
 
 export type ActionErrorDetails =
   | { kind: 'TOTALS_CHANGED'; oldTotal: DecimalString; newTotal: DecimalString }
-  | { kind: 'HAS_INVOICES'; invoiceCount: number };
+  | { kind: 'HAS_INVOICES'; invoiceCount: number }
+  | { kind: 'RETRY_AT'; retryAt: string /* ISO UTC */ };
 
 export type ActionFailure = {
   success: false;
@@ -42,13 +44,18 @@ export function ok<T>(data?: T): ActionResult<T> {
 export function fail(
   code: ActionErrorCode,
   error: string,
-  extra?: { fieldErrors?: Record<string, string[]>; details?: ActionErrorDetails },
+  extra?: {
+    fieldErrors?: Record<string, string[]>;
+    details?: ActionErrorDetails;
+  }
 ): ActionFailure {
   return {
     success: false,
     code,
     error,
-    ...(extra?.fieldErrors !== undefined ? { fieldErrors: extra.fieldErrors } : {}),
+    ...(extra?.fieldErrors !== undefined
+      ? { fieldErrors: extra.fieldErrors }
+      : {}),
     ...(extra?.details !== undefined ? { details: extra.details } : {}),
   };
 }

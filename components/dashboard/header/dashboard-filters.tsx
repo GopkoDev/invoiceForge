@@ -15,6 +15,11 @@ import {
 import type { DateRange } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
+import {
+  isWithinMaxCustomPeriod,
+  PERIOD_TOO_LONG,
+} from '@/lib/validations/dashboard-period';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -88,10 +93,12 @@ export function DashboardFilters({
 }: DashboardFiltersProps) {
   const [preset, setPreset] = useState<DatePreset>('this-month');
   const [isOpen, setIsOpen] = useState(false);
+  const [rejectedRange, setRejectedRange] = useState<DateRange | undefined>();
 
   const handlePresetChange = useCallback(
     (value: DatePreset) => {
       setPreset(value);
+      setRejectedRange(undefined);
       const newRange = getPresetDateRange(value);
       onDateRangeChange(newRange, value);
       setIsOpen(false);
@@ -102,6 +109,17 @@ export function DashboardFilters({
   const handleCalendarSelect = useCallback(
     (range: DateRange | undefined) => {
       if (range?.from && range?.to) {
+        if (
+          !isWithinMaxCustomPeriod(
+            format(range.from, 'yyyy-MM-dd'),
+            format(range.to, 'yyyy-MM-dd')
+          )
+        ) {
+          // AC-07b: keep the popover open and the selection visible, do not navigate.
+          setRejectedRange(range);
+          return;
+        }
+        setRejectedRange(undefined);
         setPreset('custom');
         onDateRangeChange(range);
         setIsOpen(false);
@@ -114,14 +132,20 @@ export function DashboardFilters({
   const selectedRange = useMemo<DateRange | undefined>(
     () =>
       appliedRange
-        ? { from: appliedRange.start, to: subDays(appliedRange.endExclusive, 1) }
+        ? {
+            from: appliedRange.start,
+            to: subDays(appliedRange.endExclusive, 1),
+          }
         : undefined,
     [appliedRange]
   );
 
-  const displayText = selectedRange?.from && selectedRange.to
-    ? `${format(selectedRange.from, 'LLL dd, y')} - ${format(selectedRange.to, 'LLL dd, y')}`
-    : 'All Time';
+  const calendarSelected = rejectedRange ?? selectedRange;
+
+  const displayText =
+    selectedRange?.from && selectedRange.to
+      ? `${format(selectedRange.from, 'LLL dd, y')} - ${format(selectedRange.to, 'LLL dd, y')}`
+      : 'All Time';
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -165,11 +189,19 @@ export function DashboardFilters({
             initialFocus
             mode="range"
             defaultMonth={selectedRange?.from}
-            selected={selectedRange}
+            selected={calendarSelected}
             onSelect={handleCalendarSelect}
             numberOfMonths={2}
           />
         </div>
+        {rejectedRange && (
+          <Alert
+            variant="destructive"
+            className="rounded-t-none border-x-0 border-b-0"
+          >
+            <AlertDescription>{PERIOD_TOO_LONG}</AlertDescription>
+          </Alert>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -1,16 +1,18 @@
 import NextAuth from 'next-auth';
+import { headers } from 'next/headers';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/prisma';
 import authConfig from '@/auth.config';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { getEmailServerConfig } from './lib/get-email-server-config';
+import { createEmailProviderHooks } from './lib/auth/email-provider';
 import type { Adapter } from 'next-auth/adapters';
 import { jwtConfig } from './config/jwt.config';
 import { authRoutes } from './config/routes.config';
 import { siteConfig } from './config/site.config';
 import { sessionCallback } from './lib/helpers/session-callback';
 
-const emailServer = getEmailServerConfig();
+const emailHooks = createEmailProviderHooks();
 const emailFrom = siteConfig.branding.emailFrom;
 
 // Custom adapter that allows account linking with same email
@@ -35,7 +37,9 @@ function customAdapter(): Adapter {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
-  adapter: customAdapter(),
+  // R-03: a Sign-in link request whose user lookup cannot reach the database ends in the AC-15
+  // message (callbacks.signIn), not error=Configuration; every other lookup is untouched.
+  adapter: emailHooks.guardAdapter(customAdapter()),
   session: {
     strategy: 'jwt',
     maxAge: jwtConfig.expiresIn,
@@ -43,8 +47,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     ...authConfig.providers,
     Nodemailer({
-      server: emailServer,
+      server: getEmailServerConfig(),
       from: emailFrom,
+      normalizeIdentifier: emailHooks.normalizeIdentifier,
+      sendVerificationRequest: emailHooks.sendVerificationRequest as never,
     }),
   ],
   pages: {
@@ -68,6 +74,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   callbacks: {
+    // F-18: the sign-in-email source limit runs here, before Auth.js writes a VerificationToken.
+    // headers() is the incoming request's in both the route handler and the /login action.
+    signIn: emailHooks.signInCallback(() => headers()),
+
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -81,7 +91,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     // module is deliberately typed against the minimal shape it needs, not next-auth's own
     // (structurally compatible at runtime — JWT/Session are supersets of it).
     session: (params) =>
-      sessionCallback(params as unknown as Parameters<typeof sessionCallback>[0]),
+      sessionCallback(
+        params as unknown as Parameters<typeof sessionCallback>[0]
+      ),
     async redirect({ url, baseUrl }) {
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;

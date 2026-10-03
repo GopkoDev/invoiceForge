@@ -2,6 +2,7 @@ import { ContactsDetailsSidebarContent } from '@/components/layout/contacts';
 import { Building2 } from 'lucide-react';
 import { SenderProfileWithRelations } from '@/types/sender-profile/types';
 import { formatFullAddress } from '@/lib/helpers';
+import { isWebAddress } from '@/lib/validations/web-address';
 
 interface SenderProfileInfoSidebarProps {
   profile: SenderProfileWithRelations;
@@ -29,7 +30,8 @@ export function SenderProfileInfoSidebar({
   return (
     <ContactsDetailsSidebarContent
       avatar={{
-        src: profile.logo,
+        // AC-21: a stored non-web logo is never loaded; the fallback icon shows instead.
+        src: profile.logo && isWebAddress(profile.logo) ? profile.logo : null,
         fallback: <Building2 className="h-10 w-10" />,
         alt: profile.name,
       }}

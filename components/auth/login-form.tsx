@@ -42,6 +42,13 @@ export function LoginForm({
     const result = await signInWithEmail(data.email);
 
     if (!result.success) {
+      if (result.code === 'VALIDATION' && result.fieldErrors?.email?.[0]) {
+        form.setError('email', {
+          type: 'server',
+          message: result.fieldErrors.email[0],
+        });
+        return;
+      }
       toast.error(result.error);
     }
   };

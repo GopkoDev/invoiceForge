@@ -28,7 +28,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 // route-auth.ts's module scope also imports '@/prisma' for requireSession()'s own live-account
 // check (T05) — that module throws at import time without a DATABASE_URL. This unit test isolates
 // requireLiveUser() from that unrelated concern rather than reaching for a real database.
-vi.mock('@/prisma', () => ({ prisma: {} }));
+// T21: requireSession()'s own lookup is driven through this mock to model a DB failure there.
+const findUniqueMock = vi.fn();
+vi.mock('@/prisma', () => ({
+  prisma: {
+    user: { findUnique: (...args: unknown[]) => findUniqueMock(...args) },
+  },
+}));
 
 const authMock = vi.fn<() => Promise<{ user?: { id?: string } } | null>>();
 const signOutMock = vi.fn();
@@ -46,7 +52,16 @@ vi.mock('next/navigation', async (importOriginal) => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
-import { requireLiveUser } from '@/lib/helpers/route-auth';
+// T32 (R-04): the proxy forwards the requested path on a request header so requireLiveUser()
+// can hand it to the cookie-clearing route for its "Try again" link. Outside a request scope (the
+// default here) headers() throws, which must never stop the redirect.
+const headersMock = vi.fn<() => Promise<Headers>>(() =>
+  Promise.reject(new Error('headers() called outside a request scope'))
+);
+vi.mock('next/headers', () => ({ headers: () => headersMock() }));
+
+import { requireLiveUser, requireSession } from '@/lib/helpers/route-auth';
+import { REQUEST_PATH_HEADER } from '@/config/routes.config';
 
 describe('requireLiveUser (AC-21, ADR-0002)', () => {
   beforeEach(() => {
@@ -58,7 +73,9 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
   it('redirects to the cookie-clearing route when there is no session at all', async () => {
     authMock.mockResolvedValue(null);
 
-    await expect(requireLiveUser()).rejects.toThrow('REDIRECT:/api/auth/clear-session');
+    await expect(requireLiveUser()).rejects.toThrow(
+      'REDIRECT:/api/auth/clear-session'
+    );
 
     expect(signOutMock).not.toHaveBeenCalled();
   });
@@ -68,23 +85,54 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
     // exists but carries no id.
     authMock.mockResolvedValue({ user: {} });
 
-    await expect(requireLiveUser()).rejects.toThrow('REDIRECT:/api/auth/clear-session');
+    await expect(requireLiveUser()).rejects.toThrow(
+      'REDIRECT:/api/auth/clear-session'
+    );
 
     expect(signOutMock).not.toHaveBeenCalled();
+  });
+
+  // T21 (review-2026-10-03 F-01, AC-04): a thrown auth() still fails closed through the
+  // cookie-clearing route, which re-checks and keeps the session when its own check fails too
+  // (tests/unit/api/clear-session.test.ts). It must NOT throw past the layout: a segment's
+  // error.tsx never catches its own layout's error, so that would reach app/global-error.tsx
+  // (a generic page with no retry) instead of sign-in or a 503 (review stage-1 blocking issue).
+  it('passes the requested page to the cookie-clearing route as ?next= (T32, R-04)', async () => {
+    authMock.mockRejectedValue(new Error('DB down'));
+    headersMock.mockResolvedValueOnce(
+      new Headers({ [REQUEST_PATH_HEADER]: '/invoices/inv_1/edit?tab=items' })
+    );
+
+    await expect(requireLiveUser()).rejects.toThrow(
+      `REDIRECT:/api/auth/clear-session?next=${encodeURIComponent('/invoices/inv_1/edit?tab=items')}`
+    );
+  });
+
+  it('redirects without ?next= when the requested-path header is absent (T32)', async () => {
+    authMock.mockResolvedValue(null);
+    headersMock.mockResolvedValueOnce(new Headers());
+
+    await requireLiveUser().catch(() => undefined);
+    expect(redirectMock).toHaveBeenCalledWith('/api/auth/clear-session');
   });
 
   it('fails closed (redirects) when auth() itself throws, e.g. the session callback DB lookup is down', async () => {
     authMock.mockRejectedValue(new Error('DB down'));
 
-    await expect(requireLiveUser()).rejects.toThrow('REDIRECT:/api/auth/clear-session');
+    await expect(requireLiveUser()).rejects.toThrow(
+      'REDIRECT:/api/auth/clear-session'
+    );
 
     expect(signOutMock).not.toHaveBeenCalled();
   });
 
   it("rethrows Next's dynamic-rendering signal from auth() instead of treating it as no session", async () => {
-    const dynamicUsage = Object.assign(new Error('Dynamic server usage: headers'), {
-      digest: 'DYNAMIC_SERVER_USAGE',
-    });
+    const dynamicUsage = Object.assign(
+      new Error('Dynamic server usage: headers'),
+      {
+        digest: 'DYNAMIC_SERVER_USAGE',
+      }
+    );
     authMock.mockRejectedValue(dynamicUsage);
 
     await expect(requireLiveUser()).rejects.toBe(dynamicUsage);
@@ -100,5 +148,68 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
     expect(result).toEqual({ userId: 'user_1' });
     expect(redirectMock).not.toHaveBeenCalled();
     expect(signOutMock).not.toHaveBeenCalled();
+  });
+});
+
+// T21 (review-2026-10-03 F-01, AC-04): the route guard tells a failed check apart from a session
+// that definitively has no live account, so clear-session only ends the latter.
+describe('requireSession outcome (AC-04, AC-21)', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    findUniqueMock.mockReset();
+  });
+
+  it('reports check-failed, refused with 401, when auth() throws', async () => {
+    authMock.mockRejectedValue(new Error('DB down'));
+
+    const result = await requireSession();
+
+    expect(result).toMatchObject({ ok: false, reason: 'check-failed' });
+    expect(result.ok === false && result.response.status).toBe(401);
+  });
+
+  it('reports check-failed, refused with 401, when its own account lookup throws', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user_1' } });
+    findUniqueMock.mockRejectedValue(new Error('DB down'));
+
+    const result = await requireSession();
+
+    expect(result).toMatchObject({ ok: false, reason: 'check-failed' });
+    expect(result.ok === false && result.response.status).toBe(401);
+  });
+
+  it('reports signed-out when there is no session at all', async () => {
+    authMock.mockResolvedValue(null);
+
+    expect(await requireSession()).toMatchObject({
+      ok: false,
+      reason: 'signed-out',
+    });
+  });
+
+  it('reports account-gone for a decoded session the session callback found no account for', async () => {
+    authMock.mockResolvedValue({ user: {} });
+
+    expect(await requireSession()).toMatchObject({
+      ok: false,
+      reason: 'account-gone',
+    });
+  });
+
+  it('reports account-gone when its own lookup finds no User row', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user_1' } });
+    findUniqueMock.mockResolvedValue(null);
+
+    expect(await requireSession()).toMatchObject({
+      ok: false,
+      reason: 'account-gone',
+    });
+  });
+
+  it('returns the live userId when the account exists', async () => {
+    authMock.mockResolvedValue({ user: { id: 'user_1' } });
+    findUniqueMock.mockResolvedValue({ id: 'user_1' });
+
+    expect(await requireSession()).toEqual({ ok: true, userId: 'user_1' });
   });
 });

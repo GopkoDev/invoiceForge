@@ -15,22 +15,36 @@ const authMock = vi.fn<() => Promise<{ user?: { id?: string } } | null>>();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
 
 const findUniqueMock = vi.fn();
-vi.mock('@/prisma', () => ({ prisma: { user: { findUnique: (...args: unknown[]) => findUniqueMock(...args) } } }));
+vi.mock('@/prisma', () => ({
+  prisma: {
+    user: { findUnique: (...args: unknown[]) => findUniqueMock(...args) },
+  },
+}));
 
 import { GET } from '@/app/api/auth/clear-session/route';
+import { requireLiveUser } from '@/lib/helpers/route-auth';
+import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 
-function buildRequest(cookieHeader: string) {
-  return new NextRequest('https://app.example.test/api/auth/clear-session', {
-    headers: { cookie: cookieHeader },
-  });
+function buildRequest(
+  cookieHeader: string,
+  options: { search?: string; referer?: string } = {}
+) {
+  const headers: Record<string, string> = { cookie: cookieHeader };
+  if (options.referer) headers.referer = options.referer;
+  return new NextRequest(
+    `https://app.example.test/api/auth/clear-session${options.search ?? ''}`,
+    { headers }
+  );
 }
 
 describe('GET /api/auth/clear-session (AC-21)', () => {
   beforeEach(() => {
     authMock.mockReset();
     findUniqueMock.mockReset();
-    // Default: no session at all, i.e. the stale-token case this route exists for.
-    authMock.mockResolvedValue(null);
+    // Default: the stale-token case this route exists for. The token decodes, but the session
+    // callback found no live account for it, so `session.user` carries no id (T21: a null session
+    // is no longer enough — it is also what a failed check looks like).
+    authMock.mockResolvedValue({ user: {} });
   });
 
   it('does not clear the session cookies when the caller has a live session (F-28)', async () => {
@@ -38,7 +52,9 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     findUniqueMock.mockResolvedValue({ id: 'user_1' });
 
     const res = await GET(
-      buildRequest('authjs.session-token=live-jwt; __Secure-authjs.session-token=live-jwt-secure')
+      buildRequest(
+        'authjs.session-token=live-jwt; __Secure-authjs.session-token=live-jwt-secure'
+      )
     );
 
     expect(res.status).toBeGreaterThanOrEqual(300);
@@ -53,7 +69,9 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
 
   it('marks __Secure- cookie deletions Secure, or browsers ignore them on https', async () => {
     const res = await GET(
-      buildRequest('__Secure-authjs.session-token=stale; __Secure-authjs.session-token.0=chunk')
+      buildRequest(
+        '__Secure-authjs.session-token=stale; __Secure-authjs.session-token.0=chunk'
+      )
     );
 
     const setCookie = res.headers.getSetCookie();
@@ -67,7 +85,9 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
 
   it('redirects to /login and clears the session cookies', async () => {
     const res = await GET(
-      buildRequest('authjs.session-token=stale-jwt; __Secure-authjs.session-token=stale-jwt-secure')
+      buildRequest(
+        'authjs.session-token=stale-jwt; __Secure-authjs.session-token=stale-jwt-secure'
+      )
     );
 
     expect(res.status).toBe(302);
@@ -75,7 +95,9 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     expect(location).not.toBeNull();
     expect(new URL(location as string).pathname).toBe('/login');
 
-    const setCookie = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie') ?? ''];
+    const setCookie = res.headers.getSetCookie?.() ?? [
+      res.headers.get('set-cookie') ?? '',
+    ];
     const joined = setCookie.join('\n');
     expect(joined).toMatch(/authjs\.session-token=;/);
     expect(joined).toMatch(/__Secure-authjs\.session-token=;/);
@@ -89,10 +111,231 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     );
 
     expect(res.status).toBe(302);
-    const setCookie = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie') ?? ''];
+    const setCookie = res.headers.getSetCookie?.() ?? [
+      res.headers.get('set-cookie') ?? '',
+    ];
     const joined = setCookie.join('\n');
     expect(joined).toMatch(/authjs\.session-token\.0=;/);
     expect(joined).toMatch(/authjs\.session-token\.1=;/);
     expect(joined).not.toMatch(/other-cookie=;/);
   });
+
+  // T21 (review-2026-10-03 F-01, AC-04): "a failed check never ends an existing session".
+  describe('a failed check never ends the session (AC-04)', () => {
+    function expectNoCookieExpiry(res: Response) {
+      expect(res.headers.getSetCookie()).toEqual([]);
+    }
+
+    it('answers 503 and keeps the cookies when auth() throws', async () => {
+      authMock.mockRejectedValue(new Error('DB down'));
+
+      const res = await GET(
+        buildRequest('__Secure-authjs.session-token=live-jwt')
+      );
+
+      expect(res.status).toBe(503);
+      expectNoCookieExpiry(res);
+    });
+
+    it('answers 503 and keeps the cookies when the account lookup throws', async () => {
+      authMock.mockResolvedValue({ user: { id: 'user_1' } });
+      findUniqueMock.mockRejectedValue(new Error('DB down'));
+
+      const res = await GET(
+        buildRequest('__Secure-authjs.session-token=live-jwt')
+      );
+
+      expect(res.status).toBe(503);
+      expectNoCookieExpiry(res);
+    });
+
+    // @auth/core's session action swallows a throwing session callback (the DB lookup) or an
+    // undecodable token (a rotated secret) and resolves `auth()` to null, so a null session while
+    // a session cookie is present cannot be told apart from a failed check.
+    it.each([
+      '__Secure-authjs.session-token=live-jwt',
+      'authjs.session-token.0=part-a; authjs.session-token.1=part-b',
+    ])(
+      'answers 503 and keeps the cookies for a null session while %s is present',
+      async (cookie) => {
+        authMock.mockResolvedValue(null);
+
+        const res = await GET(buildRequest(cookie));
+
+        expect(res.status).toBe(503);
+        expectNoCookieExpiry(res);
+      }
+    );
+
+    it('sends a caller with no session cookie at all to sign-in, clearing nothing', async () => {
+      authMock.mockResolvedValue(null);
+
+      const res = await GET(buildRequest('other-cookie=keep-me'));
+
+      expect(res.status).toBe(302);
+      expect(new URL(res.headers.get('location') as string).pathname).toBe(
+        '/login'
+      );
+      expectNoCookieExpiry(res);
+    });
+
+    // Review stage-1 (T21 retry): the whole page path, not just this route. A private layout's
+    // requireLiveUser() whose auth() throws must hand the request here (a real NEXT_REDIRECT, not
+    // an error past the layout, which only app/global-error.tsx would catch), and this route,
+    // hitting the same failing check, answers 503 with the session cookie left in place.
+    it('a private page whose check throws lands here and gets 503 with the cookie kept', async () => {
+      authMock.mockRejectedValue(new Error('DB down'));
+
+      const thrown = await requireLiveUser().then(
+        () => undefined,
+        (error: unknown) => error
+      );
+      expect((thrown as { digest?: string } | undefined)?.digest).toMatch(
+        new RegExp(`^NEXT_REDIRECT;[a-z]+;${CLEAR_SESSION_PATH};`)
+      );
+
+      const res = await GET(
+        buildRequest('__Secure-authjs.session-token=live-jwt')
+      );
+
+      expect(res.status).toBe(503);
+      expectNoCookieExpiry(res);
+    });
+
+    it('clears the cookies when its own lookup confirms the User row is gone', async () => {
+      authMock.mockResolvedValue({ user: { id: 'user_1' } });
+      findUniqueMock.mockResolvedValue(null);
+
+      const res = await GET(
+        buildRequest('__Secure-authjs.session-token=stale-jwt')
+      );
+
+      expect(res.status).toBe(302);
+      expect(res.headers.getSetCookie().join('\n')).toMatch(
+        /__Secure-authjs\.session-token=;/
+      );
+    });
+  });
+
+  // T32 (review-2026-10-03-rereview R-04, AC-04): the failed-check 503 is a designed page in the
+  // LoadError voice, not a bare text/plain line, with a "Try again" link back to the page the
+  // Freelancer asked for. The link target comes from `?next=` (requireLiveUser() passes the
+  // requested path) or a same-origin Referer (goToSignIn()'s full-page navigation), and is only
+  // ever a same-origin relative path: anything else falls back to the dashboard.
+  describe('the check-unavailable page (T32, R-04, AC-04)', () => {
+    const LIVE_COOKIE = '__Secure-authjs.session-token=live-jwt';
+
+    async function checkUnavailable(
+      options: { search?: string; referer?: string } = {}
+    ) {
+      authMock.mockRejectedValue(new Error('DB down'));
+      const res = await GET(buildRequest(LIVE_COOKIE, options));
+      expect(res.status).toBe(503);
+      return { res, html: await res.text() };
+    }
+
+    function tryAgainHref(html: string): string | null {
+      const match = /<a\b[^>]*\bhref="([^"]*)"[^>]*>\s*Try again\s*<\/a>/i.exec(
+        html
+      );
+      return match ? match[1].replace(/&amp;/g, '&') : null;
+    }
+
+    it('is an HTML page in the LoadError wording, never cached, with Retry-After', async () => {
+      const { res, html } = await checkUnavailable();
+
+      expect(res.headers.get('content-type')).toMatch(/^text\/html;\s*charset=utf-8$/i);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0);
+      expect(html).toMatch(/^<!doctype html>/i);
+      expect(html).toMatch(/<html lang="en"/);
+      expect(html).toMatch(/We couldn(?:'|&#39;|&apos;)t load your data/);
+      expect(html).toContain('Your data is safe');
+      expect(html).toMatch(/still signed in/i);
+      expect(res.headers.getSetCookie()).toEqual([]);
+    });
+
+    it('links "Try again" to the requested page from ?next=', async () => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent('/invoices/inv_1/edit?tab=items')}`,
+      });
+
+      expect(tryAgainHref(html)).toBe('/invoices/inv_1/edit?tab=items');
+    });
+
+    it('falls back to a same-origin Referer when there is no ?next=', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://app.example.test/customers?page=2',
+      });
+
+      expect(tryAgainHref(html)).toBe('/customers?page=2');
+    });
+
+    it('links "Try again" to the dashboard when nothing names the requested page', async () => {
+      const { html } = await checkUnavailable();
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it.each([
+      '//evil.example/phish',
+      '/\\evil.example/phish',
+      'https://evil.example/phish',
+      'javascript:alert(1)',
+      'dashboard',
+      '/\r\nSet-Cookie:x=1',
+      '/api/auth/clear-session?next=/dashboard',
+      // T38 (rereview-2 S-01): paths that normalise to a protocol-relative `//host`.
+      '/.//evil.example',
+      '/%2e%2e//evil.example',
+    ])('never links "Try again" off-site or back here (next=%s)', async (next) => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent(next)}`,
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('ignores a same-origin Referer that normalises to //host (T38 S-01)', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://app.example.test/.//evil.example',
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('ignores a cross-origin Referer', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://evil.example/customers',
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('escapes the link target so it cannot break out of the attribute', async () => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent('/customers?q="><script>alert(1)</script>')}`,
+      });
+
+      const href = tryAgainHref(html);
+      expect(href).not.toBeNull();
+      expect(href).toMatch(/^\/customers\?q=/);
+      expect(href).not.toMatch(/[<>"]/);
+      expect(html).not.toContain('<script>alert(1)</script>');
+    });
+
+    it('serves the same page for a null session while a session cookie is present', async () => {
+      authMock.mockResolvedValue(null);
+
+      const res = await GET(
+        buildRequest(LIVE_COOKIE, { search: '?next=%2Fproducts' })
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('content-type')).toMatch(/^text\/html/i);
+      expect(tryAgainHref(await res.text())).toBe('/products');
+      expect(res.headers.getSetCookie()).toEqual([]);
+    });
+  });
 });
+

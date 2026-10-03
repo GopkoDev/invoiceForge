@@ -1,8 +1,88 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
+const BASE_DIRECTIVES = [
+  "default-src 'self'",
+  // 'wasm-unsafe-eval': @react-pdf/renderer's layout engine (yoga-layout) compiles WebAssembly;
+  // it allows WebAssembly compilation only, JS eval() stays blocked.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' https: data: blob:",
+  "font-src 'self' data:",
+  // data: - the PDF layout engine (yoga-layout) fetches its WebAssembly from a data: URL.
+  "connect-src 'self' data:",
+  "frame-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://accounts.google.com",
+  "frame-ancestors 'none'",
+  'upgrade-insecure-requests',
+];
+
+/** Sentry security (CSP report) endpoint derived from the DSN, or null when unset/invalid. */
+function sentryReportUri(dsn: string | undefined): string | null {
+  if (!dsn) return null;
+  try {
+    const url = new URL(dsn);
+    const projectId = url.pathname.split('/').filter(Boolean).pop();
+    if (!url.username || !projectId) return null;
+    return `${url.protocol}//${url.host}/api/${projectId}/security/?sentry_key=${url.username}`;
+  } catch {
+    return null;
+  }
+}
+
+const REPORT_GROUP = 'csp-endpoint';
+
+/**
+ * Local `next dev` only: React needs eval() for its dev-mode debugging (callstack
+ * reconstruction), and Vercel Analytics / Speed Insights load their debug scripts from
+ * va.vercel-scripts.com (production serves them same-origin from /_vercel/*). Never sent
+ * outside NODE_ENV=development, so preview and production keep the exact policy.
+ */
+const DEV_SCRIPT_SRC =
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://va.vercel-scripts.com";
+
+export function buildSecurityHeaders(
+  dsn: string | undefined = process.env.NEXT_PUBLIC_SENTRY_DSN,
+  isDev: boolean = process.env.NODE_ENV === 'development'
+) {
+  const reportUri = sentryReportUri(dsn);
+  const base = isDev
+    ? BASE_DIRECTIVES.map((d) =>
+        d.startsWith('script-src ') ? DEV_SCRIPT_SRC : d
+      )
+    : BASE_DIRECTIVES;
+  const directives = reportUri
+    ? [...base, `report-uri ${reportUri}`, `report-to ${REPORT_GROUP}`]
+    : base;
+  return [
+    { key: 'Content-Security-Policy', value: directives.join('; ') },
+    ...(reportUri
+      ? [
+          {
+            key: 'Reporting-Endpoints',
+            value: `${REPORT_GROUP}="${reportUri}"`,
+          },
+        ]
+      : []),
+    { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
+    {
+      key: 'Permissions-Policy',
+      value: 'camera=(), microphone=(), geolocation=(), payment=()',
+    },
+    { key: 'X-XSS-Protection', value: '0' },
+    { key: 'X-Content-Type-Options', value: 'nosniff' },
+    { key: 'X-Frame-Options', value: 'DENY' },
+    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  ];
+}
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return [{ source: '/(.*)', headers: buildSecurityHeaders() }];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
@@ -21,12 +101,6 @@ export default withSentryConfig(nextConfig, {
 
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
-
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  tunnelRoute: '/monitoring',
 
   webpack: {
     // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)

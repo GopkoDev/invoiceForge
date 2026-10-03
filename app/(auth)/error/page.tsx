@@ -9,6 +9,7 @@ import { AlertCircleIcon } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import type { Metadata } from 'next';
+import { SIGN_IN_CODE_MESSAGES } from '@/lib/auth/sign-in-messages';
 import { authRoutes } from '@/config/routes.config';
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 interface ErrorPageProps {
   searchParams: Promise<{
     error?: string;
+    code?: string;
   }>;
 }
 
@@ -41,35 +43,53 @@ const errorMessages: Record<string, { title: string; description: string }> = {
   },
 };
 
+// OQ-2: the direct POST /api/auth/signin/nodemailer reports the typed provider errors as
+// ?error=CredentialsSignin&code=<code>, so direct callers get the same distinct messages as /login.
+// R-02/R-03: an unavailable limit store or database redirects here with code=email_unavailable.
+function resolveError(error: string | undefined, code: string | undefined) {
+  if (
+    error === 'CredentialsSignin' &&
+    code &&
+    Object.hasOwn(SIGN_IN_CODE_MESSAGES, code)
+  ) {
+    return {
+      title: 'Unable to sign in',
+      description: SIGN_IN_CODE_MESSAGES[code],
+    };
+  }
+  return (
+    (error && Object.hasOwn(errorMessages, error) && errorMessages[error]) ||
+    errorMessages.Default
+  );
+}
+
 export default async function ErrorPage({ searchParams }: ErrorPageProps) {
   const params = await searchParams;
-  const error = params.error || 'Default';
-  const errorInfo =
-    errorMessages[error as keyof typeof errorMessages] || errorMessages.Default;
+  const errorInfo = resolveError(params.error, params.code);
 
   return (
     <div className="flex flex-col gap-6">
-    <Card>
-      <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-destructive/10">
-          <AlertCircleIcon className="size-6 text-destructive" />
-        </div>
-        <CardDescription className="text-base font-semibold">
-          {errorInfo.title}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-center">
-        <p className="text-muted-foreground mb-6 text-sm">
-          {errorInfo.description}
-        </p>
+      <Card>
+        <CardHeader className="text-center">
+          <div className="bg-destructive/10 mx-auto mb-4 flex size-12 items-center justify-center rounded-full">
+            <AlertCircleIcon className="text-destructive size-6" />
+          </div>
+          <CardDescription className="text-base font-semibold">
+            {errorInfo.title}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="text-muted-foreground mb-6 text-sm">
+            {errorInfo.description}
+          </p>
           <Link
             href={authRoutes.signIn}
             className={cn(buttonVariants(), 'w-full')}
           >
-          Sign in
-        </Link>
-      </CardContent>
-    </Card>
+            Sign in
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

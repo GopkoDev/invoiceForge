@@ -96,6 +96,14 @@ const iconPathPattern = /^\/(apple-)?icon\d*(\.[a-z]+|\/[\w-]+)?$/;
 // cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
 export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
 
+// T32 (R-04, AC-04): a layout can't see the pathname, so proxy.ts forwards the requested path on
+// this request header (always overwriting any caller-supplied value) and requireLiveUser() passes
+// it to CLEAR_SESSION_PATH as `?next=`, the target of the check-unavailable page's "Try again".
+export const REQUEST_PATH_HEADER = 'x-invoiceflow-request-path';
+
+// T15 (ADR-0007): Vercel Cron carries no session; the route guards itself with CRON_SECRET.
+export const PURGE_LIMITS_CRON_PATH = '/api/cron/purge-limits';
+
 // F-25: the next-auth (Auth.js v5) handler's own endpoints, listed explicitly instead of the
 // whole `/api/auth/` prefix, so a route added under it later is private by default unless it is
 // added here too. `/api/auth` itself is the base path the client SDK checks; signin/callback
@@ -127,7 +135,8 @@ export function isPublicPath(pathname: string): boolean {
     authRoutesArray.some((route) => pathname === route) ||
     legalRoutesArray.some((route) => pathname === route) ||
     staticAssetRoutes.some((route) => pathname === route) ||
-    nextAuthStaticPaths.some((route) => pathname === route)
+    nextAuthStaticPaths.some((route) => pathname === route) ||
+    pathname === PURGE_LIMITS_CRON_PATH
   ) {
     return true;
   }
@@ -137,4 +146,24 @@ export function isPublicPath(pathname: string): boolean {
   }
 
   return nextAuthProviderPathPattern.test(pathname);
+}
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * ADR-0003 layer 1: without a verified session, only safe methods may pass the edge. The
+ * exceptions are deliberate: the sign-in service (`/api/auth/*`, governed by ADR-0001) and
+ * POSTs to the sign-in page, where the sign-in actions are posted (any other action posted
+ * there refuses itself with UNAUTHORIZED). A future public non-GET endpoint must be added here.
+ */
+export function isRefusedAnonymousMutation(
+  method: string,
+  pathname: string
+): boolean {
+  const upper = method.toUpperCase();
+  if (SAFE_METHODS.has(upper)) return false;
+  if (pathname === '/api/auth' || pathname.startsWith('/api/auth/'))
+    return false;
+  if (upper === 'POST' && pathname === authRoutes.signIn) return false;
+  return true;
 }

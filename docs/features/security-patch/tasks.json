@@ -1,0 +1,1064 @@
+{
+  "slug": "security-patch",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Upgrade Next.js to 16.3.x, next-auth to 5.0.0-beta.32 and nodemailer to 10.x in one change",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03"
+      ],
+      "dod": "The three upgrades land in one commit with eslint-config-next in step; the full unit + integration suite passes; an integration test proves a pre-existing email account signs in to the same account after the upgrade (AC-03); the production advisory audit output is recorded for the ship notes.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "tests/integration/auth-session-callback.test.ts",
+        "tests/integration/auth/identity-normalization.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t01-upgrade-framework-auth-mail.md"
+    },
+    {
+      "id": "T2",
+      "title": "Upgrade Prisma to the latest 7.x and remove @prisma/extension-accelerate",
+      "layer": "wiring",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-27"
+      ],
+      "dod": "@prisma/client, prisma and @prisma/adapter-pg are on the latest 7.x, @prisma/extension-accelerate is no longer a dependency, prisma generate succeeds and the full unit + integration suite passes, in a commit separate from T1.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "file": "docs/features/security-patch/tasks/t02-prisma-upgrade-drop-accelerate.md"
+    },
+    {
+      "id": "T3",
+      "title": "Promote the LimitEvent migration with its Prisma model, factory and test cleanup",
+      "layer": "migration",
+      "deps": [
+        "T2"
+      ],
+      "acs": [],
+      "dod": "The staged 01_create_limit_event migration is promoted into prisma/migrations/, applies and reverts cleanly on the test container, prisma migrate diff is empty, the createLimitEvent factory exists, LimitEvent is truncated between tests, and an integration test shows the enums reject unknown values and a User delete cascades only export rows.",
+      "files_hint": [
+        "docs/features/security-patch/migrations/01_create_limit_event.up.sql",
+        "docs/features/security-patch/migrations/01_create_limit_event.down.sql",
+        "prisma/schema/auth.prisma",
+        "prisma/migrations/",
+        "tests/support/factories/limit-event.ts",
+        "tests/support/db/truncate.ts",
+        "tests/integration/limit-event-table.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t03-limit-event-table.md"
+    },
+    {
+      "id": "T4",
+      "title": "Make \"signed in\" mean a verified session in the proxy, requireSession and getAuthenticatedUser",
+      "layer": "ports",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "isVerifiedSession is the only signed-in test in proxy.ts, requireSession() and getAuthenticatedUser(); proxy unit tests show an Auth.js error object, an account-less session and a thrown check are each treated as a Visitor without clearing cookies, a genuine session passes, and public pages render without a redirect loop.",
+      "files_hint": [
+        "lib/helpers/verified-session.ts",
+        "auth.config.ts",
+        "proxy.ts",
+        "lib/helpers/route-auth.ts",
+        "lib/helpers/auth-helpers.ts",
+        "lib/helpers/session-actor.ts",
+        "tests/unit/proxy.test.ts",
+        "tests/unit/lib/helpers/"
+      ],
+      "file": "docs/features/security-patch/tasks/t04-verified-session-predicate.md"
+    },
+    {
+      "id": "T5",
+      "title": "Refuse anonymous non-GET requests in the proxy and fail CI on any server action without a session guard",
+      "layer": "ports",
+      "deps": [
+        "T4"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-19"
+      ],
+      "dod": "Proxy unit tests show every anonymous non-GET/HEAD/OPTIONS request outside /api/auth/* and POST /login gets the 401 NotSignedIn body with or without Next-Action; a unit scan fails on any exported 'use server' function outside login-actions.ts that does not resolve the session first, and passes on the current tree.",
+      "files_hint": [
+        "proxy.ts",
+        "config/routes.config.ts",
+        "lib/actions/",
+        "tests/unit/proxy.test.ts",
+        "tests/unit/action-session-guard-scan.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t05-refuse-anonymous-mutations.md"
+    },
+    {
+      "id": "T6",
+      "title": "Add the shared five-year Dashboard period rule and apply it in the link reader and the business layer",
+      "layer": "domain",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10"
+      ],
+      "dod": "A table test of isWithinMaxCustomPeriod passes (2021-01-01→2026-01-01 allowed, →2026-01-02 refused, 29 February starts, time-zone independence); the link reader falls back to the current month for an over-long period; parseDashboardInput returns VALIDATION with PERIOD_TOO_LONG before any query; all time is never capped.",
+      "files_hint": [
+        "lib/validations/dashboard-period.ts",
+        "lib/validations/search-params.ts",
+        "lib/services/dashboard/period.ts",
+        "tests/unit/lib/validations/",
+        "tests/integration/services/dashboard/"
+      ],
+      "file": "docs/features/security-patch/tasks/t06-five-year-period-rule.md"
+    },
+    {
+      "id": "T7",
+      "title": "Show the five-year notice in the dashboard filter and refuse to apply an over-long range",
+      "layer": "ui",
+      "deps": [
+        "T6"
+      ],
+      "acs": [
+        "AC-07b",
+        "AC-08"
+      ],
+      "dod": "A component test shows picking a range longer than 5 years does not navigate, keeps the popover open and shows PERIOD_TOO_LONG in an inline Alert, a range of exactly 5 years is applied, and the notice clears on the next valid pick.",
+      "files_hint": [
+        "components/dashboard/header/dashboard-filters.tsx",
+        "tests/component/dashboard-filters.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t07-dashboard-filter-notice.md"
+    },
+    {
+      "id": "T8",
+      "title": "Build the LimitEvent limit store with per-key advisory locks, limit keys and the opportunistic purge",
+      "layer": "infra",
+      "deps": [
+        "T3"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13"
+      ],
+      "dod": "Integration tests show exact sliding-window counts per scope under concurrency (no overshoot), sent-only address counting, source rows written only under the limit, the export reserve/release and retryAt = oldest start + 1 h, the bounded purge on write, and fail-closed typed errors when the store is down; unit tests show address keys fold case, +tag and Gmail dots and both address and source keys are HMAC digests.",
+      "files_hint": [
+        "lib/security/limits/limit-store.ts",
+        "lib/security/limits/scopes.ts",
+        "lib/security/limits/keys.ts",
+        "tests/unit/security/limits/",
+        "tests/integration/security/limits/"
+      ],
+      "file": "docs/features/security-patch/tasks/t08-limit-store.md"
+    },
+    {
+      "id": "T9",
+      "title": "Record address refusals per UTC hour and raise the targeted-lockout alert",
+      "layer": "infra",
+      "deps": [
+        "T8"
+      ],
+      "acs": [],
+      "dod": "An integration test with an injected clock shows at most one REFUSED row per address per UTC hour, one Sentry alert carrying only the digest after refusals in 3 consecutive UTC hours, and no second alert within 24 h.",
+      "files_hint": [
+        "lib/security/limits/lockout-alert.ts",
+        "lib/security/limits/limit-store.ts",
+        "tests/integration/security/limits/lockout-alert.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t09-lockout-alert.md"
+    },
+    {
+      "id": "T10",
+      "title": "Fail the build on a missing required setting and send mail only over verified TLS",
+      "layer": "wiring",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-26"
+      ],
+      "dod": "pnpm build fails first and names every missing required setting; a unit test asserts the required-settings list equals env.example; the SMTP config uses secure on 465 and requireTLS otherwise with certificate verification against the host, and a test shows no plaintext send when TLS is absent or the certificate is invalid.",
+      "files_hint": [
+        "lib/env/required-settings.ts",
+        "scripts/check-required-settings.ts",
+        "package.json",
+        "env.example",
+        "lib/get-email-server-config.ts",
+        "tests/unit/lib/env/",
+        "tests/unit/lib/get-email-server-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t10-mail-settings-and-tls.md"
+    },
+    {
+      "id": "T11",
+      "title": "Enforce the address rule, sign-in-email limits, response floor and TLS-only send in the Auth.js email provider hooks",
+      "layer": "app",
+      "deps": [
+        "T8",
+        "T9",
+        "T10"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-17"
+      ],
+      "dod": "Integration tests through both the /login action and the direct sign-in endpoint show: invalid addresses refused uncounted, the 5/h address and 30/5 min source limits with sent-only counting, limited responses identical to sent ones with median difference ≤ 150 ms (instant and random-latency SMTP), fail-closed with the store down, TLS failures reported, Google sign-in unaffected, and identity normalization unchanged.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "auth.ts",
+        "lib/validations/auth.ts",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/unit/lib/validations/"
+      ],
+      "file": "docs/features/security-patch/tasks/t11-email-provider-hooks.md"
+    },
+    {
+      "id": "T12",
+      "title": "Map sign-in provider outcomes to the fixed messages on the sign-in, check-inbox and error pages",
+      "layer": "ui",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-19"
+      ],
+      "dod": "Tests show signInWithEmail returns EMAIL_SIGNIN_UNAVAILABLE, EMAIL_SEND_FAILED and the VALIDATION field error by provider error type (never message text), the login form shows them, the check-inbox page shows the neutral copy, and the /error page maps each pinned Auth.js error type from the direct endpoint.",
+      "files_hint": [
+        "lib/actions/login-actions.ts",
+        "components/auth/login-form.tsx",
+        "app/(auth)/verify-request/page.tsx",
+        "app/(auth)/error/page.tsx",
+        "tests/integration/actions/login-actions.test.ts",
+        "tests/component/login-form.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t12-sign-in-messages.md"
+    },
+    {
+      "id": "T13",
+      "title": "Limit data exports per Freelancer in the business layer and return RATE_LIMITED with a retry time",
+      "layer": "app",
+      "deps": [
+        "T8"
+      ],
+      "acs": [
+        "AC-23",
+        "AC-24",
+        "AC-25"
+      ],
+      "dod": "ActionErrorCode gains RATE_LIMITED with RETRY_AT details and every exhaustive switch compiles; integration tests show 3 exports per Freelancer per hour under concurrency, a system-side failure frees the place, a second Freelancer is unaffected, the route returns 429 with Retry-After, and account deletion removes the account's export and address limit rows.",
+      "files_hint": [
+        "types/result.ts",
+        "lib/services/account/account.ts",
+        "app/api/user/export/route.ts",
+        "tests/unit/types/action-result.test.ts",
+        "tests/integration/services/account/account.test.ts",
+        "tests/integration/api/user-export.test.ts",
+        "tests/integration/actions/account-deletion.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t13-export-limit.md"
+    },
+    {
+      "id": "T14",
+      "title": "Show \"you can export again at …\" as an inline alert on the privacy settings screen",
+      "layer": "ui",
+      "deps": [
+        "T13"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "A component test shows a 429 RATE_LIMITED response renders an inline Alert with the retry time in local HH:mm and no toast, the export button stays enabled, and the alert clears on the next attempt.",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "tests/component/gdpr-settings.test.tsx"
+      ],
+      "file": "docs/features/security-patch/tasks/t14-export-limit-alert.md"
+    },
+    {
+      "id": "T15",
+      "title": "Add the daily limit-record purge job behind the Vercel Cron secret",
+      "layer": "ports",
+      "deps": [
+        "T8",
+        "T10"
+      ],
+      "acs": [],
+      "dod": "An integration test shows a missing or wrong bearer secret gets 401 and deletes nothing, a valid one deletes every LimitEvent row older than 24 h across all keys and returns the count, and the route is on the public allowlist with a daily crons entry in vercel.json.",
+      "files_hint": [
+        "app/api/cron/purge-limits/route.ts",
+        "vercel.json",
+        "config/routes.config.ts",
+        "tests/integration/api/purge-limits.test.ts",
+        "tests/unit/routes-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t15-purge-cron.md"
+    },
+    {
+      "id": "T16",
+      "title": "Accept only http(s) web addresses for website and image fields, in forms and the business layer",
+      "layer": "domain",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Unit tests show isWebAddress accepts only http: and https: URLs; customer website/image, sender-profile website and profile image schemas use it (logo stays https-only); an integration test shows a bypassed form saving a javascript: or data: address gets VALIDATION with field errors and nothing is saved.",
+      "files_hint": [
+        "lib/validations/web-address.ts",
+        "lib/validations/customer.ts",
+        "lib/validations/sender-profile.ts",
+        "lib/validations/profile.ts",
+        "lib/services/customers/",
+        "lib/services/sender-profiles/",
+        "lib/services/profile/",
+        "tests/unit/lib/validations/",
+        "tests/integration/services/customers/"
+      ],
+      "file": "docs/features/security-patch/tasks/t16-web-address-rule.md"
+    },
+    {
+      "id": "T17",
+      "title": "Render legacy non-web addresses as plain text and never load them as images",
+      "layer": "ui",
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Component tests show a stored non-web website renders as plain text without href, a non-web image or logo gets no src and shows fallback initials, the invoice PDF no longer renders a data: logo, and the editors show the http(s) field message from both the client resolver and server field errors.",
+      "files_hint": [
+        "components/layout/contacts/contact-card/contact-card.tsx",
+        "components/invoice-editor/invoice-pdf-document.tsx",
+        "components/settings/profile-settings.tsx",
+        "components/customers/",
+        "components/sender-profiles/",
+        "tests/component/"
+      ],
+      "file": "docs/features/security-patch/tasks/t17-legacy-address-display.md"
+    },
+    {
+      "id": "T18",
+      "title": "Replace the open Sentry rewrite with an app-owned tunnel that forwards only the configured DSN",
+      "layer": "ports",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "tunnelRoute is removed and the browser SDK uses tunnel '/monitoring'; integration tests show an envelope for the configured DSN is forwarded, one for any other host or project or with an unreadable header gets 403 with nothing forwarded, and an unreachable Sentry gives 502.",
+      "files_hint": [
+        "app/monitoring/route.ts",
+        "next.config.ts",
+        "instrumentation-client.ts",
+        "tests/integration/api/monitoring-tunnel.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t18-sentry-tunnel.md"
+    },
+    {
+      "id": "T19",
+      "title": "Serve the enforced content-security policy and transport headers from next.config.ts",
+      "layer": "wiring",
+      "deps": [
+        "T18"
+      ],
+      "acs": [
+        "AC-20"
+      ],
+      "dod": "A unit test asserts next.config.ts headers() serves the exact CSP from sad.md §8 with the Sentry report endpoint, HSTS without subdomains or preload, the Permissions-Policy, X-XSS-Protection 0 and the kept headers for every route, and vercel.json no longer carries a headers block.",
+      "files_hint": [
+        "next.config.ts",
+        "vercel.json",
+        "tests/unit/security-headers.test.ts"
+      ],
+      "file": "docs/features/security-patch/tasks/t19-security-headers.md"
+    },
+    {
+      "id": "T20",
+      "title": "Gate the release on a zero-violation CSP e2e run, a genuine-session page sweep and a clean advisory audit",
+      "layer": "tests",
+      "deps": [
+        "T2",
+        "T5",
+        "T7",
+        "T12",
+        "T14",
+        "T15",
+        "T17",
+        "T19"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-05",
+        "AC-20"
+      ],
+      "dod": "The Playwright CSP gate on preview records zero securitypolicyviolation events across every AC-20 flow with the client error reaching Sentry, the page-access sweep passes with a session from the real sign-in flow, and ship-notes.md lists 0 critical/high production advisories plus every dev-only advisory with its reason.",
+      "files_hint": [
+        "tests/e2e/csp-gate.spec.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/e2e/support/",
+        "playwright.config.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/tasks/t20-preview-release-gate.md"
+    },
+    {
+      "id": "T21",
+      "title": "Keep the session when the session check fails: clear cookies only on a confirmed missing account, and add the AC-04/AC-06 e2e cases",
+      "layer": "ports",
+      "deps": [
+        "T4",
+        "T20"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-06"
+      ],
+      "dod": "Review F-01..F-04 fixed: requireSession/requireLiveUser return a distinct check-failed outcome; clear-session clears cookies only for a definitive no-live-account and otherwise routes to LoadError/503 without Set-Cookie expiry; the edge wrapper's decode-failure cookie wipe is stripped or bypassed and asserted in the real-wrapper contract test; integration test (Prisma throws in the session lookup -> no cookie expiry); e2e: check fails then recovers with the same cookie -> dashboard (AC-04); sign-in and landing load while the check is forced to fail (AC-06).",
+      "files_hint": [
+        "lib/helpers/route-auth.ts",
+        "app/api/auth/clear-session/route.ts",
+        "lib/helpers/client-session-redirect.ts",
+        "proxy.ts",
+        "tests/unit/lib/helpers/verified-session-contract.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T22",
+      "title": "Scan every 'use server' module for the session guard and cover all anonymous-mutation request shapes in e2e",
+      "layer": "tests",
+      "deps": [
+        "T5"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Review F-05, F-06 fixed: the guard scan walks app/, lib/, components/ for module-level and inline 'use server', exempts getAuthenticatedUser explicitly, fails on re-exports/default exports, and requires `const x = await guard()` + `if (!x.success) return`; e2e covers no-marker POST, form-encoded POST and POST /login naming a non-sign-in action -> refused, nothing runs.",
+      "files_hint": [
+        "tests/unit/action-session-guard-scan.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T23",
+      "title": "Never load a legacy non-web profile image in the navigation avatar",
+      "layer": "ui",
+      "deps": [
+        "T17"
+      ],
+      "acs": [
+        "AC-21"
+      ],
+      "dod": "Review F-07 fixed: UserAvatar applies isWebAddress(user.image) for every caller (nav-user, user-dropdown-content) and the per-caller filter in profile-settings is dropped; component test with data:/javascript: image -> fallback initial, no <img> src.",
+      "files_hint": [
+        "components/layout/user/user-avatar.tsx",
+        "components/settings/profile-settings.tsx",
+        "tests/component/legacy-address-display-t17.test.tsx"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T24",
+      "title": "Clear the remaining production advisory, enforce the audit in CI and harden the required-settings build check",
+      "layer": "wiring",
+      "deps": [
+        "T10",
+        "T20"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-26",
+        "AC-27"
+      ],
+      "dod": "Review F-08..F-13 fixed: uuid ^13.0.1 (pnpm audit --prod shows no production advisory beyond justified dev tooling; @babel/core overridden or justified); CI unit job runs `pnpm audit --prod --audit-level=high`; release-gate test no longer greps strings; ship-notes lists every moderate/low dev advisory grouped by dev dependency with a reason and the nodemailer peer-range deviation; reverse env check (every process.env.X read by app code is in env.example); build uses `node --env-file-if-exists=.env` and package.json pins engines.node >=22.18.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        ".github/workflows/test.yml",
+        "tests/unit/release-gate-t20.test.ts",
+        "tests/unit/lib/env/required-settings.test.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T25",
+      "title": "Run the CSP gate over the full page sweep and on preview, and pass Sentry rate limits through the tunnel",
+      "layer": "tests",
+      "deps": [
+        "T18",
+        "T20"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Review F-14..F-16 fixed: the genuine-session sweep attaches collectCspViolations and asserts none per page; `/` added to the CSP gate; data-free public flows (/login, /, legal pages, synthetic client error with /monitoring 200) run in a describe not skipped on preview; ship-notes step 1 states exactly what is automated; /monitoring refuses >1 MB with 413 and passes 429 + Retry-After + X-Sentry-Rate-Limits through, with integration tests.",
+      "files_hint": [
+        "tests/e2e/csp-gate.spec.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "app/monitoring/route.ts",
+        "tests/integration/api/monitoring-tunnel.test.ts",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T26",
+      "title": "Make the sign-in limiter resilient: send outside the lock, admit sources before token creation, fix shared buckets and purge contention",
+      "layer": "app",
+      "deps": [
+        "T8",
+        "T11",
+        "T15"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-15"
+      ],
+      "dod": "Review F-17..F-21 fixed: under the lock count+insert a SENT reservation and commit, send outside the transaction, release the row on send failure; source admission moves to callbacks.signIn (limited source -> neutral /verify-request, no VerificationToken row) and the daily purge deletes expired VerificationToken rows; sad.md §11 corrected; ::ffff:a.b.c.d keys as IPv4 and a missing platform IP is reported to Sentry instead of sharing 'unknown'; opportunistic purge uses FOR UPDATE SKIP LOCKED; response floor read from an optional setting clamped <=1200 ms, SMTP transport pooled, ship checklist gains the median-by-outcome step. Regression tests for each.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "auth.ts",
+        "lib/security/limits/keys.ts",
+        "lib/security/limits/limit-store.ts",
+        "app/api/cron/purge-limits/route.ts",
+        "lib/get-email-server-config.ts",
+        "lib/env/required-settings.ts",
+        "env.example",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T27",
+      "title": "Prove Google sign-in ignores email limits end to end, tag SMTP failure causes and test the TLS host-name check",
+      "layer": "tests",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-16"
+      ],
+      "dod": "Review F-22..F-24 fixed: Auth() driven through /api/auth/callback/google with stubbed token/userinfo while 5 SENT rows exist -> session cookie, redirect into the app, no LimitEvent row; the AC-16 Sentry event carries only value-free code/responseCode/command tags; TLS test with a trusted CA and a wrong-name cert expects ERR_TLS_CERT_ALTNAME_INVALID and asserts error codes.",
+      "files_hint": [
+        "tests/integration/auth/email-provider.test.ts",
+        "lib/auth/email-provider.ts",
+        "tests/unit/lib/get-email-server-config.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T28",
+      "title": "Test the five-year period rule through the dashboard loader",
+      "layer": "tests",
+      "deps": [
+        "T6"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "Review F-25 fixed: integration tests exercise the dashboard loader with an over-long link period (falls back per AC-07) and the boundary/leap cases (AC-08 parity with the filter and business layer).",
+      "files_hint": [
+        "tests/integration/services/dashboard/period-cap.test.ts",
+        "lib/services/dashboard/period.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T29",
+      "title": "Show the export-limit alert inside the delete-account dialog",
+      "layer": "ui",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "Review F-26 fixed: an export rate-limited from the delete dialog renders the same Alert inside the dialog body; the component test queries within(getByRole('dialog')).",
+      "files_hint": [
+        "components/settings/gdpr-settings.tsx",
+        "tests/component/gdpr-settings-export-limit-t14.test.tsx"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T30",
+      "title": "Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings",
+      "layer": "docs",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-17"
+      ],
+      "dod": "Review F-27..F-30 fixed: ship-notes preview checklist gains the read-only production query for non-ASCII / non-zod-email accounts as a blocking item (owner records the answer in T11 and ticks spec §8 OQ2); data-model.md and sad.md §12 describe the SIGNIN_SOURCE key as an HMAC digest (TD-1); t01..t20 frontmatter status done; the two new lint warnings removed.",
+      "files_hint": [
+        "docs/features/security-patch/ship-notes.md",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/tasks/",
+        "tests/component/legacy-address-display-t17.test.tsx",
+        "tests/integration/api/purge-limits.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03.md",
+      "source": "review-2026-10-03"
+    },
+    {
+      "id": "T31",
+      "title": "Stop Auth.js's session endpoint from ending the session on a failed check, and prove it with a real-cookie e2e",
+      "layer": "ports",
+      "deps": [
+        "T21"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Re-review R-01 fixed: SessionProvider removed from app/layout.tsx (nothing uses useSession) or /api/auth/session responses filtered by withoutSessionCookieExpiry for the session action only; e2e: with the genuine cookie, load /login and a public page on the broken-check server, wait for network idle and assert the cookie is unchanged, then recover on the healthy server and reach /dashboard.",
+      "files_hint": [
+        "app/layout.tsx",
+        "components/session-provider.tsx",
+        "app/api/auth/[...nextauth]/route.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T32",
+      "title": "Render a designed check-unavailable response from clear-session and amend AC-04, sad §6, ux-flows and screens",
+      "layer": "ui",
+      "deps": [
+        "T21"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Re-review R-04 fixed: a Node-side failed check returns a minimal HTML 503 consistent with LoadError (no-store, Retry-After, a Try again link back to the requested page), never Set-Cookie expiry; screens.md gains a check-unavailable state, ux-flows A3/A4 and the sad §6 US-02 flow show the 503 branch, AC-04 wording reflects it; tests assert content type, link and no cookie expiry.",
+      "files_hint": [
+        "app/api/auth/clear-session/route.ts",
+        "docs/features/security-patch/spec.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ux-flows.md",
+        "docs/features/security-patch/screens.md",
+        "tests/unit/api/clear-session.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T33",
+      "title": "Fail the sign-in-email path closed when limits or the database cannot be checked, and tighten the Google test",
+      "layer": "app",
+      "deps": [
+        "T26",
+        "T27"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "dod": "Re-review R-02, R-03, R-11, R-12 fixed: LimitStoreUnavailable in source admission refuses the request with the AC-15 message (no link sent); AdapterError and that cause map to EMAIL_SIGNIN_UNAVAILABLE in login-actions and the error page; a missing platform IP fails closed on Vercel and skips only locally (or the exception is recorded in ADR-0002 and spec §6.1), with the Sentry message rate-limited; full-flow tests through Auth(): source transaction alone fails -> AC-15 message, adapter DB unreachable -> AC-15 message; Google at-limit test sends x-real-ip and asserts no SIGNIN_SOURCE row and no captureMessage.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/actions/login-actions.ts",
+        "app/(auth)/error/page.tsx",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/integration/actions/login-actions.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T34",
+      "title": "Tag real TLS failures, clamp the response floor from below with equal start points, and stop abandoned pooled sends",
+      "layer": "app",
+      "deps": [
+        "T26",
+        "T27"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-16"
+      ],
+      "dod": "Re-review R-08, R-09, R-10 fixed: a fixed-value tls tag (e.g. altname | untrusted | starttls_missing) derived from nodemailer/Node error signatures without copying messages, tested through a real nodemailer transport against the TLS fixtures; SIGNIN_RESPONSE_FLOOR_MS clamped to >=300 ms with a test; source-limited and sent floors measured from the same start, with a timing test through Auth(); pool idle timeout raised or the sad.md:311 claim dropped, and maxRequeues 0 / bounded queue so a send abandoned by withTimeout is never delivered later.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/get-email-server-config.ts",
+        "docs/features/security-patch/sad.md",
+        "tests/integration/auth/email-provider.test.ts",
+        "tests/unit/lib/get-email-server-config.test.ts",
+        "tests/unit/lib/auth/response-floor.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T35",
+      "title": "Send every anonymous-action shape to public pages in e2e and close the guard-scan gaps",
+      "layer": "tests",
+      "deps": [
+        "T22"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "Re-review R-05, R-14 fixed: the no-marker, form-encoded and Next-Action shapes POST to / and /privacy and assert 401 + UNAUTHORIZED_BODY; the /login case picks the action by exportedName and asserts a seeded other-account customer name never appears; the scan walks the repo root (excluding node_modules, .next, .git, docs, tests), reads .js/.jsx/.mjs too, and requires the guard identifier to be imported from its canonical module.",
+      "files_hint": [
+        "tests/e2e/route-sweep.spec.ts",
+        "tests/unit/action-session-guard-scan.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T36",
+      "title": "Test the reverse env.example rule and pin the Node major across engines, CI and the SAD",
+      "layer": "wiring",
+      "deps": [
+        "T24"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Re-review R-06, R-13 fixed: a test parses env.example and asserts each name is in REQUIRED_SETTINGS, OPTIONAL_SETTINGS, the scanned process.env reads (including process.env['X']) or an explicit framework/build allowlist; adding GOOGLE_CLIENT_ID= fails it; engines.node is '>=22.18 <23', a .nvmrc exists and CI uses node-version-file; sad.md:36 agrees.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts",
+        "package.json",
+        ".nvmrc",
+        ".github/workflows/test.yml",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T37",
+      "title": "Align contracts and data-model with the code, tighten the loader and preview Sentry tests, refresh ship-notes",
+      "layer": "docs",
+      "deps": [
+        "T25",
+        "T26",
+        "T28"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-11",
+        "AC-20",
+        "AC-22"
+      ],
+      "dod": "Re-review R-07, R-15, R-16, R-17 fixed: openapi /monitoring lists 413 and 429 with Retry-After and X-Sentry-Rate-Limits, sad flow 8 notes them; openapi, data-model and server-actions describe SENT as reserved before send and released on failure, the delete-by-id release and the expired VerificationToken purge; the loader test drives the page's period glue (or asserts getDashboardSenderAccounts too); the preview Sentry check matches the 'T20 synthetic client error' envelope; ship-notes shows the current e2e count and marks preview items 1-5 Blocking.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ship-notes.md",
+        "tests/integration/services/dashboard/period-cap-loader.test.ts",
+        "tests/e2e/csp-gate.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview.md",
+      "source": "review-2026-10-03-rereview"
+    },
+    {
+      "id": "T38",
+      "title": "Validate the normalised return path so the check-unavailable 'Try again' link is never off-site",
+      "layer": "ui",
+      "deps": [
+        "T32"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Second re-review S-01 fixed: safeReturnPath rejects any value whose normalised pathname starts with // or contains a backslash, and runs the /api check on that normalised value; a unit test for return-path.ts covers /.//evil.com, /%2e%2e//evil.com, the Referer form https://<origin>/.//evil.com, //host, /api/ and a cross-origin Referer, all returning null; clear-session renders 'Try again' to / for those inputs.",
+      "files_hint": [
+        "lib/helpers/return-path.ts",
+        "app/api/auth/clear-session/route.ts",
+        "tests/unit/lib/helpers/return-path.test.ts",
+        "tests/unit/api/clear-session.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T39",
+      "title": "Keep the SENT reservation when a send times out and stop closing the shared pool",
+      "layer": "app",
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "Second re-review S-02, S-03 fixed (closes R-10): SEND_TIMEOUT is an unknown outcome, so the SENT reservation stays and counts and the pool is not closed; definite send failures still release the reservation; other Visitors' queued sends are unaffected by one timeout; the test SMTP server gets a slow-but-delivers mode and an integration test proves a timed-out send that is delivered stays counted; server-actions.md, data-model.md, openapi.yaml and sad §6 describe the timeout rule.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "tests/support/smtp-server.ts",
+        "tests/integration/auth/email-provider.test.ts",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/data-model.md",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T40",
+      "title": "Keep the session cookie on Auth.js's session endpoint and make the /login anonymous-action e2e assert a real outcome",
+      "layer": "ports",
+      "deps": [
+        "T31",
+        "T35"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-18"
+      ],
+      "dod": "Second re-review S-04, S-05 fixed: GET /api/auth/session responses pass through withoutSessionCookieExpiry (or equivalent) so a failed check never clears the cookie, with a unit test; the no-client-session scan walks the repo root with the guard scan's skips (covers instrumentation-client.ts, config/, constants/); the /login getCustomers e2e asserts 401 + UNAUTHORIZED_BODY for the forwarded Next-Action shape and the specific refused/not-found status for the form shape, and its comment states that it covers the proxy and worker lookup.",
+      "files_hint": [
+        "app/api/auth/[...nextauth]/route.ts",
+        "proxy.ts",
+        "tests/unit/no-client-session-fetch.test.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2",
+      "note": "T45 (rereview-3 T-02): the forwarded Next-Action e2e asserts 200 with an empty `{}` body, not 401 + UNAUTHORIZED_BODY. Next drops a non-RSC forwarded reply such as the proxy's JSON 401 (next/dist/server/app-render/action-handler.js:205-226). The test proves the proxy refusal and worker lookup; the action guard itself is covered by tests/unit/action-session-guard-scan.test.ts."
+    },
+    {
+      "id": "T41",
+      "title": "Type injected settings records against the known setting names and report the AdapterError sign-in path",
+      "layer": "app",
+      "deps": [
+        "T33",
+        "T36"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-26"
+      ],
+      "dod": "Second re-review S-06, S-07 fixed (closes R-06): injected settings records are typed Partial<Record<RequiredSetting | OptionalSetting, string>> (or the forward scan captures <param>.X where the param defaults to process.env), so an unlisted name fails tsc or the test; the login-actions AdapterError branch calls Sentry.captureException(new EmailSigninUnavailable()) with a test; the direct-endpoint error=Configuration behaviour is either aligned or documented in openapi.yaml.",
+      "files_hint": [
+        "lib/auth/email-provider.ts",
+        "lib/env",
+        "tests/unit/lib/env/required-settings.test.ts",
+        "lib/actions/login-actions.ts",
+        "tests/integration/actions/login-actions.test.ts",
+        "docs/features/security-patch/contracts/openapi.yaml"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T42",
+      "title": "Bring test-plan, sad, ship-notes and env.example in line with the code",
+      "layer": "docs",
+      "deps": [
+        "T32",
+        "T34",
+        "T37"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-04",
+        "AC-12",
+        "AC-22"
+      ],
+      "dod": "Second re-review S-08..S-11 fixed: test-plan has an AC-04 row for the check-unavailable 503 (no-store, Retry-After, no Set-Cookie, safe 'Try again' target); sad flow 8 says the 413 fires before anything is parsed or forwarded; ship-notes' gate row states the genuine-session sweep result truthfully (or the full suite is re-run green); sad §11 and env.example say the floor is clamped to 300-1200 ms.",
+      "files_hint": [
+        "docs/features/security-patch/test-plan.md",
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/ship-notes.md",
+        "env.example"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
+      "source": "review-2026-10-03-rereview-2"
+    },
+    {
+      "id": "T43",
+      "title": "Record the timeout counting rule in AC-11, ADR-0002 and sad §11",
+      "layer": "docs",
+      "deps": [
+        "T39"
+      ],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Third re-review N-03 fixed with the owner's sign-off: AC-11's parenthesis says a send whose outcome is unknown because it hit the time bound counts towards the address limit; ADR-0002 Consequences records the same rule and the trade-off (late delivery cannot slip past the cap vs. a slow mail server can lock an address for up to an hour); sad §11 gains a risk row for that lockout with its mitigation/monitoring signal.",
+      "files_hint": [
+        "docs/features/security-patch/spec.md",
+        "docs/features/security-patch/adr/0002-count-limited-events-in-a-postgres-event-log-under-a-per-key-advisory-lock.md",
+        "docs/features/security-patch/sad.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T44",
+      "title": "Strip the session-cookie expiry from every Auth.js GET, not only the exact /api/auth/session path",
+      "layer": "ports",
+      "deps": [
+        "T40"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Third re-review T-01 fixed: app/api/auth/[...nextauth]/route.ts passes every GET response through withoutSessionCookieExpiry (sign-out still clears the cookie on POST); tests/unit/api/auth-session-route.test.ts adds cases for /api/auth//session and /api/auth/session/ with an undecodable token / throwing session callback that keep the cookie, and a case proving POST sign-out still clears it.",
+      "files_hint": [
+        "app/api/auth/[...nextauth]/route.ts",
+        "tests/unit/api/auth-session-route.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T45",
+      "title": "Correct the timeout and AdapterError contract text, add the session-route test-plan row, note the T40 assert change and re-run e2e",
+      "layer": "docs",
+      "deps": [
+        "T39",
+        "T40",
+        "T41",
+        "T44"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-11",
+        "AC-15",
+        "AC-16",
+        "AC-18"
+      ],
+      "dod": "Third re-review N-01, N-02, N-05, T-02 fixed: openapi.yaml splits the send-failure bullet (TLS/auth refusal releases the reservation; a timeout keeps it and still returns code=send_failed); server-actions.md row 57 says the same; openapi's direct-endpoint AdapterError redirect is /error?error=Configuration; test-plan has an AC-04 unit row for the session-route strip and the no-client-session scan; tracker/tasks.json T40 carries a note that the forwarded Next-Action assert is 200 + {} because Next drops non-RSC forwarded replies (action-handler.js:205-226); pnpm test:e2e re-run against a fresh build and ship-notes' gate row updated with the result.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "docs/features/security-patch/contracts/server-actions.md",
+        "docs/features/security-patch/test-plan.md",
+        "docs/features/security-patch/tasks/tracker.md",
+        "docs/features/security-patch/ship-notes.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T46",
+      "title": "Refresh the maxRequeues comment and widen the forward env scan to optional-chain and destructuring reads",
+      "layer": "tests",
+      "deps": [
+        "T39",
+        "T41"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-26"
+      ],
+      "dod": "Third re-review N-04, N-06 fixed: lib/get-email-server-config.ts states the current reason for maxRequeues: 0 (no reservation is released on a timeout any more); the forward scan in required-settings.test.ts also catches process.env?.X, env?.X and const { X } = process.env, with fixture cases for each shape.",
+      "files_hint": [
+        "lib/get-email-server-config.ts",
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
+      "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T47",
+      "title": "Carry the AC-11 timeout counting rule into sad §8 and the test-plan",
+      "layer": "docs",
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Fourth re-review F-01 fixed: the sad.md §8 Rate limiting row says a refused or definitely failed request never counts, and a send that hits the time bound counts (AC-11, ADR-0002); test-plan has an AC-11 integration row: a send that exceeds the time bound but is delivered keeps its SENT reservation and counts, and the Visitor gets 'could not send' (tests/integration/auth/email-provider.test.ts).",
+      "files_hint": [
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/test-plan.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-4.md",
+      "source": "review-2026-10-03-rereview-4"
+    },
+    {
+      "id": "T48",
+      "title": "Catch typed and commented destructuring reads in the forward env scan",
+      "layer": "tests",
+      "deps": [
+        "T46"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Fourth re-review F-02 fixed: the destructuring pattern in required-settings.test.ts allows an optional type annotation between } and = (const { X }: NodeJS.ProcessEnv = process.env), // and /* */ comments are stripped from the destructure body before splitting, and the fixture covers both shapes.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-4.md",
+      "source": "review-2026-10-03-rereview-4"
+    },
+    {
+      "id": "T49",
+      "title": "Keep destructured names after a // inside a string default in the forward env scan",
+      "layer": "tests",
+      "deps": [
+        "T48"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Fifth re-review G-01 fixed: in required-settings.test.ts the destructure body has its string literals ('…', \"…\", `…`) blanked before comments are stripped, so a // inside a string default (BASE_URL = 'https://x.example', AFTER_URL) no longer drops the following name; the fixture covers that shape, the T48 typed and commented shapes still pass, and the test fails if the string blanking is reverted.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-5.md",
+      "source": "review-2026-10-03-rereview-5"
+    }
+  ]
+}

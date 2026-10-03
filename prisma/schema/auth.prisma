@@ -14,6 +14,7 @@ model User {
     customers        Customer[]
     products         Product[]
     logoFetchWindows LogoFetchWindow[]
+    limitEvents      LimitEvent[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -67,6 +68,37 @@ model LogoFetchWindow {
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@id([userId, windowStart])
+}
+
+enum LimitScope {
+    SIGNIN_SOURCE
+    SIGNIN_ADDRESS
+    EXPORT
+}
+
+enum LimitOutcome {
+    REQUESTED
+    SENT
+    REFUSED
+    ALERTED
+    STARTED
+    FAILED
+}
+
+// One row per counted or refused limited event (ADR-0002); purged after 24 h (ADR-0007).
+model LimitEvent {
+    id      String       @id @default(cuid())
+    scope   LimitScope
+    key     String
+    outcome LimitOutcome
+    at      DateTime     @default(now())
+    userId  String?
+
+    user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([scope, key, at])
+    @@index([at])
+    @@index([userId])
 }
 
 model EmailHistory {

@@ -9,6 +9,9 @@ export default defineConfig({
     // Default environment is 'node' (unit/contract need no DOM); component tests opt into
     // jsdom per file via a `// @vitest-environment jsdom` docblock.
     environment: 'node',
+    // next-auth's root entry imports 'next/server' without an extension, which Node's ESM
+    // resolver refuses; inlining lets Vite resolve it, so the real Auth.js error classes load.
+    server: { deps: { inline: ['next-auth'] } },
     setupFiles: ['tests/support/setup.ts'],
     include: [
       'tests/unit/**/*.test.{ts,tsx}',
