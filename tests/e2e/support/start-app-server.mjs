@@ -26,6 +26,8 @@ import {
 } from './mail-sink.mjs';
 
 const PORT = Number(process.env.APP_E2E_PORT ?? 4311);
+// Matches tests/e2e/support/app-server.ts BROKEN_CHECK_PORT.
+const BROKEN_CHECK_PORT = Number(process.env.APP_E2E_BROKEN_CHECK_PORT ?? 4312);
 const PROBE_TIMEOUT_MS = 4000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -140,8 +142,28 @@ async function startRealApp() {
     stdio: 'inherit',
   });
 
+  // T21 (AC-04, AC-06): the same build and database, booted with a different AUTH_SECRET — the
+  // misconfiguration AC-04 names — so every session check fails there. Cookies are scoped to the
+  // host, not the port, so a spec holding a session from the server above can watch a failed check
+  // here and its recovery there with the very same cookie.
+  const brokenCheckServer = spawn(
+    'pnpm',
+    ['exec', 'next', 'start', '-p', String(BROKEN_CHECK_PORT)],
+    {
+      cwd: repoRoot,
+      env: {
+        ...appEnv,
+        AUTH_SECRET: 'e2e-a-different-secret-so-every-check-fails',
+        AUTH_URL: `http://127.0.0.1:${BROKEN_CHECK_PORT}`,
+        PORT: String(BROKEN_CHECK_PORT),
+      },
+      stdio: 'inherit',
+    }
+  );
+
   const stop = async () => {
     server.kill('SIGTERM');
+    brokenCheckServer.kill('SIGTERM');
     mailSink.close();
     await container.stop();
   };

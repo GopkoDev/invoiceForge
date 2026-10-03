@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import NextAuth from 'next-auth';
 import authConfig from '@/auth.config';
 import { isVerifiedSession } from '@/lib/helpers/verified-session';
+import { withoutSessionCookieExpiry } from '@/lib/helpers/session-cookies';
 import {
   authRoutes,
   routes,
@@ -12,7 +13,7 @@ import {
 
 const { auth } = NextAuth(authConfig);
 
-export default auth(async function proxy(req) {
+const authProxy = auth(async function proxy(req) {
   // A thrown or malformed check is a Visitor; session cookies are left untouched so a
   // Freelancer is signed in again once the check recovers (AC-04, AC-06).
   let verified = false;
@@ -82,6 +83,16 @@ export default auth(async function proxy(req) {
   loginUrl.searchParams.set('callbackUrl', pathname);
   return NextResponse.redirect(loginUrl);
 });
+
+// T21 (review-2026-10-03 F-02, AC-04): the wrapper itself expires a session cookie it can't
+// decode; strip that so a failed check never ends the session.
+export default async function proxy(
+  ...args: Parameters<typeof authProxy>
+): Promise<Response> {
+  return withoutSessionCookieExpiry(
+    (await authProxy(...args)) ?? NextResponse.next()
+  );
+}
 
 export const config = {
   matcher: [

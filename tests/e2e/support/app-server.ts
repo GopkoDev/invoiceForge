@@ -14,6 +14,13 @@ export const BASE_URL_OVERRIDE =
 export const APP_E2E_URL =
   BASE_URL_OVERRIDE ?? `http://127.0.0.1:${APP_E2E_PORT}`;
 
+/**
+ * T21 (AC-04, AC-06): a twin of the local app (same build, same database) that start-app-server.mjs
+ * boots with a different AUTH_SECRET, so every session check fails on it. Local runs only.
+ */
+export const BROKEN_CHECK_PORT = 4312;
+export const BROKEN_CHECK_URL = `http://127.0.0.1:${BROKEN_CHECK_PORT}`;
+
 /** Where start-app-server.mjs leaves the throwaway database URL and the mail sink's inbox. */
 export const E2E_RUNTIME_DIR = path.join(os.tmpdir(), 'invoceflow-e2e');
 

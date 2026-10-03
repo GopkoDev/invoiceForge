@@ -21,7 +21,11 @@ import {
   isNextAuthCatchAll,
   type BuiltRoute,
 } from './support/route-sweep-exclusion';
-import { APP_E2E_URL, BASE_URL_OVERRIDE } from './support/app-server';
+import {
+  APP_E2E_URL,
+  BASE_URL_OVERRIDE,
+  BROKEN_CHECK_URL,
+} from './support/app-server';
 import { signInWithSignInLink } from './support/genuine-session';
 import { seedWorkspace, type SeededWorkspace } from './support/seed';
 import { uniqueTestEmail } from '../support/factories/ids';
@@ -323,6 +327,140 @@ test.describe('AC-05 route sweep — a genuine session reaches every private pag
       ).toBe(redirectTarget ?? path);
       expect(response?.status(), route.urlPath).toBeLessThan(400);
       await page.close();
+    }
+  });
+});
+
+// T21 (spec.md §5 AC-04, AC-06; review-2026-10-03 F-02, F-03, F-04) — test-plan.md rows "failed
+// sign-in check never ends an existing session" and "sign-in and landing pages render without a
+// redirect loop" (e2e). The check is made to fail for real: BROKEN_CHECK_URL is the same build and
+// database booted with a different AUTH_SECRET (start-app-server.mjs), the misconfiguration AC-04
+// names. Cookies are scoped to the host, not the port, so the session issued by the real server is
+// the one that fails there, and "the check recovers" is simply going back to the real server.
+test.describe('AC-04 / AC-06 — a failing sign-in check never ends a session', () => {
+  test.describe.configure({ mode: 'serial' });
+  let context: BrowserContext;
+
+  // The twin is not part of Playwright's webServer readiness check, so wait for it here.
+  async function waitForBrokenCheckServer(): Promise<void> {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      try {
+        await fetch(BROKEN_CHECK_URL, { redirect: 'manual' });
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+    throw new Error(`${BROKEN_CHECK_URL} did not come up within 60s`);
+  }
+
+  function sessionCookieExpiries(headers: { name: string; value: string }[]) {
+    return headers.filter(
+      (h) =>
+        h.name.toLowerCase() === 'set-cookie' &&
+        /^(__Secure-)?authjs\.session-token(\.\d+)?=;/.test(h.value)
+    );
+  }
+
+  async function sessionCookieValue(): Promise<string | undefined> {
+    const cookies = await context.cookies(APP_E2E_URL);
+    return cookies.find((c) => /authjs\.session-token/.test(c.name))?.value;
+  }
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    await skipWithoutContainerRuntime(testInfo);
+    test.skip(
+      !!BASE_URL_OVERRIDE,
+      'the misconfigured twin server only exists for the local run'
+    );
+    await waitForBrokenCheckServer();
+    context = await browser.newContext();
+    await signInWithSignInLink(
+      await context.newPage(),
+      uniqueTestEmail('check-fails')
+    );
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  test('AC-04: while the check fails a private page goes to sign-in and data is refused; once it recovers the same cookie opens the dashboard', async () => {
+    // The dashboard render runs alongside the private-page sweep above: past the 30 s default.
+    test.setTimeout(120_000);
+    const before = await sessionCookieValue();
+    expect(before, 'the real sign-in flow left a session cookie').toBeTruthy();
+
+    const pageResponse = await context.request.get(
+      `${BROKEN_CHECK_URL}${protectedRoutes.dashboard}`,
+      { maxRedirects: 0 }
+    );
+    expect(pageResponse.status()).toBeGreaterThanOrEqual(300);
+    expect(pageResponse.status()).toBeLessThan(400);
+    expect(
+      new URL(pageResponse.headers()['location']!, BROKEN_CHECK_URL).pathname
+    ).toBe(authRoutes.signIn);
+    expect(sessionCookieExpiries(pageResponse.headersArray())).toEqual([]);
+
+    const dataResponse = await context.request.get(
+      `${BROKEN_CHECK_URL}/api/user/export`,
+      { maxRedirects: 0 }
+    );
+    expect(dataResponse.status()).toBe(401);
+    expect(await dataResponse.json()).toEqual(UNAUTHORIZED_BODY);
+    expect(sessionCookieExpiries(dataResponse.headersArray())).toEqual([]);
+
+    expect(
+      await sessionCookieValue(),
+      'a failed check must not touch the session cookie'
+    ).toBe(before);
+
+    const page = await context.newPage();
+    const recovered = await page.goto(
+      `${APP_E2E_URL}${protectedRoutes.dashboard}`
+    );
+    expect(new URL(page.url()).pathname).toBe(protectedRoutes.dashboard);
+    expect(recovered?.status()).toBeLessThan(400);
+    await page.close();
+  });
+
+  test('AC-06: the sign-in and landing pages render in one response while the check fails, and sign-in works once it recovers', async ({
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    for (const path of [authRoutes.signIn, '/']) {
+      const response = await context.request.get(`${BROKEN_CHECK_URL}${path}`, {
+        maxRedirects: 0,
+      });
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()['location'], path).toBeUndefined();
+      expect(sessionCookieExpiries(response.headersArray()), path).toEqual([]);
+    }
+
+    // A Visitor in a real browser: carrying a cookie the check cannot verify, the pages still
+    // settle on themselves (no redirect chain, client-side or otherwise).
+    const visitor = await browser.newContext();
+    try {
+      await visitor.addCookies([
+        {
+          name: 'authjs.session-token',
+          value: 'a-token-this-server-cannot-verify',
+          url: BROKEN_CHECK_URL,
+        },
+      ]);
+      const page = await visitor.newPage();
+      for (const path of [authRoutes.signIn, '/']) {
+        const response = await page.goto(`${BROKEN_CHECK_URL}${path}`);
+        expect(response?.status(), path).toBe(200);
+        await page.waitForLoadState('networkidle');
+        expect(new URL(page.url()).pathname, path).toBe(path);
+      }
+
+      await signInWithSignInLink(page, uniqueTestEmail('check-recovers'));
+    } finally {
+      await visitor.close();
     }
   });
 });
