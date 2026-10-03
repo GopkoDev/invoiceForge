@@ -33,7 +33,7 @@ target_surfaces: [backend-service, web-frontend]
 ## 2. Constraints
 
 **Technical.**
-- TypeScript 5 (strict) on Node 22, pnpm 10.
+- TypeScript 5 (strict) on Node 22 (`engines.node` ">=22.18 <23", `.nvmrc` 22, read by CI), pnpm 10.
 - Next.js 16.1.1 → **16.3.x** (App Router; the edge guard is `proxy.ts`), with `eslint-config-next` moved in step. React 19.2.
 - next-auth 5.0.0-beta.30 → **5.0.0-beta.32** (`@auth/core` ≥ 0.41.3). Providers are Google and Nodemailer, with JWT sessions (30-day lifetime) and the Prisma adapter. `auth.config.ts` must stay edge-safe: no Prisma or Nodemailer imports.
 - nodemailer 7 → **10.x**.
