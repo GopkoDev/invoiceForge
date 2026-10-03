@@ -274,6 +274,7 @@ sequenceDiagram
                 H->>S: report send failure
                 H-->>V: could not send, try again
             end
+            Note over H,M: a send that times out is an unknown outcome: the reservation stays and counts, the pool stays open (T39)
         end
     end
 ```

@@ -20,6 +20,11 @@ export interface SmtpServerOptions {
    */
   stallFirstDataMs?: number;
   /**
+   * T39 / S-02: accept the first message but delay the 250 reply by this many ms (a slow server
+   * that still delivers). Later messages are answered at once.
+   */
+  slowFirstDeliveryMs?: number;
+  /**
    * Close the first connection before the greeting, the case nodemailer's pool answers by
    * re-queueing the message for another connection (up to `maxRequeues`).
    */
@@ -45,6 +50,7 @@ export function startSmtp({
   offerStartTls = true,
   certName = 'test',
   stallFirstDataMs,
+  slowFirstDeliveryMs,
   dropFirstConnectionBeforeGreeting = false,
 }: SmtpServerOptions = {}): Promise<SmtpServer> {
   const state = { gotData: false, delivered: 0, dataCommands: 0, connections: 0 };
@@ -60,7 +66,9 @@ export function startSmtp({
           if (l === '.') {
             inData = false;
             state.delivered++;
-            secure.write('250 queued\r\n');
+            if (slowFirstDeliveryMs !== undefined && state.delivered === 1)
+              setTimeout(() => secure.write('250 queued\r\n'), slowFirstDeliveryMs);
+            else secure.write('250 queued\r\n');
           }
         } else if (c.startsWith('EHLO')) {
           secure.write('250-test\r\n250 AUTH PLAIN LOGIN\r\n');

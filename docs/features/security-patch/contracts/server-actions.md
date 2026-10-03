@@ -50,7 +50,7 @@ type ActionErrorDetails =
 
 | Outcome | Result | Notes |
 |---|---|---|
-| sent | redirect to `/verify-request` (the action calls `redirect()` on the URL `signIn` returns) | a `SENT` reservation is committed before the send and counts at once. A failed or timed-out send deletes it by id, so only an accepted send counts (AC-11) |
+| sent | redirect to `/verify-request` (the action calls `redirect()` on the URL `signIn` returns) | a `SENT` reservation is committed before the send and counts at once. A definitely failed send (refused, TLS or auth error) deletes it by id, so a failed send never counts (AC-11). A send that hits the time bound is an unknown outcome (it may still be delivered), so its reservation stays and counts, and the shared SMTP pool is not closed (AC-11, AC-12; T39) |
 | limited (address or source) | **identical** redirect to `/verify-request`, after the same response floor | nothing sent. A `REFUSED` event is recorded only when the address limit refused, and only once per UTC hour (AC-12, AC-13) |
 | address invalid | `fail('VALIDATION', 'Enter a valid email address.', { fieldErrors: { email: ['Enter a valid email address.'] } })` | nothing sent or counted (AC-17) |
 | limits unavailable | `fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE)` | fail-closed (AC-15). Covers a source or address check that cannot run, a database the user lookup cannot reach, and, on Vercel, a request with no platform address. Nothing is sent or counted |

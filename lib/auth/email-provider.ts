@@ -477,18 +477,12 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     );
 
   /**
-   * R-10: a send given up at the time bound must never go out later, after its reservation was
-   * released. Closing the pooled transport rejects every message still waiting in its queue
-   * (the pool never re-queues: maxRequeues 0); the next send builds a fresh transport.
+   * Sends outside any transaction. A definite failure releases its reservation (it never counts).
+   * T39 / S-02, S-03 (closes R-10): a send that hits the time bound is an unknown outcome, because
+   * the message may still be delivered on a slow but live connection. Its SENT reservation stays
+   * and counts, and the shared pool is left open: closing it cannot stop a message already in
+   * progress and would fail other Visitors' queued sends.
    */
-  function abandonTransport() {
-    if (options.transport) return;
-    const abandoned = transport;
-    transport = undefined;
-    abandoned?.close?.();
-  }
-
-  /** Sends outside any transaction; a failed send releases its reservation (it never counts). */
   async function sendOrRelease(
     reservationId: string,
     send: () => Promise<unknown>
@@ -496,11 +490,10 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     try {
       await withTimeout(send(), sendTimeoutMs);
     } catch (cause) {
-      if ((cause as { code?: unknown } | null)?.code === SEND_TIMEOUT_CODE)
-        abandonTransport();
-      await store.release(reservationId).catch(() => {
-        Sentry.captureException(new LimitStoreUnavailable());
-      });
+      if ((cause as { code?: unknown } | null)?.code !== SEND_TIMEOUT_CODE)
+        await store.release(reservationId).catch(() => {
+          Sentry.captureException(new LimitStoreUnavailable());
+        });
       throw new EmailSendFailed(sendFailureTags(cause));
     }
   }

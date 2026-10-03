@@ -102,9 +102,11 @@ paths:
            same response floor *F* + jitter (AC-12, AC-13; spec §6 ≤ 150 ms median difference).
            The floor is clamped to 300 ms–1.2 s and every outcome measures it from the same start.
         5. An allowed request sends over verified TLS only (AC-16), outside any transaction. If
-           the send fails or times out, the `SENT` reservation is deleted by its id, so a failed
+           the send definitely fails, the `SENT` reservation is deleted by its id, so a failed
            send never counts (AC-11). If that delete fails too, the row stays and counts
-           (fail-closed) and the failure goes to Sentry.
+           (fail-closed) and the failure goes to Sentry. A send that times out is an unknown
+           outcome (it may still be delivered): the reservation stays and counts, and the shared
+           SMTP pool is not closed (T39).
 
         This is the framework's form endpoint, not an app JSON API. Every outcome is a `302`.
         A refusal redirects to `/error?error=CredentialsSignin&code=<code>`. The `code` is one of

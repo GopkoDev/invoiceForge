@@ -943,13 +943,13 @@ describe.runIf(containerRuntimeAvailable)(
           }
         );
 
-        // R-10: a send the hook abandoned at its time bound must never go out later (it would be a
-        // sent link whose reservation was already released). The first send hangs at DATA and its
-        // connection then drops; the second waits behind it in the one-connection pool.
-        it('a pooled send abandoned at the time bound is never delivered later, nor is one queued behind it', async () => {
+        // T39 / S-02 (closes R-10): a send that times out is an unknown outcome. The server here is
+        // slow but accepts the message, so the link is delivered after the bound: its SENT
+        // reservation must stay and count, or the address cap could be passed while SMTP is slow.
+        it('a send that times out but is delivered stays counted against the address', async () => {
           smtp = await startSmtp({
             certName: 'right-name',
-            stallFirstDataMs: 600,
+            slowFirstDeliveryMs: 800,
           });
           const port = smtp.port;
           const created: { close(): void }[] = [];
@@ -967,21 +967,55 @@ describe.runIf(containerRuntimeAvailable)(
             floorMs: FLOOR_MS,
             jitterMs: JITTER_MS,
           });
-          const results = await Promise.allSettled([
-            send(hooks, 'ana@example.test', '198.51.100.27'),
-            send(hooks, 'bob@example.test', '198.51.100.28'),
-          ]);
-          expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected']);
-          // Long enough for the dropped connection to be noticed and a re-queued or waiting
-          // message to be sent on a fresh connection.
-          await sleep(2_000);
+          await expect(
+            send(hooks, 'ana@example.test', '198.51.100.27')
+          ).rejects.toBeDefined();
+          expect(reportedHint().tags).toEqual({ code: 'SEND_TIMEOUT' });
+          await sleep(1_500);
           created.forEach((t) => t.close());
-          expect(smtp.state.delivered).toBe(0);
+          expect(smtp.state.delivered).toBe(1);
           expect(
             await prisma.limitEvent.count({
               where: { scope: 'SIGNIN_ADDRESS', outcome: 'SENT' },
             })
-          ).toBe(0);
+          ).toBe(1);
+        }, 15_000);
+
+        // T39 / S-03: one timeout must not close the shared pool and fail other Visitors' sends.
+        // The first send hangs at DATA and its connection drops after the bound; the second, from
+        // another Visitor, waits behind it in the one-connection pool and must still be delivered.
+        it('a timed-out pooled send does not fail another Visitor\'s send', async () => {
+          smtp = await startSmtp({
+            certName: 'right-name',
+            stallFirstDataMs: 1_200,
+          });
+          const port = smtp.port;
+          const created: { close(): void }[] = [];
+          const hooks = createEmailProviderHooks({
+            prisma,
+            createTransport: () => {
+              const pool = realTransport(port, {
+                trustCa: true,
+                maxConnections: 1,
+              });
+              created.push(pool);
+              return pool;
+            },
+            sendTimeoutMs: 1_000,
+            floorMs: FLOOR_MS,
+            jitterMs: JITTER_MS,
+          });
+          const first = send(hooks, 'ana@example.test', '198.51.100.27');
+          first.catch(() => undefined);
+          await sleep(500);
+          const second = send(hooks, 'bob@example.test', '198.51.100.28');
+          const results = await Promise.allSettled([first, second]);
+          expect(results.map((r) => r.status)).toEqual([
+            'rejected',
+            'fulfilled',
+          ]);
+          created.forEach((t) => t.close());
+          expect(smtp.state.delivered).toBe(1);
         }, 15_000);
       });
 
