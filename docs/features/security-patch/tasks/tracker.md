@@ -34,6 +34,6 @@
 | T27 | Prove Google sign-in ignores email limits end to end, tag SMTP failure causes and test the TLS host-name check | tests | Dmytro Hopko | S | T11 | done |
 | T28 | Test the five-year period rule through the dashboard loader | tests | Dmytro Hopko | S | T6 | done |
 | T29 | Show the export-limit alert inside the delete-account dialog | ui | Dmytro Hopko | S | T14 | done |
-| T30 | Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings | docs | Dmytro Hopko | S | T11 | todo |
+| T30 | Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings | docs | Dmytro Hopko | S | T11 | done |
 
 **Total:** 30 tasks (T21–T30 from review-2026-10-03), ~12 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
