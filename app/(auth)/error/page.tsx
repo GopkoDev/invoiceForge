@@ -9,12 +9,7 @@ import { AlertCircleIcon } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import type { Metadata } from 'next';
-import {
-  EMAIL_SEND_FAILED,
-  EMAIL_SIGNIN_UNAVAILABLE,
-  INVALID_EMAIL_ADDRESS,
-  SIGN_IN_ERROR_CODES,
-} from '@/lib/auth/sign-in-messages';
+import { SIGN_IN_CODE_MESSAGES } from '@/lib/auth/sign-in-messages';
 import { authRoutes } from '@/config/routes.config';
 
 export const metadata: Metadata = {
@@ -50,21 +45,16 @@ const errorMessages: Record<string, { title: string; description: string }> = {
 
 // OQ-2: the direct POST /api/auth/signin/nodemailer reports the typed provider errors as
 // ?error=CredentialsSignin&code=<code>, so direct callers get the same distinct messages as /login.
-const signInCodeMessages: Record<string, string> = {
-  [SIGN_IN_ERROR_CODES.invalidEmail]: INVALID_EMAIL_ADDRESS,
-  [SIGN_IN_ERROR_CODES.unavailable]: EMAIL_SIGNIN_UNAVAILABLE,
-  [SIGN_IN_ERROR_CODES.sendFailed]: EMAIL_SEND_FAILED,
-};
-
+// R-02/R-03: an unavailable limit store or database redirects here with code=email_unavailable.
 function resolveError(error: string | undefined, code: string | undefined) {
   if (
     error === 'CredentialsSignin' &&
     code &&
-    Object.hasOwn(signInCodeMessages, code)
+    Object.hasOwn(SIGN_IN_CODE_MESSAGES, code)
   ) {
     return {
       title: 'Unable to sign in',
-      description: signInCodeMessages[code],
+      description: SIGN_IN_CODE_MESSAGES[code],
     };
   }
   return (

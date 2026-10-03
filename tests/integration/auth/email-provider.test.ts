@@ -23,6 +23,7 @@ import {
 } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { PrismaAdapter } from '@auth/prisma-adapter';
+import type { Adapter } from 'next-auth/adapters';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import * as Sentry from '@sentry/nextjs';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
@@ -31,6 +32,10 @@ import {
   type TestDatabase,
 } from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
+import {
+  databaseDown,
+  sourceStoreDown,
+} from '../../support/db/failing-prisma';
 import { truncateAllTables } from '../../support/db/truncate';
 import { createFreelancer } from '../../support/factories/user';
 import {
@@ -58,6 +63,7 @@ const JITTER_MS = 20;
 // that: a limited path without the floor, or a send that adds to the floor, then breaks the bound.
 const TIMING_FLOOR_MS = 600;
 const BASE = 'http://localhost:3000';
+const GOOGLE_SOURCE_IP = '198.51.100.40';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface Mail {
@@ -82,6 +88,9 @@ const failingTransport = (message: string) => ({
     throw Object.assign(new Error(message), { code: 'ESOCKET' });
   },
 });
+
+// The redirect the AC-15 refusal gets on the direct endpoint (OQ-2 code; /login maps the same).
+const UNAVAILABLE_REDIRECT = `${BASE}/error?error=CredentialsSignin&code=email_unavailable`;
 
 function linkRequest(headers: Record<string, string>): Request {
   return new Request(`${BASE}/api/auth/signin/nodemailer`, {
@@ -144,11 +153,14 @@ describe.runIf(containerRuntimeAvailable)(
     // Drives the real Auth.js core with the hooks wired into the Nodemailer provider and
     // callbacks.signIn, like POST /api/auth/signin/nodemailer (the route behind the /login
     // action). `ip` undefined sends no platform address at all.
+    // `adapter` replaces the real PrismaAdapter (R-03: a database the adapter cannot reach); it is
+    // wrapped by hooks.guardAdapter exactly as auth.ts wraps the app's adapter.
     async function postSignIn(
       hooks: Hooks,
       email: string,
       ip: string | undefined,
-      extraHeaders: Record<string, string> = {}
+      extraHeaders: Record<string, string> = {},
+      adapter: Adapter = PrismaAdapter(prisma)
     ) {
       const fromNextAuth = createRequire(
         require_.resolve('next-auth/package.json')
@@ -163,7 +175,7 @@ describe.runIf(containerRuntimeAvailable)(
         secret: 'test-secret-test-secret-test-secret',
         trustHost: true,
         basePath: '/api/auth',
-        adapter: PrismaAdapter(prisma),
+        adapter: hooks.guardAdapter(adapter),
         session: { strategy: 'jwt' },
         pages: { verifyRequest: '/verify-request', error: '/error' },
         callbacks: {
@@ -265,7 +277,11 @@ describe.runIf(containerRuntimeAvailable)(
         adapter: PrismaAdapter(prisma),
         session: { strategy: 'jwt' },
         callbacks: {
-          signIn: hooks.signInCallback(async () => new Headers()),
+          // R-12: a platform address is present, so a regression that applied the source limit
+          // to OAuth would count it (instead of taking the no-address path and passing anyway).
+          signIn: hooks.signInCallback(
+            async () => new Headers({ 'x-real-ip': GOOGLE_SOURCE_IP })
+          ),
         },
         providers: [
           {
@@ -577,6 +593,38 @@ describe.runIf(containerRuntimeAvailable)(
         expect(reported).not.toContain('ana@example.test');
       });
 
+      // R-11: locally (no hosting platform) the gap is reported, but at most once per window, so a
+      // stream of such requests cannot flood error tracking.
+      it('locally, many requests with no platform address raise one Sentry message, not one each', async () => {
+        const transport = fakeTransport();
+        const hooks = hooksWith(transport);
+        await postSignIn(hooks, 'ana@example.test', undefined);
+        await postSignIn(hooks, 'bob@example.test', undefined);
+        await postSignIn(hooks, 'cyd@example.test', undefined);
+        expect(transport.mails).toHaveLength(3);
+        expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+      });
+
+      // R-11: on Vercel the platform always sets the client address, so its absence means the
+      // source cannot be checked: fail closed (spec §6, ADR-0002), like an unavailable store.
+      it('on Vercel, a request with no platform address is refused with the AC-15 message, nothing sent, no token', async () => {
+        vi.stubEnv('VERCEL', '1');
+        try {
+          const transport = fakeTransport();
+          const hooks = hooksWith(transport);
+          const res = await postSignIn(hooks, 'ana@example.test', undefined);
+          await postSignIn(hooks, 'bob@example.test', undefined);
+          expect(res.headers.get('location')).toBe(UNAVAILABLE_REDIRECT);
+          expect(transport.mails).toHaveLength(0);
+          expect(await prisma.verificationToken.count()).toBe(0);
+          expect(await prisma.limitEvent.count()).toBe(0);
+          expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+          expect(Sentry.captureException).not.toHaveBeenCalled();
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      });
+
       it('ignores a client-supplied forwarding header when choosing the source', async () => {
         await postSignIn(
           hooksWith(fakeTransport()),
@@ -629,6 +677,10 @@ describe.runIf(containerRuntimeAvailable)(
           /authjs\.session-token=[^;]+/
         );
         expect(await prisma.limitEvent.count()).toBe(before);
+        expect(
+          await rows('SIGNIN_SOURCE', sourceLimitKey(GOOGLE_SOURCE_IP))
+        ).toHaveLength(0);
+        expect(Sentry.captureMessage).not.toHaveBeenCalled();
         expect(transport.mails).toHaveLength(0);
         expect(
           await prisma.user.findUnique({ where: { email: 'ana@example.test' } })
@@ -657,6 +709,55 @@ describe.runIf(containerRuntimeAvailable)(
         });
         expect(transport.mails).toHaveLength(0);
         expect(await prisma.limitEvent.count()).toBe(0);
+      });
+
+      // R-02: the source limit must fail closed on its own. Before, an unavailable SIGNIN_SOURCE
+      // check admitted the request and its uncontended address lock then sent the link.
+      it('the source check alone failing refuses through Auth(): AC-15 message, no link, no token, no address row', async () => {
+        const transport = fakeTransport();
+        const hooks = createEmailProviderHooks({
+          prisma: sourceStoreDown(prisma),
+          transport,
+          floorMs: FLOOR_MS,
+          jitterMs: JITTER_MS,
+        });
+        const res = await postSignIn(hooks, 'ana@example.test', '198.51.100.31');
+        expect(res.headers.get('location')).toBe(UNAVAILABLE_REDIRECT);
+        expect(transport.mails).toHaveLength(0);
+        expect(await prisma.verificationToken.count()).toBe(0);
+        expect(await prisma.limitEvent.count()).toBe(0);
+        expect(Sentry.captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'EmailSigninUnavailable' })
+        );
+      });
+
+      // R-03: with the whole database down, Auth.js's own user lookup fails before callbacks.signIn;
+      // that must still reach the Visitor as the AC-15 message, not error=Configuration.
+      it('the database unreachable for the adapter too refuses through Auth() with the AC-15 message', async () => {
+        const transport = fakeTransport();
+        const hooks = createEmailProviderHooks({
+          prisma: databaseDown,
+          transport,
+          floorMs: FLOOR_MS,
+          jitterMs: JITTER_MS,
+        });
+        const res = await postSignIn(
+          hooks,
+          'ana@example.test',
+          '198.51.100.32',
+          {},
+          PrismaAdapter(databaseDown)
+        );
+        expect(res.headers.get('location')).toBe(UNAVAILABLE_REDIRECT);
+        expect(transport.mails).toHaveLength(0);
+      });
+
+      it('a failed user lookup outside a link request is not hidden (OAuth keeps Auth.js handling)', async () => {
+        const hooks = hooksWith(fakeTransport());
+        const guarded = hooks.guardAdapter(PrismaAdapter(databaseDown));
+        await expect(
+          guarded.getUserByEmail!('ana@example.test')
+        ).rejects.toThrow('connection refused');
       });
     });
 

@@ -25,6 +25,7 @@ import {
   type TestDatabase,
 } from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
+import { sourceStoreDown } from '../../support/db/failing-prisma';
 import { truncateAllTables } from '../../support/db/truncate';
 import {
   TEST_LIMIT_KEY_SECRET,
@@ -122,8 +123,27 @@ function tokenAdapter(): Adapter {
   } as Adapter;
 }
 
-/** A NextAuth() instance wired like auth.ts, with the real T11 hooks on the Nodemailer provider. */
-function useAuth(prisma: PrismaClient, transport: Transport) {
+/** R-03: an adapter whose database is unreachable (Auth.js wraps its failure as AdapterError). */
+function unreachableAdapter(): Adapter {
+  return {
+    ...tokenAdapter(),
+    getUserByEmail: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      throw new Error('connection refused');
+    },
+  } as Adapter;
+}
+
+/**
+ * A NextAuth() instance wired like auth.ts, with the real T11 hooks on the Nodemailer provider and
+ * the adapter wrapped by hooks.guardAdapter; `guard: false` leaves the adapter bare.
+ */
+function useAuth(
+  prisma: PrismaClient,
+  transport: Transport,
+  adapter: Adapter = tokenAdapter(),
+  { guard = true }: { guard?: boolean } = {}
+) {
   const hooks = createEmailProviderHooks({
     prisma,
     transport,
@@ -133,7 +153,10 @@ function useAuth(prisma: PrismaClient, transport: Transport) {
   authInstance = NextAuth({
     secret: 'test-secret-test-secret-test-secret',
     trustHost: true,
-    adapter: tokenAdapter(),
+    adapter: guard ? hooks.guardAdapter(adapter) : adapter,
+    callbacks: {
+      signIn: hooks.signInCallback(async () => new Headers({ 'x-real-ip': requestIp })),
+    },
     session: { strategy: 'jwt' },
     pages: {
       signIn: '/login',
@@ -210,6 +233,33 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
   it('AC-15: limits unavailable -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
     const transport = fakeTransport();
     useAuth(brokenPrisma, transport);
+    const { returned, thrown } = await outcomeOf('ana@example.test');
+    expect(thrown).toBeUndefined();
+    expect(returned).toEqual({
+      success: false,
+      code: 'FAILED',
+      error: constants.EMAIL_SIGNIN_UNAVAILABLE,
+    });
+    expect(transport.mails).toHaveLength(0);
+  });
+
+  // R-03: with the database down, Auth.js's user lookup fails before callbacks.signIn.
+  it('AC-15: the adapter cannot reach the database -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
+    const transport = fakeTransport();
+    useAuth(brokenPrisma, transport, unreachableAdapter());
+    const { returned, thrown } = await outcomeOf('ana@example.test');
+    expect(thrown).toBeUndefined();
+    expect(returned).toEqual({
+      success: false,
+      code: 'FAILED',
+      error: constants.EMAIL_SIGNIN_UNAVAILABLE,
+    });
+    expect(transport.mails).toHaveLength(0);
+  });
+
+  it('AC-15: an AdapterError reaching the action (adapter not guarded) also maps to EMAIL_SIGNIN_UNAVAILABLE', async () => {
+    const transport = fakeTransport();
+    useAuth(brokenPrisma, transport, unreachableAdapter(), { guard: false });
     const { returned, thrown } = await outcomeOf('ana@example.test');
     expect(thrown).toBeUndefined();
     expect(returned).toEqual({
@@ -303,6 +353,18 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
         errorRedirect('email_unavailable')
       );
     });
+
+    it('AC-15 (R-03): the adapter cannot reach the database -> /error?error=CredentialsSignin&code=email_unavailable', async () => {
+      const transport = fakeTransport();
+      const res = await postDirect(
+        useAuth(brokenPrisma, transport, unreachableAdapter()),
+        'ana@example.test'
+      );
+      expect(res.headers.get('location')).toBe(
+        errorRedirect('email_unavailable')
+      );
+      expect(transport.mails).toHaveLength(0);
+    });
   });
 });
 
@@ -346,6 +408,22 @@ describe.runIf(containerRuntimeAvailable)(
         expect(Sentry.captureException).toHaveBeenCalledTimes(1);
       }
     );
+
+    // R-02: before, an unavailable source check admitted the request and the address lock (which
+    // still worked) let the link go out.
+    it('AC-15 (R-02): the source check alone failing -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
+      const transport = fakeTransport();
+      useAuth(sourceStoreDown(prisma), transport);
+      const { returned, thrown } = await outcomeOf('ana@example.test');
+      expect(thrown).toBeUndefined();
+      expect(returned).toEqual({
+        success: false,
+        code: 'FAILED',
+        error: constants.EMAIL_SIGNIN_UNAVAILABLE,
+      });
+      expect(transport.mails).toHaveLength(0);
+      expect(await prisma.limitEvent.count()).toBe(0);
+    });
 
     it('AC-16 (OQ-2): a send failure on the direct endpoint -> /error?error=CredentialsSignin&code=send_failed', async () => {
       const res = await postDirect(
