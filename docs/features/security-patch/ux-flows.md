@@ -52,7 +52,10 @@ flowchart TD
     A0["Open a page"] --> A1{"Public or private page?"}
     A1 -->|private: SCR-04 or SCR-05| A2{"Sign-in check result"}
     A2 -->|verified session| A3["SCR-04 Dashboard or SCR-05 private page opens directly"]
-    A2 -->|no session, invalid session or check error| A4["SCR-01 Sign-in"]
+    A2 -->|no session, invalid session or edge check error| A4["SCR-01 Sign-in"]
+    A2 -->|verified at the edge, server-side account check error| A8["Check unavailable: We couldn't load your data, session kept"]
+    A8 -->|Try again after the check recovers| A3
+    A8 -->|Try again while the check still fails| A8
     A4 -->|check recovers, earlier session still valid| A3
     A4 -->|signs in| A3
     A1 -->|public: SCR-01 or SCR-03| A5{"Sign-in check result"}
@@ -60,10 +63,11 @@ flowchart TD
     A6 -->|check recovers, signs in| A3
     A5 -->|Visitor| A6
     A3 -->|data or action request while check fails| A7["Request refused, no data shown, session not ended"]
+    A7 -->|routed to the session check while it still fails| A8
     A7 -->|check recovers| A3
 ```
 
-When someone opens a private page (the dashboard or any other), the system asks the sign-in check. Only a verified session opens the page directly. Anything else (no session, a malformed one, or the check itself failing) is treated as a Visitor and sent to sign-in. A failed check never ends a session: once it recovers, a Freelancer who was signed in is signed in again without signing in anew. A data or action request made while the check is failing is refused with no data, and works again once the check recovers. Public pages (sign-in and landing) always render, even when the check errors, so there is no endless redirect.
+When someone opens a private page (the dashboard or any other), the system asks the sign-in check. Only a verified session opens the page directly. Anything else (no session, a malformed one, or the check itself failing at the edge) is treated as a Visitor and sent to sign-in. When the edge saw a valid session but the server-side account check fails, sending the page to sign-in would loop back, so it shows a "We couldn't load your data" page instead. That page keeps the session and its "Try again" goes back to the page that was asked for. A failed check never ends a session: once it recovers, a Freelancer who was signed in is signed in again without signing in anew. A data or action request made while the check is failing is refused with no data, and works again once the check recovers. Public pages (sign-in and landing) always render, even when the check errors, so there is no endless redirect.
 
 ### Flow: US-03 — Bounded dashboard period
 
@@ -159,7 +163,7 @@ In privacy settings, the Freelancer starts a full data export. If they have star
 | AC-01 | N/A | Advisory audit over packages; no screen |
 | AC-02 | Flow US-05 → S6 → S8 (link opened), S0 → S8 (Google); Flow US-02 → A3 | E2E: both sign-in methods plus the full private-page sweep on a preview environment |
 | AC-03 | Flow US-05 → S8 "existing account for that address" | Pre-upgrade account fixture |
-| AC-04 | Flow US-02 → A2 → A4, A3 → A7, A4/A7 → A3 on recovery | Page request → sign-in; data or action refused; session survives the failed check |
+| AC-04 | Flow US-02 → A2 → A4, A2 → A8, A3 → A7 → A8, A4/A7/A8 → A3 on recovery | Page request → sign-in, or the check-unavailable page when the server-side check fails; data or action refused; session survives the failed check |
 | AC-05 | Flow US-02 → A2 verified → A3 | Uses a session from the real sign-in flow |
 | AC-06 | Flow US-02 → A5 check error → A6 | No redirect loop on SCR-01 / SCR-03 |
 | AC-07 | Flow US-03 → D1 longer or malformed → D2 | Silent fallback to the current month |

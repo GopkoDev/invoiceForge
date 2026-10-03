@@ -25,10 +25,16 @@ import { GET } from '@/app/api/auth/clear-session/route';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';
 
-function buildRequest(cookieHeader: string) {
-  return new NextRequest('https://app.example.test/api/auth/clear-session', {
-    headers: { cookie: cookieHeader },
-  });
+function buildRequest(
+  cookieHeader: string,
+  options: { search?: string; referer?: string } = {}
+) {
+  const headers: Record<string, string> = { cookie: cookieHeader };
+  if (options.referer) headers.referer = options.referer;
+  return new NextRequest(
+    `https://app.example.test/api/auth/clear-session${options.search ?? ''}`,
+    { headers }
+  );
 }
 
 describe('GET /api/auth/clear-session (AC-21)', () => {
@@ -210,4 +216,115 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
       );
     });
   });
+
+  // T32 (review-2026-10-03-rereview R-04, AC-04): the failed-check 503 is a designed page in the
+  // LoadError voice, not a bare text/plain line, with a "Try again" link back to the page the
+  // Freelancer asked for. The link target comes from `?next=` (requireLiveUser() passes the
+  // requested path) or a same-origin Referer (goToSignIn()'s full-page navigation), and is only
+  // ever a same-origin relative path: anything else falls back to the dashboard.
+  describe('the check-unavailable page (T32, R-04, AC-04)', () => {
+    const LIVE_COOKIE = '__Secure-authjs.session-token=live-jwt';
+
+    async function checkUnavailable(
+      options: { search?: string; referer?: string } = {}
+    ) {
+      authMock.mockRejectedValue(new Error('DB down'));
+      const res = await GET(buildRequest(LIVE_COOKIE, options));
+      expect(res.status).toBe(503);
+      return { res, html: await res.text() };
+    }
+
+    function tryAgainHref(html: string): string | null {
+      const match = /<a\b[^>]*\bhref="([^"]*)"[^>]*>\s*Try again\s*<\/a>/i.exec(
+        html
+      );
+      return match ? match[1].replace(/&amp;/g, '&') : null;
+    }
+
+    it('is an HTML page in the LoadError wording, never cached, with Retry-After', async () => {
+      const { res, html } = await checkUnavailable();
+
+      expect(res.headers.get('content-type')).toMatch(/^text\/html;\s*charset=utf-8$/i);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0);
+      expect(html).toMatch(/^<!doctype html>/i);
+      expect(html).toMatch(/<html lang="en"/);
+      expect(html).toMatch(/We couldn(?:'|&#39;|&apos;)t load your data/);
+      expect(html).toContain('Your data is safe');
+      expect(html).toMatch(/still signed in/i);
+      expect(res.headers.getSetCookie()).toEqual([]);
+    });
+
+    it('links "Try again" to the requested page from ?next=', async () => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent('/invoices/inv_1/edit?tab=items')}`,
+      });
+
+      expect(tryAgainHref(html)).toBe('/invoices/inv_1/edit?tab=items');
+    });
+
+    it('falls back to a same-origin Referer when there is no ?next=', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://app.example.test/customers?page=2',
+      });
+
+      expect(tryAgainHref(html)).toBe('/customers?page=2');
+    });
+
+    it('links "Try again" to the dashboard when nothing names the requested page', async () => {
+      const { html } = await checkUnavailable();
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it.each([
+      '//evil.example/phish',
+      '/\\evil.example/phish',
+      'https://evil.example/phish',
+      'javascript:alert(1)',
+      'dashboard',
+      '/\r\nSet-Cookie:x=1',
+      '/api/auth/clear-session?next=/dashboard',
+    ])('never links "Try again" off-site or back here (next=%s)', async (next) => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent(next)}`,
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('ignores a cross-origin Referer', async () => {
+      const { html } = await checkUnavailable({
+        referer: 'https://evil.example/customers',
+      });
+
+      expect(tryAgainHref(html)).toBe('/dashboard');
+    });
+
+    it('escapes the link target so it cannot break out of the attribute', async () => {
+      const { html } = await checkUnavailable({
+        search: `?next=${encodeURIComponent('/customers?q="><script>alert(1)</script>')}`,
+      });
+
+      const href = tryAgainHref(html);
+      expect(href).not.toBeNull();
+      expect(href).toMatch(/^\/customers\?q=/);
+      expect(href).not.toMatch(/[<>"]/);
+      expect(html).not.toContain('<script>alert(1)</script>');
+    });
+
+    it('serves the same page for a null session while a session cookie is present', async () => {
+      authMock.mockResolvedValue(null);
+
+      const res = await GET(
+        buildRequest(LIVE_COOKIE, { search: '?next=%2Fproducts' })
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('content-type')).toMatch(/^text\/html/i);
+      expect(tryAgainHref(await res.text())).toBe('/products');
+      expect(res.headers.getSetCookie()).toEqual([]);
+    });
+  });
 });
+

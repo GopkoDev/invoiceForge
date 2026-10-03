@@ -141,7 +141,7 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** the sign-in check returns anything other than a verified session, for example an error state caused by a misconfiguration
 **When** that caller requests a private page, private data or a private action
-**Then** the system treats that request as a Visitor's: a page request is sent to sign in, a data or action request is refused with no data, and nothing private runs. A failed check never ends an existing session: once the check recovers, a Freelancer who was signed in is signed in again without signing in anew
+**Then** the system treats that request as a Visitor's: a page request is sent to sign in, a data or action request is refused with no data, and nothing private runs. When the check itself fails for a session that may still be valid, the page request instead gets a "We couldn't load your data" page that is never cached, keeps the session and offers "Try again" back to the requested page, because sending it to sign in would loop. A failed check never ends an existing session: once the check recovers, a Freelancer who was signed in is signed in again without signing in anew
 
 ### AC-05 (US-02) — happy path
 

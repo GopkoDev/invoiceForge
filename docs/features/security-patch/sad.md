@@ -285,13 +285,27 @@ sequenceDiagram
     actor C as Visitor or caller
     participant P as Edge proxy
     participant W as Web pages
+    participant H as Route handlers (session-check route)
     participant A as Server actions
 
     C->>P: any request
     P->>P: read session, apply isVerifiedSession
     Note over P: a thrown or malformed check counts as Visitor and session cookies are left untouched
     alt verified session
-        P->>W: pass through (pages, actions, API)
+        P->>W: pass through (pages, actions, API), with the requested path on a request header
+        opt private page whose server-side account check fails or finds no live account
+            W-->>C: redirect to the session-check route, carrying the requested path
+            C->>H: GET the session-check route
+            H->>H: check the session again
+            alt account definitively gone (AC-21)
+                H-->>C: clear the session cookies, redirect to sign-in
+            else check fails again, or no session while a session cookie is present
+                H-->>C: 503 check-unavailable page (no-store, Retry-After), "Try again" to the requested path if it is same-origin and relative, else the dashboard, and no cookie expiry
+                Note over H,C: a redirect to sign-in would loop, because the edge still sees a decodable session
+            else check passes now
+                H-->>C: redirect to the dashboard, cookies untouched
+            end
+        end
     else not GET, HEAD or OPTIONS, outside the sign-in service and the sign-in page
         P-->>C: not signed in, no data
     else public path
