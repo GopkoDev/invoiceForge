@@ -24,7 +24,8 @@ function readEnvExample(): string {
 /**
  * The setting names one source file reads directly: `process.env.X`, `process.env['X']` and
  * `process.env["X"]` (T36 / re-review R-06: the bracket form used to slip past this scan), each
- * also with `?.`, plus destructuring `const { X, Y: alias } = process.env` (T46 / N-06).
+ * also with `?.`, plus destructuring `const { X, Y: alias } = process.env` (T46 / N-06), typed
+ * or with comments inside the braces (T48 / F-02).
  */
 function envReadsIn(source: string): string[] {
   // T41 / S-06: a parameter that defaults to process.env (`env = process.env`) is an injected
@@ -46,15 +47,18 @@ function envReadsIn(source: string): string[] {
     ),
   ].map((m) => m[1] ?? m[2]);
   // `{ X, Y: alias, Z = 'default' } = process.env`: the key before `:` or `=` is the name read.
+  // T48 / F-02: a type annotation may sit between `}` and `=`, and comments inside the braces
+  // are dropped before splitting so they don't glue onto the next name.
   const destructured = [
     ...source.matchAll(
       new RegExp(
-        `\\{([^{}]*)\\}\\s*=\\s*(?:${records})\\b(?!\\s*(?:\\?\\.|[.[]))`,
+        `\\{([^{}]*)\\}\\s*(?::[^=]+)?=\\s*(?:${records})\\b(?!\\s*(?:\\?\\.|[.[]))`,
         'g'
       )
     ),
   ].flatMap((m) =>
     m[1]
+      .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
       .split(',')
       .map((part) => part.split(/[:=]/)[0].trim())
       .filter((name) => /^[A-Z][A-Z0-9_]*$/.test(name))
@@ -219,6 +223,16 @@ describe('required settings list (ADR-0008)', () => {
       'OPTIONAL_BRACKET',
       'OPTIONAL_DOT',
     ]);
+  });
+
+  // T48 / fourth re-review F-02: a typed destructure and comments inside the braces.
+  it('the scan sees typed and commented destructured reads', () => {
+    expect(
+      envReadsIn(
+        `const { TYPED_ONE }: NodeJS.ProcessEnv = process.env;\n` +
+          `const {\n  COMMENTED_ONE, // why\n  COMMENTED_TWO, /* block, note */\n  COMMENTED_THREE: alias,\n} = process.env;`
+      ).sort()
+    ).toEqual(['COMMENTED_ONE', 'COMMENTED_THREE', 'COMMENTED_TWO', 'TYPED_ONE']);
   });
 
   it('the env.example parser picks up a bare or commented-out stale entry', () => {
