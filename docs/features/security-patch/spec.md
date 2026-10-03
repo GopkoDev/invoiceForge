@@ -187,7 +187,7 @@ Decisions taken during the interview, recorded for traceability:
 
 ### AC-11 (US-05) — happy path
 
-**Given** an address that has received fewer than 5 Sign-in links in the past hour, and a source that has made fewer than 30 requests in the past 5 minutes (only links actually sent count towards the address limit; refused, invalid and failed requests do not)
+**Given** an address that has received fewer than 5 Sign-in links in the past hour, and a source that has made fewer than 30 requests in the past 5 minutes (only links actually sent count towards the address limit; refused, invalid and failed requests do not. A send whose outcome is unknown because it hit the send time bound counts, because the link may still be delivered, even though the Visitor sees the "could not send, try again" message)
 **When** a Visitor requests a Sign-in link for that address
 **Then** the link is sent and the Visitor sees the "check your inbox" confirmation
 
