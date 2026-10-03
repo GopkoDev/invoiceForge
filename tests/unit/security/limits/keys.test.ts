@@ -7,8 +7,10 @@
 //   sourceLimitKey(ip: string): string       // lower-hex HMAC-SHA256(secret, IPv4 | IPv6 /64 prefix)
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { HeadersAdapter } from 'next/dist/server/web/spec-extension/adapters/headers';
 import {
   addressLimitKey,
+  clientSource,
   foldAddress,
   sourceLimitKey,
 } from '@/lib/security/limits/keys';
@@ -98,5 +100,32 @@ describe('limit keys (T8)', () => {
         sourceLimitKey('::ffff:198.51.100.9')
       );
     });
+  });
+});
+
+// T22 (AC-18 e2e gate): callbacks.signIn passes the object next/headers' headers() resolves to.
+// That is Next's HeadersAdapter, which keeps the raw Node header map in its own `headers` field, so
+// @vercel/functions ipAddress() took it for a Request and called .get on a plain object: every
+// Sign-in link request on a production build failed as AccessDenied.
+describe('clientSource', () => {
+  it("reads the platform address from next/headers' headers() object", () => {
+    const fromNext = HeadersAdapter.seal(
+      new HeadersAdapter({ 'x-real-ip': '203.0.113.7' })
+    );
+    expect(clientSource(fromNext)).toBe('203.0.113.7');
+  });
+
+  it('reads it from a plain Headers and from a Request', () => {
+    const headers = new Headers({ 'x-real-ip': '198.51.100.4' });
+    expect(clientSource(headers)).toBe('198.51.100.4');
+    expect(clientSource(new Request('http://localhost/', { headers }))).toBe(
+      '198.51.100.4'
+    );
+  });
+
+  it('never reads a client-settable header', () => {
+    expect(
+      clientSource(new Headers({ 'x-forwarded-for': '192.0.2.1' }))
+    ).toBeUndefined();
   });
 });
