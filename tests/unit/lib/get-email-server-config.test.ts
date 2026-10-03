@@ -6,6 +6,7 @@ import tls from 'node:tls';
 import nodemailer from 'nodemailer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getEmailServerConfig } from '@/lib/get-email-server-config';
+import { fixtureCa, startSmtp } from '../../support/smtp-server';
 
 const fixtures = path.resolve(__dirname, '../../support/fixtures/tls');
 
@@ -48,89 +49,19 @@ describe('getEmailServerConfig transport options', () => {
     expect(getEmailServerConfig()).toMatchObject({ pool: true });
   });
 
+  // T34 / review R-10: a send the sign-in hook has given up on must never go out later, so the
+  // pool does not re-queue a message whose connection closed mid-send (nodemailer's default is 5).
+  it('never re-queues a message whose connection closed during the send', () => {
+    setMailEnv('smtp.example.com', 587);
+    expect(getEmailServerConfig()).toMatchObject({ maxRequeues: 0 });
+  });
+
   it('throws naming the setting instead of returning undefined', () => {
     setMailEnv('smtp.example.com', 587);
     vi.stubEnv('EMAIL_SERVER_HOST', '');
     expect(() => getEmailServerConfig()).toThrow(/EMAIL_SERVER_HOST/);
   });
 });
-
-// Minimal SMTP server recording whether any message data was received.
-function startSmtp(offerStartTls: boolean, certName = 'test') {
-  const state = { gotData: false };
-  const handle = (socket: net.Socket) => {
-    socket.on('error', () => {});
-    socket.write('220 test ESMTP\r\n');
-    socket.on('data', (buf) => {
-      for (const line of buf.toString().split('\r\n').filter(Boolean)) {
-        const cmd = line.toUpperCase();
-        if (cmd.startsWith('EHLO') || cmd.startsWith('HELO')) {
-          socket.write(
-            offerStartTls
-              ? '250-test\r\n250 STARTTLS\r\n'
-              : '250-test\r\n250 AUTH PLAIN LOGIN\r\n'
-          );
-        } else if (cmd === 'STARTTLS' && offerStartTls) {
-          socket.write('220 go ahead\r\n');
-          socket.removeAllListeners('data');
-          const secure = new tls.TLSSocket(socket, {
-            isServer: true,
-            key: fs.readFileSync(path.join(fixtures, `${certName}-key.pem`)),
-            cert: fs.readFileSync(path.join(fixtures, `${certName}-cert.pem`)),
-          });
-          secure.on('error', () => {});
-          // After the handshake: just enough of the dialogue for a send to complete, so a
-          // certificate that passes verification can be told from one that never connects.
-          let inData = false;
-          secure.on('data', (chunk) => {
-            for (const l of chunk.toString().split('\r\n').filter(Boolean)) {
-              const c = l.toUpperCase();
-              if (inData) {
-                if (l === '.') {
-                  inData = false;
-                  secure.write('250 queued\r\n');
-                }
-              } else if (c.startsWith('EHLO')) {
-                secure.write('250-test\r\n250 AUTH PLAIN LOGIN\r\n');
-              } else if (c.startsWith('AUTH')) {
-                secure.write('235 ok\r\n');
-              } else if (c === 'DATA') {
-                inData = true;
-                state.gotData = true;
-                secure.write('354 go\r\n');
-              } else if (c === 'QUIT') {
-                secure.end('221 bye\r\n');
-              } else {
-                secure.write('250 ok\r\n');
-              }
-            }
-          });
-          return;
-        } else if (
-          cmd.startsWith('MAIL') ||
-          cmd.startsWith('AUTH') ||
-          cmd === 'DATA'
-        ) {
-          state.gotData = true;
-          socket.write('250 ok\r\n');
-        } else {
-          socket.write('250 ok\r\n');
-        }
-      }
-    });
-  };
-  const server = net.createServer(handle);
-  return new Promise<{ port: number; state: typeof state; close: () => void }>(
-    (resolve) =>
-      server.listen(0, '127.0.0.1', () =>
-        resolve({
-          port: (server.address() as net.AddressInfo).port,
-          state,
-          close: () => server.close(),
-        })
-      )
-  );
-}
 
 const message = {
   from: 'a@example.com',
@@ -139,13 +70,15 @@ const message = {
   text: 'secret link',
 };
 
-const trustedCa = fs.readFileSync(path.join(fixtures, 'ca-cert.pem'));
+const trustedCa = fixtureCa;
 
 // Resolves with the error a send raises (or undefined when it succeeds); `trustCa` adds the
 // fixture CA to the verified-TLS options, the one deviation from getEmailServerConfig().
+// `keepOpenMs` keeps the pool open that long after the send settles, so a re-queued retry would
+// still reach the server.
 async function sendAgainst(
   smtp: { port: number },
-  { trustCa = false }: { trustCa?: boolean } = {}
+  { trustCa = false, keepOpenMs = 0 }: { trustCa?: boolean; keepOpenMs?: number } = {}
 ) {
   setMailEnv('127.0.0.1', smtp.port);
   const config = getEmailServerConfig();
@@ -159,13 +92,14 @@ async function sendAgainst(
   } catch (error) {
     return error as NodeJS.ErrnoException;
   } finally {
+    await new Promise((r) => setTimeout(r, keepOpenMs));
     transport.close();
   }
 }
 
 describe('transport refuses clear text and unverified certificates (AC-16)', () => {
   it('server without STARTTLS: send rejects and nothing is sent', async () => {
-    const smtp = await startSmtp(false);
+    const smtp = await startSmtp({ offerStartTls: false });
     const error = await sendAgainst(smtp);
     smtp.close();
     expect(error).toBeInstanceOf(Error);
@@ -202,7 +136,7 @@ describe('transport refuses clear text and unverified certificates (AC-16)', () 
   });
 
   it('certificate from a trusted CA but not valid for the host name: send rejects on the name and sends nothing', async () => {
-    const smtp = await startSmtp(true, 'wrong-name');
+    const smtp = await startSmtp({ certName: 'wrong-name' });
     const error = await sendAgainst(smtp, { trustCa: true });
     smtp.close();
     expect(error?.message).toMatch(/altnames/);
@@ -210,15 +144,29 @@ describe('transport refuses clear text and unverified certificates (AC-16)', () 
   });
 
   it('control: the same trusted CA with a certificate valid for the host name sends', async () => {
-    const smtp = await startSmtp(true, 'right-name');
+    const smtp = await startSmtp({ certName: 'right-name' });
     const error = await sendAgainst(smtp, { trustCa: true });
     smtp.close();
     expect(error).toBeUndefined();
     expect(smtp.state.gotData).toBe(true);
   });
 
+  // R-10: nodemailer's pool re-queues a message whose connection closed before the greeting and
+  // sends it on a later connection, possibly after the sign-in hook gave up on it.
+  it('R-10: a connection that closes before the greeting fails that send; the pool never retries it on a new connection', async () => {
+    const smtp = await startSmtp({
+      certName: 'right-name',
+      dropFirstConnectionBeforeGreeting: true,
+    });
+    const error = await sendAgainst(smtp, { trustCa: true, keepOpenMs: 1000 });
+    smtp.close();
+    expect(error).toBeInstanceOf(Error);
+    expect(smtp.state.connections).toBe(1);
+    expect(smtp.state.delivered).toBe(0);
+  });
+
   it('self-signed certificate from an untrusted CA: send rejects before any data', async () => {
-    const smtp = await startSmtp(true);
+    const smtp = await startSmtp();
     const error = await sendAgainst(smtp);
     smtp.close();
     expect(error?.message).toMatch(/self[- ]signed/);

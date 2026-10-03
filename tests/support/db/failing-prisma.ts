@@ -1,5 +1,6 @@
-// Prisma clients that fail in one chosen way, for the AC-15 fail-closed tests (security-patch
-// re-review R-02, R-03). Errors carry no address or network address.
+// Prisma clients that fail or slow down in one chosen way, for the AC-15 fail-closed and the
+// response-floor tests (security-patch re-review R-02, R-03, R-09). Errors carry no address or
+// network address.
 import type { PrismaClient } from '@prisma/client';
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -9,11 +10,11 @@ const bound = (target: object, prop: string | symbol): unknown => {
   return typeof value === 'function' ? value.bind(target) : value;
 };
 
-/**
- * R-02: only the SIGNIN_SOURCE advisory-lock statement fails; every other statement, the
- * SIGNIN_ADDRESS lock included, runs on the real database.
- */
-export function sourceStoreDown(real: PrismaClient): PrismaClient {
+/** Runs `intercept` in place of the SIGNIN_SOURCE advisory-lock statement of each transaction. */
+function interceptSourceLock(
+  real: PrismaClient,
+  intercept: (lock: () => Promise<unknown>) => Promise<unknown>
+): PrismaClient {
   return new Proxy(real, {
     get(target, prop) {
       if (prop !== '$transaction') return bound(target, prop);
@@ -26,7 +27,7 @@ export function sourceStoreDown(real: PrismaClient): PrismaClient {
                   if (p !== '$executeRaw') return bound(t, p);
                   return (strings: TemplateStringsArray, ...values: unknown[]) =>
                     values[0] === 'SIGNIN_SOURCE'
-                      ? Promise.reject(new Error('connection reset'))
+                      ? intercept(() => t.$executeRaw(strings, ...values))
                       : t.$executeRaw(strings, ...values);
                 },
               })
@@ -36,6 +37,20 @@ export function sourceStoreDown(real: PrismaClient): PrismaClient {
     },
   });
 }
+
+/**
+ * R-02: only the SIGNIN_SOURCE advisory-lock statement fails; every other statement, the
+ * SIGNIN_ADDRESS lock included, runs on the real database.
+ */
+export const sourceStoreDown = (real: PrismaClient): PrismaClient =>
+  interceptSourceLock(real, () => Promise.reject(new Error('connection reset')));
+
+/** R-09: the SIGNIN_SOURCE transaction takes `ms` longer (a slow or contended source check). */
+export const sourceStoreSlow = (real: PrismaClient, ms: number): PrismaClient =>
+  interceptSourceLock(real, async (lock) => {
+    await pause(ms);
+    return lock();
+  });
 
 /**
  * R-03: a database that refuses every connection, for the limit store and the Auth.js adapter
