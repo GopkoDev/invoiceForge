@@ -25,7 +25,10 @@ export interface SeededWorkspace {
   invoiceNumber: string;
 }
 
-export async function seedWorkspace(email: string): Promise<SeededWorkspace> {
+export async function seedWorkspace(
+  email: string,
+  options: { customerName?: string } = {}
+): Promise<SeededWorkspace> {
   const prisma: PrismaClient = createTestPrismaClient(
     readE2eRuntime().databaseUrl
   );
@@ -41,6 +44,7 @@ export async function seedWorkspace(email: string): Promise<SeededWorkspace> {
     const bankAccount = await createBankAccount(prisma, senderProfile.id);
     const customer = await createCustomer(prisma, user.id, {
       image: PIXEL_PNG,
+      ...(options.customerName ? { name: options.customerName } : {}),
     });
     const product = await createProduct(prisma, user.id);
     // Written directly (not through the invoice factory): the factory imports app modules marked

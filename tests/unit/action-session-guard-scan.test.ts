@@ -1,15 +1,33 @@
 // AC-18 (ADR-0003 layer 2): every server action the framework would run (an exported function of a
 // 'use server' module, or a function carrying an inline 'use server') resolves the session first —
 // `const x = await guard()` then `if (!x.success) return …` — except the sign-in actions and the
-// session helper itself. A static scan over source text of app/, lib/ and components/.
+// session helper itself. A static scan over the source text of every JS/TS file in the repo (R-14:
+// not only app/, lib/ and components/), where the guard counts only when it is imported from its
+// canonical module.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
 
 const ROOT = path.resolve(__dirname, '../..');
-const SCAN_DIRS = ['app', 'lib', 'components'];
-const GUARDS = ['actingFreelancerFromSession', 'getAuthenticatedUser'];
+const SOURCE_FILE = /\.(tsx?|jsx?|mjs)$/;
+// Never source the app ships: dependencies, build output, VCS and tool state (.claude holds other
+// worktrees' checkouts), at any depth...
+const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude']);
+// ...and the repo-root folders of docs, tests and test/report output.
+const SKIP_AT_ROOT = new Set([
+  'docs',
+  'tests',
+  'test-results',
+  'playwright-report',
+  'coverage',
+]);
+// Each guard, by the module (repo-relative, no extension) it must be imported from.
+const CANONICAL_GUARDS: Record<string, string> = {
+  actingFreelancerFromSession: 'lib/helpers/session-actor',
+  getAuthenticatedUser: 'lib/helpers/auth-helpers',
+};
 // The only exemptions, by file and exported name: the sign-in actions run for a Visitor by design,
 // and getAuthenticatedUser is the session check itself.
 const EXEMPT: Record<string, ReadonlySet<string>> = {
@@ -20,16 +38,63 @@ const EXEMPT: Record<string, ReadonlySet<string>> = {
   'lib/helpers/auth-helpers.ts': new Set(['getAuthenticatedUser']),
 };
 
-function listFiles(dir: string): string[] {
+function listFiles(dir: string, root = dir): string[] {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === 'node_modules' || entry.name === '.next') return [];
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return listFiles(full);
-    return entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')
-      ? [full]
-      : [];
+    if (entry.isDirectory()) {
+      if (SKIP_ANYWHERE.has(entry.name)) return [];
+      if (dir === root && SKIP_AT_ROOT.has(entry.name)) return [];
+      return listFiles(full, root);
+    }
+    return entry.isFile() && SOURCE_FILE.test(entry.name) ? [full] : [];
   });
+}
+
+/** An import specifier as a repo-relative module path without extension, or undefined for a package. */
+function resolveModule(specifier: string, file: string): string | undefined {
+  let target: string;
+  if (specifier.startsWith('@/')) target = specifier.slice(2);
+  else if (specifier.startsWith('.'))
+    target = path.posix.join(path.posix.dirname(file), specifier);
+  else return undefined;
+  return path.posix
+    .normalize(target)
+    .replace(SOURCE_FILE, '')
+    .replace(/\/index$/, '');
+}
+
+/**
+ * The guard names a file may call: those it imports, under their own name, from the guard's
+ * canonical module (a guard's own module may also call it directly).
+ */
+function importedGuards(sf: ts.SourceFile, file: string): ReadonlySet<string> {
+  const names = new Set<string>();
+  const self = file.replace(SOURCE_FILE, '');
+  for (const [guard, guardModule] of Object.entries(CANONICAL_GUARDS)) {
+    if (guardModule === self) names.add(guard);
+  }
+  for (const st of sf.statements) {
+    if (
+      !ts.isImportDeclaration(st) ||
+      !ts.isStringLiteral(st.moduleSpecifier) ||
+      st.importClause?.isTypeOnly
+    )
+      continue;
+    const bindings = st.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    const source = resolveModule(st.moduleSpecifier.text, file);
+    for (const element of bindings.elements) {
+      const imported = (element.propertyName ?? element.name).text;
+      if (
+        !element.isTypeOnly &&
+        element.name.text === imported &&
+        CANONICAL_GUARDS[imported] === source
+      )
+        names.add(imported);
+    }
+  }
+  return names;
 }
 
 function parse(name: string, source: string): ts.SourceFile {
@@ -76,7 +141,10 @@ function isFunctionLike(
 }
 
 /** `const x = await guard()` — the guard call, awaited and bound to a name. Returns the name. */
-function guardBinding(st: ts.Statement | undefined): string | undefined {
+function guardBinding(
+  st: ts.Statement | undefined,
+  guards: ReadonlySet<string>
+): string | undefined {
   if (!st || !ts.isVariableStatement(st)) return undefined;
   const decls = st.declarationList.declarations;
   if (decls.length !== 1) return undefined;
@@ -88,7 +156,7 @@ function guardBinding(st: ts.Statement | undefined): string | undefined {
     !ts.isAwaitExpression(init) ||
     !ts.isCallExpression(init.expression) ||
     !ts.isIdentifier(init.expression.expression) ||
-    !GUARDS.includes(init.expression.expression.text)
+    !guards.has(init.expression.expression.text)
   )
     return undefined;
   return d.name.text;
@@ -116,29 +184,32 @@ function isFailureReturn(st: ts.Statement | undefined, name: string): boolean {
   );
 }
 
-function bodyIsGuarded(fn: ts.Node): boolean {
+function bodyIsGuarded(fn: ts.Node, guards: ReadonlySet<string>): boolean {
   if (!(isFunctionLike(fn) || ts.isMethodDeclaration(fn))) return false;
   if (!fn.body || !ts.isBlock(fn.body)) return false;
   const stmts = fn.body.statements.filter((s) => !isUseServerDirective(s));
-  const name = guardBinding(stmts[0]);
+  const name = guardBinding(stmts[0], guards);
   return !!name && isFailureReturn(stmts[1], name);
 }
 
 /**
  * Offenders in one source file: unguarded exported actions of a 'use server' module, exports the
  * scan cannot inspect (re-exports, default exports, non-function values), and unguarded inline
- * 'use server' functions anywhere in the file.
+ * 'use server' functions anywhere in the file. `file` is its repo-relative path, which resolves
+ * relative imports of the guard.
  */
 function findOffenders(
   source: string,
-  exempt: ReadonlySet<string> = new Set()
+  exempt: ReadonlySet<string> = new Set(),
+  file = 'lib/actions/planted.tsx'
 ): string[] {
-  const sf = parse('x.tsx', source);
+  const sf = parse(file, source);
+  const guards = importedGuards(sf, file);
   const bad: string[] = [];
   const checked = new Set<ts.Node>();
   const check = (fn: ts.Node, name: string, label = name) => {
     checked.add(fn);
-    if (!exempt.has(name) && !bodyIsGuarded(fn)) bad.push(label);
+    if (!exempt.has(name) && !bodyIsGuarded(fn, guards)) bad.push(label);
   };
 
   if (isUseServerModule(sf)) {
@@ -200,7 +271,7 @@ function findOffenders(
 }
 
 function scanFiles(): string[] {
-  return SCAN_DIRS.flatMap((d) => listFiles(path.join(ROOT, d))).filter((f) =>
+  return listFiles(ROOT).filter((f) =>
     fs.readFileSync(f, 'utf8').includes('use server')
   );
 }
@@ -223,7 +294,11 @@ describe('server actions session guard scan (AC-18)', () => {
     const offenders: string[] = [];
     for (const file of files) {
       const exempt = EXEMPT[rel(file)] ?? new Set<string>();
-      for (const name of findOffenders(fs.readFileSync(file, 'utf8'), exempt)) {
+      for (const name of findOffenders(
+        fs.readFileSync(file, 'utf8'),
+        exempt,
+        rel(file)
+      )) {
         offenders.push(`${rel(file)}:${name}`);
       }
     }
@@ -253,6 +328,14 @@ describe('server actions session guard scan (AC-18)', () => {
   describe('planted shapes', () => {
     const guarded = `const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;`;
+    const GUARD_IMPORT = `import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';`;
+    /** Adds the canonical guard import, after a leading 'use server' directive when there is one. */
+    const withGuardImport = (src: string): string => {
+      const directive = /^(['"])use server\1;?\n/.exec(src);
+      return directive
+        ? `${directive[0]}${GUARD_IMPORT}\n${src.slice(directive[0].length)}`
+        : `${GUARD_IMPORT}\n${src}`;
+    };
 
     it('flags an unguarded export and passes a guarded one', () => {
       const planted = `'use server';
@@ -264,7 +347,7 @@ export async function fine() {
   ${guarded}
   return actor;
 }`;
-      expect(findOffenders(planted)).toEqual(['leaky']);
+      expect(findOffenders(withGuardImport(planted))).toEqual(['leaky']);
     });
 
     it('flags a guard whose result is never checked, or not awaited', () => {
@@ -281,7 +364,7 @@ export const bareCall = async () => {
   await actingFreelancerFromSession();
   return db.thing.findMany();
 };`;
-      expect(findOffenders(planted)).toEqual([
+      expect(findOffenders(withGuardImport(planted))).toEqual([
         'noCheck',
         'noAwait',
         'bareCall',
@@ -294,7 +377,7 @@ export async function late() {
   await db.thing.deleteMany();
   ${guarded}
 }`;
-      expect(findOffenders(planted)).toEqual(['late']);
+      expect(findOffenders(withGuardImport(planted))).toEqual(['late']);
     });
 
     it('flags re-exports, default exports and non-function exports', () => {
@@ -350,7 +433,7 @@ export function Fine() {
   }
   return null;
 }`;
-      expect(findOffenders(planted)).toEqual(['inline:save']);
+      expect(findOffenders(withGuardImport(planted))).toEqual(['inline:save']);
     });
 
     it('flags an unguarded inline use-server function inside a use-server module, or a method', () => {
@@ -363,7 +446,9 @@ export async function fine() {
   }
   return nested;
 }`;
-      expect(findOffenders(inModule)).toEqual(['inline:nested']);
+      expect(findOffenders(withGuardImport(inModule))).toEqual([
+        'inline:nested',
+      ]);
       const method = `const handlers = {
   async remove() {
     "use server";
@@ -380,6 +465,94 @@ export async function other() { return ok({}); }`;
       expect(findOffenders(src, new Set(['getAuthenticatedUser']))).toEqual([
         'other',
       ]);
+    });
+
+    it('accepts the guard only when it is imported from its canonical module (R-14)', () => {
+      const body = `export async function act() {
+  ${guarded}
+  return actor;
+}`;
+      // The canonical import, by alias or by a relative path that resolves to it.
+      expect(findOffenders(withGuardImport(`'use server';\n${body}`))).toEqual(
+        []
+      );
+      expect(
+        findOffenders(
+          `'use server';\nimport { actingFreelancerFromSession } from '../helpers/session-actor';\n${body}`,
+          new Set(),
+          'lib/actions/planted-actions.ts'
+        )
+      ).toEqual([]);
+      expect(
+        findOffenders(`'use server';
+import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
+export async function act() {
+  const user = await getAuthenticatedUser();
+  if (!user.success) return user;
+  return user;
+}`)
+      ).toEqual([]);
+
+      // The right name from the wrong module, a renamed import, a local look-alike, no import at
+      // all, and a relative path that resolves somewhere else.
+      expect(
+        findOffenders(
+          `'use server';\nimport { actingFreelancerFromSession } from '@/lib/helpers/fake-guard';\n${body}`
+        )
+      ).toEqual(['act']);
+      expect(
+        findOffenders(
+          `'use server';\nimport { actingFreelancerForRoute as actingFreelancerFromSession } from '@/lib/helpers/session-actor';\n${body}`
+        )
+      ).toEqual(['act']);
+      expect(
+        findOffenders(
+          `'use server';\n${body}\nasync function actingFreelancerFromSession() { return { success: true }; }`
+        )
+      ).toEqual(['act']);
+      expect(findOffenders(`'use server';\n${body}`)).toEqual(['act']);
+      expect(
+        findOffenders(
+          `'use server';\nimport { actingFreelancerFromSession } from '../helpers/session-actor';\n${body}`,
+          new Set(),
+          'app/planted/actions.ts'
+        )
+      ).toEqual(['act']);
+    });
+  });
+
+  describe('the walk (R-14)', () => {
+    it('covers the repo root and every JS/TS source extension, and skips build, vendor, docs and test folders', () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-scan-walk-'));
+      try {
+        const kept = [
+          'app/b.tsx',
+          'd.jsx',
+          'lib/a.ts',
+          'scripts/e.mjs',
+          'server/c.js',
+        ];
+        for (const rel of [
+          ...kept,
+          'README.md',
+          'node_modules/x/f.ts',
+          '.next/server/g.js',
+          '.git/hooks/h.js',
+          '.claude/worktrees/w/lib/k.ts',
+          'docs/i.ts',
+          'tests/unit/j.ts',
+        ]) {
+          fs.mkdirSync(path.dirname(path.join(tmp, rel)), { recursive: true });
+          fs.writeFileSync(path.join(tmp, rel), `'use server';\n`);
+        }
+
+        const found = listFiles(tmp)
+          .map((f) => path.relative(tmp, f).split(path.sep).join('/'))
+          .sort();
+        expect(found).toEqual(kept);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
   });
 });
