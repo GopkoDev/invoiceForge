@@ -29,7 +29,7 @@
 | T22 | Scan every 'use server' module for the session guard and cover all anonymous-mutation request shapes in e2e | tests | Dmytro Hopko | S | T5 | done |
 | T23 | Never load a legacy non-web profile image in the navigation avatar | ui | Dmytro Hopko | S | T17 | done |
 | T24 | Clear the remaining production advisory, enforce the audit in CI and harden the required-settings build check | wiring | Dmytro Hopko | M | T10, T20 | done |
-| T25 | Run the CSP gate over the full page sweep and on preview, and pass Sentry rate limits through the tunnel | tests | Dmytro Hopko | M | T18, T20 | todo |
+| T25 | Run the CSP gate over the full page sweep and on preview, and pass Sentry rate limits through the tunnel | tests | Dmytro Hopko | M | T18, T20 | done |
 | T26 | Make the sign-in limiter resilient: send outside the lock, admit sources before token creation, fix shared buckets and purge contention | app | Dmytro Hopko | M | T8, T11, T15 | done |
 | T27 | Prove Google sign-in ignores email limits end to end, tag SMTP failure causes and test the TLS host-name check | tests | Dmytro Hopko | S | T11 | done |
 | T28 | Test the five-year period rule through the dashboard loader | tests | Dmytro Hopko | S | T6 | done |
