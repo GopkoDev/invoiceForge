@@ -871,7 +871,8 @@
         "tests/e2e/route-sweep.spec.ts"
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-2.md",
-      "source": "review-2026-10-03-rereview-2"
+      "source": "review-2026-10-03-rereview-2",
+      "note": "T45 (rereview-3 T-02): the forwarded Next-Action e2e asserts 200 with an empty `{}` body, not 401 + UNAUTHORIZED_BODY. Next drops a non-RSC forwarded reply such as the proxy's JSON 401 (next/dist/server/app-render/action-handler.js:205-226). The test proves the proxy refusal and worker lookup; the action guard itself is covered by tests/unit/action-session-guard-scan.test.ts."
     },
     {
       "id": "T41",
