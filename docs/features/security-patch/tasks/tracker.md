@@ -35,5 +35,12 @@
 | T28 | Test the five-year period rule through the dashboard loader | tests | Dmytro Hopko | S | T6 | done |
 | T29 | Show the export-limit alert inside the delete-account dialog | ui | Dmytro Hopko | S | T14 | done |
 | T30 | Close the TD-3 gate in the ship checklist, fix the source-key docs, task statuses and new lint warnings | docs | Dmytro Hopko | S | T11 | done |
+| T31 | Stop Auth.js's session endpoint from ending the session on a failed check, and prove it with a real-cookie e2e | ports | Dmytro Hopko | M | T21 | todo |
+| T32 | Render a designed check-unavailable response from clear-session and amend AC-04, sad §6, ux-flows and screens | ui | Dmytro Hopko | S | T21 | todo |
+| T33 | Fail the sign-in-email path closed when limits or the database cannot be checked, and tighten the Google test | app | Dmytro Hopko | M | T26, T27 | todo |
+| T34 | Tag real TLS failures, clamp the response floor from below with equal start points, and stop abandoned pooled sends | app | Dmytro Hopko | M | T26, T27 | todo |
+| T35 | Send every anonymous-action shape to public pages in e2e and close the guard-scan gaps | tests | Dmytro Hopko | S | T22 | todo |
+| T36 | Test the reverse env.example rule and pin the Node major across engines, CI and the SAD | wiring | Dmytro Hopko | S | T24 | todo |
+| T37 | Align contracts and data-model with the code, tighten the loader and preview Sentry tests, refresh ship-notes | docs | Dmytro Hopko | S | T25, T26, T28 | todo |
 
-**Total:** 30 tasks (T21–T30 from review-2026-10-03), ~12 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
+**Total:** 37 tasks (T21–T30 from review-2026-10-03, T31–T37 from review-2026-10-03-rereview), ~15 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
