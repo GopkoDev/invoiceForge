@@ -1007,6 +1007,41 @@
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-3.md",
       "source": "review-2026-10-03-rereview-3"
+    },
+    {
+      "id": "T47",
+      "title": "Carry the AC-11 timeout counting rule into sad §8 and the test-plan",
+      "layer": "docs",
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Fourth re-review F-01 fixed: the sad.md §8 Rate limiting row says a refused or definitely failed request never counts, and a send that hits the time bound counts (AC-11, ADR-0002); test-plan has an AC-11 integration row: a send that exceeds the time bound but is delivered keeps its SENT reservation and counts, and the Visitor gets 'could not send' (tests/integration/auth/email-provider.test.ts).",
+      "files_hint": [
+        "docs/features/security-patch/sad.md",
+        "docs/features/security-patch/test-plan.md"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-4.md",
+      "source": "review-2026-10-03-rereview-4"
+    },
+    {
+      "id": "T48",
+      "title": "Catch typed and commented destructuring reads in the forward env scan",
+      "layer": "tests",
+      "deps": [
+        "T46"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Fourth re-review F-02 fixed: the destructuring pattern in required-settings.test.ts allows an optional type annotation between } and = (const { X }: NodeJS.ProcessEnv = process.env), // and /* */ comments are stripped from the destructure body before splitting, and the fixture covers both shapes.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-4.md",
+      "source": "review-2026-10-03-rereview-4"
     }
   ]
 }
