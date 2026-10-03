@@ -127,6 +127,69 @@ describe('POST /monitoring (AC-22)', () => {
     expect(await res.text()).toBe('');
   });
 
+  it('refuses a body over 1 MB with 413 and forwards nothing', async () => {
+    const header = `${JSON.stringify({ event_id: 'abc', dsn: OWN_DSN })}\n`;
+    const big = header + 'x'.repeat(1_048_576);
+    const { POST } = await loadRoute();
+    const res = await POST(post(big));
+    expect(res.status).toBe(413);
+    expect(await res.text()).toBe('');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an oversized body by its declared length without reading it', async () => {
+    const req = new Request('http://localhost/monitoring', {
+      method: 'POST',
+      headers: { 'content-length': '5000000' },
+      body: envelope(OWN_DSN),
+    });
+    const { POST } = await loadRoute();
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a body just under the cap', async () => {
+    const header = `${JSON.stringify({ event_id: 'abc', dsn: OWN_DSN })}\n`;
+    const { POST } = await loadRoute();
+    const res = await POST(post(header + 'x'.repeat(1_000_000)));
+    expect(res.status).toBe(200);
+  });
+
+  it('passes a Sentry 429 through with Retry-After and X-Sentry-Rate-Limits', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('upstream detail', {
+        status: 429,
+        headers: {
+          'retry-after': '60',
+          'x-sentry-rate-limits': '60:error:organization',
+        },
+      })
+    );
+    const { POST } = await loadRoute();
+    const res = await POST(post(envelope(OWN_DSN)));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('60');
+    expect(res.headers.get('x-sentry-rate-limits')).toBe(
+      '60:error:organization'
+    );
+    expect(await res.text()).toBe('');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes rate-limit headers through on a 200 as well', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('{}', {
+        status: 200,
+        headers: { 'x-sentry-rate-limits': '30:transaction:key' },
+      })
+    );
+    const { POST } = await loadRoute();
+    const res = await POST(post(envelope(OWN_DSN)));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-sentry-rate-limits')).toBe('30:transaction:key');
+  });
+
   it('exports POST only', async () => {
     const mod = (await loadRoute()) as Record<string, unknown>;
     expect(mod.GET).toBeUndefined();

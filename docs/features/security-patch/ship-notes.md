@@ -99,10 +99,15 @@ Policy changes made during implement, approved by the user and recorded in `sad.
 
 ## Preview checklist for the user (not run by the agent)
 
-1. Run both specs against the preview: `BASE_URL=https://<preview> E2E_EXPECT_SENTRY=1 pnpm exec playwright test tests/e2e/csp-gate.spec.ts tests/e2e/route-sweep.spec.ts`.
-   The seeded-data flows need the local throwaway database, so against a preview they skip; walk the same
-   flows by hand with the browser console open. For the Sign-in link, set `E2E_SIGNIN_LINK_FILE=/some/path`
-   and paste the link from your real mailbox into that file while the helper waits (120 s).
+1. Run the CSP gate against the preview: `BASE_URL=https://<preview> pnpm exec playwright test tests/e2e/csp-gate.spec.ts`.
+   Automated on a preview: the data-free describe, which opens `/login`, `/`, `/privacy` and `/terms` with zero
+   policy violations and throws a client-side error on `/login`, expecting `/monitoring` to answer 200 (the
+   preview has the real DSN). Not automated on a preview: every flow that needs seeded data (dashboard chart,
+   invoice PDF preview, download and print, settings, image previews, data export) and the genuine-session
+   sweep in `tests/e2e/route-sweep.spec.ts`; both skip because they need the local throwaway database. Locally
+   the sweep checks every private page for violations. On the preview, walk those pages by hand with the
+   browser console open. For the Sign-in link, set `E2E_SIGNIN_LINK_FILE=/some/path` and paste the link from
+   your real mailbox into that file while the helper waits (120 s).
 2. Sign in with Google on the preview with a real Google account (not automated).
 3. Confirm the Sign-in link arrives in a real mailbox and opens every private page (AC-02).
 4. Download and print an invoice PDF on the preview and confirm the browser console shows no CSP violation.

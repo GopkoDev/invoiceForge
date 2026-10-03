@@ -26,6 +26,10 @@ import {
   BASE_URL_OVERRIDE,
   BROKEN_CHECK_URL,
 } from './support/app-server';
+import {
+  collectCspViolations,
+  type CspCollector,
+} from './support/csp-collector';
 import { signInWithSignInLink } from './support/genuine-session';
 import { seedWorkspace, type SeededWorkspace } from './support/seed';
 import { uniqueTestEmail } from '../support/factories/ids';
@@ -357,6 +361,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
 test.describe('AC-05 route sweep — a genuine session reaches every private page', () => {
   test.describe.configure({ mode: 'serial' });
   let context: BrowserContext;
+  let csp: CspCollector;
   let workspace: SeededWorkspace;
 
   test.beforeAll(async ({ browser }, testInfo) => {
@@ -369,6 +374,8 @@ test.describe('AC-05 route sweep — a genuine session reaches every private pag
     const email = uniqueTestEmail('sweep');
     workspace = await seedWorkspace(email);
     context = await browser.newContext();
+    // AC-20: the same sweep also proves no private page breaks the enforced content-security policy.
+    csp = await collectCspViolations(context);
     await signInWithSignInLink(await context.newPage(), email);
   });
 
@@ -396,9 +403,9 @@ test.describe('AC-05 route sweep — a genuine session reaches every private pag
       protectedRoutes.senderProfileEditTab(path.split('/')[2]),
   };
 
-  test('every private page loads directly with no redirect to sign-in', async () => {
+  test('every private page loads directly with no redirect to sign-in and zero CSP violations', async () => {
     // One fresh tab per private page: well over the 30 s default when the suite runs in parallel.
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const privatePages = readBuiltRoutes().filter(
       (route) =>
         route.kind === 'page' && !isPublicPath(concretePath(route.urlPath))
@@ -417,6 +424,8 @@ test.describe('AC-05 route sweep — a genuine session reaches every private pag
         `${route.urlPath} must not bounce to sign-in`
       ).toBe(redirectTarget ?? path);
       expect(response?.status(), route.urlPath).toBeLessThan(400);
+      await page.waitForLoadState('networkidle');
+      csp.expectNone(`private page ${route.urlPath}`);
       await page.close();
     }
   });
