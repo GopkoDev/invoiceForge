@@ -30,7 +30,6 @@ import {
   ProfileFormValues,
 } from '@/lib/validations/profile';
 import { updateProfile } from '@/lib/actions/profile-actions';
-import { isWebAddress } from '@/lib/validations/web-address';
 import { TriangleAlert } from 'lucide-react';
 import { authRoutes } from '@/config/routes.config';
 import {
@@ -137,7 +136,7 @@ export function ProfileSettings({ user }: { user: SessionUser }) {
               <UserAvatar
                 user={{
                   ...user,
-                  image: isWebAddress(avatarPreview) ? avatarPreview : '',
+                  image: avatarPreview,
                 }}
                 className="h-20 w-20 rounded-full"
               />

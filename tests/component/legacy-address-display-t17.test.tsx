@@ -100,6 +100,7 @@ const { SenderProfileInfoSidebar } =
   await import('@/components/sender-profiles/sender-profile-info-sidebar');
 const { ProfileSettings } =
   await import('@/components/settings/profile-settings');
+const { UserAvatar } = await import('@/components/layout/user/user-avatar');
 const { CustomerForm } = await import('@/components/customers/customer-form');
 const { SenderProfileForm } =
   await import('@/components/sender-profiles/sender-profile-form');
@@ -340,5 +341,32 @@ describe('Editor forms map server fieldErrors to the field (T17, AC-21, SCR-07/S
       'Website'
     );
     expect(routerPush).not.toHaveBeenCalled();
+  });
+});
+
+describe('UserAvatar legacy image (T23, AC-21, F-07)', () => {
+  const sessionUser = (image: string | null) =>
+    ({
+      id: 'user-1',
+      name: 'Jane Doe',
+      email: 'jane@acme.test',
+      image,
+    }) as never;
+
+  it.each(['javascript:alert(1)', 'data:image/png;base64,AAAA'])(
+    'gives a stored %s image no src and shows the initial',
+    (value) => {
+      const { container } = render(<UserAvatar user={sessionUser(value)} />);
+      expect(screen.queryByTestId('avatar-img')).toBeNull();
+      expect(container.querySelector('img[src]')).toBeNull();
+      expect(screen.getByTestId('avatar-fallback').textContent).toBe('J');
+    }
+  );
+
+  it('keeps a valid https image as src', () => {
+    render(<UserAvatar user={sessionUser('https://acme.test/a.png')} />);
+    expect(screen.getByTestId('avatar-img').getAttribute('src')).toBe(
+      'https://acme.test/a.png'
+    );
   });
 });
