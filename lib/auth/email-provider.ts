@@ -20,6 +20,10 @@ import {
 } from '@/lib/security/limits/keys';
 import { SIGN_IN_ERROR_CODES } from '@/lib/auth/sign-in-messages';
 import { authRoutes } from '@/config/routes.config';
+import type {
+  OptionalSetting,
+  RequiredSetting,
+} from '@/lib/env/required-settings';
 
 /**
  * Base of the typed provider errors (ADR-0001: the error type decides, never the message text).
@@ -65,7 +69,11 @@ export class EmailSendFailed extends SignInRefused {
 const SEND_TIMEOUT_CODE = 'SEND_TIMEOUT';
 
 /** R-08: the fixed values of the `tls` tag. Nothing else is ever put in it. */
-export type TlsFailure = 'starttls_missing' | 'altname' | 'untrusted' | 'expired';
+export type TlsFailure =
+  | 'starttls_missing'
+  | 'altname'
+  | 'untrusted'
+  | 'expired';
 
 /** Node TLS verification codes (kept by a transport that does not overwrite them). */
 const NODE_TLS_CODES: Readonly<Record<string, TlsFailure>> = {
@@ -115,7 +123,10 @@ function tlsFailure(cause: Record<string, unknown>): TlsFailure | undefined {
     cert !== null
   )
     return 'altname';
-  if (typeof message === 'string' && Object.hasOwn(OPENSSL_VERIFY_TEXTS, message))
+  if (
+    typeof message === 'string' &&
+    Object.hasOwn(OPENSSL_VERIFY_TEXTS, message)
+  )
     return OPENSSL_VERIFY_TEXTS[message];
   return undefined;
 }
@@ -226,13 +237,18 @@ const MISSING_SOURCE_REPORT_INTERVAL_MS = 10 * 60_000;
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+type SettingsRecord = Partial<
+  Record<RequiredSetting | OptionalSetting, string>
+>;
+
 /**
  * F-21: the floor F from the optional SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time
  * measured on preview), clamped to 300..1200 ms (R-09: 0 would switch the floor off); an unset
  * or unusable value gives 1000 ms.
  */
 export function responseFloorMs(
-  env: Record<string, string | undefined> = process.env
+  // T41 / S-06: typed against the known names, so an unlisted setting fails tsc.
+  env: SettingsRecord = process.env as SettingsRecord
 ): number {
   const raw = env.SIGNIN_RESPONSE_FLOOR_MS;
   const value = raw ? Number(raw) : NaN;

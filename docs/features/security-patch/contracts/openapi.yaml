@@ -143,6 +143,11 @@ paths:
             - **No TLS or invalid certificate, or the send timed out (AC-16):** `code=send_failed`;
               the page says "could not send, try again". The `SENT` reservation is released and
               the failure is reported to Sentry with value-free tags.
+            - **Adapter failure on the direct endpoint:** if Auth.js's own `createVerificationToken`
+              call fails (database unreachable after the guarded checks passed), the endpoint
+              redirects to `/api/auth/error?error=Configuration`, not `code=email_unavailable`.
+              The `/login` server action maps the same failure to the AC-15 message and reports it
+              to Sentry (T41 / S-07). No mail is sent.
             - **Missing or invalid CSRF token:** the Auth.js default (redirect to the sign-in page).
               Nothing is counted, because the hooks never run.
           headers:

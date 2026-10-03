@@ -23,6 +23,8 @@ export const OPTIONAL_SETTINGS = [
   'SIGNIN_RESPONSE_FLOOR_MS',
 ] as const;
 
+export type OptionalSetting = (typeof OPTIONAL_SETTINGS)[number];
+
 export function missingSettings(
   env: Record<string, string | undefined> = process.env
 ): RequiredSetting[] {

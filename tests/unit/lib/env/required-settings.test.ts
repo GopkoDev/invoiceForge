@@ -26,9 +26,22 @@ function readEnvExample(): string {
  * `process.env["X"]` (T36 / re-review R-06: the bracket form used to slip past this scan).
  */
 function envReadsIn(source: string): string[] {
+  // T41 / S-06: a parameter that defaults to process.env (`env = process.env`) is an injected
+  // record; `<param>.X` and `<param>['X']` on it are reads too.
+  const records = [
+    'process\\.env',
+    ...[
+      ...source.matchAll(
+        /\b([A-Za-z_$][\w$]*)\s*(?::[^=)]+)?=\s*process\.env\b(?!\s*[.[])/g
+      ),
+    ].map((m) => m[1]),
+  ];
   return [
     ...source.matchAll(
-      /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\])/g
+      new RegExp(
+        `\\b(?:${records.join('|')})(?:\\.([A-Z][A-Z0-9_]*)|\\[\\s*['"]([A-Z][A-Z0-9_]*)['"]\\s*\\])`,
+        'g'
+      )
     ),
   ].map((m) => m[1] ?? m[2]);
 }
@@ -120,7 +133,10 @@ describe('required settings list (ADR-0008)', () => {
     // Read by a framework or build tool rather than by app code, so the scan can't see them.
     const frameworkOrBuild = new Map([
       ['AUTH_URL', 'next-auth reads it for the canonical base URL'],
-      ['SENTRY_AUTH_TOKEN', '@sentry/nextjs build plugin uploads source maps with it'],
+      [
+        'SENTRY_AUTH_TOKEN',
+        '@sentry/nextjs build plugin uploads source maps with it',
+      ],
     ]);
     const used = new Set<string>([
       ...REQUIRED_SETTINGS,
@@ -134,7 +150,7 @@ describe('required settings list (ADR-0008)', () => {
     expect(names.filter((name) => !used.has(name))).toEqual([]);
   });
 
-  it('the scan sees bracket reads (prisma.config.ts reads process.env[\'DATABASE_URL\'])', () => {
+  it("the scan sees bracket reads (prisma.config.ts reads process.env['DATABASE_URL'])", () => {
     expect(
       envReadsIn(
         `const a = process.env.DOT_READ; const b = process.env['SINGLE_QUOTED']; ` +
@@ -144,6 +160,23 @@ describe('required settings list (ADR-0008)', () => {
     expect(
       envReadsIn(readFileSync(path.join(root, 'prisma.config.ts'), 'utf8'))
     ).toContain('DATABASE_URL');
+  });
+
+  // T41 / second re-review S-06 (closes R-06): a setting read through an injected record
+  // (`env = process.env` parameter) is still a read.
+  it('the scan sees reads through a parameter that defaults to process.env', () => {
+    expect(
+      envReadsIn(
+        `function f(env: Record<string, string | undefined> = process.env) { return env.INJECTED_ONE; }\n` +
+          `const g = (e = process.env) => e['INJECTED_TWO'];\n` +
+          `const h = (other: Foo) => other.NOT_A_SETTING;`
+      ).sort()
+    ).toEqual(['INJECTED_ONE', 'INJECTED_TWO']);
+    expect(
+      envReadsIn(
+        readFileSync(path.join(root, 'lib/auth/email-provider.ts'), 'utf8')
+      )
+    ).toContain('SIGNIN_RESPONSE_FLOOR_MS');
   });
 
   it('the env.example parser picks up a bare or commented-out stale entry', () => {

@@ -33,6 +33,7 @@ import {
 } from '../../support/factories/limit-event';
 import {
   createEmailProviderHooks,
+  EmailSigninUnavailable,
   InvalidEmailAddress,
 } from '@/lib/auth/email-provider';
 import { addressLimitKey } from '@/lib/security/limits/keys';
@@ -155,7 +156,9 @@ function useAuth(
     trustHost: true,
     adapter: guard ? hooks.guardAdapter(adapter) : adapter,
     callbacks: {
-      signIn: hooks.signInCallback(async () => new Headers({ 'x-real-ip': requestIp })),
+      signIn: hooks.signInCallback(
+        async () => new Headers({ 'x-real-ip': requestIp })
+      ),
     },
     session: { strategy: 'jwt' },
     pages: {
@@ -268,6 +271,11 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
       error: constants.EMAIL_SIGNIN_UNAVAILABLE,
     });
     expect(transport.mails).toHaveLength(0);
+    // T41 / S-07: the branch reports like every other AC-15 path.
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(Sentry.captureException).mock.calls[0][0]).toBeInstanceOf(
+      EmailSigninUnavailable
+    );
   });
 
   it.each([
