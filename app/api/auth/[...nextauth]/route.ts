@@ -2,18 +2,17 @@ import type { NextRequest } from 'next/server';
 import { handlers } from '@/auth'; // Referring to the auth.ts we just created
 import { withoutSessionCookieExpiry } from '@/lib/helpers/session-cookies';
 
-// T40 (review-2026-10-03-rereview-2 S-04, AC-04): Auth.js's session endpoint clears the session
-// cookie when it cannot decode the token or the session callback throws. The proxy never filters a
-// route handler's response, so a direct visit (even a crafted link) would end the session while the
-// check is failing. Strip the expiry from that one GET; sign-out and the other endpoints still set
-// and clear cookies as Auth.js intends.
-const SESSION_ENDPOINT = '/api/auth/session';
-
+// T40/T44 (review-2026-10-03-rereview-2 S-04, rereview-3 T-01, AC-04): Auth.js's session endpoint
+// clears the session cookie when it cannot decode the token or the session callback throws. The
+// proxy never filters a route handler's response, so a direct visit (even a crafted link) would end
+// the session while the check is failing. Auth.js parses the action with `split('/').filter(Boolean)`,
+// so `//session` and `session/` reach that endpoint too: strip the expiry from EVERY GET, not one
+// pathname. That is safe because no Auth.js GET legitimately clears the session cookie in this
+// config: GET signout only renders a page (the clear happens on POST, left untouched below), and the
+// callback's `sessionStore.clean()` only fires when `jwt` returns null, which auth.ts's `jwt` never
+// does. A refreshed (non-empty) session cookie and every other cookie pass through.
 export async function GET(request: NextRequest): Promise<Response> {
-  const response = await handlers.GET(request);
-  return request.nextUrl.pathname === SESSION_ENDPOINT
-    ? withoutSessionCookieExpiry(response)
-    : response;
+  return withoutSessionCookieExpiry(await handlers.GET(request));
 }
 
 export const { POST } = handlers;
