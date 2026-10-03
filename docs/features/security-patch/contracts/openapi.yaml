@@ -140,12 +140,15 @@ paths:
               that cannot be reached for the user lookup, and, on Vercel, a request with no
               platform address. Fail-closed: no token is written when the sign-in callback
               refuses, and nothing is sent or counted.
-            - **No TLS or invalid certificate, or the send timed out (AC-16):** `code=send_failed`;
-              the page says "could not send, try again". The `SENT` reservation is released and
-              the failure is reported to Sentry with value-free tags.
+            - **No TLS or invalid certificate, or an authentication error (AC-16):**
+              `code=send_failed`; the page says "could not send, try again". The `SENT`
+              reservation is released and the failure is reported to Sentry with value-free tags.
+            - **The send timed out (AC-11, AC-16):** also `code=send_failed` with the same page,
+              but the outcome is unknown, so the `SENT` reservation stays and counts (T39). The
+              failure is reported to Sentry with `code=SEND_TIMEOUT`.
             - **Adapter failure on the direct endpoint:** if Auth.js's own `createVerificationToken`
               call fails (database unreachable after the guarded checks passed), the endpoint
-              redirects to `/api/auth/error?error=Configuration`, not `code=email_unavailable`.
+              redirects to `/error?error=Configuration`, not `code=email_unavailable`.
               The `/login` server action maps the same failure to the AC-15 message and reports it
               to Sentry (T41 / S-07). No mail is sent.
             - **Missing or invalid CSRF token:** the Auth.js default (redirect to the sign-in page).

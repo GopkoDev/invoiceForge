@@ -54,7 +54,8 @@ type ActionErrorDetails =
 | limited (address or source) | **identical** redirect to `/verify-request`, after the same response floor | nothing sent. A `REFUSED` event is recorded only when the address limit refused, and only once per UTC hour (AC-12, AC-13) |
 | address invalid | `fail('VALIDATION', 'Enter a valid email address.', { fieldErrors: { email: ['Enter a valid email address.'] } })` | nothing sent or counted (AC-17) |
 | limits unavailable | `fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE)` | fail-closed (AC-15). Covers a source or address check that cannot run, a database the user lookup cannot reach, and, on Vercel, a request with no platform address. Nothing is sent or counted |
-| no TLS / invalid certificate / send timed out | `fail('FAILED', EMAIL_SEND_FAILED)` | the `SENT` reservation is released; reported to Sentry with value-free tags (AC-16) |
+| no TLS / invalid certificate / authentication error | `fail('FAILED', EMAIL_SEND_FAILED)` | the `SENT` reservation is released; reported to Sentry with value-free tags (AC-16) |
+| send timed out | `fail('FAILED', EMAIL_SEND_FAILED)` | the outcome is unknown, so the `SENT` reservation stays and counts (AC-11; T39); reported to Sentry with `code=SEND_TIMEOUT` (AC-16) |
 
 ```ts
 export const EMAIL_SIGNIN_UNAVAILABLE =

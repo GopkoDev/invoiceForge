@@ -9,15 +9,14 @@ against production or a preview; those items are the user's checklist at the end
 |---|---|---|---|
 | Advisory audit, production packages (AC-01) | 0 critical, 0 high | No known vulnerabilities (0 of any severity) | met |
 | Local CSP gate, `tests/e2e/csp-gate.spec.ts` (AC-20) | zero policy violations | zero on every flow, including invoice PDF download and print | met (local) |
-| Local genuine-session sweep, `tests/e2e/route-sweep.spec.ts` (AC-02, AC-05) | every private page opens directly | passed when run alone (1.4 min); timed out at the 240 s limit in the full run on a loaded machine (see below) | met alone, not confirmed in the full run |
+| Local genuine-session sweep, `tests/e2e/route-sweep.spec.ts` (AC-02, AC-05) | every private page opens directly | passed in the full run after T38–T46 (42.5 s) | met (local) |
 | Database toolkit (AC-27) | latest 7.x, no accelerate extension | Prisma 7.10.0 (`prisma` and `@prisma/client`) | met |
 
-Local e2e: `pnpm test:e2e` has 30 tests on the production build. Run on 2026-10-03 after the re-review
-follow-ups (T31–T37): 28 passed, 1 skipped (the smoke check for a missing container runtime, which skips
-when Docker is present), and 1 timed out: the genuine-session sweep went past its 240 s limit while the
-machine ran at a load average of about 45. Run alone, it passed in 1.4 min. The CSP gate
-(`tests/e2e/csp-gate.spec.ts`) passed 13/13. The preview checklist at the end is still required before
-production, and its items 1–5 and 8 are blocking.
+Local e2e: `pnpm test:e2e` has 30 tests on the production build. Run on 2026-10-03 after the third
+re-review follow-ups (T38–T46), on a fresh build: 30 passed in 1.3 min, including the genuine-session
+sweep (42.5 s) and the CSP gate (`tests/e2e/csp-gate.spec.ts`, 13/13). An earlier full run (after
+T31–T37) had timed the sweep out at 240 s under a load average of about 45. The preview checklist at
+the end is still required before production, and its items 1–5 and 8 are blocking.
 
 ## Advisory audit (AC-01)
 
