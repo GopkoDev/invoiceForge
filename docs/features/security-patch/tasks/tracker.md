@@ -42,10 +42,10 @@
 | T35 | Send every anonymous-action shape to public pages in e2e and close the guard-scan gaps | tests | Dmytro Hopko | S | T22 | done |
 | T36 | Test the reverse env.example rule and pin the Node major across engines, CI and the SAD | wiring | Dmytro Hopko | S | T24 | done |
 | T37 | Align contracts and data-model with the code, tighten the loader and preview Sentry tests, refresh ship-notes | docs | Dmytro Hopko | S | T25, T26, T28 | done |
-| T38 | Validate the normalised return path so the check-unavailable 'Try again' link is never off-site | ui | Dmytro Hopko | S | T32 | todo |
-| T39 | Keep the SENT reservation when a send times out and stop closing the shared pool | app | Dmytro Hopko | M | T34 | todo |
-| T40 | Keep the session cookie on Auth.js's session endpoint and make the /login anonymous-action e2e assert a real outcome | ports | Dmytro Hopko | S | T31, T35 | todo |
-| T41 | Type injected settings records against the known setting names and report the AdapterError sign-in path | app | Dmytro Hopko | S | T33, T36 | todo |
-| T42 | Bring test-plan, sad, ship-notes and env.example in line with the code | docs | Dmytro Hopko | S | T32, T34, T37 | todo |
+| T38 | Validate the normalised return path so the check-unavailable 'Try again' link is never off-site | ui | Dmytro Hopko | S | T32 | done |
+| T39 | Keep the SENT reservation when a send times out and stop closing the shared pool | app | Dmytro Hopko | M | T34 | done |
+| T40 | Keep the session cookie on Auth.js's session endpoint and make the /login anonymous-action e2e assert a real outcome | ports | Dmytro Hopko | S | T31, T35 | done |
+| T41 | Type injected settings records against the known setting names and report the AdapterError sign-in path | app | Dmytro Hopko | S | T33, T36 | done |
+| T42 | Bring test-plan, sad, ship-notes and env.example in line with the code | docs | Dmytro Hopko | S | T32, T34, T37 | done |
 
 **Total:** 42 tasks (T21–T30 from review-2026-10-03, T31–T37 from review-2026-10-03-rereview, T38–T42 from review-2026-10-03-rereview-2), ~17 person-days (S ≈ 0.25–0.5 d, M ≈ 0.5–1 d, L ≈ 1 d). That fits sad.md §2's one-sprint budget.
