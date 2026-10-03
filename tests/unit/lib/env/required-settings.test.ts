@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  OPTIONAL_SETTINGS,
   REQUIRED_SETTINGS,
   missingSettings,
   requireSetting,
@@ -51,6 +52,17 @@ describe('required settings list (ADR-0008)', () => {
       'LIMIT_KEY_SECRET',
     ]);
     expect(missingSettings(fullEnv())).toEqual([]);
+  });
+
+  // T26 / review F-21: the response floor is tunable per environment but has a safe default,
+  // so it is documented without failing a build that leaves it unset.
+  it('lists SIGNIN_RESPONSE_FLOOR_MS as optional, documented in env.example, not required', () => {
+    expect(OPTIONAL_SETTINGS).toContain('SIGNIN_RESPONSE_FLOOR_MS');
+    expect(REQUIRED_SETTINGS).not.toContain('SIGNIN_RESPONSE_FLOOR_MS');
+    const example = readFileSync(path.join(root, 'env.example'), 'utf8');
+    for (const name of OPTIONAL_SETTINGS) {
+      expect(example).toMatch(new RegExp(`^#? ?${name}=`, 'm'));
+    }
   });
 
   it('requireSetting throws naming the setting', () => {

@@ -149,6 +149,37 @@ describe.runIf(containerRuntimeAvailable)(
       ).toBe(0);
     });
 
+    // T26 / review F-18: Auth.js writes a VerificationToken for every admitted request, so the
+    // daily sweep also removes expired ones; the response body is unchanged (limit rows only).
+    it('also deletes expired VerificationToken rows and keeps unexpired ones', async () => {
+      await factoryPrisma.verificationToken.createMany({
+        data: [
+          {
+            identifier: 'a@example.test',
+            token: 'expired-1',
+            expires: new Date(T0.getTime() - HOUR),
+          },
+          {
+            identifier: 'b@example.test',
+            token: 'expired-2',
+            expires: new Date(T0.getTime() - 1),
+          },
+          {
+            identifier: 'c@example.test',
+            token: 'live',
+            expires: new Date(T0.getTime() + HOUR),
+          },
+        ],
+      });
+
+      const res = await authed();
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ success: true, data: { deleted: 0 } });
+      const left = await factoryPrisma.verificationToken.findMany();
+      expect(left.map((t) => t.token)).toEqual(['live']);
+    });
+
     it('is idempotent: a second run the same day deletes nothing', async () => {
       await seedMixed();
       await authed();

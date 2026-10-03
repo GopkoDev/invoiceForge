@@ -7,6 +7,9 @@
 //   typed errors: InvalidEmailAddress, EmailSigninUnavailable, EmailSendFailed (error.name = class name)
 //   transport: { sendMail(message): Promise<unknown> }  (production default = T10's verified-TLS config)
 //   the source comes from the platform address of params.request (x-real-ip), never a client header.
+// T26 (review F-17..F-21): the source is admitted in callbacks.signIn (signInCallback), before
+// Auth.js creates a VerificationToken; the address limit reserves the SENT row and commits before
+// the send, which runs outside the lock and releases the row when it fails.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import {
@@ -138,9 +141,15 @@ describe.runIf(containerRuntimeAvailable)(
       }
     };
 
-    // Drives the real Auth.js core with the hooks wired into the Nodemailer provider, like POST
-    // /api/auth/signin/nodemailer (the route behind the /login action).
-    async function postSignIn(hooks: Hooks, email: string, ip: string) {
+    // Drives the real Auth.js core with the hooks wired into the Nodemailer provider and
+    // callbacks.signIn, like POST /api/auth/signin/nodemailer (the route behind the /login
+    // action). `ip` undefined sends no platform address at all.
+    async function postSignIn(
+      hooks: Hooks,
+      email: string,
+      ip: string | undefined,
+      extraHeaders: Record<string, string> = {}
+    ) {
       const fromNextAuth = createRequire(
         require_.resolve('next-auth/package.json')
       );
@@ -149,6 +158,7 @@ describe.runIf(containerRuntimeAvailable)(
       )) as {
         Auth: (r: Request, c: Record<string, unknown>) => Promise<Response>;
       };
+      const posted: { request?: Request } = {};
       const config = {
         secret: 'test-secret-test-secret-test-secret',
         trustHost: true,
@@ -156,6 +166,9 @@ describe.runIf(containerRuntimeAvailable)(
         adapter: PrismaAdapter(prisma),
         session: { strategy: 'jwt' },
         pages: { verifyRequest: '/verify-request', error: '/error' },
+        callbacks: {
+          signIn: hooks.signInCallback(async () => posted.request!.headers),
+        },
         providers: [
           Nodemailer({
             server: { host: 'localhost', port: 2525 },
@@ -171,18 +184,17 @@ describe.runIf(containerRuntimeAvailable)(
         .getSetCookie()
         .map((c) => c.split(';')[0])
         .join('; ');
-      return Auth(
-        new Request(`${BASE}/api/auth/signin/nodemailer`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            cookie,
-            'x-real-ip': ip,
-          },
-          body: new URLSearchParams({ email, csrfToken }),
-        }),
-        config
-      );
+      posted.request = new Request(`${BASE}/api/auth/signin/nodemailer`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie,
+          ...(ip === undefined ? {} : { 'x-real-ip': ip }),
+          ...extraHeaders,
+        },
+        body: new URLSearchParams({ email, csrfToken }),
+      });
+      return Auth(posted.request, config);
     }
 
     beforeAll(async () => {
@@ -198,6 +210,7 @@ describe.runIf(containerRuntimeAvailable)(
     beforeEach(async () => {
       await truncateAllTables(prisma);
       vi.mocked(Sentry.captureException).mockClear();
+      vi.mocked(Sentry.captureMessage).mockClear();
     });
 
     describe('AC-17 address rule', () => {
@@ -238,9 +251,15 @@ describe.runIf(containerRuntimeAvailable)(
     });
 
     describe('AC-11 happy path', () => {
+      // T26 / F-18: the source is counted in callbacks.signIn, so this runs the full Auth.js flow
+      // (it called the send hook directly before the admission moved).
       it('sends the link and records SENT for the address and REQUESTED for the source', async () => {
         const transport = fakeTransport();
-        await send(hooksWith(transport), 'ana@example.test', '198.51.100.2');
+        await postSignIn(
+          hooksWith(transport),
+          'ana@example.test',
+          '198.51.100.2'
+        );
         expect(transport.mails.map((m) => m.to)).toEqual(['ana@example.test']);
         expect(
           await rows('SIGNIN_ADDRESS', addressLimitKey('ana@example.test'))
@@ -263,6 +282,27 @@ describe.runIf(containerRuntimeAvailable)(
           '/verify-request?provider=nodemailer&type=email'
         );
         expect(transport.mails).toHaveLength(1);
+      });
+
+      it('reserves and commits the SENT row before sending, outside the address lock (F-17)', async () => {
+        const key = addressLimitKey('ana@example.test');
+        const seen: { committedSent: number; lockFree: boolean }[] = [];
+        const transport = {
+          sendMail: async () => {
+            const committedSent = await prisma.limitEvent.count({
+              where: { scope: 'SIGNIN_ADDRESS', key, outcome: 'SENT' },
+            });
+            const [{ free }] = await prisma.$queryRaw<{ free: boolean }[]>`
+              SELECT pg_try_advisory_lock(hashtext('SIGNIN_ADDRESS' || ':' || ${key}::text)) AS free`;
+            if (free)
+              await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext('SIGNIN_ADDRESS' || ':' || ${key}::text))`;
+            seen.push({ committedSent, lockFree: free });
+            return {};
+          },
+        };
+        await send(hooksWith(transport), 'ana@example.test', '198.51.100.20');
+        expect(seen).toEqual([{ committedSent: 1, lockFree: true }]);
+        expect(await rows('SIGNIN_ADDRESS', key)).toHaveLength(1);
       });
     });
 
@@ -330,7 +370,10 @@ describe.runIf(containerRuntimeAvailable)(
     });
 
     describe('AC-13 source limit', () => {
-      it('the 31st request from one source sends nothing and records no refusal for the address', async () => {
+      // T26 / F-18: admission runs in callbacks.signIn, so the limited source is refused before
+      // Auth.js writes a VerificationToken; this drives the full flow (it called the send hook
+      // directly before).
+      it('the 31st request from one source sends nothing, creates no token and records no refusal for the address', async () => {
         const ip = '198.51.100.7';
         for (let i = 0; i < 30; i++) {
           await createLimitEvent(prisma, {
@@ -342,11 +385,17 @@ describe.runIf(containerRuntimeAvailable)(
         }
         const transport = fakeTransport();
         const started = Date.now();
-        await expect(
-          send(hooksWith(transport), 'fresh@example.test', ip)
-        ).resolves.toBeUndefined();
-        expect(transport.mails).toHaveLength(0);
+        const res = await postSignIn(
+          hooksWith(transport),
+          'fresh@example.test',
+          ip
+        );
         expect(Date.now() - started).toBeGreaterThanOrEqual(FLOOR_MS);
+        expect(res.headers.get('location')).toBe(
+          `${BASE}/api/auth/verify-request?provider=nodemailer&type=email`
+        );
+        expect(transport.mails).toHaveLength(0);
+        expect(await prisma.verificationToken.count()).toBe(0);
         expect(await rows('SIGNIN_SOURCE', sourceLimitKey(ip))).toHaveLength(
           30
         );
@@ -357,11 +406,64 @@ describe.runIf(containerRuntimeAvailable)(
         ).toBe(0);
       });
 
+      it('a limited source gets the same redirect as a sent request', async () => {
+        const sent = await postSignIn(
+          hooksWith(fakeTransport()),
+          'ana@example.test',
+          '198.51.100.16'
+        );
+        const ip = '198.51.100.17';
+        for (let i = 0; i < 30; i++) {
+          await createLimitEvent(prisma, {
+            scope: 'SIGNIN_SOURCE',
+            key: sourceLimitKey(ip),
+            outcome: 'REQUESTED',
+            at: new Date(Date.now() - 30_000),
+          });
+        }
+        const limited = await postSignIn(
+          hooksWith(fakeTransport()),
+          'ana@example.test',
+          ip
+        );
+        expect(limited.status).toBe(sent.status);
+        expect(limited.headers.get('location')).toBe(
+          sent.headers.get('location')
+        );
+      });
+
+      it('the send hook alone no longer counts the source (admission is callbacks.signIn)', async () => {
+        await send(
+          hooksWith(fakeTransport()),
+          'ana@example.test',
+          '198.51.100.18'
+        );
+        expect(
+          await prisma.limitEvent.count({ where: { scope: 'SIGNIN_SOURCE' } })
+        ).toBe(0);
+      });
+
+      it('a request with no platform address is reported, not pooled into one shared source (F-19)', async () => {
+        const transport = fakeTransport();
+        await postSignIn(hooksWith(transport), 'ana@example.test', undefined);
+        expect(transport.mails).toHaveLength(1);
+        expect(
+          await prisma.limitEvent.count({ where: { scope: 'SIGNIN_SOURCE' } })
+        ).toBe(0);
+        expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+        const reported = JSON.stringify(
+          vi.mocked(Sentry.captureMessage).mock.calls
+        );
+        expect(reported).not.toContain('ana@example.test');
+      });
+
       it('ignores a client-supplied forwarding header when choosing the source', async () => {
-        const p = params('ana@example.test', '198.51.100.8', {
-          'x-forwarded-for': '203.0.113.99',
-        });
-        await hooksWith(fakeTransport()).sendVerificationRequest(p as never);
+        await postSignIn(
+          hooksWith(fakeTransport()),
+          'ana@example.test',
+          '198.51.100.8',
+          { 'x-forwarded-for': '203.0.113.99' }
+        );
         expect(
           await rows('SIGNIN_SOURCE', sourceLimitKey('203.0.113.99'))
         ).toHaveLength(0);
@@ -526,6 +628,25 @@ describe.runIf(containerRuntimeAvailable)(
         },
         120_000
       );
+
+      it('reads F from SIGNIN_RESPONSE_FLOOR_MS when no floor is passed (F-21)', async () => {
+        vi.stubEnv('SIGNIN_RESPONSE_FLOOR_MS', '300');
+        try {
+          const hooks = createEmailProviderHooks({
+            prisma,
+            transport: fakeTransport(),
+            jitterMs: 0,
+          });
+          await seedSent('floor@example.test', 5);
+          const t = Date.now();
+          await send(hooks, 'floor@example.test', '198.51.100.19');
+          const took = Date.now() - t;
+          expect(took).toBeGreaterThanOrEqual(300);
+          expect(took).toBeLessThan(900);
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      });
 
       it('a send slower than F responds when the send finishes and still records SENT', async () => {
         const t = Date.now();

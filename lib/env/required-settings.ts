@@ -16,6 +16,13 @@ export const REQUIRED_SETTINGS = [
 
 export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number];
 
+// Settings with a safe default: documented in env.example, never fail the build when unset.
+export const OPTIONAL_SETTINGS = [
+  // Sign-in response floor F in ms (sad.md §6): the p90 send time measured on preview,
+  // default 1000, clamped to at most 1200.
+  'SIGNIN_RESPONSE_FLOOR_MS',
+] as const;
+
 export function missingSettings(
   env: Record<string, string | undefined> = process.env
 ): RequiredSetting[] {

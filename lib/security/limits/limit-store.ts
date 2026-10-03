@@ -93,7 +93,9 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
             data: { scope, key, outcome, at: now, userId: opts.userId ?? null },
             select: { id: true },
           });
-          await tx.$executeRaw`DELETE FROM "LimitEvent" WHERE "id" IN (SELECT "id" FROM "LimitEvent" WHERE "at" < ${cutoff} LIMIT ${PURGE_BATCH})`;
+          // F-20: other keys' rows may be held by concurrent writers; skip them, never wait
+          // (waiting could deadlock and surface as LimitStoreUnavailable).
+          await tx.$executeRaw`DELETE FROM "LimitEvent" WHERE "id" IN (SELECT "id" FROM "LimitEvent" WHERE "at" < ${cutoff} LIMIT ${PURGE_BATCH} FOR UPDATE SKIP LOCKED)`;
           return row;
         });
       },
@@ -174,12 +176,32 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
       });
     },
 
+    /** Removes one reserved row by id (a SENT reservation whose send failed). No lock needed. */
+    async release(id: string): Promise<void> {
+      const prisma = await guard(getPrisma);
+      await guard(() => prisma.limitEvent.deleteMany({ where: { id } }));
+    },
+
     /** Global purge of rows older than 24 h; returns the number deleted (for the cron). */
     async purgeOlderThan24h(): Promise<number> {
       const cutoff = new Date(clock.now().getTime() - DAY_MS);
       try {
         const prisma = await getPrisma();
         return await prisma.$executeRaw`DELETE FROM "LimitEvent" WHERE "at" < ${cutoff}`;
+      } catch {
+        throw new LimitStoreUnavailable();
+      }
+    },
+
+    /**
+     * F-18: Auth.js writes a VerificationToken for every admitted Sign-in link request; the daily
+     * sweep removes the expired ones so the table stays bounded. Returns the number deleted.
+     */
+    async purgeExpiredVerificationTokens(): Promise<number> {
+      const now = clock.now();
+      try {
+        const prisma = await getPrisma();
+        return await prisma.$executeRaw`DELETE FROM "VerificationToken" WHERE "expires" < ${now}`;
       } catch {
         throw new LimitStoreUnavailable();
       }

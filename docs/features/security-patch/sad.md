@@ -243,8 +243,9 @@ sequenceDiagram
     alt address invalid
         H-->>V: enter a valid email address (nothing sent, nothing counted)
     else address well-formed
-        H->>L: may a link be sent to this address from this source
-        L->>DB: per-key locks, count requests per source (5 min) and sent links per address (1 h), record this request for the source only while the source is under its limit
+        H->>L: sign-in callback, before Auth.js writes a VerificationToken: may this source ask; then the send hook: may a link go to this address
+        L->>DB: per-key locks, each a short transaction committed before any send: count requests per source (5 min) and record this one only while under the limit; count sent links per address (1 h) and insert a sent reservation only while under the limit
+        Note over H,L: no platform client address: the source step is skipped and reported to Sentry, never pooled into one shared source; the address limit still applies
         alt limit store unavailable
             DB-->>L: error
             L-->>H: limits unavailable
@@ -256,19 +257,20 @@ sequenceDiagram
                 L->>S: targeted-lockout alert carrying the address digest only
             end
             L-->>H: limited
+            Note over H: a source-limited request stops in the sign-in callback, so no VerificationToken is written
             H->>H: hold until the response floor
             H-->>V: check your inbox
         else allowed
-            L-->>H: allowed
-            H->>M: send link over TLS, certificate checked against host
+            L-->>H: allowed (sent reservation committed)
+            H->>M: send link over TLS on a pooled connection, certificate checked against host, outside any transaction
             alt TLS offered and certificate valid
                 M-->>H: accepted
-                H->>L: record link sent for the address
-                L->>DB: insert sent event
                 H->>H: hold until the response floor
                 H-->>V: check your inbox
             else no TLS or invalid certificate
                 M-->>H: refused before any content is sent
+                H->>L: release the sent reservation
+                L->>DB: delete the reserved sent event
                 H->>S: report send failure
                 H-->>V: could not send, try again
             end
@@ -306,7 +308,7 @@ sequenceDiagram
     end
 ```
 
-**Response floor (inline decision).** Every "check your inbox" response, for a sent or a limited link, completes no earlier than a configured floor *F* plus a small random jitter. *F* defaults to the p90 send time measured on preview, capped at 1.2 s so the sign-in p95 stays within the spec's ≤ 1.5 s. A sent link that takes longer than *F* responds when the send finishes. Both response-time distributions collapse onto *F*, which keeps the medians within the spec's ≤ 150 ms. Sending after the response was rejected, because AC-16 must report a failed send in the same response. Holding only the limited request for a measured median was rejected, because serverless instances share no memory and the two tails would still differ.
+**Response floor (inline decision).** Every "check your inbox" response, for a sent or a limited link, completes no earlier than a configured floor *F* plus a small random jitter. *F* is read from the optional `SIGNIN_RESPONSE_FLOOR_MS` setting, set to the p90 send time measured on preview (1000 ms when unset), and clamped to at most 1.2 s so the sign-in p95 stays within the spec's ≤ 1.5 s. The SMTP transport is pooled, so most sends skip the connection and TLS handshake. A sent link that takes longer than *F* responds when the send finishes. Both response-time distributions collapse onto *F*, which keeps the medians within the spec's ≤ 150 ms. Sending after the response was rejected, because AC-16 must report a failed send in the same response. Holding only the limited request for a measured median was rejected, because serverless instances share no memory and the two tails would still differ.
 
 The flows below were added by the `sequences` stage. They use the generic runtime-view participants (`<user>`, `<ui>`, `<service>`, `<data-store>`, `<external-system>`, `<client>`); the §5 containers each stands for are named in the precondition note where it matters.
 
@@ -549,6 +551,7 @@ sequenceDiagram
         S->>D: delete every limit record older than 24 h, across all keys
         Note over S,D: persists deletion of LimitEvent rows by time alone, informs an index on the time column
         D-->>S: rows deleted
+        S->>D: delete every expired VerificationToken (unused Sign-in link tokens)
         S->>X: check-in, purge run succeeded
         S-->>C: done
     end
@@ -700,11 +703,11 @@ Each top-3 goal from §1, expanded into testable scenarios. Every number is quot
 |---|---|---|---|
 | The framework, sign-in and mail upgrades land in one change (spec §1 decision), so a regression is hard to bisect | High | Land that upgrade first in the branch, with the Prisma upgrade and accelerate removal as a separate following commit (AC-27), and run the full unit + integration suite and the e2e page-access sweep on preview (AC-02, AC-03) before any hardening step builds on it; rollback is a revert of the upgrade commit | Dmytro Hopko |
 | The enforced content-security policy breaks a flow outside the AC-20 list (for example a third-party script added later) | Medium | Violation reports go to Sentry (§8); AC-20 gate on preview before production; the header lives in `next.config.ts`, so relaxing one directive is a one-line change | Dmytro Hopko |
-| Shared network addresses (carrier NAT, offices) reach 30 requests per 5 minutes, so a legitimate Visitor sees "check your inbox" but gets no email | Medium | Google sign-in is unaffected (AC-14); `auth.signin.email` spans by outcome show source-limited volume; IPv6 counted per /64 per spec §6.1; revisit the threshold if limited outcomes from real users appear | Dmytro Hopko |
-| SMTP sends regularly take longer than the response floor *F*, so slow sent responses become distinguishable from limited ones | Medium | *F* is configurable and set from the measured p90 send time on preview; ship-stage comparison of `auth.signin.email` medians by outcome (§10 QG-2) | Dmytro Hopko |
+| Shared network addresses (carrier NAT, offices) reach 30 requests per 5 minutes, so a legitimate Visitor sees "check your inbox" but gets no email | Medium | Google sign-in is unaffected (AC-14); `auth.signin.email` spans by outcome show source-limited volume; IPv6 counted per /64 per spec §6.1, an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) counted as its IPv4 address; a request with no platform client address is reported to Sentry and skips the source limit instead of sharing one bucket; revisit the threshold if limited outcomes from real users appear | Dmytro Hopko |
+| SMTP sends regularly take longer than the response floor *F*, so slow sent responses become distinguishable from limited ones | Medium | *F* is configurable (`SIGNIN_RESPONSE_FLOOR_MS`, clamped ≤ 1200 ms) and set from the measured p90 send time on preview; the SMTP transport is pooled; ship-stage comparison of `auth.signin.email` medians by outcome (§10 QG-2) | Dmytro Hopko |
 | Auth.js beta hook signatures (`normalizeIdentifier`, `sendVerificationRequest`) or the `req.auth` shape change in a later beta | Medium | Contract tests of both hooks and of `isVerifiedSession` against real Auth.js output; re-check on every Auth.js upgrade (ADR-0001); replacing the beta library is deferred to the Assistant work (spec §3) | Dmytro Hopko |
 | Advisory-lock keys are 32-bit hashes, so two unrelated limit keys can occasionally share a lock and briefly serialize | Low | Harmless for correctness (only waiting); negligible at these volumes | Dmytro Hopko |
-| A limited Sign-in link request still leaves an unused `VerificationToken` row (Auth.js creates it before the send hook) | Low | The token expires on its own and its URL is never sent; the per-source limit bounds how many one source can create | Dmytro Hopko |
+| An address-limited Sign-in link request still leaves an unused `VerificationToken` row (Auth.js creates it alongside the send hook) | Low | The source limit runs in `callbacks.signIn`, before Auth.js writes the token, so a source-limited request writes none and one source creates at most 30 tokens per 5 minutes; an address-limited token's URL is never sent; the daily purge (flow 10) deletes expired `VerificationToken` rows | Dmytro Hopko |
 | `next build` checks (required settings, ADR-0008; the `server-only` guard) run only in the Vercel preview deploy, not in CI | Low | Every PR gets a preview deploy, and merging requires it to be green | Dmytro Hopko |
 | `docs/architecture-map.md` reflects `ded1be7` and predates the service layer; this SAD was designed against a fresh scan at `e857fa5` | Low | Run `/sdd:survey` to refresh the map before the next feature | Dmytro Hopko |
 | Spec §8 OQ2: an existing account may use a non-ASCII email address that the AC-17 rule would lock out of email sign-in | Open question | Resolve before `sdd:tasks`; check production accounts first (default: refuse non-ASCII) | Dmytro Hopko |

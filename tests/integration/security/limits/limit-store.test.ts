@@ -216,6 +216,58 @@ describe.runIf(containerRuntimeAvailable)('limit store (T8)', () => {
     expect(await prisma.limitEvent.count({ where: { key } })).toBe(1);
   });
 
+  // T26 / review F-20: the opportunistic purge touches other keys' rows inside a per-key
+  // transaction; a row another writer holds is skipped, never waited on (no deadlock).
+  it('the opportunistic purge skips an old row another transaction holds instead of waiting on it', async () => {
+    const held = await createLimitEvent(prisma, {
+      scope: 'SIGNIN_SOURCE',
+      key: limitKeyDigest('other'),
+      at: new Date(T0.getTime() - 25 * HOUR),
+    });
+    const holder = createTestPrismaClient(db.connectionString);
+    extra.push(holder);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const holding = holder.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "LimitEvent" WHERE "id" = ${held.id} FOR UPDATE`;
+        locked();
+        await gate;
+      },
+      { timeout: 20_000 }
+    );
+    await isLocked;
+    try {
+      const store = createLimitStore({ prisma, clock: createFixedClock(T0) });
+      const outcome = await Promise.race([
+        store
+          .withKeyLock('SIGNIN_SOURCE', key, (l) => l.record('REQUESTED'))
+          .then(() => 'recorded'),
+        new Promise((r) => setTimeout(() => r('blocked'), 3_000)),
+      ]);
+      expect(outcome).toBe('recorded');
+    } finally {
+      release();
+      await holding;
+    }
+    expect(await prisma.limitEvent.count({ where: { id: held.id } })).toBe(1);
+  });
+
+  it('release removes one reserved SENT row by id and nothing else', async () => {
+    const store = createLimitStore({ prisma, clock: createFixedClock(T0) });
+    const kept = await store.withKeyLock('SIGNIN_ADDRESS', key, (l) =>
+      l.record('SENT')
+    );
+    const reserved = await store.withKeyLock('SIGNIN_ADDRESS', key, (l) =>
+      l.record('SENT')
+    );
+    await store.release(reserved.id);
+    const left = await prisma.limitEvent.findMany({ where: { key } });
+    expect(left.map((r) => r.id)).toEqual([kept.id]);
+  });
+
   it('purgeOlderThan24h deletes every row older than 24 h and returns the count', async () => {
     for (let i = 0; i < 130; i += 1) {
       await createLimitEvent(prisma, {
