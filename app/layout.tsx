@@ -5,7 +5,6 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import { siteConfig } from '@/config/site.config';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ProgressBarProvider } from '@/components/progress-bar-provider';
-import { SessionProvider } from '@/components/session-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { CookieBanner } from '@/components/layout/cookie-banner';
 import './globals.css';
@@ -104,21 +103,23 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`antialiased`}>
-        <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <ProgressBarProvider>{children}</ProgressBarProvider>
-            <Toaster
-              position={siteConfig.toast.position}
-              expand={siteConfig.toast.expand}
-            />
-            <CookieBanner />
-          </ThemeProvider>
-        </SessionProvider>
+        {/* T31 (AC-04, R-01): no next-auth/react SessionProvider here. It fetched
+            /api/auth/session on every mount and tab focus, and that endpoint clears the session
+            cookie whenever its check fails. Nothing reads the client session; signOut() needs no
+            provider. tests/unit/no-client-session-fetch.test.ts keeps it out. */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ProgressBarProvider>{children}</ProgressBarProvider>
+          <Toaster
+            position={siteConfig.toast.position}
+            expand={siteConfig.toast.expand}
+          />
+          <CookieBanner />
+        </ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>
