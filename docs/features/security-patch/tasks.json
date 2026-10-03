@@ -1042,6 +1042,23 @@
       ],
       "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-4.md",
       "source": "review-2026-10-03-rereview-4"
+    },
+    {
+      "id": "T49",
+      "title": "Keep destructured names after a // inside a string default in the forward env scan",
+      "layer": "tests",
+      "deps": [
+        "T48"
+      ],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "Fifth re-review G-01 fixed: in required-settings.test.ts the destructure body has its string literals ('…', \"…\", `…`) blanked before comments are stripped, so a // inside a string default (BASE_URL = 'https://x.example', AFTER_URL) no longer drops the following name; the fixture covers that shape, the T48 typed and commented shapes still pass, and the test fails if the string blanking is reverted.",
+      "files_hint": [
+        "tests/unit/lib/env/required-settings.test.ts"
+      ],
+      "file": "docs/features/security-patch/_review/review-2026-10-03-rereview-5.md",
+      "source": "review-2026-10-03-rereview-5"
     }
   ]
 }
