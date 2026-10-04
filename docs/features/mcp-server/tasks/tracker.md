@@ -14,7 +14,7 @@
 | T07 | [Return the derived status from every invoice read and filter by the shared rule](./t07-derived-invoice-status.md) | app | Dmytro Hopko | M | T02 | done |
 | T08 | [Show the derived overdue status on the invoice list, customer page, invoice page and recent invoices](./t08-derived-overdue-on-screens.md) | ui | Dmytro Hopko | S | T06, T07 | todo |
 | T09 | [Create, list and revoke Personal keys through the business layer and server actions](./t09-personal-key-management.md) | app | Dmytro Hopko | M | T01, T03 | todo |
-| T10 | [Add the per-key and per-source MCP limit scopes that fail closed](./t10-mcp-limit-scopes.md) | infra | Dmytro Hopko | S | T01 | todo |
+| T10 | [Add the per-key and per-source MCP limit scopes that fail closed](./t10-mcp-limit-scopes.md) | infra | Dmytro Hopko | S | T01 | done |
 | T11 | [Authenticate a presented Personal key and record its last use and weekly usage](./t11-key-authentication-and-usage.md) | app | Dmytro Hopko | M | T01, T03, T04 | todo |
 | T12 | [Serve POST /api/mcp behind its single proxy exception with the source-limit, key-check and key-limit pipeline](./t12-mcp-endpoint-and-request-pipeline.md) | ports | Dmytro Hopko | M | T10, T11 | todo |
 | T13 | [Shape MCP answers, register read-only tools and count substantive calls](./t13-mcp-answers-and-tool-registry.md) | ports | Dmytro Hopko | M | T12 | todo |
