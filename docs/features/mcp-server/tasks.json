@@ -540,6 +540,210 @@
         "tests/integration/api/mcp-scale.test.ts"
       ],
       "file": "docs/features/mcp-server/tasks/t24-parity-boundary-isolation-and-scale.md"
+    },
+    {
+      "id": "T25",
+      "title": "Store issue and due dates as calendar days and compare every period and the overdue rule by calendar day",
+      "layer": "data",
+      "deps": [],
+      "acs": [
+        "AC-12",
+        "AC-14",
+        "AC-15",
+        "AC-23",
+        "AC-23b",
+        "AC-24"
+      ],
+      "dod": "Review F-02/F-03 fixed per the owner's decision: the editor sends issueDate/dueDate as yyyy-MM-dd and the services store them as T00:00:00Z; a paired up/down migration backfills existing rows to the calendar day in each owner's saved time zone; the overdue rule, dashboard/Expected-payments period filters and Assistant search filters all compare by calendar day (::date / LocalDate); data-model.md and sad §8 record the storage meaning. Tests: a due date picked as local midnight in Europe/Kyiv is not overdue on its own due date and reports the picked day; an America/New_York 'this month' includes the invoice due on the 1st and excludes the 1st of next month — dashboard and Assistant agree.",
+      "files_hint": [
+        "lib/validations/invoice.ts",
+        "lib/services/invoices/invoices.ts",
+        "store/invoice-editor-store/",
+        "lib/services/_shared/overdue.ts",
+        "lib/services/dashboard/queries.ts",
+        "lib/services/dashboard/period.ts",
+        "lib/services/invoices/assistant-search.ts",
+        "prisma/migrations/",
+        "docs/features/mcp-server/data-model.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T26",
+      "title": "Keep the stored status through an editor save of a derived-overdue invoice",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "Review F-01 fixed: the editor receives the stored status (the derived badge kept separate) and updateInvoice never persists a derived OVERDUE for a stored PENDING invoice (refusesManualStatus applied on this path). Integration test: load editor data for a past-due PENDING invoice, save it through updateInvoice, the stored status is still PENDING; moving the due date into the future makes it not overdue.",
+      "files_hint": [
+        "lib/services/invoices/editor-data.ts",
+        "lib/services/invoices/invoices.ts",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "tests/integration/services/invoices/derived-status.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T27",
+      "title": "Refuse JSON-RPC batches and cap the MCP request body before the transport",
+      "layer": "ports",
+      "deps": [],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Review F-04 fixed: the route reads the body with a small size cap, answers an array with 400 / -32600 'batches are not accepted' (as openapi.yaml says) before any tool runs, and hands parsedBody to transport.handleRequest; maxRequestBodySize is set on the transport. Pipeline test: a 2-element batch is refused and runs no tool; an oversized body is refused.",
+      "files_hint": [
+        "app/api/mcp/route.ts",
+        "tests/integration/api/mcp-pipeline.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T28",
+      "title": "Build dashboard and invoice-list periods from the account time zone",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-22",
+        "AC-23"
+      ],
+      "dod": "Review F-05 fixed: the dashboard and invoices pages build presets/defaults from actingFreelancerFromSession().timeZone, the tz cookie only seeds the first visit (ADR-0006). Test: with a cookie zone different from the saved zone, the dashboard 'this month' equals the Assistant's.",
+      "files_hint": [
+        "app/(protected)/dashboard/page.tsx",
+        "app/(protected)/invoices/page.tsx",
+        "lib/helpers/session-actor.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T29",
+      "title": "Match the contract's InvoiceCandidate and ServerFailure, report route failures, accept any-case Bearer, drop dead paging code",
+      "layer": "ports",
+      "deps": [],
+      "acs": [
+        "AC-20",
+        "AC-07",
+        "AC-18b"
+      ],
+      "dod": "Review F-06/F-08/F-13/F-14 fixed: AMBIGUOUS_REFERENCE invoice candidates have the InvoiceCandidate shape (names as freelancerText) and the AC-20 test asserts senderProfile, customer and issueDate; the 500 body matches ServerFailure (or the contract is updated with the owner); the route catch calls Sentry.captureException; the Bearer match is case-insensitive; the unused paging helpers in lib/mcp/answers.ts and firstSuccessPending are removed.",
+      "files_hint": [
+        "lib/mcp/answers.ts",
+        "app/api/mcp/route.ts",
+        "lib/mcp/authenticate.ts",
+        "lib/services/personal-keys/authenticate.ts",
+        "tests/integration/api/mcp-lookup-tools.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T30",
+      "title": "Answer a key-check store failure with 503 and prove last use on tools/list and on a refused call",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-05",
+        "AC-07"
+      ],
+      "dod": "Review F-09/F-10 fixed: a store error in the key check returns a distinct unavailable result mapped to the existing 503 without recordRefusedKeyCheck; the lastUsedAt write is best-effort and cannot refuse a valid key. Tests: a store failure answers 503 and records no refused check; lastUsedAt is set after tools/list and after the 61st (429) call.",
+      "files_hint": [
+        "lib/services/personal-keys/authenticate.ts",
+        "lib/mcp/authenticate.ts",
+        "tests/integration/api/mcp-pipeline.test.ts",
+        "tests/integration/services/personal-keys/authenticate.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T31",
+      "title": "Leave cancelled-only currencies out of summary currencies and dashboard tabs",
+      "layer": "app",
+      "deps": [
+        "T25"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "Review F-07 fixed: summary currencies and dashboard tabs use issued invoices only (status NOT IN DRAFT, CANCELLED). Test: a currency present only on a cancelled invoice yields no tab and no summary entry.",
+      "files_hint": [
+        "lib/services/dashboard/queries.ts",
+        "tests/integration/services/dashboard/summary-chart.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T32",
+      "title": "Guard the overdue literal scan without obfuscation and validate the real 2.1 export body",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-12",
+        "AC-25"
+      ],
+      "dod": "Review F-11/F-16 fixed: OVERDUE_STATUS/toUpperCase and the invoiceStatusConfig cast are gone; display-only files use the plain literal and are allow-listed in the scan with a written reason, and the scan also catches OVERDUE_STATUS/toUpperCase in lib/services; the export test validates the real 2.1 body against a 2.1 export schema instead of reshaping it.",
+      "files_hint": [
+        "types/invoice/types.ts",
+        "tests/unit/services/overdue-literal-scan.test.ts",
+        "tests/integration/api/user-export.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T33",
+      "title": "Polish the key-name hint, revoke focus and time-zone labels, and test the one-time reveal on remount",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-06",
+        "AC-22"
+      ],
+      "dod": "Review F-15/F-16 fixed: SCR-03 shows the manifest hint under the key name; the revoke dialog keeps its title while closing and sends focus to a stable element after success; time-zone-settings imports TIME_ZONE_MESSAGE and builds zone labels once; component tests prove the full key is gone after remount and the limit alert clears after a revoke.",
+      "files_hint": [
+        "components/assistants/key-create-form.tsx",
+        "components/assistants/assistant-keys.tsx",
+        "components/settings/time-zone-settings.tsx",
+        "tests/component/assistants-keys.test.tsx",
+        "tests/component/time-zone-settings.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
+    },
+    {
+      "id": "T34",
+      "title": "Add the e2e specs the test plan declares for the proxy, key flows, sign-in return, time zone and overdue surfaces",
+      "layer": "tests",
+      "deps": [
+        "T25",
+        "T26",
+        "T28"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-06",
+        "AC-09",
+        "AC-19",
+        "AC-22",
+        "AC-24"
+      ],
+      "dod": "Review F-12 fixed: every e2e / e2e-through-UI row in test-plan.md for AC-01, AC-02, AC-06, AC-09, AC-19, AC-22 and AC-24 has a spec under tests/e2e/ that runs green (real proxy refusal of session-only and Visitor calls; key visible once and gone after reload; revoke moves the row; sign-in returns to the invoice link; Kyiv zone saved on first visit; overdue shown on every surface); test-plan.md links each row to its spec.",
+      "files_hint": [
+        "tests/e2e/",
+        "docs/features/mcp-server/test-plan.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05"
     }
   ]
 }
