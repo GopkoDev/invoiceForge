@@ -28,6 +28,6 @@
 | T21 | [Build key creation, the one-time reveal, the key lists and revoke confirmation on Connect your AI](./t21-key-create-reveal-and-revoke-ui.md) | ui | Dmytro Hopko | M | T09, T20 | done |
 | T22 | [Show the overdue-rule notice and the Connect your AI entry point on the dashboard](./t22-dashboard-notice-and-entry-point.md) | ui | Dmytro Hopko | M | T01, T09, T20 | done |
 | T23 | [Add Personal keys, weekly usage and the time zone to the data export and verify deletion removes them](./t23-export-and-account-deletion.md) | app | Dmytro Hopko | S | T01 | done |
-| T24 | [Prove Assistant-dashboard parity, day boundaries, tenant isolation and the latency budget end to end](./t24-parity-boundary-isolation-and-scale.md) | tests | Dmytro Hopko | M | T18, T19 | todo |
+| T24 | [Prove Assistant-dashboard parity, day boundaries, tenant isolation and the latency budget end to end](./t24-parity-boundary-isolation-and-scale.md) | tests | Dmytro Hopko | M | T18, T19 | done |
 
 **Total:** 24 tasks, ~21.5 person-days (S = ½ day, M = 1 day).
