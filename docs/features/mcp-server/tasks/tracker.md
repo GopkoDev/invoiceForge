@@ -7,7 +7,7 @@
 |---|---|---|---|---|---|---|
 | T01 | [Promote the five staged migrations and extend the test support for keys, usage and time zone](./t01-promote-migrations-and-test-support.md) | migration | Dmytro Hopko | M | — | todo |
 | T02 | [Add the shared overdue rule module with its SQL, Prisma and TypeScript forms](./t02-shared-overdue-rule.md) | domain | Dmytro Hopko | M | — | todo |
-| T03 | [Generate, checksum and digest ifk_ Personal keys](./t03-personal-key-format.md) | domain | Dmytro Hopko | S | — | todo |
+| T03 | [Generate, checksum and digest ifk_ Personal keys](./t03-personal-key-format.md) | domain | Dmytro Hopko | S | — | done |
 | T04 | [Read the Freelancer time zone from the account in both ActingFreelancer factories and save it from settings](./t04-account-time-zone.md) | app | Dmytro Hopko | M | T01 | todo |
 | T05 | [Add the Time zone card to Profile settings](./t05-time-zone-settings-card.md) | ui | Dmytro Hopko | S | T04 | todo |
 | T06 | [Apply the shared overdue rule to every dashboard figure and show tabs for issued-invoice currencies](./t06-dashboard-overdue-rule-and-currency-tabs.md) | app | Dmytro Hopko | M | T02 | todo |
