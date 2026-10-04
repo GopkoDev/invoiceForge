@@ -74,6 +74,23 @@ export function ProfileSettingsLoading() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Time zone card (SCR-02 loading) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Time zone</CardTitle>
+          <CardDescription>
+            Used for &quot;today&quot;, month boundaries and overdue on your
+            dashboard and in your AI assistant&apos;s answers.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <Skeleton className="h-9 w-full flex-1" />
+            <Skeleton className="h-9 w-full sm:w-16" />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

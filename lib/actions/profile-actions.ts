@@ -18,6 +18,16 @@ export async function updateProfile(
   return result;
 }
 
+export async function getProfile(): Promise<ActionResult<profile.Profile>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const result = await profile.getProfile(actor.data);
+  if (!result.success && result.code === 'NOT_FOUND') {
+    return fail('UNAUTHORIZED', 'Not signed in.');
+  }
+  return result;
+}
+
 export async function updateTimeZone(timeZone: string): Promise<ActionResult<void>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
