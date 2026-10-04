@@ -10,6 +10,9 @@ vi.mock('@/lib/services/personal-keys/usage', () => ({
 
 // The registered tools reach the business layer, which needs a database connection to load.
 vi.mock('@/lib/services/dashboard/assistant-reads', () => ({}));
+vi.mock('@/lib/services/customers/customers', () => ({}));
+vi.mock('@/lib/services/invoices/assistant-search', () => ({}));
+vi.mock('@/lib/services/invoices/find-by-reference', () => ({}));
 
 import { createMcpServer, registerReadOnlyTool } from '@/lib/mcp/server';
 import { fail, ok } from '@/types/result';
@@ -22,6 +25,7 @@ async function connect(stub: (args: { page?: number }) => Promise<unknown>) {
   const server = createMcpServer({
     actor: await actingFreelancerForTest('u1'),
     keyId: 'k1',
+    origin: 'http://localhost',
   });
   registerReadOnlyTool(
     server,

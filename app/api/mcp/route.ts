@@ -15,6 +15,7 @@ export async function POST(request: Request): Promise<Response> {
     const server = createMcpServer({
       actor: pipeline.actor,
       keyId: pipeline.keyId,
+      origin: requestOrigin(request),
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -36,6 +37,14 @@ export async function POST(request: Request): Promise<Response> {
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
+}
+
+/** Public origin, as the Connect-your-AI page derives it: forwarded host first, else the request. */
+function requestOrigin(request: Request): string {
+  const host = request.headers.get('x-forwarded-host');
+  if (!host) return new URL(request.url).origin;
+  const proto = request.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
 }
 
 function methodNotAllowed(): Response {

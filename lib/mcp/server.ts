@@ -26,10 +26,15 @@ import { overdueHandler, overdueTool } from '@/lib/mcp/tools/overdue';
 import { debtorsHandler, debtorsTool } from '@/lib/mcp/tools/debtors';
 import { expectedPaymentsHandler, expectedPaymentsTool } from '@/lib/mcp/tools/expected-payments';
 import { summaryHandler, summaryTool } from '@/lib/mcp/tools/summary';
+import { customersHandler, customersTool } from '@/lib/mcp/tools/customers';
+import { searchHandler, searchTool } from '@/lib/mcp/tools/search';
+import { invoiceHandler, invoiceTool } from '@/lib/mcp/tools/invoice';
 
 export interface McpCallContext {
   actor: ActingFreelancer;
   keyId: string;
+  /** Public origin of this deployment, for links that open a record in invoiceFlow. */
+  origin: string;
 }
 
 export const DATA_NOT_INSTRUCTIONS =
@@ -85,6 +90,9 @@ export function createMcpServer(context: McpCallContext): Server {
   registerReadOnlyTool(server, debtorsTool, debtorsHandler);
   registerReadOnlyTool(server, expectedPaymentsTool, expectedPaymentsHandler);
   registerReadOnlyTool(server, summaryTool, summaryHandler);
+  registerReadOnlyTool(server, customersTool, customersHandler);
+  registerReadOnlyTool(server, searchTool, searchHandler);
+  registerReadOnlyTool(server, invoiceTool, invoiceHandler);
 
   server.setRequestHandler(ListToolsRequestSchema, () =>
     Sentry.startSpan({ name: 'mcp.tools/list', op: 'mcp.server' }, () => ({
