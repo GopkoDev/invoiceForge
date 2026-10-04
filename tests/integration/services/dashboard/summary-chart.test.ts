@@ -99,6 +99,15 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
     });
   });
 
+  // T31 (review 2026-10-05 F-07): a cancelled invoice is not an issued one, so its currency adds no tab.
+  it('a currency present only on a cancelled invoice yields no tab', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    await addInvoice(s, { currency: 'EUR', status: 'CANCELLED', total: 50 });
+    await addInvoice(s, { currency: 'GBP', status: 'PENDING', total: 20, dueDate: new Date('2026-09-12T09:00:00Z') });
+    const actor = await actingFreelancerForTest(s.userId, 'UTC');
+    expect(data(await svc.getCurrencyTabs(actor)).map((t) => t.currency)).toEqual(['USD', 'GBP']);
+  });
+
   describe('two Freelancers (QG-1)', () => {
     it('getCurrencyTabs never includes B currencies', async () => {
       const { actor } = await twoFreelancers();

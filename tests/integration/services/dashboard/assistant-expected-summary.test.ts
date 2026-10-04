@@ -177,6 +177,15 @@ describe.runIf(containerRuntimeAvailable)('Assistant Expected payments and summa
     expect(all.currencies.find((c) => c.currency === 'USD')!.planned.total).toBe(st.totalPlanned.toFixed(2));
   });
 
+  it('AC-15: a currency present only on a cancelled invoice has no summary entry', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    await addInvoice(s, { currency: 'USD', status: 'PAID', total: 10, issueDate: new Date('2026-08-10T09:00:00Z') });
+    await addInvoice(s, { currency: 'EUR', status: 'CANCELLED', total: 50, issueDate: new Date('2026-08-10T09:00:00Z'), dueDate: new Date('2026-08-20T09:00:00Z') });
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    const res = data(await reads.getSummaryFiguresAllCurrencies(actor, { preset: 'all-time' }));
+    expect(res.currencies.map((c) => c.currency)).toEqual(['USD']);
+  });
+
   it('AC-16: unknown preset, over 5 years and start after end are refused with the period message; exactly 5 years is accepted', async () => {
     const { s } = await seed();
     const actor = await actingFreelancerForTest(s.userId, KYIV);

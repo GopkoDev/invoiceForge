@@ -36,7 +36,7 @@ export async function queryCurrencyTabs(actor: ActingFreelancer) {
       SELECT i."currency"::text AS currency, 1 AS src, MIN(i."createdAt") AS first_at, MIN(i."id") AS first_id
       FROM "Invoice" i
       JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
-      WHERE sp."userId" = ${actor.userId} AND i."status" <> 'DRAFT'
+      WHERE sp."userId" = ${actor.userId} AND i."status" NOT IN ('DRAFT', 'CANCELLED')
       GROUP BY i."currency"
     ) t
     GROUP BY t.currency
@@ -478,13 +478,13 @@ export async function queryExpectedPaymentsPage(
   return z.array(expectedListRow).parse(rows);
 }
 
-/** Every currency on the Freelancer's issued (non-draft) invoices, by code (ADR-0008 union, invoice side). */
+/** Every currency on the Freelancer's issued (neither draft nor cancelled) invoices, by code (ADR-0008 union, invoice side). */
 export async function queryIssuedInvoiceCurrencies(actor: ActingFreelancer) {
   const rows = await prisma.$queryRaw<unknown[]>`
     SELECT DISTINCT i."currency"::text AS currency
     FROM "Invoice" i
     JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
-    WHERE sp."userId" = ${actor.userId} AND i."status" <> 'DRAFT'
+    WHERE sp."userId" = ${actor.userId} AND i."status" NOT IN ('DRAFT', 'CANCELLED')
     ORDER BY 1`;
   return z.array(currencyRow).parse(rows).map((r) => r.currency as Currency);
 }
