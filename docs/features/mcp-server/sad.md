@@ -263,25 +263,18 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
-
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp` is one more Node.js serverless function of the same Next.js deployable, scaled per request by Vercel with no sticky sessions (ADR-0002). No new infrastructure, environment setting, region or cron job — the existing daily `/api/cron/purge-limits` job (security-patch ADR-0007) also purges the two new limit scopes. The public MCP URL is `https://<app origin>/api/mcp`; preview deployments expose the same path for testing.
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- Sentry spans on every MCP request, named by tool (`mcp.tools/call <tool>`, `mcp.tools/list`) — the source for the spec §6 latency targets (p95 ≤ 800 ms lists and single records, ≤ 1.5 s aggregates) and the dashboard-span comparison (no more than 10 % slower than the 7 days before release).
+- Counted outcomes per call: success, refused-key, refused-source, refused-limit, limit-store-unavailable, server-error — the source for the ≤ 1 % weekly server-side failure rate and the §7 KPIs.
+- Alert: any `limit-store-unavailable` outcome in production (every Assistant call is being refused) → notify the owner.
+- Alert: server-side failure rate over 1 % of Assistant calls in a rolling day → notify the owner (early warning for the weekly target).
 
 **Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+- `LimitEvent` grows by at most 60 rows per active key per minute and is purged daily; comfortable while daily rows stay under ~5 million — beyond that, or if the limit check exceeds 50 ms p95, revisit a dedicated counter store (ADR-0007 neutral consequence).
+- Personal keys: at most 10 active per Freelancer (AC-04); the key table stays small and is read by a unique digest index.
+- Aggregates are bounded by the per-Freelancer invoice count; the spec budget is set at 5,000 invoices per Freelancer — above that, revisit indexes on `(userId, status, dueDate)` at the `data-model` stage.
 
 ## 8. Crosscutting concepts
 
