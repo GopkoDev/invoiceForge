@@ -136,7 +136,7 @@ describe('Prisma call arguments never reach the server logs (T57 U-01)', () => {
     prismaMock.user.findUnique
       .mockResolvedValueOnce({ id: 'user-1' })
       .mockRejectedValueOnce(realError);
-    // T13: the export first reserves a place in the limit store (one transaction); let it succeed
+    // The export first reserves a place in the limit store (one transaction); let it succeed
     // so the read failure under test is what gets logged.
     const tx = {
       $executeRaw: vi.fn().mockResolvedValue(0),

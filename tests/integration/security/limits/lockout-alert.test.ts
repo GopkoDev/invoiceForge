@@ -1,14 +1,4 @@
-// T9 - address refusals per UTC hour and the targeted-lockout alert (spec §6 NFR
-// "Targeted-lockout alert"; TD-2 rolling 24 h dedupe).
-//
-// Seam assumed (not yet created):
-//   lib/security/limits/limit-store.ts   createLimitStore(...).recordAddressRefusal(digest, at)
-//        -> Promise<boolean>   inserts SIGNIN_ADDRESS/REFUSED unless one exists in at's UTC hour
-//   lib/security/limits/lockout-alert.ts
-//        createLockoutAlert({ prisma, clock }) -> {
-//          checkLockout(digest, at): Promise<boolean>     // true when an alert was raised
-//          onAddressLimited(digest, at): Promise<void>    // record refusal + check; never throws on Sentry failure
-//        }
+// Address refusals per UTC hour and the targeted-lockout alert (rolling 24 h dedupe).
 import {
   afterAll,
   afterEach,

@@ -17,7 +17,7 @@ import { isVerifiedSession } from '@/lib/helpers/verified-session';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
 /**
- * Why a caller is not a live user (T21, review-2026-10-03 F-01, AC-04):
+ * Why a caller is not a live user (AC-04):
  * - `signed-out`: `auth()` resolved no session at all. Note @auth/core also resolves null when
  *   the token can't be decoded or the session callback's lookup throws, so this alone does not
  *   prove the session is dead.
@@ -63,8 +63,8 @@ export async function requireSession(): Promise<RequireSessionResult> {
     session = await auth();
   } catch (error) {
     unstable_rethrow(error);
-    // Fail closed: a thrown auth() call is refused like no session, never as a live user (T09
-    // edge case table), but reported as a failed check so the session is kept (AC-04).
+    // Fail closed: a thrown auth() call is refused like no session, never as a live user, but
+    // reported as a failed check so the session is kept (AC-04).
     console.error(
       '[requireSession] auth() failed, treating as no session:',
       redactError(error)
@@ -104,7 +104,7 @@ export type LiveUser = { userId: string };
  * redirected to the cookie-clearing route rather than rendering any data. That route re-checks and
  * decides: it clears cookies only for a definitively missing account, and answers 503 with the
  * cookies kept when its own check fails too, so a failed check never ends an existing session
- * (T21, AC-04). The redirect, not a thrown error, is deliberate: a segment's error.tsx never
+ * (AC-04). The redirect, not a thrown error, is deliberate: a segment's error.tsx never
  * catches its own layout's error, so an error here would only reach app/global-error.tsx.
  */
 export async function requireLiveUser(): Promise<LiveUser> {
@@ -130,7 +130,7 @@ export async function requireLiveUser(): Promise<LiveUser> {
   return { userId };
 }
 
-// T32 (R-04, AC-04): carries the requested page (forwarded by proxy.ts) to the cookie-clearing
+// Carries the requested page (forwarded by proxy.ts) to the cookie-clearing
 // route so its check-unavailable page can link "Try again" back to it. That route validates the
 // value again; without it the route falls back to the dashboard.
 async function clearSessionTarget(): Promise<string> {

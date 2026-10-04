@@ -1,5 +1,5 @@
-// LimitEvent factory (data-model.md §Test fixtures). Keys are HMAC-SHA256 digests under a
-// test-only LIMIT_KEY_SECRET (TD-1) - never raw addresses. EXPORT rows require userId and use
+// LimitEvent factory. Keys are HMAC-SHA256 digests under a test-only LIMIT_KEY_SECRET - never
+// raw addresses. EXPORT rows require userId and use
 // the same value as key.
 
 import { createHmac } from 'node:crypto';

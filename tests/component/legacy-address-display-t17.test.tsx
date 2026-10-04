@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// T17 (spec.md §5 AC-21): a stored value failing isWebAddress is never an href or an image src.
+// AC-21: a stored value failing isWebAddress is never an href or an image src.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

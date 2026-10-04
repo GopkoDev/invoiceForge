@@ -1,6 +1,5 @@
-// T6 (spec.md §5 AC-07, AC-08, AC-09, AC-10) — the shared five-year Dashboard period rule
-// (ADR-0004): one pure, dependency-free module, applied by the link reader and the business layer.
-// RED: lib/validations/dashboard-period.ts does not exist yet.
+// AC-07..AC-10 (ADR-0004): the shared five-year Dashboard period rule, one pure, dependency-free
+// module applied by the link reader and the business layer.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';

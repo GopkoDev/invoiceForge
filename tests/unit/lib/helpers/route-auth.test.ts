@@ -28,7 +28,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 // route-auth.ts's module scope also imports '@/prisma' for requireSession()'s own live-account
 // check (T05) — that module throws at import time without a DATABASE_URL. This unit test isolates
 // requireLiveUser() from that unrelated concern rather than reaching for a real database.
-// T21: requireSession()'s own lookup is driven through this mock to model a DB failure there.
+// requireSession()'s own lookup is driven through this mock to model a DB failure there.
 const findUniqueMock = vi.fn();
 vi.mock('@/prisma', () => ({
   prisma: {
@@ -52,7 +52,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
-// T32 (R-04): the proxy forwards the requested path on a request header so requireLiveUser()
+// The proxy forwards the requested path on a request header so requireLiveUser()
 // can hand it to the cookie-clearing route for its "Try again" link. Outside a request scope (the
 // default here) headers() throws, which must never stop the redirect.
 const headersMock = vi.fn<() => Promise<Headers>>(() =>
@@ -92,11 +92,11 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
     expect(signOutMock).not.toHaveBeenCalled();
   });
 
-  // T21 (review-2026-10-03 F-01, AC-04): a thrown auth() still fails closed through the
+  // AC-04: a thrown auth() still fails closed through the
   // cookie-clearing route, which re-checks and keeps the session when its own check fails too
   // (tests/unit/api/clear-session.test.ts). It must NOT throw past the layout: a segment's
   // error.tsx never catches its own layout's error, so that would reach app/global-error.tsx
-  // (a generic page with no retry) instead of sign-in or a 503 (review stage-1 blocking issue).
+  // (a generic page with no retry) instead of sign-in or a 503.
   it('passes the requested page to the cookie-clearing route as ?next= (T32, R-04)', async () => {
     authMock.mockRejectedValue(new Error('DB down'));
     headersMock.mockResolvedValueOnce(
@@ -151,7 +151,7 @@ describe('requireLiveUser (AC-21, ADR-0002)', () => {
   });
 });
 
-// T21 (review-2026-10-03 F-01, AC-04): the route guard tells a failed check apart from a session
+// The route guard tells a failed check apart from a session
 // that definitively has no live account, so clear-session only ends the latter.
 describe('requireSession outcome (AC-04, AC-21)', () => {
   beforeEach(() => {

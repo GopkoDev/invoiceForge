@@ -1,8 +1,8 @@
 // AC-18 (ADR-0003 layer 2): every server action the framework would run (an exported function of a
 // 'use server' module, or a function carrying an inline 'use server') resolves the session first —
 // `const x = await guard()` then `if (!x.success) return …` — except the sign-in actions and the
-// session helper itself. A static scan over the source text of every JS/TS file in the repo (R-14:
-// not only app/, lib/ and components/), where the guard counts only when it is imported from its
+// session helper itself. A static scan over the source text of every JS/TS file in the repo (not
+// only app/, lib/ and components/), where the guard counts only when it is imported from its
 // canonical module.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';

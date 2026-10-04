@@ -203,7 +203,7 @@ describe('proxy (AC-04 / AC-06, verified session predicate)', () => {
     expect(res.headers.getSetCookie()).toEqual([]);
   });
 
-  // T32 (R-04): layouts can't see the pathname, so the proxy forwards it on a request header for
+  // Layouts can't see the pathname, so the proxy forwards it on a request header for
   // requireLiveUser()'s "Try again" target; a caller-supplied value is always overwritten.
   it.each(['/dashboard', '/invoices/inv_1/edit?tab=items'])(
     'forwards the requested path %s to a verified private page on a request header',

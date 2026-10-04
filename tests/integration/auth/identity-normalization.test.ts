@@ -1,4 +1,4 @@
-// T1 (security-patch, spec.md §5 AC-03 / AC-01): one email address belongs to exactly one account
+// AC-03, AC-01: one email address belongs to exactly one account
 // across the Next.js / next-auth / nodemailer upgrade.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

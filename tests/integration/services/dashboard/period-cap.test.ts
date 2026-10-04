@@ -1,4 +1,4 @@
-// T6 (spec.md §5 AC-09, AC-10): the business layer refuses a custom period longer than 5 years
+// AC-09, AC-10: the business layer refuses a custom period longer than 5 years
 // before any query, accepts exactly 5 years, and an omitted period (all time) is never capped.
 import {
   afterAll,

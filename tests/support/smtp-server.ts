@@ -1,4 +1,4 @@
-// Minimal local SMTP server over the TLS fixtures (spec.md §5 AC-16; security-patch T10, T34).
+// Minimal local SMTP server over the TLS fixtures (AC-16).
 // Speaks just enough of the dialogue for nodemailer to send, so tests drive a real transport.
 import fs from 'node:fs';
 import net from 'node:net';
@@ -20,7 +20,7 @@ export interface SmtpServerOptions {
    */
   stallFirstDataMs?: number;
   /**
-   * T39 / S-02: accept the first message but delay the 250 reply by this many ms (a slow server
+   * Accept the first message but delay the 250 reply by this many ms (a slow server
    * that still delivers). Later messages are answered at once.
    */
   slowFirstDeliveryMs?: number;

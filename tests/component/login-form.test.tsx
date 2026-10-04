@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// T12 (security-patch; AC-15, AC-16, AC-17, AC-19; screens.md SCR-01, SCR-02).
+// AC-15, AC-16, AC-17, AC-19.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -106,8 +106,8 @@ describe('auth pages', () => {
     ).toBeNull();
   });
 
-  // OQ-2 (pinned in tests/integration/actions/login-actions.test.ts against the installed
-  // Auth.js): the direct endpoint redirects to /error?error=CredentialsSignin&code=<code>.
+  // The direct endpoint redirects to /error?error=CredentialsSignin&code=<code> (pinned against
+  // the installed Auth.js in tests/integration/actions/login-actions.test.ts).
   it.each([
     ['invalid_email', 'Enter a valid email address.'],
     ['email_unavailable', EMAIL_SIGNIN_UNAVAILABLE],

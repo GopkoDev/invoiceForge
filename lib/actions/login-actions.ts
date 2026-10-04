@@ -57,8 +57,8 @@ export async function signInWithEmail(
       return fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE);
     if (error instanceof EmailSendFailed)
       return fail('FAILED', EMAIL_SEND_FAILED);
-    // R-03: the database Auth.js's own adapter calls need is unreachable (AC-15). T41 / S-07:
-    // reported like every other unavailable path, with the typed error and no value-bearing data.
+    // The database Auth.js's own adapter calls need is unreachable (AC-15). Reported like every
+    // other unavailable path, with the typed error and no value-bearing data.
     if (error instanceof AuthError && error.type === 'AdapterError') {
       Sentry.captureException(new EmailSigninUnavailable());
       return fail('FAILED', EMAIL_SIGNIN_UNAVAILABLE);
@@ -66,7 +66,7 @@ export async function signInWithEmail(
     throw error;
   }
 
-  // R-02/R-03/R-11: callbacks.signIn refuses an uncheckable request by redirecting to the error
+  // callbacks.signIn refuses an uncheckable request by redirecting to the error
   // page with a code; /login shows that code's message in place. Sent and limited requests both
   // get the same redirect to check-your-inbox (no enumeration), so they are followed untouched.
   const code = signInRefusalCode(target);

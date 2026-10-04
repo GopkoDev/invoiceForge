@@ -1,4 +1,4 @@
-// Per-scope limit configuration (data-model.md §LimitEvent, Outcomes per scope).
+// Per-scope limit configuration.
 import type { LimitOutcome, LimitScope } from '@prisma/client';
 
 export interface LimitScopeConfig {

@@ -1,4 +1,4 @@
-// Local test mail sink for the e2e app server (T20): a minimal SMTP server over implicit TLS
+// Local test mail sink for the e2e app server: a minimal SMTP server over implicit TLS
 // (port 465 is the one port the app's mail config treats as TLS-from-the-start, AC-16), so the app
 // sends the Sign-in link through its real provider hooks and TLS-only transport. Each accepted
 // message is written raw to `dir` as one .eml file for tests/e2e/support/genuine-session.ts.

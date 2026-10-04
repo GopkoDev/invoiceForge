@@ -1,4 +1,4 @@
-// T18 (spec.md §5 AC-22) — POST /monitoring forwards Sentry envelopes only for the configured DSN.
+// AC-22: POST /monitoring forwards Sentry envelopes only for the configured DSN.
 // No database needed; upstream fetch is stubbed.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

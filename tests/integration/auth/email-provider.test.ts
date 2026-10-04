@@ -1,15 +1,5 @@
-// T11 (security-patch; spec.md §5 AC-03, AC-11..AC-17; sad.md §6 flow 1 + response floor).
-// The Auth.js email provider hooks (normalizeIdentifier + sendVerificationRequest) are the one
-// enforcement point for the address rule, the sign-in-email limits, the response floor and the
-// TLS-only send. Contract this test fixes for lib/auth/email-provider.ts:
-//   createEmailProviderHooks({ prisma, transport, clock?, floorMs?, jitterMs? })
-//     -> { normalizeIdentifier(identifier), sendVerificationRequest(params) }
-//   typed errors: InvalidEmailAddress, EmailSigninUnavailable, EmailSendFailed (error.name = class name)
-//   transport: { sendMail(message): Promise<unknown> }  (production default = T10's verified-TLS config)
-//   the source comes from the platform address of params.request (x-real-ip), never a client header.
-// T26 (review F-17..F-21): the source is admitted in callbacks.signIn (signInCallback), before
-// Auth.js creates a VerificationToken; the address limit reserves the SENT row and commits before
-// the send, which runs outside the lock and releases the row when it fails.
+// AC-03, AC-11..AC-17: the Auth.js email provider hooks (lib/auth/email-provider.ts). The source
+// comes from the platform address (x-real-ip), never a client header.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import {
@@ -101,7 +91,7 @@ const failingTransport = (message: string) => ({
   },
 });
 
-// The redirect the AC-15 refusal gets on the direct endpoint (OQ-2 code; /login maps the same).
+// The redirect the AC-15 refusal gets on the direct endpoint (/login maps the same code).
 const UNAVAILABLE_REDIRECT = `${BASE}/error?error=CredentialsSignin&code=email_unavailable`;
 
 function linkRequest(headers: Record<string, string>): Request {
@@ -165,7 +155,7 @@ describe.runIf(containerRuntimeAvailable)(
     // Drives the real Auth.js core with the hooks wired into the Nodemailer provider and
     // callbacks.signIn, like POST /api/auth/signin/nodemailer (the route behind the /login
     // action). `ip` undefined sends no platform address at all.
-    // `adapter` replaces the real PrismaAdapter (R-03: a database the adapter cannot reach); it is
+    // `adapter` replaces the real PrismaAdapter (e.g. a database the adapter cannot reach); it is
     // wrapped by hooks.guardAdapter exactly as auth.ts wraps the app's adapter.
     async function postSignIn(
       hooks: Hooks,
@@ -289,7 +279,7 @@ describe.runIf(containerRuntimeAvailable)(
         adapter: PrismaAdapter(prisma),
         session: { strategy: 'jwt' },
         callbacks: {
-          // R-12: a platform address is present, so a regression that applied the source limit
+          // A platform address is present, so a regression that applied the source limit
           // to OAuth would count it (instead of taking the no-address path and passing anyway).
           signIn: hooks.signInCallback(
             async () => new Headers({ 'x-real-ip': GOOGLE_SOURCE_IP })
@@ -399,8 +389,6 @@ describe.runIf(containerRuntimeAvailable)(
     });
 
     describe('AC-11 happy path', () => {
-      // T26 / F-18: the source is counted in callbacks.signIn, so this runs the full Auth.js flow
-      // (it called the send hook directly before the admission moved).
       it('sends the link and records SENT for the address and REQUESTED for the source', async () => {
         const transport = fakeTransport();
         await postSignIn(
@@ -518,9 +506,6 @@ describe.runIf(containerRuntimeAvailable)(
     });
 
     describe('AC-13 source limit', () => {
-      // T26 / F-18: admission runs in callbacks.signIn, so the limited source is refused before
-      // Auth.js writes a VerificationToken; this drives the full flow (it called the send hook
-      // directly before).
       it('the 31st request from one source sends nothing, creates no token and records no refusal for the address', async () => {
         const ip = '198.51.100.7';
         for (let i = 0; i < 30; i++) {
@@ -605,8 +590,6 @@ describe.runIf(containerRuntimeAvailable)(
         expect(reported).not.toContain('ana@example.test');
       });
 
-      // R-11: locally (no hosting platform) the gap is reported, but at most once per window, so a
-      // stream of such requests cannot flood error tracking.
       it('locally, many requests with no platform address raise one Sentry message, not one each', async () => {
         const transport = fakeTransport();
         const hooks = hooksWith(transport);
@@ -617,8 +600,6 @@ describe.runIf(containerRuntimeAvailable)(
         expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
       });
 
-      // R-11: on Vercel the platform always sets the client address, so its absence means the
-      // source cannot be checked: fail closed (spec §6, ADR-0002), like an unavailable store.
       it('on Vercel, a request with no platform address is refused with the AC-15 message, nothing sent, no token', async () => {
         vi.stubEnv('VERCEL', '1');
         try {
@@ -672,7 +653,7 @@ describe.runIf(containerRuntimeAvailable)(
         expect(found?.id).toBe(user.id);
       });
 
-      // T27 / F-22: the structural check above cannot tell a limited address from an open one.
+      // The structural check above cannot tell a limited address from an open one.
       // This drives the real Auth.js core through /api/auth/callback/google (discovery, token and
       // userinfo stubbed) while the address holds 5 SENT rows.
       it('Google sign-in with 5 SENT rows for the address still gets a session and writes no LimitEvent', async () => {
@@ -723,8 +704,7 @@ describe.runIf(containerRuntimeAvailable)(
         expect(await prisma.limitEvent.count()).toBe(0);
       });
 
-      // R-02: the source limit must fail closed on its own. Before, an unavailable SIGNIN_SOURCE
-      // check admitted the request and its uncontended address lock then sent the link.
+      // The source check fails closed on its own, even when the address lock alone would admit.
       it('the source check alone failing refuses through Auth(): AC-15 message, no link, no token, no address row', async () => {
         const transport = fakeTransport();
         const hooks = createEmailProviderHooks({
@@ -743,7 +723,7 @@ describe.runIf(containerRuntimeAvailable)(
         );
       });
 
-      // R-03: with the whole database down, Auth.js's own user lookup fails before callbacks.signIn;
+      // With the whole database down, Auth.js's own user lookup fails before callbacks.signIn;
       // that must still reach the Visitor as the AC-15 message, not error=Configuration.
       it('the database unreachable for the adapter too refuses through Auth() with the AC-15 message', async () => {
         const transport = fakeTransport();
@@ -799,7 +779,7 @@ describe.runIf(containerRuntimeAvailable)(
         }
       );
 
-      // T27 / F-23: a cause the operator can act on (TLS vs timeout vs auth) without any value
+      // A cause the operator can act on (TLS vs timeout vs auth) without any value
       // from the message, which can carry the address or the SMTP server's reply text.
       type Hint = { tags?: Record<string, string> };
       const reportedHint = () =>
@@ -854,7 +834,7 @@ describe.runIf(containerRuntimeAvailable)(
         );
       });
 
-      // T34 / R-08: nodemailer 10 replaces the Node TLS code with ESOCKET (or ETLS), so the
+      // nodemailer 10 replaces the Node TLS code with ESOCKET (or ETLS), so the
       // cause is told from the error's signature and tagged with a fixed value. These run a real
       // nodemailer transport, built from the production config, against the TLS fixtures.
       describe('real nodemailer transport against the TLS fixtures', () => {
@@ -943,7 +923,7 @@ describe.runIf(containerRuntimeAvailable)(
           }
         );
 
-        // T39 / S-02 (closes R-10): a send that times out is an unknown outcome. The server here is
+        // A send that times out is an unknown outcome. The server here is
         // slow but accepts the message, so the link is delivered after the bound: its SENT
         // reservation must stay and count, or the address cap could be passed while SMTP is slow.
         it('a send that times out but is delivered stays counted against the address', async () => {
@@ -981,7 +961,7 @@ describe.runIf(containerRuntimeAvailable)(
           ).toBe(1);
         }, 15_000);
 
-        // T39 / S-03: one timeout must not close the shared pool and fail other Visitors' sends.
+        // One timeout must not close the shared pool and fail other Visitors' sends.
         // The first send hangs at DATA and its connection drops after the bound; the second, from
         // another Visitor, waits behind it in the one-connection pool and must still be delivered.
         it('a timed-out pooled send does not fail another Visitor\'s send', async () => {
@@ -1144,7 +1124,7 @@ describe.runIf(containerRuntimeAvailable)(
         120_000
       );
 
-      // T34 / R-09: a source-limited response is held from the start of callbacks.signIn; a sent
+      // A source-limited response is held from the start of callbacks.signIn; a sent
       // one must be measured from that same start, or a slow source check makes sent responses
       // longer by its duration. This drives the full Auth.js flow with a slow source transaction.
       it(

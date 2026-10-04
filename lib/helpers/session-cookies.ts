@@ -25,7 +25,7 @@ export function isSessionCookieName(name: string): boolean {
   );
 }
 
-/** True when `request` carries any next-auth session cookie (T21). */
+/** True when `request` carries any next-auth session cookie. */
 export function hasSessionCookie(request: NextRequest): boolean {
   return request.cookies
     .getAll()
@@ -65,7 +65,7 @@ function sessionCookieLine(setCookie: string): 'expiry' | 'write' | null {
 }
 
 /**
- * T21 (review-2026-10-03 F-02, AC-04): next-auth's middleware wrapper appends
+ * AC-04: next-auth's middleware wrapper appends
  * `sessionStore.clean()` expiries for every session cookie it can't decode (a wrong or rotated
  * AUTH_SECRET), on top of whatever the proxy returns. Returns `response` without those lines, so
  * a failed edge check never ends the session. A response that writes a non-empty session cookie is
@@ -73,7 +73,7 @@ function sessionCookieLine(setCookie: string): 'expiry' | 'write' | null {
  */
 export function withoutSessionCookieExpiry(response: Response): Response {
   const setCookies = response.headers.getSetCookie();
-  // T44 review: a response that also writes a session cookie is a refresh or a sign-in whose
+  // A response that also writes a session cookie is a refresh or a sign-in whose
   // `SessionStore.chunk()` expires the stale chunk names; those expiries must reach the browser.
   if (setCookies.some((line) => sessionCookieLine(line) === 'write')) {
     return response;

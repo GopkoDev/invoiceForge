@@ -20,20 +20,16 @@
 // `requireLiveUser()`'s own redirect. A caller with a live session is left alone and sent back
 // to the dashboard instead.
 //
-// T21 (review-2026-10-03 F-01, AC-04: "a failed check never ends an existing session"): cookies
+// AC-04 (a failed check never ends an existing session): cookies
 // are cleared ONLY when the session definitively has no live account (`account-gone`). A failed
 // check, including a null session while a session cookie is present (@auth/core resolves null
 // both for a throwing session-callback lookup and for an undecodable token), answers 503 with no
 // Set-Cookie, so the same cookie works again once the check recovers. Redirecting to sign-in
 // there would loop: the proxy still sees a decodable session and sends /login back here.
 //
-// T32 (review-2026-10-03-rereview R-04, AC-04; screens.md "check unavailable"): that 503 is a
-// small designed HTML page in the LoadError voice (components/layout/content-area/load-error.tsx)
-// with a "Try again" link back to the page the Freelancer asked for: `?next=` (set by
-// requireLiveUser() from the proxy's REQUEST_PATH_HEADER) or a same-origin Referer (goToSignIn()'s
-// full-page navigation), reduced to a same-origin relative path by safeReturnPath() so the link is
-// never an open redirect. A route handler can't render the React component, so the page is
-// self-contained: inline styles mirroring the Empty/Button tokens, no script.
+// That 503 is a self-contained HTML page (a route handler can't render the LoadError component:
+// inline styles mirroring its tokens, no script) with a "Try again" link to `?next=` or a
+// same-origin Referer, reduced by safeReturnPath() so the link is never an open redirect.
 import { NextRequest, NextResponse } from 'next/server';
 import { authRoutes, protectedRoutes } from '@/config/routes.config';
 import {

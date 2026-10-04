@@ -22,7 +22,7 @@ describe('isPublicPath (AC-05, deny-by-default allowlist)', () => {
     '/apple-icon',
     '/web-app-manifest-192x192.png', // F-26: referenced by app/manifest.json
     '/web-app-manifest-512x512.png',
-    '/api/cron/purge-limits', // T15: Vercel Cron carries no session; guarded by its bearer secret
+    '/api/cron/purge-limits', // Vercel Cron carries no session; guarded by its bearer secret
   ])('allows the deliberately public path %s', (path) => {
     expect(isPublicPath(path)).toBe(true);
   });
@@ -61,7 +61,7 @@ describe('isPublicPath (AC-05, deny-by-default allowlist)', () => {
     '/apple-icons-admin',
     '/api/auth/some-future-endpoint', // F-25: not a listed next-auth path
     '/api/auth/clear-session-admin', // F-25: not the real clear-session path
-    '/api/cron', // T15: only the purge job itself is public, not the cron prefix
+    '/api/cron', // only the purge job itself is public, not the cron prefix
     '/api/cron/purge-limits/extra',
     '/api/cron/other-job',
   ])('denies the private/unknown path %s by default', (path) => {

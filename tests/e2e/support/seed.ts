@@ -1,4 +1,4 @@
-// T20: seeds one Freelancer's workspace into the e2e app's throwaway database (the URL that
+// Seeds one Freelancer's workspace into the e2e app's throwaway database (the URL that
 // start-app-server.mjs leaves in the runtime file), so the genuine-session specs have every
 // private page's data: a sender profile with logo, a customer with image, a product and an
 // invoice. Sign-in itself is NOT seeded - the Freelancer row only exists so the Sign-in link

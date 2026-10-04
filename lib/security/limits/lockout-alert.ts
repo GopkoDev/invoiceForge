@@ -1,4 +1,4 @@
-// Targeted-lockout alert (spec §6): an address refused in each of 3 consecutive UTC hours
+// Targeted-lockout alert: an address refused in each of 3 consecutive UTC hours
 // raises one Sentry warning per rolling 24 h, carrying only the address digest.
 import * as Sentry from '@sentry/nextjs';
 import type { PrismaClient } from '@prisma/client';

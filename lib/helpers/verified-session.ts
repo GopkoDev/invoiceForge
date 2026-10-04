@@ -1,4 +1,4 @@
-// The single "signed in?" predicate (security-patch AC-04). Edge-safe: no imports.
+// The single "signed in?" predicate (AC-04). Edge-safe: no imports.
 // A session is verified only when it carries a non-empty string account id; an Auth.js
 // error object or any other truthy non-session is a Visitor.
 export function isVerifiedSession(

@@ -89,7 +89,7 @@ async function startRealApp() {
     .start();
   const connectionString = container.getConnectionUri();
 
-  // The Sign-in link goes through the app's real TLS-only mail transport to a local sink (T20).
+  // The Sign-in link goes through the app's real TLS-only mail transport to a local sink.
   fs.rmSync(runtimeDir, { recursive: true, force: true });
   const mailDir = path.join(runtimeDir, 'mail');
   const { key, cert } = createSinkCertificate(runtimeDir);
@@ -142,7 +142,7 @@ async function startRealApp() {
     stdio: 'inherit',
   });
 
-  // T21 (AC-04, AC-06): the same build and database, booted with a different AUTH_SECRET — the
+  // AC-04, AC-06: the same build and database, booted with a different AUTH_SECRET — the
   // misconfiguration AC-04 names — so every session check fails there. Cookies are scoped to the
   // host, not the port, so a spec holding a session from the server above can watch a failed check
   // here and its recovery there with the very same cookie.

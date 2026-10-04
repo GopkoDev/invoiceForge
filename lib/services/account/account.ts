@@ -153,7 +153,7 @@ const EXPORT_RATE_LIMITED =
  * Every category the account owns, scoped by actor.userId (exportVersion 2.0, Session dropped).
  * A place is reserved in the limit store before any read (ADR-0005); a system-side failure
  * releases it, a limit-store failure refuses the export (never unlimited). An account that is
- * gone is NOT_FOUND (server-actions.md §getAccountExport): nothing is recorded, and a place
+ * gone is NOT_FOUND: nothing is recorded, and a place
  * reserved before the account vanished mid-read is released.
  */
 export async function getAccountExport(

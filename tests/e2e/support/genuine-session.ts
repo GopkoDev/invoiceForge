@@ -1,4 +1,4 @@
-// T20 (spec.md §5 AC-02, AC-05): a session issued by the real sign-in flow, never a hand-built
+// AC-02, AC-05: a session issued by the real sign-in flow, never a hand-built
 // cookie. The helper drives /login like a Freelancer (accept the age/terms gate, enter the
 // address, submit), then opens the Sign-in link the app mailed.
 //   - Local run: the app mails through its real TLS-only transport to the e2e mail sink

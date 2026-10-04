@@ -93,7 +93,7 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
             data: { scope, key, outcome, at: now, userId: opts.userId ?? null },
             select: { id: true },
           });
-          // F-20: other keys' rows may be held by concurrent writers; skip them, never wait
+          // Other keys' rows may be held by concurrent writers; skip them, never wait
           // (waiting could deadlock and surface as LimitStoreUnavailable).
           await tx.$executeRaw`DELETE FROM "LimitEvent" WHERE "id" IN (SELECT "id" FROM "LimitEvent" WHERE "at" < ${cutoff} LIMIT ${PURGE_BATCH} FOR UPDATE SKIP LOCKED)`;
           return row;
@@ -194,7 +194,7 @@ export function createLimitStore(overrides: LimitStoreOverrides = {}) {
     },
 
     /**
-     * F-18: Auth.js writes a VerificationToken for every admitted Sign-in link request; the daily
+     * Auth.js writes a VerificationToken for every admitted Sign-in link request; the daily
      * sweep removes the expired ones so the table stays bounded. Returns the number deleted.
      */
     async purgeExpiredVerificationTokens(): Promise<number> {

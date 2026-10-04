@@ -1,4 +1,4 @@
-// T11 (spec.md §5 AC-17; contracts/server-actions.md §signInWithEmail) — one shared address rule.
+// AC-17: one shared address rule.
 import { describe, expect, it } from 'vitest';
 import { loginEmailSchema } from '@/lib/validations/auth';
 

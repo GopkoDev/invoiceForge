@@ -14,7 +14,7 @@ import {
 
 const { auth } = NextAuth(authConfig);
 
-// T32 (R-04, AC-04): a verified request passes on with the requested path on a request header,
+// A verified request passes on with the requested path on a request header,
 // always overwriting a caller-supplied value, for requireLiveUser()'s "Try again" target.
 function nextWithRequestPath(req: NextRequest): NextResponse {
   const requestHeaders = new Headers(req.headers);
@@ -96,7 +96,7 @@ const authProxy = auth(async function proxy(req) {
   return NextResponse.redirect(loginUrl);
 });
 
-// T21 (review-2026-10-03 F-02, AC-04): the wrapper itself expires a session cookie it can't
+// AC-04: the auth() wrapper itself expires a session cookie it can't
 // decode; strip that so a failed check never ends the session.
 export default async function proxy(
   ...args: Parameters<typeof authProxy>

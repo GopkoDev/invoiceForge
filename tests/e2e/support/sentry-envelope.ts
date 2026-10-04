@@ -1,4 +1,4 @@
-// T37 (spec.md §5 AC-20; review-2026-10-03-rereview R-16) — recognises the Sentry envelope that
+// AC-20: recognises the Sentry envelope that
 // carries one particular client error. Every Sentry item (session updates, transactions, replays,
 // logs) goes through the same /monitoring tunnel, so "the first POST answered 200" proves nothing
 // about the error; the preview check waits for this envelope instead. Pure, so the unit suite

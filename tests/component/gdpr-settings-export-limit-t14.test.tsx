@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// T14 (spec.md §5 AC-24; screens.md SCR-06 D-S3) — a 429 RATE_LIMITED export response shows an
+// AC-24: a 429 RATE_LIMITED export response shows an
 // inline Alert with the local retry time instead of a toast; the next attempt clears it.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -138,7 +138,6 @@ describe('GdprSettings — export rate limit alert (T14, AC-24)', () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
-  // F-26 (review 2026-10-03): the alert must render inside the dialog body, not behind the modal.
   it('shows the same alert inside the delete dialog when its export is rate limited', async () => {
     const user = userEvent.setup();
     getAccountDeletionSummaryMock.mockResolvedValue(ok({ invoiceCount: 2 }));

@@ -1,4 +1,4 @@
-// T6 (spec.md §5 AC-07, AC-08, AC-09) — the dashboard link reader applies the shared five-year rule.
+// AC-07, AC-08, AC-09: the dashboard link reader applies the shared five-year rule.
 import { describe, expect, it } from 'vitest';
 import { dashboardParamsSchema } from '@/lib/validations/search-params';
 import { currentLocalMonth } from '@/lib/helpers/time-zone';

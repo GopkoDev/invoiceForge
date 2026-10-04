@@ -1,5 +1,4 @@
-// T8 - per-scope limit config (data-model.md §LimitEvent, Outcomes per scope).
-// Seam assumed (lib/security/limits/scopes.ts): `LIMIT_SCOPES[scope] = { windowMs, max, countedOutcomes }`.
+// Per-scope limit config.
 import { describe, expect, it } from 'vitest';
 import { LIMIT_SCOPES } from '@/lib/security/limits/scopes';
 

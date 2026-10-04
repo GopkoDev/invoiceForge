@@ -1,21 +1,4 @@
-// T8 - the LimitEvent limit store (AC-12, AC-13; ADR-0002, ADR-0007).
-//
-// Seam assumed (lib/security/limits/limit-store.ts, not yet created):
-//
-//   export class LimitStoreUnavailable extends Error {}
-//   export interface LimitStoreOverrides { prisma?: PrismaClient; clock?: Clock }
-//   export interface LockedLimit {            // bound to one (scope, key) inside the lock
-//     countInWindow(): Promise<number>;       // counted outcomes, at > clock.now() - window
-//     record(outcome: LimitOutcome, opts?: { userId?: string }): Promise<{ id: string }>;
-//                                             // at = clock.now(); also runs the bounded purge
-//     oldestCountedAt(): Promise<Date | null>;
-//     retryAt(): Promise<Date | null>;        // oldestCountedAt + window, null when empty
-//     markFailed(id: string): Promise<void>;  // STARTED -> FAILED
-//   }
-//   export function createLimitStore(overrides?: LimitStoreOverrides): {
-//     withKeyLock<T>(scope: LimitScope, key: string, fn: (l: LockedLimit) => Promise<T>): Promise<T>;
-//     purgeOlderThan24h(): Promise<number>;
-//   }
+// The LimitEvent limit store (AC-12, AC-13; ADR-0002, ADR-0007).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
@@ -216,8 +199,6 @@ describe.runIf(containerRuntimeAvailable)('limit store (T8)', () => {
     expect(await prisma.limitEvent.count({ where: { key } })).toBe(1);
   });
 
-  // T26 / review F-20: the opportunistic purge touches other keys' rows inside a per-key
-  // transaction; a row another writer holds is skipped, never waited on (no deadlock).
   it('the opportunistic purge skips an old row another transaction holds instead of waiting on it', async () => {
     const held = await createLimitEvent(prisma, {
       scope: 'SIGNIN_SOURCE',

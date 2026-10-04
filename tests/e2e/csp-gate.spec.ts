@@ -1,11 +1,10 @@
-// T20 (spec.md §5 AC-20, QG-3) — the release gate: with the content-security policy enforced, the
-// core flows complete with zero policy violations. Runs against the local production build, or a
-// preview deploy when BASE_URL is set. The session comes from the real Sign-in link flow
-// (support/genuine-session.ts). Google sign-in needs a real Google account and is covered by the
-// user's preview run (ship-notes.md); the Sign-in link, chart, invoice PDF preview + download +
-// print, a client-side error, settings (avatar), logo / customer-image previews, the data export,
-// the legal pages are covered here (the landing page redirects a signed-in user, so the data-free describe checks it signed out). Every other private page is covered by the
-// genuine-session sweep in route-sweep.spec.ts, which attaches the same collector.
+// AC-20 release gate: with the content-security policy enforced, the core flows complete with zero
+// policy violations. Runs against the local production build, or a preview deploy when BASE_URL is
+// set. The session comes from the real Sign-in link flow (support/genuine-session.ts). Google
+// sign-in needs a real Google account and is checked on the preview by hand. The landing page
+// redirects a signed-in user, so the data-free describe checks it signed out. Every other private
+// page is covered by the genuine-session sweep in route-sweep.spec.ts, which attaches the same
+// collector.
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import { APP_E2E_URL, BASE_URL_OVERRIDE } from './support/app-server';
@@ -32,7 +31,7 @@ const ON_PREVIEW = Boolean(BASE_URL_OVERRIDE);
 const SENTRY_CONFIGURED = ON_PREVIEW || process.env.E2E_EXPECT_SENTRY === '1';
 
 // Throws a client-side error on the open page and checks what the tunnel answers. With a DSN, it
-// waits for the envelope that carries this error (R-16): session, replay, trace and log envelopes
+// waits for the envelope that carries this error: session, replay, trace and log envelopes
 // use the same tunnel, so any other POST answering 200 says nothing about the error.
 async function throwClientErrorThroughTunnel(page: Page) {
   const throwError = () =>

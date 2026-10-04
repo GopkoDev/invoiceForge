@@ -1,4 +1,4 @@
-// Limit keys (sad.md §8, TD-1). Keys are HMAC-SHA256 digests under LIMIT_KEY_SECRET; raw
+// Limit keys. Keys are HMAC-SHA256 digests under LIMIT_KEY_SECRET; raw
 // addresses and network addresses are never stored or returned.
 import { createHmac } from 'node:crypto';
 import { isIPv6 } from 'node:net';
@@ -57,7 +57,7 @@ function mappedIpv4(hextets: string[]): string | undefined {
   return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join('.');
 }
 
-// F-19: a mapped address is one IPv4 client. Keying it by its /64 would pool every IPv4 client
+// A mapped address is one IPv4 client. Keying it by its /64 would pool every IPv4 client
 // of a dual-stack listener into one shared source.
 export function sourceLimitKey(ip: string): string {
   if (!isIPv6(ip)) return digest(ip);

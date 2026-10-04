@@ -38,8 +38,8 @@ const redirectMock = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
 vi.mock('next/navigation', async (importOriginal) => ({
-  // Keep the real unstable_rethrow: requireLiveUser() uses it when headers() (T32's requested
-  // path) is unavailable, as it is outside a request scope here.
+  // Keep the real unstable_rethrow: requireLiveUser() uses it when headers() is unavailable, as
+  // it is outside a request scope here.
   ...(await importOriginal<typeof import('next/navigation')>()),
   redirect: (url: string) => redirectMock(url),
 }));

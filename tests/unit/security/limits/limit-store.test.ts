@@ -1,5 +1,4 @@
-// T8 - LimitStoreUnavailable wrapping of DB failures *inside* the locked callback
-// (task checklist: "Wrap DB errors as a typed LimitStoreUnavailable"; edge case "DB unreachable").
+// LimitStoreUnavailable wrapping of DB failures *inside* the locked callback.
 // A fake Prisma client runs the transaction callback with a tx whose lock call succeeds and
 // whose limitEvent / raw calls reject, as a lost connection or statement timeout would.
 import { describe, expect, it, vi } from 'vitest';

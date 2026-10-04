@@ -1,4 +1,4 @@
-// T10 (spec.md §5 AC-26, ADR-0008) - one list of required settings; the build fails and names
+// AC-26 (ADR-0008): one list of required settings; the build fails and names
 // every missing one; the list and env.example never drift apart.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -23,12 +23,11 @@ function readEnvExample(): string {
 
 /**
  * The setting names one source file reads directly: `process.env.X`, `process.env['X']` and
- * `process.env["X"]` (T36 / re-review R-06: the bracket form used to slip past this scan), each
- * also with `?.`, plus destructuring `const { X, Y: alias } = process.env` (T46 / N-06), typed
- * or with comments inside the braces (T48 / F-02).
+ * `process.env["X"]`, each also with `?.`, plus destructuring `const { X, Y: alias } = process.env`,
+ * typed or with comments inside the braces.
  */
 function envReadsIn(source: string): string[] {
-  // T41 / S-06: a parameter that defaults to process.env (`env = process.env`) is an injected
+  // A parameter that defaults to process.env (`env = process.env`) is an injected
   // record; `<param>.X` and `<param>['X']` on it are reads too.
   const records = [
     'process\\.env',
@@ -47,9 +46,9 @@ function envReadsIn(source: string): string[] {
     ),
   ].map((m) => m[1] ?? m[2]);
   // `{ X, Y: alias, Z = 'default' } = process.env`: the key before `:` or `=` is the name read.
-  // T48 / F-02: a type annotation may sit between `}` and `=`, and comments inside the braces
+  // A type annotation may sit between `}` and `=`, and comments inside the braces
   // are dropped before splitting so they don't glue onto the next name.
-  // T49 / G-01: string literals are blanked first, so a `//` in a URL default is not a comment.
+  // String literals are blanked first, so a `//` in a URL default is not a comment.
   const destructured = [
     ...source.matchAll(
       new RegExp(
@@ -133,8 +132,7 @@ describe('required settings list (ADR-0008)', () => {
     }
   });
 
-  // T24 / review F-11 (AC-26 "and the reverse holds too"): every setting app code reads is
-  // documented in env.example. Platform-provided variables are the only exemption.
+  // AC-26: platform-provided variables are the only exemption.
   it('every process.env.X read by app code appears in env.example', () => {
     const platformProvided = new Set(['CI', 'NEXT_RUNTIME', 'VERCEL']);
     const read = scannedEnvReads();
@@ -148,9 +146,7 @@ describe('required settings list (ADR-0008)', () => {
     expect(undocumented).toEqual([]);
   });
 
-  // T36 / re-review R-06 (AC-26 "and the reverse holds too"): every name env.example documents is
-  // a setting the app actually uses. A stale name (say GOOGLE_CLIENT_ID= from before the
-  // AUTH_GOOGLE_ID rename) would send an operator to set something nothing reads.
+  // AC-26: a stale name in env.example would send an operator to set something nothing reads.
   it('every env.example name is a setting the app reads', () => {
     // Read by a framework or build tool rather than by app code, so the scan can't see them.
     const frameworkOrBuild = new Map([
@@ -184,8 +180,6 @@ describe('required settings list (ADR-0008)', () => {
     ).toContain('DATABASE_URL');
   });
 
-  // T41 / second re-review S-06 (closes R-06): a setting read through an injected record
-  // (`env = process.env` parameter) is still a read.
   it('the scan sees reads through a parameter that defaults to process.env', () => {
     expect(
       envReadsIn(
@@ -201,7 +195,6 @@ describe('required settings list (ADR-0008)', () => {
     ).toContain('SIGNIN_RESPONSE_FLOOR_MS');
   });
 
-  // T46 / third re-review N-06: optional chaining and destructuring are reads too.
   it('the scan sees optional-chained and destructured reads', () => {
     expect(
       envReadsIn(
@@ -227,7 +220,6 @@ describe('required settings list (ADR-0008)', () => {
     ]);
   });
 
-  // T48 / fourth re-review F-02: a typed destructure and comments inside the braces.
   it('the scan sees typed and commented destructured reads', () => {
     expect(
       envReadsIn(
@@ -237,7 +229,7 @@ describe('required settings list (ADR-0008)', () => {
     ).toEqual(['COMMENTED_ONE', 'COMMENTED_THREE', 'COMMENTED_TWO', 'TYPED_ONE']);
   });
 
-  // T49 / fifth re-review G-01: a `//` inside a string default is not a comment.
+  // A `//` inside a string default is not a comment.
   it('the scan keeps the destructured name after a URL default', () => {
     expect(
       envReadsIn(
@@ -264,7 +256,7 @@ describe('required settings list (ADR-0008)', () => {
     expect(missingSettings(fullEnv())).toEqual([]);
   });
 
-  // T26 / review F-21: the response floor is tunable per environment but has a safe default,
+  // The response floor is tunable per environment but has a safe default,
   // so it is documented without failing a build that leaves it unset.
   it('lists SIGNIN_RESPONSE_FLOOR_MS as optional, documented in env.example, not required', () => {
     expect(OPTIONAL_SETTINGS).toContain('SIGNIN_RESPONSE_FLOOR_MS');
@@ -317,10 +309,8 @@ describe('scripts/check-required-settings.ts (AC-26)', () => {
     expect(pkg.scripts.dev).not.toMatch(/check-required-settings/);
   });
 
-  // T24 / review F-12: a local build loads .env before the check, and the Node floor that the
-  // script's type stripping needs is pinned.
-  // T36 / re-review R-13: the major is pinned too, so Vercel can't pick Node 24 while CI and the
-  // SAD say 22; .nvmrc is the single source CI reads.
+  // The Node floor the script's type stripping needs is pinned, and the major too, so Vercel can't
+  // pick Node 24 while CI runs 22; .nvmrc is the single source CI reads.
   it('the build loads .env when present and package.json pins Node 22 from 22.18', () => {
     const pkg = JSON.parse(
       readFileSync(path.join(root, 'package.json'), 'utf8')

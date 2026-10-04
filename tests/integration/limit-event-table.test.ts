@@ -1,9 +1,5 @@
-// T3 - Promote the LimitEvent migration with its Prisma model, factory and test cleanup.
-// data-model.md §LimitEvent, ADR-0002. Supports the NFR "Limit-record retention" (LimitEvent_at_idx).
-//
-// RED: the staged pair docs/features/security-patch/migrations/01_create_limit_event.{up,down}.sql
-// is not yet promoted to prisma/migrations/, so `prisma migrate deploy` does not create the table
-// and `prisma.limitEvent` does not exist.
+// The LimitEvent table, its migration and Prisma model (ADR-0002). LimitEvent_at_idx serves the
+// limit-record retention purge.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';

@@ -263,8 +263,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(typeof data.exportDate).toBe('string');
     });
 
-    // --- T13 (security-patch, AC-23/24/25; ADR-0005). Seam assumed:
-    //   getAccountExport(actor, overrides?: { clock?: Clock })  - the clock is handed to the limit store.
+    // AC-23..AC-25 (ADR-0005): the clock override is handed to the limit store.
     const T0 = new Date('2026-10-02T12:00:00.000Z');
     const HOUR = 3_600_000;
 

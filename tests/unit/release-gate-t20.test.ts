@@ -1,6 +1,6 @@
-// T20 (spec.md §5 AC-01, AC-02, AC-05, AC-20) — the release gate's own artefacts. The gate itself
-// runs in Playwright against a preview; these checks pin that the pieces it needs exist and are
-// wired the way the task requires: a CSP-violation collector, a genuine-session helper that signs
+// AC-01, AC-02, AC-05, AC-20: the release gate's own artefacts. The gate itself runs in Playwright
+// against a preview; these checks pin that the pieces it needs exist and are wired: a CSP-violation
+// collector, a genuine-session helper that signs
 // in through the real Sign-in link flow, a BASE_URL override, and the ship notes (AC-01 / AC-27).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -71,14 +71,13 @@ describe('T20 release gate', () => {
     expect(notes).toMatch(/dev(elopment)?-only/i);
   });
 
-  // T24 / review F-10: the audit gate is a real command on the dependency graph, not a grep of
+  // The audit gate is a real command on the dependency graph, not a grep of
   // the ship notes.
   it('AC-01: CI runs the production audit at high severity in the unit job', () => {
     const workflow = read('.github/workflows/test.yml');
     expect(workflow).toContain('pnpm audit --prod --audit-level=high');
   });
 
-  // T24 / review F-08: the direct uuid dependency is at the patched release.
   it('AC-27: uuid is a patched release (>= 13.0.1) in the manifest and the lockfile', () => {
     const pkg = JSON.parse(read('package.json')) as {
       dependencies: Record<string, string>;
@@ -87,7 +86,7 @@ describe('T20 release gate', () => {
     expect(read('pnpm-lock.yaml')).not.toMatch(/uuid@13\.0\.0\b/);
   });
 
-  // T24 / review F-09: GHSA-4x5r-pxfx-6jf8 is patched in @babel/core 7.29.6, which every
+  // GHSA-4x5r-pxfx-6jf8 is patched in @babel/core 7.29.6, which every
   // dependant's declared ^7 range accepts, so the workspace overrides it like the other
   // transitive advisories and no older copy is left in the lockfile.
   it('AC-01: @babel/core is overridden to the patched release and the lockfile has no older copy', () => {
@@ -105,8 +104,6 @@ describe('T20 release gate', () => {
     expect(unpatched.map((v) => v.join('.'))).toEqual([]);
   });
 
-  // T24 / review F-09, F-13: every moderate/low dev advisory is explained and the nodemailer
-  // peer-range deviation is recorded.
   it('AC-01: ship notes explain the moderate and low advisories and the nodemailer peer range', () => {
     const notes = read('docs/features/security-patch/ship-notes.md');
     expect(notes).toMatch(/moderate and low/i);

@@ -1,4 +1,4 @@
-// Auth.js email provider hooks (ADR-0001; sad.md §6 flow 1): the one enforcement point for the
+// Auth.js email provider hooks (ADR-0001): the one enforcement point for the
 // address rule, the sign-in-email limits, the response floor and the TLS-only send.
 // The source limit runs in callbacks.signIn (signInCallback), before Auth.js writes a
 // VerificationToken; the address limit and the send run in sendVerificationRequest.
@@ -28,7 +28,7 @@ import type {
 /**
  * Base of the typed provider errors (ADR-0001: the error type decides, never the message text).
  * They are Auth.js CredentialsSignin errors, the one Auth.js error type that carries a
- * client-safe `code` (OQ-2, pinned on next-auth 5.0.0-beta.32 / @auth/core 0.41.3):
+ * client-safe `code` (as of next-auth 5.0.0-beta.32 / @auth/core 0.41.3):
  * - signIn() in raw mode (the /login action) rethrows an AuthError as-is, so the action sees
  *   these classes. A plain Error would become a redirect to `?error=Configuration` instead.
  * - the direct endpoint passes only client-safe types to the client, so it redirects to
@@ -56,7 +56,7 @@ export class EmailSigninUnavailable extends SignInRefused {
 
 export class EmailSendFailed extends SignInRefused {
   code = SIGN_IN_ERROR_CODES.sendFailed;
-  /** F-23: value-free tags of the SMTP failure, for the Sentry event only. */
+  /** Value-free tags of the SMTP failure, for the Sentry event only. */
   readonly causeTags: Record<string, string>;
   constructor(causeTags: Record<string, string> = {}) {
     super('Could not send the sign-in email');
@@ -68,7 +68,7 @@ export class EmailSendFailed extends SignInRefused {
 /** Code of the error withTimeout raises, so a timeout is told apart from TLS and auth failures. */
 const SEND_TIMEOUT_CODE = 'SEND_TIMEOUT';
 
-/** R-08: the fixed values of the `tls` tag. Nothing else is ever put in it. */
+/** The fixed values of the `tls` tag. Nothing else is ever put in it. */
 export type TlsFailure =
   | 'starttls_missing'
   | 'altname'
@@ -105,7 +105,7 @@ const OPENSSL_VERIFY_TEXTS: Readonly<Record<string, TlsFailure>> = {
 };
 
 /**
- * R-08: which TLS failure an SMTP send error is, from its signature:
+ * Which TLS failure an SMTP send error is, from its signature:
  * - nodemailer's STARTTLS refusal: code ETLS on the STARTTLS command;
  * - Node's host-name check: its `host`, `reason` and `cert` fields (nodemailer keeps them but
  *   replaces the ERR_TLS_CERT_ALTNAME_INVALID code with ESOCKET);
@@ -132,9 +132,9 @@ function tlsFailure(cause: Record<string, unknown>): TlsFailure | undefined {
 }
 
 /**
- * F-23: only the nodemailer `code` (ESOCKET, EAUTH, ERR_TLS_CERT_ALTNAME_INVALID ...), the SMTP
+ * Only the nodemailer `code` (ESOCKET, EAUTH, ERR_TLS_CERT_ALTNAME_INVALID ...), the SMTP
  * `responseCode` and the `command` name, and only when each is a plain identifier, plus the
- * fixed-value `tls` tag (R-08). No value from the error message, the server's reply or the
+ * fixed-value `tls` tag. No value from the error message, the server's reply or the
  * certificate is ever copied: they can carry the address, the host or the reply text.
  */
 function sendFailureTags(cause: unknown): Record<string, string> {
@@ -179,10 +179,7 @@ export interface EmailProviderOptions {
   createTransport?: () => MailTransport | Promise<MailTransport>;
   /** Hard bound on one SMTP send in ms (default 10 s). */
   sendTimeoutMs?: number;
-  /**
-   * Response floor F in ms (default: SIGNIN_RESPONSE_FLOOR_MS clamped to 300..1200, else 1000).
-   * Passed explicitly (tests) it is capped at 1200 only.
-   */
+  /** Response floor in ms (default: responseFloorMs()); an explicit value is capped at 1200 only. */
   floorMs?: number;
   /** Upper bound of the random jitter added to the floor, in ms. */
   jitterMs?: number;
@@ -209,7 +206,7 @@ interface UserLookupAdapter {
 }
 
 /**
- * R-03: marks the stand-in user guardAdapter returns when the Sign-in link request's own user
+ * Marks the stand-in user guardAdapter returns when the Sign-in link request's own user
  * lookup failed; callbacks.signIn refuses such a request with the AC-15 message.
  */
 const LOOKUP_FAILED = Symbol('signin.lookupFailed');
@@ -218,13 +215,12 @@ const DEFAULT_FLOOR_MS = 1000;
 const MIN_FLOOR_MS = 300;
 const MAX_FLOOR_MS = 1200;
 const DEFAULT_JITTER_MS = 50;
-/** Hard bound on one SMTP send. */
 const SEND_TIMEOUT_MS = 10_000;
 /** Where Auth.js sends a sent request; a source-limited one gets the very same redirect. */
 const VERIFY_REQUEST_PATH =
   '/api/auth/verify-request?provider=nodemailer&type=email';
 /**
- * AC-15 from callbacks.signIn (R-02, R-03, R-11). A thrown error would reach the direct endpoint
+ * AC-15 from callbacks.signIn. A thrown error would reach the direct endpoint
  * only as AccessDenied, so the callback redirects to the same page and code a typed
  * EmailSigninUnavailable gets; the /login action reads the code back (login-actions).
  */
@@ -232,7 +228,7 @@ const UNAVAILABLE_PATH = `${authRoutes.error}?${new URLSearchParams({
   error: 'CredentialsSignin',
   code: SIGN_IN_ERROR_CODES.unavailable,
 })}`;
-/** R-11: at most one "no platform client address" report per instance in this window. */
+/** At most one "no platform client address" report per instance in this window. */
 const MISSING_SOURCE_REPORT_INTERVAL_MS = 10 * 60_000;
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -242,12 +238,12 @@ type SettingsRecord = Partial<
 >;
 
 /**
- * F-21: the floor F from the optional SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time
- * measured on preview), clamped to 300..1200 ms (R-09: 0 would switch the floor off); an unset
- * or unusable value gives 1000 ms.
+ * The floor F from the optional SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time measured on
+ * preview), clamped to 300..1200 ms so 0 cannot switch the floor off; an unset or unusable value
+ * gives 1000 ms.
  */
 export function responseFloorMs(
-  // T41 / S-06: typed against the known names, so an unlisted setting fails tsc.
+  // Typed against the known names, so an unlisted setting fails tsc.
   env: SettingsRecord = process.env as SettingsRecord
 ): number {
   const raw = env.SIGNIN_RESPONSE_FLOOR_MS;
@@ -321,7 +317,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     );
 
   /**
-   * R-09: when callbacks.signIn admitted each address's request. A source-limited response is
+   * When callbacks.signIn admitted each address's request. A source-limited response is
    * held from the start of the callback, so the send hook holds a sent (or address-limited)
    * response from that same start instead of its own, later one.
    */
@@ -360,7 +356,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   }
 
   /**
-   * R-03: with the database down, Auth.js's user lookup fails before callbacks.signIn and the
+   * With the database down, Auth.js's user lookup fails before callbacks.signIn and the
    * Visitor would get error=Configuration. For the Sign-in link request's lookup only, a failure
    * returns a marked stand-in user instead, which callbacks.signIn refuses with the AC-15 message.
    * Every other lookup's failure is rethrown untouched.
@@ -400,7 +396,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     }, started);
 
   let lastMissingSourceReport = -Infinity;
-  /** R-11: rate-limited, so a stream of such requests cannot flood error tracking. */
+  /** Rate-limited, so a stream of such requests cannot flood error tracking. */
   function reportMissingSource() {
     const now = Date.now();
     if (now - lastMissingSourceReport < MISSING_SOURCE_REPORT_INTERVAL_MS)
@@ -422,9 +418,9 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
     });
 
   /**
-   * F-18: the source limit, run from callbacks.signIn before Auth.js creates a VerificationToken.
+   * The source limit, run from callbacks.signIn before Auth.js creates a VerificationToken.
    * A limited source is held to the floor and gets the same redirect as a sent request. When the
-   * source cannot be checked the request fails closed with the AC-15 message (spec §6, ADR-0002).
+   * source cannot be checked the request fails closed with the AC-15 message (ADR-0002).
    */
   async function admitSignInRequest(
     headers: Headers,
@@ -433,7 +429,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   ): Promise<true | string> {
     const ip = clientSource(headers);
     if (!ip) {
-      // F-19 / R-11: never pool such requests into one shared bucket. On Vercel the platform
+      // Never pool such requests into one shared bucket. On Vercel the platform
       // always sets the address, so its absence means the source cannot be checked: fail closed.
       // Only a local run (no hosting platform) skips the source step; the address limit applies.
       reportMissingSource();
@@ -448,7 +444,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
       }
     } catch (error) {
       if (!(error instanceof LimitStoreUnavailable)) throw error;
-      // R-02: an unavailable source check refuses on its own, whatever the address lock would do.
+      // An unavailable source check refuses on its own, whatever the address lock would do.
       return refuseUnavailable(started);
     }
     return withSpan(async (setOutcome) => {
@@ -477,7 +473,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
   }
 
   /**
-   * F-17: counts the address and inserts a SENT reservation under one SIGNIN_ADDRESS lock
+   * Counts the address and inserts a SENT reservation under one SIGNIN_ADDRESS lock
    * (ADR-0002 §Decision 1), then commits, so concurrent requests for one address queue only
    * for the count, never for the SMTP send.
    */
@@ -494,7 +490,7 @@ export function createEmailProviderHooks(options: EmailProviderOptions = {}) {
 
   /**
    * Sends outside any transaction. A definite failure releases its reservation (it never counts).
-   * T39 / S-02, S-03 (closes R-10): a send that hits the time bound is an unknown outcome, because
+   * A send that hits the time bound is an unknown outcome, because
    * the message may still be delivered on a slow but live connection. Its SENT reservation stays
    * and counts, and the shared pool is left open: closing it cannot stop a message already in
    * progress and would fail other Visitors' queued sends.

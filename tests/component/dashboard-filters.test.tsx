@@ -31,7 +31,7 @@ import { PERIOD_TOO_LONG } from '@/lib/validations/dashboard-period';
 
 import { DashboardFilters } from '@/components/dashboard/header/dashboard-filters';
 
-// T7 (AC-07b, AC-08) — the Calendar is stubbed so a test can pick an arbitrary range without
+// The Calendar is stubbed so a test can pick an arbitrary range without
 // paging through years of months; the stub forwards exactly what react-day-picker would hand
 // to `onSelect` (local-midnight Dates).
 vi.mock('@/components/ui/calendar', () => ({

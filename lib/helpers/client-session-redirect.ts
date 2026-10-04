@@ -9,7 +9,7 @@
 // (`CLEAR_SESSION_PATH`) a server redirect would use, rather than looping through the proxy with
 // an uncleared cookie.
 //
-// T21 (review-2026-10-03 F-01, AC-04): an UNAUTHORIZED code can also come from a failed check (the
+// AC-04: an UNAUTHORIZED code can also come from a failed check (the
 // DB lookup down), not only a dead session. That route re-checks and clears cookies only when the
 // account is definitively gone; on a failed check it answers 503 and the session survives.
 import { CLEAR_SESSION_PATH } from '@/config/routes.config';

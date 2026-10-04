@@ -1,7 +1,5 @@
-// T37 (spec.md §5 AC-20; review-2026-10-03-rereview R-16) — the preview "a client-side error
-// reaches Sentry" check must wait for the envelope that carries the synthetic error, not for the
-// first POST to /monitoring of any kind (session, replay, trace and log envelopes go through the
-// same tunnel and would answer 200 even when the error is dropped).
+// AC-20: the preview "a client-side error reaches Sentry" check waits for the envelope that
+// carries the synthetic error (see tests/e2e/support/sentry-envelope.ts).
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';

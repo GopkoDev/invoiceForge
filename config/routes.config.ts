@@ -96,12 +96,12 @@ const iconPathPattern = /^\/(apple-)?icon\d*(\.[a-z]+|\/[\w-]+)?$/;
 // cookie before sign-in; redirecting straight to sign-in would loop through the proxy.
 export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
 
-// T32 (R-04, AC-04): a layout can't see the pathname, so proxy.ts forwards the requested path on
+// A layout can't see the pathname, so proxy.ts forwards the requested path on
 // this request header (always overwriting any caller-supplied value) and requireLiveUser() passes
 // it to CLEAR_SESSION_PATH as `?next=`, the target of the check-unavailable page's "Try again".
 export const REQUEST_PATH_HEADER = 'x-invoiceflow-request-path';
 
-// T15 (ADR-0007): Vercel Cron carries no session; the route guards itself with CRON_SECRET.
+// ADR-0007: Vercel Cron carries no session; the route guards itself with CRON_SECRET.
 export const PURGE_LIMITS_CRON_PATH = '/api/cron/purge-limits';
 
 // F-25: the next-auth (Auth.js v5) handler's own endpoints, listed explicitly instead of the

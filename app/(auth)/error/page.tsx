@@ -43,9 +43,9 @@ const errorMessages: Record<string, { title: string; description: string }> = {
   },
 };
 
-// OQ-2: the direct POST /api/auth/signin/nodemailer reports the typed provider errors as
+// The direct POST /api/auth/signin/nodemailer reports the typed provider errors as
 // ?error=CredentialsSignin&code=<code>, so direct callers get the same distinct messages as /login.
-// R-02/R-03: an unavailable limit store or database redirects here with code=email_unavailable.
+// An unavailable limit store or database redirects here with code=email_unavailable.
 function resolveError(error: string | undefined, code: string | undefined) {
   if (
     error === 'CredentialsSignin' &&

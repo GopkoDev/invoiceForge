@@ -3,7 +3,7 @@ packages:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
-# security-patch (AC-01): patched transitive versions for advisories reached through build-time
+# AC-01: patched transitive versions for advisories reached through build-time
 # plugins (@sentry/nextjs, whose bundler plugin pulls @babel/core) and the optional prisma CLI peer
 # of @prisma/client.
 overrides:

@@ -1,4 +1,4 @@
-// Integration tests run without the production .env: give the limit-key HMAC (TD-1) a test-only
+// Integration tests run without the production .env: give the limit-key HMAC a test-only
 // secret, matching the one the limit-event factory hashes with.
 import { TEST_LIMIT_KEY_SECRET } from './factories/limit-event';
 

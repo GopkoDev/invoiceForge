@@ -1,4 +1,4 @@
-// T4 (security-patch, spec.md §5 AC-04 / AC-05): one predicate decides "signed in".
+// AC-04, AC-05: one predicate decides "signed in".
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));

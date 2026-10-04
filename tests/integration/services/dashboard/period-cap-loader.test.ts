@@ -1,12 +1,9 @@
-// T28 (spec.md §5 AC-07, AC-08; review-2026-10-03 F-25) — the five-year rule through the dashboard
-// loader: the page parses the link with dashboardParamsSchema and feeds `period` to the dashboard
-// actions, which call the business layer. An over-long link falls back to the current month, the
-// exact-5-year link is applied, and the link reader and business rule agree on the boundary in
-// any zone and across a 29 February start.
-// T37 (review-2026-10-03-rereview R-15) — the loader is the real page: DashboardPage runs with the
+// AC-07, AC-08: the five-year rule through the real dashboard page. DashboardPage runs with the
 // link as its searchParams and the `tz` cookie as its zone, and every range-taking section it
-// renders (stats, chart, sender accounts) is run with the props the page gave it. No copy of the
-// page's `period` glue lives in this test.
+// renders is run with the props the page gave it, so no copy of the page's `period` glue lives
+// here. An over-long link falls back to the current month, the exact-5-year link is applied, and
+// the link reader and business rule agree on the boundary in any zone and across a 29 February
+// start.
 import {
   afterAll,
   afterEach,

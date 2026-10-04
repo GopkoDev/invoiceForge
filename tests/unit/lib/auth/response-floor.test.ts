@@ -1,4 +1,4 @@
-// T26 (review F-21; sad.md §6 response floor): the floor F comes from the optional
+// The floor F comes from the optional
 // SIGNIN_RESPONSE_FLOOR_MS setting (the p90 send time measured on preview), defaults to 1000 ms
 // and is clamped to at most 1200 ms so the sign-in p95 stays within 1.5 s.
 import { describe, expect, it } from 'vitest';
@@ -19,7 +19,7 @@ describe('responseFloorMs', () => {
     expect(responseFloorMs({ SIGNIN_RESPONSE_FLOOR_MS: '5000' })).toBe(1200);
   });
 
-  // T34 / review R-09: 0 (or any tiny value) would switch the floor off and make a limited
+  // 0 (or any tiny value) would switch the floor off and make a limited
   // response measurably faster than a sent one, so the setting is clamped from below too.
   it.each(['0', '1', '120', '299'])(
     'clamps a configured value below 300 ms up to 300 ms (%s)',

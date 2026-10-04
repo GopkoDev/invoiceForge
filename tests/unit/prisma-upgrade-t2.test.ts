@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// T2 / AC-27: Prisma on latest 7.x, @prisma/extension-accelerate removed.
+// AC-27: Prisma on latest 7.x, @prisma/extension-accelerate removed.
 const root = process.cwd();
 const LATEST_7X_MIN = [7, 10, 0];
 

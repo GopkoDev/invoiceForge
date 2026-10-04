@@ -1,21 +1,20 @@
-// T31 (spec.md §5 AC-04; re-review 2026-10-03 R-01): a failed sign-in check must never end a
-// session. Auth.js's own session endpoint (GET /api/auth/session) clears the session cookie when it
-// cannot verify the token, and that route-handler response is not filtered by the proxy. The only
-// thing that ever called it was next-auth/react's SessionProvider in the root layout, which fetches
-// it on every mount and every tab focus. Nothing reads the client session (no useSession), so the
-// provider is gone; this scan keeps it, and any other client-side read of that endpoint, gone.
+// AC-04: a failed sign-in check must never end a session. Auth.js's own session endpoint
+// (GET /api/auth/session) clears the session cookie when it cannot verify the token, and that
+// route-handler response is not filtered by the proxy. next-auth/react's SessionProvider fetches
+// it on every mount and every tab focus, so this scan keeps the provider, and any other client-side
+// read of that endpoint, out.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '../..');
 const SOURCE = /\.(tsx?|jsx?|mjs)$/;
-// T40 (S-04): the walk starts at the repo root with the guard scan's skips, so root files
+// The walk starts at the repo root with the guard scan's skips, so root files
 // (instrumentation-client.ts) and folders added later (config/, constants/) are covered. Never
 // source the app ships: dependencies, build output, VCS and tool state at any depth, and the
 // repo-root folders of docs, tests and test/report output.
 // Server-side files that name the endpoint as a string and fetch nothing: the public-path
-// allowlist, and the route that strips the cookie expiry from the endpoint's own response (T40).
+// allowlist, and the route that strips the cookie expiry from the endpoint's own response.
 const SERVER_SIDE_MENTIONS = new Set([
   'config/routes.config.ts',
   'app/api/auth/[...nextauth]/route.ts',

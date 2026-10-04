@@ -1,13 +1,6 @@
-// T15 (spec.md §6 NFR "Limit-record retention"; ADR-0007; sad.md §6 flow 10) - the daily
-// limit-record purge, GET /api/cron/purge-limits, behind the Vercel Cron bearer secret.
-//
-// Seams assumed (RED - app/api/cron/purge-limits/route.ts does not exist yet):
-//   - `export async function GET(request: Request): Promise<Response>`
-//   - same-process app code (tests/README.md option 1): DATABASE_URL is set to the throwaway
-//     container before '@/prisma' is imported; the same singleton is spied on for the 500 path.
-//   - the cutoff comes from the app clock (`new Date()`), so a faked system time drives it.
-//   - Sentry Crons check-ins go through `captureCheckIn` from '@sentry/nextjs'
-//     (status in_progress first, then ok / error).
+// ADR-0007: the daily limit-record purge, GET /api/cron/purge-limits, behind the Vercel Cron
+// bearer secret. DATABASE_URL is set to the throwaway container before '@/prisma' is imported;
+// the cutoff comes from the app clock (`new Date()`), so a faked system time drives it.
 import {
   afterAll,
   afterEach,
@@ -151,8 +144,7 @@ describe.runIf(containerRuntimeAvailable)(
       ).toBe(0);
     });
 
-    // T26 / review F-18: Auth.js writes a VerificationToken for every admitted request, so the
-    // daily sweep also removes expired ones; the response body is unchanged (limit rows only).
+    // The response body still counts limit rows only.
     it('also deletes expired VerificationToken rows and keeps unexpired ones', async () => {
       await factoryPrisma.verificationToken.createMany({
         data: [

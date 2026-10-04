@@ -48,7 +48,7 @@ interface DialogState {
   // F-45: screens.md SCR-08 "deleting" row — every button in the dialog is disabled while the
   // confirmed delete is in flight, not just ConfirmationModal's own Confirm/Cancel footer.
   deleting: boolean;
-  // F-26: an export rate-limited from the dialog shows its D-S3 Alert in the dialog body — the
+  // An export rate-limited from the dialog shows its D-S3 Alert in the dialog body — the
   // page-level Alert sits behind the modal where the Freelancer can't see it.
   rateLimitMessage: string | null;
 }
@@ -303,7 +303,7 @@ export function GdprSettings() {
 
   const openDeleteDialog = () => {
     dialogOpenRef.current = true;
-    // N-12: a previous attempt's `deleting`/`exporting` flags (and its rate-limit Alert) must
+    // A previous attempt's `deleting`/`exporting` flags (and its rate-limit Alert) must
     // not carry into a reopened dialog.
     dialogStateRef.current = {
       summary: { status: 'counting' },

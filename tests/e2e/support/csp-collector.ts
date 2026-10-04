@@ -1,4 +1,4 @@
-// T20 (spec.md §5 AC-20): collects every content-security-policy violation a browser context sees.
+// AC-20: collects every content-security-policy violation a browser context sees.
 // A page-side `securitypolicyviolation` listener (registered with addInitScript, so it is in place
 // before any page script runs, on every page and popup of the context) records into
 // `window.__cspViolations` and also reports to Node through an exposed function, so a violation

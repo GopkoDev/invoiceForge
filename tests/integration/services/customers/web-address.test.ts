@@ -1,4 +1,4 @@
-// T16 (spec.md §5 AC-21; contracts/server-actions.md §Web-address rule) — a bypassed form (direct
+// AC-21: a bypassed form (direct
 // service call) gets VALIDATION with field errors and nothing is saved. Real throwaway Postgres.
 import {
   afterAll,

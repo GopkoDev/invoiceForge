@@ -250,7 +250,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
 
   // AC-18: the other request shapes. A real, non-sign-in action id comes from the build's own
   // server-reference manifest, so the framework would really dispatch it if the request got that far.
-  // T35 (R-05): picked by its exported name, not by manifest order — getCustomers is the action that
+  // Picked by its exported name, not by manifest order — getCustomers is the action that
   // would return another account's data if it ran.
   function readNonSignInActionId(
     filename = 'lib/actions/customer-actions.ts',
@@ -277,8 +277,8 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     return entry![0];
   }
 
-  // T35 (R-05, test-plan.md row 70): ADR-0003 closed the hole of an action posted to a *public*
-  // page, so every anonymous-action shape is sent there too, not only to private pages.
+  // ADR-0003: an action posted to a *public* page is refused too, so every anonymous-action shape
+  // is sent there, not only to private pages.
   test('every anonymous-action shape POSTed to a public page is refused with no data', async ({
     playwright,
   }) => {
@@ -380,7 +380,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     }
   });
 
-  // T35 (R-05): the absence of `"success":true` alone proves little, so another account's data is
+  // The absence of `"success":true` alone proves little, so another account's data is
   // planted and must never come back, through either shape, from the action that would list it.
   test("POST /login naming getCustomers never returns another account's customer", async ({
     playwright,
@@ -404,7 +404,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
         form: { [`$ACTION_ID_${actionId}`]: '' },
       });
-      // T40 (S-05): `getCustomers` is not in the /login worker, so neither shape reaches the
+      // `getCustomers` is not in the /login worker, so neither shape reaches the
       // action body, and this does not exercise the action's own session guard (the guard scan
       // does). It covers the proxy and the framework's worker lookup in front of it: the header
       // shape is answered with the page's inert `{}` and the form shape with the sign-in page
@@ -440,7 +440,7 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
   });
 });
 
-// T20 (AC-02, AC-05): the other half of the sweep — a Freelancer holding a genuine session, issued
+// AC-02, AC-05: the other half of the sweep — a Freelancer holding a genuine session, issued
 // by the real Sign-in link flow (support/genuine-session.ts, never a hand-built cookie), reaches
 // every private page directly and is never bounced to sign-in.
 test.describe('AC-05 route sweep — a genuine session reaches every private page', () => {
@@ -516,9 +516,7 @@ test.describe('AC-05 route sweep — a genuine session reaches every private pag
   });
 });
 
-// T21 (spec.md §5 AC-04, AC-06; review-2026-10-03 F-02, F-03, F-04) — test-plan.md rows "failed
-// sign-in check never ends an existing session" and "sign-in and landing pages render without a
-// redirect loop" (e2e). The check is made to fail for real: BROKEN_CHECK_URL is the same build and
+// AC-04, AC-06: the check is made to fail for real: BROKEN_CHECK_URL is the same build and
 // database booted with a different AUTH_SECRET (start-app-server.mjs), the misconfiguration AC-04
 // names. Cookies are scoped to the host, not the port, so the session issued by the real server is
 // the one that fails there, and "the check recovers" is simply going back to the real server.
@@ -611,7 +609,7 @@ test.describe('AC-04 / AC-06 — a failing sign-in check never ends a session', 
     await page.close();
   });
 
-  // T31 (re-review R-01): the requests above are made one by one; a real browser loading a page
+  // The requests above are made one by one; a real browser loading a page
   // also runs whatever the page's scripts fetch once they hydrate (a client session poller would
   // call /api/auth/session, whose own failed check clears the cookie). So: the genuine cookie, a
   // real page load on the failing server, every request settled, and the cookie is still there.

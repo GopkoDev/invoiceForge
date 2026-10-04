@@ -42,8 +42,8 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     authMock.mockReset();
     findUniqueMock.mockReset();
     // Default: the stale-token case this route exists for. The token decodes, but the session
-    // callback found no live account for it, so `session.user` carries no id (T21: a null session
-    // is no longer enough — it is also what a failed check looks like).
+    // callback found no live account for it, so `session.user` carries no id (a null session is
+    // not enough: it is also what a failed check looks like).
     authMock.mockResolvedValue({ user: {} });
   });
 
@@ -120,7 +120,6 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     expect(joined).not.toMatch(/other-cookie=;/);
   });
 
-  // T21 (review-2026-10-03 F-01, AC-04): "a failed check never ends an existing session".
   describe('a failed check never ends the session (AC-04)', () => {
     function expectNoCookieExpiry(res: Response) {
       expect(res.headers.getSetCookie()).toEqual([]);
@@ -179,7 +178,7 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
       expectNoCookieExpiry(res);
     });
 
-    // Review stage-1 (T21 retry): the whole page path, not just this route. A private layout's
+    // The whole page path, not just this route. A private layout's
     // requireLiveUser() whose auth() throws must hand the request here (a real NEXT_REDIRECT, not
     // an error past the layout, which only app/global-error.tsx would catch), and this route,
     // hitting the same failing check, answers 503 with the session cookie left in place.
@@ -217,11 +216,8 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
     });
   });
 
-  // T32 (review-2026-10-03-rereview R-04, AC-04): the failed-check 503 is a designed page in the
-  // LoadError voice, not a bare text/plain line, with a "Try again" link back to the page the
-  // Freelancer asked for. The link target comes from `?next=` (requireLiveUser() passes the
-  // requested path) or a same-origin Referer (goToSignIn()'s full-page navigation), and is only
-  // ever a same-origin relative path: anything else falls back to the dashboard.
+  // The "Try again" target comes from `?next=` or a same-origin Referer and is only ever a
+  // same-origin relative path: anything else falls back to the dashboard.
   describe('the check-unavailable page (T32, R-04, AC-04)', () => {
     const LIVE_COOKIE = '__Secure-authjs.session-token=live-jwt';
 
@@ -285,7 +281,7 @@ describe('GET /api/auth/clear-session (AC-21)', () => {
       'dashboard',
       '/\r\nSet-Cookie:x=1',
       '/api/auth/clear-session?next=/dashboard',
-      // T38 (rereview-2 S-01): paths that normalise to a protocol-relative `//host`.
+      // Paths that normalise to a protocol-relative `//host`.
       '/.//evil.example',
       '/%2e%2e//evil.example',
     ])('never links "Try again" off-site or back here (next=%s)', async (next) => {

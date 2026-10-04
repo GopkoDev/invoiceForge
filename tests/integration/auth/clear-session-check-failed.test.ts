@@ -1,13 +1,11 @@
-// T21 (spec.md §5 AC-04, review-2026-10-03 F-01) — "a failed check never ends an existing
-// session". Before T21, GET /api/auth/clear-session expired the session cookies whenever
-// `requireSession()` failed for ANY reason, so a database outage during the session lookup
-// signed every Freelancer who reached it out for good.
+// AC-04: a failed check never ends an existing session, so a database outage during the session
+// lookup must not sign anyone out.
 //
 // Drives the real clear-session route handler, the real `requireSession()` and the real
 // `sessionCallback` (the exact function auth.ts wires into NextAuth) against a real Postgres
 // container whose "User" table is made unreachable, so Prisma really throws in the session lookup.
 //
-// Seam: same-process app code (tests/README.md option 1). '@/auth' is mocked to do what
+// '@/auth' is mocked to do what
 // @auth/core's session action does with the jwt strategy: run the session callback for the
 // decoded token, and resolve null when that callback throws (core logs JWTSessionError and
 // returns no session, see @auth/core lib/actions/session.js). Everything downstream is production.

@@ -1,8 +1,5 @@
-// T40/T44 (review-2026-10-03-rereview-2 S-04, rereview-3 T-01, AC-04): Auth.js's GET session sends
-// `sessionStore.clean()` (an empty-valued session cookie) when it cannot decode the token or the
-// session callback throws. A direct top-level visit, including a crafted link, would end the
-// session while the check is failing, and the proxy never sees a route handler's response. The
-// route therefore strips session-cookie expiry from every GET, the same way proxy.ts does.
+// AC-04: the Auth.js route strips session-cookie expiry from every GET, the same way proxy.ts does
+// (see app/api/auth/[...nextauth]/route.ts).
 import { describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
@@ -51,7 +48,7 @@ describe('GET /api/auth/session (AC-04, S-04)', () => {
     ]);
   });
 
-  // T44 review: `SessionStore.chunk()` starts from `_clean()` over the chunks already on the
+  // `SessionStore.chunk()` starts from `_clean()` over the chunks already on the
   // request, so a sign-in that changes the chunk layout writes the new cookie AND expires the stale
   // names. Those expiries must survive, or the browser joins old and new chunks into a bad token.
   it('keeps stale-chunk expiries when the same response writes a new session cookie', async () => {
@@ -76,7 +73,7 @@ describe('GET /api/auth/session (AC-04, S-04)', () => {
   });
 });
 
-// T44 (review-2026-10-03-rereview-3 T-01, AC-04): Auth.js parses the action with
+// Auth.js parses the action with
 // `split('/').filter(Boolean)` (@auth/core lib/utils/web.js:96), so `//session` and `session/`
 // reach the same session action. The strip must cover every GET, not one exact pathname.
 describe('GET on any Auth.js path (AC-04, T-01)', () => {

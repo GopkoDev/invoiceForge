@@ -1,10 +1,4 @@
-// T8 - limit keys (AC-12, AC-13; sad.md §8 Limit keys, TD-1).
-//
-// Seam assumed (lib/security/limits/keys.ts, not yet created); the secret is read from
-// process.env.LIMIT_KEY_SECRET at call time:
-//   foldAddress(email: string): string
-//   addressLimitKey(email: string): string   // lower-hex HMAC-SHA256(secret, foldAddress(email))
-//   sourceLimitKey(ip: string): string       // lower-hex HMAC-SHA256(secret, IPv4 | IPv6 /64 prefix)
+// Limit keys (AC-12, AC-13). The secret is read from process.env.LIMIT_KEY_SECRET at call time.
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HeadersAdapter } from 'next/dist/server/web/spec-extension/adapters/headers';
@@ -87,7 +81,6 @@ describe('limit keys (T8)', () => {
         sourceLimitKey('203.0.113.8')
       );
     });
-    // T26 / review F-19: an IPv4-mapped IPv6 address is one IPv4 client, not a shared /64.
     it('keys an IPv4-mapped IPv6 address (::ffff:a.b.c.d) as its IPv4 address', () => {
       expect(sourceLimitKey('::ffff:203.0.113.7')).toBe(hmac('203.0.113.7'));
       expect(sourceLimitKey('::FFFF:203.0.113.7')).toBe(hmac('203.0.113.7'));
@@ -103,10 +96,9 @@ describe('limit keys (T8)', () => {
   });
 });
 
-// T22 (AC-18 e2e gate): callbacks.signIn passes the object next/headers' headers() resolves to.
-// That is Next's HeadersAdapter, which keeps the raw Node header map in its own `headers` field, so
-// @vercel/functions ipAddress() took it for a Request and called .get on a plain object: every
-// Sign-in link request on a production build failed as AccessDenied.
+// callbacks.signIn passes the object next/headers' headers() resolves to. That is Next's
+// HeadersAdapter, which keeps the raw Node header map in its own `headers` field; passed as is,
+// @vercel/functions ipAddress() takes it for a Request and fails every Sign-in link request.
 describe('clientSource', () => {
   it("reads the platform address from next/headers' headers() object", () => {
     const fromNext = HeadersAdapter.seal(

@@ -103,7 +103,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`antialiased`}>
-        {/* T31 (AC-04, R-01): no next-auth/react SessionProvider here. It fetched
+        {/* AC-04: no next-auth/react SessionProvider here. It fetches
             /api/auth/session on every mount and tab focus, and that endpoint clears the session
             cookie whenever its check fails. Nothing reads the client session; signOut() needs no
             provider. tests/unit/no-client-session-fetch.test.ts keeps it out. */}

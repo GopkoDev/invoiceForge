@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// AC-20 (T19): the enforced CSP and transport headers are served from next.config.ts headers().
+// AC-20: the enforced CSP and transport headers are served from next.config.ts headers().
 const TEST_DSN = 'https://abc123key@o42.ingest.sentry.io/4567';
 const REPORT_URI =
   'https://o42.ingest.sentry.io/api/4567/security/?sentry_key=abc123key';

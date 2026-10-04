@@ -1,4 +1,4 @@
-// T38 (review-2026-10-03-rereview-2 S-01, AC-04): safeReturnPath must validate the NORMALISED
+// AC-04: safeReturnPath must validate the NORMALISED
 // value. `new URL('/.//evil.com', origin).pathname` is `//evil.com`, which as an href is an
 // off-site, protocol-relative link.
 import { describe, expect, it } from 'vitest';

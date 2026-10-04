@@ -37,7 +37,7 @@ function customAdapter(): Adapter {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
-  // R-03: a Sign-in link request whose user lookup cannot reach the database ends in the AC-15
+  // A Sign-in link request whose user lookup cannot reach the database ends in the AC-15
   // message (callbacks.signIn), not error=Configuration; every other lookup is untouched.
   adapter: emailHooks.guardAdapter(customAdapter()),
   session: {
@@ -74,7 +74,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   callbacks: {
-    // F-18: the sign-in-email source limit runs here, before Auth.js writes a VerificationToken.
+    // The sign-in-email source limit runs here, before Auth.js writes a VerificationToken.
     // headers() is the incoming request's in both the route handler and the /login action.
     signIn: emailHooks.signInCallback(() => headers()),
 

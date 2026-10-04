@@ -1,8 +1,7 @@
-// T12 (security-patch; spec.md §5 AC-15, AC-16, AC-17, AC-19; ADR-0001; api-sync-report OQ-2).
-// signInWithEmail maps the typed provider errors (by type, never by message text) to the exported
+// AC-15, AC-16, AC-17, AC-19 (ADR-0001): signInWithEmail maps the typed provider errors (by type, never by message text) to the exported
 // constants; sent and limited both end in the same redirect. Nothing about Auth.js is faked: the
 // action runs against a real NextAuth() instance (next-auth 5.0.0-beta.32 / @auth/core 0.41.3)
-// whose Nodemailer provider carries the real T11 hooks, so these tests pin the error shape the
+// whose Nodemailer provider carries the real hooks, so these tests pin the error shape the
 // installed version really delivers. Only the Next.js request scope (next/headers), the mail
 // transport, the verification-token adapter and Sentry are stand-ins.
 import {
@@ -124,7 +123,7 @@ function tokenAdapter(): Adapter {
   } as Adapter;
 }
 
-/** R-03: an adapter whose database is unreachable (Auth.js wraps its failure as AdapterError). */
+/** An adapter whose database is unreachable (Auth.js wraps its failure as AdapterError). */
 function unreachableAdapter(): Adapter {
   return {
     ...tokenAdapter(),
@@ -136,7 +135,7 @@ function unreachableAdapter(): Adapter {
 }
 
 /**
- * A NextAuth() instance wired like auth.ts, with the real T11 hooks on the Nodemailer provider and
+ * A NextAuth() instance wired like auth.ts, with the real hooks on the Nodemailer provider and
  * the adapter wrapped by hooks.guardAdapter; `guard: false` leaves the adapter bare.
  */
 function useAuth(
@@ -246,7 +245,7 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
     expect(transport.mails).toHaveLength(0);
   });
 
-  // R-03: with the database down, Auth.js's user lookup fails before callbacks.signIn.
+  // With the database down, Auth.js's user lookup fails before callbacks.signIn.
   it('AC-15: the adapter cannot reach the database -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
     const transport = fakeTransport();
     useAuth(brokenPrisma, transport, unreachableAdapter());
@@ -271,7 +270,7 @@ describe('signInWithEmail outcome mapping (real Auth.js, no database)', () => {
       error: constants.EMAIL_SIGNIN_UNAVAILABLE,
     });
     expect(transport.mails).toHaveLength(0);
-    // T41 / S-07: the branch reports like every other AC-15 path.
+    // The branch reports like every other AC-15 path.
     expect(Sentry.captureException).toHaveBeenCalledTimes(1);
     expect(vi.mocked(Sentry.captureException).mock.calls[0][0]).toBeInstanceOf(
       EmailSigninUnavailable
@@ -417,8 +416,6 @@ describe.runIf(containerRuntimeAvailable)(
       }
     );
 
-    // R-02: before, an unavailable source check admitted the request and the address lock (which
-    // still worked) let the link go out.
     it('AC-15 (R-02): the source check alone failing -> FAILED with EMAIL_SIGNIN_UNAVAILABLE, nothing sent', async () => {
       const transport = fakeTransport();
       useAuth(sourceStoreDown(prisma), transport);

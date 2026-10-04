@@ -1,4 +1,4 @@
-// T4 (security-patch, spec.md §5 AC-05; sad.md §11 risk row 5): contract test of isVerifiedSession
+// AC-05: contract test of isVerifiedSession
 // against REAL Auth.js output. A session cookie is minted with next-auth's own JWT encoder and sent
 // through the real `NextAuth(authConfig).auth(handler)` wrapper, the exact path proxy.ts uses
 // (cookie -> @auth/core session action -> edge session callback -> next-auth's `{ user, ...session }`
@@ -84,7 +84,7 @@ describe('isVerifiedSession against real Auth.js req.auth (AC-05)', () => {
   });
 });
 
-// T21 (review-2026-10-03 F-02, AC-04): when the edge cannot decode the session JWT (a wrong or
+// AC-04: when the edge cannot decode the session JWT (a wrong or
 // rotated AUTH_SECRET), next-auth's wrapper appends `sessionStore.clean()` cookie expiries to
 // whatever the proxy returns. proxy.ts is driven here through the REAL wrapper (the unit test in
 // tests/unit/proxy.test.ts stubs it, so it cannot see these cookies).

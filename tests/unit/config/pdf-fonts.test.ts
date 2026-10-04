@@ -1,4 +1,4 @@
-// security-patch (AC-20): the PDF renderer's fonts are served by the app itself, so the enforced
+// AC-20: the PDF renderer's fonts are served by the app itself, so the enforced
 // CSP needs no third-party host for invoice PDF download and print.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

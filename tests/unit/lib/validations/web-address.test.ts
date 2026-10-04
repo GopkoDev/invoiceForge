@@ -1,4 +1,4 @@
-// T16 (spec.md §5 AC-21; contracts/server-actions.md §Web-address rule) — one shared http(s)-only rule.
+// AC-21: one shared http(s)-only rule.
 import { describe, expect, it } from 'vitest';
 import {
   isWebAddress,

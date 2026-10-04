@@ -11,7 +11,7 @@ const PORT = 4310;
 // to this one (by full URL, not `use.baseURL`, since that stays pointed at the static server).
 const APP_PORT = APP_E2E_PORT;
 
-// T20: with BASE_URL set (a preview deploy) no local server is started; the real-app specs use it
+// With BASE_URL set (a preview deploy) no local server is started; the real-app specs use it
 // as their origin. Local runs stay the default.
 export default defineConfig({
   testDir: './tests/e2e',

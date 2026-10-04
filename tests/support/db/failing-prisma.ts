@@ -1,6 +1,5 @@
 // Prisma clients that fail or slow down in one chosen way, for the AC-15 fail-closed and the
-// response-floor tests (security-patch re-review R-02, R-03, R-09). Errors carry no address or
-// network address.
+// response-floor tests. Errors carry no address or network address.
 import type { PrismaClient } from '@prisma/client';
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -39,13 +38,13 @@ function interceptSourceLock(
 }
 
 /**
- * R-02: only the SIGNIN_SOURCE advisory-lock statement fails; every other statement, the
+ * Only the SIGNIN_SOURCE advisory-lock statement fails; every other statement, the
  * SIGNIN_ADDRESS lock included, runs on the real database.
  */
 export const sourceStoreDown = (real: PrismaClient): PrismaClient =>
   interceptSourceLock(real, () => Promise.reject(new Error('connection reset')));
 
-/** R-09: the SIGNIN_SOURCE transaction takes `ms` longer (a slow or contended source check). */
+/** The SIGNIN_SOURCE transaction takes `ms` longer (a slow or contended source check). */
 export const sourceStoreSlow = (real: PrismaClient, ms: number): PrismaClient =>
   interceptSourceLock(real, async (lock) => {
     await pause(ms);
@@ -53,7 +52,7 @@ export const sourceStoreSlow = (real: PrismaClient, ms: number): PrismaClient =>
   });
 
 /**
- * R-03: a database that refuses every connection, for the limit store and the Auth.js adapter
+ * A database that refuses every connection, for the limit store and the Auth.js adapter
  * alike. The refusal takes a moment, like a real connection attempt.
  */
 const unreachable = async () => {

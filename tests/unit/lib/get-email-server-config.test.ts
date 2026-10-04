@@ -1,4 +1,4 @@
-// T10 (spec.md §5 AC-16, sad.md §8 SMTP transport) - mail goes only over verified TLS.
+// AC-16: mail goes only over verified TLS.
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -42,14 +42,14 @@ describe('getEmailServerConfig transport options', () => {
     });
   });
 
-  // T26 / review F-21: one pooled connection per instance, so a send does not pay the TCP + TLS
+  // One pooled connection per instance, so a send does not pay the TCP + TLS
   // handshake every time and sent responses stay close to the floor.
   it('pools the SMTP connection', () => {
     setMailEnv('smtp.example.com', 587);
     expect(getEmailServerConfig()).toMatchObject({ pool: true });
   });
 
-  // T34 / review R-10: a send the sign-in hook has given up on must never go out later, so the
+  // A send the sign-in hook has given up on must never go out later, so the
   // pool does not re-queue a message whose connection closed mid-send (nodemailer's default is 5).
   it('never re-queues a message whose connection closed during the send', () => {
     setMailEnv('smtp.example.com', 587);
@@ -106,7 +106,7 @@ describe('transport refuses clear text and unverified certificates (AC-16)', () 
     expect(smtp.state.gotData).toBe(false);
   });
 
-  // T27 / F-24: the CA is trusted here, so a rejection can only come from the host-name check.
+  // The CA is trusted here, so a rejection can only come from the host-name check.
   // (A self-signed certificate fails on its untrusted CA before the name is ever compared.)
   // nodemailer overwrites the Node TLS error code with ESOCKET, so the Node code is asserted on
   // the handshake itself (same options as the transport) and the send on the error's own text.
@@ -151,7 +151,7 @@ describe('transport refuses clear text and unverified certificates (AC-16)', () 
     expect(smtp.state.gotData).toBe(true);
   });
 
-  // R-10: nodemailer's pool re-queues a message whose connection closed before the greeting and
+  // nodemailer's pool re-queues a message whose connection closed before the greeting and
   // sends it on a later connection, possibly after the sign-in hook gave up on it.
   it('R-10: a connection that closes before the greeting fails that send; the pool never retries it on a new connection', async () => {
     const smtp = await startSmtp({
