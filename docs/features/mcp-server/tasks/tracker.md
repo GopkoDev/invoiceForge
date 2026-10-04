@@ -21,7 +21,7 @@
 | T14 | [Page overdue invoices and Debtors strictly with totals over every match](./t14-strict-paging-overdue-and-debtors.md) | app | Dmytro Hopko | M | T06 | done |
 | T15 | [Page Expected payments by period and compute summary figures for every issued-invoice currency](./t15-expected-payments-and-summary-reads.md) | app | Dmytro Hopko | M | T14 | done |
 | T16 | [Match Customers by current and invoice-copied names and search issued invoices for an Assistant](./t16-customer-match-and-invoice-search.md) | app | Dmytro Hopko | M | T07, T14 | done |
-| T17 | [Find one invoice by id or by number with an optional sender profile name](./t17-find-invoice-by-reference.md) | app | Dmytro Hopko | M | T16 | todo |
+| T17 | [Find one invoice by id or by number with an optional sender profile name](./t17-find-invoice-by-reference.md) | app | Dmytro Hopko | M | T16 | done |
 | T18 | [Expose the overdue, Debtors, Expected payments and summary figures tools](./t18-aggregate-tools.md) | ports | Dmytro Hopko | M | T13, T14, T15 | done |
 | T19 | [Expose the customers, invoice search and one-invoice tools](./t19-lookup-tools.md) | ports | Dmytro Hopko | M | T13, T16, T17 | todo |
 | T20 | [Add the Connect your AI settings page with setup steps, example prompts and a CopyButton](./t20-connect-page-shell-and-setup.md) | ui | Dmytro Hopko | M | — | done |

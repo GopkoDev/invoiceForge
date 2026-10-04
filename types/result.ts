@@ -36,6 +36,10 @@ export type AmbiguousCandidate = {
   name: string;
   /** Short context that tells the candidates apart (invoice number, e-mail, ...). */
   detail?: string;
+  /** Invoice candidates only (AC-20): the structured parts of `detail`. */
+  senderProfile?: { senderProfileId: string; name: string };
+  customer?: { customerId: string; name: string };
+  issueDate?: string;
 };
 
 export type ActionFailure = {
