@@ -32,7 +32,7 @@ feature_size: "M"
 - **D-4.** A source block is `429` + `Retry-After`, worded differently from the key refusal (drift B4-1, accepted).
 - **D-5.** An unavailable limit store is `503` with no `Retry-After`, for both limits (drift B4-2, accepted).
 - **D-6.** `updateInvoiceStatus` refuses `OVERDUE`/`PENDING` on a date-overdue invoice on the server too (contract addition, accepted).
-- **D-7.** The invoice link target is open for `screens` (OQ-A1).
+- **D-7.** The invoice link opens the existing editor `/invoices/{id}/edit` (OQ-A1, resolved in `screens.md`, 2026-10-04).
 
 ## A. Field origins
 
@@ -109,7 +109,7 @@ feature_size: "M"
 | get_invoice.amounts.* | existing `Invoice` subtotal, taxRate, taxAmount, discount, shipping, total, amountPaid | high |
 | get_invoice.paymentTerms / terms / notes / poNumber | existing `Invoice` columns; AC-19b | high |
 | get_invoice — no bank fields at all | AC-19 (stricter: the whole bank snapshot is omitted, sad.md §8 data minimisation) | high |
-| get_invoice.link | AC-19; path `/invoices/{id}/edit` (existing editor route), target open (OQ-A1) | medium |
+| get_invoice.link | AC-19; path `/invoices/{id}/edit` (existing editor route), OQ-A1 resolved in screens.md | high |
 
 ### Server actions (server-actions.md)
 
@@ -187,7 +187,7 @@ There are no `low` rows: every field traces to a column, an ADR or an AC.
 
 | ID | Question | Default now | Owner | Due |
 |---|---|---|---|---|
-| OQ-A1 | Which page does the get_invoice `link` open? Today the only per-invoice page is the editor `/invoices/{id}/edit`. Does a cancelled or paid invoice open read-only there? | `link` = `<origin>/invoices/{id}/edit`; the field stays an absolute URL whatever the target | `screens` (Dmytro Hopko) | before `sdd:tasks` |
+| ~~OQ-A1~~ | Which page does the get_invoice `link` open? Today the only per-invoice page is the editor `/invoices/{id}/edit`. Does a cancelled or paid invoice open read-only there? | **Resolved in `screens.md` (2026-10-04):** `link` = `<origin>/invoices/{id}/edit`, the existing editor. Its status badge labels draft and cancelled invoices, and no read-only mode is added | `screens` (Dmytro Hopko) | before `sdd:tasks` |
 | OQ-A2 | Do Claude Desktop (via `mcp-remote`), Claude Code and Cursor show the 401 message plainly, or start an OAuth sign-in? | 401 per D-1; switch to 403 if a launch client starts OAuth discovery | `ship` (Dmytro Hopko) | at `sdd:ship` |
 | OQ-S1 | Add the sender-profile-name ambiguity branch to flow 9 | contract already answers `AMBIGUOUS_REFERENCE` | `sequences` (Dmytro Hopko) | before `sdd:tasks` |
 | OQ-S2 | Reword flow 15 and the §11 deletion risk to the verified cascade | contract follows data-model | `sequences` (Dmytro Hopko) | before `sdd:tasks` |

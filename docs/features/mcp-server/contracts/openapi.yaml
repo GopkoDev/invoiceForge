@@ -1381,7 +1381,8 @@ components:
         link:
           description: |
             Opens the invoice in invoiceFlow through the normal sign-in check (AC-19; ux-flows SCR-07,
-            SCR-10, SCR-11): `<app origin>/invoices/<invoiceId>/edit` today — the only per-invoice page.
-            The target page is open for `screens` (api-sync-report OQ-A1); the field stays an absolute URL.
+            SCR-10, SCR-11): `<app origin>/invoices/<invoiceId>/edit`, the existing invoice editor, whose
+            status badge labels a draft or cancelled invoice (api-sync-report OQ-A1, resolved in
+            screens.md). The field is an absolute URL.
           type: string
           format: uri
