@@ -261,6 +261,492 @@ sequenceDiagram
     M-->>A: uniform refusal, no data
 ```
 
+The flows below are added by `sequences`. They use generic participants: `user (Freelancer)`, `client (Assistant)`, `ui`, `service (<§5 block>)` and `data-store`. Every tool flow (Flows 6–11) starts after the source limit, key check, last-use record and per-key call count shown in Critical flow 1. Those steps are not redrawn. `persists …` and `reads …` notes are index hints for `data-model`.
+
+### Flow 3: Freelancer opens Connect your AI (entry point and key list)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over U,W: Precondition: Freelancer is signed in with a browser session
+    U->>W: opens the dashboard (SCR-01)
+    W->>S: has any of this Freelancer's keys ever passed a key check?
+    S->>D: look for any key, active or revoked, with a last use
+    Note over S,D: reads keys by Freelancer (informs data-model indexes)
+    D-->>S: found or not found
+    alt no key ever used
+        S-->>W: show the entry point
+        W-->>U: dashboard with the Connect your AI entry point
+    else a key was used at least once
+        S-->>W: hide the entry point for good, even if every key is revoked
+        W-->>U: dashboard without the entry point
+    end
+    U->>W: opens Connect your AI (SCR-03) from the entry point or Settings
+    W->>S: list keys for the session ActingFreelancer
+    S->>D: read the Freelancer's active and revoked keys
+    D-->>S: name, creation date, last four characters, last use, revocation date
+    S-->>W: active keys and revoked keys, separately
+    W-->>U: active keys with name, creation date, last four characters, last use or never used, and a revoke action
+    W-->>U: revoked keys with their revocation date, no reactivate action
+    Note over U,W: Postcondition: nothing changed, last use shown is within 5 minutes of the real last call
+```
+
+### Flow 4: Freelancer creates a Personal key
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over U,W: Precondition: Freelancer is signed in and on Connect your AI (SCR-03)
+    U->>W: submits a key name, e.g. Laptop assistant
+    W->>S: create a key for the session ActingFreelancer
+    S->>S: trim spaces at both ends of the name
+    alt name empty or longer than 50 characters
+        S-->>W: validation refusal
+        W-->>U: nothing created, the name must be 1 to 50 characters and differ from other active keys
+    else name length valid
+        Note over S,D: the name check, active-key count and insert run atomically, so parallel creates cannot break either rule
+        S->>D: count active keys and find an active key with the same name, ignoring letter case
+        D-->>S: active key count and any name match
+        alt same name as another active key
+            S-->>W: name conflict
+            W-->>U: nothing created, same message as for an invalid name
+        else already 10 active keys
+            S-->>W: key limit refusal
+            W-->>U: nothing created, at most 10 keys can be active, revoke one to make room
+        else name free and fewer than 10 active keys
+            S->>S: generate a prefixed random secret with a checksum and compute its digest
+            S->>D: store name, digest, last four characters, creation date
+            Note over S,D: persists PersonalKey (unique digest, active name unique per Freelancer ignoring case)
+            D-->>S: created
+            S-->>W: the full key, returned once and never stored readable
+            W-->>U: full key with a copy action and a will-not-be-shown-again warning
+            W-->>U: setup steps per supported assistant using a private setting, and three example prompts
+        end
+    end
+    Note over U,W: Postcondition: after leaving the page the key shows only by name, creation date and last four characters
+```
+
+### Flow 5: Assistant lists tools, or calls without a key
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant L as service (limit guard)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: the request reached the endpoint through its single proxy exception and passed the source limit
+    C->>M: lists the available tools
+    alt no bearer key, even with a signed-in session cookie
+        M->>M: ignore every cookie, never create or read a session
+        M->>L: record a refused key check for the source
+        M-->>C: uniform refusal, ask the Freelancer for a valid key
+    else bearer key presented
+        M->>S: authenticate the key and record last use, as in Critical flow 1
+        S-->>M: ActingFreelancer
+        M->>L: count this listing in the key's last 60 seconds
+        alt 60 calls already, or limit store unavailable
+            L-->>M: refused
+            M-->>C: limit refusal with when to retry
+        else within the limit
+            M-->>C: read-only tools only, each description declaring Freelancer-entered text as data
+        end
+    end
+    C->>M: with a valid key, calls a tool that is not offered, e.g. mark an invoice paid
+    M-->>C: unknown tool, nothing changed
+    Note over C,M: Postcondition: no write capability exists, a listing counts toward the call limit and last use but not toward weekly usage
+```
+
+### Flow 6: Assistant asks who owes money (Debtors)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1, the ActingFreelancer carries the account time zone
+    C->>M: asks for Debtors with an optional currency, page and page size
+    M->>M: default page size 20, cap it at 50
+    M->>S: list Debtors for today in the Freelancer time zone, no period
+    S->>D: group overdue invoices by Customer and currency with the shared overdue rule, one page plus the number of Debtors
+    Note over S,D: reads invoices by Freelancer, status and due date (informs data-model indexes)
+    D-->>S: page of Debtors and Debtor count per currency
+    alt page past the last page
+        S-->>M: no rows, total count, last page number
+        M->>S: count one substantive attempt in the weekly usage aggregate
+        M-->>C: the page does not exist, with the total and the last page number
+    else page exists
+        S-->>M: Debtors ranked by total overdue amount per currency, each with overdue count and total
+        M->>S: count one substantive attempt and one success in the weekly usage aggregate
+        Note over S,D: persists the weekly usage aggregate per key and week
+        M-->>C: ranked Debtors, page info, whether the page size was capped and more pages exist
+        Note over M,C: Customer names are marked as Freelancer-entered data
+    end
+    Note over C,M: Postcondition: the ranking agrees with the dashboard's Debtors for the entries the dashboard shows
+```
+
+### Flow 7: Assistant asks what is coming in (Expected payments)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1
+    C->>M: asks for Expected payments with an optional period, page and page size
+    M->>M: default page size 20, cap it at 50
+    M->>M: validate the period with the shared calendar-date and 5-year rule
+    alt unknown preset, range longer than 5 years, or start after end
+        M-->>C: the period must be a named preset or a from-to range of at most 5 years whose start is not after its end
+    else no period, or a valid period
+        M->>S: list Expected payments, period resolved to its first and last day in the Freelancer time zone
+        S->>D: pending invoices not overdue by the shared rule, due within the period if one is given, one page plus total and count per currency over every match
+        Note over S,D: reads invoices by Freelancer, status and due date (informs data-model indexes)
+        D-->>S: rows, totals and counts per currency
+        alt page past the last page
+            S-->>M: no rows, total count, last page number
+            M-->>C: the page does not exist, with the total and the last page number
+        else page exists
+            S-->>M: rows grouped by currency and ordered by due date, totals, period bounds, time zone used
+            M-->>C: rows, totals and counts per currency, the period's first and last day, the time zone, page info
+        end
+    end
+    Note over M,S: every outcome counts one substantive attempt, and a returned page also one success, in the weekly usage aggregate
+    Note over C,M: Postcondition: without a period the totals equal the dashboard's Expected payments, with one they equal its planned figure for that period
+```
+
+### Flow 8: Assistant asks for summary figures
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1
+    C->>M: asks for the summary figures for a Dashboard period
+    M->>M: validate the period with the shared calendar-date and 5-year rule
+    alt unknown preset, range longer than 5 years, or start after end
+        M-->>C: the period must be a named preset or a from-to range of at most 5 years whose start is not after its end
+    else valid period
+        M->>S: summary figures for the period in the Freelancer time zone
+        S->>D: the dashboard's own summary queries with the shared overdue rule, for every currency on the Freelancer's issued invoices
+        Note over S,D: reads invoices by Freelancer, status, issue date and due date (informs data-model indexes)
+        D-->>S: four totals and counts per currency
+        S-->>M: received by issue date, planned by due date, overdue by due date, all future payments whatever the period
+        M-->>C: four figures per currency, each a total and a count naming its date basis, with period bounds and time zone, never converted
+    end
+    Note over M,S: every outcome counts one substantive attempt, and returned figures also one success, in the weekly usage aggregate
+    Note over C,M: Postcondition: every figure equals the dashboard summary to the cent for the same period and time zone
+```
+
+### Flow 9: Assistant searches invoices
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1
+    C->>M: searches invoices by Customer name, sender profile, status, issue-date range, due-date range or part of a number
+    M->>M: default page size 20, cap it at 50 and remember whether it was capped
+    opt a Customer name is given
+        M->>S: resolve the Customer by name
+        S->>D: match the Freelancer's Customers by current name and names copied onto their invoices, in part and ignoring case
+        Note over S,D: reads Customers and invoice-copied customer names by Freelancer (informs data-model indexes)
+        D-->>S: matching Customers
+        S-->>M: none, one or several Customers
+    end
+    alt the name matches no Customer, including another Freelancer's Customer
+        M-->>C: no such Customer, answered exactly like a name that does not exist
+    else the name matches several Customers
+        M-->>C: the candidate Customers, asking which one is meant
+    else one Customer, or no Customer filter
+        M->>S: search invoices, issued only unless drafts or cancelled are asked for, notes and lines not searched
+        S->>D: one page plus the total match count and total and count per currency over every match, status by the shared overdue rule
+        Note over S,D: reads invoices by Freelancer, Customer, sender profile, status, issue date, due date and number (informs data-model indexes)
+        D-->>S: rows and totals
+        alt page past the last page
+            S-->>M: no rows, total count, last page number
+            M-->>C: the page does not exist, with the total and the last page number
+        else page exists
+            S-->>M: rows with their status in words, totals per currency
+            M-->>C: rows, total matches, totals per currency, whether more pages exist and whether the page size was capped
+            Note over M,C: drafts and cancelled are labelled, Customer names are marked as Freelancer-entered data
+        end
+    end
+    Note over M,S: every outcome counts one substantive attempt, and a returned page also one success, in the weekly usage aggregate
+    Note over C,M: Postcondition: no answer exceeds 50 rows and no partial answer is presented as complete
+```
+
+### Flow 10: Assistant opens one invoice
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1
+    C->>M: asks for one invoice by record id, or by invoice number with an optional sender profile name
+    M->>S: find the invoice for the ActingFreelancer
+    S->>D: look up by id, or by number within the named sender profile or across all of them, always scoped to the Freelancer
+    Note over S,D: reads invoices by Freelancer and id, and by sender profile and number (informs data-model indexes)
+    D-->>S: none, one or several invoices
+    alt none, including an invoice of another Freelancer
+        S-->>M: not found
+        M-->>C: no such invoice, answered exactly like a reference that does not exist
+    else same number in several sender profiles and no sender profile named
+        S-->>M: candidates
+        M-->>C: each candidate with sender profile, customer and issue date, asking which one is meant
+    else exactly one invoice
+        S-->>M: the invoice as stored with copied sender and customer details, lines, totals, currency, status, issue and due dates, without bank account numbers or IBANs
+        M->>M: wrap notes, line descriptions, product names, customer names and addresses and payment terms as Freelancer-entered data
+        M-->>C: the invoice and a link that opens it in invoiceFlow, a draft or cancelled invoice labelled as such
+    end
+    Note over M,S: every outcome counts one substantive attempt, and a returned invoice also one success, in the weekly usage aggregate
+    Note over C,M: Postcondition: another Freelancer's invoice is never revealed, not even its existence
+```
+
+### Flow 11: Assistant lists customers
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over C,M: Precondition: key check and call limit passed as in Critical flow 1
+    C->>M: lists customers, optionally matching part of a name, with page and page size
+    M->>M: default page size 20, cap it at 50 and remember whether it was capped
+    M->>S: list the Freelancer's Customers
+    S->>D: Customers whose current name or invoice-copied names match in part, ignoring case, one page plus the total count
+    Note over S,D: reads Customers and invoice-copied customer names by Freelancer (informs data-model indexes)
+    D-->>S: page of Customers and total count
+    alt page past the last page
+        S-->>M: no rows, total count, last page number
+        M-->>C: the page does not exist, with the total and the last page number
+    else page exists
+        S-->>M: Customers with their current details and record ids
+        M-->>C: customers, total, whether more pages exist and whether the page size was capped
+        Note over M,C: names and addresses are marked as Freelancer-entered data
+    end
+    Note over M,S: every outcome counts one substantive attempt, and a returned page also one success, in the weekly usage aggregate
+    Note over C,M: Postcondition: only this Freelancer's Customers appear, with ids later calls can reference
+```
+
+### Flow 12: Freelancer time zone is saved and changed
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over U,W: Precondition: Freelancer is signed in, the browser reports its time zone
+    U->>W: opens any private page
+    W->>S: build the session ActingFreelancer
+    S->>D: read the account time zone
+    D-->>S: saved zone or none
+    alt no zone saved and the browser reports a valid zone
+        S->>D: save the browser zone on the account, only while it is still empty
+        Note over S,D: persists User.timeZone (conditional write, never overwrites a saved zone)
+        S-->>W: ActingFreelancer with the newly saved zone
+    else no zone saved and none reported
+        S-->>W: ActingFreelancer with UTC
+    else zone already saved
+        S-->>W: ActingFreelancer with the saved zone, browser value ignored
+    end
+    W-->>U: page computed in that zone
+    U->>W: changes the time zone in Profile settings (SCR-02)
+    W->>S: save the time zone for the session ActingFreelancer
+    alt not a known time zone
+        S-->>W: validation refusal
+        W-->>U: time zone not saved, choose one from the list
+    else known time zone
+        S->>D: save the time zone
+        Note over S,D: persists User.timeZone
+        S-->>W: saved
+        W-->>U: Profile settings show the new time zone
+    end
+    Note over U,W: Postcondition: the dashboard and every Assistant answer use the saved zone from the next request, and UTC until one is saved
+```
+
+### Flow 13: Dashboard and invoice list apply the shared overdue rule
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over U,W: Precondition: a pending invoice whose due date is before today in the Freelancer time zone, never marked overdue
+    U->>W: opens the dashboard (SCR-01)
+    W->>S: figures, Debtors, Expected payments and recent invoices for the session ActingFreelancer
+    S->>S: today is the current date in the account time zone, never UTC or the server zone
+    S->>D: the same queries the Assistant tools use, with the shared overdue rule
+    Note over S,D: reads invoices by Freelancer, status and due date (informs data-model indexes)
+    D-->>S: the invoice counted as overdue, its Customer a Debtor, left out of Expected payments
+    S-->>W: figures and recent invoices with derived statuses
+    W-->>U: dashboard shows the invoice as overdue
+    U->>W: opens the invoice list (SCR-05) filtered by overdue or by pending
+    W->>S: list invoices with the status filter
+    S->>D: filter by the shared overdue rule, never by the stored status alone
+    D-->>S: the overdue filter includes it, the pending filter leaves it out
+    S-->>W: rows with derived statuses
+    W-->>U: shown as overdue, without Mark as overdue or back to pending
+    U->>W: marks it paid
+    W->>S: mark paid, as before
+    S->>D: set the stored status to paid
+    Note over S,D: persists Invoice status (unchanged path)
+    S-->>W: paid
+    W-->>U: shown as paid
+    Note over U,S: Day boundary AC-23: at 00:30 on the 1st in Kyiv, still the previous day in UTC, this month is the new month and an invoice due on the previous month's last day is overdue
+    Note over U,S: Day boundary AC-23b: at 21:00 on 14 March in New York, already 15 March in UTC, an invoice due 14 March is not overdue until 00:00 on 15 March in New York, then 1 day overdue
+    Note over U,W: Postcondition: the stored status is unchanged, and the customer page and the invoice page show the same derived status as the Assistant
+```
+
+### Flow 14: Freelancer downloads the data export
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+
+    Note over U,W: Precondition: Freelancer is signed in with one active and one revoked Personal key
+    U->>W: downloads the data export on Privacy and data settings (SCR-08)
+    W->>S: build the export for the session ActingFreelancer
+    S->>D: read the existing export data, the Freelancer's Personal keys and weekly usage aggregates
+    Note over S,D: reads keys and weekly usage by Freelancer (informs data-model indexes)
+    D-->>S: rows
+    S->>S: keep each key's name, creation date, last use and revocation date, drop the digest
+    S-->>W: export content
+    W-->>U: file with the Personal keys and weekly usage counts
+    Note over U,W: Postcondition: the export never holds a key, its digest or anything a key could be rebuilt from
+```
+
+### Flow 15: Freelancer deletes the account while keys are active
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user (Freelancer)
+    participant W as ui
+    participant S as service (business layer)
+    participant D as data-store
+    participant C as client (Assistant)
+    participant M as service (MCP adapter)
+
+    Note over U,W: Precondition: Freelancer is signed in with active Personal keys
+    U->>W: confirms deleting the account (SCR-09)
+    W->>S: delete the account for the session ActingFreelancer
+    S->>D: in the existing account-deletion transaction, delete weekly usage, Personal keys, then the rest of the account
+    Note over S,D: persists deletion of PersonalKey and weekly usage rows inside the one deletion transaction
+    alt any delete fails
+        D-->>S: transaction rolled back
+        S-->>W: deletion failed, nothing removed
+        W-->>U: account not deleted, try again
+    else everything deleted
+        D-->>S: committed
+        S-->>W: deleted
+        W-->>U: signed out, public landing page
+        C->>M: calls a tool with one of the deleted keys
+        M->>S: authenticate the key, as in Critical flow 1
+        S->>D: find an active key by digest with a live account
+        D-->>S: no key
+        S-->>M: not authenticated
+        M-->>C: uniform refusal, ask the Freelancer for a valid key, nothing about the account revealed
+    end
+    Note over U,M: Postcondition: no key works from the moment of deletion
+```
+
+### Coverage
+
+| Spec item | Shown in |
+|---|---|
+| US-01 | Flows 3, 4 |
+| US-02 | Flow 3, Critical flow 2 |
+| US-03 | Critical flow 1, Flow 6 |
+| US-04 | Flow 7 |
+| US-05 | Flow 8 |
+| US-06 | Flows 9, 10, 11 |
+| US-07 | Flows 12, 13 |
+| US-08 | Flow 13 |
+| US-09 | Critical flows 1, 2, Flow 5 |
+| US-10 | Flows 14, 15 |
+| AC-01 | Flow 3 (entry point shown or hidden for good) |
+| AC-02 | Flow 4 (happy path) |
+| AC-03 | Flow 4 (invalid length and duplicate-name branches) |
+| AC-04 | Flow 4 (10-key branch) |
+| AC-05 | Flow 3 (key list), Critical flow 1 and Flow 5 (last use recorded on listings and limit-refused calls) |
+| AC-06 | Critical flow 2 |
+| AC-07 | Critical flow 1 (refusal branch), Flow 15 (deleted account) |
+| AC-08 | Flow 9 (Customer not found branch), Flow 10 (invoice not found branch) |
+| AC-09 | Flow 5 (no-key branch) |
+| AC-10 | Flow 5 (read-only listing, unknown tool) |
+| AC-11 | Critical flow 1 (per-key limit branch), Flow 5 (listings count) |
+| AC-12 | Critical flow 1 |
+| AC-13 | Flow 6 |
+| AC-14 | Flow 7 |
+| AC-15 | Flow 8 |
+| AC-16 | Flows 7, 8 (invalid period branch) |
+| AC-17 | Flow 9 |
+| AC-18 | Flows 6, 7, 9, 11 (page size capped at 50, totals over every match) |
+| AC-18b | Flows 6, 7, 9, 11 (page past the last page branch) |
+| AC-19 | Flow 10 (opening the link in the browser is the existing invoice page, see ux-flows SCR-07, SCR-10, SCR-11) |
+| AC-19b | Flow 10, and the Freelancer-entered-data notes in Flows 6, 9, 11 |
+| AC-20 | Flow 10 (several candidates branch) |
+| AC-21 | Flow 9 (Customer resolution), Flow 11 |
+| AC-22 | Flow 12 |
+| AC-23 | Flow 13 (Kyiv day-boundary note) |
+| AC-23b | Flow 13 (New York day-boundary note) |
+| AC-24 | Flow 13 |
+| AC-25 | Flow 14 |
+| AC-26 | Flow 15 |
+
+### Flags from the runtime view
+
+- **Missing key counts as a refused key check** (Flow 5): a call with no bearer key adds to the source's 30-in-5-minutes budget. It is not stated in spec AC-09 or §6. Confirm at `api` together with the refusal shape (§11 risk on OAuth discovery by MCP clients).
+- **Weekly usage on failures** (Flows 6–11): every substantive outcome, including a page past the end, an invalid period or an ambiguous reference, counts as an attempt without a success. That lowers the §7 successful-call share for Assistant-side mistakes. Reconsider at `data-model` if the KPI should exclude them.
+- **Invalid time zone branch** (Flow 12) is a design addition that no AC asks for.
+- **Atomic key creation** (Flow 4): the name check, the 10-active count and the insert must not race. `data-model` picks the mechanism (a partial unique index on active names plus a transaction or lock for the count).
+- **Overdue-rule notice** (spec §8 open question): not drawn. If the default (a one-time dismissable dashboard notice) is kept, it adds a per-Freelancer "notice dismissed" write to Flow 13 before `tasks`.
+- No new participant beyond §5 and no new ADR-worthy decision.
+
 ## 7. Deployment view
 
 The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp` is one more Node.js serverless function of the same Next.js deployable, scaled per request by Vercel with no sticky sessions (ADR-0002). No new infrastructure, environment setting, region or cron job — the existing daily `/api/cron/purge-limits` job (security-patch ADR-0007) also purges the two new limit scopes. The public MCP URL is `https://<app origin>/api/mcp`; preview deployments expose the same path for testing.
