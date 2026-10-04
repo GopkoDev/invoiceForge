@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
 
 import { DashboardHeader } from '@/components/dashboard/header/dashboard-header';
-import { DashboardSetupAlert } from '@/components/dashboard/dashboard-setup-alert';
+import { DashboardBanners } from '@/components/dashboard/dashboard-banners';
 import {
   DashboardStatsCardsSkeleton,
   DashboardChartSkeleton,
@@ -21,7 +21,11 @@ import {
   SenderAccountsSection,
   RecentInvoicesSection,
 } from './_sections';
-import { getDashboardCurrencyTabs } from '@/lib/actions/dashboard-actions';
+import {
+  getDashboardCurrencyTabs,
+  getDashboardNoticeState,
+  getConnectAiEntryState,
+} from '@/lib/actions/dashboard-actions';
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
 import { dashboardParamsSchema } from '@/lib/validations/search-params';
@@ -71,10 +75,13 @@ export default async function DashboardPage({
 }: DashboardPageProps) {
   const params = await searchParams;
 
-  const [currencyTabsResult, setupStatusResult] = await Promise.all([
-    getDashboardCurrencyTabs(),
-    checkDashboardSetup(),
-  ]);
+  const [currencyTabsResult, setupStatusResult, noticeResult, entryResult] =
+    await Promise.all([
+      getDashboardCurrencyTabs(),
+      checkDashboardSetup(),
+      getDashboardNoticeState(),
+      getConnectAiEntryState(),
+    ]);
 
   // A failed read is a load error (SCR-17), never "no currencies" or an unfinished setup.
   const currencyTabs = unwrapPageResult(currencyTabsResult) ?? [];
@@ -85,6 +92,8 @@ export default async function DashboardPage({
   const { appliedRange, period } = dashboardParamsSchema(timeZone).parse(params);
 
   const setupStatus = unwrapPageResult(setupStatusResult);
+  const { showOverdueRuleNotice } = unwrapPageResult(noticeResult);
+  const { showConnectAiEntry } = unwrapPageResult(entryResult);
 
   // T24 (spec.md §6 NFR "Dashboard date-range change"; sad.md §8 Hard rule "Cache invalidation":
   // debtors/expected-payments/recent-invoices Suspense boundaries key on currency only) — sections
@@ -101,7 +110,11 @@ export default async function DashboardPage({
         appliedRange={appliedRange}
       />
 
-      <DashboardSetupAlert setupStatus={setupStatus} />
+      <DashboardBanners
+        setupStatus={setupStatus}
+        showOverdueRuleNotice={showOverdueRuleNotice}
+        showConnectAiEntry={showConnectAiEntry}
+      />
 
       <Suspense
         key={`stats-${currencyKey}-${rangeKey}`}
