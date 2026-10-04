@@ -1,0 +1,545 @@
+{
+  "slug": "mcp-server",
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Promote the five staged migrations and extend the test support for keys, usage and time zone",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-26"
+      ],
+      "dod": "The five staged pairs are promoted into prisma/migrations, apply and revert cleanly on a throwaway database with no Prisma drift, and an integration test shows prisma.user.delete cascades PersonalKey, PersonalKeyUsageWeek and MCP_KEY limit rows.",
+      "files_hint": [
+        "docs/features/mcp-server/migrations/01_add_user_time_zone.up.sql",
+        "docs/features/mcp-server/migrations/01_add_user_time_zone.down.sql",
+        "docs/features/mcp-server/migrations/02_add_user_overdue_notice_dismissed_at.up.sql",
+        "docs/features/mcp-server/migrations/02_add_user_overdue_notice_dismissed_at.down.sql",
+        "docs/features/mcp-server/migrations/03_create_personal_key.up.sql",
+        "docs/features/mcp-server/migrations/03_create_personal_key.down.sql",
+        "docs/features/mcp-server/migrations/04_create_personal_key_usage_week.up.sql",
+        "docs/features/mcp-server/migrations/04_create_personal_key_usage_week.down.sql",
+        "docs/features/mcp-server/migrations/05_add_mcp_limit_scopes.up.sql",
+        "docs/features/mcp-server/migrations/05_add_mcp_limit_scopes.down.sql",
+        "prisma/schema/auth.prisma",
+        "tests/support/factories/user.ts",
+        "tests/support/factories/personal-key-usage-week.ts",
+        "tests/support/db/truncate.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t01-promote-migrations-and-test-support.md"
+    },
+    {
+      "id": "T02",
+      "title": "Add the shared overdue rule module with its SQL, Prisma and TypeScript forms",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-12",
+        "AC-23",
+        "AC-23b"
+      ],
+      "dod": "Unit tests for todayIn(zone), isOverdue and daysOverdue pass at the AC-23 and AC-23b instants under a fake clock, the equivalence test shows the SQL fragment, Prisma condition and TS predicate select the same invoices on one fixture, and the scanning test fails on a hand-written OVERDUE status check outside the module.",
+      "files_hint": [
+        "lib/services/_shared/overdue.ts",
+        "tests/unit/services/overdue.test.ts",
+        "tests/integration/services/_shared/overdue-equivalence.test.ts",
+        "tests/unit/services/overdue-literal-scan.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t02-shared-overdue-rule.md"
+    },
+    {
+      "id": "T03",
+      "title": "Generate, checksum and digest ifk_ Personal keys",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-02",
+        "AC-07"
+      ],
+      "dod": "Unit tests show generated keys match ^ifk_[0-9A-Za-z]{49}$ with a valid 6-char checksum, a one-character change fails the checksum, digest is lower-case hex SHA-256 and lastFour is the last four characters, and parse rejects malformed input without touching any store.",
+      "files_hint": [
+        "lib/services/personal-keys/key-format.ts",
+        "tests/unit/services/personal-key-format.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t03-personal-key-format.md"
+    },
+    {
+      "id": "T04",
+      "title": "Read the Freelancer time zone from the account in both ActingFreelancer factories and save it from settings",
+      "layer": "app",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "Integration tests show the session factory seeds User.timeZone from a valid tz cookie only while it is NULL (a second seed affects 0 rows), uses UTC when nothing is saved or reported, ignores the cookie once a zone is saved, actingFreelancerFromPersonalKey uses the same column, and updateTimeZone saves a known zone and refuses an unknown one with TIME_ZONE_MESSAGE.",
+      "files_hint": [
+        "lib/services/_shared/acting-freelancer.ts",
+        "lib/helpers/session-actor.ts",
+        "lib/services/profile/profile.ts",
+        "lib/actions/profile-actions.ts",
+        "lib/validations/profile.ts",
+        "docs/features/architecture-hardening/adr/0010-carry-the-browser-time-zone-to-the-server-in-a-cookie.md"
+      ],
+      "file": "docs/features/mcp-server/tasks/t04-account-time-zone.md"
+    },
+    {
+      "id": "T05",
+      "title": "Add the Time zone card to Profile settings",
+      "layer": "ui",
+      "deps": [
+        "T04"
+      ],
+      "acs": [
+        "AC-22"
+      ],
+      "dod": "Component tests cover SCR-02 default, not-set, saving, success, validation (TIME_ZONE_MESSAGE verbatim) and FAILED/UNAUTHORIZED states, and the profile page renders the card under the existing profile card.",
+      "files_hint": [
+        "components/settings/time-zone-settings.tsx",
+        "components/settings/profile-settings-loading.tsx",
+        "components/settings/index.ts",
+        "app/(protected)/settings/profile/page.tsx",
+        "tests/component/time-zone-settings.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/tasks/t05-time-zone-settings-card.md"
+    },
+    {
+      "id": "T06",
+      "title": "Apply the shared overdue rule to every dashboard figure and show tabs for issued-invoice currencies",
+      "layer": "app",
+      "deps": [
+        "T02"
+      ],
+      "acs": [
+        "AC-23",
+        "AC-23b",
+        "AC-24"
+      ],
+      "dod": "Integration tests show a past-due never-marked pending invoice counted in overdue figures, its Customer a Debtor, absent from Expected payments and shown Overdue in recent invoices; the AC-23 and AC-23b instants give the same result as the rule module; currency tabs are the union of bank-account and issued-invoice currencies; the existing dashboard parity test stays green.",
+      "files_hint": [
+        "lib/services/dashboard/queries.ts",
+        "lib/services/dashboard/dashboard.ts",
+        "tests/integration/services/dashboard/overdue-rule.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t06-dashboard-overdue-rule-and-currency-tabs.md"
+    },
+    {
+      "id": "T07",
+      "title": "Return the derived status from every invoice read and filter by the shared rule",
+      "layer": "app",
+      "deps": [
+        "T02"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "Integration tests show listInvoices, customer and sender-profile invoice lists, getInvoice and editor data return OVERDUE for a past-due pending invoice without writing the stored status, the OVERDUE filter includes it and PENDING leaves it out, updateInvoiceStatus refuses OVERDUE/PENDING on it with the D-6 message and still marks it PAID.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/select-queries.ts",
+        "lib/services/invoices/helpers.ts",
+        "lib/services/invoices/editor-data.ts",
+        "tests/integration/services/invoices/derived-status.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t07-derived-invoice-status.md"
+    },
+    {
+      "id": "T08",
+      "title": "Show the derived overdue status on the invoice list, customer page, invoice page and recent invoices",
+      "layer": "ui",
+      "deps": [
+        "T06",
+        "T07"
+      ],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "Component tests show a derived-overdue row with the Overdue badge and a menu without Mark as Overdue / Mark as Pending but with Mark as Paid, the status-rejected toast shows the D-6 message verbatim and refreshes the row, and the overdue literal scan from T02 passes with no allow-list entries left.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/invoices-toolbar.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "components/dashboard/recent-invoices/",
+        "types/invoice/types.ts",
+        "tests/component/invoice-row-actions-derived-overdue.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/tasks/t08-derived-overdue-on-screens.md"
+    },
+    {
+      "id": "T09",
+      "title": "Create, list and revoke Personal keys through the business layer and server actions",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T03"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "Integration tests cover create (fullKey once, never stored), the AC-03 name refusals incl. case-insensitive duplicate and P2002 mapping, the AC-04 10-active refusal under parallel creates, list split active/revoked createdAt DESC with no digest, revoke (owner-scoped, NOT_FOUND for another Freelancer's or a revoked key) and hasUsedAnyPersonalKey staying true after every key is revoked.",
+      "files_hint": [
+        "lib/services/personal-keys/personal-keys.ts",
+        "lib/actions/personal-key-actions.ts",
+        "lib/validations/personal-key.ts",
+        "tests/support/factories/personal-key.ts",
+        "tests/integration/services/personal-keys/manage.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t09-personal-key-management.md"
+    },
+    {
+      "id": "T10",
+      "title": "Add the per-key and per-source MCP limit scopes that fail closed",
+      "layer": "infra",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Integration tests show the 61st counted call in the most recent 60 s refused with retryAt = oldest + 60 s while other keys pass, refused calls not counted, 30 refused key checks in 5 min block the source with retryAt = oldest + 5 min, MCP_KEY rows carry userId, and an unavailable store returns unavailable for both checks.",
+      "files_hint": [
+        "lib/security/limits/scopes.ts",
+        "lib/security/limits/limit-store.ts",
+        "lib/security/limits/mcp.ts",
+        "tests/integration/security/limits/mcp-limits.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t10-mcp-limit-scopes.md"
+    },
+    {
+      "id": "T11",
+      "title": "Authenticate a presented Personal key and record its last use and weekly usage",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T03",
+        "T04"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-06",
+        "AC-07",
+        "AC-26"
+      ],
+      "dod": "Integration tests show a malformed key refused with no query, unknown/revoked/deleted-account keys return the same {ok:false}, a valid key yields an ActingFreelancer with the account zone or UTC, lastUsedAt is written at most once a minute, and recordPersonalKeyUsage upserts attempts/successes/assistantErrors atomically under two racing first calls and sets firstSuccessAt once.",
+      "files_hint": [
+        "lib/services/personal-keys/authenticate.ts",
+        "lib/services/personal-keys/usage.ts",
+        "tests/integration/services/personal-keys/authenticate.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t11-key-authentication-and-usage.md"
+    },
+    {
+      "id": "T12",
+      "title": "Serve POST /api/mcp behind its single proxy exception with the source-limit, key-check and key-limit pipeline",
+      "layer": "ports",
+      "deps": [
+        "T10",
+        "T11"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-11",
+        "AC-26"
+      ],
+      "dod": "Integration tests on /api/mcp show the byte-identical 401 for missing/malformed/unknown/revoked/deleted-account keys and for a session cookie without a key, 429 with Retry-After for the key and source limits, 503 when the limit store is unavailable, 405 for GET/DELETE, no CORS headers, and a unit test pins /api/mcp as the only non-auth proxy exception.",
+      "files_hint": [
+        "package.json",
+        "app/api/mcp/route.ts",
+        "lib/mcp/server.ts",
+        "lib/mcp/authenticate.ts",
+        "config/routes.config.ts",
+        "proxy.ts",
+        "sentry.server.config.ts",
+        "tests/integration/api/mcp-pipeline.test.ts",
+        "tests/unit/config/mcp-proxy-exception.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t12-mcp-endpoint-and-request-pipeline.md"
+    },
+    {
+      "id": "T13",
+      "title": "Shape MCP answers, register read-only tools and count substantive calls",
+      "layer": "ports",
+      "deps": [
+        "T12"
+      ],
+      "acs": [
+        "AC-10",
+        "AC-18",
+        "AC-18b",
+        "AC-19b"
+      ],
+      "dod": "Unit tests show page-size defaulting to 20 and capping at 50 with pageSizeCapped, ActionResult mapping to ToolError (VALIDATION, NOT_FOUND incl. PAGE_OUT_OF_RANGE, AMBIGUOUS_REFERENCE, FAILED), FreelancerText wrapping; contract tests show tools/list returns only readOnlyHint tools whose descriptions end with the data-not-instructions sentence, an unknown tool is -32602 and changes nothing, and each tools/call records exactly one usage outcome.",
+      "files_hint": [
+        "lib/mcp/server.ts",
+        "lib/mcp/answers.ts",
+        "tests/unit/api/mcp-answers.test.ts",
+        "tests/contract/mcp-tools-list.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t13-mcp-answers-and-tool-registry.md"
+    },
+    {
+      "id": "T14",
+      "title": "Page overdue invoices and Debtors strictly with totals over every match",
+      "layer": "app",
+      "deps": [
+        "T06"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-18",
+        "AC-18b"
+      ],
+      "dod": "Integration tests show listOverdueInvoices returns the AC-12 rows with days overdue and per-currency totals over every overdue invoice, listDebtorsPage returns all nine Debtors across pages ranked per currency in agreement with getDebtors, a page past the last returns PAGE_OUT_OF_RANGE with total and lastPage, and pageSize 1000 is capped at 50.",
+      "files_hint": [
+        "types/result.ts",
+        "lib/services/_shared/strict-page.ts",
+        "lib/services/dashboard/assistant-reads.ts",
+        "lib/services/dashboard/queries.ts",
+        "tests/integration/services/dashboard/assistant-overdue-debtors.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t14-strict-paging-overdue-and-debtors.md"
+    },
+    {
+      "id": "T15",
+      "title": "Page Expected payments by period and compute summary figures for every issued-invoice currency",
+      "layer": "app",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-15",
+        "AC-16"
+      ],
+      "dod": "Integration tests show listExpectedPaymentsPage without a period equals the dashboard Expected payments totals and with this-month equals the planned figure, states period bounds and zone, getSummaryFiguresAllCurrencies equals getSummaryStats to the cent for every currency with countedBy per figure, and the three AC-16 period errors are refused with the AC-16 message.",
+      "files_hint": [
+        "lib/services/dashboard/assistant-reads.ts",
+        "lib/services/dashboard/queries.ts",
+        "lib/services/dashboard/period.ts",
+        "tests/integration/services/dashboard/assistant-expected-summary.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t15-expected-payments-and-summary-reads.md"
+    },
+    {
+      "id": "T16",
+      "title": "Match Customers by current and invoice-copied names and search issued invoices for an Assistant",
+      "layer": "app",
+      "deps": [
+        "T07",
+        "T14"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-17",
+        "AC-21"
+      ],
+      "dod": "Integration tests show the AC-17 search returns only issued invoices at most 50 per page with total matches and per-currency totals over every match, drafts and cancelled only when asked, the AC-21 rename finds both names case-insensitively, several matches return AMBIGUOUS_REFERENCE, and another Freelancer's Customer or sender profile is answered exactly like a missing one.",
+      "files_hint": [
+        "lib/services/customers/customers.ts",
+        "lib/services/invoices/assistant-search.ts",
+        "lib/services/sender-profiles/resolve-by-name.ts",
+        "tests/integration/services/invoices/assistant-search.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t16-customer-match-and-invoice-search.md"
+    },
+    {
+      "id": "T17",
+      "title": "Find one invoice by id or by number with an optional sender profile name",
+      "layer": "app",
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-19",
+        "AC-20"
+      ],
+      "dod": "Integration tests show the invoice is returned as stored with copied sender/customer details, lines, amounts, derived status and no bank fields, INV-0012 in two sender profiles without a sender profile name returns both candidates, and another Freelancer's invoice by id or number returns the same NOT_FOUND as a missing one.",
+      "files_hint": [
+        "lib/services/invoices/find-by-reference.ts",
+        "tests/integration/services/invoices/find-by-reference.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t17-find-invoice-by-reference.md"
+    },
+    {
+      "id": "T18",
+      "title": "Expose the overdue, Debtors, Expected payments and summary figures tools",
+      "layer": "ports",
+      "deps": [
+        "T13",
+        "T14",
+        "T15"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-19b"
+      ],
+      "dod": "Integration tests through POST /api/mcp show list_overdue_invoices, list_debtors, list_expected_payments and get_summary_figures return the openapi Answer shapes for the AC-12 to AC-16 fixtures with today, timeZone and pageInfo, customer and sender names wrapped as freelancerText, and an invalid period returned as a VALIDATION tool error.",
+      "files_hint": [
+        "lib/mcp/tools/overdue.ts",
+        "lib/mcp/tools/debtors.ts",
+        "lib/mcp/tools/expected-payments.ts",
+        "lib/mcp/tools/summary.ts",
+        "lib/mcp/server.ts",
+        "tests/integration/api/mcp-aggregate-tools.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t18-aggregate-tools.md"
+    },
+    {
+      "id": "T19",
+      "title": "Expose the customers, invoice search and one-invoice tools",
+      "layer": "ports",
+      "deps": [
+        "T13",
+        "T16",
+        "T17"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-17",
+        "AC-19",
+        "AC-19b",
+        "AC-20",
+        "AC-21"
+      ],
+      "dod": "Integration tests through POST /api/mcp show list_customers, search_invoices and get_invoice return the openapi Answer shapes, get_invoice includes the absolute /invoices/<id>/edit link and no bank fields, every Freelancer-entered field is a freelancerText wrapper, AC-20/AC-21 ambiguity returns candidates, and Freelancer A's key gets the identical NOT_FOUND for Freelancer B's invoice and Customer.",
+      "files_hint": [
+        "lib/mcp/tools/customers.ts",
+        "lib/mcp/tools/search.ts",
+        "lib/mcp/tools/invoice.ts",
+        "lib/mcp/server.ts",
+        "tests/integration/api/mcp-lookup-tools.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t19-lookup-tools.md"
+    },
+    {
+      "id": "T20",
+      "title": "Add the Connect your AI settings page with setup steps, example prompts and a CopyButton",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02"
+      ],
+      "dod": "Component tests show the Settings nav item Connect your AI linking to /settings/assistants, the three client tabs with snippets keeping the key in a user-level setting and a YOUR_KEY placeholder replaceable by a key prop, the three example prompts, and CopyButton's copied and clipboard-unavailable states; the page has a loading skeleton.",
+      "files_hint": [
+        "config/routes.config.ts",
+        "app/(protected)/settings/layout.tsx",
+        "app/(protected)/settings/assistants/page.tsx",
+        "app/(protected)/settings/assistants/loading.tsx",
+        "components/ui/copy-button.tsx",
+        "components/assistants/setup-steps.tsx",
+        "components/assistants/example-prompts.tsx",
+        "tests/component/copy-button.test.tsx",
+        "tests/component/assistants-setup-steps.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/tasks/t20-connect-page-shell-and-setup.md"
+    },
+    {
+      "id": "T21",
+      "title": "Build key creation, the one-time reveal, the key lists and revoke confirmation on Connect your AI",
+      "layer": "ui",
+      "deps": [
+        "T09",
+        "T20"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "Component tests cover SCR-03 default, empty, creating, key-created (reveal with copy and warning, snippets filled), validation and limit messages verbatim, create-failed, revoked, revoke-not-found and error, and SCR-04 default, cancelled, pending, success, not-found and rejected.",
+      "files_hint": [
+        "app/(protected)/settings/assistants/page.tsx",
+        "components/assistants/key-create-form.tsx",
+        "components/assistants/key-reveal.tsx",
+        "components/assistants/key-list.tsx",
+        "tests/component/assistants-keys.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/tasks/t21-key-create-reveal-and-revoke-ui.md"
+    },
+    {
+      "id": "T22",
+      "title": "Show the overdue-rule notice and the Connect your AI entry point on the dashboard",
+      "layer": "ui",
+      "deps": [
+        "T01",
+        "T09",
+        "T20"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-24"
+      ],
+      "dod": "Tests show getDashboardNoticeState is true until dismissOverdueRuleNotice runs (repeat dismiss returns ok), the notice states default, dismissed and dismiss-failed, the entry point renders while hasUsedAnyPersonalKey is false and never after a key passed a key check even if every key is revoked, in the order setup alert, notice, entry point.",
+      "files_hint": [
+        "lib/services/profile/overdue-notice.ts",
+        "lib/actions/dashboard-actions.ts",
+        "app/(protected)/dashboard/page.tsx",
+        "components/dashboard/overdue-rule-notice.tsx",
+        "components/dashboard/connect-ai-entry.tsx",
+        "tests/component/dashboard-banners.test.tsx",
+        "tests/integration/actions/overdue-notice.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t22-dashboard-notice-and-entry-point.md"
+    },
+    {
+      "id": "T23",
+      "title": "Add Personal keys, weekly usage and the time zone to the data export and verify deletion removes them",
+      "layer": "app",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26"
+      ],
+      "dod": "Integration tests show export version 2.1 lists each key's name, createdAt, lastUsedAt, revokedAt and usageWeeks plus user.timeZone and overdueNoticeDismissedAt and never digest, lastFour, activeNameKey, id or the key, and deleting the account removes every key and usage row in the one transaction.",
+      "files_hint": [
+        "lib/services/account/account.ts",
+        "app/api/user/export/route.ts",
+        "tests/integration/api/user-export.test.ts",
+        "tests/integration/services/account/delete-account-keys.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t23-export-and-account-deletion.md"
+    },
+    {
+      "id": "T24",
+      "title": "Prove Assistant-dashboard parity, day boundaries, tenant isolation and the latency budget end to end",
+      "layer": "tests",
+      "deps": [
+        "T18",
+        "T19"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-15",
+        "AC-23",
+        "AC-23b"
+      ],
+      "dod": "CI integration tests show every tool figure equals the dashboard to the cent over a seeded multi-currency fixture, the AC-23 and AC-23b instants agree between dashboard and tools under a fake clock, Freelancer A's key never reveals any of Freelancer B's records through any tool, and the aggregates stay within 1.5 s and lists within 800 ms for a 5,000-invoice Freelancer.",
+      "files_hint": [
+        "tests/integration/api/mcp-parity.test.ts",
+        "tests/integration/api/mcp-day-boundary.test.ts",
+        "tests/integration/api/mcp-isolation.test.ts",
+        "tests/integration/api/mcp-scale.test.ts"
+      ],
+      "file": "docs/features/mcp-server/tasks/t24-parity-boundary-isolation-and-scale.md"
+    }
+  ]
+}
