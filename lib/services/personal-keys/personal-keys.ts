@@ -12,16 +12,13 @@ import { failed, isUniqueConstraintError } from '@/lib/services/_shared/result-h
 import { notFoundIfNoneAffected } from '@/lib/services/_shared/owner-scope';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { generatePersonalKey } from './key-format';
+import type {
+  PersonalKeyList,
+  PersonalKeySummary,
+  RevokedPersonalKeySummary,
+} from '@/types/personal-key/types';
 
-export type PersonalKeySummary = {
-  id: string;
-  name: string;
-  createdAt: string;
-  lastFour: string;
-  lastUsedAt: string | null;
-};
-export type RevokedPersonalKeySummary = PersonalKeySummary & { revokedAt: string };
-export type PersonalKeyList = { active: PersonalKeySummary[]; revoked: RevokedPersonalKeySummary[] };
+export type { PersonalKeySummary, RevokedPersonalKeySummary, PersonalKeyList };
 
 const KEY_NOT_FOUND = 'Key not found.';
 const nameRefusal = () => fail('VALIDATION', KEY_NAME_MESSAGE, { fieldErrors: { name: [KEY_NAME_MESSAGE] } });

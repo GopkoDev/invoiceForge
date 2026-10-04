@@ -1,7 +1,9 @@
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
-import { SetupSteps } from '@/components/assistants/setup-steps';
-import { ExamplePrompts } from '@/components/assistants/example-prompts';
+import { AssistantKeys } from '@/components/assistants/assistant-keys';
+import { unwrapPageResult } from '@/components/layout/content-area';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { listPersonalKeys } from '@/lib/services/personal-keys/personal-keys';
 
 export const metadata: Metadata = {
   title: 'Connect your AI',
@@ -15,6 +17,9 @@ export default async function AssistantsPage() {
     (host.startsWith('localhost') ? 'http' : 'https');
   const origin = `${proto}://${host}`;
 
+  const actor = unwrapPageResult(await actingFreelancerFromSession());
+  const keys = unwrapPageResult(await listPersonalKeys(actor));
+
   return (
     <div className="space-y-8">
       <div className="space-y-1">
@@ -24,10 +29,7 @@ export default async function AssistantsPage() {
           Keys are read-only: an assistant can&apos;t change or send anything.
         </p>
       </div>
-      {/* T21: create form + one-time reveal render here, above the setup steps */}
-      <SetupSteps origin={origin} />
-      <ExamplePrompts />
-      {/* T21: active and revoked key lists render here */}
+      <AssistantKeys origin={origin} timeZone={actor.timeZone} keys={keys} />
     </div>
   );
 }
