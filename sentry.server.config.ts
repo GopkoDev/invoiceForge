@@ -60,6 +60,32 @@ export function scrubPrismaBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T):
   return crumb;
 }
 
+type ScrubbableRequest = {
+  request?: {
+    url?: string;
+    headers?: Record<string, string>;
+    data?: unknown;
+    cookies?: unknown;
+  };
+};
+
+/** /api/mcp: never report the Authorization header, any other header, or a body (sad.md §8). */
+export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
+  const request = event.request;
+  if (!request || typeof request.url !== 'string') return event;
+  let pathname: string;
+  try {
+    pathname = new URL(request.url, 'http://localhost').pathname;
+  } catch {
+    pathname = request.url;
+  }
+  if (pathname !== '/api/mcp') return event;
+  delete request.headers;
+  delete request.data;
+  delete request.cookies;
+  return event;
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const sentryEnabled = isProduction;
 
@@ -83,7 +109,8 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     // Configuration for production environment
     environment: process.env.NODE_ENV,
 
-    beforeSend: (event, hint) => scrubPrismaEvent(event, hint),
+    beforeSend: (event, hint) =>
+      scrubMcpRequest(scrubPrismaEvent(event, hint)),
     beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }

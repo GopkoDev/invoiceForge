@@ -16,7 +16,7 @@
 | T09 | [Create, list and revoke Personal keys through the business layer and server actions](./t09-personal-key-management.md) | app | Dmytro Hopko | M | T01, T03 | done |
 | T10 | [Add the per-key and per-source MCP limit scopes that fail closed](./t10-mcp-limit-scopes.md) | infra | Dmytro Hopko | S | T01 | done |
 | T11 | [Authenticate a presented Personal key and record its last use and weekly usage](./t11-key-authentication-and-usage.md) | app | Dmytro Hopko | M | T01, T03, T04 | done |
-| T12 | [Serve POST /api/mcp behind its single proxy exception with the source-limit, key-check and key-limit pipeline](./t12-mcp-endpoint-and-request-pipeline.md) | ports | Dmytro Hopko | M | T10, T11 | todo |
+| T12 | [Serve POST /api/mcp behind its single proxy exception with the source-limit, key-check and key-limit pipeline](./t12-mcp-endpoint-and-request-pipeline.md) | ports | Dmytro Hopko | M | T10, T11 | done |
 | T13 | [Shape MCP answers, register read-only tools and count substantive calls](./t13-mcp-answers-and-tool-registry.md) | ports | Dmytro Hopko | M | T12 | todo |
 | T14 | [Page overdue invoices and Debtors strictly with totals over every match](./t14-strict-paging-overdue-and-debtors.md) | app | Dmytro Hopko | M | T06 | done |
 | T15 | [Page Expected payments by period and compute summary figures for every issued-invoice currency](./t15-expected-payments-and-summary-reads.md) | app | Dmytro Hopko | M | T14 | todo |

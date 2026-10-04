@@ -105,6 +105,11 @@ export const REQUEST_PATH_HEADER = 'x-invoiceflow-request-path';
 // ADR-0007: Vercel Cron carries no session; the route guards itself with CRON_SECRET.
 export const PURGE_LIMITS_CRON_PATH = '/api/cron/purge-limits';
 
+// ADR-0003: the Assistant connection. The one exact-path exception besides the sign-in service:
+// it carries no session and authenticates itself by `Authorization: Bearer <Personal key>` alone
+// (the handler never reads cookies and sends no CORS headers). A scanned unit test pins it.
+export const MCP_PATH = '/api/mcp';
+
 // F-25: the next-auth (Auth.js v5) handler's own endpoints, listed explicitly instead of the
 // whole `/api/auth/` prefix, so a route added under it later is private by default unless it is
 // added here too. `/api/auth` itself is the base path the client SDK checks; signin/callback
@@ -137,7 +142,8 @@ export function isPublicPath(pathname: string): boolean {
     legalRoutesArray.some((route) => pathname === route) ||
     staticAssetRoutes.some((route) => pathname === route) ||
     nextAuthStaticPaths.some((route) => pathname === route) ||
-    pathname === PURGE_LIMITS_CRON_PATH
+    pathname === PURGE_LIMITS_CRON_PATH ||
+    pathname === MCP_PATH
   ) {
     return true;
   }
@@ -166,5 +172,6 @@ export function isRefusedAnonymousMutation(
   if (pathname === '/api/auth' || pathname.startsWith('/api/auth/'))
     return false;
   if (upper === 'POST' && pathname === authRoutes.signIn) return false;
+  if (pathname === MCP_PATH) return false;
   return true;
 }
