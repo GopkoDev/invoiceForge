@@ -16,9 +16,20 @@ import {
 import {
   queryDebtorPage,
   queryDebtorTotals,
+  queryExpectedPaymentsPage,
+  queryExpectedTotals,
+  queryIssuedInvoiceCurrencies,
   queryOverdueInvoicePage,
   queryOverdueTotals,
+  querySummaryStats,
 } from './queries';
+import {
+  periodBounds,
+  resolveAssistantPeriod,
+  type AppliedPeriod,
+  type AssistantPeriodInput,
+  type DashboardPeriod,
+} from './period';
 
 // T14 (AC-12, AC-13, AC-18, AC-18b; ADR-0002): the Assistant reads of the overdue figures. Same
 // overdue rule and "today" as the dashboard; totals cover every match, never only the page.
@@ -149,6 +160,129 @@ export async function listDebtorsPage(
       });
     } catch (error) {
       return failed('Error listing debtors:', error, 'Failed to fetch debtors.');
+    }
+  });
+}
+
+// T15 (AC-14, AC-15, AC-16): Expected payments by period and the summary figures. Both are built on
+// the dashboard's own SQL, so every figure equals the dashboard's to the cent.
+
+const expectedPaymentsInput = assistantListInput.extend({ period: z.unknown().optional() });
+
+export type ExpectedPaymentsInput = Omit<z.input<typeof expectedPaymentsInput>, 'period'> & {
+  period?: AssistantPeriodInput;
+};
+
+export type ExpectedPaymentRow = Omit<OverdueInvoiceRow, 'status' | 'daysOverdue'> & {
+  status: 'pending';
+  daysOverdue: null;
+};
+
+export type ExpectedPaymentsPage = {
+  today: LocalDate;
+  timeZone: string;
+  period: AppliedPeriod;
+  rows: ExpectedPaymentRow[];
+  totals: CurrencyTotal[];
+  pageInfo: StrictPageInfo;
+};
+
+/** `period` absent: every pending, not-overdue invoice (the dashboard's Expected payments). */
+export async function listExpectedPaymentsPage(
+  actor: ActingFreelancer,
+  input: ExpectedPaymentsInput = {},
+): Promise<ActionResult<ExpectedPaymentsPage>> {
+  return Sentry.startSpan({ name: 'dashboard.assistant-expected-payments', op: 'function' }, async () => {
+    const parsed = expectedPaymentsInput.safeParse(input ?? {});
+    if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
+    const { currency } = parsed.data;
+    const today = todayIn(actor.timeZone);
+    const resolved = resolveAssistantPeriod(parsed.data.period, today);
+    if ('success' in resolved) return resolved;
+    try {
+      const [start, endExclusive] = resolved.range ? periodBounds(resolved.range, actor.timeZone) : [null, null];
+      const plan = strictPage(parsed.data);
+      const totals = await queryExpectedTotals(actor, today, start, endExclusive, currency);
+      const total = totals.reduce((n, t) => n + t.count, 0);
+      if (isPageOutOfRange(plan.page, total, plan.pageSize)) return pageOutOfRange(total, plan.pageSize);
+      const rows =
+        total === 0
+          ? []
+          : await queryExpectedPaymentsPage(actor, today, start, endExclusive, plan.offset, plan.limit, currency);
+      return ok({
+        today,
+        timeZone: actor.timeZone,
+        period: resolved.applied,
+        rows: rows.map(
+          (r): ExpectedPaymentRow => ({
+            invoiceId: r.id,
+            invoiceNumber: r.invoiceNumber,
+            senderProfile: { senderProfileId: r.senderProfileId, name: r.senderName },
+            customer: { customerId: r.customerId, name: r.customerName },
+            status: 'pending',
+            amount: r.amount,
+            currency: r.currency as Currency,
+            dueDate: r.dueDate.toISOString().slice(0, 10),
+            daysOverdue: null,
+          }),
+        ),
+        totals: totals.map((t) => ({ currency: t.currency as Currency, total: t.total, count: t.count })),
+        pageInfo: strictPageInfo(plan, total),
+      });
+    } catch (error) {
+      return failed('Error listing expected payments:', error, 'Failed to fetch expected payments.');
+    }
+  });
+}
+
+export type SummaryFigure = { total: DecimalString; count: number; countedBy: 'issue_date' | 'due_date' | 'none' };
+
+export type CurrencySummary = {
+  currency: Currency;
+  received: SummaryFigure;
+  planned: SummaryFigure;
+  overdue: SummaryFigure;
+  allFuturePayments: SummaryFigure;
+};
+
+export type SummaryFiguresAnswer = {
+  today: LocalDate;
+  timeZone: string;
+  period: AppliedPeriod;
+  currencies: CurrencySummary[];
+};
+
+// querySummaryStats sums in SQL and casts once to float8, so each value is an exact two-decimal one.
+const money = (n: number): DecimalString => n.toFixed(2);
+
+/** `period` absent: this-month, the dashboard's default. Every currency on the issued invoices, never converted. */
+export async function getSummaryFiguresAllCurrencies(
+  actor: ActingFreelancer,
+  period?: AssistantPeriodInput,
+): Promise<ActionResult<SummaryFiguresAnswer>> {
+  return Sentry.startSpan({ name: 'dashboard.assistant-summary-figures', op: 'function' }, async () => {
+    const today = todayIn(actor.timeZone);
+    const resolved = resolveAssistantPeriod(period ?? { preset: 'this-month' }, today);
+    if ('success' in resolved) return resolved;
+    try {
+      const range: DashboardPeriod | null = resolved.range;
+      const [start, endExclusive] = range ? periodBounds(range, actor.timeZone) : [null, null];
+      const codes = await queryIssuedInvoiceCurrencies(actor);
+      const currencies = await Promise.all(
+        codes.map(async (currency): Promise<CurrencySummary> => {
+          const s = await querySummaryStats(actor, currency, start, endExclusive, today);
+          return {
+            currency,
+            received: { total: money(s.totalReceived), count: s.receivedCount, countedBy: 'issue_date' },
+            planned: { total: money(s.totalPlanned), count: s.plannedCount, countedBy: 'due_date' },
+            overdue: { total: money(s.totalOverdue), count: s.overdueCount, countedBy: 'due_date' },
+            allFuturePayments: { total: money(s.allFuturePayments), count: s.allFuturePaymentsCount, countedBy: 'none' },
+          };
+        }),
+      );
+      return ok({ today, timeZone: actor.timeZone, period: resolved.applied, currencies });
+    } catch (error) {
+      return failed('Error fetching summary figures:', error, 'Failed to fetch summary figures.');
     }
   });
 }
