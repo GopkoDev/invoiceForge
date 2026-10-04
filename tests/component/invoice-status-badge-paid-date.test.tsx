@@ -114,14 +114,18 @@ describe('InvoicesDataTable — passes timeZone to the badge (T50, R-07, AC-18)'
   });
 });
 
-// T55 S-06 (review-2026-09-30-2, AC-18, ADR-0010): the zone travels cookie -> page -> container ->
+// T55 S-06 (review-2026-09-30-2, AC-18, ADR-0010): the zone travels account -> page -> container ->
 // table -> badge. Every link above is tested alone; this renders the real page output so that
 // dropping `timeZone` in the page or in the container puts the row back on the UTC day.
-describe('invoices page wiring — paid date in the cookie time zone (T55, S-06, AC-18)', () => {
-  it("shows 'Sep 21' for 2026-09-22T02:00Z when the request zone is America/New_York", async () => {
+describe('invoices page wiring — paid date in the account time zone (T55, S-06, AC-18)', () => {
+  it("shows 'Sep 21' for 2026-09-22T02:00Z when the account zone is America/New_York", async () => {
     vi.resetModules();
-    vi.doMock('@/lib/helpers/time-zone', () => ({
-      getRequestTimeZone: async () => 'America/New_York',
+    // ADR-0006 (T28): the page takes the account zone from the session's ActingFreelancer.
+    vi.doMock('@/lib/helpers/session-actor', () => ({
+      actingFreelancerFromSession: async () => ({
+        success: true,
+        data: { userId: 'u1', timeZone: 'America/New_York' },
+      }),
     }));
     vi.doMock('@/lib/actions/invoice-actions/invoice-actions', () => ({
       duplicateInvoice: vi.fn(),

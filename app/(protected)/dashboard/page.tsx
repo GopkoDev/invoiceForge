@@ -29,7 +29,7 @@ import {
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
 import { dashboardParamsSchema } from '@/lib/validations/search-params';
-import { getRequestTimeZone } from '@/lib/helpers/time-zone';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -75,20 +75,28 @@ export default async function DashboardPage({
 }: DashboardPageProps) {
   const params = await searchParams;
 
-  const [currencyTabsResult, setupStatusResult, noticeResult, entryResult] =
-    await Promise.all([
-      getDashboardCurrencyTabs(),
-      checkDashboardSetup(),
-      getDashboardNoticeState(),
-      getConnectAiEntryState(),
-    ]);
+  const [
+    currencyTabsResult,
+    setupStatusResult,
+    noticeResult,
+    entryResult,
+    actorResult,
+  ] = await Promise.all([
+    getDashboardCurrencyTabs(),
+    checkDashboardSetup(),
+    getDashboardNoticeState(),
+    getConnectAiEntryState(),
+    actingFreelancerFromSession(),
+  ]);
 
   // A failed read is a load error (SCR-17), never "no currencies" or an unfinished setup.
   const currencyTabs = unwrapPageResult(currencyTabsResult) ?? [];
 
   const currency = validateCurrency(params.currency, currencyTabs);
 
-  const timeZone = await getRequestTimeZone();
+  // ADR-0006: the default period is the account zone's month, like the Assistant's this-month;
+  // the tz cookie only seeds the first visit (inside the session factory).
+  const { timeZone } = unwrapPageResult(actorResult);
   const { appliedRange, period } = dashboardParamsSchema(timeZone).parse(params);
 
   const setupStatus = unwrapPageResult(setupStatusResult);
