@@ -1,6 +1,6 @@
 'use server';
 
-import { InvoiceFormValues } from '@/lib/validations/invoice';
+import { InvoiceFormInput } from '@/lib/validations/invoice';
 import { revalidatePath } from 'next/cache';
 import { protectedRoutes } from '@/config/routes.config';
 import { ActionResult, ok } from '@/types/actions';
@@ -49,7 +49,7 @@ export async function getInvoiceEditorData(
 // Create a new invoice (Flow 2): the web wrapper — session, then the business function, then the
 // page refresh on success.
 export async function createInvoice(
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
@@ -62,7 +62,7 @@ export async function createInvoice(
 // page refresh on success.
 export async function updateInvoice(
   id: string,
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;

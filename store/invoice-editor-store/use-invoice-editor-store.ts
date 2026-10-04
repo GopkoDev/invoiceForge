@@ -24,6 +24,8 @@ import {
   createNewItem,
   createEmptyComputedValues,
   createEmptyNormalizedData,
+  toSavePayload,
+  withLocalDays,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -130,7 +132,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     // Methods
     // ============================================================
     initialize: (data: InvoiceEditorInitData) => {
-      const formData = data.initialData || createInitialFormData();
+      const formData = data.initialData
+        ? withLocalDays(data.initialData)
+        : createInitialFormData();
       const normalizedData = normalizeData({
         senderProfiles: data.senderProfiles,
         bankAccounts: data.bankAccounts,
@@ -421,9 +425,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       const state = get();
       set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
 
-      const payload = options?.confirmedTotals
-        ? { ...state.formData, confirmedTotals: options.confirmedTotals }
-        : state.formData;
+      const payload = toSavePayload(state.formData, options?.confirmedTotals);
       const retry = () => get().saveInvoice(options);
 
       try {

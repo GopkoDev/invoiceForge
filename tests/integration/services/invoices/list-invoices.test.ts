@@ -236,9 +236,9 @@ describe.runIf(containerRuntimeAvailable)('listInvoices service (T13)', () => {
     expect(new Set(seen).size).toBe(5);
   });
 
-  it('AC-21: the Kyiv 00:30 1 October invoice is October, not September', async () => {
+  it('AC-21: the invoice issued on 1 October is October, not September', async () => {
     const a = await seed('t13-a@example.com');
-    const inv = await a.make(1, { issueDate: new Date('2026-09-30T21:30:00Z') }); // 00:30 Kyiv, 1 Oct
+    const inv = await a.make(1, { issueDate: new Date('2026-10-01T00:00:00Z') }); // a calendar day (T25)
     const kyiv = await actingFreelancerForTest(a.user.id, 'Europe/Kyiv');
     const sept = { dateFrom: '2026-09-01', dateTo: '2026-09-30' };
     const oct = { dateFrom: '2026-10-01', dateTo: '2026-10-31' };
@@ -246,9 +246,9 @@ describe.runIf(containerRuntimeAvailable)('listInvoices service (T13)', () => {
     expect(ids(await listInvoices(kyiv, oct))).toEqual([inv.id]);
   });
 
-  it('AC-22: no or unknown time zone uses UTC days', async () => {
+  it('AC-22: no or unknown time zone compares the stored day the same way', async () => {
     const a = await seed('t13-a@example.com');
-    const inv = await a.make(1, { issueDate: new Date('2026-09-30T21:30:00Z') });
+    const inv = await a.make(1, { issueDate: new Date('2026-09-30T00:00:00Z') });
     const sept = { dateFrom: '2026-09-01', dateTo: '2026-09-30' };
     for (const tz of [undefined, 'Not/AZone']) {
       const actor = await actingFreelancerForTest(a.user.id, tz);

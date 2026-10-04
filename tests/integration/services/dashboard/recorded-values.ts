@@ -9,6 +9,9 @@
 // throwaway worktree. Re-review 2026-10-01 R-04 (T27): the records were first read from the new
 // layer, so they could not prove old-vs-new parity; they were re-sourced from the old code and came
 // out identical.
+// T25: issue and due dates are now stored as calendar days (T00:00:00Z), so the instants recorded below
+// are those days at midnight (the fixture keeps the days the old actions saw in Europe/Kyiv); the
+// amounts, counts, groups and records are the old output unchanged.
 export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
   "tabs": [
     "USD",
@@ -224,71 +227,71 @@ export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
       1515,
       "PAID",
       "USD",
-      "2026-03-12T09:00:00.000Z",
+      "2026-03-12T00:00:00.000Z",
       null
     ],
     [
       1234,
       "PENDING",
       "USD",
-      "2026-03-20T09:00:00.000Z",
-      "2026-03-31T09:00:00.000Z"
+      "2026-03-20T00:00:00.000Z",
+      "2026-03-31T00:00:00.000Z"
     ],
     [
       3000,
       "OVERDUE",
       "USD",
-      "2026-03-05T09:00:00.000Z",
-      "2026-03-23T09:00:00.000Z"
+      "2026-03-05T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z"
     ],
     [
       2990,
       "OVERDUE",
       "USD",
-      "2026-03-05T09:00:00.000Z",
-      "2026-03-22T09:00:00.000Z"
+      "2026-03-05T00:00:00.000Z",
+      "2026-03-22T00:00:00.000Z"
     ],
     [
       10,
       "OVERDUE",
       "USD",
-      "2026-03-05T09:00:00.000Z",
-      "2026-03-22T09:00:00.000Z"
+      "2026-03-05T00:00:00.000Z",
+      "2026-03-22T00:00:00.000Z"
     ],
     [
       4000,
       "OVERDUE",
       "USD",
-      "2026-03-06T09:00:00.000Z",
-      "2026-03-21T09:00:00.000Z"
+      "2026-03-06T00:00:00.000Z",
+      "2026-03-21T00:00:00.000Z"
     ],
     [
       2000,
       "OVERDUE",
       "USD",
-      "2026-03-04T09:00:00.000Z",
-      "2026-03-20T09:00:00.000Z"
+      "2026-03-04T00:00:00.000Z",
+      "2026-03-20T00:00:00.000Z"
     ],
     [
       100001,
       "PENDING",
       "USD",
-      "2026-03-20T09:00:00.000Z",
-      "2026-09-01T09:00:00.000Z"
+      "2026-03-20T00:00:00.000Z",
+      "2026-09-01T00:00:00.000Z"
     ],
     [
       999900,
       "DRAFT",
       "USD",
-      "2026-03-26T09:00:00.000Z",
-      "2026-03-31T09:00:00.000Z"
+      "2026-03-26T00:00:00.000Z",
+      "2026-03-31T00:00:00.000Z"
     ],
     [
       7550,
       "OVERDUE",
       "USD",
-      "2026-03-02T09:00:00.000Z",
-      "2026-03-27T09:00:00.000Z"
+      "2026-03-02T00:00:00.000Z",
+      "2026-03-27T00:00:00.000Z"
     ]
   ],
   "USD.debtors": [
@@ -322,15 +325,15 @@ export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
       "invoices": [
         [
           50005,
-          "2026-03-30T09:00:00.000Z"
+          "2026-03-30T00:00:00.000Z"
         ],
         [
           1234,
-          "2026-03-31T09:00:00.000Z"
+          "2026-03-31T00:00:00.000Z"
         ],
         [
           9999,
-          "2026-04-01T21:30:00.000Z"
+          "2026-04-02T00:00:00.000Z"
         ]
       ]
     }
@@ -523,21 +526,21 @@ export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
       880,
       "PENDING",
       "EUR",
-      "2026-03-20T09:00:00.000Z",
-      "2026-03-30T09:00:00.000Z"
+      "2026-03-20T00:00:00.000Z",
+      "2026-03-30T00:00:00.000Z"
     ],
     [
       4000,
       "OVERDUE",
       "EUR",
-      "2026-03-03T09:00:00.000Z",
-      "2026-03-28T09:00:00.000Z"
+      "2026-03-03T00:00:00.000Z",
+      "2026-03-28T00:00:00.000Z"
     ],
     [
       25025,
       "PAID",
       "EUR",
-      "2026-03-27T09:00:00.000Z",
+      "2026-03-27T00:00:00.000Z",
       null
     ]
   ],
@@ -558,7 +561,7 @@ export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
       "invoices": [
         [
           880,
-          "2026-03-30T09:00:00.000Z"
+          "2026-03-30T00:00:00.000Z"
         ]
       ]
     }

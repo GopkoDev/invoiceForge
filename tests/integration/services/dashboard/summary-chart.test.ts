@@ -134,12 +134,12 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
   describe('time zones (AC-21, AC-22)', () => {
     async function boundaryInvoice() {
       const a = await seedFreelancer(testClient, ['USD']);
-      // 00:30 on 1 October in Kyiv (UTC+3) is still 30 September 21:30 in UTC.
-      await addInvoice(a, { currency: 'USD', status: 'PAID', total: 100, issueDate: new Date('2026-09-30T21:30:00Z') });
+      // T25: issued on 1 October (the day a Kyiv Freelancer saw at 00:30), stored as that day at T00:00:00Z.
+      await addInvoice(a, { currency: 'USD', status: 'PAID', total: 100, issueDate: new Date('2026-10-01T00:00:00Z') });
       return a;
     }
 
-    it('AC-21: Kyiv 00:30 on 1 October does not count in September for Kyiv, and is in October', async () => {
+    it('AC-21: an invoice issued on 1 October does not count in September for Kyiv, and is in October', async () => {
       const a = await boundaryInvoice();
       const kyiv = await actingFreelancerForTest(a.userId, KYIV);
       expect(data(await svc.getSummaryStats(kyiv, 'USD', SEPTEMBER))).toMatchObject({ totalReceived: 0, receivedCount: 0 });
@@ -163,18 +163,20 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
     it.each([
       ['no time zone', undefined],
       ['an unknown time zone', 'Mars/Olympus_Mons'],
-    ])('AC-22: %s falls back to UTC days and months', async (_n, tz) => {
+    ])('AC-22: %s reads the stored day the same way (a stored day is compared with no zone)', async (_n, tz) => {
       const a = await boundaryInvoice();
       const actor = await actingFreelancerForTest(a.userId, tz);
-      // In UTC the invoice is 30 September.
-      expect(data(await svc.getSummaryStats(actor, 'USD', SEPTEMBER))).toMatchObject({ totalReceived: 100, receivedCount: 1 });
+      expect(data(await svc.getSummaryStats(actor, 'USD', SEPTEMBER))).toMatchObject({ totalReceived: 0, receivedCount: 0 });
       expect(data(await svc.getSummaryStats(actor, 'USD', { from: '2026-10-01', to: '2026-10-31' }))).toMatchObject({
-        receivedCount: 0,
+        totalReceived: 100,
+        receivedCount: 1,
       });
       vi.useFakeTimers({ toFake: ['Date'] });
       vi.setSystemTime(new Date('2026-10-20T12:00:00Z'));
       const points = data(await svc.getChartData(actor, 'USD', { from: '2026-09-28', to: '2026-10-03' }));
-      expect(Object.fromEntries(points.map((p) => [p.date, p.paid]))['2026-09-30']).toBe(100);
+      const by = Object.fromEntries(points.map((p) => [p.date, p.paid]));
+      expect(by['2026-09-30']).toBe(0);
+      expect(by['2026-10-01']).toBe(100);
     });
   });
 

@@ -18,7 +18,7 @@ feature_size: "M"
 > - No `CHECK` constraints, triggers or expression/partial indexes: the repo uses none, and Prisma cannot represent the last two (they would show as drift). Normalized lookup keys are stored as columns instead, as `Invoice.invoiceNumberKey`.
 > - Idempotent DDL (`IF NOT EXISTS`, `DO $$ … IF NOT EXISTS` for FKs), as in `20261002120000_create_limit_event`.
 >
-> **Staged migrations:** `docs/features/mcp-server/migrations/0{1..5}_*.{up,down}.sql`. They are **not** in the live `prisma/migrations/` tree yet. `implement` promotes them (see the audit report).
+> **Staged migrations:** `docs/features/mcp-server/migrations/0{1..6}_*.{up,down}.sql`. They are **not** in the live `prisma/migrations/` tree yet. `implement` promotes them (see the audit report).
 
 ## ER diagram
 
@@ -98,6 +98,10 @@ erDiagram
 - `PersonalKeyUsageWeek` is a child of `PersonalKey`. It is a counter table, like `LogoFetchWindow`, and is reached through its key.
 - `LimitEvent` is unchanged infrastructure (security-patch). It gets two new scopes.
 - `Invoice`, `Customer`, `SenderProfile` are read only. No schema change.
+
+### `Invoice.issueDate` and `Invoice.dueDate`: storage meaning (T25, review-2026-10-05 F-02, F-03)
+
+Both columns stay `TIMESTAMP(3)` and mean a **calendar day**: the day the Freelancer picked, stored as that day at `T00:00:00Z`. The editor sends `yyyy-MM-dd`, `invoiceFormSchema` turns it into the UTC midnight, and every other write (duplicate, the default "today + 30 days") also stores a UTC midnight. A period, a due-date filter and the overdue rule compare by calendar day (`UTC-midnight bounds` or `::date`), never by a zone-local instant; the account time zone only decides which day is "today" and which days a preset names. The browser shows a stored day by its UTC Y/M/D, so no zone shifts it. Migration `06_normalize_invoice_calendar_dates` (live as `20261005100000_normalize_invoice_calendar_dates`) backfills older rows, which held the browser's local-midnight instant or a time of day: each value is read in the owner's saved zone (`UTC` when none or unknown) and cut to its day. It skips a value already at exactly `00:00:00Z`, so it is idempotent. Its down script is a no-op: the old instants are not kept.
 
 ### `User` (two new nullable columns)
 

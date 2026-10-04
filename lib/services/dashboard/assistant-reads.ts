@@ -6,6 +6,7 @@ import { ok, type ActionResult, type DecimalString } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { daysOverdue, todayIn, type LocalDate } from '@/lib/services/_shared/overdue';
 import { failed, zodValidationFailure } from '@/lib/services/_shared/result-helpers';
+import { utcDateToDay } from '@/lib/helpers/calendar-day';
 import {
   isPageOutOfRange,
   pageOutOfRange,
@@ -115,7 +116,7 @@ export async function listOverdueInvoices(
             status: 'overdue',
             amount: r.amount,
             currency: r.currency as Currency,
-            dueDate: r.dueDate.toISOString().slice(0, 10),
+            dueDate: utcDateToDay(r.dueDate),
             daysOverdue: daysOverdue(r.dueDate, today),
           }),
         ),
@@ -200,7 +201,7 @@ export async function listExpectedPaymentsPage(
     const resolved = resolveAssistantPeriod(parsed.data.period, today);
     if ('success' in resolved) return resolved;
     try {
-      const [start, endExclusive] = resolved.range ? periodBounds(resolved.range, actor.timeZone) : [null, null];
+      const [start, endExclusive] = resolved.range ? periodBounds(resolved.range) : [null, null];
       const plan = strictPage(parsed.data);
       const totals = await queryExpectedTotals(actor, today, start, endExclusive, currency);
       const total = totals.reduce((n, t) => n + t.count, 0);
@@ -222,7 +223,7 @@ export async function listExpectedPaymentsPage(
             status: 'pending',
             amount: r.amount,
             currency: r.currency as Currency,
-            dueDate: r.dueDate.toISOString().slice(0, 10),
+            dueDate: utcDateToDay(r.dueDate),
             daysOverdue: null,
           }),
         ),
@@ -266,7 +267,7 @@ export async function getSummaryFiguresAllCurrencies(
     if ('success' in resolved) return resolved;
     try {
       const range: DashboardPeriod | null = resolved.range;
-      const [start, endExclusive] = range ? periodBounds(range, actor.timeZone) : [null, null];
+      const [start, endExclusive] = range ? periodBounds(range) : [null, null];
       const codes = await queryIssuedInvoiceCurrencies(actor);
       const currencies = await Promise.all(
         codes.map(async (currency): Promise<CurrencySummary> => {

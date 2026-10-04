@@ -782,6 +782,8 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 | Caching | None for key checks, figures or lists — revocation must be immediate and figures must match the dashboard at the moment of the call. | here |
 | Internationalisation | Answers in English, matching the app's single UI language. | — |
 
+**Calendar-day storage (T25).** An invoice's issue date and due date are calendar days: stored as the picked day at `T00:00:00Z` (the column stays timestamp), sent by the editor as `yyyy-MM-dd`, shown by their UTC Y/M/D in every browser zone, and compared by day (`::date` / UTC-midnight bounds) by the overdue rule, the dashboard and Assistant periods and the Assistant date filters. Only "today" and the named period days come from the account time zone. A backfill migration cut older rows to the day their owner saw, in the owner's saved zone.
+
 ## 9. Architecture decisions
 
 | # | Title | Status | Section |

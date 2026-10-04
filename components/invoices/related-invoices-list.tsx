@@ -40,6 +40,7 @@ import {
   goToSignIn,
   redirectIfUnauthorized,
 } from '@/lib/helpers/client-session-redirect';
+import { formatStoredDay } from '@/lib/helpers/calendar-day';
 
 interface RelatedInvoicesListProps {
   invoices: InvoiceListItem[];
@@ -48,9 +49,9 @@ interface RelatedInvoicesListProps {
   newInvoiceParams?: Record<string, string>;
 }
 
+// An issue date is a stored calendar day: formatted in UTC so every browser zone shows the same day.
 function formatDate(date: Date | string): string {
-  const d = new Date(date);
-  return d.toLocaleDateString('en-US', {
+  return formatStoredDay(date, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

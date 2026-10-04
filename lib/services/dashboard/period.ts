@@ -6,7 +6,7 @@ import {
   PERIOD_TOO_LONG,
   isWithinMaxCustomPeriod,
 } from '@/lib/validations/dashboard-period';
-import { localDayRange } from '@/lib/services/_shared/time-zone';
+import { utcDayRange } from '@/lib/helpers/calendar-day';
 
 /** Inclusive local calendar dates (YYYY-MM-DD), read in the actor's time zone. */
 export type LocalDate = string;
@@ -73,12 +73,13 @@ export function parseDashboardInput(
   };
 }
 
-/** `[startOfLocalDay(from), startOfLocalDay(to + 1))` in the actor's zone. */
-export function periodBounds(
-  period: DashboardPeriod,
-  timeZone: string
-): [Date, Date] {
-  return localDayRange(period.from, period.to, timeZone);
+/**
+ * `[from at 00:00Z, the day after to at 00:00Z)`. Issue and due dates are stored calendar days
+ * (T25), so a period is compared by calendar day with no zone: the zone only decides which days
+ * `from` and `to` are (the preset and "today").
+ */
+export function periodBounds(period: DashboardPeriod): [Date, Date] {
+  return utcDayRange(period.from, period.to);
 }
 
 // T15 (AC-14, AC-15, AC-16): the Assistant's period input, resolved to calendar days in the actor's zone.
@@ -104,6 +105,9 @@ function presetRange(preset: Exclude<AssistantPeriodPreset, 'all-time'>, today: 
   const [py, pm] = preset === 'this-month' ? [y, m] : m === 1 ? [y - 1, 12] : [y, m - 1];
   return { from: `${py}-${p2(pm)}-01`, to: `${py}-${p2(pm)}-${p2(lastDayOfMonth(py, pm))}` };
 }
+
+/** The calendar month `today` falls in, as a period (the chart's default when no period is given). */
+export const currentMonthPeriod = (today: LocalDate): DashboardPeriod => presetRange('this-month', today);
 
 export type ResolvedAssistantPeriod = { applied: AppliedPeriod; range: DashboardPeriod | null };
 

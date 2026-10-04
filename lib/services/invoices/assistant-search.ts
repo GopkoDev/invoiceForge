@@ -22,7 +22,7 @@ import {
   strictPageInfo,
   type StrictPageInfo,
 } from '@/lib/services/_shared/strict-page';
-import { localDayRange } from '@/lib/services/_shared/time-zone';
+import { addDaysToDay, dayToUtcDate, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { normalizeInvoiceNumber } from '@/lib/services/invoices/numbering';
 import { resolveCustomerByName } from '@/lib/services/customers/customers';
 import { resolveSenderProfileByName } from '@/lib/services/sender-profiles/resolve-by-name';
@@ -113,10 +113,6 @@ function statusWhere(status: DerivedInvoiceStatus, today: LocalDate): Prisma.Inv
   return statusFilterWhere(status.toUpperCase() as InvoiceStatus, today);
 }
 
-function dayStart(date: LocalDate): Date {
-  return new Date(`${date}T00:00:00.000Z`);
-}
-
 export async function searchInvoicesForAssistant(
   actor: ActingFreelancer,
   input: SearchInvoicesInput = {},
@@ -161,14 +157,11 @@ export async function searchInvoicesForAssistant(
     if (q.invoiceNumber) {
       and.push({ invoiceNumberKey: { contains: escapeLike(normalizeInvoiceNumber(q.invoiceNumber)) } });
     }
-    if (q.issueDateFrom) {
-      and.push({ issueDate: { gte: localDayRange(q.issueDateFrom, q.issueDateFrom, actor.timeZone)[0] } });
-    }
-    if (q.issueDateTo) {
-      and.push({ issueDate: { lt: localDayRange(q.issueDateTo, q.issueDateTo, actor.timeZone)[1] } });
-    }
-    if (q.dueDateFrom) and.push({ dueDate: { gte: dayStart(q.dueDateFrom) } });
-    if (q.dueDateTo) and.push({ dueDate: { lte: dayStart(q.dueDateTo) } });
+    // Issue and due dates are stored calendar days (T25): each bound compares by day, in no zone.
+    if (q.issueDateFrom) and.push({ issueDate: { gte: dayToUtcDate(q.issueDateFrom) } });
+    if (q.issueDateTo) and.push({ issueDate: { lt: dayToUtcDate(addDaysToDay(q.issueDateTo, 1)) } });
+    if (q.dueDateFrom) and.push({ dueDate: { gte: dayToUtcDate(q.dueDateFrom) } });
+    if (q.dueDateTo) and.push({ dueDate: { lt: dayToUtcDate(addDaysToDay(q.dueDateTo, 1)) } });
     const where: Prisma.InvoiceWhereInput = { senderProfile: { userId: actor.userId }, AND: and };
 
     // 3. Totals over every match, then one strict page.
@@ -217,7 +210,7 @@ export async function searchInvoicesForAssistant(
           status,
           amount: r.total.toFixed(2),
           currency: r.currency,
-          dueDate: r.dueDate.toISOString().slice(0, 10),
+          dueDate: utcDateToDay(r.dueDate),
           daysOverdue: status === 'overdue' ? daysOverdue(r.dueDate, today) : null,
         };
       }),

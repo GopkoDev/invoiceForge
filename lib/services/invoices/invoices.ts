@@ -20,7 +20,7 @@ import {
   paginate,
   type Page,
 } from '@/lib/services/_shared/list-query';
-import { localDayRange } from '@/lib/services/_shared/time-zone';
+import { addDaysToDay, dayToUtcDate, utcDayRange } from '@/lib/helpers/calendar-day';
 import {
   transformInvoiceToFormData,
   buildBankAccountSnapshot,
@@ -34,7 +34,7 @@ import {
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage } from '@sentry/nextjs';
-import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
+import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
 import {
   refusesManualStatus,
   statusFilterWhere,
@@ -235,7 +235,8 @@ export async function listInvoices(
     if (customerId) where.customerId = customerId;
     if (senderProfileId) where.senderProfileId = senderProfileId;
     if (dateFrom && dateTo) {
-      const [gte, lt] = localDayRange(dateFrom, dateTo, actor.timeZone);
+      // The issue date is a stored calendar day (T25): the range is compared by day, in no zone.
+      const [gte, lt] = utcDayRange(dateFrom, dateTo);
       where.issueDate = { gte, lt };
     }
 
@@ -342,7 +343,7 @@ export async function resolveManualOrAllocatedNumber(
 
 export async function createInvoice(
   actor: ActingFreelancer,
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -512,7 +513,7 @@ class InvoiceTotalsChangedError extends Error {
 export async function updateInvoice(
   actor: ActingFreelancer,
   id: string,
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -807,6 +808,7 @@ export async function duplicateInvoice(
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
     const { userId } = actor;
+    const today = todayIn(actor.timeZone);
 
     const originalInvoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId } },
@@ -864,8 +866,9 @@ export async function duplicateInvoice(
           senderProfileId: originalInvoice.senderProfileId,
           customerId: originalInvoice.customerId,
           bankAccountId: originalInvoice.bankAccountId,
-          issueDate: new Date(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          // Calendar days (T25): today in the owner's zone and 30 days after it, each at T00:00:00Z.
+          issueDate: dayToUtcDate(today),
+          dueDate: dayToUtcDate(addDaysToDay(today, 30)),
           paymentTerms: originalInvoice.paymentTerms,
           status: 'DRAFT',
           currency: originalInvoice.currency,

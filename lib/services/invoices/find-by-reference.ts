@@ -13,6 +13,7 @@ import {
 } from '@/lib/services/_shared/overdue';
 import { failed, zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 import { normalizeInvoiceNumber } from '@/lib/services/invoices/numbering';
+import { utcDateToDay } from '@/lib/helpers/calendar-day';
 import { resolveSenderProfileByName } from '@/lib/services/sender-profiles/resolve-by-name';
 
 // T17 (AC-08, AC-19, AC-20): one invoice by record id, or by whole invoice number with an optional
@@ -149,7 +150,7 @@ const answerSelect = {
 
 type Row = Prisma.InvoiceGetPayload<{ select: typeof answerSelect }>;
 
-const day = (d: Date): LocalDate => d.toISOString().slice(0, 10);
+const day = (d: Date): LocalDate => utcDateToDay(d);
 
 function toAnswer(r: Row, timeZone: string): InvoiceAnswer {
   const today = todayIn(timeZone);

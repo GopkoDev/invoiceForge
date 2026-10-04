@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Currency, InvoiceStatus } from '@prisma/client';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
+import { dayToUtcDate, isCalendarDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 
 // T11 (spec.md §5 AC-14, AC-15, AC-19) — bounds, messages and the discount cap, per
 // contracts/server-actions.md §Invoices ("Shared input InvoiceFormValues" and
@@ -21,6 +22,18 @@ function hasAtMostTwoDecimalPlaces(value: number): boolean {
   const dot = str.indexOf('.');
   return dot === -1 || str.length - dot - 1 <= 2;
 }
+
+// T25 (spec.md §1, review-2026-10-05 F-02): an issue or due date is a calendar day, stored as that
+// day at T00:00:00Z. The editor sends `yyyy-MM-dd`; a Date (other callers) keeps only its UTC day, so
+// no time of day or zone offset is ever stored.
+const calendarDaySchema = z
+  .union([z.string(), z.date()], { errorMap: () => ({ message: 'Invalid date' }) })
+  .transform((value, ctx): Date => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return dayToUtcDate(utcDateToDay(value));
+    if (isCalendarDay(value)) return dayToUtcDate(value);
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid date' });
+    return z.NEVER;
+  });
 
 export const invoiceItemSchema = z.object({
   id: z.string(),
@@ -90,8 +103,8 @@ export const invoiceFormSchema = z
     senderProfileId: z.string().min(1, 'Sender profile is required'),
     bankAccountId: z.string().min(1, 'Bank account is required'),
     customerId: z.string().min(1, 'Customer is required'),
-    issueDate: z.coerce.date(),
-    dueDate: z.coerce.date(),
+    issueDate: calendarDaySchema,
+    dueDate: calendarDaySchema,
     currency: z.nativeEnum(Currency),
     poNumber: z.string().optional().default(''),
     paymentTerms: z.string().optional().default(''),
@@ -120,4 +133,6 @@ export const invoiceAmountsSchema = z
   .superRefine(refineDiscountCap);
 
 export type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
+/** What a caller sends: the days are `yyyy-MM-dd` (or a Date), parsed into `InvoiceFormValues`. */
+export type InvoiceFormInput = z.input<typeof invoiceFormSchema>;
 export type InvoiceItemFormValues = z.infer<typeof invoiceItemSchema>;

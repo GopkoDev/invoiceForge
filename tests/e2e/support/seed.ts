@@ -11,6 +11,7 @@ import { createFreelancer } from '../../support/factories/user';
 import { createProduct } from '../../support/factories/product';
 import { createSenderProfile } from '../../support/factories/sender-profile';
 import { readE2eRuntime } from './app-server';
+import { dayToUtcDate, utcDateToDay } from '../../../lib/helpers/calendar-day';
 
 // 1x1 PNG: a same-document image source, so previews never leave the machine.
 export const PIXEL_PNG =
@@ -57,8 +58,9 @@ export async function seedWorkspace(
         bankAccountId: bankAccount.id,
         invoiceNumber,
         invoiceNumberKey: invoiceNumber.toLowerCase(),
-        issueDate: new Date(),
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        // Calendar days (T25): T00:00:00Z of the day.
+        issueDate: dayToUtcDate(utcDateToDay(new Date())),
+        dueDate: dayToUtcDate(utcDateToDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))),
         status: 'PENDING',
         senderName: senderProfile.name,
         senderLogo: senderProfile.logo,

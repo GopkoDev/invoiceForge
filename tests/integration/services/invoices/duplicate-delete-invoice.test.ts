@@ -97,8 +97,9 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(copy.items.map((i) => [i.name, Number(i.quantity), Number(i.rate), Number(i.amount)])).toEqual([
       ['Widget', 2, 100, 200],
     ]);
-    expect(copy.issueDate.getTime()).toBeGreaterThanOrEqual(t0 - 1000);
-    expect(copy.issueDate.getTime()).toBeLessThanOrEqual(t1 + 1000);
+    // T25: calendar days at T00:00:00Z: today (UTC for an actor with no zone) and 30 days after it.
+    const todayStart = (ms: number) => new Date(ms).toISOString().slice(0, 10) + 'T00:00:00.000Z';
+    expect([todayStart(t0), todayStart(t1)]).toContain(copy.issueDate.toISOString());
     expect(copy.dueDate.getTime() - copy.issueDate.getTime()).toBe(30 * DAY_MS);
     expect(await counter(a.senderProfile.id)).toBe(5);
     expect(await snapshot(a.invoice.id)).toEqual(before);

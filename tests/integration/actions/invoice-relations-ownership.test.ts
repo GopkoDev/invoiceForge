@@ -114,8 +114,8 @@ describe.runIf(containerRuntimeAvailable)(
         // Owned by this Freelancer, but under profile B, not the profile A this invoice claims.
         bankAccountId: bankAccountOfB.id,
         customerId: customer.id,
-        issueDate: new Date().toISOString(),
-        dueDate: new Date().toISOString(),
+        issueDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date().toISOString().slice(0, 10),
         currency: 'USD',
         items: baseItems(),
       });
@@ -168,8 +168,8 @@ describe.runIf(containerRuntimeAvailable)(
         senderProfileId: senderProfile.id,
         bankAccountId: bankAccount.id,
         customerId: customer.id,
-        issueDate: new Date().toISOString(),
-        dueDate: new Date().toISOString(),
+        issueDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date().toISOString().slice(0, 10),
         currency: 'USD',
         items: [
           {
@@ -207,8 +207,8 @@ describe.runIf(containerRuntimeAvailable)(
         senderProfileId: senderProfile.id,
         bankAccountId: bankAccount.id,
         customerId: customer.id,
-        issueDate: new Date().toISOString(),
-        dueDate: new Date().toISOString(),
+        issueDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date().toISOString().slice(0, 10),
         currency: 'USD',
         items: [
           {

@@ -23,6 +23,7 @@ import { InvoiceRowActions } from '@/components/invoices/invoice-row-actions';
 import { InvoiceStatus, OVERDUE_STATUS } from '@/types/invoice/types';
 import { RecentInvoice } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
+import { formatStoredDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { useCallback, useMemo, useState } from 'react';
 
 const STATUS_ORDER: readonly InvoiceStatus[] = [
@@ -33,8 +34,9 @@ const STATUS_ORDER: readonly InvoiceStatus[] = [
   'CANCELLED',
 ];
 
+// Issue and due dates are stored calendar days: formatted in UTC so every browser zone shows the same day.
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
+  return formatStoredDay(date, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -74,7 +76,7 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
       accessorKey: 'issueDate',
       header: 'Issue Date',
       cell: ({ row }) => (
-        <time dateTime={new Date(row.original.issueDate).toISOString()}>
+        <time dateTime={utcDateToDay(new Date(row.original.issueDate))}>
           {formatDate(row.original.issueDate)}
         </time>
       ),
@@ -83,7 +85,7 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
       accessorKey: 'dueDate',
       header: 'Due Date',
       cell: ({ row }) => (
-        <time dateTime={new Date(row.original.dueDate).toISOString()}>
+        <time dateTime={utcDateToDay(new Date(row.original.dueDate))}>
           {formatDate(row.original.dueDate)}
         </time>
       ),

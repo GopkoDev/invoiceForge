@@ -3,7 +3,7 @@
 // read time: an issued, unpaid invoice is overdue when it was marked overdue or its due date is
 // before today in the Freelancer time zone. Stored statuses never change.
 //
-// A due date is a calendar day (the date the Freelancer entered, stored at UTC midnight) compared
+// A due date is a calendar day (the date the Freelancer entered, stored at UTC midnight, T25) compared
 // with `today`, a calendar date in the Freelancer time zone, without any shift. `today` is always
 // passed in (a bound parameter), never `now()`, so the zone edge cases are testable with a fake
 // clock. Any hand-written OVERDUE status check outside this module bypasses the rule; the scan
@@ -11,6 +11,7 @@
 import 'server-only';
 import { Prisma, type InvoiceStatus } from '@prisma/client';
 import { formatLocalDateKey } from '@/lib/services/_shared/time-zone';
+import { dayToUtcDate, utcDateToDay } from '@/lib/helpers/calendar-day';
 
 /** A calendar date, `yyyy-MM-dd`. */
 export type LocalDate = string;
@@ -27,7 +28,7 @@ export function todayIn(timeZone: string, now: Date = new Date()): LocalDate {
 }
 
 function dueDay(dueDate: Date): LocalDate {
-  return dueDate.toISOString().slice(0, 10);
+  return utcDateToDay(dueDate);
 }
 
 function dayNumber(date: LocalDate): number {
@@ -50,7 +51,7 @@ export function overdueWhere(today: LocalDate): Prisma.InvoiceWhereInput {
   return {
     OR: [
       { status: 'OVERDUE' },
-      { status: 'PENDING', dueDate: { lt: new Date(`${today}T00:00:00.000Z`) } },
+      { status: 'PENDING', dueDate: { lt: dayToUtcDate(today) } },
     ],
   };
 }

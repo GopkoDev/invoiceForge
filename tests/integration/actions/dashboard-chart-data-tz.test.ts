@@ -87,13 +87,14 @@ describe.runIf(containerRuntimeAvailable)(
       await truncateAllTables(prisma);
     });
 
-    it('queries [start, endExclusive) and groups by the New York local day, not the server UTC day', async () => {
+    it('queries [start, endExclusive) and groups by the stored calendar day, for a New York viewer', async () => {
       const freelancer = await createFreelancer(prisma, { email: 'chart-tz@example.com' });
       const senderProfile = await createSenderProfile(prisma, freelancer.id);
       const bankAccount = await createBankAccount(prisma, senderProfile.id, { currency: 'USD' });
       const customer = await createCustomer(prisma, freelancer.id);
 
-      // 23:30 America/New_York on Sep 15 == 2026-09-16T03:30:00Z: a different UTC calendar day.
+      // T25: the issue date is the calendar day the Freelancer picked (15 Sep), stored at T00:00:00Z. The
+      // chart puts it on that day for a New York viewer, with no zone shift into 14 Sep.
       await seedInvoiceRow(prisma, {
         senderProfile,
         customer,
@@ -101,14 +102,13 @@ describe.runIf(containerRuntimeAvailable)(
         overrides: {
           invoiceNumber: `${senderProfile.invoicePrefix}-0001`,
           status: 'PAID',
-          issueDate: new Date('2026-09-16T03:30:00.000Z'),
+          issueDate: new Date('2026-09-15T00:00:00.000Z'),
         },
       });
 
       authMock.mockResolvedValue({ user: { id: freelancer.id } });
 
-      // appliedRange for the single local day 2026-09-15 in America/New_York (EDT, UTC-4):
-      // [2026-09-15T04:00:00Z, 2026-09-16T04:00:00Z).
+      // The single day 2026-09-15, compared by calendar day: [2026-09-15T00:00:00Z, 2026-09-16T00:00:00Z).
       tzCookie.value = 'America/New_York';
       const period = { from: '2026-09-15', to: '2026-09-15' };
 

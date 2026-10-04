@@ -7,7 +7,9 @@ import { overdueSql, type LocalDate } from '@/lib/services/_shared/overdue';
 
 // ADR-0004: one parameterized $queryRaw per section, always joined through "SenderProfile" on the
 // owner. Sums are SUM(numeric) in SQL, cast to float8 once (exact two-decimal values), counts to int.
-// Prisma stores DateTime as timestamp without time zone holding UTC, hence the double AT TIME ZONE.
+// T25: issueDate and dueDate are calendar days stored at T00:00:00Z. A period is a pair of UTC-midnight
+// bounds (`[from, day after to)`, see periodBounds), so `col >= start AND col < endExclusive` compares by
+// calendar day, in no zone; the chart reads a row's day with `::date`.
 
 const num = z.number();
 
@@ -91,7 +93,7 @@ export type ChartBucketing = {
   fromMonthIndex: number;
 };
 
-/** Paid (by issue day) and planned (by due day) sums per display bucket, in the actor's zone. */
+/** Paid (by issue day) and planned (by due day) sums per display bucket; the days are calendar days, not zone-shifted. */
 export async function queryChartBuckets(
   actor: ActingFreelancer,
   currency: Currency,
@@ -106,7 +108,7 @@ export async function queryChartBuckets(
       SELECT
         i."total" AS total,
         i."status" = 'PAID' AS is_paid,
-        (((CASE WHEN i."status" = 'PAID' THEN i."issueDate" ELSE i."dueDate" END) AT TIME ZONE 'UTC') AT TIME ZONE ${actor.timeZone})::date AS day
+        (CASE WHEN i."status" = 'PAID' THEN i."issueDate" ELSE i."dueDate" END)::date AS day
       FROM "Invoice" i
       JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
       WHERE sp."userId" = ${actor.userId}
