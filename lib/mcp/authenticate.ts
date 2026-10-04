@@ -16,7 +16,7 @@ export type McpPipelineResult =
   | { ok: true; actor: ActingFreelancer; keyId: string }
   | { ok: false; response: Response };
 
-const BEARER = /^Bearer (\S+)$/;
+const BEARER = /^Bearer (\S+)$/i;
 
 function jsonRpcError(
   status: number,

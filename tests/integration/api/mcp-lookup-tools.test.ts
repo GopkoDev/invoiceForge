@@ -203,7 +203,30 @@ describe.runIf(containerRuntimeAvailable)('MCP lookup tools (T19)', () => {
     const r = await call(fullKey, 'get_invoice', { invoiceNumber: 'INV-0012' });
     expect(r.isError).toBe(true);
     expect(r.structuredContent.details).toMatchObject({ kind: 'AMBIGUOUS_REFERENCE', reference: 'invoice' });
-    expect(r.structuredContent.details.candidates).toHaveLength(2);
+    const candidates = r.structuredContent.details.candidates;
+    expect(candidates).toHaveLength(2);
+    for (const c of candidates) {
+      expect(Object.keys(c).sort()).toEqual([
+        'customer',
+        'invoiceId',
+        'invoiceNumber',
+        'issueDate',
+        'senderProfile',
+      ]);
+      expect(c.invoiceNumber).toBe('INV-0012');
+      expect(c.customer).toEqual({
+        customerId: expect.any(String),
+        name: { freelancerText: expect.any(String) },
+      });
+      expect(c.senderProfile).toEqual({
+        senderProfileId: expect.any(String),
+        name: { freelancerText: expect.any(String) },
+      });
+      expect(c.issueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    expect(candidates.map((c: { senderProfile: { senderProfileId: string } }) => c.senderProfile.senderProfileId).sort()).toEqual(
+      [s.profile.id, p2.id].sort()
+    );
 
     const named = await call(fullKey, 'get_invoice', { invoiceNumber: 'INV-0012', senderProfile: 'Second Co' });
     expect(named.isError).toBe(false);

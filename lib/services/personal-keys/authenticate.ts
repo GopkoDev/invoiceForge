@@ -7,13 +7,13 @@ import {
 import { digestKey, isWellFormedKey } from './key-format';
 
 export type PersonalKeyAuthResult =
-  | { ok: true; actor: ActingFreelancer; keyId: string; firstSuccessPending: boolean }
+  | { ok: true; actor: ActingFreelancer; keyId: string }
   | { ok: false };
 
 const REFUSED = { ok: false } as const;
 const LAST_USE_INTERVAL_MS = 60_000;
 
-type AuthRow = { id: string; userId: string; firstSuccessAt: Date | null; timeZone: string | null };
+type AuthRow = { id: string; userId: string; timeZone: string | null };
 
 /**
  * The one place a presented key becomes an ActingFreelancer. Shape check first (no query for a
@@ -29,7 +29,7 @@ export async function authenticatePersonalKey(
     const digest = digestKey(fullKey);
 
     const rows = await prisma.$queryRaw<AuthRow[]>`
-      SELECT pk."id", pk."userId", pk."firstSuccessAt", u."timeZone"
+      SELECT pk."id", pk."userId", u."timeZone"
       FROM "PersonalKey" pk
       JOIN "User" u ON u."id" = pk."userId"
       WHERE pk."digest" = ${digest} AND pk."revokedAt" IS NULL`;
@@ -42,7 +42,7 @@ export async function authenticatePersonalKey(
       WHERE "id" = ${row.id} AND ("lastUsedAt" IS NULL OR "lastUsedAt" <= ${cutoff})`;
 
     const actor = await actingFreelancerFromPersonalKey(row.userId, row.timeZone);
-    return { ok: true, actor, keyId: row.id, firstSuccessPending: row.firstSuccessAt === null };
+    return { ok: true, actor, keyId: row.id };
   } catch (error) {
     // Never include the key or its digest; a store failure refuses like any other miss.
     console.error('Personal key check failed:', error instanceof Error ? error.name : 'unknown');

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { runMcpPipeline } from '@/lib/mcp/authenticate';
 import { createMcpServer } from '@/lib/mcp/server';
@@ -32,15 +33,15 @@ export async function POST(request: Request): Promise<Response> {
     });
     await server.connect(transport);
     return await transport.handleRequest(request, { parsedBody: body.value });
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error);
     return new Response(
       JSON.stringify({
         jsonrpc: '2.0',
         id: null,
         error: {
           code: -32603,
-          message: 'invoiceFlow could not complete this call. Try again later.',
-          data: { code: 'FAILED' },
+          message: 'Something went wrong in invoiceFlow. Try again.',
         },
       }),
       { status: 500, headers: { 'content-type': 'application/json' } }
@@ -86,7 +87,8 @@ async function readJsonBody(
   let value: unknown;
   try {
     value = JSON.parse(text);
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error);
     return {
       ok: false,
       response: jsonRpcRefusal(400, -32700, 'Parse error: Invalid JSON'),

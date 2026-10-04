@@ -13,7 +13,7 @@ import { generatePersonalKey } from '@/lib/services/personal-keys/key-format';
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 type AuthResult =
-  | { ok: true; actor: { userId: string; timeZone: string }; keyId: string; firstSuccessPending: boolean }
+  | { ok: true; actor: { userId: string; timeZone: string }; keyId: string }
   | { ok: false };
 type Outcome = 'success' | 'assistant_error' | 'server_failure';
 type Auth = { authenticatePersonalKey: (k: string, now: Date) => Promise<AuthResult> };
@@ -75,16 +75,14 @@ describe.runIf(containerRuntimeAvailable)('personal key authentication and usage
     if (!r.ok) return;
     expect(r.actor).toMatchObject({ userId: user.id, timeZone: 'Europe/Kyiv' });
     expect(r.keyId).toBe(row.id);
-    expect(r.firstSuccessPending).toBe(true);
   });
 
-  it('a NULL account zone is UTC and firstSuccessPending is false once set', async () => {
+  it('a NULL account zone is UTC', async () => {
     const user = await createFreelancer(prisma);
     await prisma.user.update({ where: { id: user.id }, data: { timeZone: null } });
     const { fullKey } = await seedKey(prisma, user.id, { firstSuccessAt: t0 });
     const r = await auth.authenticatePersonalKey(fullKey, t0);
     expect(r.ok && r.actor.timeZone).toBe('UTC');
-    expect(r.ok && r.firstSuccessPending).toBe(false);
   });
 
   it('AC-06: a key revoked after a successful check is refused on the very next check', async () => {
