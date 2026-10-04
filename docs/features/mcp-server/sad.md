@@ -313,29 +313,27 @@ ADR files live under `docs/features/mcp-server/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each §1 goal expanded into scenarios; every target is quoted from spec §6.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Dashboard parity**
+- **When:** an Assistant asks for summary figures, overdue invoices, Debtors or Expected payments for any Dashboard period, for a Freelancer with invoices in several currencies — including at the day boundary of AC-23 (00:30 on the 1st in Kyiv) and AC-23b (21:00 on 14 March in New York).
+- **Then:** "100 % of figures equal the dashboard to the cent", for every currency tab (ADR-0008), with the same overdue rule (ADR-0005) and the same Freelancer time zone (ADR-0006).
+- **How verify:** "automated parity test over a seeded multi-currency fixture, run in CI; spot check in the ship stage" — the test calls each tool and the matching dashboard function for the same `ActingFreelancer` and compares every figure; the boundary cases run under a fake clock; an equivalence test runs the three forms of the overdue rule over the same fixture; a scanning test fails on any hand-written `status = 'OVERDUE'` check outside the rule module.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2. Tenant isolation and credential safety**
+- **When:** a key is revoked while a call is waiting; a key makes its 61st call in a rolling minute; a source fails key checks repeatedly; the limit store is unavailable; Freelancer A's key asks for Freelancer B's invoice; a signed-in browser calls without a key.
+- **Then:** revocation — "the first call after revocation is refused (0 s grace)"; per-key limit — "60 calls per minute per Personal key; no daily cap"; failed keys — "at most 30 refused key checks per 5 minutes per network source; beyond that the source is refused before any key is checked"; limiter — "fail-closed: 100 % of Assistant calls are refused while the limit store is unavailable"; cross-tenant and session-only calls answered exactly as AC-08 and AC-09 require.
+- **How verify:** integration tests on a throwaway Postgres container (one per target above, as spec §6 names "integration test" for each), plus a unit test that a request carrying a valid session cookie and no key is refused, and a test that `/api/mcp` is the only non-auth proxy exception.
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Responsiveness at realistic scale**
+- **When:** an Assistant asks list and single-record questions (≤ 50 rows), or asks for summary figures, Debtors and Expected payments for a Freelancer with 5,000 invoices; and Freelancers load the dashboard after the overdue rule change.
+- **Then:** list and single-record p95 "≤ 800 ms server-side"; aggregates p95 "≤ 1.5 s server-side"; dashboard p95 "no more than 10 % slower than the 7 days before release".
+- **How verify:** "request spans in error tracking, 7-day window after release" for lists; "integration test on a seeded fixture + spans in error tracking" for aggregates; "dashboard spans in error tracking" compared against the 7 days before release.
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-4. Answer completeness and operational health** (supporting goals 1 and 2)
+- **When:** an Assistant asks for 1,000 rows, a page past the end, or any list; a key is used; a week of Assistant calls passes.
+- **Then:** page size "default 20, maximum 50 rows per answer", totals over the full match set; last use "within 5 minutes of the real last call"; server-side failures "≤ 1 % of Assistant calls per week fail on the system's side".
+- **How verify:** "contract test" for page size and the AC-18b out-of-range answer; "integration test" for last-use accuracy; "error tracking, weekly" for the failure rate, with the §7 daily early-warning alert.
 
 ## 11. Risks and technical debt
 
