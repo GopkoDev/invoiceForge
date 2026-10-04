@@ -239,7 +239,7 @@ describe.runIf(containerRuntimeAvailable)(
       }
     });
 
-    it('getAccountExport: A only, exportVersion 2.0, B data absent', async () => {
+    it('getAccountExport: A only, exportVersion 2.1, B data absent', async () => {
       const a = await fullAccount('AAA');
       const b = await fullAccount('BBB');
       const actor = await actingFreelancerForTest(a.freelancer.id);
@@ -249,7 +249,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(result.success).toBe(true);
       if (!result.success) return;
       const data = result.data;
-      expect(data.exportVersion).toBe('2.0');
+      expect(data.exportVersion).toBe('2.1');
       expect(data.user.id).toBe(a.freelancer.id);
       expect(data.senderProfiles.map((p) => p.id)).toEqual([
         a.senderProfile.id,

@@ -83,6 +83,7 @@ async function readExport(userId: string) {
     customers,
     products,
     invoices,
+    personalKeys,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -94,6 +95,8 @@ async function readExport(userId: string) {
         image: true,
         createdAt: true,
         updatedAt: true,
+        timeZone: true,
+        overdueNoticeDismissedAt: true,
       },
     }),
     prisma.account.findMany({
@@ -125,6 +128,26 @@ async function readExport(userId: string) {
       where: { senderProfile: { userId } },
       include: { items: true },
     }),
+    // Explicit select: digest, lastFour, activeNameKey and id never leave the database (AC-25).
+    prisma.personalKey.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        name: true,
+        createdAt: true,
+        lastUsedAt: true,
+        revokedAt: true,
+        usageWeeks: {
+          orderBy: { weekStart: 'asc' },
+          select: {
+            weekStart: true,
+            attempts: true,
+            successes: true,
+            assistantErrors: true,
+          },
+        },
+      },
+    }),
   ]);
   return {
     user,
@@ -134,6 +157,7 @@ async function readExport(userId: string) {
     customers,
     products,
     invoices,
+    personalKeys,
   };
 }
 
@@ -141,7 +165,7 @@ type ExportRead = Awaited<ReturnType<typeof readExport>>;
 
 export type AccountExport = Omit<ExportRead, 'user'> & {
   exportDate: string;
-  exportVersion: '2.0';
+  exportVersion: '2.1';
   user: NonNullable<ExportRead['user']>;
 };
 
@@ -150,7 +174,7 @@ const EXPORT_RATE_LIMITED =
   "You've reached the export limit. You can export again later.";
 
 /**
- * Every category the account owns, scoped by actor.userId (exportVersion 2.0, Session dropped).
+ * Every category the account owns, scoped by actor.userId (exportVersion 2.1: Personal keys with weekly usage, time zone).
  * A place is reserved in the limit store before any read (ADR-0005); a system-side failure
  * releases it, a limit-store failure refuses the export (never unlimited). An account that is
  * gone is NOT_FOUND: nothing is recorded, and a place
@@ -219,7 +243,7 @@ export async function getAccountExport(
 
     return ok({
       exportDate: new Date().toISOString(),
-      exportVersion: '2.0',
+      exportVersion: '2.1',
       user,
       ...rest,
     });
