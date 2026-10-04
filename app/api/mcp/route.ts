@@ -7,10 +7,18 @@ import { createMcpServer } from '@/lib/mcp/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// One small JSON-RPC message per request (openapi.yaml): the cap is far above any tool call.
+const MAX_BODY_BYTES = 64 * 1024;
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const pipeline = await runMcpPipeline(request);
     if (!pipeline.ok) return pipeline.response;
+
+    // The key limit has already counted this POST; a refused batch or oversized body still
+    // counts (AC-11) but never reaches the transport, so no tool runs.
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
 
     const server = createMcpServer({
       actor: pipeline.actor,
@@ -20,9 +28,10 @@ export async function POST(request: Request): Promise<Response> {
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
+      maxRequestBodySize: MAX_BODY_BYTES,
     });
     await server.connect(transport);
-    return await transport.handleRequest(request);
+    return await transport.handleRequest(request, { parsedBody: body.value });
   } catch {
     return new Response(
       JSON.stringify({
@@ -37,6 +46,59 @@ export async function POST(request: Request): Promise<Response> {
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
+}
+
+function jsonRpcRefusal(status: number, code: number, message: string): Response {
+  return new Response(
+    JSON.stringify({ jsonrpc: '2.0', id: null, error: { code, message } }),
+    { status, headers: { 'content-type': 'application/json' } }
+  );
+}
+
+/** Reads at most MAX_BODY_BYTES and refuses an oversized body, bad JSON or a batch array. */
+async function readJsonBody(
+  request: Request
+): Promise<{ ok: true; value: unknown } | { ok: false; response: Response }> {
+  const tooLarge = {
+    ok: false as const,
+    response: jsonRpcRefusal(413, -32600, 'The request body is too large.'),
+  };
+  if (Number(request.headers.get('content-length')) > MAX_BODY_BYTES) return tooLarge;
+
+  let text = '';
+  if (request.body) {
+    const reader = request.body.getReader();
+    const decoder = new TextDecoder();
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return tooLarge;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return {
+      ok: false,
+      response: jsonRpcRefusal(400, -32700, 'Parse error: Invalid JSON'),
+    };
+  }
+  if (Array.isArray(value)) {
+    return {
+      ok: false,
+      response: jsonRpcRefusal(400, -32600, 'Invalid Request: batches are not accepted'),
+    };
+  }
+  return { ok: true, value };
 }
 
 /** Public origin, as the Connect-your-AI page derives it: forwarded host first, else the request. */

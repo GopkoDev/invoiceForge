@@ -230,6 +230,85 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
     ).toBe(3);
   });
 
+  it('refuses a JSON-RPC batch with 400 / -32600 before any tool runs, and still counts the call (AC-11)', async () => {
+    const { row, fullKey } = await freelancerWithKey();
+    const call = (id: number) => ({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'list_overdue_invoices', arguments: {} },
+    });
+    // a ping runs no tool: it shows how many queries the pipeline alone makes
+    const querySpy = vi.spyOn(appPrisma, '$queryRaw');
+    await route.POST(post({ jsonrpc: '2.0', id: 9, method: 'ping' }, bearer(fullKey)));
+    const pipelineOnly = querySpy.mock.calls.length;
+    querySpy.mockClear();
+
+    const res = await route.POST(post([call(1), call(2)], bearer(fullKey)));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe(-32600);
+    expect(body.error.message).toContain('batches are not accepted');
+    expect(body.result).toBeUndefined();
+    expect(querySpy.mock.calls.length).toBe(pipelineOnly);
+    // one POST, one counted call (ping + refused batch)
+    expect(
+      await factoryPrisma.limitEvent.count({
+        where: { scope: 'MCP_KEY', key: row.id },
+      })
+    ).toBe(2);
+  });
+
+  it('refuses a body over the size cap with 413 / -32600 before any tool runs', async () => {
+    const { fullKey } = await freelancerWithKey();
+    const big = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'list_overdue_invoices', arguments: { pad: 'x'.repeat(70_000) } },
+    };
+    const res = await route.POST(post(big, bearer(fullKey)));
+    expect(res.status).toBe(413);
+    expect((await res.json()).error.code).toBe(-32600);
+    // a body without Content-Length (streamed) is capped too
+    const chunk = new TextEncoder().encode('x'.repeat(70_000));
+    const streamed = new Request(URL_, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'x-real-ip': IP,
+        ...bearer(fullKey),
+      },
+      body: new ReadableStream({
+        start(c) {
+          c.enqueue(chunk);
+          c.close();
+        },
+      }),
+      duplex: 'half',
+    } as RequestInit);
+    expect((await route.POST(streamed)).status).toBe(413);
+  });
+
+  it('answers unparseable JSON with 400 / -32700', async () => {
+    const { fullKey } = await freelancerWithKey();
+    const res = await route.POST(
+      new Request(URL_, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'x-real-ip': IP,
+          ...bearer(fullKey),
+        },
+        body: '{nope',
+      })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe(-32700);
+  });
+
   it('answers 503 with no Retry-After when the limit store is down, and no data', async () => {
     const { fullKey } = await freelancerWithKey();
     vi.spyOn(appPrisma, '$transaction').mockRejectedValue(new Error('down'));
