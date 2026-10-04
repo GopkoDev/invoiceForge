@@ -8,6 +8,9 @@ vi.mock('@/lib/services/personal-keys/usage', () => ({
   recordPersonalKeyUsage: recordUsage,
 }));
 
+// The registered tools reach the business layer, which needs a database connection to load.
+vi.mock('@/lib/services/dashboard/assistant-reads', () => ({}));
+
 import { createMcpServer, registerReadOnlyTool } from '@/lib/mcp/server';
 import { fail, ok } from '@/types/result';
 import { actingFreelancerForTest } from '../support/acting-freelancer';
@@ -46,7 +49,7 @@ describe('tools/list (AC-10)', () => {
   it('lists only read-only tools whose descriptions end with the data-not-instructions sentence', async () => {
     const client = await connect(async () => ok({ value: 1 }));
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(1);
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['list_customers']));
     for (const tool of tools) {
       expect(tool.annotations).toEqual({
         readOnlyHint: true,

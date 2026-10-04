@@ -22,6 +22,10 @@ import {
   toToolError,
   type CallToolResult,
 } from '@/lib/mcp/answers';
+import { overdueHandler, overdueTool } from '@/lib/mcp/tools/overdue';
+import { debtorsHandler, debtorsTool } from '@/lib/mcp/tools/debtors';
+import { expectedPaymentsHandler, expectedPaymentsTool } from '@/lib/mcp/tools/expected-payments';
+import { summaryHandler, summaryTool } from '@/lib/mcp/tools/summary';
 
 export interface McpCallContext {
   actor: ActingFreelancer;
@@ -77,6 +81,10 @@ export function createMcpServer(context: McpCallContext): Server {
   );
   const tools = new Map<string, RegisteredTool>();
   registries.set(server, { context, tools });
+  registerReadOnlyTool(server, overdueTool, overdueHandler);
+  registerReadOnlyTool(server, debtorsTool, debtorsHandler);
+  registerReadOnlyTool(server, expectedPaymentsTool, expectedPaymentsHandler);
+  registerReadOnlyTool(server, summaryTool, summaryHandler);
 
   server.setRequestHandler(ListToolsRequestSchema, () =>
     Sentry.startSpan({ name: 'mcp.tools/list', op: 'mcp.server' }, () => ({

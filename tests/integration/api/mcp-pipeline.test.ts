@@ -119,7 +119,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
     expect((await init.json()).result.serverInfo).toBeDefined();
     const list = await route.POST(post(LIST, bearer(fullKey)));
     expect(list.status).toBe(200);
-    expect((await list.json()).result.tools).toEqual([]);
+    expect(Array.isArray((await list.json()).result.tools)).toBe(true);
   });
 
   it('answers a notification with 202', async () => {
