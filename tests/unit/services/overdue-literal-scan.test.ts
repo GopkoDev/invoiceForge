@@ -1,5 +1,5 @@
 // T02 (ADR-0005 hard rule) — a hand-written OVERDUE status check outside the shared module would
-// bypass the rule. T06/T07/T08 remove the allow-list entries below; T08's DoD leaves it empty.
+// bypass the rule. Only the display-only files in ALLOW_LIST may spell the derived status (T32).
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,14 +8,36 @@ const ROOT = path.resolve(__dirname, '../../..');
 const SCAN_DIRS = ['lib', 'app', 'components', 'types'];
 const MODULE = 'lib/services/_shared/overdue.ts';
 
-/** Temporary allow-list: callers that still hand-write OVERDUE (removed by T06/T07/T08). */
-const ALLOW_LIST: readonly string[] = [];
+/**
+ * Display-only callers that compare or list the DERIVED status the services already return
+ * (ADR-0005). They never decide overdue-ness; each entry needs a written reason.
+ */
+const ALLOW_LIST: Readonly<Record<string, string>> = {
+  'components/invoices/invoice-row-actions.tsx':
+    'offers "Mark as paid" / "Mark as overdue" for the status the row already carries',
+  'components/invoices/invoices-toolbar.tsx': 'the status filter option list',
+  'components/dashboard/recent-invoices/dashboard-recent-invoices.tsx':
+    'orders the already-derived recent rows by status',
+  'types/invoice/types.ts': 'the status label/variant table for the badge',
+};
 
 const OVERDUE_LITERAL = /\bOVERDUE\b/;
+
+// Spelling the status without the literal ('overdue'.toUpperCase(), a shared OVERDUE_STATUS constant)
+// would slip past OVERDUE_LITERAL, so the service layer may not use either form.
+const OBFUSCATED_OVERDUE = /\bOVERDUE_STATUS\b|['"`]overdue['"`]\s*\.\s*toUpperCase/i;
+const SERVICES_DIR = 'lib/services/';
 
 function findOverdueLiterals(files: Record<string, string>, allow: readonly string[]): string[] {
   return Object.entries(files)
     .filter(([file, text]) => file !== MODULE && !allow.includes(file) && OVERDUE_LITERAL.test(text))
+    .map(([file]) => file)
+    .sort();
+}
+
+function findObfuscatedOverdue(files: Record<string, string>): string[] {
+  return Object.entries(files)
+    .filter(([file, text]) => file.startsWith(SERVICES_DIR) && OBFUSCATED_OVERDUE.test(text))
     .map(([file]) => file)
     .sort();
 }
@@ -53,12 +75,35 @@ describe('overdue literal scan', () => {
   it('finds no OVERDUE literal in lib, app, components or types beyond the allow-list', () => {
     const files = scanRepo();
     expect(files[MODULE]).toBeDefined();
-    expect(findOverdueLiterals(files, ALLOW_LIST)).toEqual([]);
+    expect(findOverdueLiterals(files, Object.keys(ALLOW_LIST))).toEqual([]);
   });
 
   it('keeps the allow-list honest: every entry still contains a literal', () => {
     const files = scanRepo();
-    const stale = ALLOW_LIST.filter((f) => !OVERDUE_LITERAL.test(files[f] ?? ''));
+    const stale = Object.keys(ALLOW_LIST).filter((f) => !OVERDUE_LITERAL.test(files[f] ?? ''));
     expect(stale).toEqual([]);
+  });
+
+  it('keeps the service layer out of the allow-list', () => {
+    expect(Object.keys(ALLOW_LIST).filter((f) => f.startsWith(SERVICES_DIR))).toEqual([]);
+  });
+
+  it('flags an obfuscated overdue status in lib/services', () => {
+    const files = {
+      'lib/services/a.ts': `where: { status: OVERDUE_STATUS }`,
+      'lib/services/b.ts': `const s = 'overdue'.toUpperCase();`,
+      'lib/services/c.ts': `const s = "Overdue" .toUpperCase()`,
+      'lib/services/ok.ts': `const n = name.toUpperCase();`,
+      'components/x.tsx': `import { OVERDUE_STATUS } from '@/types'`,
+    };
+    expect(findObfuscatedOverdue(files)).toEqual([
+      'lib/services/a.ts',
+      'lib/services/b.ts',
+      'lib/services/c.ts',
+    ]);
+  });
+
+  it('finds no obfuscated overdue status in lib/services', () => {
+    expect(findObfuscatedOverdue(scanRepo())).toEqual([]);
   });
 });

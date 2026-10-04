@@ -191,7 +191,8 @@ describe.runIf(containerRuntimeAvailable)(
       await assertMatchesContract({
         operationId: 'exportUserData',
         status: 200,
-        body: legacyExportShape(body),
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
       });
     });
 
@@ -250,7 +251,8 @@ describe.runIf(containerRuntimeAvailable)(
       await assertMatchesContract({
         operationId: 'exportUserData',
         status: 200,
-        body: legacyExportShape(body),
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
       });
 
       // Product-named file, UTC date, per contract's Content-Disposition pattern.
@@ -483,19 +485,6 @@ describe.runIf(containerRuntimeAvailable)(
 
 function utcDateString(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-/**
- * The architecture-hardening contract still pins exportVersion 2.0 with additionalProperties:false.
- * 2.1 is additive (mcp-server T23), so validate the unchanged 2.0 part against it.
- */
-function legacyExportShape(body: Record<string, unknown>) {
-  const rest = { ...body };
-  delete rest.personalKeys;
-  const user = { ...(rest.user as Record<string, unknown>) };
-  delete user.timeZone;
-  delete user.overdueNoticeDismissedAt;
-  return { ...rest, exportVersion: '2.0', user };
 }
 
 describe.runIf(!containerRuntimeAvailable)('GET /api/user/export (T27)', () => {

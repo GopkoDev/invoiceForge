@@ -186,11 +186,6 @@ export interface InvoiceEditorData {
   legacy?: InvoiceLegacyInfo | null;
 }
 
-// The overdue status value the services return for an overdue invoice (hand-marked or past due).
-// Spelled without the literal so the T02 scan (ADR-0005) finds no hand-written status check here.
-type OverdueStatus = Exclude<InvoiceStatus, 'DRAFT' | 'PENDING' | 'PAID' | 'CANCELLED'>;
-export const OVERDUE_STATUS = 'overdue'.toUpperCase() as OverdueStatus;
-
 // Status configuration for UI
 export const invoiceStatusConfig: Record<
   InvoiceStatus,
@@ -204,11 +199,8 @@ export const invoiceStatusConfig: Record<
   PAID: { label: 'Paid', variant: 'default' },
   CANCELLED: { label: 'Cancelled', variant: 'secondary' },
   // The services return the derived status (ADR-0005); screens only display it.
-  [OVERDUE_STATUS]: { label: 'Overdue', variant: 'destructive' },
-} as Record<
-  InvoiceStatus,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
->;
+  OVERDUE: { label: 'Overdue', variant: 'destructive' },
+};
 
 // Invoice list tab type
 export type InvoiceTab = 'all' | 'drafts' | 'final';

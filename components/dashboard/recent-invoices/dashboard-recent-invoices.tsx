@@ -20,14 +20,14 @@ import {
 } from '@/components/ui/table';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { InvoiceRowActions } from '@/components/invoices/invoice-row-actions';
-import { InvoiceStatus, OVERDUE_STATUS } from '@/types/invoice/types';
+import { InvoiceStatus } from '@/types/invoice/types';
 import { RecentInvoice } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { formatStoredDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { useCallback, useMemo, useState } from 'react';
 
 const STATUS_ORDER: readonly InvoiceStatus[] = [
-  OVERDUE_STATUS,
+  'OVERDUE',
   'PENDING',
   'DRAFT',
   'PAID',

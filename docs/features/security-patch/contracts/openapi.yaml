@@ -192,14 +192,15 @@ paths:
               schema: { $ref: "#/components/schemas/UserDataExport" }
               example:
                 exportDate: "2026-10-02T10:00:00.000Z"
-                exportVersion: "2.0"
-                user: { id: "clx0000000000000000000001", name: "Test User", email: "user-1@example.test", emailVerified: null, image: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }
+                exportVersion: "2.1"
+                user: { id: "clx0000000000000000000001", name: "Test User", email: "user-1@example.test", emailVerified: null, image: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", timeZone: null, overdueNoticeDismissedAt: null }
                 accounts: [{ provider: "google", type: "oidc", createdAt: "2026-01-01T00:00:00.000Z" }]
                 emailHistory: []
                 senderProfiles: []
                 customers: []
                 products: []
                 invoices: []
+                personalKeys: []
         "401":
           $ref: "#/components/responses/NotSignedIn"
         "429":
@@ -482,14 +483,15 @@ components:
     UserDataExport:
       type: object
       description: |
-        Unchanged from architecture-hardening (`exportVersion` 2.0). `LimitEvent` rows are **not**
+        `exportVersion` 2.1 (mcp-server): architecture-hardening's 2.0 body plus `personalKeys`,
+        `user.timeZone` and `user.overdueNoticeDismissedAt`. `LimitEvent` rows are **not**
         exported: they are short-lived security records, and address rows hold only a keyed
         digest that the Freelancer couldn't read anyway (api-sync-report D-6).
-      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices]
+      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices, personalKeys]
       additionalProperties: false
       properties:
         exportDate: { type: string, format: date-time }
-        exportVersion: { const: "2.0" }
+        exportVersion: { const: "2.1" }
         user:
           type: object
           required: [id, email]
@@ -501,6 +503,8 @@ components:
             image: { type: [string, "null"] }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
+            timeZone: { type: [string, "null"] }
+            overdueNoticeDismissedAt: { type: [string, "null"], format: date-time }
         accounts:
           type: array
           items:
@@ -515,3 +519,26 @@ components:
         customers: { type: array, items: { type: object } }
         products: { type: array, items: { type: object } }
         invoices: { type: array, items: { type: object } }
+        personalKeys:
+          type: array
+          description: Never the digest, last four characters or full key (mcp-server AC-25).
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, createdAt, lastUsedAt, revokedAt, usageWeeks]
+            properties:
+              name: { type: string }
+              createdAt: { type: string, format: date-time }
+              lastUsedAt: { type: [string, "null"], format: date-time }
+              revokedAt: { type: [string, "null"], format: date-time }
+              usageWeeks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [weekStart, attempts, successes, assistantErrors]
+                  properties:
+                    weekStart: { type: string, format: date-time }
+                    attempts: { type: integer }
+                    successes: { type: integer }
+                    assistantErrors: { type: integer }

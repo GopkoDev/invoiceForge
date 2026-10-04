@@ -30,7 +30,7 @@ import {
   updateInvoiceStatus,
   getInvoice,
 } from '@/lib/actions/invoice-actions/invoice-actions';
-import { InvoiceStatus, OVERDUE_STATUS } from '@/types/invoice/types';
+import { InvoiceStatus } from '@/types/invoice/types';
 import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
 import {
@@ -195,7 +195,7 @@ export function InvoiceRowActions({
   };
 
   const canDelete = status === 'DRAFT';
-  const canMarkAsPaid = status === 'PENDING' || status === OVERDUE_STATUS;
+  const canMarkAsPaid = status === 'PENDING' || status === 'OVERDUE';
   const canMarkAsPending = status === 'DRAFT';
   const canMarkAsOverdue = status === 'PENDING';
   const canCancel = status !== 'CANCELLED' && status !== 'PAID';
@@ -261,7 +261,7 @@ export function InvoiceRowActions({
         )}
         {canMarkAsOverdue && (
           <DropdownMenuItem
-            onClick={() => handleStatusChange(OVERDUE_STATUS)}
+            onClick={() => handleStatusChange('OVERDUE')}
             disabled={isDisabled}
           >
             <AlertTriangle className="size-4" />
