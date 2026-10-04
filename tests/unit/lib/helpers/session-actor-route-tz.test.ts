@@ -8,7 +8,11 @@ const captureException = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/helpers/auth-helpers', () => ({ getAuthenticatedUser: async () => ({ success: false }) }));
 vi.mock('@/lib/helpers/route-auth', () => ({ requireSession: async () => ({ ok: true, userId: 'user-1' }) }));
-vi.mock('@/lib/helpers/time-zone', () => ({ getRequestTimeZone: async () => 'Europe/Kyiv' }));
+vi.mock('@/lib/helpers/time-zone', () => ({ getBrowserTimeZone: async () => 'Europe/Kyiv' }));
+vi.mock('@/lib/services/profile/profile', () => ({
+  getSavedTimeZone: async () => null,
+  seedTimeZoneIfEmpty: async () => true,
+}));
 vi.mock('@/lib/services/_shared/time-zone', () => ({
   resolveTimeZone: async (raw?: string) => {
     if (!raw || raw === 'UTC') return 'UTC';

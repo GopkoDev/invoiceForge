@@ -15,3 +15,14 @@ export async function createActingFreelancer(userId: string, rawZone?: string): 
   const timeZone = await resolveTimeZone(rawZone);
   return { userId, timeZone } as ActingFreelancer;
 }
+
+/**
+ * The second trusted factory (ADR-0006): a Personal key's owner and the zone saved on the account.
+ * A NULL zone (not saved yet) is UTC; the zone is resolved once here, like the session factory.
+ */
+export async function actingFreelancerFromPersonalKey(
+  userId: string,
+  timeZone: string | null,
+): Promise<ActingFreelancer> {
+  return createActingFreelancer(userId, timeZone ?? undefined);
+}

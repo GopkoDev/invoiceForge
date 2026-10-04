@@ -8,6 +8,7 @@ vi.mock('@/prisma', () => ({
 }));
 vi.mock('@/auth', () => ({ auth: async () => ({ user: { id: 'user-1' } }) }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
+vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () => null, seedTimeZoneIfEmpty: async () => false }));
 
 const captureMessageMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({

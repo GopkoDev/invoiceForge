@@ -33,6 +33,7 @@ const authMock = vi.fn();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
+vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () => null, seedTimeZoneIfEmpty: async () => false }));
 
 const captureMessageMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
