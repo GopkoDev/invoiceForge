@@ -30,7 +30,7 @@ import {
   updateInvoiceStatus,
   getInvoice,
 } from '@/lib/actions/invoice-actions/invoice-actions';
-import { InvoiceStatus } from '@/types/invoice/types';
+import { InvoiceStatus, OVERDUE_STATUS } from '@/types/invoice/types';
 import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
 import {
@@ -179,6 +179,11 @@ export function InvoiceRowActions({
           router.refresh();
         } else if (!redirectIfUnauthorized(result)) {
           toast.error(result.error || 'Failed to update invoice status');
+          // SCR-05 status-rejected: the row was stale (e.g. past due since load); show the current status.
+          if (result.code === 'VALIDATION') {
+            onDataChange?.();
+            router.refresh();
+          }
         }
       } catch {
         // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
@@ -190,7 +195,7 @@ export function InvoiceRowActions({
   };
 
   const canDelete = status === 'DRAFT';
-  const canMarkAsPaid = status === 'PENDING' || status === 'OVERDUE';
+  const canMarkAsPaid = status === 'PENDING' || status === OVERDUE_STATUS;
   const canMarkAsPending = status === 'DRAFT';
   const canMarkAsOverdue = status === 'PENDING';
   const canCancel = status !== 'CANCELLED' && status !== 'PAID';
@@ -256,7 +261,7 @@ export function InvoiceRowActions({
         )}
         {canMarkAsOverdue && (
           <DropdownMenuItem
-            onClick={() => handleStatusChange('OVERDUE')}
+            onClick={() => handleStatusChange(OVERDUE_STATUS)}
             disabled={isDisabled}
           >
             <AlertTriangle className="size-4" />

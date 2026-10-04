@@ -20,17 +20,18 @@ import {
 } from '@/components/ui/table';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { InvoiceRowActions } from '@/components/invoices/invoice-row-actions';
+import { InvoiceStatus, OVERDUE_STATUS } from '@/types/invoice/types';
 import { RecentInvoice } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { useCallback, useMemo, useState } from 'react';
 
-const STATUS_ORDER = {
-  OVERDUE: 0,
-  PENDING: 1,
-  DRAFT: 2,
-  PAID: 3,
-  CANCELLED: 4,
-} as const;
+const STATUS_ORDER: readonly InvoiceStatus[] = [
+  OVERDUE_STATUS,
+  'PENDING',
+  'DRAFT',
+  'PAID',
+  'CANCELLED',
+];
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('en-US', {
@@ -63,9 +64,10 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
       header: 'Status',
       cell: ({ row }) => <InvoiceStatusBadge status={row.original.status} />,
       sortingFn: (rowA, rowB) => {
-        const statusA = rowA.original.status as keyof typeof STATUS_ORDER;
-        const statusB = rowB.original.status as keyof typeof STATUS_ORDER;
-        return STATUS_ORDER[statusA] - STATUS_ORDER[statusB];
+        return (
+          STATUS_ORDER.indexOf(rowA.original.status) -
+          STATUS_ORDER.indexOf(rowB.original.status)
+        );
       },
     },
     {

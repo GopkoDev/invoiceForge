@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { InvoiceStatus, InvoiceFilterOptions } from '@/types/invoice/types';
+import { InvoiceStatus, InvoiceFilterOptions, OVERDUE_STATUS } from '@/types/invoice/types';
 import { cn } from '@/lib/utils';
 
 interface InvoicesToolbarProps {
@@ -44,7 +44,7 @@ const STATUS_OPTIONS: { value: InvoiceStatus | 'all'; label: string }[] = [
   { value: 'DRAFT', label: 'Draft' },
   { value: 'PENDING', label: 'Pending' },
   { value: 'PAID', label: 'Paid' },
-  { value: 'OVERDUE', label: 'Overdue' },
+  { value: OVERDUE_STATUS, label: 'Overdue' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
