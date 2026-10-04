@@ -4,7 +4,12 @@ import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { createPersonalKey } from '@/lib/actions/personal-key-actions';
@@ -90,7 +95,13 @@ export function KeyCreateForm({
             Create key
           </Button>
         </div>
-        {nameError && <FieldError>{nameError}</FieldError>}
+        {nameError ? (
+          <FieldError>{nameError}</FieldError>
+        ) : (
+          <FieldDescription>
+            1 to 50 characters, e.g. the device or assistant it&apos;s for.
+          </FieldDescription>
+        )}
       </Field>
     </form>
   );

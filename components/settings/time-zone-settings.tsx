@@ -30,10 +30,10 @@ import {
   goToSignIn,
   redirectIfUnauthorized,
 } from '@/lib/helpers/client-session-redirect';
+import { TIME_ZONE_MESSAGE } from '@/lib/validations/profile';
 
 const SAVED_MESSAGE = 'Time zone saved.';
 const SAVE_FAILED_MESSAGE = "Your time zone couldn't be saved. Try again.";
-const FALLBACK_VALIDATION_MESSAGE = 'Choose a time zone from the list.';
 
 /** "UTC+03:00" for a zone right now (DST-aware); empty when the engine can't format it. */
 function offsetLabel(zone: string): string {
@@ -51,9 +51,13 @@ function offsetLabel(zone: string): string {
   }
 }
 
-function zoneLabel(zone: string): string {
-  const offset = offsetLabel(zone);
-  return offset ? `${zone} (${offset})` : zone;
+function buildLabels(zones: string[]): Map<string, string> {
+  return new Map(
+    zones.map((zone) => {
+      const offset = offsetLabel(zone);
+      return [zone, offset ? `${zone} (${offset})` : zone];
+    })
+  );
 }
 
 function listZones(saved: string | null): string[] {
@@ -70,6 +74,8 @@ function listZones(saved: string | null): string[] {
 
 export function TimeZoneSettings({ timeZone }: { timeZone: string | null }) {
   const zones = useMemo(() => listZones(timeZone), [timeZone]);
+  const labels = useMemo(() => buildLabels(zones), [zones]);
+  const zoneLabel = (zone: string) => labels.get(zone) ?? zone;
   const [value, setValue] = useState<string | null>(timeZone);
   const [saved, setSaved] = useState<string | null>(timeZone);
   const [saving, setSaving] = useState(false);
@@ -89,7 +95,7 @@ export function TimeZoneSettings({ timeZone }: { timeZone: string | null }) {
         setError(
           result.fieldErrors?.timeZone?.[0] ??
             result.error ??
-            FALLBACK_VALIDATION_MESSAGE
+            TIME_ZONE_MESSAGE
         );
       } else {
         toast.error(result.error || SAVE_FAILED_MESSAGE);

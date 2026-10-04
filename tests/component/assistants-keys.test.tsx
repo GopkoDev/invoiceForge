@@ -2,7 +2,7 @@
 // T21 — SCR-03 key states (create form, one-time reveal, key lists) and SCR-04 revoke confirmation.
 // See docs/features/mcp-server/tasks/t21-key-create-reveal-and-revoke-ui.md
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ok, fail } from '@/types/actions';
 
@@ -105,6 +105,20 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('SCR-03 key-name hint', () => {
+  const HINT = "1 to 50 characters, e.g. the device or assistant it's for.";
+
+  it('shows the hint under the name and hides it while the error shows (AC-03)', async () => {
+    const user = userEvent.setup();
+    renderKeys({ active: [], revoked: [] });
+    expect(screen.getByText(HINT)).toBeTruthy();
+    await user.type(screen.getByLabelText(/name/i), '   ');
+    await user.click(screen.getByRole('button', { name: /create/i }));
+    expect(await screen.findByText(KEY_NAME_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+});
+
 describe('SCR-03 default / empty', () => {
   it('lists active keys with name, created date, lastFour, last use, Revoke (AC-05)', () => {
     renderKeys({ active: [laptop, unused], revoked: [old] });
@@ -168,6 +182,21 @@ describe('create', () => {
     expect(screen.getByText('••••1234')).toBeTruthy();
     expect(input.value).toBe('');
     expect(createMock).toHaveBeenCalledWith({ name: 'Laptop assistant' });
+  });
+
+  it('the full key is gone after a remount and the snippets show YOUR_KEY again (AC-02)', async () => {
+    createMock.mockResolvedValueOnce(created('Fresh', 'n1', FULL));
+    const user = userEvent.setup();
+    const first = renderKeys({ active: [], revoked: [] });
+    await user.type(screen.getByLabelText(/name/i), 'Fresh');
+    await user.click(screen.getByRole('button', { name: /create/i }));
+    await screen.findByDisplayValue(FULL);
+    first.unmount();
+    cleanup();
+    renderKeys({ active: [], revoked: [] });
+    expect(screen.queryByDisplayValue(FULL)).toBeNull();
+    expect(document.body.textContent).not.toContain(FULL);
+    expect(document.body.textContent).toContain('YOUR_KEY');
   });
 
   it('a second create replaces the reveal with the newer key', async () => {
@@ -320,6 +349,43 @@ describe('SCR-04 revoke confirmation', () => {
       expect(screen.queryByText('Your new key "Fresh"')).toBeNull()
     );
     expect(document.body.textContent).not.toContain(FULL);
+  });
+
+  it('keeps the dialog title while closing and focuses the Active keys heading after success', async () => {
+    revokeMock.mockResolvedValue(ok());
+    const user = userEvent.setup();
+    renderKeys({ active: [laptop, unused], revoked: [] });
+    const dialog = await openRevoke(user);
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Revoke key' })
+    );
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    const closing = screen.queryByRole('dialog');
+    if (closing) {
+      expect(within(closing).queryByText('Revoke ""?')).toBeNull();
+    }
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { name: /^Active keys/ })
+      )
+    );
+  });
+
+  it('revoking after a limit refusal clears the limit alert (AC-04, AC-06)', async () => {
+    createMock.mockResolvedValueOnce(fail('CONFLICT', KEY_LIMIT_MESSAGE));
+    revokeMock.mockResolvedValue(ok());
+    const user = userEvent.setup();
+    renderKeys({ active: [laptop], revoked: [] });
+    await user.type(screen.getByLabelText(/name/i), 'Eleventh');
+    await user.click(screen.getByRole('button', { name: /create/i }));
+    expect(await screen.findByText(KEY_LIMIT_MESSAGE)).toBeTruthy();
+    const dialog = await openRevoke(user);
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Revoke key' })
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(KEY_LIMIT_MESSAGE)).toBeNull()
+    );
   });
 
   it('NOT_FOUND toasts verbatim, closes and refreshes the list', async () => {

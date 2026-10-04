@@ -49,7 +49,7 @@ const { TimeZoneSettings } = await import(
   '@/components/settings/time-zone-settings'
 );
 
-const TIME_ZONE_MESSAGE = 'Choose a time zone from the list.';
+const { TIME_ZONE_MESSAGE } = await import('@/lib/validations/profile');
 const input = () => screen.getByRole('combobox') as HTMLInputElement;
 const saveButton = () => screen.getByRole('button', { name: /save/i });
 

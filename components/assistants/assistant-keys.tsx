@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ConfirmationModal } from '@/components/modals/global-modals/confirmation-modal/confirmation-modal';
@@ -38,6 +38,22 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
     null
   );
 
+  // The dialog keeps the last target's name while it animates closed.
+  const [lastTarget, setLastTarget] = useState<PersonalKeySummary | null>(null);
+  if (revokeTarget && revokeTarget !== lastTarget) setLastTarget(revokeTarget);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [focusHeading, setFocusHeading] = useState(false);
+
+  // The revoked row's Revoke button is gone, so focus would fall to <body>; park it on the list heading.
+  useEffect(() => {
+    if (!focusHeading || revokeTarget) return;
+    const id = setTimeout(() => {
+      headingRef.current?.focus();
+      setFocusHeading(false);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [focusHeading, revokeTarget]);
+
   // A fresh server render (after a create/revoke refresh) replaces the local copy.
   if (keys !== seenKeys) {
     setSeenKeys(keys);
@@ -65,6 +81,7 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
       }));
       setReveal((r) => (r?.id === target.id ? null : r));
       setLimitMessage(null);
+      setFocusHeading(true);
       toast.success('Key revoked.');
       router.refresh();
     } else if (result.code === 'NOT_FOUND') {
@@ -92,12 +109,13 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
         revoked={list.revoked}
         timeZone={timeZone}
         onRevoke={setRevokeTarget}
+        headingRef={headingRef}
       />
       <ConfirmationModal
         open={revokeTarget !== null}
         onClose={() => setRevokeTarget(null)}
         onConfirm={handleConfirmRevoke}
-        title={`Revoke "${revokeTarget?.name ?? ''}"?`}
+        title={`Revoke "${(revokeTarget ?? lastTarget)?.name ?? ''}"?`}
         description="Any assistant using this key stops working right away. This can't be undone: you'll need a new key to reconnect."
         confirmText="Revoke key"
         variant="destructive"

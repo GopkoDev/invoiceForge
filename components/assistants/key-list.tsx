@@ -1,5 +1,6 @@
 'use client';
 
+import type { Ref } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -25,6 +26,8 @@ interface KeyListProps {
   revoked: RevokedPersonalKeySummary[];
   timeZone: string;
   onRevoke: (key: PersonalKeySummary) => void;
+  /** Stable focus target once a revoked row has left the list. */
+  headingRef?: Ref<HTMLHeadingElement>;
 }
 
 // Explicit zone so the server pass and the browser agree.
@@ -48,11 +51,21 @@ function formatDateTime(iso: string, timeZone: string): string {
   });
 }
 
-export function KeyList({ active, revoked, timeZone, onRevoke }: KeyListProps) {
+export function KeyList({
+  active,
+  revoked,
+  timeZone,
+  onRevoke,
+  headingRef,
+}: KeyListProps) {
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">
+        <h2
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-lg font-semibold outline-none"
+        >
           {`Active keys (${active.length} of ${MAX_ACTIVE_PERSONAL_KEYS})`}
         </h2>
         {active.length === 0 ? (
