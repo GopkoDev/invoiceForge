@@ -66,7 +66,13 @@ describe.runIf(containerRuntimeAvailable)('dashboard names, order, isolation (T1
     await db?.stop();
   });
 
-  beforeEach(() => recorder.reset());
+  beforeEach(() => {
+    recorder.reset();
+    // ADR-0005: pending invoices become overdue once past due, so the fixtures need a fixed "now"
+    // before their due dates. Only Date is faked so the pg driver's timers keep running.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+  });
   afterEach(async () => {
     vi.useRealTimers();
     await truncateAllTables(testClient);

@@ -10,7 +10,6 @@ const MODULE = 'lib/services/_shared/overdue.ts';
 
 /** Temporary allow-list: callers that still hand-write OVERDUE (removed by T06/T07/T08). */
 const ALLOW_LIST: readonly string[] = [
-  'lib/services/dashboard/queries.ts',
   'components/invoices/invoice-row-actions.tsx',
   'components/invoices/invoices-toolbar.tsx',
   'components/dashboard/recent-invoices/dashboard-recent-invoices.tsx',

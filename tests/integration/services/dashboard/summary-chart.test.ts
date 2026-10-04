@@ -72,6 +72,9 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
   async function twoFreelancers() {
     const a = await seedFreelancer(testClient, ['USD']);
     const b = await seedFreelancer(testClient, ['USD', 'EUR']);
+    // ADR-0005: the pending invoices (due 12 September) stay pending only before that day.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-11T12:00:00Z'));
     const at = new Date('2026-09-10T09:00:00Z');
     await addInvoice(a, { currency: 'USD', status: 'PAID', total: 10, issueDate: at });
     await addInvoice(a, { currency: 'USD', status: 'PENDING', total: 20, issueDate: at, dueDate: new Date('2026-09-12T09:00:00Z') });

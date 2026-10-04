@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma, type Currency } from '@prisma/client';
 import { prisma } from '@/prisma';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { overdueSql, type LocalDate } from '@/lib/services/_shared/overdue';
 
 // ADR-0004: one parameterized $queryRaw per section, always joined through "SenderProfile" on the
 // owner. Sums are SUM(numeric) in SQL, cast to float8 once (exact two-decimal values), counts to int.
@@ -10,18 +11,34 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 
 const num = z.number();
 
+// ADR-0005: the only way a query says "overdue" or "unpaid". `today` is a calendar date in the
+// actor's zone (bound, never now()). Unpaid = pending, or overdue by the shared rule.
+const pendingNotOverdue = (today: LocalDate) => Prisma.sql`(i."status" = 'PENDING' AND NOT ${overdueSql(today)})`;
+const unpaid = (today: LocalDate) => Prisma.sql`(i."status" = 'PENDING' OR ${overdueSql(today)})`;
+
 const currencyRow = z.object({ currency: z.string() });
 
 // Tabs keep the order each currency was first added in: the dashboard opens the first tab when the
 // link names no currency.
 export async function queryCurrencyTabs(actor: ActingFreelancer) {
+  // ADR-0008: bank-account currencies first (creation order), then currencies only issued invoices use.
   const rows = await prisma.$queryRaw<unknown[]>`
-    SELECT ba."currency"::text AS currency
-    FROM "BankAccount" ba
-    JOIN "SenderProfile" sp ON sp."id" = ba."senderProfileId"
-    WHERE sp."userId" = ${actor.userId}
-    GROUP BY ba."currency"
-    ORDER BY MIN(ba."createdAt"), MIN(ba."id")`;
+    SELECT t.currency
+    FROM (
+      SELECT ba."currency"::text AS currency, 0 AS src, MIN(ba."createdAt") AS first_at, MIN(ba."id") AS first_id
+      FROM "BankAccount" ba
+      JOIN "SenderProfile" sp ON sp."id" = ba."senderProfileId"
+      WHERE sp."userId" = ${actor.userId}
+      GROUP BY ba."currency"
+      UNION ALL
+      SELECT i."currency"::text AS currency, 1 AS src, MIN(i."createdAt") AS first_at, MIN(i."id") AS first_id
+      FROM "Invoice" i
+      JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
+      WHERE sp."userId" = ${actor.userId} AND i."status" <> 'DRAFT'
+      GROUP BY i."currency"
+    ) t
+    GROUP BY t.currency
+    ORDER BY MIN(t.src), MIN(t.first_at), MIN(t.first_id)`;
   return z.array(currencyRow).parse(rows).map((r) => r.currency as Currency);
 }
 
@@ -42,6 +59,7 @@ export async function querySummaryStats(
   currency: Currency,
   start: Date | null,
   endExclusive: Date | null,
+  today: LocalDate,
 ) {
   const paidIn = Prisma.sql`(${start}::timestamp IS NULL OR (i."issueDate" >= ${start}::timestamp AND i."issueDate" < ${endExclusive}::timestamp))`;
   const dueIn = Prisma.sql`(${start}::timestamp IS NULL OR (i."dueDate" >= ${start}::timestamp AND i."dueDate" < ${endExclusive}::timestamp))`;
@@ -49,12 +67,12 @@ export async function querySummaryStats(
     SELECT
       COALESCE(SUM(i."total") FILTER (WHERE i."status" = 'PAID' AND ${paidIn}), 0)::float8 AS "totalReceived",
       (COUNT(*) FILTER (WHERE i."status" = 'PAID' AND ${paidIn}))::int AS "receivedCount",
-      COALESCE(SUM(i."total") FILTER (WHERE i."status" = 'PENDING' AND ${dueIn}), 0)::float8 AS "totalPlanned",
-      (COUNT(*) FILTER (WHERE i."status" = 'PENDING' AND ${dueIn}))::int AS "plannedCount",
-      COALESCE(SUM(i."total") FILTER (WHERE i."status" = 'OVERDUE' AND ${dueIn}), 0)::float8 AS "totalOverdue",
-      (COUNT(*) FILTER (WHERE i."status" = 'OVERDUE' AND ${dueIn}))::int AS "overdueCount",
-      COALESCE(SUM(i."total") FILTER (WHERE i."status" IN ('PENDING', 'OVERDUE')), 0)::float8 AS "allFuturePayments",
-      (COUNT(*) FILTER (WHERE i."status" IN ('PENDING', 'OVERDUE')))::int AS "allFuturePaymentsCount"
+      COALESCE(SUM(i."total") FILTER (WHERE ${pendingNotOverdue(today)} AND ${dueIn}), 0)::float8 AS "totalPlanned",
+      (COUNT(*) FILTER (WHERE ${pendingNotOverdue(today)} AND ${dueIn}))::int AS "plannedCount",
+      COALESCE(SUM(i."total") FILTER (WHERE ${overdueSql(today)} AND ${dueIn}), 0)::float8 AS "totalOverdue",
+      (COUNT(*) FILTER (WHERE ${overdueSql(today)} AND ${dueIn}))::int AS "overdueCount",
+      COALESCE(SUM(i."total") FILTER (WHERE ${unpaid(today)}), 0)::float8 AS "allFuturePayments",
+      (COUNT(*) FILTER (WHERE ${unpaid(today)}))::int AS "allFuturePaymentsCount"
     FROM "Invoice" i
     JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
     WHERE sp."userId" = ${actor.userId}
@@ -80,6 +98,7 @@ export async function queryChartBuckets(
   start: Date,
   endExclusive: Date,
   bucketing: ChartBucketing,
+  today: LocalDate,
 ) {
   const step = bucketing.mode === 'week' ? 7 : 1;
   const rows = await prisma.$queryRaw<unknown[]>`
@@ -94,7 +113,7 @@ export async function queryChartBuckets(
         AND i."currency" = ${currency}::"Currency"
         AND (
           (i."status" = 'PAID' AND i."issueDate" >= ${start}::timestamp AND i."issueDate" < ${endExclusive}::timestamp)
-          OR (i."status" IN ('PENDING', 'OVERDUE') AND i."dueDate" >= ${start}::timestamp AND i."dueDate" < ${endExclusive}::timestamp)
+          OR (${unpaid(today)} AND i."dueDate" >= ${start}::timestamp AND i."dueDate" < ${endExclusive}::timestamp)
         )
     )
     SELECT
@@ -131,18 +150,19 @@ export async function querySenderAccounts(
   currency: Currency,
   start: Date | null,
   endExclusive: Date | null,
+  today: LocalDate,
 ) {
   const rows = await prisma.$queryRaw<unknown[]>`
     WITH scoped AS (
       SELECT i."id", i."senderProfileId", i."bankAccountId", i."senderName", i."bankName", i."accountName",
-        i."status", i."total", i."issueDate", i."createdAt"
+        i."status", i."total", i."issueDate", i."createdAt", ${unpaid(today)} AS "unpaid"
       FROM "Invoice" i
       JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
       WHERE sp."userId" = ${actor.userId}
         AND i."currency" = ${currency}::"Currency"
         AND (${start}::timestamp IS NULL OR (
           (i."status" = 'PAID' AND i."issueDate" >= ${start}::timestamp AND i."issueDate" < ${endExclusive}::timestamp)
-          OR (i."status" IN ('PENDING', 'OVERDUE') AND i."dueDate" >= ${start}::timestamp AND i."dueDate" < ${endExclusive}::timestamp)
+          OR (${unpaid(today)} AND i."dueDate" >= ${start}::timestamp AND i."dueDate" < ${endExclusive}::timestamp)
         ))
     ),
     sender_name AS (
@@ -158,7 +178,7 @@ export async function querySenderAccounts(
     sums AS (
       SELECT "senderProfileId", "bankAccountId",
         COALESCE(SUM("total") FILTER (WHERE "status" = 'PAID'), 0) AS received,
-        COALESCE(SUM("total") FILTER (WHERE "status" IN ('PENDING', 'OVERDUE')), 0) AS planned
+        COALESCE(SUM("total") FILTER (WHERE "unpaid"), 0) AS planned
       FROM scoped
       GROUP BY "senderProfileId", "bankAccountId"
     ),
@@ -168,7 +188,7 @@ export async function querySenderAccounts(
       JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
       WHERE sp."userId" = ${actor.userId}
         AND i."currency" = ${currency}::"Currency"
-        AND i."status" IN ('PENDING', 'OVERDUE')
+        AND ${unpaid(today)}
       GROUP BY i."senderProfileId"
     )
     SELECT
@@ -216,14 +236,14 @@ export async function queryRecentInvoices(actor: ActingFreelancer, currency: Cur
 const debtorRow = z.object({ customerId: z.string(), customerName: z.string(), total: num, count: num });
 
 /** Top three overdue Customers by exact total, ties by name; the name is from the latest overdue invoice. */
-export async function queryDebtors(actor: ActingFreelancer, currency: Currency) {
+export async function queryDebtors(actor: ActingFreelancer, currency: Currency, today: LocalDate) {
   const rows = await prisma.$queryRaw<unknown[]>`
     WITH overdue AS (
       SELECT i."id", i."customerId", i."customerName", i."total", i."issueDate", i."createdAt"
       FROM "Invoice" i
       JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
       WHERE sp."userId" = ${actor.userId}
-        AND i."status" = 'OVERDUE'
+        AND ${overdueSql(today)}
         AND i."currency" = ${currency}::"Currency"
     ),
     latest AS (
@@ -255,7 +275,7 @@ const expectedRow = z.object({
 });
 
 /** The three earliest-due pending invoices, each row carrying the exact total and count of all pending. */
-export async function queryExpectedPayments(actor: ActingFreelancer, currency: Currency) {
+export async function queryExpectedPayments(actor: ActingFreelancer, currency: Currency, today: LocalDate) {
   const rows = await prisma.$queryRaw<unknown[]>`
     SELECT i."id", i."invoiceNumber", i."customerName", i."total"::float8 AS total, i."dueDate",
       (SUM(i."total") OVER ())::float8 AS "groupTotal",
@@ -263,7 +283,7 @@ export async function queryExpectedPayments(actor: ActingFreelancer, currency: C
     FROM "Invoice" i
     JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
     WHERE sp."userId" = ${actor.userId}
-      AND i."status" = 'PENDING'
+      AND ${pendingNotOverdue(today)}
       AND i."currency" = ${currency}::"Currency"
     ORDER BY i."dueDate" ASC, i."createdAt" ASC, i."id" ASC
     LIMIT 3`;
