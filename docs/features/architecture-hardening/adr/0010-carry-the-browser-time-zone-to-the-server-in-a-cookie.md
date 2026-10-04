@@ -1,15 +1,15 @@
 ---
-status: Accepted
+status: Superseded by mcp-server ADR-0006
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead"]
-updated_at: "2026-09-26"
+updated_at: "2026-10-04"
 feature_size: "M"
 ticket: "code-review 2026-09-26: A3, L9"
 ---
 
 # 0010 — Carry the browser time zone to the server in a cookie
 
-- **Status:** Accepted
+- **Status:** Superseded by [mcp-server ADR-0006](../../mcp-server/adr/0006-save-the-freelancer-time-zone-on-the-account.md) (2026-10-04) — the time zone is now saved on the account; the browser cookie only seeds it on first visit.
 - **Date:** 2026-09-26
 - **Deciders:** Dmytro Hopko (Architect), with Claude during the design walk
 
