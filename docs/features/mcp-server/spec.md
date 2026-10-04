@@ -350,7 +350,7 @@ They are reported per currency, for every currency that appears on the Freelance
 
 ## 8. Open questions
 
-- [ ] Which assistants get setup steps and are tested at launch? Default now: Claude Desktop, Claude Code and Cursor. — owner: Dmytro Hopko, due: before `sdd:design` completes
+- [x] Which assistants get setup steps and are tested at launch? **Resolved in design (2026-10-04):** Claude Desktop, Claude Code and Cursor (sad.md §11). — owner: Dmytro Hopko
 - [ ] `invoice-integrity` D3 is absorbed here. Its brief must drop D3 and depend on this feature's overdue rule. Default now: edit the brief when `invoice-integrity` is specified. — owner: Dmytro Hopko, due: before `sdd:specify invoice-integrity`
 - [ ] How are Freelancers told about the new overdue rule, given that their dashboard figures change on release day? Default now: a one-time dashboard notice explaining that past-due invoices now count as overdue automatically. — owner: Dmytro Hopko, due: before `sdd:tasks`
-- [ ] Assistants report every currency on the Freelancer's issued invoices, but the dashboard's currency tabs come from bank-account currencies. Should the dashboard tabs also follow the invoices' currencies, so that an invoice in a currency with no bank account is not missing from the dashboard? Default now: no; parity is guaranteed for the dashboard tab currencies, and the gap is documented. — owner: Dmytro Hopko, due: before `sdd:design` completes
+- [x] Assistants report every currency on the Freelancer's issued invoices, but the dashboard's currency tabs come from bank-account currencies. Should the dashboard tabs also follow the invoices' currencies, so that an invoice in a currency with no bank account is not missing from the dashboard? **Resolved in design (2026-10-04):** yes — dashboard tabs cover bank-account and issued-invoice currencies (mcp-server ADR-0008). — owner: Dmytro Hopko

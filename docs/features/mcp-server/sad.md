@@ -337,22 +337,27 @@ Each §1 goal expanded into scenarios; every target is quoted from spec §6.
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| A leaked Personal key reads all of the Freelancer's data until revoked (accepted in spec §6.1) | Medium | `ifk_` prefix + checksum for secret scanners; setup steps keep the key in user-level config (Claude Code `--scope user`, Cursor global `~/.cursor/mcp.json`, Claude Desktop `claude_desktop_config.json` via `mcp-remote`); immediate revocation; last use shown | Dmytro Hopko |
+| Dashboard aggregates sum money as `::float8` in raw SQL (`lib/services/dashboard/queries.ts`); a formatting or rounding difference between surfaces would break "to the cent" parity | Medium | Assistant tools reuse the same query functions and one formatter; the CI parity test compares formatted values; move sums to `numeric` at `data-model` if the test finds drift | Dmytro Hopko |
+| The overdue rule exists in three forms (SQL fragment, Prisma condition, TS predicate) and could drift, or a new query could hand-write `status = 'OVERDUE'` | Medium | Equivalence test over one fixture + a scanning test for the literal outside `_shared/overdue.ts` (ADR-0005) | Dmytro Hopko |
+| MCP clients that receive 401 may start OAuth discovery (MCP authorization spec) and show a confusing sign-in prompt instead of "ask for a valid key" | Medium | Refusals carry no OAuth resource-metadata pointer and a plain-language message; launch clients (Claude Desktop, Claude Code, Cursor) are tested against refusals at `ship`; exact status/headers decided at `api` | Dmytro Hopko |
+| `/api/mcp` shares the origin with session cookies; a future change that reads the session there would break AC-09 | Medium | Handler reads only `Authorization`; unit test: valid session cookie + no key ⇒ refused; no CORS headers; Security Lead review (ADR-0003) | Dmytro Hopko |
+| Account deletion runs in one explicit transaction keeping `RESTRICT` foreign keys (architecture-hardening ADR-0007); new key and usage tables must be deleted inside it or deletion fails | Medium | `data-model` adds the tables to the deletion transaction; integration test for AC-26 | Dmytro Hopko |
+| `LimitEvent` write volume and advisory-lock contention grow with Assistant traffic (up to 60 rows per key per minute) | Low | Daily purge already covers new scopes; §7 threshold (≈5 million rows/day or limit check > 50 ms p95) triggers a counter-store review (ADR-0007) | Dmytro Hopko |
+| MCP SDK / protocol revisions change transport or auth behaviour | Low | Pin the SDK version; contract tests over `tools/list` and `tools/call`; review on SDK upgrades | Dmytro Hopko |
+| Prompt injection through Freelancer-entered text reaching an Assistant's other tools (residual, named in spec §6.1) | Low | Read-only keys keep in-app damage at zero; every Freelancer-entered field is marked as data (AC-19b); residual risk outside invoiceFlow accepted | Dmytro Hopko |
+| `docs/architecture-map.md` reflects `ded1be7`, 101 commits behind; downstream stages reading it may miss the service layer and proxy changes | Low | Run `/sdd:survey` before `tasks`; this SAD's §2 and §5 reflect the current code | Dmytro Hopko |
+| Open architectural decision: one-time notice about the new overdue rule (dashboard figures change on release day) — spec §8 default: a dismissable dashboard notice | Open question | Resolve before `sdd:tasks`; affects SCR-01 states and whether a per-Freelancer "notice dismissed" flag is stored | Dmytro Hopko |
+| Open architectural decision: `invoice-integrity` brief must drop D3 and depend on this feature's overdue rule (ADR-0005) | Open question | Resolve before `sdd:specify invoice-integrity`; edit the brief when that feature is specified | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- No key expiry, first-use email or automatic revocation of unused keys (spec §3).
+- No server-to-client notifications or resumable streams on the MCP endpoint (ADR-0002) — revisit with the drafts feature.
+- Claude Desktop setup needs the `mcp-remote` bridge (Node.js on the Freelancer's machine) until it supports custom headers on remote servers directly.
+- A Freelancer's saved time zone does not follow them when travelling (ADR-0006) — they change it in settings.
+- Dashboard currency tabs now include issued-invoice currencies (ADR-0008) — a small scope addition beyond the spec's default, accepted to close the parity gap.
 
 ## 12. Glossary
 
