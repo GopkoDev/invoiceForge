@@ -34,7 +34,7 @@
 | T27 | [Refuse JSON-RPC batches and cap the MCP request body before the transport](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | done |
 | T28 | [Build dashboard and invoice-list periods from the account time zone](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
 | T29 | [Match the contract's InvoiceCandidate and ServerFailure, report route failures, accept any-case Bearer, drop dead paging code](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | M | — | done |
-| T30 | [Answer a key-check store failure with 503 and prove last use on tools/list and on a refused call](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | todo |
+| T30 | [Answer a key-check store failure with 503 and prove last use on tools/list and on a refused call](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
 | T31 | [Leave cancelled-only currencies out of summary currencies and dashboard tabs](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | T25 | done |
 | T32 | [Guard the overdue literal scan without obfuscation and validate the real 2.1 export body](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | S | — | done |
 | T33 | [Polish the key-name hint, revoke focus and time-zone labels, and test the one-time reveal on remount](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
