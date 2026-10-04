@@ -190,31 +190,76 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+Messages are semantic; endpoint shapes arrive at the `api` stage. Participants are the §5 containers. These two flows seed the runtime view; `sequences` covers every remaining §5 AC.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: an Assistant asks for overdue invoices (key check, limits, answer)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    participant A as Assistant
+    participant P as Proxy
+    participant M as MCP endpoint
+    participant L as Limit guard
+    participant S as Business layer
+    participant D as PostgreSQL
+
+    A->>P: calls the overdue tool with a Personal key
+    P->>M: forwards (the single bearer-only exception)
+    M->>L: is this network source blocked?
+    alt source has 30 refused key checks in 5 minutes, or limit store unavailable
+        L-->>M: blocked
+        M-->>A: uniform refusal, no data
+    else source allowed
+        M->>M: check key format and checksum, ignore any cookie
+        M->>S: authenticate the key
+        S->>D: find active key by digest, with a live account
+        alt malformed, unknown, revoked or orphaned key
+            S-->>M: not authenticated
+            M->>L: record a refused key check for the source
+            M-->>A: uniform refusal, ask the Freelancer for a valid key
+        else key valid
+            S->>D: record last use (at most once per minute)
+            S-->>M: ActingFreelancer with the account time zone
+            M->>L: count this call in the key's last 60 seconds
+            alt 60 calls already, or limit store unavailable
+                L-->>M: refused
+                M-->>A: limit refusal with when to retry
+            else within the limit
+                M->>S: list overdue invoices for today in the Freelancer time zone
+                S->>D: one page of rows plus totals per currency over every match, shared overdue rule
+                D-->>S: rows and totals
+                S-->>M: page, totals, time zone used
+                M->>S: add one substantive call to the weekly usage count
+                M-->>A: rows with days overdue, totals, page info, Freelancer-entered text marked as data
+            end
+        end
+    end
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: revoking a key while an Assistant call is waiting**
+
+```mermaid
+sequenceDiagram
+    actor F as Freelancer
+    participant W as Web app
+    participant A as Assistant
+    participant M as MCP endpoint
+    participant S as Business layer
+    participant D as PostgreSQL
+
+    F->>W: confirms revoking the key
+    W->>S: revoke the key for the session ActingFreelancer
+    S->>D: set the revocation time on the Freelancer's key
+    D-->>S: revoked
+    S-->>W: key moved to the revoked list
+    W-->>F: shows the key under revoked keys with today's date
+    A->>M: a call with that key that was already waiting
+    M->>S: authenticate the key
+    S->>D: find active key by digest
+    D-->>S: no active key
+    S-->>M: not authenticated
+    M-->>A: uniform refusal, no data
+```
 
 ## 7. Deployment view
 
