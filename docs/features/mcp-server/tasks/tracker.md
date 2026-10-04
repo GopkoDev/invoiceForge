@@ -30,13 +30,13 @@
 | T23 | [Add Personal keys, weekly usage and the time zone to the data export and verify deletion removes them](./t23-export-and-account-deletion.md) | app | Dmytro Hopko | S | T01 | done |
 | T24 | [Prove Assistant-dashboard parity, day boundaries, tenant isolation and the latency budget end to end](./t24-parity-boundary-isolation-and-scale.md) | tests | Dmytro Hopko | M | T18, T19 | done |
 | T25 | [Store issue and due dates as calendar days and compare every period and the overdue rule by calendar day](../_review/review-2026-10-05.md) | data | Dmytro Hopko | L | — | done |
-| T26 | [Keep the stored status through an editor save of a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | todo |
+| T26 | [Keep the stored status through an editor save of a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
 | T27 | [Refuse JSON-RPC batches and cap the MCP request body before the transport](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | done |
 | T28 | [Build dashboard and invoice-list periods from the account time zone](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
-| T29 | [Match the contract's InvoiceCandidate and ServerFailure, report route failures, accept any-case Bearer, drop dead paging code](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | M | — | todo |
+| T29 | [Match the contract's InvoiceCandidate and ServerFailure, report route failures, accept any-case Bearer, drop dead paging code](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | M | — | done |
 | T30 | [Answer a key-check store failure with 503 and prove last use on tools/list and on a refused call](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | todo |
-| T31 | [Leave cancelled-only currencies out of summary currencies and dashboard tabs](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | T25 | todo |
-| T32 | [Guard the overdue literal scan without obfuscation and validate the real 2.1 export body](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | S | — | todo |
+| T31 | [Leave cancelled-only currencies out of summary currencies and dashboard tabs](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | T25 | done |
+| T32 | [Guard the overdue literal scan without obfuscation and validate the real 2.1 export body](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | S | — | done |
 | T33 | [Polish the key-name hint, revoke focus and time-zone labels, and test the one-time reveal on remount](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
 | T34 | [Add the e2e specs the test plan declares for the proxy, key flows, sign-in return, time zone and overdue surfaces](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | L | T25, T26, T28 | todo |
 
