@@ -361,13 +361,25 @@ Each §1 goal expanded into scenarios; every target is quoted from spec §6.
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
+Canonical definitions live in [`CONTEXT.md`](../../../CONTEXT.md); the rows below are the terms this SAD relies on, plus design-level terms not in the glossary (flagged ⟂ for a `glossary` follow-up if they reach the UI or the spec).
 
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Assistant | A program (here, an external MCP client) that reads data for exactly one Freelancer who authorized it, without a browser session (CONTEXT). |
+| Freelancer | A signed-in account holder who owns sender profiles, customers, products and invoices and sees only their own data (CONTEXT). |
+| Visitor | Anyone reaching the app or its endpoints without a signed-in session or valid key (CONTEXT). |
+| Personal key | A named secret a Freelancer creates and gives to one Assistant; shown once, revocable, removed with the account (CONTEXT). Stored as a SHA-256 digest (ADR-0004). |
+| Overdue invoice | An issued, unpaid invoice marked overdue, or whose due date is before today in the Freelancer time zone; one rule for every surface (CONTEXT; ADR-0005). |
+| Freelancer time zone | The zone saved on the account that decides "today" for the dashboard and every Assistant; UTC until saved (CONTEXT; ADR-0006). |
+| Issued invoice | Pending, overdue or paid — not draft, not cancelled; the default scope of every list and figure (CONTEXT). |
+| Debtor | A Customer with at least one overdue invoice in the selected currency, ranked by total overdue amount (CONTEXT). |
+| Expected payment | A pending, not-overdue invoice, grouped by currency and ordered by due date (CONTEXT). |
+| Dashboard period | A named preset or a from–to range of at most 5 years selecting which invoices a figure counts (CONTEXT). |
+| Customer | A party a Freelancer bills; each invoice keeps a copy of its details as issued (CONTEXT). |
+| Sender profile | A business identity a Freelancer issues invoices under; invoice numbers are unique within it (CONTEXT). |
+| ActingFreelancer ⟂ | The branded `{ userId, timeZone }` value every business function takes first; built only by the session and Personal-key factories (service-layer ADR-0001). |
+| MCP endpoint ⟂ | The `/api/mcp` route handler serving the Model Context Protocol, stateless, read-only (ADR-0002). |
+| Tool ⟂ | One read-only MCP operation an Assistant can list and call (e.g. overdue invoices, summary figures). |
+| Substantive call ⟂ | A successful tool call other than listing tools or housekeeping; counted for the §7 KPIs (spec §7). |
+| Key check ⟂ | Format/checksum validation plus digest lookup of an active key with a live account; a call "passes the key check" when it succeeds (spec AC-05, AC-11). |
+| Network source ⟂ | The client address used for the failed-key-attempt limit (security-patch `sourceLimitKey`). |
