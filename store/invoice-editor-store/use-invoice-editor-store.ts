@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
-import { InvoiceFormData, OVERDUE_STATUS } from '@/types/invoice/types';
+import { InvoiceFormData, InvoiceStatus } from '@/types/invoice/types';
 import { InvoiceEditorState, InvoiceEditorInitData, TotalsChanged } from './types';
 import { ActionFailure } from '@/types/actions';
 import {
@@ -500,7 +500,9 @@ export const useInvoiceNumber = () =>
 
 // The status the header badge shows: Overdue for a past-due pending invoice, else the stored one.
 export const useInvoiceStatus = () =>
-  useInvoiceEditorStore((state) => (state.derivedOverdue ? OVERDUE_STATUS : state.formData.status));
+  useInvoiceEditorStore((state) =>
+    state.derivedOverdue ? ('OVERDUE' satisfies InvoiceStatus) : state.formData.status,
+  );
 
 export const usePoNumber = () =>
   useInvoiceEditorStore((state) => state.formData.poNumber);
