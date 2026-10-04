@@ -278,21 +278,23 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
-
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Logging | Repo default — `console.error` inside `try/catch`, errors to Sentry in production. **Never** log or report the `Authorization` header, a key, a key digest, or answer bodies; Sentry scrubbing extends to request headers on `/api/mcp`. | `docs/architecture-map.md` §Conventions; here |
+| Authentication | Two trusted `ActingFreelancer` factories: session (web) and Personal key (MCP). `/api/mcp` reads only `Authorization: Bearer` and never cookies; a key never creates a session (AC-09). Key check on every call, no cache (0 s revocation). | service-layer ADR-0001; ADR-0003, ADR-0004 |
+| Authorization | Every read scoped by the acting Freelancer's id in its own `WHERE`; another Freelancer's record is answered exactly like a missing one (AC-08). No write tool is registered (AC-10). | service-layer ADR-0003; here |
+| Error handling | Services return `ActionResult` with typed codes. The adapter maps them: key/source/limit refusals are request-level refusals with a plain-language message (limit refusals say when to retry); `VALIDATION` / `NOT_FOUND` / ambiguity become tool errors that explain what to ask. Refusals are uniform and never reveal whether a key existed (AC-07). | `types/result.ts`; architecture-hardening ADR-0009; exact shapes at `api` |
+| Rate limiting | Per key: 60 calls in the most recent 60 s, counting every call that passed the key check, tool listings included, limit refusals excluded. Per source: 30 refused key checks in 5 min, then refused before any key check. Fail closed. | ADR-0007; security-patch ADR-0002 |
+| Overdue rule | One rule module used by every surface; stored statuses never change; "Mark as overdue" / "back to pending" not offered for derived-overdue invoices. | ADR-0005 |
+| Time zone and dates | "Today", day and period bounds use the account time zone (UTC until saved); due dates are calendar days compared without shift; periods follow the shared calendar-date / 5-year rule; every Assistant answer names the time zone and period bounds it used. | ADR-0006; security-patch ADR-0004 |
+| Pagination and completeness | Shared page-number envelope. Assistant answers: default 20, maximum 50 rows; a larger request is capped and says so; totals and counts always cover the full match set; a page past the end returns no rows and the last page number, never an earlier page (AC-18, AC-18b). | service-layer ADR-0005; here |
+| Money | Totals and counts come from the same queries the dashboard uses; reported per currency, never converted, formatted to the cent. | service-layer ADR-0004; architecture-hardening ADR-0006 |
+| Untrusted text | Every Freelancer-entered text field in an answer (notes, line descriptions, product names, customer names and addresses, payment terms) is wrapped in a marked structure the tool descriptions declare as data, not instructions (AC-19b). Exact shape at `api`. | here |
+| Data minimisation | No bank account number or IBAN in any answer (AC-19); invoices are returned as stored (copied sender/customer details). | here |
+| ID strategy | `cuid()` for new models; answers expose record ids so later calls can reference them; invoice numbers are matched within a sender profile, ambiguity returns candidates (AC-20). | repo default |
+| Observability | Sentry spans per tool; weekly per-key usage aggregates (counts only, never content) for the §7 KPIs, included in the export and deleted with the account. | spec §6.1, §7; here |
+| Caching | None for key checks, figures or lists — revocation must be immediate and figures must match the dashboard at the moment of the call. | here |
+| Internationalisation | Answers in English, matching the app's single UI language. | — |
 
 ## 9. Architecture decisions
 
