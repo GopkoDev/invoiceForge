@@ -21,7 +21,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 1. **Dashboard parity** — every figure an Assistant receives equals the dashboard to the cent, because both apply one overdue rule and one Freelancer time zone.
 2. **Tenant isolation and credential safety** — a Personal key reads only its own Freelancer's data, never writes, stops working on the first call after revocation, refuses uniformly, and the call limiter fails closed.
-3. **Responsiveness at realistic scale** — list and single-record answers within the spec's p95 budget, aggregates within budget for a Freelancer with 5,000 invoices, and the dashboard not measurably slowed by the new overdue rule.
+3. **Responsiveness at realistic scale** — list and single-record answers within the spec's p95 budget, aggregates within budget for a Freelancer with 5,000 invoices, and the dashboard kept within its 10 % slowdown budget after the new overdue rule.
 
 **Stakeholders.**
 
@@ -229,7 +229,7 @@ sequenceDiagram
                 S->>D: one page of rows plus totals per currency over every match, shared overdue rule
                 D-->>S: rows and totals
                 S-->>M: page, totals, time zone used
-                M->>S: add one substantive call to the weekly usage count
+                M->>S: count one substantive attempt and one success in the weekly usage aggregate
                 M-->>A: rows with days overdue, totals, page info, Freelancer-entered text marked as data
             end
         end
@@ -267,12 +267,12 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 
 **Monitoring:**
 - Sentry spans on every MCP request, named by tool (`mcp.tools/call <tool>`, `mcp.tools/list`) — the source for the spec §6 latency targets (p95 ≤ 800 ms lists and single records, ≤ 1.5 s aggregates) and the dashboard-span comparison (no more than 10 % slower than the 7 days before release).
-- Counted outcomes per call: success, refused-key, refused-source, refused-limit, limit-store-unavailable, server-error — the source for the ≤ 1 % weekly server-side failure rate and the §7 KPIs.
+- Counted outcomes per call: success, refused-key, refused-source, refused-limit, limit-store-unavailable, server-error — the source for the ≤ 1 % weekly server-side failure rate. The weekly per-key usage aggregate holds substantive attempts and successes, the source for the §7 weekly-active, activation and successful-call-share KPIs.
 - Alert: any `limit-store-unavailable` outcome in production (every Assistant call is being refused) → notify the owner.
 - Alert: server-side failure rate over 1 % of Assistant calls in a rolling day → notify the owner (early warning for the weekly target).
 
 **Scaling thresholds:**
-- `LimitEvent` grows by at most 60 rows per active key per minute and is purged daily; comfortable while daily rows stay under ~5 million — beyond that, or if the limit check exceeds 50 ms p95, revisit a dedicated counter store (ADR-0007 neutral consequence).
+- `LimitEvent` grows by at most 60 rows per active key per minute and is purged daily; comfortable while daily rows stay under ~5 million — beyond that, or if the limit check exceeds 50 ms p95, revisit a dedicated counter store (design estimates, not spec NFRs; recorded in ADR-0007).
 - Personal keys: at most 10 active per Freelancer (AC-04); the key table stays small and is read by a unique digest index.
 - Aggregates are bounded by the per-Freelancer invoice count; the spec budget is set at 5,000 invoices per Freelancer — above that, revisit indexes on `(userId, status, dueDate)` at the `data-model` stage.
 
@@ -292,7 +292,7 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 | Untrusted text | Every Freelancer-entered text field in an answer (notes, line descriptions, product names, customer names and addresses, payment terms) is wrapped in a marked structure the tool descriptions declare as data, not instructions (AC-19b). Exact shape at `api`. | here |
 | Data minimisation | No bank account number or IBAN in any answer (AC-19); invoices are returned as stored (copied sender/customer details). | here |
 | ID strategy | `cuid()` for new models; answers expose record ids so later calls can reference them; invoice numbers are matched within a sender profile, ambiguity returns candidates (AC-20). | repo default |
-| Observability | Sentry spans per tool; weekly per-key usage aggregates (counts only, never content) for the §7 KPIs, included in the export and deleted with the account. | spec §6.1, §7; here |
+| Observability | Sentry spans per tool; weekly per-key usage aggregates (counts only, never content) holding substantive attempts and successes for the §7 KPIs; a substantive call that fails after the key check still counts as an attempt, included in the export and deleted with the account. | spec §6.1, §7; here |
 | Caching | None for key checks, figures or lists — revocation must be immediate and figures must match the dashboard at the moment of the call. | here |
 | Internationalisation | Answers in English, matching the app's single UI language. | — |
 
@@ -365,9 +365,9 @@ Canonical definitions live in [`CONTEXT.md`](../../../CONTEXT.md); the rows belo
 
 | Term | Meaning |
 |---|---|
-| Assistant | A program (here, an external MCP client) that reads data for exactly one Freelancer who authorized it, without a browser session (CONTEXT). |
+| Assistant | A program (an in-app AI chat or an external MCP client) that reads and changes data on behalf of exactly one Freelancer who authorized it, without a browser session, and sees only that Freelancer's data (CONTEXT). In this feature: an external MCP client that only reads. |
 | Freelancer | A signed-in account holder who owns sender profiles, customers, products and invoices and sees only their own data (CONTEXT). |
-| Visitor | Anyone reaching the app or its endpoints without a signed-in session or valid key (CONTEXT). |
+| Visitor | Anyone reaching the app or its endpoints without a signed-in session, including scripts and bots outside a browser (CONTEXT). In this feature, a caller on `/api/mcp` without a valid Personal key is refused like a Visitor. |
 | Personal key | A named secret a Freelancer creates and gives to one Assistant; shown once, revocable, removed with the account (CONTEXT). Stored as a SHA-256 digest (ADR-0004). |
 | Overdue invoice | An issued, unpaid invoice marked overdue, or whose due date is before today in the Freelancer time zone; one rule for every surface (CONTEXT; ADR-0005). |
 | Freelancer time zone | The zone saved on the account that decides "today" for the dashboard and every Assistant; UTC until saved (CONTEXT; ADR-0006). |
@@ -380,6 +380,6 @@ Canonical definitions live in [`CONTEXT.md`](../../../CONTEXT.md); the rows belo
 | ActingFreelancer ⟂ | The branded `{ userId, timeZone }` value every business function takes first; built only by the session and Personal-key factories (service-layer ADR-0001). |
 | MCP endpoint ⟂ | The `/api/mcp` route handler serving the Model Context Protocol, stateless, read-only (ADR-0002). |
 | Tool ⟂ | One read-only MCP operation an Assistant can list and call (e.g. overdue invoices, summary figures). |
-| Substantive call ⟂ | A successful tool call other than listing tools or housekeeping; counted for the §7 KPIs (spec §7). |
+| Substantive call ⟂ | Any tool call other than listing tools or housekeeping, whether it succeeds or not; attempts and successes are both counted per key per week, so the §7 "successful call share" is measurable (spec §7). |
 | Key check ⟂ | Format/checksum validation plus digest lookup of an active key with a live account; a call "passes the key check" when it succeeds (spec AC-05, AC-11). |
 | Network source ⟂ | The client address used for the failed-key-attempt limit (security-patch `sourceLimitKey`). |

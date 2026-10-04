@@ -15,7 +15,7 @@ ticket: "mcp-server"
 
 ## Context
 
-architecture-hardening ADR-0010 carries the browser's time zone to the server in a `tz` cookie, resolved into `ActingFreelancer.timeZone`. An Assistant has no browser and no cookie, so it would compute "today" differently from the dashboard. Spec §1 decides that the time zone is saved on the Freelancer's account and decides "today" for every surface; the browser only fills it the first time; until one is saved, every surface uses UTC.
+architecture-hardening ADR-0010 carries the browser's time zone to the server in a `tz` cookie, resolved into `ActingFreelancer.timeZone`. An Assistant has no browser and no cookie, so it would compute "today" differently from the dashboard. This ADR records a spec-level decision and formally supersedes ADR-0010. Spec §1 decides that the time zone is saved on the Freelancer's account and decides "today" for every surface; the browser only fills it the first time; until one is saved, every surface uses UTC.
 
 ## Decision drivers
 
@@ -26,11 +26,11 @@ architecture-hardening ADR-0010 carries the browser's time zone to the server in
 ## Considered options
 
 1. **A nullable `timeZone` column on the account** — every `ActingFreelancer` factory (session and Personal key) reads it; the browser value is saved only when the column is empty; settings change it.
-2. **Keep the browser cookie** (ADR-0010) and let Assistants fall back to UTC or a per-key zone — the status quo for the dashboard.
+2. **Keep the browser cookie** (ADR-0010) — the superseded status quo, listed for traceability; excluded by spec §1, because an Assistant has no browser to carry it.
 
 ## Decision outcome
 
-**Chosen:** Option 1. It is the only option in which an Assistant and the dashboard agree without a browser. This supersedes architecture-hardening ADR-0010 for deciding "today"; the cookie survives only as the first-visit seed.
+**Chosen:** Option 1, as decided in spec §1. It is the only option in which an Assistant and the dashboard agree without a browser. This supersedes architecture-hardening ADR-0010 for deciding "today"; the cookie survives only as the first-visit seed.
 
 ## Consequences
 

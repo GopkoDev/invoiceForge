@@ -21,7 +21,7 @@ Spec §6 sets a per-key limit of 60 calls per rolling 60 seconds (AC-11), a per-
 
 - Spec §6 NFR: per-key 60/min with no daily cap; 30 refused checks / 5 min / source; 100 % refusal while the limit store is unavailable.
 - AC-11: the window is always the most recent 60 seconds; refused calls do not count.
-- §2 constraint: no new infrastructure in v1.
+- §2 Organisational: one developer — every new store or service adds operating burden (secrets, monitoring, a second fail-closed path); preferred, not mandated.
 
 ## Considered options
 
@@ -43,7 +43,7 @@ Spec §6 sets a per-key limit of 60 calls per rolling 60 seconds (AC-11), a per-
 - `LimitEvent` grows by up to 60 rows per key per minute between daily purges (tracked in §11).
 
 **Neutral**
-- Moving to Redis later swaps the store behind `lib/security/limits` without changing callers.
+- Moving to Redis later swaps the store behind `lib/security/limits` without changing callers. Review triggers (design estimates, not spec NFRs): `LimitEvent` above ~5 million rows per day, or the limit check above 50 ms p95.
 
 ## Links
 

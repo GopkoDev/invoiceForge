@@ -7,7 +7,7 @@ feature_size: "M"
 ticket: "mcp-server"
 ---
 
-# 0001 — Build the feature as a backend MCP endpoint plus web-frontend changes
+# 0001 — Build a backend MCP endpoint and web-frontend changes as two surfaces
 
 - **Status:** Accepted
 - **Date:** 2026-10-04

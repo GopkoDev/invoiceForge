@@ -20,7 +20,8 @@ An MCP client lists and calls tools over HTTP. invoiceFlow's business logic live
 ## Decision drivers
 
 - Spec §6 NFR: p95 ≤ 800 ms server-side for list and single-record questions; ≤ 1.5 s for summary figures, Debtors and Expected payments at 5,000 invoices.
-- §2 constraint: services are in-process only; no new infrastructure in v1.
+- §2 constraint: services are in-process only (`server-only`, service-layer ADR-0006).
+- §2 Organisational: one developer — every new store or service adds operating burden (secrets, monitoring, a second fail-closed path); preferred, not mandated.
 - Read-only scope (spec §3): no server-initiated messages, no long-lived streams needed.
 
 ## Considered options
