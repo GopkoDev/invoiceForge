@@ -30,12 +30,12 @@ A read-only Assistant connection, authenticated by named, revocable Personal key
 | AC-01 happy path | entry point shown while no key has ever passed a key check | integration | the "has used a key" read is false for a Freelancer with no keys or only never-used keys |
 | AC-01 happy path | entry point gone for good once any key was used, even after every key is revoked | integration | the read stays true after the used key is revoked |
 | AC-01 happy path | dashboard and settings show the Connect your AI entry point only while unused | component | entry point rendered with a link to the connect page in the unused state; absent in the used state |
-| AC-01 happy path | Freelancer reaches Connect your AI from the dashboard and from settings | e2e-through-UI | both entry points open the connect page |
+| AC-01 happy path | Freelancer reaches Connect your AI from the dashboard and from settings | e2e-through-UI | both entry points open the connect page (spec: `tests/e2e/mcp-key-flows.spec.ts`) |
 | AC-02 happy path | generated key carries the recognisable prefix and a valid checksum | unit | prefix present, checksum verifies, a changed character fails the checksum |
 | AC-02 happy path | creating a key stores only its digest and last four characters | integration | the stored record holds name, digest, last four and creation date; the full key is not stored anywhere |
 | AC-02 happy path | full key is revealed once with a copy action and a not-shown-again warning | component | reveal shows the key, copy action and warning; after leaving, only name, creation date and last four are shown |
 | AC-02 happy path | connect page shows setup steps that keep the key in a private setting and three example prompts | component | one setup block per supported assistant, none writes the key into a project file; exactly three example prompts with copy actions |
-| AC-02 happy path | Freelancer creates "Laptop assistant" and sees the key exactly once | e2e-through-UI | key visible once; after reload the row shows name, date and last four only |
+| AC-02 happy path | Freelancer creates "Laptop assistant" and sees the key exactly once | e2e-through-UI | key visible once; after reload the row shows name, date and last four only (spec: `tests/e2e/mcp-key-flows.spec.ts`) |
 | AC-03 error | key name rule: trimmed, 1 to 50 characters | unit | empty, whitespace-only and 51-character names rejected; surrounding spaces removed before the length check |
 | AC-03 error | name equal to another active key, ignoring letter case, is refused | integration | no key created; the Freelancer is told the name must be 1–50 characters and different from their other active keys |
 | AC-03 error | a revoked key's name can be reused | integration | creation succeeds when the only same-named key is revoked |
@@ -49,7 +49,7 @@ A read-only Assistant connection, authenticated by named, revocable Personal key
 | AC-06 happy path | call checked after revocation is refused and returns no data | integration | the first call checked after the revocation commits is refused with no Freelancer data |
 | AC-06 happy path | a call whose key check passed before revocation may finish | integration | a call authenticated before the revoke completes its answer normally |
 | AC-06 happy path | revoked key cannot be reactivated | integration | no business-layer path clears a revocation; presenting the key stays refused |
-| AC-06 happy path | Freelancer revokes a key, confirms, and the key moves to revoked | e2e-through-UI | the row moves to revoked keys with today's date and no reactivate action |
+| AC-06 happy path | Freelancer revokes a key, confirms, and the key moves to revoked | e2e-through-UI | the row moves to revoked keys with today's date and no reactivate action (spec: `tests/e2e/mcp-key-flows.spec.ts`) |
 | AC-07 authorization | malformed key or bad checksum is refused before any lookup | unit | refused without touching the key store |
 | AC-07 authorization | revoked, unknown, malformed and deleted-account keys get one identical refusal | integration | all four refusals are identical, return no Freelancer data and ask for a valid key |
 | AC-07 authorization | refusal answer matches the contract and reveals nothing | contract | refusal shape equals the contract's refusal; no hint whether the key existed or whose it was; no sign-in discovery pointer |
@@ -59,7 +59,7 @@ A read-only Assistant connection, authenticated by named, revocable Personal key
 | AC-08 authorization | not-found answer is the same shape for foreign and missing records | contract | both answers validate against the same contract response and are equal apart from the reference echoed back |
 | AC-09 authorization | the Assistant endpoint is the only bearer-only proxy exception | unit | the proxy exception list holds exactly that one path |
 | AC-09 authorization | a valid browser session without a Personal key is refused | integration | the call is refused; no data returned; the session is never read |
-| AC-09 authorization | a Visitor, and a signed-in browser, calling the Assistant endpoint without a key are refused | e2e | both refused through the real proxy; no Freelancer data returned |
+| AC-09 authorization | a Visitor, and a signed-in browser, calling the Assistant endpoint without a key are refused | e2e | both refused through the real proxy; no Freelancer data returned (spec: `tests/e2e/mcp-proxy.spec.ts`) |
 | AC-10 domain invariant | tool listing offers only read tools | contract | every listed tool matches a contract read operation; none creates, changes, deletes, marks paid or sends |
 | AC-10 domain invariant | calling an unknown or write-like tool changes nothing | integration | the call is refused as an unknown tool and the Freelancer's data is unchanged |
 | AC-11 domain invariant | 61st call within the most recent 60 seconds is refused with a retry time | integration | the call is refused and says when to try again |
@@ -92,7 +92,7 @@ A read-only Assistant connection, authenticated by named, revocable Personal key
 | AC-18b error | the "page does not exist" answer matches the contract | contract | answer validates against the contract's out-of-range shape for every list tool |
 | AC-19 happy path | one invoice is returned as stored, with a link and without bank account numbers | integration | number, sender profile and customer details as copied onto the invoice, lines, totals, currency, status, dates and a link; no account number or international account number |
 | AC-19 happy path | draft and cancelled invoices open the same way and are labelled | integration | both returned with their status label |
-| AC-19 happy path | invoice link opened without a session leads through sign-in back to the invoice | e2e-through-UI | sign-in page, then the invoice page with its status badge |
+| AC-19 happy path | invoice link opened without a session leads through sign-in back to the invoice | e2e-through-UI | sign-in page, then the invoice page with its status badge (spec: `tests/e2e/mcp-invoice-link.spec.ts`) |
 | AC-19b domain invariant | every Freelancer-entered field is marked as data entered by the Freelancer | unit | notes, line descriptions, product names, customer names and addresses, and payment terms are wrapped in the data marking; "Ignore previous instructions…" stays inside it |
 | AC-19b domain invariant | tool descriptions declare marked fields as data, not instructions | contract | every tool whose answer contains marked fields says so in its listed description |
 | AC-20 error | an invoice number shared by two sender profiles is not resolved silently | integration | both candidates listed with sender profile, customer and issue date; a question asks which one is meant |
@@ -104,14 +104,14 @@ A read-only Assistant connection, authenticated by named, revocable Personal key
 | AC-22 happy path | a changed time zone is used from the next request by the dashboard and every Assistant answer | integration | the next request after a change uses the new zone on both surfaces |
 | AC-22 happy path | without a saved time zone both surfaces use UTC and Assistant answers name UTC | integration | figures computed in UTC; the answer states UTC |
 | AC-22 happy path | Profile time-zone card shows the saved zone or "Not set yet" and lets the Freelancer change it | component | both states render; changing submits the new zone |
-| AC-22 happy path | Freelancer with a Kyiv browser sees the zone saved in settings and changes it | e2e-through-UI | settings show Kyiv after the first visit; after a change the dashboard reflects it |
+| AC-22 happy path | Freelancer with a Kyiv browser sees the zone saved in settings and changes it | e2e-through-UI | settings show Kyiv after the first visit; after a change the dashboard reflects it (spec: `tests/e2e/mcp-time-zone.spec.ts`) |
 | AC-23 cross-context | at 00:30 on the 1st in Kyiv, dashboard and Assistant both use the new month and count last month's due invoice as overdue | integration | under a fake clock, both surfaces return the same month bounds and the same overdue figure including that invoice |
 | AC-23b cross-context | at 21:00 on 14 March in New York, an invoice due 14 March is not overdue on either surface | integration | under a fake clock, neither counts it; at 00:00 on 15 March New York time both count it with 1 day overdue |
 | AC-24 cross-context | dashboard counts a past-due unmarked invoice as overdue, lists its Debtor and leaves it out of Expected payments | integration | overdue figures, Debtors and Expected payments reflect the derived rule |
 | AC-24 cross-context | invoice list filters by the derived status | integration | the invoice is included under overdue and excluded under pending |
 | AC-24 cross-context | stored status is unchanged and marking paid still works | integration | stored status stays pending; mark as paid succeeds and the invoice leaves overdue |
 | AC-24 cross-context | status badge shows overdue and hides "Mark as overdue" and "back to pending" | component | a derived-overdue invoice renders the overdue badge without either action |
-| AC-24 cross-context | a past-due unmarked invoice shows as overdue on every surface | e2e-through-UI | dashboard recent invoices, invoice list, customer page and invoice page all show overdue |
+| AC-24 cross-context | a past-due unmarked invoice shows as overdue on every surface | e2e-through-UI | dashboard recent invoices, invoice list, customer page and invoice page all show overdue (spec: `tests/e2e/mcp-overdue-surfaces.spec.ts`) |
 | AC-25 happy path | data export lists each key's name, creation date, last use and revocation date | integration | one active and one revoked key exported with those fields and nothing from which the key could be rebuilt (neither the key nor its digest) |
 | AC-26 cross-context | account deletion removes keys and weekly usage in the deletion transaction | integration | deletion succeeds; no key or usage rows remain for the account |
 | AC-26 cross-context | a key of a deleted account is refused as in AC-07 | integration | the next call with that key gets the uniform refusal |

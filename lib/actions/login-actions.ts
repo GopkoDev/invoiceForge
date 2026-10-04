@@ -17,11 +17,14 @@ import {
   SIGN_IN_ERROR_CODES,
   signInRefusalCode,
 } from '@/lib/auth/sign-in-messages';
+import { signInReturnPath } from '@/lib/auth/sign-in-return-path';
 import { loginEmailSchema } from '@/lib/validations/auth';
 import { ActionResult, fail } from '@/types/actions';
 
-export async function signInWithGoogle() {
-  await signIn('google');
+// AC-19: `returnPath` is the page the Visitor asked for before the proxy sent them to /login;
+// signInReturnPath() keeps it to a path on this app.
+export async function signInWithGoogle(returnPath?: string) {
+  await signIn('google', { redirectTo: signInReturnPath(returnPath) });
 }
 
 const invalidEmail = () =>
@@ -32,7 +35,8 @@ const invalidEmail = () =>
 // F-50 (T08 DoD): returns the shared ActionResult shape, with a code on failure, like every
 // other server action in the app.
 export async function signInWithEmail(
-  email: string
+  email: string,
+  returnPath?: string
 ): Promise<ActionResult<void>> {
   const validation = loginEmailSchema.safeParse({ email });
 
@@ -46,7 +50,7 @@ export async function signInWithEmail(
   try {
     target = (await signIn('nodemailer', {
       email: validation.data.email,
-      redirectTo: '/',
+      redirectTo: signInReturnPath(returnPath),
       redirect: false,
     })) as string;
   } catch (error) {

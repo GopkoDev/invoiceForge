@@ -11,7 +11,11 @@ import { createFreelancer } from '../../support/factories/user';
 import { createProduct } from '../../support/factories/product';
 import { createSenderProfile } from '../../support/factories/sender-profile';
 import { readE2eRuntime } from './app-server';
-import { dayToUtcDate, utcDateToDay } from '../../../lib/helpers/calendar-day';
+import {
+  dayToUtcDate,
+  utcDateToDay,
+  type CalendarDay,
+} from '../../../lib/helpers/calendar-day';
 
 // 1x1 PNG: a same-document image source, so previews never leave the machine.
 export const PIXEL_PNG =
@@ -28,13 +32,23 @@ export interface SeededWorkspace {
 
 export async function seedWorkspace(
   email: string,
-  options: { customerName?: string } = {}
+  options: {
+    customerName?: string;
+    /** Saved Freelancer time zone; null (the default) leaves the first visit to seed it. */
+    timeZone?: string | null;
+    /** Calendar day the invoice is due; default two weeks from now. */
+    dueDay?: CalendarDay;
+  } = {}
 ): Promise<SeededWorkspace> {
   const prisma: PrismaClient = createTestPrismaClient(
     readE2eRuntime().databaseUrl
   );
   try {
-    const user = await createFreelancer(prisma, { email, image: PIXEL_PNG });
+    const user = await createFreelancer(prisma, {
+      email,
+      image: PIXEL_PNG,
+      timeZone: options.timeZone ?? null,
+    });
     const senderProfile = await createSenderProfile(prisma, user.id, {
       logo: PIXEL_PNG,
       email,
@@ -60,7 +74,10 @@ export async function seedWorkspace(
         invoiceNumberKey: invoiceNumber.toLowerCase(),
         // Calendar days (T25): T00:00:00Z of the day.
         issueDate: dayToUtcDate(utcDateToDay(new Date())),
-        dueDate: dayToUtcDate(utcDateToDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))),
+        dueDate: dayToUtcDate(
+          options.dueDay ??
+            utcDateToDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))
+        ),
         status: 'PENDING',
         senderName: senderProfile.name,
         senderLogo: senderProfile.logo,
