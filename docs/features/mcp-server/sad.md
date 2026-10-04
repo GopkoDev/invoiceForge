@@ -124,49 +124,68 @@ Each tactical decision in later sections should trace to one of these seeds. Tac
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
-
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+The feature follows the repo's layered convention: thin entry points (RSC pages, server actions, route handlers) over one business layer (`lib/services`, `server-only`, every function taking an `ActingFreelancer` first — service-layer ADR-0001, ADR-0006) over Prisma/PostgreSQL. The MCP endpoint is one more entry point of the same kind: a ports-style adapter that validates tool input, calls `lib/services`, and shapes the answer — it holds no business rule, so every figure an Assistant gets comes from the same function the dashboard calls (ADR-0002). The Assistant reads are added to the existing `dashboard`, `invoices` and `customers` services rather than to a parallel "assistant" service, because parity is cheapest when there is only one query.
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+app/
+├── api/mcp/route.ts                   NEW  POST-only MCP endpoint (stateless Streamable HTTP); bearer key → ActingFreelancer
+└── (protected)/settings/assistants/   NEW  "Connect your AI" page (SCR-03) — Settings sub-page beside profile/privacy
+lib/
+├── mcp/                               NEW  adapter layer — imports only lib/services + lib/security/limits
+│   ├── server.ts                           builds the MCP server per request, registers the read-only tools
+│   ├── authenticate.ts                     source limit → key format/checksum → key lookup → key limit → last use
+│   ├── tools/                              one file per tool: overdue, debtors, expected-payments, summary, customers, search, invoice
+│   └── answers.ts                          page/total/time-zone envelope, Freelancer-entered-text marking, refusal messages
+├── services/
+│   ├── _shared/acting-freelancer.ts   EXT  + actingFreelancerFromPersonalKey(); both factories read the account time zone (ADR-0006)
+│   ├── _shared/overdue.ts             NEW  the one overdue rule: SQL fragment, Prisma condition, TS predicate (ADR-0005)
+│   ├── personal-keys/                 NEW  create / list / revoke / authenticate / record use / weekly usage / export rows
+│   ├── dashboard/                     EXT  overdue rule in every figure; paginated Debtors; Expected payments by period
+│   ├── invoices/                      EXT  overdue rule in list filters and status; Assistant search; one invoice by reference
+│   ├── customers/                     EXT  name match over current and invoice-copied names
+│   ├── profile/                       EXT  read/save the Freelancer time zone; first-visit seed
+│   └── account/                       EXT  delete keys + usage in the existing deletion transaction; export rows
+└── security/limits/                   EXT  two new scopes: per-key calls, per-source refused key checks (ADR-0007)
+config/routes.config.ts                EXT  /api/mcp as the single bearer-only exception (ADR-0003)
+components/assistants/                 NEW  key list, create form, one-time key reveal, setup steps, example prompts
+prisma/schema/auth.prisma              EXT  User.timeZone, PersonalKey, weekly usage aggregate (shape owned by data-model)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title mcp-server — Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer", "Uses invoiceFlow in a browser")
+    System_Ext(assistant, "Assistant", "The Freelancer's MCP client")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(invoiceflow, "invoiceFlow (one Next.js deployable on Vercel)") {
+        Container(proxy, "Proxy", "proxy.ts", "Deny by default; admits /api/mcp as the single bearer-only exception")
+        Container(web, "Web app", "Next.js 16 App Router, RSC, server actions", "Dashboard, invoice list, customer page, Connect your AI, Profile time zone")
+        Container(mcp, "MCP endpoint", "Route handler + MCP SDK, stateless Streamable HTTP", "Authenticates the Personal key, exposes read-only tools")
+        Container(services, "Business layer", "lib/services, server-only", "Overdue rule, dashboard figures, invoices, customers, Personal keys")
+        Container(limits, "Limit guard", "lib/security/limits", "Per-key and per-source sliding windows, fail closed")
+        Container(purge, "Limit purge job", "Vercel cron route", "Deletes limit records older than 24 h")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "PostgreSQL", "Prisma 7 + adapter-pg", "Users with time zone, Personal keys, usage, invoices, customers, limit events")
+    System_Ext(sentry, "Sentry", "Errors and request spans")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, proxy, "Uses the app", "HTTPS, session cookie")
+    Rel(assistant, proxy, "Calls tools", "MCP over HTTPS, Bearer key")
+    Rel(proxy, web, "Forwards signed-in requests")
+    Rel(proxy, mcp, "Forwards /api/mcp only")
+    Rel(web, services, "Calls with session ActingFreelancer")
+    Rel(mcp, limits, "Checks source and key limits")
+    Rel(mcp, services, "Authenticates key, calls with key ActingFreelancer")
+    Rel(services, db, "Reads and writes", "Prisma, parameterized SQL")
+    Rel(limits, db, "Counts events under advisory lock", "Prisma")
+    Rel(purge, db, "Deletes expired limit events", "Prisma")
+    Rel(mcp, sentry, "Reports errors and spans", "HTTPS")
+    Rel(web, sentry, "Reports errors and spans", "HTTPS")
 ```
 
 ## 6. Runtime view
