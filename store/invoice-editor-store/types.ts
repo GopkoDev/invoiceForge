@@ -85,6 +85,9 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   totalsChanged: TotalsChanged | null;
   /** `legacy` flags from `getInvoiceEditorData`, carried in on `initialize` (AC-17). */
   legacy: InvoiceLegacyInfo | null;
+  /** The invoice is stored PENDING but past its due date: the header badge reads Overdue while
+   * `formData.status` keeps the stored status a save sends back (AC-24). */
+  derivedOverdue: boolean;
 
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(
@@ -125,6 +128,7 @@ export interface InvoiceEditorInitData {
   products: InvoiceProduct[];
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
+  derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
 }

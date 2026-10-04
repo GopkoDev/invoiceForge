@@ -29,6 +29,7 @@ type Svc = {
   updateInvoiceStatus: (a: unknown, id: string, status: string) => Promise<Result>;
 };
 type Editor = { getInvoiceEditorData: (a: unknown, id?: string) => Promise<Result> };
+type Saver = { updateInvoice: (a: unknown, id: string, data: unknown) => Promise<Result> };
 
 const PAST = new Date('2020-01-10T00:00:00.000Z');
 const FUTURE = new Date('2999-01-10T00:00:00.000Z');
@@ -39,6 +40,7 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
   let prisma: PrismaClient;
   let svc: Svc;
   let editor: Editor;
+  let saver: Saver;
 
   beforeAll(async () => {
     db = await startTestDatabase();
@@ -47,6 +49,7 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     prisma = createTestPrismaClient(db.connectionString);
     svc = (await import('@/lib/services/invoices/invoices')) as unknown as Svc;
     editor = (await import('@/lib/services/invoices/editor-data')) as unknown as Editor;
+    saver = svc as unknown as Saver;
   }, 60_000);
 
   afterAll(async () => {
@@ -122,8 +125,59 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     const ontime = await s.make({ status: 'PENDING', dueDate: FUTURE });
     expect((await svc.getInvoice(s.actor, late.id)).data.status).toBe('OVERDUE');
     expect((await svc.getInvoice(s.actor, ontime.id)).data.status).toBe('PENDING');
-    expect((await editor.getInvoiceEditorData(s.actor, late.id)).data.initialData.status).toBe('OVERDUE');
+    // The editor gets the stored status; the derived badge travels beside it (F-01, T26).
+    const loaded = (await editor.getInvoiceEditorData(s.actor, late.id)).data;
+    expect(loaded.initialData.status).toBe('PENDING');
+    expect(loaded.derivedOverdue).toBe(true);
+    expect((await editor.getInvoiceEditorData(s.actor, ontime.id)).data.derivedOverdue).toBe(false);
     expect(await stored(late.id)).toBe('PENDING');
+  });
+
+  // What the editor sends back: the loaded initialData, days as yyyy-MM-dd.
+  const asPayload = (initialData: any, overrides: Record<string, unknown> = {}) => ({
+    ...initialData,
+    issueDate: initialData.issueDate.toISOString().slice(0, 10),
+    dueDate: initialData.dueDate.toISOString().slice(0, 10),
+    ...overrides,
+  });
+
+  it('an editor save of a past-due pending invoice keeps the stored status PENDING (F-01)', async () => {
+    const s = await seed();
+    const late = await s.make({ status: 'PENDING', dueDate: PAST });
+    const { initialData } = (await editor.getInvoiceEditorData(s.actor, late.id)).data;
+
+    const saved = await saver.updateInvoice(s.actor, late.id, asPayload(initialData, { notes: 'edited' }));
+    expect(saved).toMatchObject({ success: true, data: { status: 'PENDING', derivedOverdue: true } });
+    expect(await stored(late.id)).toBe('PENDING');
+    expect((await svc.getInvoice(s.actor, late.id)).data.status).toBe('OVERDUE');
+
+    // Moving the due date into the future makes it not overdue: it was never stored as overdue.
+    const moved = await saver.updateInvoice(s.actor, late.id, asPayload(initialData, { dueDate: '2999-01-10' }));
+    expect(moved).toMatchObject({ success: true, data: { status: 'PENDING', derivedOverdue: false } });
+    expect(await stored(late.id)).toBe('PENDING');
+    expect((await svc.getInvoice(s.actor, late.id)).data.status).toBe('PENDING');
+  });
+
+  it('updateInvoice never persists a derived overdue status for a stored pending invoice', async () => {
+    const s = await seed();
+    const late = await s.make({ status: 'PENDING', dueDate: PAST });
+    const { initialData } = (await editor.getInvoiceEditorData(s.actor, late.id)).data;
+
+    // A client that still sends the derived status back (the pre-fix editor).
+    const saved = await saver.updateInvoice(s.actor, late.id, asPayload(initialData, { status: 'OVERDUE' }));
+    expect(saved.success).toBe(true);
+    expect(await stored(late.id)).toBe('PENDING');
+  });
+
+  it('an editor save keeps a hand-marked overdue invoice overdue', async () => {
+    const s = await seed();
+    const hand = await s.make({ status: 'OVERDUE', dueDate: FUTURE });
+    const { initialData } = (await editor.getInvoiceEditorData(s.actor, hand.id)).data;
+    expect(initialData.status).toBe('OVERDUE');
+
+    const saved = await saver.updateInvoice(s.actor, hand.id, asPayload(initialData, { notes: 'edited' }));
+    expect(saved.success).toBe(true);
+    expect(await stored(hand.id)).toBe('OVERDUE');
   });
 
   it('updateInvoiceStatus refuses OVERDUE and PENDING on a date-overdue invoice, PAID still works', async () => {

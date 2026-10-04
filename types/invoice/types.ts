@@ -180,6 +180,8 @@ export interface InvoiceEditorData {
   products: InvoiceProduct[];
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
+  /** The stored status is PENDING but the due date has passed: the header badge reads Overdue (AC-24). */
+  derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
 }

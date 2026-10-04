@@ -36,8 +36,10 @@ import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage } from '@sentry/nextjs';
 import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
 import {
+  isDerivedOverdue,
   refusesManualStatus,
   statusFilterWhere,
+  statusToStoreOnSave,
   todayIn,
   withDerivedStatus,
 } from '@/lib/services/_shared/overdue';
@@ -294,7 +296,9 @@ export type SavedInvoice = {
   subtotal: number;
   taxAmount: number;
   total: number;
+  /** The stored status; the editor shows the overdue badge from `derivedOverdue` instead (AC-24). */
   status: InvoiceStatus;
+  derivedOverdue: boolean;
   paidAt: string | null;
 };
 
@@ -458,6 +462,7 @@ export async function createInvoice(
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       status: invoice.status,
+      derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
     });
   } catch (error) {
@@ -644,7 +649,7 @@ export async function updateInvoice(
       // Step 6 (AC-18, AC-19): the one status/paid-date transition function.
       const { status, paidAt } = applyStatusChange(
         { status: existingInvoice.status, paidAt: existingInvoice.paidAt },
-        validatedData.status
+        statusToStoreOnSave(existingInvoice.status, validatedData.status)
       );
 
       await tx.invoiceItem.deleteMany({
@@ -702,6 +707,7 @@ export async function updateInvoice(
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       status: invoice.status,
+      derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
     });
   } catch (error) {

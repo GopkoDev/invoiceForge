@@ -34,6 +34,7 @@ function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
     taxAmount: 10,
     total: 110,
     status: 'DRAFT',
+    derivedOverdue: false,
     paidAt: null,
     ...overrides,
   };
@@ -265,6 +266,53 @@ describe('invoice editor store — save states (T16)', () => {
       recomputedTotal: '100.00',
       sharedNumber: true,
     });
+  });
+
+  // AC-24 (F-01, T26): the editor holds the stored status, so a save never sends the derived
+  // overdue back; the header badge reads the separate derivedOverdue flag, refreshed by each save.
+  it('AC-24: keeps the stored status in formData and shows the derived overdue badge beside it', async () => {
+    updateInvoiceMock.mockResolvedValue(ok(savedInvoice({ status: 'PENDING', derivedOverdue: false })));
+    useInvoiceEditorStore.getState().initialize({
+      senderProfiles: [senderProfileA],
+      bankAccounts: [bankAccountA],
+      customers: [],
+      products: [],
+      customPrices: [],
+      invoiceId: 'late-invoice',
+      derivedOverdue: true,
+      initialData: {
+        invoiceNumber: 'A-0007',
+        status: 'PENDING',
+        senderProfileId: 'profile-a',
+        bankAccountId: 'bank-a',
+        customerId: '',
+        issueDate: new Date('2026-01-01'),
+        dueDate: new Date('2026-01-15'),
+        currency: 'USD',
+        poNumber: '',
+        paymentTerms: '',
+        items: [],
+        taxRate: 0,
+        discount: 0,
+        shipping: 0,
+        notes: '',
+        terms: '',
+      } satisfies InvoiceFormData,
+    });
+
+    const loaded = useInvoiceEditorStore.getState();
+    expect(loaded.formData.status).toBe('PENDING');
+    expect(loaded.derivedOverdue).toBe(true);
+
+    await loaded.saveInvoice();
+
+    expect(updateInvoiceMock).toHaveBeenCalledWith(
+      'late-invoice',
+      expect.objectContaining({ status: 'PENDING' })
+    );
+    const saved = useInvoiceEditorStore.getState();
+    expect(saved.formData.status).toBe('PENDING');
+    expect(saved.derivedOverdue).toBe(false);
   });
 
   // AC-17 (SCR-15): a CONFLICT with details.kind === 'TOTALS_CHANGED' surfaces the old/new

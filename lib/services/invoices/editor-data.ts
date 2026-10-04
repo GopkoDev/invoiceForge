@@ -10,7 +10,7 @@ import type {
   InvoiceSenderProfile,
 } from '@/types/invoice/types';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import { todayIn, withDerivedStatus } from '@/lib/services/_shared/overdue';
+import { isDerivedOverdue, todayIn } from '@/lib/services/_shared/overdue';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import {
   bankAccountSelect,
@@ -81,7 +81,9 @@ export async function getInvoiceEditorData(
       customers: customers as InvoiceCustomer[],
       products: transformedProducts,
       customPrices: transformedCustomPrices,
-      initialData: existingInvoice ? transformInvoiceToFormData(withDerivedStatus(existingInvoice, todayIn(actor.timeZone))) : undefined,
+      // The editor gets the stored status (a save echoes it back); the derived badge travels beside it.
+      initialData: existingInvoice ? transformInvoiceToFormData(existingInvoice) : undefined,
+      derivedOverdue: existingInvoice ? isDerivedOverdue(existingInvoice, todayIn(actor.timeZone)) : undefined,
       invoiceId,
       legacy,
     });

@@ -93,14 +93,23 @@ export function statusFilterWhere(status: InvoiceStatus, today: LocalDate): Pris
   return { status };
 }
 
+/** True when the invoice is overdue only because its due date has passed (stored PENDING, rule says overdue). */
+export function isDerivedOverdue(row: OverdueRow, today: LocalDate): boolean {
+  return row.status === 'PENDING' && isOverdue(row, today);
+}
+
 /**
  * True when a manual change to `target` must be refused: the invoice is overdue only because its
  * due date has passed, and `target` is the overdue or pending status (marking it paid still works).
  */
 export function refusesManualStatus(row: OverdueRow, target: InvoiceStatus, today: LocalDate): boolean {
-  return (
-    row.status === 'PENDING' &&
-    isOverdue(row, today) &&
-    (target === 'OVERDUE' || target === 'PENDING')
-  );
+  return isDerivedOverdue(row, today) && (target === 'OVERDUE' || target === 'PENDING');
+}
+
+/**
+ * The status an editor save stores (AC-24, ADR-0005): the overdue status of a stored PENDING
+ * invoice is derived from its due date, never persisted, so a save that echoes it keeps PENDING.
+ */
+export function statusToStoreOnSave(stored: InvoiceStatus, submitted: InvoiceStatus): InvoiceStatus {
+  return stored === 'PENDING' && submitted === 'OVERDUE' ? 'PENDING' : submitted;
 }
