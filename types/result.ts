@@ -20,7 +20,23 @@ export type DecimalString = string;
 export type ActionErrorDetails =
   | { kind: 'TOTALS_CHANGED'; oldTotal: DecimalString; newTotal: DecimalString }
   | { kind: 'HAS_INVOICES'; invoiceCount: number }
-  | { kind: 'RETRY_AT'; retryAt: string /* ISO UTC */ };
+  | { kind: 'RETRY_AT'; retryAt: string /* ISO UTC */ }
+  /** A page past the last one: no rows, never an earlier page (AC-18b). */
+  | { kind: 'PAGE_OUT_OF_RANGE'; total: number; lastPage: number }
+  /** A name or number matched more than one record; the caller picks one. */
+  | {
+      kind: 'AMBIGUOUS_REFERENCE';
+      reference: 'invoice' | 'customer' | 'senderProfile';
+      candidates: AmbiguousCandidate[];
+    };
+
+export type AmbiguousCandidate = {
+  id: string;
+  /** Text the Freelancer typed, to be shown as data. */
+  name: string;
+  /** Short context that tells the candidates apart (invoice number, e-mail, ...). */
+  detail?: string;
+};
 
 export type ActionFailure = {
   success: false;

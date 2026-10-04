@@ -18,7 +18,7 @@
 | T11 | [Authenticate a presented Personal key and record its last use and weekly usage](./t11-key-authentication-and-usage.md) | app | Dmytro Hopko | M | T01, T03, T04 | done |
 | T12 | [Serve POST /api/mcp behind its single proxy exception with the source-limit, key-check and key-limit pipeline](./t12-mcp-endpoint-and-request-pipeline.md) | ports | Dmytro Hopko | M | T10, T11 | todo |
 | T13 | [Shape MCP answers, register read-only tools and count substantive calls](./t13-mcp-answers-and-tool-registry.md) | ports | Dmytro Hopko | M | T12 | todo |
-| T14 | [Page overdue invoices and Debtors strictly with totals over every match](./t14-strict-paging-overdue-and-debtors.md) | app | Dmytro Hopko | M | T06 | todo |
+| T14 | [Page overdue invoices and Debtors strictly with totals over every match](./t14-strict-paging-overdue-and-debtors.md) | app | Dmytro Hopko | M | T06 | done |
 | T15 | [Page Expected payments by period and compute summary figures for every issued-invoice currency](./t15-expected-payments-and-summary-reads.md) | app | Dmytro Hopko | M | T14 | todo |
 | T16 | [Match Customers by current and invoice-copied names and search issued invoices for an Assistant](./t16-customer-match-and-invoice-search.md) | app | Dmytro Hopko | M | T07, T14 | todo |
 | T17 | [Find one invoice by id or by number with an optional sender profile name](./t17-find-invoice-by-reference.md) | app | Dmytro Hopko | M | T16 | todo |

@@ -289,3 +289,136 @@ export async function queryExpectedPayments(actor: ActingFreelancer, currency: C
     LIMIT 3`;
   return z.array(expectedRow).parse(rows);
 }
+
+// ───────── T14: strict-paged Assistant reads (overdue invoices, Debtors) ─────────
+
+const currencyFilter = (currency: Currency | undefined) =>
+  currency ? Prisma.sql`AND i."currency" = ${currency}::"Currency"` : Prisma.empty;
+
+// Exact two-decimal text straight from SQL numeric: no float round trip (ADR-0006).
+const overdueTotalsRow = z.object({ currency: z.string(), total: z.string(), count: num });
+
+/** Exact total and count of every overdue invoice, per currency. */
+export async function queryOverdueTotals(actor: ActingFreelancer, today: LocalDate, currency?: Currency) {
+  const rows = await prisma.$queryRaw<unknown[]>`
+    SELECT i."currency"::text AS currency, SUM(i."total")::numeric(20,2)::text AS total, COUNT(*)::int AS count
+    FROM "Invoice" i
+    JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
+    WHERE sp."userId" = ${actor.userId}
+      AND ${overdueSql(today)}
+      ${currencyFilter(currency)}
+    GROUP BY i."currency"
+    ORDER BY i."currency"::text`;
+  return z.array(overdueTotalsRow).parse(rows);
+}
+
+const overdueListRow = z.object({
+  id: z.string(),
+  invoiceNumber: z.string(),
+  senderProfileId: z.string(),
+  senderName: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  amount: z.string(),
+  currency: z.string(),
+  dueDate: z.date(),
+});
+
+/** One page of overdue invoices, due date ascending, then invoice number, then id. */
+export async function queryOverdueInvoicePage(
+  actor: ActingFreelancer,
+  today: LocalDate,
+  offset: number,
+  limit: number,
+  currency?: Currency,
+) {
+  const rows = await prisma.$queryRaw<unknown[]>`
+    SELECT i."id", i."invoiceNumber", sp."id" AS "senderProfileId", sp."name" AS "senderName",
+      i."customerId", i."customerName", i."total"::numeric(20,2)::text AS amount,
+      i."currency"::text AS currency, i."dueDate"
+    FROM "Invoice" i
+    JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
+    WHERE sp."userId" = ${actor.userId}
+      AND ${overdueSql(today)}
+      ${currencyFilter(currency)}
+    ORDER BY i."dueDate" ASC, i."invoiceNumber" ASC, i."id" ASC
+    OFFSET ${offset} LIMIT ${limit}`;
+  return z.array(overdueListRow).parse(rows);
+}
+
+const debtorTotalsRow = z.object({
+  currency: z.string(),
+  debtorCount: num,
+  overdueTotal: z.string(),
+  overdueCount: num,
+});
+
+/** Per currency: Debtor count and exact overdue total and count over every Debtor. */
+export async function queryDebtorTotals(actor: ActingFreelancer, today: LocalDate, currency?: Currency) {
+  const rows = await prisma.$queryRaw<unknown[]>`
+    SELECT i."currency"::text AS currency,
+      COUNT(DISTINCT i."customerId")::int AS "debtorCount",
+      SUM(i."total")::numeric(20,2)::text AS "overdueTotal",
+      COUNT(*)::int AS "overdueCount"
+    FROM "Invoice" i
+    JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
+    WHERE sp."userId" = ${actor.userId}
+      AND ${overdueSql(today)}
+      ${currencyFilter(currency)}
+    GROUP BY i."currency"
+    ORDER BY i."currency"::text`;
+  return z.array(debtorTotalsRow).parse(rows);
+}
+
+const debtorPageRow = z.object({
+  customerId: z.string(),
+  customerName: z.string(),
+  currency: z.string(),
+  rank: num,
+  overdueTotal: z.string(),
+  overdueCount: num,
+});
+
+/**
+ * One page of Debtors: one row per Customer per currency, ranked by exact overdue total within the
+ * currency (ties by name, then id; the name is from the latest overdue invoice, as queryDebtors).
+ */
+export async function queryDebtorPage(
+  actor: ActingFreelancer,
+  today: LocalDate,
+  offset: number,
+  limit: number,
+  currency?: Currency,
+) {
+  const rows = await prisma.$queryRaw<unknown[]>`
+    WITH overdue AS (
+      SELECT i."id", i."customerId", i."customerName", i."currency", i."total", i."issueDate", i."createdAt"
+      FROM "Invoice" i
+      JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
+      WHERE sp."userId" = ${actor.userId}
+        AND ${overdueSql(today)}
+        ${currencyFilter(currency)}
+    ),
+    latest AS (
+      SELECT DISTINCT ON ("customerId", "currency") "customerId", "currency", "customerName"
+      FROM overdue
+      ORDER BY "customerId", "currency", "issueDate" DESC, "createdAt" DESC, "id" DESC
+    ),
+    sums AS (
+      SELECT "customerId", "currency", SUM("total") AS total, COUNT(*) AS count
+      FROM overdue
+      GROUP BY "customerId", "currency"
+    ),
+    ranked AS (
+      SELECT s."customerId", l."customerName", s."currency", s.total, s.count,
+        ROW_NUMBER() OVER (PARTITION BY s."currency" ORDER BY s.total DESC, l."customerName" ASC, s."customerId" ASC) AS rank
+      FROM sums s
+      JOIN latest l ON l."customerId" = s."customerId" AND l."currency" = s."currency"
+    )
+    SELECT "customerId", "customerName", "currency"::text AS currency, rank::int AS rank,
+      total::numeric(20,2)::text AS "overdueTotal", count::int AS "overdueCount"
+    FROM ranked
+    ORDER BY "currency"::text ASC, rank ASC
+    OFFSET ${offset} LIMIT ${limit}`;
+  return z.array(debtorPageRow).parse(rows);
+}
