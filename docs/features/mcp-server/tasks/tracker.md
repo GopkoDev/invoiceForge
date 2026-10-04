@@ -24,7 +24,7 @@
 | T17 | [Find one invoice by id or by number with an optional sender profile name](./t17-find-invoice-by-reference.md) | app | Dmytro Hopko | M | T16 | todo |
 | T18 | [Expose the overdue, Debtors, Expected payments and summary figures tools](./t18-aggregate-tools.md) | ports | Dmytro Hopko | M | T13, T14, T15 | todo |
 | T19 | [Expose the customers, invoice search and one-invoice tools](./t19-lookup-tools.md) | ports | Dmytro Hopko | M | T13, T16, T17 | todo |
-| T20 | [Add the Connect your AI settings page with setup steps, example prompts and a CopyButton](./t20-connect-page-shell-and-setup.md) | ui | Dmytro Hopko | M | — | todo |
+| T20 | [Add the Connect your AI settings page with setup steps, example prompts and a CopyButton](./t20-connect-page-shell-and-setup.md) | ui | Dmytro Hopko | M | — | done |
 | T21 | [Build key creation, the one-time reveal, the key lists and revoke confirmation on Connect your AI](./t21-key-create-reveal-and-revoke-ui.md) | ui | Dmytro Hopko | M | T09, T20 | todo |
 | T22 | [Show the overdue-rule notice and the Connect your AI entry point on the dashboard](./t22-dashboard-notice-and-entry-point.md) | ui | Dmytro Hopko | M | T01, T09, T20 | todo |
 | T23 | [Add Personal keys, weekly usage and the time zone to the data export and verify deletion removes them](./t23-export-and-account-deletion.md) | app | Dmytro Hopko | S | T01 | todo |

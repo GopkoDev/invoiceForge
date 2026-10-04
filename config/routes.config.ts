@@ -27,6 +27,7 @@ export const protectedRoutes = {
 
   settingsProfile: '/settings/profile',
   settingsPrivacy: '/settings/privacy',
+  settingsAssistants: '/settings/assistants',
 
   senderProfilesNew: `${protectedRoutesBase.senderProfiles}/new`,
   senderProfileDetail: (id: string) =>

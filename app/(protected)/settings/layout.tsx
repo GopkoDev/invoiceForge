@@ -13,6 +13,7 @@ import {
 const settingsNavItems = [
   { name: 'Profile', href: protectedRoutes.settingsProfile },
   { name: 'Privacy', href: protectedRoutes.settingsPrivacy },
+  { name: 'Connect your AI', href: protectedRoutes.settingsAssistants },
 ];
 
 export default function SettingsLayout({
