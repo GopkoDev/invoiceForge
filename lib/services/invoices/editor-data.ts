@@ -10,6 +10,7 @@ import type {
   InvoiceSenderProfile,
 } from '@/types/invoice/types';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { todayIn, withDerivedStatus } from '@/lib/services/_shared/overdue';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import {
   bankAccountSelect,
@@ -80,7 +81,7 @@ export async function getInvoiceEditorData(
       customers: customers as InvoiceCustomer[],
       products: transformedProducts,
       customPrices: transformedCustomPrices,
-      initialData: existingInvoice ? transformInvoiceToFormData(existingInvoice) : undefined,
+      initialData: existingInvoice ? transformInvoiceToFormData(withDerivedStatus(existingInvoice, todayIn(actor.timeZone))) : undefined,
       invoiceId,
       legacy,
     });

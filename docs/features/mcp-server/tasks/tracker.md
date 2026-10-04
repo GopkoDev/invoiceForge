@@ -11,7 +11,7 @@
 | T04 | [Read the Freelancer time zone from the account in both ActingFreelancer factories and save it from settings](./t04-account-time-zone.md) | app | Dmytro Hopko | M | T01 | todo |
 | T05 | [Add the Time zone card to Profile settings](./t05-time-zone-settings-card.md) | ui | Dmytro Hopko | S | T04 | todo |
 | T06 | [Apply the shared overdue rule to every dashboard figure and show tabs for issued-invoice currencies](./t06-dashboard-overdue-rule-and-currency-tabs.md) | app | Dmytro Hopko | M | T02 | todo |
-| T07 | [Return the derived status from every invoice read and filter by the shared rule](./t07-derived-invoice-status.md) | app | Dmytro Hopko | M | T02 | todo |
+| T07 | [Return the derived status from every invoice read and filter by the shared rule](./t07-derived-invoice-status.md) | app | Dmytro Hopko | M | T02 | done |
 | T08 | [Show the derived overdue status on the invoice list, customer page, invoice page and recent invoices](./t08-derived-overdue-on-screens.md) | ui | Dmytro Hopko | S | T06, T07 | todo |
 | T09 | [Create, list and revoke Personal keys through the business layer and server actions](./t09-personal-key-management.md) | app | Dmytro Hopko | M | T01, T03 | todo |
 | T10 | [Add the per-key and per-source MCP limit scopes that fail closed](./t10-mcp-limit-scopes.md) | infra | Dmytro Hopko | S | T01 | todo |

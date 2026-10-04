@@ -71,3 +71,35 @@ export function derivedStatus(row: OverdueRow, today: LocalDate): DerivedInvoice
   if (isOverdue(row, today)) return 'overdue';
   return row.status.toLowerCase() as DerivedInvoiceStatus;
 }
+
+/** The stored-enum status a DTO returns: the overdue value per the rule, otherwise the stored one. */
+export function derivedInvoiceStatus(row: OverdueRow, today: LocalDate): InvoiceStatus {
+  return isOverdue(row, today) ? 'OVERDUE' : row.status;
+}
+
+/** Maps a row to itself with its `status` replaced by the derived one (reads never write it). */
+export function withDerivedStatus<T extends OverdueRow>(row: T, today: LocalDate): T {
+  return { ...row, status: derivedInvoiceStatus(row, today) };
+}
+
+/**
+ * `where` for an invoice list status filter (AC-24): the overdue filter uses the rule and the
+ * pending filter leaves out what the rule calls overdue; any other status filters on the stored one.
+ */
+export function statusFilterWhere(status: InvoiceStatus, today: LocalDate): Prisma.InvoiceWhereInput {
+  if (status === 'OVERDUE') return overdueWhere(today);
+  if (status === 'PENDING') return { status: 'PENDING', NOT: overdueWhere(today) };
+  return { status };
+}
+
+/**
+ * True when a manual change to `target` must be refused: the invoice is overdue only because its
+ * due date has passed, and `target` is the overdue or pending status (marking it paid still works).
+ */
+export function refusesManualStatus(row: OverdueRow, target: InvoiceStatus, today: LocalDate): boolean {
+  return (
+    row.status === 'PENDING' &&
+    isOverdue(row, today) &&
+    (target === 'OVERDUE' || target === 'PENDING')
+  );
+}

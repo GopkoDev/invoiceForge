@@ -35,6 +35,12 @@ import {
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage } from '@sentry/nextjs';
 import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
+import {
+  refusesManualStatus,
+  statusFilterWhere,
+  todayIn,
+  withDerivedStatus,
+} from '@/lib/services/_shared/overdue';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import {
@@ -68,7 +74,7 @@ export async function getInvoice(
     });
     if (!invoice) return fail('NOT_FOUND', 'Invoice not found.');
 
-    const serialized = serializeInvoice(invoice);
+    const serialized = serializeInvoice(withDerivedStatus(invoice, todayIn(actor.timeZone)));
     if (!serialized) {
       return failed(
         'Invoice serialize failed:',
@@ -212,11 +218,12 @@ export async function listInvoices(
       senderProfile: { userId: actor.userId },
     };
     const where: Prisma.InvoiceWhereInput = { ...baseWhere };
+    const today = todayIn(actor.timeZone);
 
     // The tab wins over the status filter, which applies on the all tab only (as the page does).
     if (tab === 'drafts') where.status = 'DRAFT';
     else if (tab === 'final') where.status = { not: 'DRAFT' };
-    else if (status !== 'all') where.status = status;
+    else if (status !== 'all') where.AND = [statusFilterWhere(status, today)];
 
     if (search) {
       where.OR = [
@@ -263,7 +270,7 @@ export async function listInvoices(
     return ok({
       ...page,
       items: page.items.map((inv) => ({
-        ...inv,
+        ...withDerivedStatus(inv, today),
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },
@@ -759,10 +766,13 @@ export async function updateInvoiceStatus(
     const outcome = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({
         where: { id, senderProfile: { userId } },
-        select: { status: true, paidAt: true },
+        select: { status: true, paidAt: true, dueDate: true },
       });
       if (!invoice) return null;
 
+      if (refusesManualStatus(invoice, parsedStatus.data, todayIn(actor.timeZone))) {
+        return 'REFUSED' as const;
+      }
       const next = applyStatusChange(invoice, parsedStatus.data);
       const written = await tx.invoice.updateMany({
         where: { id, senderProfile: { userId } },
@@ -771,6 +781,12 @@ export async function updateInvoiceStatus(
       return written.count === 0 ? null : next;
     });
     if (!outcome) return fail('NOT_FOUND', 'Invoice not found.');
+    if (outcome === 'REFUSED') {
+      return fail(
+        'VALIDATION',
+        'This invoice is overdue because its due date has passed. You can still mark it paid.'
+      );
+    }
 
     return ok({
       status: outcome.status,
