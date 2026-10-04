@@ -323,6 +323,48 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
     );
   });
 
+  it('answers 503, not the key 401, and records no refused check when the key check store fails (AC-07)', async () => {
+    const { fullKey } = await freelancerWithKey();
+    vi.spyOn(appPrisma, '$queryRaw').mockRejectedValue(new Error('connection reset'));
+    const res = await route.POST(post(INIT, bearer(fullKey)));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error.data).toEqual({ code: 'FAILED' });
+    expect(
+      await factoryPrisma.limitEvent.count({ where: { outcome: 'REFUSED' } })
+    ).toBe(0);
+    expect(
+      await factoryPrisma.limitEvent.count({ where: { scope: 'MCP_SOURCE' } })
+    ).toBe(0);
+  });
+
+  it('sets lastUsedAt on tools/list (AC-05)', async () => {
+    const { row, fullKey } = await freelancerWithKey();
+    expect(
+      (await factoryPrisma.personalKey.findUniqueOrThrow({ where: { id: row.id } })).lastUsedAt
+    ).toBeNull();
+    expect((await route.POST(post(LIST, bearer(fullKey)))).status).toBe(200);
+    expect(
+      (await factoryPrisma.personalKey.findUniqueOrThrow({ where: { id: row.id } })).lastUsedAt
+    ).not.toBeNull();
+  });
+
+  it('sets lastUsedAt on a call refused with 429 (AC-05)', async () => {
+    const { user, row, fullKey } = await freelancerWithKey();
+    for (let i = 0; i < 60; i++) {
+      await createLimitEvent(factoryPrisma, {
+        scope: 'MCP_KEY',
+        key: row.id,
+        outcome: 'REQUESTED',
+        userId: user.id,
+        at: new Date(Date.now() - 1000),
+      });
+    }
+    expect((await route.POST(post(LIST, bearer(fullKey)))).status).toBe(429);
+    expect(
+      (await factoryPrisma.personalKey.findUniqueOrThrow({ where: { id: row.id } })).lastUsedAt
+    ).not.toBeNull();
+  });
+
   it('answers GET and DELETE with 405 + Allow: POST before any key check', async () => {
     const querySpy = vi.spyOn(appPrisma, '$queryRaw');
     for (const handler of [route.GET, route.DELETE]) {

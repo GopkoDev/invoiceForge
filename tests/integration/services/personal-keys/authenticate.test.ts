@@ -14,7 +14,7 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 type AuthResult =
   | { ok: true; actor: { userId: string; timeZone: string }; keyId: string }
-  | { ok: false };
+  | { ok: false; unavailable?: true };
 type Outcome = 'success' | 'assistant_error' | 'server_failure';
 type Auth = { authenticatePersonalKey: (k: string, now: Date) => Promise<AuthResult> };
 type Usage = { recordPersonalKeyUsage: (id: string, o: Outcome, now: Date) => Promise<void> };
@@ -110,6 +110,32 @@ describe.runIf(containerRuntimeAvailable)('personal key authentication and usage
     const later = new Date(t0.getTime() + 60_000);
     await auth.authenticatePersonalKey(fullKey, later);
     expect(await lastUsed(row.id)).toEqual(later);
+  });
+
+  it('AC-07: a store failure is unavailable, distinct from a refusal', async () => {
+    const user = await createFreelancer(prisma);
+    const { fullKey } = await seedKey(prisma, user.id);
+    const { prisma: appPrisma } = (await import('@/prisma')) as { prisma: PrismaClient };
+    const spy = vi.spyOn(appPrisma, '$queryRaw').mockRejectedValue(new Error('connection reset'));
+    try {
+      expect(await auth.authenticatePersonalKey(fullKey, t0)).toEqual({ ok: false, unavailable: true });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('AC-05: a failed lastUsedAt write does not refuse a valid key', async () => {
+    const user = await createFreelancer(prisma);
+    const { row, fullKey } = await seedKey(prisma, user.id);
+    const { prisma: appPrisma } = (await import('@/prisma')) as { prisma: PrismaClient };
+    const spy = vi.spyOn(appPrisma, '$executeRaw').mockRejectedValue(new Error('write failed'));
+    try {
+      const r = await auth.authenticatePersonalKey(fullKey, t0);
+      expect(r.ok).toBe(true);
+      expect(r.ok && r.keyId).toBe(row.id);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('usage: weekStart is Monday 00:00 UTC and outcomes count correctly', async () => {

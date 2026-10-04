@@ -1,5 +1,8 @@
 import 'server-only';
-import { authenticatePersonalKey } from '@/lib/services/personal-keys/authenticate';
+import {
+  authenticatePersonalKey,
+  type PersonalKeyAuthResult,
+} from '@/lib/services/personal-keys/authenticate';
 import {
   checkMcpSource,
   recordRefusedKeyCheck,
@@ -109,10 +112,12 @@ export async function runMcpPipeline(
   const presented = BEARER.exec(
     request.headers.get('authorization') ?? ''
   )?.[1];
-  const auth = presented
+  const auth: PersonalKeyAuthResult = presented
     ? await authenticatePersonalKey(presented, now)
-    : ({ ok: false } as const);
+    : { ok: false };
   if (!auth.ok) {
+    // A store failure is not a refused key: no refused check is recorded against the source.
+    if (auth.unavailable) return { ok: false, response: limitStoreUnavailableResponse() };
     if (sourceKey) await recordRefusedKeyCheck(sourceKey, now);
     return { ok: false, response: keyRefusedResponse() };
   }
