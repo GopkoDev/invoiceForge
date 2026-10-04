@@ -5,7 +5,16 @@ import type { PrismaClient, User } from '@prisma/client';
 import { uniqueTestEmail } from './ids';
 
 export type FreelancerOverrides = Partial<
-  Pick<User, 'id' | 'name' | 'email' | 'emailVerified' | 'image'>
+  Pick<
+    User,
+    | 'id'
+    | 'name'
+    | 'email'
+    | 'emailVerified'
+    | 'image'
+    | 'timeZone'
+    | 'overdueNoticeDismissedAt'
+  >
 >;
 
 export async function createFreelancer(
@@ -18,6 +27,8 @@ export async function createFreelancer(
       email: overrides.email ?? uniqueTestEmail('freelancer'),
       emailVerified: overrides.emailVerified ?? new Date(),
       image: overrides.image ?? null,
+      timeZone: overrides.timeZone ?? null,
+      overdueNoticeDismissedAt: overrides.overdueNoticeDismissedAt ?? null,
       ...(overrides.id ? { id: overrides.id } : {}),
     },
   });

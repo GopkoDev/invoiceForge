@@ -5,7 +5,7 @@
 
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
-| T01 | [Promote the five staged migrations and extend the test support for keys, usage and time zone](./t01-promote-migrations-and-test-support.md) | migration | Dmytro Hopko | M | — | todo |
+| T01 | [Promote the five staged migrations and extend the test support for keys, usage and time zone](./t01-promote-migrations-and-test-support.md) | migration | Dmytro Hopko | M | — | done |
 | T02 | [Add the shared overdue rule module with its SQL, Prisma and TypeScript forms](./t02-shared-overdue-rule.md) | domain | Dmytro Hopko | M | — | done |
 | T03 | [Generate, checksum and digest ifk_ Personal keys](./t03-personal-key-format.md) | domain | Dmytro Hopko | S | — | done |
 | T04 | [Read the Freelancer time zone from the account in both ActingFreelancer factories and save it from settings](./t04-account-time-zone.md) | app | Dmytro Hopko | M | T01 | todo |

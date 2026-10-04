@@ -7,6 +7,9 @@ model User {
     emailVerified DateTime?
     image         String?
 
+    timeZone                 String? // ADR-0006; NULL = UTC until saved
+    overdueNoticeDismissedAt DateTime?
+
     accounts         Account[]
     sessions         Session[]
     emailHistory     EmailHistory[]
@@ -15,6 +18,7 @@ model User {
     products         Product[]
     logoFetchWindows LogoFetchWindow[]
     limitEvents      LimitEvent[]
+    personalKeys     PersonalKey[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -74,6 +78,8 @@ enum LimitScope {
     SIGNIN_SOURCE
     SIGNIN_ADDRESS
     EXPORT
+    MCP_KEY
+    MCP_SOURCE
 }
 
 enum LimitOutcome {
@@ -113,4 +119,37 @@ model EmailHistory {
 
     @@index([userId])
     @@index([oldEmail])
+}
+
+model PersonalKey {
+    id             String    @id @default(cuid())
+    userId         String
+    name           String
+    activeNameKey  String? // lower-case name while active, NULL once revoked
+    digest         String    @unique // sha256 hex of the full key (ADR-0004)
+    lastFour       String
+    lastUsedAt     DateTime?
+    firstSuccessAt DateTime?
+    revokedAt      DateTime?
+
+    user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    usageWeeks PersonalKeyUsageWeek[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([userId, activeNameKey])
+}
+
+// Weekly per-key usage counts for the KPIs (spec section 7); counts only, never content.
+model PersonalKeyUsageWeek {
+    personalKeyId   String
+    weekStart       DateTime // Monday 00:00 UTC
+    attempts        Int      @default(0)
+    successes       Int      @default(0)
+    assistantErrors Int      @default(0)
+
+    personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
+
+    @@id([personalKeyId, weekStart])
 }
