@@ -46,38 +46,36 @@ export async function POST(request: Request): Promise<Response> {
     };
     await server.connect(transport);
     const response = await transport.handleRequest(request, { parsedBody: body.value });
-    return await withoutErrorData(response, () => Sentry.captureException(lastError));
+    return await asServerFailure(response, () => Sentry.captureException(lastError));
   } catch (error) {
     Sentry.captureException(error);
-    return new Response(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32603,
-          message: 'Something went wrong in invoiceFlow. Try again.',
-        },
-      }),
-      { status: 500, headers: { 'content-type': 'application/json' } }
-    );
+    return serverFailure();
   }
 }
 
+function serverFailure(): Response {
+  return new Response(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: 'Something went wrong in invoiceFlow. Try again.' },
+    }),
+    { status: 500, headers: { 'content-type': 'application/json' } }
+  );
+}
+
 /**
- * Drops error.data (the SDK's catch-all puts the raw error text there) from a JSON-RPC error
- * response, and reports that failure.
+ * Replaces the SDK's catch-all answer (a JSON-RPC error carrying error.data, the raw error text)
+ * with the contract ServerFailure, and reports that failure. Other refusals pass through.
  */
-async function withoutErrorData(response: Response, report: () => void): Promise<Response> {
+async function asServerFailure(response: Response, report: () => void): Promise<Response> {
   if (response.status < 400) return response;
   if (!response.headers.get('content-type')?.includes('application/json')) return response;
   try {
     const payload = (await response.clone().json()) as { error?: { data?: unknown } };
     if (!payload.error || !('data' in payload.error)) return response;
     report();
-    delete payload.error.data;
-    const headers = new Headers(response.headers);
-    headers.delete('content-length');
-    return new Response(JSON.stringify(payload), { status: response.status, headers });
+    return serverFailure();
   } catch {
     return response;
   }

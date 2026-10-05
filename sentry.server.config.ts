@@ -73,13 +73,7 @@ type ScrubbableRequest = {
 export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
   const request = event.request;
   if (!request || typeof request.url !== 'string') return event;
-  let pathname: string;
-  try {
-    pathname = new URL(request.url, 'http://localhost').pathname;
-  } catch {
-    pathname = request.url;
-  }
-  if (pathname !== '/api/mcp') return event;
+  if (!isMcpUrl(request.url)) return event;
   delete request.headers;
   delete request.data;
   delete request.cookies;
@@ -88,7 +82,7 @@ export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
 
 export function isMcpUrl(url: string): boolean {
   try {
-    return new URL(url, 'http://localhost').pathname === '/api/mcp';
+    return new URL(url, 'http://localhost').pathname.replace(/\/+$/, '') === '/api/mcp';
   } catch {
     return false;
   }

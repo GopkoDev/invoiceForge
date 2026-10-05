@@ -58,6 +58,18 @@ describe('POST /api/mcp transport failures (H-06)', () => {
     expect(await res.text()).not.toContain('SECRET-RAW-TEXT');
   });
 
+  it('answers the SDK catch-all with the contract ServerFailure, reported once (I-02)', async () => {
+    const { POST } = await import('@/app/api/mcp/route');
+    const res = await POST(new Request('http://x/api/mcp', { method: 'POST', body: '{}', headers }));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: 'Something went wrong in invoiceFlow. Try again.' },
+    });
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+  });
+
   it('reports nothing for a plain client refusal from the SDK and passes it through', async () => {
     sdkAnswer = 'client';
     const { POST } = await import('@/app/api/mcp/route');

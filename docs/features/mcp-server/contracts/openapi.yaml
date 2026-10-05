@@ -358,7 +358,7 @@ paths:
         "202":
           description: A notification was accepted; no body.
         "400":
-          description: The body is not valid JSON, is a batch (an array), could not be read because the client went away mid-body, or the protocol version is unsupported. Checked after `406` and `415`. The call still counts toward the key limit, no tool runs, and none of these is reported to Sentry.
+          description: The body is not valid JSON, is a batch (an array), could not be read because the client went away mid-body, or the protocol version is unsupported. Checked after `406` and `415`. The call still counts toward the key limit, no tool runs, and none of these is reported to Sentry. The SDK's own catch-all failure is not a `400`: it answers `500` (ServerFailure).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonRpcErrorResponse" }
@@ -527,7 +527,7 @@ components:
               message: "invoiceFlow cannot check its call limits right now, so the call was refused. Try again in a few minutes."
               data: { code: FAILED }
     ServerFailure:
-      description: An unexpected failure before a tool could answer, including the MCP SDK's own catch-all failure. It is reported to Sentry; no raw database, SDK or stack text reaches the client (`error.data` is dropped; types/result.ts).
+      description: An unexpected failure before a tool could answer, including the MCP SDK's own catch-all failure. It is reported to Sentry; no raw database, SDK or stack text reaches the client (the SDK's catch-all answer, the one carrying `error.data`, is replaced by this body with HTTP `500`; types/result.ts).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/JsonRpcErrorResponse" }

@@ -36,6 +36,18 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     expect(out.request).toEqual({ url: 'https://app.example/api/mcp' });
   });
 
+  it.each(['https://app.example/api/mcp/', 'https://app.example/api/mcp/?x=1'])(
+    'scrubs a transaction for %s (I-03)',
+    (url) => {
+      const out = opts.beforeSendTransaction!({
+        type: 'transaction',
+        request: { url, headers: { authorization: 'Bearer ifk_secret' }, data: 'x' },
+      });
+      expect(JSON.stringify(out)).not.toContain('ifk_secret');
+      expect(out.request).toEqual({ url });
+    }
+  );
+
   it('ignores the incoming request body on /api/mcp only', () => {
     expect(httpCalls.length).toBeGreaterThan(0);
     const arg = httpCalls[0]?.[0] as
@@ -47,6 +59,8 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     expect(typeof ignore).toBe('function');
     expect(ignore!('https://app.example/api/mcp')).toBe(true);
     expect(ignore!('/api/mcp?x=1')).toBe(true);
+    expect(ignore!('/api/mcp/')).toBe(true);
+    expect(ignore!('/api/mcp/?x=1')).toBe(true);
     expect(ignore!('https://app.example/api/other')).toBe(false);
     expect(opts.integrations).toContainEqual(expect.objectContaining({ name: 'Http' }));
   });
