@@ -48,6 +48,30 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     }
   );
 
+  it.each([
+    'https://app.example//api/mcp',
+    'https://app.example/api//mcp',
+    'https://app.example/api/mcp//',
+    'https://app.example/api\\mcp',
+  ])('scrubs a transaction for %s (J-01)', (url) => {
+    const out = opts.beforeSendTransaction!({
+      type: 'transaction',
+      request: { url, headers: { authorization: 'Bearer ifk_secret' }, data: 'x' },
+    });
+    expect(JSON.stringify(out)).not.toContain('ifk_secret');
+    expect(out.request).toEqual({ url });
+  });
+
+  it('does not scrub a transaction for /api/mcpx or /api/mcp/other', () => {
+    for (const url of ['https://app.example/api/mcpx', 'https://app.example/api/mcp/other']) {
+      const out = opts.beforeSendTransaction!({
+        type: 'transaction',
+        request: { url, headers: { h: 'v' } },
+      });
+      expect(out.request).toEqual({ url, headers: { h: 'v' } });
+    }
+  });
+
   it('ignores the incoming request body on /api/mcp only', () => {
     expect(httpCalls.length).toBeGreaterThan(0);
     const arg = httpCalls[0]?.[0] as
@@ -61,6 +85,11 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     expect(ignore!('/api/mcp?x=1')).toBe(true);
     expect(ignore!('/api/mcp/')).toBe(true);
     expect(ignore!('/api/mcp/?x=1')).toBe(true);
+    expect(ignore!('//api/mcp')).toBe(true);
+    expect(ignore!('/api//mcp')).toBe(true);
+    expect(ignore!('/api/mcp//')).toBe(true);
+    expect(ignore!('/api/mcpx')).toBe(false);
+    expect(ignore!('/api/mcp/other')).toBe(false);
     expect(ignore!('https://app.example/api/other')).toBe(false);
     expect(opts.integrations).toContainEqual(expect.objectContaining({ name: 'Http' }));
   });
