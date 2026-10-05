@@ -78,3 +78,20 @@ describe('dashboard-period module is dependency-free (ADR-0004)', () => {
     expect(src).not.toMatch(/server-only|next\/|node:|['"]react['"]/);
   });
 });
+
+describe('PRESET_PERIOD_NAMES (T42 review)', () => {
+  it('is the single list of named presets: every name resolves to days and is recognised', async () => {
+    const { PRESET_PERIOD_NAMES, isPresetPeriodName } = await import(
+      '@/lib/validations/dashboard-period'
+    );
+    expect([...PRESET_PERIOD_NAMES].sort()).toEqual(
+      ['last-month', 'last-year', 'next-month', 'this-month', 'this-year']
+    );
+    for (const name of PRESET_PERIOD_NAMES) {
+      expect(isPresetPeriodName(name)).toBe(true);
+      expect(presetPeriodDays(name, '2026-10-05').from).toMatch(/^\d{4}-\d{2}-01$/);
+    }
+    expect(isPresetPeriodName('all-time')).toBe(false);
+    expect(isPresetPeriodName(undefined)).toBe(false);
+  });
+});

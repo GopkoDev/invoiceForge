@@ -8,8 +8,10 @@ import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { dayToLocalDate } from '@/lib/helpers/calendar-day';
 import {
+  isPresetPeriodName,
   isWithinMaxCustomPeriod,
   PERIOD_TOO_LONG,
+  PRESET_PERIOD_NAMES,
   presetPeriodDays,
   type PresetPeriodName,
 } from '@/lib/validations/dashboard-period';
@@ -22,14 +24,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-type DatePreset =
-  | 'next-month'
-  | 'this-month'
-  | 'last-month'
-  | 'this-year'
-  | 'last-year'
-  | 'all-time'
-  | 'custom';
+type DatePreset = PresetPeriodName | 'all-time' | 'custom';
 
 // T24 (spec.md §5 AC-25) — the filter shows the range the page actually applied
 // (`appliedPeriod`), not a range re-derived from the raw link values, per
@@ -49,20 +44,28 @@ interface DashboardFiltersProps {
   ) => void;
 }
 
+const PRESET_LABELS: Record<PresetPeriodName, string> = {
+  'next-month': 'Next Month',
+  'this-month': 'This Month',
+  'last-month': 'Last Month',
+  'this-year': 'This Year',
+  'last-year': 'Last Year',
+};
+
+// Named presets come from the single shared list; "All Time" is the filter's own extra choice.
 const PRESETS: ReadonlyArray<{ value: DatePreset; label: string }> = [
-  { value: 'next-month', label: 'Next Month' },
-  { value: 'this-month', label: 'This Month' },
-  { value: 'last-month', label: 'Last Month' },
-  { value: 'this-year', label: 'This Year' },
-  { value: 'last-year', label: 'Last Year' },
+  ...PRESET_PERIOD_NAMES.map((value) => ({
+    value,
+    label: PRESET_LABELS[value],
+  })),
   { value: 'all-time', label: 'All Time' },
-] as const;
+];
 
 function getPresetDateRange(
   preset: DatePreset,
   today: string
 ): DateRange | undefined {
-  if (preset === 'all-time' || preset === 'custom') return undefined;
+  if (!isPresetPeriodName(preset)) return undefined;
   const { from, to } = presetPeriodDays(preset, today);
   return { from: dayToLocalDate(from), to: dayToLocalDate(to) };
 }
@@ -120,10 +123,9 @@ export function DashboardFilters({
   // The pressed preset is derived from the applied period and today, so it is right after a load.
   const preset: DatePreset = useMemo(() => {
     if (!appliedFrom || !appliedTo) return 'all-time';
-    for (const p of PRESETS) {
-      if (p.value === 'all-time') continue;
-      const days = presetPeriodDays(p.value as PresetPeriodName, today);
-      if (days.from === appliedFrom && days.to === appliedTo) return p.value;
+    for (const name of PRESET_PERIOD_NAMES) {
+      const days = presetPeriodDays(name, today);
+      if (days.from === appliedFrom && days.to === appliedTo) return name;
     }
     return 'custom';
   }, [appliedFrom, appliedTo, today]);

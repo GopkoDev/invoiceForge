@@ -8,7 +8,7 @@ import type {
 import {
   isWithinMaxCustomPeriod,
   presetPeriodDays,
-  type PresetPeriodName,
+  isPresetPeriodName,
 } from '@/lib/validations/dashboard-period';
 import {
   currentLocalMonth,
@@ -181,14 +181,6 @@ export const invoiceListParamsSchema = z
 export type DashboardAppliedRange = { start: Date; endExclusive: Date };
 export type DashboardLocalPeriod = { from: string; to: string };
 
-const PRESET_NAMES: ReadonlySet<string> = new Set([
-  'next-month',
-  'this-month',
-  'last-month',
-  'this-year',
-  'last-year',
-]);
-
 const presetSchema = z
   .preprocess((value) => firstString(value), z.string().optional())
   .catch(undefined);
@@ -231,9 +223,9 @@ export function dashboardParamsSchema(
 
         // A named preset is resolved here, in the account zone, and beats any from/to pair
         // (AC-22, AC-23): a tab left open past midnight never sends a stale month.
-        if (preset !== undefined && PRESET_NAMES.has(preset)) {
+        if (isPresetPeriodName(preset)) {
           const days = presetPeriodDays(
-            preset as PresetPeriodName,
+            preset,
             formatLocalDateKey(now, zone)
           );
           const [start, endExclusive] = localDayRange(days.from, days.to, zone);

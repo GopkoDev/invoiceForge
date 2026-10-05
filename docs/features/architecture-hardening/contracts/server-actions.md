@@ -238,7 +238,7 @@ Date bounds: `[startOfDay(dateFrom, tz), startOfDay(dateTo + 1 day, tz))`, so th
 | Param | Accepted | Default |
 |---|---|---|
 | `from`, `to` | `YYYY-MM-DD`, both valid and from ≤ to | the current month in `tz` (AC-25) |
-| `preset` | `all-time` (no range) or absent | absent |
+| `preset` | `all-time` (no range), a named preset (`this-month`, `last-month`, `next-month`, `this-year`, `last-year`) resolved on the server in the account zone and taking priority over `from`/`to`, or absent | absent |
 | `currency` | enum `Currency`, among the Freelancer's currency tabs | the first currency tab (existing `validateCurrency`) |
 
 The page returns `appliedRange` to the date filter (AC-25).

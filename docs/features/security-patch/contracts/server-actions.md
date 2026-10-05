@@ -102,6 +102,7 @@ export const PERIOD_TOO_LONG =
 | Link | Applied |
 |---|---|
 | `preset=all-time` | full history (unchanged) |
+| `preset=this-month`, `last-month`, `next-month`, `this-year` or `last-year` | that period, resolved on the server in the account zone; it takes priority over any `from`/`to` pair |
 | valid `from ≤ to` within 5 calendar years | that custom period (unchanged) |
 | valid `from ≤ to` **longer than 5 years** | ★ current local month, the same as a malformed link; no error, no notice |
 | missing, malformed or inverted | current local month (unchanged) |

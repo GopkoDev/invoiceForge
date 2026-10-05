@@ -37,12 +37,22 @@ export function isWithinMaxCustomPeriod(from: string, to: string): boolean {
   return to <= addCalendarYears(from, MAX_CUSTOM_PERIOD_YEARS);
 }
 
-export type PresetPeriodName =
-  | 'next-month'
-  | 'this-month'
-  | 'last-month'
-  | 'this-year'
-  | 'last-year';
+export const PRESET_PERIOD_NAMES = [
+  'next-month',
+  'this-month',
+  'last-month',
+  'this-year',
+  'last-year',
+] as const;
+
+export type PresetPeriodName = (typeof PRESET_PERIOD_NAMES)[number];
+
+export function isPresetPeriodName(value: unknown): value is PresetPeriodName {
+  return (
+    typeof value === 'string' &&
+    (PRESET_PERIOD_NAMES as readonly string[]).includes(value)
+  );
+}
 
 /**
  * The calendar days (YYYY-MM-DD, both inclusive) a named preset covers, counted from `today` as a
