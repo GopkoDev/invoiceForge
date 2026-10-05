@@ -744,6 +744,107 @@
       ],
       "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
       "source": "review-2026-10-05"
+    },
+    {
+      "id": "T35",
+      "title": "Normalise legacy invoice dates lazily when the Freelancer time zone is first saved",
+      "layer": "data",
+      "deps": [],
+      "acs": [
+        "AC-12",
+        "AC-23b",
+        "AC-24"
+      ],
+      "dod": "G-01 fixed per the owner decision: the calendar-day migration converts only rows whose owner has a saved valid zone (no UTC fallback, legacy values untouched otherwise); when User.timeZone goes NULL→value (first-visit seed or settings save) the same transaction normalises that Freelancer's legacy (non-UTC-midnight) issueDate/dueDate in that zone; data-model.md + sad §8 + the migration header describe the lazy path. Tests: a NULL-zone owner's rows survive the migration unchanged; the seed with a Kyiv cookie turns a Kyiv local-midnight due date into the picked day; a second save of a different zone changes no dates; UTC-midnight rows are never moved.",
+      "files_hint": [
+        "prisma/migrations/20261005100000_normalize_invoice_calendar_dates/migration.sql",
+        "docs/features/mcp-server/migrations/06_normalize_invoice_calendar_dates.up.sql",
+        "lib/helpers/session-actor.ts",
+        "lib/services/_shared/acting-freelancer.ts",
+        "lib/services/profile/profile.ts",
+        "tests/integration/invoice-calendar-days-migration.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05-addendum"
+    },
+    {
+      "id": "T36",
+      "title": "Build dashboard presets and the applied-range label in the account time zone",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-22",
+        "AC-23"
+      ],
+      "dod": "G-02 fixed: dashboard presets come from the account zone (server-computed or zone passed to the client), the applied-range label/calendar shows the zone-local period days in any browser zone, and a failed actor lookup on the dashboard and invoices pages takes the load-error path (tests for each).",
+      "files_hint": [
+        "components/dashboard/header/dashboard-filters.tsx",
+        "components/dashboard/header/dashboard-header.tsx",
+        "app/(protected)/dashboard/page.tsx",
+        "app/(protected)/invoices/page.tsx",
+        "tests/component/pages-account-time-zone.test.tsx"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05-addendum"
+    },
+    {
+      "id": "T37",
+      "title": "Keep request bodies out of Sentry, check Accept and Content-Type first, and put 413 and the batch refusal in the contract",
+      "layer": "ports",
+      "deps": [],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "G-03 fixed: no Sentry capture on the JSON parse branch; 406/415 checked before the body is read (pipeline test pins 415 for a non-JSON content type); openapi.yaml lists 413 (64 KB cap) and the -32600 batch example; the oversized-body test asserts no tool ran and the limit-event count; the maxRequestBodySize comment says backstop.",
+      "files_hint": [
+        "app/api/mcp/route.ts",
+        "docs/features/mcp-server/contracts/openapi.yaml",
+        "tests/integration/api/mcp-pipeline.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05-addendum"
+    },
+    {
+      "id": "T38",
+      "title": "Map a submitted OVERDUE back to PENDING only for a derived-overdue invoice",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-24"
+      ],
+      "dod": "G-04 fixed: statusToStoreOnSave changes a submitted OVERDUE to the stored PENDING only when the stored invoice is derived-overdue; tests cover past-due (kept PENDING) and not-yet-due (behaves as before this feature).",
+      "files_hint": [
+        "lib/services/_shared/overdue.ts",
+        "lib/services/invoices/invoices.ts",
+        "tests/integration/services/invoices/derived-status.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05-addendum"
+    },
+    {
+      "id": "T39",
+      "title": "Give the no-zone, export-schema, revoke-title and overdue-surface tests teeth",
+      "layer": "tests",
+      "deps": [
+        "T35"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-06",
+        "AC-22",
+        "AC-24",
+        "AC-25"
+      ],
+      "dod": "G-05 fixed: the no-zone fallback test pins the clock near a day edge and differs from Kyiv; recorded-values.ts header records the deliberate re-baseline; the AC-25 test runs assertMatchesContract on a populated export; the revoke-title assertion runs unconditionally and fails against the old title expression; the AC-24 e2e checks are scoped to the invoice row and assert no 'Pending'.",
+      "files_hint": [
+        "tests/integration/services/dashboard/summary-chart.test.ts",
+        "tests/integration/services/dashboard/recorded-values.ts",
+        "tests/integration/api/user-export.test.ts",
+        "tests/component/assistants-keys.test.tsx",
+        "tests/e2e/mcp-overdue-surfaces.spec.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
+      "source": "review-2026-10-05-addendum"
     }
   ]
 }
