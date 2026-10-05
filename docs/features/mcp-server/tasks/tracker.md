@@ -54,7 +54,7 @@
 | T47 | [Scrub /api/mcp requests whose path has repeated slashes](../_review/review-2026-10-05-r4.md) | ports | Dmytro Hopko | S | — | done |
 | T48 | [Show a stale save failure, keep an empty number after a sender switch in flight, guard the sender hint and Retry with the session token, test the isSaving guard, and correct T46's ACs](../_review/review-2026-10-05-r5.md) | app | Dmytro Hopko | M | — | done |
 | T49 | [Scrub percent-encoded /api/mcp paths](../_review/review-2026-10-05-r5.md) | ports | Dmytro Hopko | S | — | done |
-| T50 | [Give the sender-hint reset test teeth, block Retry while a save is in flight, test Retry in the same session, and list the stale-session cases in the test plan](../_review/review-2026-10-05-r6.md) | app | Dmytro Hopko | S | — | todo |
+| T50 | [Give the sender-hint reset test teeth, block Retry while a save is in flight, test Retry in the same session, and list the stale-session cases in the test plan](../_review/review-2026-10-05-r6.md) | app | Dmytro Hopko | S | — | done |
 
 **Total:** 50 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3, T46–T47 from review-2026-10-05-r4, T48–T49 from review-2026-10-05-r5, T50 from review-2026-10-05-r6), ~36.5 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
 
