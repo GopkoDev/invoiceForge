@@ -58,6 +58,7 @@ type DecimalString = string;   // /^-?\d{1,8}\.\d{2}$/ — exact 2-dp value from
 | `senderProfileId`, `customerId`, `bankAccountId` | `string min(1)`. Ownership checked in the action → `NOT_FOUND` | — | AC-29 |
 | `status` | `enum InvoiceStatus` = `DRAFT \| PENDING \| PAID \| OVERDUE \| CANCELLED`. Unknown → `VALIDATION` "Unknown status" | message ✎ | AC-19 |
 | `issueDate`, `dueDate` | `yyyy-MM-dd` calendar day, stored at `T00:00:00Z`; a `Date` is refused (mcp-server ADR-0009) | ✎ mcp-server | — |
+| `loadedIssueDate?`, `loadedDueDate?` | `updateInvoice` only: optional ISO datetime, the stored instant the editor loaded; anything else → `VALIDATION`. Decides only whether an unedited legacy date keeps its stored value (mcp-server ADR-0009) | ✎ mcp-server | — |
 | `currency` | `enum Currency` | — | — |
 | `items[]` | `min(1)` | — | — |
 | `items[].quantity` | `number > 0`, ≤ 99 999 999.99, 2 dp | ★ max | AC-14 |
@@ -91,8 +92,11 @@ type SavedInvoice = {
   id: string;
   invoiceNumber: string;        // final number: as typed (manual) or allocated
   subtotal: number; taxAmount: number; total: number;   // stored figures (AC-13)
-  status: InvoiceStatus;
+  status: InvoiceStatus;        // stored status (✎ mcp-server)
+  derivedOverdue: boolean;      // ✎ mcp-server ADR-0005: the shared overdue rule's answer
   paidAt: string | null;        // ISO; set by applyStatusChange() (AC-18)
+  issueDate: string;            // ✎ mcp-server ADR-0009: stored instant, ISO
+  dueDate: string;              // ✎ mcp-server ADR-0009: stored instant, ISO
 };
 ```
 

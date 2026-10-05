@@ -111,4 +111,29 @@ describe('invoice editor store - loaded dates (T44)', () => {
       loadedDueDate: '2026-10-15T00:00:00.000Z',
     });
   });
+
+  it('a date picked while the save is in flight survives the response and keeps the form dirty', async () => {
+    let resolve!: (value: unknown) => void;
+    updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().updateField('dueDate', new Date(2026, 9, 20));
+    resolve(ok(saved()));
+    await saving;
+
+    const after = useInvoiceEditorStore.getState();
+    expect(after.formData.dueDate.getDate()).toBe(20);
+    // The untouched issue date still takes the stored day.
+    expect(after.formData.issueDate.getDate()).toBe(1);
+    expect(after.hasUnsavedChanges).toBe(true);
+  });
+
+  it('reset forgets the loaded dates', () => {
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    useInvoiceEditorStore.getState().reset();
+
+    expect(useInvoiceEditorStore.getState().loadedDates).toBeNull();
+  });
 });

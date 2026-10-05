@@ -152,7 +152,7 @@ Notice copy is owned by `screens`.
 
 ## Shared overdue rule — every invoice read (US-08; flow 13; ADR-0005)
 
-No action signature changes. These results change meaning:
+Additive shape changes only: `SavedInvoice` gains `derivedOverdue`, `issueDate` and `dueDate`, and the `updateInvoice` input gains the optional `loadedIssueDate` / `loadedDueDate` (both recorded in the architecture-hardening contract). These results change meaning:
 
 - **Derived status.** Every read DTO that returns an invoice's `status` (invoice list, recent invoices, customer page, invoice page, `getPaginatedInvoices`, `getInvoicesByCustomer`, `getInvoicesBySenderProfile`, `getInvoice`) returns `OVERDUE` when the shared rule says so, `PENDING` otherwise. The stored column is never written by a read. Display code reads one field.
 - **Editor status.** The editor is the exception. `getInvoiceEditorData` returns the **stored** status in `initialData` plus `derivedOverdue: boolean`, and `createInvoice` / `updateInvoice` return the stored `status` plus `derivedOverdue` in `SavedInvoice`, together with the stored `issueDate` / `dueDate` as ISO instants. After a save the editor shows those dates and sends them as the loaded instants of its next save. The editor shows the overdue badge from `derivedOverdue`, so a save echoes the stored status back. If a save still submits `OVERDUE` for a derived-overdue invoice (stored `PENDING`, due date passed), `updateInvoice` stores `PENDING`. A submitted `OVERDUE` on any other invoice, including one not yet due, is stored as sent (`statusToStoreOnSave`, ADR-0005).

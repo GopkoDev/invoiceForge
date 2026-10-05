@@ -29,7 +29,7 @@ import {
   withLocalDays,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
-import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
+import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 
 export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   set,
@@ -96,16 +96,23 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
   // On success the server's figures replace whatever the browser had (AC-06, AC-13), and any
   // prior field error / totals confirmation is cleared.
-  function applySavedInvoice(saved: SavedInvoice): void {
+  // `submitted` is the form the save was built from: a date the Freelancer changed while the save
+  // was in flight is kept, and the form stays dirty so that edit is neither lost nor unguarded.
+  function applySavedInvoice(saved: SavedInvoice, submitted: InvoiceFormData): void {
     const state = get();
+    const untouched = state.formData === submitted;
+    const storedOrEdited = (key: 'issueDate' | 'dueDate', stored: string): Date =>
+      localDateToDay(state.formData[key]) === localDateToDay(submitted[key])
+        ? storedDayToLocalDate(stored)
+        : state.formData[key];
     set({
       formData: {
         ...state.formData,
         invoiceNumber: saved.invoiceNumber,
         status: saved.status,
         // The row's stored dates (a kept legacy / normalised value may differ from the submitted day).
-        issueDate: storedDayToLocalDate(saved.issueDate),
-        dueDate: storedDayToLocalDate(saved.dueDate),
+        issueDate: storedOrEdited('issueDate', saved.issueDate),
+        dueDate: storedOrEdited('dueDate', saved.dueDate),
       },
       derivedOverdue: saved.derivedOverdue,
       invoiceId: saved.id,
@@ -114,7 +121,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       total: saved.total,
       fieldErrors: undefined,
       totalsChanged: null,
-      hasUnsavedChanges: false,
+      hasUnsavedChanges: untouched ? false : state.hasUnsavedChanges,
       // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
       // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
       legacy: null,
@@ -453,7 +460,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           // Update existing invoice
           const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
-            applySavedInvoice(result.data);
+            applySavedInvoice(result.data, state.formData);
             toast.success('Invoice updated');
           } else {
             handleSaveFailure(result, retry);
@@ -462,7 +469,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           // Create new invoice
           const result = await createInvoice(payload);
           if (result.success) {
-            applySavedInvoice(result.data);
+            applySavedInvoice(result.data, state.formData);
             toast.success('Invoice created');
             return; // Router redirect will be handled in component
           } else {
@@ -491,6 +498,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         products: [],
         customPrices: [],
         invoiceId: undefined,
+        loadedDates: null,
         isSaving: false,
         hasUnsavedChanges: false,
         invoiceNumberHint: undefined,
