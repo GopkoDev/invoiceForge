@@ -61,14 +61,19 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     retry: () => void,
     token: number
   ): void {
-    // AC-21: a stale session's save must send the device to sign-in, not just toast a
+    // architecture-hardening AC-21: a stale session's save must send the device to sign-in, not just toast a
     // generic error and leave it on the editor. The signed-out state is global, not per editor
     // session, so this runs before the token check (same as a rejected save in the catch block).
     if (redirectIfUnauthorized(result)) {
       return;
     }
 
-    if (token !== sessionToken) return;
+    // A save that failed after the editor was reset still tells the user it was not stored, but
+    // writes no state and offers no Retry (the form it would resubmit is gone).
+    if (token !== sessionToken) {
+      toast.error(result.error || 'Error saving invoice.');
+      return;
+    }
 
     if (result.details?.kind === 'TOTALS_CHANGED') {
       set({
@@ -120,11 +125,18 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       localDateToDay(state.formData[key]) === localDateToDay(submitted[key])
         ? storedDayToLocalDate(stored)
         : state.formData[key];
+    // Switching the sender profile mid-save clears the number on purpose (the old profile's
+    // number is never proposed under the new one), so it counts as an edit of the number.
+    const senderSwitched =
+      state.formData.senderProfileId !== submitted.senderProfileId;
     const storedUnlessEdited = <K extends 'invoiceNumber' | 'status'>(
       key: K,
       stored: InvoiceFormData[K]
     ): InvoiceFormData[K] =>
-      state.formData[key] === submitted[key] ? stored : state.formData[key];
+      state.formData[key] === submitted[key] &&
+      !(key === 'invoiceNumber' && senderSwitched)
+        ? stored
+        : state.formData[key];
     set({
       formData: {
         ...state.formData,
@@ -265,7 +277,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       );
       const selectedBankAccount = defaultBankAccount || senderBankAccounts[0];
 
-      // An empty number field is the only signal a number is system-proposed (AC-06, AC-11): the
+      // An empty number field is the only signal a number is system-proposed (architecture-hardening AC-06, AC-11): the
       // proposed number is exposed as a separate hint, never merged into the value the Freelancer
       // would submit. This also clears a moved invoice's old number — A's number is never
       // proposed again under B.
@@ -292,10 +304,11 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         ...computedValues,
       });
 
+      const token = sessionToken;
       try {
         const result = await generateInvoiceNumber(id);
         if (redirectIfUnauthorized(result)) return;
-        if (result.success) {
+        if (result.success && token === sessionToken) {
           set({ invoiceNumberHint: result.data });
         }
       } catch {
@@ -475,7 +488,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         options?.confirmedTotals,
         state.loadedDates
       );
-      const retry = () => get().saveInvoice(options);
+      const retry = () => {
+        // A Retry clicked after the editor was reset would save another invoice's form.
+        if (token === sessionToken) void get().saveInvoice(options);
+      };
 
       try {
         if (state.invoiceId) {

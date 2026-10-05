@@ -56,3 +56,5 @@
 | T49 | [Scrub percent-encoded /api/mcp paths](../_review/review-2026-10-05-r5.md) | ports | Dmytro Hopko | S | — | todo |
 
 **Total:** 49 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3, T46–T47 from review-2026-10-05-r4, T48–T49 from review-2026-10-05-r5), ~36 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
+
+**Note:** T46's `SDD-AC` trailers AC-06/AC-11 on 538ef73 and 0ba622f are wrong (copied from another feature's AC ids); `tasks.json` now lists AC-12, AC-19 (review-2026-10-05-r5 L-01).

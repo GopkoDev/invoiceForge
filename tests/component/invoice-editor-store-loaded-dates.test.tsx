@@ -5,13 +5,19 @@ import type { InvoiceFormData } from '@/types/invoice/types';
 import type { SavedInvoice } from '@/lib/actions/invoice-actions/invoice-actions';
 import { ok } from '@/types/actions';
 
+const generateInvoiceNumberMock = vi.fn();
 const createInvoiceMock = vi.fn();
 const updateInvoiceMock = vi.fn();
 
 vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
-  generateInvoiceNumber: vi.fn(),
+  generateInvoiceNumber: (...args: unknown[]) => generateInvoiceNumberMock(...args),
   createInvoice: (...args: unknown[]) => createInvoiceMock(...args),
   updateInvoice: (...args: unknown[]) => updateInvoiceMock(...args),
+}));
+
+const toastErrorMock = vi.fn();
+vi.mock('sonner', () => ({
+  toast: { error: (...a: unknown[]) => toastErrorMock(...a), success: vi.fn() },
 }));
 
 const goToSignInMock = vi.fn();
@@ -80,7 +86,9 @@ describe('invoice editor store - loaded dates (T44)', () => {
     useInvoiceEditorStore.getState().reset();
     createInvoiceMock.mockReset();
     updateInvoiceMock.mockReset();
+    generateInvoiceNumberMock.mockReset();
     goToSignInMock.mockReset();
+    toastErrorMock.mockReset();
   });
 
   it('an update sends the stored instants the editor was built from next to the submitted days', async () => {
@@ -194,7 +202,87 @@ describe('invoice editor store - loaded dates (T44)', () => {
     expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
   });
 
-  it('a stale UNAUTHORIZED and a stale rejection both still send the device to sign-in (AC-21)', async () => {
+  it('a failure that arrives after reset() still toasts, without Retry and without writing state (M-02)', async () => {
+    let resolve!: (value: unknown) => void;
+    updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.getState().initialize({ ...base });
+    resolve({ success: false, code: 'FAILED', error: 'db down' });
+    await saving;
+
+    expect(toastErrorMock).toHaveBeenCalledTimes(1);
+    expect(toastErrorMock).toHaveBeenCalledWith('db down');
+    expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
+  });
+
+  it('a save of A resolving after reset()/initialize()/save of B leaves isSaving true (M-03)', async () => {
+    let resolveA!: (value: unknown) => void;
+    let resolveB!: (value: unknown) => void;
+    updateInvoiceMock
+      .mockReturnValueOnce(new Promise((r) => (resolveA = r)))
+      .mockReturnValueOnce(new Promise((r) => (resolveB = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    const savingA = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-2' });
+    const savingB = useInvoiceEditorStore.getState().saveInvoice();
+
+    resolveA(ok(saved({ id: 'inv-1' })));
+    await savingA;
+    expect(useInvoiceEditorStore.getState().isSaving).toBe(true);
+
+    resolveB(ok(saved({ id: 'inv-2' })));
+    await savingB;
+    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+  });
+
+  it('an empty number stays empty when the sender profile was switched while the save was in flight (L-02)', async () => {
+    let resolve!: (value: unknown) => void;
+    createInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: { ...initialData(), invoiceNumber: '' } });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    await useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
+    resolve(ok(saved({ invoiceNumber: 'A-0005' })));
+    await saving;
+
+    const after = useInvoiceEditorStore.getState();
+    expect(after.formData.senderProfileId).toBe('profile-b');
+    expect(after.formData.invoiceNumber).toBe('');
+  });
+
+  it('a sender hint that resolves after reset() is not written (M-04a)', async () => {
+    let resolve!: (value: unknown) => void;
+    generateInvoiceNumberMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData() });
+
+    const selecting = useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
+    useInvoiceEditorStore.getState().reset();
+    resolve(ok('B-0001'));
+    await selecting;
+
+    expect(useInvoiceEditorStore.getState().invoiceNumberHint).toBeUndefined();
+  });
+
+  it('the Retry action of a stale session does nothing (M-04b)', async () => {
+    updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await useInvoiceEditorStore.getState().saveInvoice();
+    const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
+
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.getState().initialize({ ...base });
+    retry();
+
+    expect(updateInvoiceMock).toHaveBeenCalledTimes(1);
+    expect(createInvoiceMock).not.toHaveBeenCalled();
+    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+  });
+
+  it('a stale UNAUTHORIZED and a stale rejection both still send the device to sign-in (architecture-hardening AC-21)', async () => {
     for (const settle of [
       (r: (v: unknown) => void) => r({ success: false, code: 'UNAUTHORIZED', error: 'no' }),
       (_r: (v: unknown) => void, j: (e: unknown) => void) => j(new Error('boom')),
