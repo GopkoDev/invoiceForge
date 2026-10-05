@@ -8,6 +8,7 @@ import {
   PERIOD_TOO_LONG,
   addCalendarYears,
   isWithinMaxCustomPeriod,
+  presetPeriodDays,
 } from '@/lib/validations/dashboard-period';
 
 const originalTZ = process.env.TZ;
@@ -51,6 +52,20 @@ describe.each(['Pacific/Kiritimati', 'Etc/GMT+12', 'UTC'])(
     });
   }
 );
+
+describe('presetPeriodDays (AC-22, AC-23)', () => {
+  it.each([
+    ['this-month', '2026-02-10', '2026-02-01', '2026-02-28'],
+    ['this-month', '2028-02-10', '2028-02-01', '2028-02-29'],
+    ['last-month', '2026-01-31', '2025-12-01', '2025-12-31'],
+    ['next-month', '2026-12-31', '2027-01-01', '2027-01-31'],
+    ['next-month', '2026-01-31', '2026-02-01', '2026-02-28'],
+    ['this-year', '2026-06-15', '2026-01-01', '2026-12-31'],
+    ['last-year', '2026-06-15', '2025-01-01', '2025-12-31'],
+  ] as const)('%s on %s is %s..%s', (preset, today, from, to) => {
+    expect(presetPeriodDays(preset, today)).toEqual({ from, to });
+  });
+});
 
 describe('dashboard-period module is dependency-free (ADR-0004)', () => {
   it('imports nothing and has no server/browser dependencies', () => {

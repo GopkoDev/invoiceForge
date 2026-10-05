@@ -36,3 +36,37 @@ export function isWithinMaxCustomPeriod(from: string, to: string): boolean {
   if (!isRealDate(from) || !isRealDate(to) || from > to) return false;
   return to <= addCalendarYears(from, MAX_CUSTOM_PERIOD_YEARS);
 }
+
+export type PresetPeriodName =
+  | 'next-month'
+  | 'this-month'
+  | 'last-month'
+  | 'this-year'
+  | 'last-year';
+
+/**
+ * The calendar days (YYYY-MM-DD, both inclusive) a named preset covers, counted from `today` as a
+ * calendar day. `today` is the day it is in the account's zone (ADR-0006), so the browser clock
+ * and zone never pick the month; the filter and the Assistant's period resolver share this.
+ */
+export function presetPeriodDays(
+  preset: PresetPeriodName,
+  today: string
+): { from: string; to: string } {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  if (preset === 'this-year') return { from: `${y}-01-01`, to: `${y}-12-31` };
+  if (preset === 'last-year') {
+    return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+  }
+  const offset = preset === 'next-month' ? 1 : preset === 'last-month' ? -1 : 0;
+  // Date.UTC rolls a month index outside 0..11 into the neighbouring year.
+  const first = new Date(Date.UTC(y, m - 1 + offset, 1));
+  const py = first.getUTCFullYear();
+  const pm = first.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+  return {
+    from: `${py}-${pad(pm, 2)}-01`,
+    to: `${py}-${pad(pm, 2)}-${pad(lastDay, 2)}`,
+  };
+}

@@ -16,13 +16,16 @@ import { useCallback } from 'react';
 interface DashboardHeaderProps {
   currencyTabs: CurrencyTab[];
   selectedCurrency: Currency;
-  appliedRange?: { start: Date; endExclusive: Date } | undefined;
+  // The applied period and today, as calendar days in the account zone (T36, AC-22, AC-23).
+  appliedPeriod?: { from: string; to: string } | undefined;
+  today: string;
 }
 
 export function DashboardHeader({
   currencyTabs,
   selectedCurrency,
-  appliedRange,
+  appliedPeriod,
+  today,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,7 +77,8 @@ export function DashboardHeader({
     >
       <div className="flex items-center gap-2">
         <DashboardFilters
-          appliedRange={appliedRange}
+          appliedPeriod={appliedPeriod}
+          today={today}
           onDateRangeChange={handleDateRangeChange}
         />
       </div>

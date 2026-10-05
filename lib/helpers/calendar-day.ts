@@ -40,6 +40,12 @@ export function storedDayToLocalDate(stored: Date | string): Date {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
+/** A local-midnight Date showing the Y/M/D of a `yyyy-MM-dd` day, in any browser zone (for the Calendar and date-fns). */
+export function dayToLocalDate(day: CalendarDay): Date {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /** `toLocaleDateString` of a stored day, read in UTC so a browser west of UTC does not show the day before. */
 export function formatStoredDay(stored: Date | string, options: Intl.DateTimeFormatOptions): string {
   return new Date(stored).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });

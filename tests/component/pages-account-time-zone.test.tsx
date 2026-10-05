@@ -64,6 +64,8 @@ vi.mock('@/app/(protected)/dashboard/_sections', () => ({
 import DashboardPage from '@/app/(protected)/dashboard/page';
 import InvoicesPage from '@/app/(protected)/invoices/page';
 import { currentLocalMonth } from '@/lib/services/_shared/time-zone';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { getRequestTimeZone } from '@/lib/helpers/time-zone';
 
 type AnyElement = ReactElement<{ children?: ReactNode } & Record<string, unknown>>;
 
@@ -77,6 +79,7 @@ function findAllByProp(node: ReactNode, prop: string): AnyElement[] {
 
 describe('pages build periods from the account time zone (F-05)', () => {
   beforeEach(() => {
+    vi.mocked(getRequestTimeZone).mockClear();
     vi.useFakeTimers();
     // 2026-10-31 20:00 UTC: already 1 November in Auckland, still 31 October in Los Angeles.
     vi.setSystemTime(new Date('2026-10-31T20:00:00Z'));
@@ -85,19 +88,42 @@ describe('pages build periods from the account time zone (F-05)', () => {
 
   it("the dashboard's default 'this month' is the account zone's month, not the cookie zone's", async () => {
     const tree = await DashboardPage({ searchParams: Promise.resolve({}) });
-    const ranged = findAllByProp(tree, 'appliedRange');
-    const [start, endExclusive] = currentLocalMonth(SAVED_ZONE);
+    const sections = findAllByProp(tree, 'appliedRange');
 
-    // The header's instants and every section's local dates are the Assistant's this-month for
-    // the saved zone.
-    const header = ranged.find((el) => el.props.appliedRange instanceof Object && 'start' in (el.props.appliedRange as object));
-    expect(header?.props.appliedRange).toEqual({ start, endExclusive });
-    const sections = ranged.filter((el) => el !== header);
+    // The header gets the Assistant's this-month days for the saved zone and the zone's today
+    // (T36, G-02: its presets and label are built from days, never from the browser), and every
+    // section gets the same days.
+    const [header] = findAllByProp(tree, 'appliedPeriod');
+    expect(header.props.appliedPeriod).toEqual({ from: '2026-11-01', to: '2026-11-30' });
+    expect(header.props.today).toBe('2026-11-01');
     expect(sections.length).toBeGreaterThan(0);
     for (const section of sections) {
       expect(section.props.appliedRange).toEqual({ from: '2026-11-01', to: '2026-11-30' });
     }
-    expect(currentLocalMonth(COOKIE_ZONE)[0]).not.toEqual(start);
+    expect(currentLocalMonth(COOKIE_ZONE)[0]).not.toEqual(currentLocalMonth(SAVED_ZONE)[0]);
+  });
+
+  it("the dashboard header's period for an all-time link is absent, and today is still the account zone's", async () => {
+    const tree = await DashboardPage({ searchParams: Promise.resolve({ preset: 'all-time' }) });
+    const [header] = findAllByProp(tree, 'today');
+    expect(header.props.appliedPeriod).toBeUndefined();
+    expect(header.props.today).toBe('2026-11-01');
+  });
+
+  describe('a failed actor lookup is a load error (SCR-17), never the cookie or UTC', () => {
+    const failed = { success: false, code: 'INTERNAL', message: 'actor lookup failed' } as never;
+
+    it('the dashboard throws to the error boundary and does not read the cookie zone', async () => {
+      vi.mocked(actingFreelancerFromSession).mockResolvedValueOnce(failed);
+      await expect(DashboardPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('load_failed');
+      expect(getRequestTimeZone).not.toHaveBeenCalled();
+    });
+
+    it('the invoice list throws to the error boundary and does not read the cookie zone', async () => {
+      vi.mocked(actingFreelancerFromSession).mockResolvedValueOnce(failed);
+      await expect(InvoicesPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('load_failed');
+      expect(getRequestTimeZone).not.toHaveBeenCalled();
+    });
   });
 
   it('the invoice list is given the account zone, not the cookie zone', async () => {

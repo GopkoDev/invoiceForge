@@ -5,6 +5,7 @@ import { fail, type ActionFailure } from '@/types/result';
 import {
   PERIOD_TOO_LONG,
   isWithinMaxCustomPeriod,
+  presetPeriodDays,
 } from '@/lib/validations/dashboard-period';
 import { utcDayRange } from '@/lib/helpers/calendar-day';
 
@@ -94,16 +95,8 @@ export const ASSISTANT_PERIOD_MESSAGE =
 
 export const NO_PERIOD: AppliedPeriod = { preset: null, from: null, to: null };
 
-const p2 = (n: number) => String(n).padStart(2, '0');
-const lastDayOfMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
-
 function presetRange(preset: Exclude<AssistantPeriodPreset, 'all-time'>, today: LocalDate): DashboardPeriod {
-  const y = Number(today.slice(0, 4));
-  const m = Number(today.slice(5, 7));
-  if (preset === 'this-year') return { from: `${y}-01-01`, to: `${y}-12-31` };
-  if (preset === 'last-year') return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
-  const [py, pm] = preset === 'this-month' ? [y, m] : m === 1 ? [y - 1, 12] : [y, m - 1];
-  return { from: `${py}-${p2(pm)}-01`, to: `${py}-${p2(pm)}-${p2(lastDayOfMonth(py, pm))}` };
+  return presetPeriodDays(preset, today);
 }
 
 /** The calendar month `today` falls in, as a period (the chart's default when no period is given). */

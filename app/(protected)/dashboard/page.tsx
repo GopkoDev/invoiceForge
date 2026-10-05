@@ -30,6 +30,7 @@ import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
 import { dashboardParamsSchema } from '@/lib/validations/search-params';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { formatLocalDateKey } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -98,6 +99,8 @@ export default async function DashboardPage({
   // the tz cookie only seeds the first visit (inside the session factory).
   const { timeZone } = unwrapPageResult(actorResult);
   const { appliedRange, period } = dashboardParamsSchema(timeZone).parse(params);
+  // T36 (AC-22, AC-23): the header builds its presets and label from days in this zone.
+  const today = formatLocalDateKey(new Date(), timeZone);
 
   const setupStatus = unwrapPageResult(setupStatusResult);
   const { showOverdueRuleNotice } = unwrapPageResult(noticeResult);
@@ -115,7 +118,8 @@ export default async function DashboardPage({
       <DashboardHeader
         currencyTabs={currencyTabs}
         selectedCurrency={currency}
-        appliedRange={appliedRange}
+        appliedPeriod={period}
+        today={today}
       />
 
       <DashboardBanners
