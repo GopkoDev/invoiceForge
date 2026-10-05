@@ -14,6 +14,22 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: (...args: unknown[]) => updateInvoiceMock(...args),
 }));
 
+const goToSignInMock = vi.fn();
+vi.mock('@/lib/helpers/client-session-redirect', async (orig) => {
+  const actual = await orig<typeof import('@/lib/helpers/client-session-redirect')>();
+  return {
+    ...actual,
+    goToSignIn: () => goToSignInMock(),
+    redirectIfUnauthorized: (r: { success: false; code?: string }) => {
+      if (r.code === 'UNAUTHORIZED') {
+        goToSignInMock();
+        return true;
+      }
+      return false;
+    },
+  };
+});
+
 const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store/use-invoice-editor-store');
 
 const LEGACY_ISSUE = '2026-09-30T21:00:00.000Z';
@@ -64,6 +80,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     useInvoiceEditorStore.getState().reset();
     createInvoiceMock.mockReset();
     updateInvoiceMock.mockReset();
+    goToSignInMock.mockReset();
   });
 
   it('an update sends the stored instants the editor was built from next to the submitted days', async () => {
@@ -175,6 +192,26 @@ describe('invoice editor store - loaded dates (T44)', () => {
     await saving;
 
     expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
+  });
+
+  it('a stale UNAUTHORIZED and a stale rejection both still send the device to sign-in (AC-21)', async () => {
+    for (const settle of [
+      (r: (v: unknown) => void) => r({ success: false, code: 'UNAUTHORIZED', error: 'no' }),
+      (_r: (v: unknown) => void, j: (e: unknown) => void) => j(new Error('boom')),
+    ]) {
+      goToSignInMock.mockReset();
+      let res!: (v: unknown) => void;
+      let rej!: (e: unknown) => void;
+      updateInvoiceMock.mockReturnValue(new Promise((a, b) => ((res = a), (rej = b))));
+      useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+      const saving = useInvoiceEditorStore.getState().saveInvoice();
+      useInvoiceEditorStore.getState().reset();
+      settle(res, rej);
+      await saving;
+
+      expect(goToSignInMock).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('reset forgets the loaded dates', () => {

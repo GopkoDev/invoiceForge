@@ -61,13 +61,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     retry: () => void,
     token: number
   ): void {
-    if (token !== sessionToken) return;
-
     // AC-21: a stale session's save must send the device to sign-in, not just toast a
-    // generic error and leave it on the editor.
+    // generic error and leave it on the editor. The signed-out state is global, not per editor
+    // session, so this runs before the token check (same as a rejected save in the catch block).
     if (redirectIfUnauthorized(result)) {
       return;
     }
+
+    if (token !== sessionToken) return;
 
     if (result.details?.kind === 'TOTALS_CHANGED') {
       set({
