@@ -48,7 +48,7 @@
 | T41 | [Keep MCP request data out of Sentry transactions, report SDK failures, treat client aborts as client errors, and return the contract 405 body](../_review/review-2026-10-05-r2.md) | ports | Dmytro Hopko | M | — | done |
 | T42 | [Label dashboard chart days as calendar days, resolve presets on the server, show the applied preset, and keep focus after a not-found revoke](../_review/review-2026-10-05-r2.md) | ui | Dmytro Hopko | M | — | done |
 | T43 | [Bring the ADRs, contracts, data model, screens manifest and test plan in line with the fixes](../_review/review-2026-10-05-r2.md) | docs | Dmytro Hopko | S | T40, T41, T42 | done |
-| T44 | [Compare an editor save against the dates the editor loaded, lock the row with its owner, and make the normalisation race test deterministic](../_review/review-2026-10-05-r3.md) | app | Dmytro Hopko | M | — | todo |
-| T45 | [Answer an SDK catch-all failure with the contract ServerFailure and scrub /api/mcp/ with a trailing slash](../_review/review-2026-10-05-r3.md) | ports | Dmytro Hopko | S | — | todo |
+| T44 | [Compare an editor save against the dates the editor loaded, lock the row with its owner, and make the normalisation race test deterministic](../_review/review-2026-10-05-r3.md) | app | Dmytro Hopko | M | — | done |
+| T45 | [Answer an SDK catch-all failure with the contract ServerFailure and scrub /api/mcp/ with a trailing slash](../_review/review-2026-10-05-r3.md) | ports | Dmytro Hopko | S | — | done |
 
 **Total:** 45 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3), ~33 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
