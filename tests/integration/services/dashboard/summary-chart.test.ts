@@ -189,6 +189,43 @@ describe.runIf(containerRuntimeAvailable)('dashboard currency tabs, summary, cha
     });
   });
 
+  // T39 (review 2026-10-05 G-05): the fallback is only shown when "today" sits on a day edge, where a
+  // Kyiv Freelancer is already on the next day. At 22:30Z on 30 September it is 1 October in Kyiv and
+  // still 30 September in UTC, so an invoice due on the 30th is overdue for one and due today for the other.
+  describe('no-zone fallback at a day edge (AC-22)', () => {
+    async function dueOnThirtieth() {
+      const a = await seedFreelancer(testClient, ['USD']);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-30T22:30:00Z'));
+      await addInvoice(a, {
+        currency: 'USD',
+        status: 'PENDING',
+        total: 100,
+        issueDate: new Date('2026-09-01T00:00:00Z'),
+        dueDate: new Date('2026-09-30T00:00:00Z'),
+      });
+      return a;
+    }
+
+    it('Kyiv is already on 1 October, so the invoice due on the 30th is overdue', async () => {
+      const a = await dueOnThirtieth();
+      const kyiv = await actingFreelancerForTest(a.userId, KYIV);
+      expect(data(await svc.getSummaryStats(kyiv, 'USD'))).toMatchObject({ totalOverdue: 100, overdueCount: 1, totalPlanned: 0 });
+    });
+
+    it.each([
+      ['no time zone', undefined],
+      ['an unknown time zone', 'Mars/Olympus_Mons'],
+    ])('%s falls back to UTC, still on the 30th, so the same invoice is not overdue yet', async (_n, tz) => {
+      const a = await dueOnThirtieth();
+      const actor = await actingFreelancerForTest(a.userId, tz);
+      const kyiv = await actingFreelancerForTest(a.userId, KYIV);
+      const stats = data(await svc.getSummaryStats(actor, 'USD'));
+      expect(stats).toMatchObject({ totalOverdue: 0, overdueCount: 0, totalPlanned: 100, plannedCount: 1 });
+      expect(stats.totalOverdue).not.toBe(data(await svc.getSummaryStats(kyiv, 'USD')).totalOverdue);
+    });
+  });
+
   describe('validation', () => {
     it.each([
       ['reversed', { from: '2026-09-30', to: '2026-09-01' }],

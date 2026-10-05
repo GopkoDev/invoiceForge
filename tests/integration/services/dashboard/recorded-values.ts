@@ -9,9 +9,12 @@
 // throwaway worktree. Re-review 2026-10-01 R-04 (T27): the records were first read from the new
 // layer, so they could not prove old-vs-new parity; they were re-sourced from the old code and came
 // out identical.
-// T25: issue and due dates are now stored as calendar days (T00:00:00Z), so the instants recorded below
-// are those days at midnight (the fixture keeps the days the old actions saw in Europe/Kyiv); the
-// amounts, counts, groups and records are the old output unchanged.
+// RE-BASELINE (T25, review 2026-10-05 G-05): the instants below were edited by hand, once, on purpose.
+// T25 stores issue and due dates as calendar days (T00:00:00Z), so every date-time recorded here is
+// that day at midnight UTC (the fixture keeps the days the old actions saw in Europe/Kyiv). Amounts,
+// counts, groups and the '*.records' picks are the old output unchanged; only instants moved.
+// parity.test.ts checks those three apart from the instants, so a future edit of an instant cannot
+// hide a change in an amount, a count or a group.
 export const RECORDED_OLD_DASHBOARD: Record<string, unknown> = {
   "tabs": [
     "USD",

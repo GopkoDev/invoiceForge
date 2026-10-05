@@ -350,6 +350,13 @@ describe.runIf(containerRuntimeAvailable)(
       expect(body.user.overdueNoticeDismissedAt).toBe(
         '2026-09-01T10:00:00.000Z'
       );
+      // Populated keys and usage weeks, so the item schemas (additionalProperties: false) see real rows.
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 200,
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
+      });
       expect(body.personalKeys).toHaveLength(2);
       const byName = Object.fromEntries(
         body.personalKeys.map((k: { name: string }) => [k.name, k])

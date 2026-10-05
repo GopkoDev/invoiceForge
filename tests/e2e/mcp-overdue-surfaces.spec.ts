@@ -39,6 +39,7 @@ test.describe('AC-24 a past-due unmarked invoice is overdue on every surface', (
   test('dashboard recent invoices', async () => {
     await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
     await expect(row()).toContainText('Overdue');
+    await expect(row()).not.toContainText('Pending');
   });
 
   test('invoice list', async () => {
@@ -51,12 +52,14 @@ test.describe('AC-24 a past-due unmarked invoice is overdue on every surface', (
     await page.goto(
       `${APP_E2E_URL}${protectedRoutes.customerDetail(freelancer.workspace.customerId)}`
     );
-    await expect(
-      page.getByText(freelancer.workspace.invoiceNumber).first()
-    ).toBeVisible();
-    await expect(
-      page.getByText('Overdue', { exact: true }).first()
-    ).toBeVisible();
+    // The invoice's own entry on the page, so another status on the page cannot satisfy the check.
+    const entry = page
+      .locator('tr, li, [data-slot="card"]')
+      .filter({ hasText: freelancer.workspace.invoiceNumber })
+      .last();
+    await expect(entry).toBeVisible();
+    await expect(entry).toContainText('Overdue');
+    await expect(entry).not.toContainText('Pending');
   });
 
   test('invoice page', async () => {
@@ -64,5 +67,6 @@ test.describe('AC-24 a past-due unmarked invoice is overdue on every surface', (
       `${APP_E2E_URL}${protectedRoutes.invoiceEdit(freelancer.workspace.invoiceId)}`
     );
     await expect(page.getByText('Overdue', { exact: true })).toBeVisible();
+    await expect(page.getByText('Pending', { exact: true })).toHaveCount(0);
   });
 });

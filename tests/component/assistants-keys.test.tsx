@@ -352,18 +352,39 @@ describe('SCR-04 revoke confirmation', () => {
   });
 
   it('keeps the dialog title while closing and focuses the Active keys heading after success', async () => {
-    revokeMock.mockResolvedValue(ok());
+    const d = deferred<unknown>();
+    revokeMock.mockReturnValue(d.promise);
     const user = userEvent.setup();
     renderKeys({ active: [laptop, unused], revoked: [] });
     const dialog = await openRevoke(user);
     await user.click(
       within(dialog).getByRole('button', { name: 'Revoke key' })
     );
+    // Held pending: the dialog is open and still names the key.
+    expect(within(screen.getByRole('dialog')).getByText('Revoke "Laptop assistant"?')).toBeTruthy();
+
+    // The target is cleared the moment the call settles; the dialog must keep painting the same
+    // title on the way out. The title's text node is watched for any rewrite, because the closing
+    // dialog may leave the DOM before an end-state check could see a blank name.
+    const titleNode = within(screen.getByRole('dialog')).getByText('Revoke "Laptop assistant"?');
+    const rewrites: string[] = [];
+    const observer = new MutationObserver((records) => {
+      for (const r of records) rewrites.push(r.oldValue ?? r.type);
+    });
+    observer.observe(titleNode, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      characterDataOldValue: true,
+    });
+    d.resolve(ok());
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
-    const closing = screen.queryByRole('dialog');
-    if (closing) {
-      expect(within(closing).queryByText('Revoke ""?')).toBeNull();
-    }
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    for (const r of observer.takeRecords()) rewrites.push(r.oldValue ?? r.type);
+    observer.disconnect();
+
+    expect(rewrites).toEqual([]);
+    expect(titleNode.textContent).toBe('Revoke "Laptop assistant"?');
     await waitFor(() =>
       expect(document.activeElement).toBe(
         screen.getByRole('heading', { name: /^Active keys/ })
