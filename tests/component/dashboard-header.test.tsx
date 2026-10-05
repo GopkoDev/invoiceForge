@@ -39,7 +39,7 @@ describe('DashboardHeader (component, account zone, AC-22/AC-23)', () => {
     fireEvent.click(screen.getByRole('button', { name: /select date range/i }));
     fireEvent.click(screen.getByRole('button', { name: 'This Month', hidden: true }));
     expect(push).toHaveBeenLastCalledWith(
-      '/dashboard?from=2026-11-01&to=2026-11-30',
+      '/dashboard?preset=this-month',
       { scroll: false }
     );
   });

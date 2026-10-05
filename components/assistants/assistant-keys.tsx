@@ -85,6 +85,7 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
       toast.success('Key revoked.');
       router.refresh();
     } else if (result.code === 'NOT_FOUND') {
+      setFocusHeading(true);
       toast.error('Key not found.');
       router.refresh();
     } else {

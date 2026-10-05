@@ -11,6 +11,7 @@ import {
   isWithinMaxCustomPeriod,
   PERIOD_TOO_LONG,
   presetPeriodDays,
+  type PresetPeriodName,
 } from '@/lib/validations/dashboard-period';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -71,13 +72,11 @@ export function DashboardFilters({
   today,
   onDateRangeChange,
 }: DashboardFiltersProps) {
-  const [preset, setPreset] = useState<DatePreset>('this-month');
   const [isOpen, setIsOpen] = useState(false);
   const [rejectedRange, setRejectedRange] = useState<DateRange | undefined>();
 
   const handlePresetChange = useCallback(
     (value: DatePreset) => {
-      setPreset(value);
       setRejectedRange(undefined);
       const newRange = getPresetDateRange(value, today);
       onDateRangeChange(newRange, value);
@@ -100,7 +99,6 @@ export function DashboardFilters({
           return;
         }
         setRejectedRange(undefined);
-        setPreset('custom');
         onDateRangeChange(range);
         setIsOpen(false);
       }
@@ -118,6 +116,17 @@ export function DashboardFilters({
         : undefined,
     [appliedFrom, appliedTo]
   );
+
+  // The pressed preset is derived from the applied period and today, so it is right after a load.
+  const preset: DatePreset = useMemo(() => {
+    if (!appliedFrom || !appliedTo) return 'all-time';
+    for (const p of PRESETS) {
+      if (p.value === 'all-time') continue;
+      const days = presetPeriodDays(p.value as PresetPeriodName, today);
+      if (days.from === appliedFrom && days.to === appliedTo) return p.value;
+    }
+    return 'custom';
+  }, [appliedFrom, appliedTo, today]);
 
   const calendarSelected = rejectedRange ?? selectedRange;
 

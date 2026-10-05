@@ -424,6 +424,22 @@ describe('SCR-04 revoke confirmation', () => {
     expect(refreshMock).toHaveBeenCalled();
   });
 
+  it('NOT_FOUND moves focus to the active keys heading (H-11, AC-06)', async () => {
+    revokeMock.mockResolvedValue(fail('NOT_FOUND', 'x'));
+    const user = userEvent.setup();
+    renderKeys({ active: [laptop], revoked: [] });
+    const dialog = await openRevoke(user);
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Revoke key' })
+    );
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Key not found.'));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { name: /^Active keys/ })
+      )
+    );
+  });
+
   it('UNAUTHORIZED goes to sign-in', async () => {
     revokeMock.mockResolvedValue(fail('UNAUTHORIZED', 'Not signed in.'));
     const user = userEvent.setup();

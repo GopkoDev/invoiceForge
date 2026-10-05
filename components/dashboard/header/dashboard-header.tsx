@@ -55,12 +55,9 @@ export function DashboardHeader({
     range: { from?: Date; to?: Date } | undefined,
     preset?: string
   ) => {
-    if (preset === 'all-time') {
-      updateSearchParams({
-        from: undefined,
-        to: undefined,
-        preset: 'all-time',
-      });
+    if (preset && preset !== 'custom') {
+      // The server resolves the named preset in the account zone (AC-22, AC-23).
+      updateSearchParams({ from: undefined, to: undefined, preset });
     } else if (range?.from && range?.to) {
       updateSearchParams({
         from: format(range.from, 'yyyy-MM-dd'),
