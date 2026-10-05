@@ -52,5 +52,7 @@
 | T45 | [Answer an SDK catch-all failure with the contract ServerFailure and scrub /api/mcp/ with a trailing slash](../_review/review-2026-10-05-r3.md) | ports | Dmytro Hopko | S | — | done |
 | T46 | [Ignore a save that resolves after the editor was reset, keep a number or status edited while a save is in flight, move LoadedDates into the store types, and list the loaded-dates tests in the test plan](../_review/review-2026-10-05-r4.md) | app | Dmytro Hopko | M | — | done |
 | T47 | [Scrub /api/mcp requests whose path has repeated slashes](../_review/review-2026-10-05-r4.md) | ports | Dmytro Hopko | S | — | done |
+| T48 | [Show a stale save failure, keep an empty number after a sender switch in flight, guard the sender hint and Retry with the session token, test the isSaving guard, and correct T46's ACs](../_review/review-2026-10-05-r5.md) | app | Dmytro Hopko | M | — | todo |
+| T49 | [Scrub percent-encoded /api/mcp paths](../_review/review-2026-10-05-r5.md) | ports | Dmytro Hopko | S | — | todo |
 
-**Total:** 47 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3, T46–T47 from review-2026-10-05-r4), ~34.5 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
+**Total:** 49 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3, T46–T47 from review-2026-10-05-r4, T48–T49 from review-2026-10-05-r5), ~36 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).

@@ -1020,6 +1020,36 @@
       ],
       "file": "docs/features/mcp-server/_review/review-2026-10-05-r4.md",
       "source": "review-2026-10-05-r4"
+    },
+    {
+      "id": "T48",
+      "title": "Show a stale save failure, keep an empty number after a sender switch in flight, guard the sender hint and Retry with the session token, test the isSaving guard, and correct T46's ACs",
+      "layer": "app",
+      "deps": [],
+      "acs": [],
+      "dod": "M-02, L-02, M-03, M-04, L-01 fixed. handleSaveFailure for a stale token still shows toast.error(result.error || 'Error saving invoice.') without a Retry action and writes no state; the stale-failure component test asserts the toast. applySavedInvoice keeps the current invoiceNumber when state.formData.senderProfileId differs from submitted.senderProfileId; the in-flight test covers a sender switch and asserts the number stays ''. A test starts save A, calls reset() and initialize(), starts save B, resolves A, and asserts isSaving is still true. selectSenderProfile drops the invoiceNumberHint write and the toast Retry closure no-ops when the session token captured at its start no longer matches; both have tests. T46 acs in tasks.json are AC-12 and AC-19; the test at invoice-editor-store-loaded-dates.test.tsx:197 no longer cites AC-21; tasks/tracker.md notes the T46 AC correction (commit trailers stay).",
+      "files_hint": [
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "tests/component/invoice-editor-store-loaded-dates.test.tsx",
+        "docs/features/mcp-server/tasks.json",
+        "docs/features/mcp-server/tasks/tracker.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r5.md",
+      "source": "review-2026-10-05-r5"
+    },
+    {
+      "id": "T49",
+      "title": "Scrub percent-encoded /api/mcp paths",
+      "layer": "ports",
+      "deps": [],
+      "acs": [],
+      "dod": "M-01 fixed. isMcpUrl runs decodeURIComponent on the pathname before collapsing runs of '/' and '\\\\', and treats a URL whose path fails to decode as MCP (fail closed). tests/unit/config/mcp-sentry-transactions.test.ts covers '/api/%6Dcp' and 'https://app.example/%61pi/mcp' for the scrub and the body ignore, and still refuses '/api/mcpx' and '/api/mcp/other'.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "tests/unit/config/mcp-sentry-transactions.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r5.md",
+      "source": "review-2026-10-05-r5"
     }
   ]
 }
