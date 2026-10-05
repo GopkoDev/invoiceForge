@@ -84,10 +84,12 @@ export function isMcpUrl(url: string): boolean {
   try {
     // A leading slash run must stay a path ('//api/mcp' would parse as a host), so join it to the base.
     const target = /^[/\\]/.test(url) ? `http://localhost${url}` : url;
-    const path = new URL(target, 'http://localhost').pathname.replace(/[/\\]+/g, '/');
+    // Next matches the percent-decoded path in production ('/api/%6Dcp' reaches the handler).
+    const path = decodeURIComponent(new URL(target, 'http://localhost').pathname).replace(/[/\\]+/g, '/');
     return path.replace(/\/$/, '') === '/api/mcp';
   } catch {
-    return false;
+    // A path that fails to decode is treated as MCP: scrub rather than leak.
+    return true;
   }
 }
 

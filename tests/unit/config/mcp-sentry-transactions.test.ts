@@ -62,6 +62,20 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     expect(out.request).toEqual({ url });
   });
 
+  it.each([
+    'https://app.example/api/%6Dcp',
+    'https://app.example/%61pi/mcp',
+    'https://app.example/api/mcp%2F',
+    'https://app.example/api/%ZZmcp',
+  ])('scrubs a transaction for %s (M-01)', (url) => {
+    const out = opts.beforeSendTransaction!({
+      type: 'transaction',
+      request: { url, headers: { authorization: 'Bearer ifk_secret' }, data: 'x' },
+    });
+    expect(JSON.stringify(out)).not.toContain('ifk_secret');
+    expect(out.request).toEqual({ url });
+  });
+
   it('does not scrub a transaction for /api/mcpx or /api/mcp/other', () => {
     for (const url of ['https://app.example/api/mcpx', 'https://app.example/api/mcp/other']) {
       const out = opts.beforeSendTransaction!({
@@ -88,6 +102,9 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
     expect(ignore!('//api/mcp')).toBe(true);
     expect(ignore!('/api//mcp')).toBe(true);
     expect(ignore!('/api/mcp//')).toBe(true);
+    expect(ignore!('/api/%6Dcp')).toBe(true);
+    expect(ignore!('https://app.example/%61pi/mcp')).toBe(true);
+    expect(ignore!('/api/%ZZmcp')).toBe(true);
     expect(ignore!('/api/mcpx')).toBe(false);
     expect(ignore!('/api/mcp/other')).toBe(false);
     expect(ignore!('https://app.example/api/other')).toBe(false);
