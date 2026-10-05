@@ -39,10 +39,10 @@
 | T32 | [Guard the overdue literal scan without obfuscation and validate the real 2.1 export body](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | S | — | done |
 | T33 | [Polish the key-name hint, revoke focus and time-zone labels, and test the one-time reveal on remount](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
 | T34 | [Add the e2e specs the test plan declares for the proxy, key flows, sign-in return, time zone and overdue surfaces](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | L | T25, T26, T28 | done |
-| T35 | [Normalise legacy invoice dates lazily when the Freelancer time zone is first saved](../_review/review-2026-10-05.md) | data | Dmytro Hopko | M | — | todo |
-| T36 | [Build dashboard presets and the applied-range label in the account time zone](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | todo |
-| T37 | [Keep request bodies out of Sentry, check Accept and Content-Type first, and put 413 and the batch refusal in the contract](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | todo |
-| T38 | [Map a submitted OVERDUE back to PENDING only for a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | todo |
+| T35 | [Normalise legacy invoice dates lazily when the Freelancer time zone is first saved](../_review/review-2026-10-05.md) | data | Dmytro Hopko | M | — | done |
+| T36 | [Build dashboard presets and the applied-range label in the account time zone](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
+| T37 | [Keep request bodies out of Sentry, check Accept and Content-Type first, and put 413 and the batch refusal in the contract](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | done |
+| T38 | [Map a submitted OVERDUE back to PENDING only for a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
 | T39 | [Give the no-zone, export-schema, revoke-title and overdue-surface tests teeth](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | M | T35 | todo |
 
 **Total:** 39 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum), ~28 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
