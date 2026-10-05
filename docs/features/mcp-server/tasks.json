@@ -984,6 +984,42 @@
       ],
       "file": "docs/features/mcp-server/_review/review-2026-10-05-r3.md",
       "source": "review-2026-10-05-r3"
+    },
+    {
+      "id": "T46",
+      "title": "Ignore a save that resolves after the editor was reset, keep a number or status edited while a save is in flight, move LoadedDates into the store types, and list the loaded-dates tests in the test plan",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-06",
+        "AC-11",
+        "AC-12",
+        "AC-19"
+      ],
+      "dod": "K-01, K-02, K-03, J-02 fixed. The editor store holds a session token that initialize() and reset() change; saveInvoice captures it, and applySavedInvoice / handleSaveFailure return without writing when it no longer matches. A store test starts a save, calls reset() and initialize({}), resolves the save, and asserts invoiceId, invoiceNumber and loadedDates are still unset. applySavedInvoice keeps an invoiceNumber or status the Freelancer changed while the save was in flight (compare with submitted, as storedOrEdited does for dates) and the form stays dirty; the in-flight component test covers both fields. interface LoadedDates lives in store/invoice-editor-store/types.ts with imports at the top; helpers.ts imports it from there. test-plan.md has AC-12 rows (integration and component) for: zone seeded after the editor loaded, stale tab, second save in one session, forged or malformed loaded dates, the commit-before-read ordering, and the editor sending / keeping-in-flight / clearing-on-reset loaded dates, naming their spec files.",
+      "files_hint": [
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "store/invoice-editor-store/types.ts",
+        "store/invoice-editor-store/helpers.ts",
+        "tests/component/invoice-editor-store-loaded-dates.test.tsx",
+        "docs/features/mcp-server/test-plan.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r4.md",
+      "source": "review-2026-10-05-r4"
+    },
+    {
+      "id": "T47",
+      "title": "Scrub /api/mcp requests whose path has repeated slashes",
+      "layer": "ports",
+      "deps": [],
+      "acs": [],
+      "dod": "J-01 fixed. isMcpUrl collapses runs of '/' and '\\\\' and strips a trailing slash before comparing with '/api/mcp', so '//api/mcp', '/api//mcp' and '/api/mcp//' all match for scrubMcpRequest, ignoreIncomingRequestBody and beforeSendTransaction. tests/unit/config/mcp-sentry-transactions.test.ts covers '//api/mcp' and '/api//mcp' for the scrub and the body ignore, and still refuses '/api/mcpx' and '/api/mcp/other'.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "tests/unit/config/mcp-sentry-transactions.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r4.md",
+      "source": "review-2026-10-05-r4"
     }
   ]
 }
