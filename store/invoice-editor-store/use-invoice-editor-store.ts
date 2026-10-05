@@ -53,17 +53,18 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     return /^items\.\d+\.(price|quantity)$/.test(key);
   }
 
-  // Turns a failed save into the right UI state (AC-08, AC-14, AC-15, AC-17): TOTALS_CHANGED
-  // opens SCR-15, fieldErrors land next to the offending fields, everything else is a toast
-  // (FAILED gets a Retry action that resubmits with the same options).
+  // Turns a failed save into the right UI state (architecture-hardening AC-08, AC-14, AC-15,
+  // AC-17): TOTALS_CHANGED opens SCR-15, fieldErrors land next to the offending fields,
+  // everything else is a toast (FAILED gets a Retry action that resubmits with the same options).
   function handleSaveFailure(
     result: ActionFailure,
     retry: () => void,
     token: number
   ): void {
-    // architecture-hardening AC-21: a stale session's save must send the device to sign-in, not just toast a
-    // generic error and leave it on the editor. The signed-out state is global, not per editor
-    // session, so this runs before the token check (same as a rejected save in the catch block).
+    // architecture-hardening AC-21: a stale session's save must send the device to sign-in, not
+    // just toast a generic error and leave it on the editor. The signed-out state is global, not
+    // per editor session, so this runs before the token check (same as a rejected save in the
+    // catch block).
     if (redirectIfUnauthorized(result)) {
       return;
     }
@@ -108,8 +109,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     toast.error(result.error || 'Error saving invoice.');
   }
 
-  // On success the server's figures replace whatever the browser had (AC-06, AC-13), and any
-  // prior field error / totals confirmation is cleared.
+  // On success the server's figures replace whatever the browser had (architecture-hardening
+  // AC-06, AC-13), and any prior field error / totals confirmation is cleared.
   // `submitted` is the form the save was built from: a date, number or status the Freelancer
   // changed while the save was in flight is kept, and the form stays dirty so that edit is
   // neither lost nor unguarded.
@@ -155,7 +156,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       totalsChanged: null,
       hasUnsavedChanges: untouched ? false : state.hasUnsavedChanges,
       // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
-      // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
+      // (architecture-hardening AC-17); once a save actually succeeds, that snapshot is stale and
+      // must not keep warning.
       legacy: null,
       // What the row holds now: the next save compares its days against these, not the first load.
       loadedDates: { issueDate: saved.issueDate, dueDate: saved.dueDate },
@@ -262,9 +264,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     selectSenderProfile: async (id: string) => {
       const state = get();
 
-      // F-42: re-selecting the CURRENT sender profile is not a move (AC-11 is about actually
-      // moving an invoice to a DIFFERENT profile) — a no-op reselect must not wipe the number
-      // and renumber under the same profile.
+      // F-42: re-selecting the CURRENT sender profile is not a move (architecture-hardening AC-11
+      // is about actually moving an invoice to a DIFFERENT profile) — a no-op reselect must not
+      // wipe the number and renumber under the same profile.
       if (id === state.formData.senderProfileId) {
         return;
       }
@@ -277,9 +279,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       );
       const selectedBankAccount = defaultBankAccount || senderBankAccounts[0];
 
-      // An empty number field is the only signal a number is system-proposed (architecture-hardening AC-06, AC-11): the
-      // proposed number is exposed as a separate hint, never merged into the value the Freelancer
-      // would submit. This also clears a moved invoice's old number — A's number is never
+      // An empty number field is the only signal a number is system-proposed (architecture-hardening
+      // AC-06, AC-11): the proposed number is exposed as a separate hint, never merged into the
+      // value the Freelancer would submit. This also clears a moved invoice's old number — A's number is never
       // proposed again under B.
       const updates: Partial<InvoiceFormData> = {
         senderProfileId: id,
@@ -308,11 +310,12 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       try {
         const result = await generateInvoiceNumber(id);
         if (redirectIfUnauthorized(result)) return;
-        if (result.success && token === sessionToken) {
+        // A later pick, reset or re-initialize owns the hint now.
+        if (result.success && token === sessionToken && get().formData.senderProfileId === id) {
           set({ invoiceNumberHint: result.data });
         }
       } catch {
-        // AC-21: a rejected call is treated like UNAUTHORIZED.
+        // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
         goToSignIn();
       }
     },
@@ -515,7 +518,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           }
         }
       } catch {
-        // AC-21: a rejected save is treated like UNAUTHORIZED.
+        // architecture-hardening AC-21: a rejected save is treated like UNAUTHORIZED.
         goToSignIn();
       } finally {
         // A reset or re-initialize already cleared isSaving for the session that owns the store now.

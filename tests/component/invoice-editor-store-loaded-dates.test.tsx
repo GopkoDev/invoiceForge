@@ -244,6 +244,8 @@ describe('invoice editor store - loaded dates (T44)', () => {
     createInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     useInvoiceEditorStore.getState().initialize({ ...base, initialData: { ...initialData(), invoiceNumber: '' } });
 
+    generateInvoiceNumberMock.mockResolvedValue(ok('B-0001'));
+
     const saving = useInvoiceEditorStore.getState().saveInvoice();
     await useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
     resolve(ok(saved({ invoiceNumber: 'A-0005' })));
@@ -252,6 +254,8 @@ describe('invoice editor store - loaded dates (T44)', () => {
     const after = useInvoiceEditorStore.getState();
     expect(after.formData.senderProfileId).toBe('profile-b');
     expect(after.formData.invoiceNumber).toBe('');
+    expect(after.invoiceNumberHint).toBe('B-0001');
+    expect(goToSignInMock).not.toHaveBeenCalled();
   });
 
   it('a sender hint that resolves after reset() is not written (M-04a)', async () => {
@@ -265,6 +269,22 @@ describe('invoice editor store - loaded dates (T44)', () => {
     await selecting;
 
     expect(useInvoiceEditorStore.getState().invoiceNumberHint).toBeUndefined();
+  });
+
+  it("an earlier sender's hint that resolves after a later pick is not written (M-04a)", async () => {
+    let resolveB!: (value: unknown) => void;
+    generateInvoiceNumberMock
+      .mockReturnValueOnce(new Promise((r) => (resolveB = r)))
+      .mockResolvedValueOnce(ok('C-0001'));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData() });
+
+    const pickingB = useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
+    await useInvoiceEditorStore.getState().selectSenderProfile('profile-c');
+    resolveB(ok('B-0001'));
+    await pickingB;
+
+    expect(useInvoiceEditorStore.getState().formData.senderProfileId).toBe('profile-c');
+    expect(useInvoiceEditorStore.getState().invoiceNumberHint).toBe('C-0001');
   });
 
   it('the Retry action of a stale session does nothing (M-04b)', async () => {
