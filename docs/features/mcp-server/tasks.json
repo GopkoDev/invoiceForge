@@ -1048,6 +1048,21 @@
       ],
       "file": "docs/features/mcp-server/_review/review-2026-10-05-r5.md",
       "source": "review-2026-10-05-r5"
+    },
+    {
+      "id": "T50",
+      "title": "Give the sender-hint reset test teeth, block Retry while a save is in flight, test Retry in the same session, and list the stale-session cases in the test plan",
+      "layer": "app",
+      "deps": [],
+      "acs": [],
+      "dod": "N-01..N-04 fixed. (N-01) The 'hint after reset()' test re-initializes with senderProfileId 'profile-b' and an empty number before the hint resolves, asserts invoiceNumberHint is undefined, and fails if the token check at use-invoice-editor-store.ts:314 is removed. (N-02) The FAILED-toast Retry is a no-op while isSaving is true; a test with a save in flight shows Retry does not call the save action again. (N-03) A test fails a save with FAILED, invokes Retry in the same session with no reset, and asserts the save action ran twice; it fails if the guard is inverted or emptied. (N-04) test-plan.md's AC-12 stale-session row lists the late-failure toast without Retry, the in-flight sender switch, the hint and Retry guards, the isSaving guard and the same-session Retry.",
+      "files_hint": [
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "tests/component/invoice-editor-store-loaded-dates.test.tsx",
+        "docs/features/mcp-server/test-plan.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r6.md",
+      "source": "review-2026-10-05-r6"
     }
   ]
 }
