@@ -12,6 +12,7 @@ import {
   it,
   vi,
 } from 'vitest';
+import * as Sentry from '@sentry/nextjs';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
 import {
@@ -24,6 +25,11 @@ import { createFreelancer } from '../../support/factories/user';
 import { createPersonalKey } from '../../support/factories/personal-key';
 import { createLimitEvent } from '../../support/factories/limit-event';
 import { sourceLimitKey } from '@/lib/security/limits/keys';
+
+vi.mock('@sentry/nextjs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sentry/nextjs')>()),
+  captureException: vi.fn(),
+}));
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -259,8 +265,14 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
     ).toBe(2);
   });
 
-  it('refuses a body over the size cap with 413 / -32600 before any tool runs', async () => {
-    const { fullKey } = await freelancerWithKey();
+  it('refuses a body over the size cap with 413 / -32600 before any tool runs, and still counts the call (AC-11)', async () => {
+    const { row, fullKey } = await freelancerWithKey();
+    // a ping runs no tool: it shows how many queries the pipeline alone makes
+    const querySpy = vi.spyOn(appPrisma, '$queryRaw');
+    await route.POST(post({ jsonrpc: '2.0', id: 9, method: 'ping' }, bearer(fullKey)));
+    const pipelineOnly = querySpy.mock.calls.length;
+    querySpy.mockClear();
+
     const big = {
       jsonrpc: '2.0',
       id: 1,
@@ -289,6 +301,60 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
       duplex: 'half',
     } as RequestInit);
     expect((await route.POST(streamed)).status).toBe(413);
+    // no tool ran: only the pipeline's own queries, once per refused POST
+    expect(querySpy.mock.calls.length).toBe(pipelineOnly * 2);
+    // ping + two refused bodies, each one counted call
+    expect(
+      await factoryPrisma.limitEvent.count({
+        where: { scope: 'MCP_KEY', key: row.id },
+      })
+    ).toBe(3);
+  });
+
+  it('checks Accept and Content-Type before reading the body: 415 for a non-JSON type, 406 for a bad Accept', async () => {
+    const { fullKey } = await freelancerWithKey();
+    const nonJson = await route.POST(
+      new Request(URL_, {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          accept: 'application/json, text/event-stream',
+          'x-real-ip': IP,
+          ...bearer(fullKey),
+        },
+        body: 'not json at all',
+      })
+    );
+    expect(nonJson.status).toBe(415);
+    expect((await nonJson.json()).error.message).toBe(
+      'Unsupported Media Type: Content-Type must be application/json'
+    );
+
+    const badAccept = await route.POST(
+      post([INIT, LIST], { ...bearer(fullKey), accept: 'application/json' })
+    );
+    expect(badAccept.status).toBe(406);
+    expect((await badAccept.json()).error.message).toBe(
+      'Not Acceptable: Client must accept both application/json and text/event-stream'
+    );
+  });
+
+  it('keeps a client-error body out of Sentry (a bad-JSON SyntaxError quotes it)', async () => {
+    const { fullKey } = await freelancerWithKey();
+    const res = await route.POST(
+      new Request(URL_, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'x-real-ip': IP,
+          ...bearer(fullKey),
+        },
+        body: '{"key":"ifk_secret',
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
   it('answers unparseable JSON with 400 / -32700', async () => {

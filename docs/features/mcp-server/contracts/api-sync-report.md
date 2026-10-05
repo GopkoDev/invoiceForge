@@ -164,7 +164,7 @@ There are no `low` rows: every field traces to a column, an ADR or an AC.
   - AC-17 and AC-21 → search_invoices. AC-18 → PageInput/PageInfo. AC-18b → `PAGE_OUT_OF_RANGE`.
   - AC-19 and AC-20 → get_invoice. AC-19b → FreelancerText + instructions.
   - AC-22 to AC-24 → server-actions.md (time zone, shared rule) + `timeZone`/`today` in every answer. AC-25 → export. AC-26 → 401 + cascade.
-- **Every operation → a §4 story + ≥ 1 AC.** ✓ See `x-mcp-tools` (stories, acs) and the server-actions.md headings. The transport-only responses (400 / 406 / 415 / 405) belong to US-09 and carry no Freelancer data.
+- **Every operation → a §4 story + ≥ 1 AC.** ✓ See `x-mcp-tools` (stories, acs) and the server-actions.md headings. The transport-only responses (400 / 406 / 413 / 415 / 405) belong to US-09 and carry no Freelancer data.
 - **Sequence gaps (resolved as Save-as-OQ with an upstream owner):**
   - **OQ-S1** — search_invoices accepts a sender-profile *name*, which can match several profiles. Flow 9 draws the ambiguity branch for Customer names only. The contract applies the same `AMBIGUOUS_REFERENCE` rule. Owner: `sequences`, due before the contract is finalized (before `tasks`).
   - **OQ-S2** — flow 15 still says "delete weekly usage, Personal keys, then the rest" and draws a rollback branch. data-model verified that the existing `prisma.user.delete` cascades instead (data-model §Account deletion, audit flag). The contract follows data-model. Owner: `sequences` (reword the flow 15 note) together with the sad.md §11 risk row. Due before `tasks`.

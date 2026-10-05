@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import { isJsonContentType } from '@modelcontextprotocol/sdk/shared/mediaType.js';
 import { runMcpPipeline } from '@/lib/mcp/authenticate';
 import { createMcpServer } from '@/lib/mcp/server';
 
@@ -16,6 +17,11 @@ export async function POST(request: Request): Promise<Response> {
     const pipeline = await runMcpPipeline(request);
     if (!pipeline.ok) return pipeline.response;
 
+    // The transport's own header checks, run here first so a bad Accept or Content-Type
+    // answers 406/415 before the body is read, whatever the body holds.
+    const unacceptable = checkHeaders(request);
+    if (unacceptable) return unacceptable;
+
     // The key limit has already counted this POST; a refused batch or oversized body still
     // counts (AC-11) but never reaches the transport, so no tool runs.
     const body = await readJsonBody(request);
@@ -29,6 +35,7 @@ export async function POST(request: Request): Promise<Response> {
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
+      // Only a backstop: the route has already read and parsed the body within the cap.
       maxRequestBodySize: MAX_BODY_BYTES,
     });
     await server.connect(transport);
@@ -54,6 +61,26 @@ function jsonRpcRefusal(status: number, code: number, message: string): Response
     JSON.stringify({ jsonrpc: '2.0', id: null, error: { code, message } }),
     { status, headers: { 'content-type': 'application/json' } }
   );
+}
+
+/** The SDK transport's Accept and Content-Type checks, with the same bodies. */
+function checkHeaders(request: Request): Response | null {
+  const accept = request.headers.get('accept');
+  if (!accept?.includes('application/json') || !accept.includes('text/event-stream')) {
+    return jsonRpcRefusal(
+      406,
+      -32000,
+      'Not Acceptable: Client must accept both application/json and text/event-stream'
+    );
+  }
+  if (!isJsonContentType(request.headers.get('content-type'))) {
+    return jsonRpcRefusal(
+      415,
+      -32000,
+      'Unsupported Media Type: Content-Type must be application/json'
+    );
+  }
+  return null;
 }
 
 /** Reads at most MAX_BODY_BYTES and refuses an oversized body, bad JSON or a batch array. */
@@ -87,8 +114,8 @@ async function readJsonBody(
   let value: unknown;
   try {
     value = JSON.parse(text);
-  } catch (error) {
-    Sentry.captureException(error);
+  } catch {
+    // Not reported: a client error, and the SyntaxError message quotes the body (maybe a key).
     return {
       ok: false,
       response: jsonRpcRefusal(400, -32700, 'Parse error: Invalid JSON'),
