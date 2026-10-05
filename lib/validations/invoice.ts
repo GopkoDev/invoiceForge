@@ -23,14 +23,24 @@ function hasAtMostTwoDecimalPlaces(value: number): boolean {
   return dot === -1 || str.length - dot - 1 <= 2;
 }
 
-// T25 (spec.md §1, review-2026-10-05 F-02): an issue or due date is a calendar day, stored as that
-// day at T00:00:00Z. The editor sends `yyyy-MM-dd`; a Date (other callers) keeps only its UTC day, so
-// no time of day or zone offset is ever stored.
-const calendarDaySchema = z
+// T25/T40 (spec.md §1, review-2026-10-05 F-02, r2 H-05): an issue or due date is a calendar day,
+// stored as that day at T00:00:00Z. The server (action + service) accepts only `yyyy-MM-dd`; a Date
+// would silently keep its UTC day and store the day before for zones east of UTC. The editor's own
+// client-side validation (local Dates) uses the client-only variant below.
+const calendarDayStringSchema = z
+  .string({ errorMap: () => ({ message: 'Invalid date' }) })
+  .transform((value, ctx): Date => {
+    if (isCalendarDay(value)) return dayToUtcDate(value);
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid date' });
+    return z.NEVER;
+  });
+
+// Client-only: a local Date from the editor's date picker is validated by its local Y/M/D.
+const clientCalendarDaySchema = z
   .union([z.string(), z.date()], { errorMap: () => ({ message: 'Invalid date' }) })
   .transform((value, ctx): Date => {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return dayToUtcDate(utcDateToDay(value));
-    if (isCalendarDay(value)) return dayToUtcDate(value);
+    if (typeof value === 'string' && isCalendarDay(value)) return dayToUtcDate(value);
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid date' });
     return z.NEVER;
   });
@@ -93,7 +103,8 @@ const shippingSchema = z.number({ required_error: 'Shipping must be a number.', 
   .refine(hasAtMostTwoDecimalPlaces, 'Shipping can have at most 2 decimal places.')
   .default(0);
 
-export const invoiceFormSchema = z
+function buildInvoiceFormSchema(day: typeof calendarDayStringSchema | typeof clientCalendarDaySchema) {
+  return z
   .object({
     // Empty (or whitespace-only) = system-assigned; anything else is manual (AC-06, AC-10).
     invoiceNumber: z.string().trim().default(''),
@@ -103,8 +114,8 @@ export const invoiceFormSchema = z
     senderProfileId: z.string().min(1, 'Sender profile is required'),
     bankAccountId: z.string().min(1, 'Bank account is required'),
     customerId: z.string().min(1, 'Customer is required'),
-    issueDate: calendarDaySchema,
-    dueDate: calendarDaySchema,
+    issueDate: day,
+    dueDate: day,
     currency: z.nativeEnum(Currency),
     poNumber: z.string().optional().default(''),
     paymentTerms: z.string().optional().default(''),
@@ -120,6 +131,11 @@ export const invoiceFormSchema = z
       .optional(),
   })
   .superRefine(refineDiscountCap);
+}
+
+export const invoiceFormSchema = buildInvoiceFormSchema(calendarDayStringSchema);
+/** Client-only (editor validation of local Dates); never used by the server. */
+export const clientInvoiceFormSchema = buildInvoiceFormSchema(clientCalendarDaySchema);
 
 // N-07: duplicateInvoice checks only the amount rules (quantity, price, tax, discount, shipping and
 // the discount cap) — name/unit/relations of a legacy source have nothing to do with a copy.
@@ -133,6 +149,6 @@ export const invoiceAmountsSchema = z
   .superRefine(refineDiscountCap);
 
 export type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
-/** What a caller sends: the days are `yyyy-MM-dd` (or a Date), parsed into `InvoiceFormValues`. */
+/** What a caller sends: the days are `yyyy-MM-dd`, parsed into `InvoiceFormValues`. */
 export type InvoiceFormInput = z.input<typeof invoiceFormSchema>;
 export type InvoiceItemFormValues = z.infer<typeof invoiceItemSchema>;

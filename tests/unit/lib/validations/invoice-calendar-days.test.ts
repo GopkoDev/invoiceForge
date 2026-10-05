@@ -1,7 +1,7 @@
 // T25 (spec.md §1, §5 AC-12, AC-23b; review-2026-10-05 F-02) — invoiceFormSchema stores the issue
 // and due dates as calendar days: `yyyy-MM-dd` becomes T00:00:00Z, and a Date loses any time of day.
 import { describe, expect, it } from 'vitest';
-import { invoiceFormSchema } from '@/lib/validations/invoice';
+import { clientInvoiceFormSchema, invoiceFormSchema } from '@/lib/validations/invoice';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -28,8 +28,8 @@ describe('invoiceFormSchema calendar days (T25)', () => {
     expect(r.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
   });
 
-  it('a Date keeps only its UTC calendar day', () => {
-    const r = invoiceFormSchema.parse(payload({ dueDate: new Date('2026-10-15T13:45:10.000Z') }));
+  it('the client-only schema: a Date keeps only its UTC calendar day', () => {
+    const r = clientInvoiceFormSchema.parse(payload({ dueDate: new Date('2026-10-15T13:45:10.000Z') }));
     expect(r.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
   });
 

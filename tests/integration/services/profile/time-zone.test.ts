@@ -152,6 +152,14 @@ describe.runIf(containerRuntimeAvailable)('profile service time zone — request
       expect(await storedDates(prisma, ids)).toEqual(day);
     });
 
+    it('T40 (H-10): from NULL to America/New_York, a value past UTC midnight becomes the previous New York day', async () => {
+      const f = await createFreelancer(prisma);
+      const rows: Array<[string, string]> = [['2026-10-16T02:00:00.000Z', '2026-10-16T02:00:00.000Z']];
+      const ids = await seedInvoicesWithDates(prisma, f.id, rows);
+      await profile.updateTimeZone(await actingFreelancerForTest(f.id), 'America/New_York');
+      expect(await storedDates(prisma, ids)).toEqual([['2026-10-15T00:00:00.000Z', '2026-10-15T00:00:00.000Z']]);
+    });
+
     it("another Freelancer's invoices are untouched", async () => {
       const a = await createFreelancer(prisma);
       const b = await createFreelancer(prisma);

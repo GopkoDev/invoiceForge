@@ -71,6 +71,8 @@ const existing = {
   senderProfileId: 'sp-1',
   invoiceNumber: 'OLD-1',
   invoiceNumberKey: 'old-1',
+  issueDate: new Date('2026-01-01T00:00:00.000Z'),
+  dueDate: new Date('2026-01-31T00:00:00.000Z'),
   status: 'DRAFT',
   paidAt: null,
   total: zero,

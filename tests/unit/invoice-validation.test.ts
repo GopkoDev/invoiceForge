@@ -14,7 +14,7 @@
 // "Unknown status." message on an invalid status — every failing case below currently either
 // passes validation it shouldn't, or fails with the wrong message.
 import { describe, expect, it } from 'vitest';
-import { invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
+import { clientInvoiceFormSchema as invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
 
 const MAX_AMOUNT = 99_999_999.99;
 

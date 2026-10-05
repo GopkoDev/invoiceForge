@@ -20,7 +20,7 @@ import {
   paginate,
   type Page,
 } from '@/lib/services/_shared/list-query';
-import { addDaysToDay, dayToUtcDate, utcDayRange } from '@/lib/helpers/calendar-day';
+import { addDaysToDay, dayToUtcDate, utcDateToDay, utcDayRange } from '@/lib/helpers/calendar-day';
 import {
   transformInvoiceToFormData,
   buildBankAccountSnapshot,
@@ -515,6 +515,17 @@ class InvoiceTotalsChangedError extends Error {
 // VALIDATION (schema) -> NOT_FOUND (invoice, or new relations not owned) -> the move/manual number
 // rules (AC-11) -> the legacy shared-number check (AC-17) -> the legacy totals confirmation
 // (AC-17) -> applyStatusChange (AC-18, AC-19), all inside one transaction.
+/**
+ * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
+ * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
+ * would lock in a wrong day before the zone is known (lazy normalisation skips midnights).
+ */
+function keepUnchangedLegacyDay(stored: Date, submitted: Date): Date {
+  const isMidnight = stored.getTime() % 86_400_000 === 0;
+  if (!isMidnight && utcDateToDay(stored) === utcDateToDay(submitted)) return stored;
+  return submitted;
+}
+
 export async function updateInvoice(
   actor: ActingFreelancer,
   id: string,
@@ -664,8 +675,8 @@ export async function updateInvoice(
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
-          issueDate: validatedData.issueDate,
-          dueDate: validatedData.dueDate,
+          issueDate: keepUnchangedLegacyDay(existingInvoice.issueDate, validatedData.issueDate),
+          dueDate: keepUnchangedLegacyDay(existingInvoice.dueDate, validatedData.dueDate),
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,

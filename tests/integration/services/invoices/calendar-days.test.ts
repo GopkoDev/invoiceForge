@@ -131,6 +131,41 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     expect(stored.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
   });
 
+  it('T40 (H-01): a notes-only save keeps an unedited legacy due date, so the zone saved afterwards still yields 15 Oct', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const noZone = await actingFreelancerForTest(s.userId);
+    const legacyDue = new Date('2026-10-14T21:00:00.000Z'); // Kyiv local midnight 15 Oct, written before the release
+    const legacyIssue = new Date('2026-09-30T21:00:00.000Z'); // Kyiv local midnight 1 Oct
+    const inv = await addInvoice(s, { currency: 'USD', status: 'PENDING', total: 100, issueDate: legacyIssue, dueDate: legacyDue });
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+
+    // No saved zone: the editor shows the UTC days (1 Oct, 14 Oct) and the user edits only the notes.
+    data(await svc.updateInvoice(noZone, inv.id, {
+      ...editorForm(s, new Date(2026, 8, 30), new Date(2026, 9, 14)),
+      invoiceNumber: before.invoiceNumber,
+      notes: 'only the notes changed',
+    }));
+    const afterSave = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(afterSave.notes).toBe('only the notes changed');
+    expect(afterSave.dueDate.toISOString()).toBe('2026-10-14T21:00:00.000Z');
+    expect(afterSave.issueDate.toISOString()).toBe('2026-09-30T21:00:00.000Z');
+
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.updateTimeZone(noZone, KYIV);
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('T40 (H-05): the service refuses a Date for an issue or due date', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    const form = editorForm(s, new Date(2026, 9, 1), new Date(2026, 9, 15));
+    const r = await svc.createInvoice(actor, { ...form, dueDate: new Date('2026-10-14T21:00:00.000Z') } as never);
+    expect(r.success).toBe(false);
+    expect(await testClient.invoice.count()).toBe(0);
+  });
+
   it('a duplicated invoice gets today and today + 30 days as calendar days in the owner zone', async () => {
     clock('2026-10-15T22:30:00Z'); // 01:30 on 16 Oct in Kyiv, 18:30 on 15 Oct in New York
     const s = await seedFreelancer(testClient, ['USD']);
