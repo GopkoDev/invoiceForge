@@ -85,6 +85,7 @@ const existing = {
 function txRejecting(model: 'create' | 'update') {
   transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
+      $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]),
       invoiceItem: { deleteMany: vi.fn() },
       invoice: { [model]: vi.fn().mockRejectedValue({ code: 'P2002' }) },
     })

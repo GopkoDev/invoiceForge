@@ -35,7 +35,8 @@ const calendarDayStringSchema = z
     return z.NEVER;
   });
 
-// Client-only: a local Date from the editor's date picker is validated by its local Y/M/D.
+// Client-only, for validity checks in the editor: a Date is reduced to its UTC day (not its local Y/M/D);
+// the parsed value is never sent to the server.
 const clientCalendarDaySchema = z
   .union([z.string(), z.date()], { errorMap: () => ({ message: 'Invalid date' }) })
   .transform((value, ctx): Date => {

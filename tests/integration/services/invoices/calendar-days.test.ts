@@ -157,6 +157,46 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   });
 
+  it('T40 (review): a zone write that normalises the dates while an unedited save is in flight is not overwritten by the stale legacy instants', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const noZone = await actingFreelancerForTest(s.userId);
+    const inv = await addInvoice(s, {
+      currency: 'USD', status: 'PENDING', total: 100,
+      issueDate: new Date('2026-09-30T21:00:00.000Z'), dueDate: new Date('2026-10-14T21:00:00.000Z'),
+    });
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let locked!: () => void;
+    const lockHeld = new Promise<void>((resolve) => { locked = resolve; });
+    // Stands in for lazy normalisation: holds the invoice row, writes the midnights, then commits.
+    const normaliser = testClient.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "Invoice" WHERE id = ${inv.id} FOR UPDATE`;
+      locked();
+      await gate;
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: { issueDate: day('2026-10-01'), dueDate: day('2026-10-15') },
+      });
+    });
+    await lockHeld;
+    const saving = svc.updateInvoice(noZone, inv.id, {
+      ...editorForm(s, new Date(2026, 8, 30), new Date(2026, 9, 14)),
+      invoiceNumber: before.invoiceNumber,
+      notes: 'only the notes changed',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1_500)); // the save has read the legacy row and waits on the lock
+    release();
+    await normaliser;
+    data(await saving);
+
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.notes).toBe('only the notes changed');
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  }, 30_000);
+
   it('T40 (H-05): the service refuses a Date for an issue or due date', async () => {
     const s = await seedFreelancer(testClient, ['USD']);
     const actor = await actingFreelancerForTest(s.userId, KYIV);

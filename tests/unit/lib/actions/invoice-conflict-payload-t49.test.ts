@@ -102,6 +102,7 @@ describe('invoice_number_conflict payload (T49 R-11)', () => {
     });
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
       fn({
+        $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]),
         invoiceItem: { deleteMany: vi.fn() },
         invoice: { update: vi.fn().mockRejectedValue({ code: 'P2002' }) },
       })

@@ -78,7 +78,7 @@ beforeEach(async () => {
   p.invoice.findFirst.mockResolvedValue(existing);
   p.senderProfile.findFirst.mockResolvedValue({ id: 'sp-1' });
   p.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-    fn({ invoiceItem: { deleteMany: vi.fn() }, invoice: { create: vi.fn(), update: vi.fn() } })
+    fn({ $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]), invoiceItem: { deleteMany: vi.fn() }, invoice: { create: vi.fn(), update: vi.fn() } })
   );
 });
 

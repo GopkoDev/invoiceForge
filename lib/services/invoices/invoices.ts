@@ -497,6 +497,7 @@ const LEGACY_SHARED_NUMBER_MESSAGE =
 /** Thrown inside updateInvoice's transaction for AC-17's shared-number case (step 4): the
  * invoice's own key is NULL or shared, and the submitted number is unchanged. */
 class InvoiceLegacySharedNumberError extends Error {}
+class InvoiceVanishedError extends Error {}
 
 /** Thrown inside updateInvoice's transaction for AC-17's totals case (step 5): the stored total
  * disagrees with a recompute of the invoice's own stored lines, and confirmedTotals doesn't (yet)
@@ -519,10 +520,12 @@ class InvoiceTotalsChangedError extends Error {
  * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
  * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
  * would lock in a wrong day before the zone is known (lazy normalisation skips midnights).
+ * `read` is what the editor was built from; `current` is the row's value under the lock, which a zone
+ * write may have normalised since, so an unedited date keeps `current`, never the stale `read`.
  */
-function keepUnchangedLegacyDay(stored: Date, submitted: Date): Date {
-  const isMidnight = stored.getTime() % 86_400_000 === 0;
-  if (!isMidnight && utcDateToDay(stored) === utcDateToDay(submitted)) return stored;
+function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Date {
+  const isMidnight = read.getTime() % 86_400_000 === 0;
+  if (!isMidnight && utcDateToDay(read) === utcDateToDay(submitted)) return current;
   return submitted;
 }
 
@@ -577,6 +580,13 @@ export async function updateInvoice(
     const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
 
     const invoice = await prisma.$transaction(async (tx) => {
+      // Lock the row and re-read the dates: lazy normalisation may have rewritten them since
+      // `existingInvoice` was read (T40 review), and the save must not write the stale instants back.
+      const [currentDates] = await tx.$queryRaw<
+        { issueDate: Date; dueDate: Date }[]
+      >`SELECT "issueDate", "dueDate" FROM "Invoice" WHERE id = ${id} FOR UPDATE`;
+      if (!currentDates) throw new InvoiceVanishedError();
+
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
       // move clears the number field and always applies the manual/allocate rules under B; an
       // unmoved, unchanged number instead runs the legacy shared-number check, and only when
@@ -675,8 +685,16 @@ export async function updateInvoice(
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
-          issueDate: keepUnchangedLegacyDay(existingInvoice.issueDate, validatedData.issueDate),
-          dueDate: keepUnchangedLegacyDay(existingInvoice.dueDate, validatedData.dueDate),
+          issueDate: keepUnchangedLegacyDay(
+            existingInvoice.issueDate,
+            validatedData.issueDate,
+            currentDates.issueDate
+          ),
+          dueDate: keepUnchangedLegacyDay(
+            existingInvoice.dueDate,
+            validatedData.dueDate,
+            currentDates.dueDate
+          ),
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,
@@ -736,7 +754,7 @@ export async function updateInvoice(
         details: { kind: 'TOTALS_CHANGED', oldTotal: error.oldTotal, newTotal: error.newTotal },
       });
     }
-    if (isRecordNotFoundError(error)) {
+    if (isRecordNotFoundError(error) || error instanceof InvoiceVanishedError) {
       return fail('NOT_FOUND', 'Invoice not found.');
     }
     if (error instanceof SenderProfileNotFoundError) {

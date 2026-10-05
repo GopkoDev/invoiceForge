@@ -136,7 +136,7 @@ describe('owner in the where clause (T22, S-05)', () => {
     });
     const deleteMany = vi.fn();
     p.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-      fn({ invoiceItem: { deleteMany }, invoice: { update: vi.fn().mockResolvedValue({ id: 'inv-1' }) } })
+      fn({ $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]), invoiceItem: { deleteMany }, invoice: { update: vi.fn().mockResolvedValue({ id: 'inv-1' }) } })
     );
     await updateInvoice(actor, 'inv-1', {
       invoiceNumber: '',
