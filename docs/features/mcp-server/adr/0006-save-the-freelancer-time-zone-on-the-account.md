@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-04"
+updated_at: "2026-10-05"
 feature_size: "M"
 ticket: "mcp-server"
 ---
@@ -45,9 +45,12 @@ architecture-hardening ADR-0010 carries the browser's time zone to the server in
 **Neutral**
 - Existing Freelancers are filled on their next visit; until then they and their Assistants use UTC alike.
 
+**Amendment (2026-10-05)**
+- The first zone save (NULL to a value, from the browser seed or settings) also converts that Freelancer's legacy invoice dates to calendar days in that zone, in the same transaction. See [[0009-store-invoice-dates-as-calendar-days]].
+
 ## Links
 
 - Spec: [[../spec.md]] §1, US-07, AC-22, AC-23, AC-23b
 - SAD: [[../sad.md]] §4, §8
 - Supersedes: architecture-hardening [[../../architecture-hardening/adr/0010-carry-the-browser-time-zone-to-the-server-in-a-cookie]]
-- Related ADR: [[0005-compute-overdue-at-read-time-from-one-shared-rule-module]]
+- Related ADR: [[0005-compute-overdue-at-read-time-from-one-shared-rule-module]], [[0009-store-invoice-dates-as-calendar-days]]

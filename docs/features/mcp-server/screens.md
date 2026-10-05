@@ -2,7 +2,7 @@
 status: draft
 feature_size: "M"
 tool: "code"
-updated_at: "2026-10-04"
+updated_at: "2026-10-05"
 ---
 
 # Screens — mcp-server
@@ -41,6 +41,7 @@ Changed: two dismissable banners and the derived overdue status. The figures, De
 |---|---|---|---|
 | loading | Page request in flight | existing dashboard section skeletons (unchanged) | existing |
 | default | Loaded. "Today", month boundaries and overdue use the Freelancer time zone (AC-22, AC-23, AC-23b). A pending invoice past its due date counts in the overdue figures, its Customer is a Debtor, it is left out of Expected payments, and recent invoices show it with the `Overdue` badge (AC-24; flow 13). Currency tabs cover bank-account and issued-invoice currencies (ADR-0008) | existing sections, `InvoiceStatusBadge` | wireframe below |
+| period preset | A preset click sends `?preset=<name>` (`this-month`, `last-month`, `next-month`, `this-year`, `last-year`), and the server resolves its days in the account time zone (AC-22, AC-23). The pressed preset is derived from the applied period and "today", so it survives a reload; a period no preset matches shows as custom. Chart ticks and tooltips label each stored day by its calendar day (`formatStoredDay`), in any browser zone | existing date filter and chart (`dashboard-filters.tsx`, `dashboard-chart.tsx`) | existing |
 | default + entry point | `hasUsedAnyPersonalKey` → `false` (AC-01; flow 3 `alt`). Gone for good once any key has passed a key check, even if every key is later revoked | `Alert`, `buttonVariants` link → SCR-03 | wireframe below |
 | default + overdue-rule notice | `getDashboardNoticeState` → `showOverdueRuleNotice: true` (spec §8 default; server-actions "Overdue-rule notice") | `Alert`, `Button` ("Got it") | wireframe below |
 | notice dismissed | "Got it" → `dismissOverdueRuleNotice` → `ok()`. The notice disappears and never returns, on any device | — | — |
@@ -288,14 +289,14 @@ The existing invoice editor `/invoices/{id}/edit`, also the target of the `get_i
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
 |---|---|---|---|
 | loading | Page request in flight | `InvoiceEditorLoading` (unchanged) | existing |
-| default | The header status `Badge` shows the derived status: `Overdue` for a past-due pending invoice (AC-24). `getInvoiceEditorData` returns the derived status like every other invoice read | `InvoiceEditor` | existing |
+| default | The header status `Badge` reads `Overdue` for a past-due pending invoice (AC-24). Unlike the other invoice reads, `getInvoiceEditorData` returns the **stored** status plus `derivedOverdue`, and the badge comes from the flag, so a save echoes the stored status back (server-actions "Editor status"). Issue and due dates show their calendar day; an unedited legacy date keeps its stored value on save (ADR-0009) | `InvoiceEditor` | existing |
 | draft / cancelled | Opened from an Assistant link: the header `Badge` reads "Draft" or "Cancelled" (AC-19 "labelled as a draft or as cancelled"). The editor behaves as today; no read-only mode is added | `InvoiceEditor`, `Badge` | existing |
 | no session | The link is opened without a session → SCR-10, then back here (AC-19; flow US-06) | — | SCR-10 |
 | not-found | Deleted, or another Freelancer's invoice → existing `invoices/[id]/edit/not-found.tsx` = SCR-11, revealing nothing (AC-08 UI part) | — | SCR-11 |
 | error | Load fails → existing `(invoice-editor)/error.tsx` (`LoadError`), unchanged | `LoadError` | existing |
 | empty | N/A: the page always shows one existing invoice | — | — |
 
-Wireframe: the existing editor is unchanged. Only the value behind its status badge changes.
+Wireframe: the existing editor is unchanged. Only the source of its status badge changes.
 
 ### SCR-08 — Privacy & data settings
 

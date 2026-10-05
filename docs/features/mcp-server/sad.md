@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-04"
+updated_at: "2026-10-05"
 feature_size: "M"
 target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
 ---
@@ -772,7 +772,7 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 | Error handling | Services return `ActionResult` with typed codes. The adapter maps them: key/source/limit refusals are request-level refusals with a plain-language message (limit refusals say when to retry); `VALIDATION` / `NOT_FOUND` / ambiguity become tool errors that explain what to ask. Refusals are uniform and never reveal whether a key existed (AC-07). | `types/result.ts`; architecture-hardening ADR-0009; exact shapes at `api` |
 | Rate limiting | Per key: 60 calls in the most recent 60 s, counting every call that passed the key check, tool listings included, limit refusals excluded. Per source: 30 refused key checks in 5 min, then refused before any key check. Fail closed. | ADR-0007; security-patch ADR-0002 |
 | Overdue rule | One rule module used by every surface; stored statuses never change; "Mark as overdue" / "back to pending" not offered for derived-overdue invoices. | ADR-0005 |
-| Time zone and dates | "Today", day and period bounds use the account time zone (UTC until saved); due dates are calendar days compared without shift; periods follow the shared calendar-date / 5-year rule; every Assistant answer names the time zone and period bounds it used. | ADR-0006; security-patch ADR-0004 |
+| Time zone and dates | "Today", day and period bounds use the account time zone (UTC until saved); due dates are calendar days compared without shift; periods follow the shared calendar-date / 5-year rule; every Assistant answer names the time zone and period bounds it used. | ADR-0006, ADR-0009; security-patch ADR-0004 |
 | Pagination and completeness | Shared page-number envelope. Assistant answers: default 20, maximum 50 rows; a larger request is capped and says so; totals and counts always cover the full match set; a page past the end returns no rows and the last page number, never an earlier page (AC-18, AC-18b). | service-layer ADR-0005; here |
 | Money | Totals and counts come from the same queries the dashboard uses; reported per currency, never converted, formatted to the cent. | service-layer ADR-0004; architecture-hardening ADR-0006 |
 | Untrusted text | Every Freelancer-entered text field in an answer (notes, line descriptions, product names, customer names and addresses, payment terms) is wrapped in a marked structure the tool descriptions declare as data, not instructions (AC-19b). Exact shape at `api`. | here |
@@ -782,7 +782,7 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 | Caching | None for key checks, figures or lists — revocation must be immediate and figures must match the dashboard at the moment of the call. | here |
 | Internationalisation | Answers in English, matching the app's single UI language. | — |
 
-**Calendar-day storage (T25).** An invoice's issue date and due date are calendar days: stored as the picked day at `T00:00:00Z` (the column stays timestamp), sent by the editor as `yyyy-MM-dd`, shown by their UTC Y/M/D in every browser zone, and compared by day (`::date` / UTC-midnight bounds) by the overdue rule, the dashboard and Assistant periods and the Assistant date filters. Only "today" and the named period days come from the account time zone. Older rows (browser local-midnight instants or a time of day) are converted lazily: the migration cuts only the rows of owners that already have a saved zone, with no UTC fallback; for everyone else a legacy value is read as its UTC day until the zone is first saved, and when `User.timeZone` goes from NULL to a value (the first-visit seed or a settings save) the same transaction cuts that Freelancer's legacy values to the day they saw, in that zone. The saved zone is the "already done" marker, so a later zone change moves no date. The pages resolve the acting Freelancer (and so the seed) before reading invoice dates; a read elsewhere that happens before the first dashboard or invoices visit shows the UTC day of a legacy value until then.
+**Calendar-day storage (T25, ADR-0009).** An invoice's issue date and due date are calendar days: stored as the picked day at `T00:00:00Z` (the column stays timestamp), sent by the editor as `yyyy-MM-dd`, shown by their UTC Y/M/D in every browser zone, and compared by day (`::date` / UTC-midnight bounds) by the overdue rule, the dashboard and Assistant periods and the Assistant date filters. Only "today" and the named period days come from the account time zone. Older rows (browser local-midnight instants or a time of day) are converted lazily: the migration cuts only the rows of owners that already have a saved zone, with no UTC fallback; for everyone else a legacy value is read as its UTC day until the zone is first saved, and when `User.timeZone` goes from NULL to a value (the first-visit seed or a settings save) the same transaction cuts that Freelancer's legacy values to the day they saw, in that zone. The saved zone is the "already done" marker, so a later zone change moves no date. The pages resolve the acting Freelancer (and so the seed) before reading invoice dates; a read elsewhere that happens before the first dashboard or invoices visit shows the UTC day of a legacy value until then.
 
 ## 9. Architecture decisions
 
@@ -796,6 +796,7 @@ The feature runs inside the existing Vercel project in region `iad1`: `/api/mcp`
 | 0006 | Save the Freelancer time zone on the account (supersedes architecture-hardening ADR-0010) | Accepted | §4 |
 | 0007 | Count Assistant calls in the existing Postgres limit log and fail closed | Accepted | §4 |
 | 0008 | Show dashboard currency tabs for bank-account and issued-invoice currencies | Accepted | §10 |
+| 0009 | Store invoice dates as calendar days | Accepted | §8 |
 
 ADR files live under `docs/features/mcp-server/adr/NNNN-<title>.md`.
 

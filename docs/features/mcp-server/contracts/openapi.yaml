@@ -55,7 +55,8 @@ info:
        up among active keys of live accounts (ADR-0004), with no cache (AC-06, 0 s revocation).
        Every refusal — missing, malformed, unknown, revoked, or of a deleted account — is the one
        uniform `401` (AC-07, AC-26) and records one refused key check for the source. A missing key
-       counts too (decided at `api`, 2026-10-04).
+       counts too (decided at `api`, 2026-10-04). If the key store cannot be read, the call is
+       refused with `503` (`LimitStoreUnavailable`, fail closed) and no refused key check is recorded.
     3. **Last use.** A passed key check records last use, throttled to once a minute (AC-05).
     4. **Key limit.** A key with 60 counted calls in the most recent 60 seconds is refused with `429`
        and `Retry-After`; limit store unavailable → `503`. Every JSON-RPC message that passed the key
@@ -74,7 +75,10 @@ info:
     cannot attach an `Authorization` header to a cross-origin call (the preflight is never approved).
 
     **Logging (sad.md §8).** The `Authorization` header, keys, key digests and answer bodies are never
-    logged or sent to Sentry. Spans are named `mcp.tools/call <tool>` and `mcp.tools/list`.
+    logged or sent to Sentry. This covers error events and transactions alike: incoming `/api/mcp`
+    bodies are never captured, and request headers and data are scrubbed from both. Client refusals
+    (bad JSON, a batch, an aborted body, a bad header) are not reported. Spans are named
+    `mcp.tools/call <tool>` and `mcp.tools/list`.
 
 tags:
   - name: mcp
@@ -354,7 +358,7 @@ paths:
         "202":
           description: A notification was accepted; no body.
         "400":
-          description: The body is not valid JSON, is a batch (an array), or the protocol version is unsupported. Checked after `406` and `415`.
+          description: The body is not valid JSON, is a batch (an array), could not be read because the client went away mid-body, or the protocol version is unsupported. Checked after `406` and `415`. The call still counts toward the key limit, no tool runs, and none of these is reported to Sentry.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JsonRpcErrorResponse" }
@@ -371,6 +375,12 @@ paths:
                     jsonrpc: "2.0"
                     id: null
                     error: { code: -32600, message: "Invalid Request: batches are not accepted" }
+                bodyAborted:
+                  summary: The client went away while the body was being read
+                  value:
+                    jsonrpc: "2.0"
+                    id: null
+                    error: { code: -32700, message: "Parse error: the request body could not be read" }
         "401":
           $ref: "#/components/responses/KeyRefused"
         "406":
@@ -503,8 +513,9 @@ components:
     LimitStoreUnavailable:
       description: |
         Fail closed (ADR-0007; spec §6 "100 % of Assistant calls are refused while the limit store is
-        unavailable"): the source or key limit could not be checked or recorded. No data, no
-        `Retry-After` (the outage length is unknown). Raises the `limit-store-unavailable` alert (sad.md §7).
+        unavailable"): the source or key limit could not be checked or recorded, or the key check
+        itself could not read the store (pipeline step 2; no refused key check is recorded). No data,
+        no `Retry-After` (the outage length is unknown). Raises the `limit-store-unavailable` alert (sad.md §7).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/RequestRefusal" }
@@ -516,7 +527,7 @@ components:
               message: "invoiceFlow cannot check its call limits right now, so the call was refused. Try again in a few minutes."
               data: { code: FAILED }
     ServerFailure:
-      description: An unexpected failure before a tool could answer. No raw database or stack text (types/result.ts).
+      description: An unexpected failure before a tool could answer, including the MCP SDK's own catch-all failure. It is reported to Sentry; no raw database, SDK or stack text reaches the client (`error.data` is dropped; types/result.ts).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/JsonRpcErrorResponse" }
@@ -525,7 +536,7 @@ components:
             id: null
             error: { code: -32603, message: "Something went wrong in invoiceFlow. Try again." }
     MethodNotAllowed:
-      description: Only `POST` is served (ADR-0002). No Freelancer data, no key check.
+      description: Only `POST` is served (ADR-0002). No Freelancer data, no key check. The handler sends this JSON-RPC body as `application/json`, with the `Allow` header set to `POST`.
       headers:
         Allow: { $ref: "#/components/headers/Allow" }
       content:

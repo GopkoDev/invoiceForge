@@ -57,7 +57,7 @@ type DecimalString = string;   // /^-?\d{1,8}\.\d{2}$/ — exact 2-dp value from
 | `invoiceNumber` | `string`, trimmed. **Empty (`''` or whitespace only) = system-assigned**; anything else is manual | ✎ was `min(1)` | AC-06, AC-10 |
 | `senderProfileId`, `customerId`, `bankAccountId` | `string min(1)`. Ownership checked in the action → `NOT_FOUND` | — | AC-29 |
 | `status` | `enum InvoiceStatus` = `DRAFT \| PENDING \| PAID \| OVERDUE \| CANCELLED`. Unknown → `VALIDATION` "Unknown status" | message ✎ | AC-19 |
-| `issueDate`, `dueDate` | date | — | — |
+| `issueDate`, `dueDate` | `yyyy-MM-dd` calendar day, stored at `T00:00:00Z`; a `Date` is refused (mcp-server ADR-0009) | ✎ mcp-server | — |
 | `currency` | `enum Currency` | — | — |
 | `items[]` | `min(1)` | — | — |
 | `items[].quantity` | `number > 0`, ≤ 99 999 999.99, 2 dp | ★ max | AC-14 |

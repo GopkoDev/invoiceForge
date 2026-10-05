@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-04"
+updated_at: "2026-10-05"
 feature_size: "M"
 ---
 
@@ -100,11 +100,11 @@ The confirm step is UI-only (AC-06 "revokes and confirms").
 
 ```ts
 authenticatePersonalKey(fullKey: string, now: Date):
-  Promise<{ ok: true; actor: ActingFreelancer; keyId: string; firstSuccessPending: boolean } | { ok: false }>;
+  Promise<{ ok: true; actor: ActingFreelancer; keyId: string } | { ok: false } | { ok: false; unavailable: true }>;
 recordPersonalKeyUsage(keyId: string, outcome: 'success' | 'assistant_error' | 'server_failure', now: Date): Promise<void>;
 ```
 
-- `authenticatePersonalKey` checks format and checksum before any query, then looks up the digest among active keys (data-model "Authenticate"), records last use (≤ once a minute), and builds the `ActingFreelancer` through `actingFreelancerFromPersonalKey` with the account time zone, or `UTC`. `{ ok: false }` carries **no reason**: the caller cannot tell unknown from revoked from malformed (AC-07).
+- `authenticatePersonalKey` checks format and checksum before any query, then looks up the digest among active keys (data-model "Authenticate"), records last use (≤ once a minute), and builds the `ActingFreelancer` through `actingFreelancerFromPersonalKey` with the account time zone, or `UTC`. `{ ok: false }` carries **no reason**: the caller cannot tell unknown from revoked from malformed (AC-07). A store failure during the key check returns `{ ok: false, unavailable: true }` instead: the adapter answers `503` (`LimitStoreUnavailable`) and records no refused key check against the source. A failed last-use stamp never refuses a valid key.
 - `recordPersonalKeyUsage` runs the weekly upsert (`attempts + 1`, plus `successes` or `assistantErrors`), and sets `firstSuccessAt` on the first success. Called once per `tools/call` (openapi `info.description` step 5).
 
 ## Limits — `lib/security/limits/` (ADR-0007)
@@ -154,10 +154,13 @@ Notice copy is owned by `screens`.
 
 No action signature changes. These results change meaning:
 
-- **Derived status.** Every DTO that returns an invoice's `status` (invoice list, recent invoices, customer page, invoice page, `getPaginatedInvoices`, `getInvoicesByCustomer`, `getInvoicesBySenderProfile`, `getInvoice`) returns `OVERDUE` when the shared rule says so, `PENDING` otherwise. The stored column is never written by a read. Display code reads one field.
+- **Derived status.** Every read DTO that returns an invoice's `status` (invoice list, recent invoices, customer page, invoice page, `getPaginatedInvoices`, `getInvoicesByCustomer`, `getInvoicesBySenderProfile`, `getInvoice`) returns `OVERDUE` when the shared rule says so, `PENDING` otherwise. The stored column is never written by a read. Display code reads one field.
+- **Editor status.** The editor is the exception. `getInvoiceEditorData` returns the **stored** status in `initialData` plus `derivedOverdue: boolean`, and `createInvoice` / `updateInvoice` return the stored `status` plus `derivedOverdue` in `SavedInvoice`. The editor shows the overdue badge from `derivedOverdue`, so a save echoes the stored status back. If a save still submits `OVERDUE` for a derived-overdue invoice (stored `PENDING`, due date passed), `updateInvoice` stores `PENDING`. A submitted `OVERDUE` on any other invoice, including one not yet due, is stored as sent (`statusToStoreOnSave`, ADR-0005).
 - **Status filters.** `status=OVERDUE` / `status=PENDING` filters use the rule's Prisma condition, never the stored status alone (AC-24).
 - **Dashboard.** `getSummaryStats`, `getDebtors`, `getExpectedPayments`, `getChartData`, `getRecentInvoices` apply the rule with "today" in the account zone. `getDashboardCurrencyTabs` returns the union of bank-account and issued-invoice currencies (ADR-0008).
 - **Paged reads for the Assistant.** New service functions back the tools: `listOverdueInvoices`, `listDebtorsPage`, `listExpectedPaymentsPage`, `getSummaryFiguresAllCurrencies`, `listCustomersForAssistant`, `searchInvoicesForAssistant`, `findInvoiceByReference`. They return `Page<T>` plus totals over every match. Unlike `paginate`, they return `fail('NOT_FOUND', …, { details: { kind: 'PAGE_OUT_OF_RANGE', … } })` for a page past the last one, and never fall back to page 1 (AC-18b). They cap `pageSize` at 50 and report `pageSizeCapped`.
+
+- **Invoice dates.** `issueDate` and `dueDate` are calendar days (ADR-0009). The server action and the service accept only `yyyy-MM-dd` strings; a `Date` or any other string is `VALIDATION` "Invalid date". The day is stored at `T00:00:00Z`. On `updateInvoice`, an unedited legacy date (a stored value that is not a UTC midnight, whose UTC day equals the submitted day) is kept, re-read under `FOR UPDATE` in the update transaction so a concurrent zone normalisation is not overwritten.
 
 ### `updateInvoiceStatus(id, status)` ✎ (AC-24)
 
