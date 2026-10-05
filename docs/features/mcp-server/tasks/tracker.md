@@ -43,6 +43,6 @@
 | T36 | [Build dashboard presets and the applied-range label in the account time zone](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
 | T37 | [Keep request bodies out of Sentry, check Accept and Content-Type first, and put 413 and the batch refusal in the contract](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | done |
 | T38 | [Map a submitted OVERDUE back to PENDING only for a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
-| T39 | [Give the no-zone, export-schema, revoke-title and overdue-surface tests teeth](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | M | T35 | todo |
+| T39 | [Give the no-zone, export-schema, revoke-title and overdue-surface tests teeth](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | M | T35 | done |
 
 **Total:** 39 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum), ~28 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
