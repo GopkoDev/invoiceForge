@@ -265,6 +265,11 @@ describe('invoice editor store - loaded dates (T44)', () => {
 
     const selecting = useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
     useInvoiceEditorStore.getState().reset();
+    // N-01: a new session whose sender is the same one the stale pick chose.
+    useInvoiceEditorStore.getState().initialize({
+      ...base,
+      initialData: { ...initialData(), senderProfileId: 'profile-b', invoiceNumber: '' },
+    });
     resolve(ok('B-0001'));
     await selecting;
 
@@ -300,6 +305,36 @@ describe('invoice editor store - loaded dates (T44)', () => {
     expect(updateInvoiceMock).toHaveBeenCalledTimes(1);
     expect(createInvoiceMock).not.toHaveBeenCalled();
     expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+  });
+
+  it('the Retry action of a live session saves again (N-03)', async () => {
+    updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await useInvoiceEditorStore.getState().saveInvoice();
+    const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
+
+    retry();
+    await vi.waitFor(() => expect(updateInvoiceMock).toHaveBeenCalledTimes(2));
+    expect(createInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  it('the Retry action does nothing while another save is in flight (N-02)', async () => {
+    updateInvoiceMock
+      .mockResolvedValueOnce({ success: false, code: 'FAILED', error: 'db down' })
+      .mockReturnValueOnce(new Promise(() => {}));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await useInvoiceEditorStore.getState().saveInvoice();
+    const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
+
+    void useInvoiceEditorStore.getState().saveInvoice();
+    expect(useInvoiceEditorStore.getState().isSaving).toBe(true);
+    expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
+
+    retry();
+    await Promise.resolve();
+
+    expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
+    expect(createInvoiceMock).not.toHaveBeenCalled();
   });
 
   it('a stale UNAUTHORIZED and a stale rejection both still send the device to sign-in (architecture-hardening AC-21)', async () => {

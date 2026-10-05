@@ -492,8 +492,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         state.loadedDates
       );
       const retry = () => {
-        // A Retry clicked after the editor was reset would save another invoice's form.
-        if (token === sessionToken) void get().saveInvoice(options);
+        // A Retry clicked after the editor was reset would save another invoice's form;
+        // one clicked while a save is in flight would run a second save (a duplicate create).
+        if (token === sessionToken && !get().isSaving) void get().saveInvoice(options);
       };
 
       try {
