@@ -169,6 +169,16 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     expect(await stored(late.id)).toBe('PENDING');
   });
 
+  it('updateInvoice stores OVERDUE for a not-yet-due pending invoice, as before the derived status (G-04)', async () => {
+    const s = await seed();
+    const early = await s.make({ status: 'PENDING', dueDate: FUTURE });
+    const { initialData } = (await editor.getInvoiceEditorData(s.actor, early.id)).data;
+
+    const saved = await saver.updateInvoice(s.actor, early.id, asPayload(initialData, { status: 'OVERDUE' }));
+    expect(saved.success).toBe(true);
+    expect(await stored(early.id)).toBe('OVERDUE');
+  });
+
   it('an editor save keeps a hand-marked overdue invoice overdue', async () => {
     const s = await seed();
     const hand = await s.make({ status: 'OVERDUE', dueDate: FUTURE });

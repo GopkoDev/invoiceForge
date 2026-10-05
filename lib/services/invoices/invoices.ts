@@ -649,7 +649,7 @@ export async function updateInvoice(
       // Step 6 (AC-18, AC-19): the one status/paid-date transition function.
       const { status, paidAt } = applyStatusChange(
         { status: existingInvoice.status, paidAt: existingInvoice.paidAt },
-        statusToStoreOnSave(existingInvoice.status, validatedData.status)
+        statusToStoreOnSave(existingInvoice, validatedData.status, todayIn(actor.timeZone))
       );
 
       await tx.invoiceItem.deleteMany({

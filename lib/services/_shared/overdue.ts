@@ -107,9 +107,10 @@ export function refusesManualStatus(row: OverdueRow, target: InvoiceStatus, toda
 }
 
 /**
- * The status an editor save stores (AC-24, ADR-0005): the overdue status of a stored PENDING
- * invoice is derived from its due date, never persisted, so a save that echoes it keeps PENDING.
+ * The status an editor save stores (AC-24, ADR-0005): the overdue status of a derived-overdue
+ * invoice (stored PENDING, due date passed) is never persisted, so a save that echoes it keeps
+ * PENDING. Any other submitted status, including OVERDUE on a not-yet-due invoice, is stored as sent.
  */
-export function statusToStoreOnSave(stored: InvoiceStatus, submitted: InvoiceStatus): InvoiceStatus {
-  return stored === 'PENDING' && submitted === 'OVERDUE' ? 'PENDING' : submitted;
+export function statusToStoreOnSave(row: OverdueRow, submitted: InvoiceStatus, today: LocalDate): InvoiceStatus {
+  return submitted === 'OVERDUE' && isDerivedOverdue(row, today) ? 'PENDING' : submitted;
 }
