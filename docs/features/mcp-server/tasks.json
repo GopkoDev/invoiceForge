@@ -845,6 +845,97 @@
       ],
       "file": "docs/features/mcp-server/_review/review-2026-10-05.md",
       "source": "review-2026-10-05-addendum"
+    },
+    {
+      "id": "T40",
+      "title": "Keep unedited legacy invoice dates through an editor save, seed the zone from the editor, and accept only calendar-day strings on the server",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-12",
+        "AC-19",
+        "AC-23b",
+        "AC-24"
+      ],
+      "dod": "H-01, H-05, H-10 fixed: the (invoice-editor) layout mounts TimeZoneCookie; updateInvoice leaves issueDate/dueDate untouched when the submitted day equals the stored value's UTC day and the stored value is not a UTC midnight; an integration test (no saved zone, legacy Kyiv due date 2026-10-14T21:00Z, notes-only editor save, then the zone is saved) ends with due day 2026-10-15; the server-action and service schema accept only yyyy-MM-dd (Date branch moved to a client-only schema) with a test that a Date is refused; lazy normalisation has a NULL -> America/New_York case (2026-10-16T02:00Z becomes 2026-10-15).",
+      "files_hint": [
+        "app/(invoice-editor)/layout.tsx",
+        "lib/services/invoices/invoices.ts",
+        "lib/validations/invoice.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/services/profile/time-zone.test.ts",
+        "tests/integration/services/invoices/calendar-days.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r2.md",
+      "source": "review-2026-10-05-r2"
+    },
+    {
+      "id": "T41",
+      "title": "Keep MCP request data out of Sentry transactions, report SDK failures, treat client aborts as client errors, and return the contract 405 body",
+      "layer": "ports",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-11"
+      ],
+      "dod": "H-03, H-06, H-07, H-12 fixed: sentry.server.config.ts sets beforeSendTransaction to scrubMcpRequest and ignores incoming request bodies on /api/mcp, both unit-tested; transport.onerror reports to Sentry and no raw error text reaches the client; a body read that throws on client abort returns a client-error refusal without a Sentry report, tested; 405 returns the MethodNotAllowed JSON-RPC body from openapi.yaml and the test asserts it.",
+      "files_hint": [
+        "sentry.server.config.ts",
+        "app/api/mcp/route.ts",
+        "tests/unit/api/",
+        "tests/integration/api/mcp-pipeline.test.ts"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r2.md",
+      "source": "review-2026-10-05-r2"
+    },
+    {
+      "id": "T42",
+      "title": "Label dashboard chart days as calendar days, resolve presets on the server, show the applied preset, and keep focus after a not-found revoke",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-06",
+        "AC-22",
+        "AC-23"
+      ],
+      "dod": "H-04, H-08, H-09, H-11 fixed: chart ticks and tooltip use formatStoredDay, with a component test under TZ=America/Los_Angeles showing Oct 1; preset clicks send ?preset=<name> resolved server-side in the account zone; the pressed preset is derived from appliedPeriod and today (custom fallback), tested after reload; the NOT_FOUND revoke branch moves focus to the heading, asserted via document.activeElement.",
+      "files_hint": [
+        "components/dashboard/chart/dashboard-chart.tsx",
+        "components/dashboard/header/dashboard-filters.tsx",
+        "components/dashboard/header/dashboard-header.tsx",
+        "lib/validations/dashboard-period.ts",
+        "components/assistants/assistant-keys.tsx",
+        "tests/component/"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r2.md",
+      "source": "review-2026-10-05-r2"
+    },
+    {
+      "id": "T43",
+      "title": "Bring the ADRs, contracts, data model, screens manifest and test plan in line with the fixes",
+      "layer": "docs",
+      "deps": [
+        "T40",
+        "T41",
+        "T42"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-12",
+        "AC-23b",
+        "AC-24"
+      ],
+      "dod": "H-13 fixed: ADR-0006 amended (or ADR-0009 added) recording calendar-day storage and lazy normalisation with accepted risks; server-actions.md documents authenticatePersonalKey's unavailable result, the editor's stored status + derivedOverdue, and yyyy-MM-dd dates (also architecture-hardening server-actions.md:60); openapi.yaml pipeline step 2 and LimitStoreUnavailable cover the key-check 503; data-model.md:21 note updated; screens.md SCR-07 default updated; test-plan.md rows added for calendar days, the migration, lazy normalisation, batch 400/413, 406/415 order and account-zone presets, updated_at bumped.",
+      "files_hint": [
+        "docs/features/mcp-server/adr/",
+        "docs/features/mcp-server/contracts/",
+        "docs/features/architecture-hardening/contracts/server-actions.md",
+        "docs/features/mcp-server/data-model.md",
+        "docs/features/mcp-server/screens.md",
+        "docs/features/mcp-server/test-plan.md"
+      ],
+      "file": "docs/features/mcp-server/_review/review-2026-10-05-r2.md",
+      "source": "review-2026-10-05-r2"
     }
   ]
 }
