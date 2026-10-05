@@ -300,6 +300,10 @@ export type SavedInvoice = {
   status: InvoiceStatus;
   derivedOverdue: boolean;
   paidAt: string | null;
+  /** The stored issue/due instants after the save (ISO). The editor takes them as the dates it now holds,
+   * so a second save compares against what is stored, not the pre-save snapshot (T44 review, I-01). */
+  issueDate: string;
+  dueDate: string;
 };
 
 const INVOICE_NUMBER_CONFLICT_MESSAGE =
@@ -464,6 +468,8 @@ export async function createInvoice(
       status: invoice.status,
       derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+      issueDate: invoice.issueDate.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -746,6 +752,8 @@ export async function updateInvoice(
       status: invoice.status,
       derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+      issueDate: invoice.issueDate.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

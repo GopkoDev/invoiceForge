@@ -18,7 +18,7 @@ const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store/use
 const { createInitialFormData } = await import('@/store/invoice-editor-store/helpers');
 
 const ORIGINAL_TZ = process.env.TZ;
-const SAVED = { id: 'inv-1', invoiceNumber: 'INV-1', subtotal: 0, taxAmount: 0, total: 0, status: 'DRAFT', paidAt: null };
+const SAVED = { id: 'inv-1', invoiceNumber: 'INV-1', subtotal: 0, taxAmount: 0, total: 0, status: 'DRAFT', paidAt: null, issueDate: '2026-10-01T00:00:00.000Z', dueDate: '2026-10-15T00:00:00.000Z' };
 
 const emptyData = {
   senderProfiles: [],

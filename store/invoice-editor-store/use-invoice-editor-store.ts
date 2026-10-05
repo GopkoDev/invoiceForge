@@ -29,6 +29,7 @@ import {
   withLocalDays,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
+import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 
 export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   set,
@@ -98,7 +99,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   function applySavedInvoice(saved: SavedInvoice): void {
     const state = get();
     set({
-      formData: { ...state.formData, invoiceNumber: saved.invoiceNumber, status: saved.status },
+      formData: {
+        ...state.formData,
+        invoiceNumber: saved.invoiceNumber,
+        status: saved.status,
+        // The row's stored dates (a kept legacy / normalised value may differ from the submitted day).
+        issueDate: storedDayToLocalDate(saved.issueDate),
+        dueDate: storedDayToLocalDate(saved.dueDate),
+      },
       derivedOverdue: saved.derivedOverdue,
       invoiceId: saved.id,
       subtotal: saved.subtotal,
@@ -110,7 +118,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
       // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
       legacy: null,
-      loadedDates: null, // the saved row now holds the submitted days
+      // What the row holds now: the next save compares its days against these, not the first load.
+      loadedDates: { issueDate: saved.issueDate, dueDate: saved.dueDate },
     });
   }
 

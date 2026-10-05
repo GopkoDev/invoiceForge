@@ -36,6 +36,8 @@ function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
     status: 'DRAFT',
     derivedOverdue: false,
     paidAt: null,
+    issueDate: '2026-10-01T00:00:00.000Z',
+    dueDate: '2026-10-15T00:00:00.000Z',
     ...overrides,
   };
 }

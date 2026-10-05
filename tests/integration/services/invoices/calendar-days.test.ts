@@ -10,6 +10,7 @@ import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 import { addInvoice, seedFreelancer } from '../dashboard/harness';
+import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -219,13 +220,88 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   });
 
-  it('T44 (I-01): the loaded values cannot write anything new - a forged loaded date only keeps the stored value', async () => {
+  it('T44 (I-01): a malformed loaded date is a VALIDATION failure and writes nothing', async () => {
     const s = await seedFreelancer(testClient, ['USD']);
     const inv = await legacyInvoice(s);
     const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
     const actor = await actingFreelancerForTest(s.userId);
     const r = await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber, { dueDate: '2026-12-31', loadedDueDate: 'not a date' }));
-    expect(r.success).toBe(false);
+    expect(r).toMatchObject({ success: false, code: 'VALIDATION' });
+    const after = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(after.dueDate.toISOString()).toBe(LEGACY_DUE);
+  });
+
+  it('T44 (I-01): a forged valid loaded instant whose day equals the submitted day only keeps the stored value', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.seedTimeZoneIfEmpty(s.userId, KYIV); // the row is now 2026-10-15T00:00Z
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    data(await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber, { dueDate: '2026-12-30', loadedDueDate: '2026-12-30T21:00:00.000Z' })));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z'); // kept, not 2026-12-30
+  });
+
+  it('T44 (I-01): a forged loaded instant whose day differs from the submitted day writes only the submitted day', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.seedTimeZoneIfEmpty(s.userId, KYIV);
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    data(await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber, { dueDate: '2026-12-31', loadedDueDate: '2026-12-30T21:00:00.000Z' })));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-12-31T00:00:00.000Z'); // the submitted day, never the loaded instant
+  });
+
+  it('T44 (I-01, review): a second notes-only save in the same editor session still keeps the normalised dates', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.seedTimeZoneIfEmpty(s.userId, KYIV); // after the editor loaded
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+
+    const first = data(await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber)));
+    expect(first.dueDate).toBe('2026-10-15T00:00:00.000Z');
+    expect(first.issueDate).toBe('2026-10-01T00:00:00.000Z');
+
+    // What the store does after a save: show the saved days and send the saved instants as the loaded ones.
+    const second = data(await svc.updateInvoice(actor, inv.id, {
+      ...editorForm(s, storedDayToLocalDate(first.issueDate), storedDayToLocalDate(first.dueDate)),
+      invoiceNumber: before.invoiceNumber,
+      notes: 'second save',
+      loadedIssueDate: first.issueDate,
+      loadedDueDate: first.dueDate,
+    } as never));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.notes).toBe('second save');
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    expect(second.dueDate).toBe('2026-10-15T00:00:00.000Z');
+  });
+
+  it('T44 (I-01, review): stale tab - save 1 keeps the legacy value, another tab seeds the zone, save 2 keeps the normalised days', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const noZone = await actingFreelancerForTest(s.userId);
+    const first = data(await svc.updateInvoice(noZone, inv.id, notesOnlySave(s, before.invoiceNumber)));
+    expect(first.dueDate).toBe(LEGACY_DUE); // kept: no zone yet
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.updateTimeZone(noZone, KYIV); // another tab: normalises to 1 Oct / 15 Oct
+
+    data(await svc.updateInvoice(noZone, inv.id, {
+      ...editorForm(s, storedDayToLocalDate(first.issueDate), storedDayToLocalDate(first.dueDate)),
+      invoiceNumber: before.invoiceNumber,
+      notes: 'second save',
+      loadedIssueDate: first.issueDate,
+      loadedDueDate: first.dueDate,
+    } as never));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   });
 
   /** Waits until some other backend is blocked on a row lock (the save's FOR UPDATE), no sleeping. */

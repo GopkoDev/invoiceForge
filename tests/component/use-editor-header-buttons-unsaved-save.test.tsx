@@ -132,6 +132,8 @@ describe('useEditorHeaderButtons — unsaved-changes dialog Save (T40, F-41)', (
         total: 10,
         status: 'DRAFT' as const,
         paidAt: null,
+        issueDate: '2026-10-01T00:00:00.000Z',
+        dueDate: '2026-10-15T00:00:00.000Z',
       })
     );
 
