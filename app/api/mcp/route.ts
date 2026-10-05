@@ -38,8 +38,11 @@ export async function POST(request: Request): Promise<Response> {
       // Only a backstop: the route has already read and parsed the body within the cap.
       maxRequestBodySize: MAX_BODY_BYTES,
     });
+    // The SDK's own failures are reported here; their text never reaches the client.
+    transport.onerror = (error) => Sentry.captureException(error);
     await server.connect(transport);
-    return await transport.handleRequest(request, { parsedBody: body.value });
+    const response = await transport.handleRequest(request, { parsedBody: body.value });
+    return await withoutErrorData(response);
   } catch (error) {
     Sentry.captureException(error);
     return new Response(
@@ -53,6 +56,22 @@ export async function POST(request: Request): Promise<Response> {
       }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
+  }
+}
+
+/** Drops error.data (the SDK puts the raw error text there) from a JSON-RPC error response. */
+async function withoutErrorData(response: Response): Promise<Response> {
+  if (response.status < 400) return response;
+  if (!response.headers.get('content-type')?.includes('application/json')) return response;
+  try {
+    const payload = (await response.clone().json()) as { error?: { data?: unknown } };
+    if (!payload.error || !('data' in payload.error)) return response;
+    delete payload.error.data;
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    return new Response(JSON.stringify(payload), { status: response.status, headers });
+  } catch {
+    return response;
   }
 }
 
@@ -99,7 +118,17 @@ async function readJsonBody(
     const decoder = new TextDecoder();
     let received = 0;
     for (;;) {
-      const { done, value } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch {
+        // The client went away mid-body: a client error, not ours, so nothing is reported.
+        return {
+          ok: false,
+          response: jsonRpcRefusal(400, -32700, 'Parse error: the request body could not be read'),
+        };
+      }
+      const { done, value } = chunk;
       if (done) break;
       received += value.byteLength;
       if (received > MAX_BODY_BYTES) {
@@ -139,7 +168,10 @@ function requestOrigin(request: Request): string {
 }
 
 function methodNotAllowed(): Response {
-  return new Response(null, { status: 405, headers: { allow: 'POST' } });
+  return new Response(
+    JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Method not allowed.' } }),
+    { status: 405, headers: { allow: 'POST', 'content-type': 'application/json' } }
+  );
 }
 
 export const GET = methodNotAllowed;

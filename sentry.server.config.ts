@@ -86,6 +86,14 @@ export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
   return event;
 }
 
+export function isMcpUrl(url: string): boolean {
+  try {
+    return new URL(url, 'http://localhost').pathname === '/api/mcp';
+  } catch {
+    return false;
+  }
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const sentryEnabled = isProduction;
 
@@ -109,8 +117,13 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     // Configuration for production environment
     environment: process.env.NODE_ENV,
 
+    // Node's HTTP integration would attach the incoming body to the transaction; never for /api/mcp.
+    integrations: [
+      Sentry.httpIntegration({ ignoreIncomingRequestBody: isMcpUrl }),
+    ],
     beforeSend: (event, hint) =>
       scrubMcpRequest(scrubPrismaEvent(event, hint)),
+    beforeSendTransaction: (event) => scrubMcpRequest(event),
     beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }
