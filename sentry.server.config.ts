@@ -118,8 +118,12 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     environment: process.env.NODE_ENV,
 
     // Node's HTTP integration would attach the incoming body to the transaction; never for /api/mcp.
+    // Replaces the @sentry/nextjs default, so it keeps that default's disabled request spans.
     integrations: [
-      Sentry.httpIntegration({ ignoreIncomingRequestBody: isMcpUrl }),
+      Sentry.httpIntegration({
+        disableIncomingRequestSpans: true,
+        ignoreIncomingRequestBody: isMcpUrl,
+      }),
     ],
     beforeSend: (event, hint) =>
       scrubMcpRequest(scrubPrismaEvent(event, hint)),

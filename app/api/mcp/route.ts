@@ -38,11 +38,15 @@ export async function POST(request: Request): Promise<Response> {
       // Only a backstop: the route has already read and parsed the body within the cap.
       maxRequestBodySize: MAX_BODY_BYTES,
     });
-    // The SDK's own failures are reported here; their text never reaches the client.
-    transport.onerror = (error) => Sentry.captureException(error);
+    // The SDK also passes plain client refusals to onerror, so only the error behind its
+    // catch-all answer (the one carrying error.data) is reported; its text never reaches the client.
+    let lastError: Error | undefined;
+    transport.onerror = (error) => {
+      lastError = error;
+    };
     await server.connect(transport);
     const response = await transport.handleRequest(request, { parsedBody: body.value });
-    return await withoutErrorData(response);
+    return await withoutErrorData(response, () => Sentry.captureException(lastError));
   } catch (error) {
     Sentry.captureException(error);
     return new Response(
@@ -59,13 +63,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-/** Drops error.data (the SDK puts the raw error text there) from a JSON-RPC error response. */
-async function withoutErrorData(response: Response): Promise<Response> {
+/**
+ * Drops error.data (the SDK's catch-all puts the raw error text there) from a JSON-RPC error
+ * response, and reports that failure.
+ */
+async function withoutErrorData(response: Response, report: () => void): Promise<Response> {
   if (response.status < 400) return response;
   if (!response.headers.get('content-type')?.includes('application/json')) return response;
   try {
     const payload = (await response.clone().json()) as { error?: { data?: unknown } };
     if (!payload.error || !('data' in payload.error)) return response;
+    report();
     delete payload.error.data;
     const headers = new Headers(response.headers);
     headers.delete('content-length');

@@ -39,8 +39,10 @@ describe('Sentry transactions on /api/mcp (H-03)', () => {
   it('ignores the incoming request body on /api/mcp only', () => {
     expect(httpCalls.length).toBeGreaterThan(0);
     const arg = httpCalls[0]?.[0] as
-      | { ignoreIncomingRequestBody?: (url: string) => boolean }
+      | { ignoreIncomingRequestBody?: (url: string) => boolean; disableIncomingRequestSpans?: boolean }
       | undefined;
+    // @sentry/nextjs's own default keeps these off ("Next.js does that by itself").
+    expect(arg?.disableIncomingRequestSpans).toBe(true);
     const ignore = arg?.ignoreIncomingRequestBody;
     expect(typeof ignore).toBe('function');
     expect(ignore!('https://app.example/api/mcp')).toBe(true);

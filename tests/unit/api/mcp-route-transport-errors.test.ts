@@ -12,10 +12,24 @@ vi.mock('@/lib/mcp/authenticate', () => ({
 }));
 
 const RAW = new Error('SECRET-RAW-TEXT');
+// 'failure': the SDK's catch-all (error.data carries the raw text). 'client': a plain client
+// refusal (invalid JSON-RPC, unsupported protocol header) that the SDK also passes to onerror.
+let sdkAnswer: 'failure' | 'client' = 'failure';
 vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
   WebStandardStreamableHTTPServerTransport: class {
     onerror?: (e: Error) => void;
     async handleRequest(): Promise<Response> {
+      if (sdkAnswer === 'client') {
+        this.onerror?.(new Error('Bad Request: Unsupported protocol version: 1999-01-01'));
+        return new Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: null,
+            error: { code: -32000, message: 'Bad Request: Unsupported protocol version: 1999-01-01' },
+          }),
+          { status: 400, headers: { 'content-type': 'application/json' } }
+        );
+      }
       this.onerror?.(RAW);
       return new Response(
         JSON.stringify({
@@ -31,7 +45,10 @@ vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => (
 
 const headers = { accept: 'application/json, text/event-stream', 'content-type': 'application/json' };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  sdkAnswer = 'failure';
+});
 
 describe('POST /api/mcp transport failures (H-06)', () => {
   it('reports the SDK error to Sentry and does not echo its text', async () => {
@@ -39,6 +56,15 @@ describe('POST /api/mcp transport failures (H-06)', () => {
     const res = await POST(new Request('http://x/api/mcp', { method: 'POST', body: '{}', headers }));
     expect(captureExceptionMock).toHaveBeenCalledWith(RAW);
     expect(await res.text()).not.toContain('SECRET-RAW-TEXT');
+  });
+
+  it('reports nothing for a plain client refusal from the SDK and passes it through', async () => {
+    sdkAnswer = 'client';
+    const { POST } = await import('@/app/api/mcp/route');
+    const res = await POST(new Request('http://x/api/mcp', { method: 'POST', body: '{}', headers }));
+    expect(res.status).toBe(400);
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect((await res.json()).error.code).toBe(-32000);
   });
 });
 
@@ -58,8 +84,8 @@ describe('POST /api/mcp client abort (H-07)', () => {
     });
     const { POST } = await import('@/app/api/mcp/route');
     const res = await POST(req);
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.status).toBeLessThan(500);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: -32700 } });
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 });
