@@ -129,6 +129,54 @@ describe('invoice editor store - loaded dates (T44)', () => {
     expect(after.hasUnsavedChanges).toBe(true);
   });
 
+  it('an invoice number or status changed while the save is in flight survives the response and keeps the form dirty (K-02)', async () => {
+    let resolve!: (value: unknown) => void;
+    updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().updateField('invoiceNumber', 'INV-0042');
+    useInvoiceEditorStore.getState().updateField('status', 'PAID');
+    resolve(ok(saved({ invoiceNumber: 'INV-0001', status: 'PENDING' })));
+    await saving;
+
+    const after = useInvoiceEditorStore.getState();
+    expect(after.formData.invoiceNumber).toBe('INV-0042');
+    expect(after.formData.status).toBe('PAID');
+    expect(after.hasUnsavedChanges).toBe(true);
+  });
+
+  it('a save that resolves after reset() and initialize() writes nothing into the new session (K-01)', async () => {
+    let resolve!: (value: unknown) => void;
+    updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.getState().initialize({ ...base });
+    resolve(ok(saved({ id: 'inv-A', invoiceNumber: 'INV-A' })));
+    await saving;
+
+    const after = useInvoiceEditorStore.getState();
+    expect(after.invoiceId).toBeUndefined();
+    expect(after.formData.invoiceNumber).toBe('');
+    expect(after.loadedDates).toBeNull();
+  });
+
+  it('a failure that arrives after reset() shows no field errors in the new session (K-01)', async () => {
+    let resolve!: (value: unknown) => void;
+    updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = useInvoiceEditorStore.getState().saveInvoice();
+    useInvoiceEditorStore.getState().reset();
+    useInvoiceEditorStore.getState().initialize({ ...base });
+    resolve({ success: false, code: 'VALIDATION', error: 'bad', fieldErrors: { invoiceNumber: ['taken'] } });
+    await saving;
+
+    expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
+  });
+
   it('reset forgets the loaded dates', () => {
     useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 

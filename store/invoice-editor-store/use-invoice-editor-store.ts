@@ -37,6 +37,11 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 ) => {
   const initialFormData = createInitialFormData();
 
+  // Changes on every initialize() and reset(). A save captures it when it starts and drops its
+  // result when it no longer matches, so a slow response for invoice A can never write A's id,
+  // number or dates into the editor the Freelancer has since opened for something else.
+  let sessionToken = 0;
+
   // F-41: the field-error keys the editor actually renders a FieldError next to
   // (invoice-details-section.tsx, summary-section.tsx, invoice-item-fields.tsx). A fieldErrors
   // key outside this set (e.g. senderProfileId/bankAccountId/customerId, or an item field the
@@ -53,8 +58,11 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   // (FAILED gets a Retry action that resubmits with the same options).
   function handleSaveFailure(
     result: ActionFailure,
-    retry: () => void
+    retry: () => void,
+    token: number
   ): void {
+    if (token !== sessionToken) return;
+
     // AC-21: a stale session's save must send the device to sign-in, not just toast a
     // generic error and leave it on the editor.
     if (redirectIfUnauthorized(result)) {
@@ -96,20 +104,31 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
   // On success the server's figures replace whatever the browser had (AC-06, AC-13), and any
   // prior field error / totals confirmation is cleared.
-  // `submitted` is the form the save was built from: a date the Freelancer changed while the save
-  // was in flight is kept, and the form stays dirty so that edit is neither lost nor unguarded.
-  function applySavedInvoice(saved: SavedInvoice, submitted: InvoiceFormData): void {
+  // `submitted` is the form the save was built from: a date, number or status the Freelancer
+  // changed while the save was in flight is kept, and the form stays dirty so that edit is
+  // neither lost nor unguarded.
+  function applySavedInvoice(
+    saved: SavedInvoice,
+    submitted: InvoiceFormData,
+    token: number
+  ): void {
+    if (token !== sessionToken) return;
     const state = get();
     const untouched = state.formData === submitted;
     const storedOrEdited = (key: 'issueDate' | 'dueDate', stored: string): Date =>
       localDateToDay(state.formData[key]) === localDateToDay(submitted[key])
         ? storedDayToLocalDate(stored)
         : state.formData[key];
+    const storedUnlessEdited = <K extends 'invoiceNumber' | 'status'>(
+      key: K,
+      stored: InvoiceFormData[K]
+    ): InvoiceFormData[K] =>
+      state.formData[key] === submitted[key] ? stored : state.formData[key];
     set({
       formData: {
         ...state.formData,
-        invoiceNumber: saved.invoiceNumber,
-        status: saved.status,
+        invoiceNumber: storedUnlessEdited('invoiceNumber', saved.invoiceNumber),
+        status: storedUnlessEdited('status', saved.status),
         // The row's stored dates (a kept legacy / normalised value may differ from the submitted day).
         issueDate: storedOrEdited('issueDate', saved.issueDate),
         dueDate: storedOrEdited('dueDate', saved.dueDate),
@@ -153,6 +172,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     // Methods
     // ============================================================
     initialize: (data: InvoiceEditorInitData) => {
+      sessionToken += 1;
       const formData = data.initialData
         ? withLocalDays(data.initialData)
         : createInitialFormData();
@@ -446,6 +466,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
     saveInvoice: async (options?: { confirmedTotals?: TotalsChanged }) => {
       const state = get();
+      const token = sessionToken;
       set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
 
       const payload = toSavePayload(
@@ -460,27 +481,28 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           // Update existing invoice
           const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
-            applySavedInvoice(result.data, state.formData);
+            applySavedInvoice(result.data, state.formData, token);
             toast.success('Invoice updated');
           } else {
-            handleSaveFailure(result, retry);
+            handleSaveFailure(result, retry, token);
           }
         } else {
           // Create new invoice
           const result = await createInvoice(payload);
           if (result.success) {
-            applySavedInvoice(result.data, state.formData);
+            applySavedInvoice(result.data, state.formData, token);
             toast.success('Invoice created');
             return; // Router redirect will be handled in component
           } else {
-            handleSaveFailure(result, retry);
+            handleSaveFailure(result, retry, token);
           }
         }
       } catch {
         // AC-21: a rejected save is treated like UNAUTHORIZED.
         goToSignIn();
       } finally {
-        set({ isSaving: false });
+        // A reset or re-initialize already cleared isSaving for the session that owns the store now.
+        if (token === sessionToken) set({ isSaving: false });
       }
     },
 
@@ -489,6 +511,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     },
 
     reset: () => {
+      sessionToken += 1;
       const formData = createInitialFormData();
       set({
         formData,

@@ -17,6 +17,7 @@ import {
   GroupedProducts,
   InvalidItem,
   RecalculateComputedValuesStateInput,
+  LoadedDates,
 } from './types';
 import { getValidItems } from '@/lib/helpers/invoice-editor';
 import { v4 as uuidv4 } from 'uuid';
@@ -336,12 +337,6 @@ export function withLocalDays(data: InvoiceFormData): InvoiceFormData {
     issueDate: storedDayToLocalDate(data.issueDate),
     dueDate: storedDayToLocalDate(data.dueDate),
   };
-}
-
-/** The stored instants the editor was built from, as ISO strings (T44, I-01). */
-export interface LoadedDates {
-  issueDate: string;
-  dueDate: string;
 }
 
 /** The stored instants of `data`, or null when it holds no valid dates. */

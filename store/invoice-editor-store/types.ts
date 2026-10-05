@@ -17,6 +17,12 @@ export interface TotalsChanged {
   newTotal: string;
 }
 
+/** The stored instants the editor was built from, as ISO strings (T44, I-01). */
+export interface LoadedDates {
+  issueDate: string;
+  dueDate: string;
+}
+
 export interface NormalizedData {
   senderProfilesById: Map<string, InvoiceSenderProfile>;
   bankAccountsById: Map<string, InvoiceBankAccount>;
@@ -62,8 +68,6 @@ export interface ComputedValues {
   availableBankAccounts: InvoiceBankAccount[];
   invalidItems: InvalidItem[];
 }
-
-import type { LoadedDates } from './helpers';
 
 export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   formData: InvoiceFormData;
