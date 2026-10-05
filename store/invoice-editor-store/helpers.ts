@@ -338,15 +338,33 @@ export function withLocalDays(data: InvoiceFormData): InvoiceFormData {
   };
 }
 
+/** The stored instants the editor was built from, as ISO strings (T44, I-01). */
+export interface LoadedDates {
+  issueDate: string;
+  dueDate: string;
+}
+
+/** The stored instants of `data`, or null when it holds no valid dates. */
+export function loadedDatesOf(data: InvoiceFormData): LoadedDates | null {
+  const issue = new Date(data.issueDate);
+  const due = new Date(data.dueDate);
+  if (Number.isNaN(issue.getTime()) || Number.isNaN(due.getTime())) return null;
+  return { issueDate: issue.toISOString(), dueDate: due.toISOString() };
+}
+
 /** The editor form as the create/update actions take it: the days as `yyyy-MM-dd`. */
 export function toSavePayload(
   formData: InvoiceFormData,
-  confirmedTotals?: InvoiceFormInput['confirmedTotals']
+  confirmedTotals?: InvoiceFormInput['confirmedTotals'],
+  loadedDates?: LoadedDates | null
 ): InvoiceFormInput {
   return {
     ...formData,
     issueDate: localDateToDay(formData.issueDate),
     dueDate: localDateToDay(formData.dueDate),
+    ...(loadedDates
+      ? { loadedIssueDate: loadedDates.issueDate, loadedDueDate: loadedDates.dueDate }
+      : {}),
     ...(confirmedTotals ? { confirmedTotals } : {}),
   };
 }

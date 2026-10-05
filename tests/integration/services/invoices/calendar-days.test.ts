@@ -157,36 +157,109 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   });
 
-  it('T40 (review): a zone write that normalises the dates while an unedited save is in flight is not overwritten by the stale legacy instants', async () => {
+  /** The editor was built from these legacy instants (Kyiv local midnights of 1 Oct and 15 Oct). */
+  const LEGACY_ISSUE = '2026-09-30T21:00:00.000Z';
+  const LEGACY_DUE = '2026-10-14T21:00:00.000Z';
+  const legacyInvoice = (s: Awaited<ReturnType<typeof seedFreelancer>>) =>
+    addInvoice(s, { currency: 'USD', status: 'PENDING', total: 100, issueDate: new Date(LEGACY_ISSUE), dueDate: new Date(LEGACY_DUE) });
+  /** A notes-only save from an editor that showed the UTC days 1 Oct / 14 Oct and loaded the legacy instants. */
+  const notesOnlySave = (s: Awaited<ReturnType<typeof seedFreelancer>>, invoiceNumber: string, over: Record<string, unknown> = {}) => ({
+    ...editorForm(s, new Date(2026, 8, 30), new Date(2026, 9, 14)),
+    invoiceNumber,
+    notes: 'only the notes changed',
+    loadedIssueDate: LEGACY_ISSUE,
+    loadedDueDate: LEGACY_DUE,
+    ...over,
+  } as never);
+
+  it('T44 (I-01): the zone is seeded after the editor loaded the legacy dates; a notes-only save keeps the normalised 1 Oct / 15 Oct', async () => {
     const s = await seedFreelancer(testClient, ['USD']);
-    const noZone = await actingFreelancerForTest(s.userId);
-    const inv = await addInvoice(s, {
-      currency: 'USD', status: 'PENDING', total: 100,
-      issueDate: new Date('2026-09-30T21:00:00.000Z'), dueDate: new Date('2026-10-14T21:00:00.000Z'),
-    });
+    const inv = await legacyInvoice(s);
     const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const profile = await import('@/lib/services/profile/profile');
+    expect(await profile.seedTimeZoneIfEmpty(s.userId, KYIV)).toBe(true); // router.refresh() render, after the editor loaded
+    const normalised = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(normalised.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    data(await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber)));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.notes).toBe('only the notes changed');
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('T44 (I-01): stale tab - the zone was saved by another request after this tab loaded; the save keeps the normalised days', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const noZone = await actingFreelancerForTest(s.userId);
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.updateTimeZone(noZone, KYIV); // another tab / request
+
+    data(await svc.updateInvoice(noZone, inv.id, notesOnlySave(s, before.invoiceNumber)));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('T44 (I-01): a date the user really edited is still written, even after the zone was seeded', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const profile = await import('@/lib/services/profile/profile');
+    await profile.seedTimeZoneIfEmpty(s.userId, KYIV);
+    const actor = await actingFreelancerForTest(s.userId, KYIV);
+    // Due moved from the loaded 14 Oct to 20 Oct; the issue date is untouched.
+    data(await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber, {
+      dueDate: '2026-10-20',
+    })));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-20T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('T44 (I-01): the loaded values cannot write anything new - a forged loaded date only keeps the stored value', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const actor = await actingFreelancerForTest(s.userId);
+    const r = await svc.updateInvoice(actor, inv.id, notesOnlySave(s, before.invoiceNumber, { dueDate: '2026-12-31', loadedDueDate: 'not a date' }));
+    expect(r.success).toBe(false);
+  });
+
+  /** Waits until some other backend is blocked on a row lock (the save's FOR UPDATE), no sleeping. */
+  async function waitForBlockedBackend(): Promise<void> {
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      const rows = await testClient.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*)::bigint AS n FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`;
+      if (Number(rows[0].n) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error('no backend ever blocked on the invoice row lock');
+  }
+
+  it('T44 (I-05): a zone write that normalises the dates while a save waits on the row lock is not overwritten (barrier on pg_stat_activity)', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const noZone = await actingFreelancerForTest(s.userId);
 
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     let locked!: () => void;
     const lockHeld = new Promise<void>((resolve) => { locked = resolve; });
-    // Stands in for lazy normalisation: holds the invoice row, writes the midnights, then commits.
     const normaliser = testClient.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM "Invoice" WHERE id = ${inv.id} FOR UPDATE`;
       locked();
       await gate;
-      await tx.invoice.update({
-        where: { id: inv.id },
-        data: { issueDate: day('2026-10-01'), dueDate: day('2026-10-15') },
-      });
+      await tx.invoice.update({ where: { id: inv.id }, data: { issueDate: day('2026-10-01'), dueDate: day('2026-10-15') } });
     });
     await lockHeld;
-    const saving = svc.updateInvoice(noZone, inv.id, {
-      ...editorForm(s, new Date(2026, 8, 30), new Date(2026, 9, 14)),
-      invoiceNumber: before.invoiceNumber,
-      notes: 'only the notes changed',
-    });
-    await new Promise((resolve) => setTimeout(resolve, 1_500)); // the save has read the legacy row and waits on the lock
+    const saving = svc.updateInvoice(noZone, inv.id, notesOnlySave(s, before.invoiceNumber));
+    await waitForBlockedBackend(); // the save has read the legacy row and is parked on the lock
     release();
     await normaliser;
     data(await saving);
@@ -196,6 +269,22 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
     expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   }, 30_000);
+
+  it('T44 (I-05): normalisation committed before the save read - the save keeps the normalised days', async () => {
+    const s = await seedFreelancer(testClient, ['USD']);
+    const inv = await legacyInvoice(s);
+    const before = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const noZone = await actingFreelancerForTest(s.userId);
+    await testClient.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "Invoice" WHERE id = ${inv.id} FOR UPDATE`;
+      await tx.invoice.update({ where: { id: inv.id }, data: { issueDate: day('2026-10-01'), dueDate: day('2026-10-15') } });
+    }); // committed; the save below starts afterwards
+
+    data(await svc.updateInvoice(noZone, inv.id, notesOnlySave(s, before.invoiceNumber)));
+    const final = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(final.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
+    expect(final.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
 
   it('T40 (H-05): the service refuses a Date for an issue or due date', async () => {
     const s = await seedFreelancer(testClient, ['USD']);

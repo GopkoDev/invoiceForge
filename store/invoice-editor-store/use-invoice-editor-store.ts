@@ -25,6 +25,7 @@ import {
   createEmptyComputedValues,
   createEmptyNormalizedData,
   toSavePayload,
+  loadedDatesOf,
   withLocalDays,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
@@ -109,6 +110,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
       // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
       legacy: null,
+      loadedDates: null, // the saved row now holds the submitted days
     });
   }
 
@@ -120,6 +122,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     products: [],
     customPrices: [],
     invoiceId: undefined,
+    loadedDates: null,
     isSaving: false,
     hasUnsavedChanges: false,
     invoiceNumberHint: undefined,
@@ -153,6 +156,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         products: data.products,
         customPrices: data.customPrices,
         invoiceId: data.invoiceId,
+        loadedDates: data.initialData && data.invoiceId ? loadedDatesOf(data.initialData) : null,
         isSaving: false,
         hasUnsavedChanges: false,
         invoiceNumberHint: undefined,
@@ -428,7 +432,11 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       const state = get();
       set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
 
-      const payload = toSavePayload(state.formData, options?.confirmedTotals);
+      const payload = toSavePayload(
+        state.formData,
+        options?.confirmedTotals,
+        state.loadedDates
+      );
       const retry = () => get().saveInvoice(options);
 
       try {

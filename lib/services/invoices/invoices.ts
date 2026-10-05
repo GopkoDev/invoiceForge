@@ -520,8 +520,10 @@ class InvoiceTotalsChangedError extends Error {
  * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
  * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
  * would lock in a wrong day before the zone is known (lazy normalisation skips midnights).
- * `read` is what the editor was built from; `current` is the row's value under the lock, which a zone
- * write may have normalised since, so an unedited date keeps `current`, never the stale `read`.
+ * `read` is the instant the editor loaded (`loadedIssueDate`/`loadedDueDate`, else the row as read
+ * before the transaction); `current` is the row's value under the lock, which a zone write may have
+ * normalised since, so an unedited date keeps `current`, never the stale `read`. A client-supplied
+ * `read` can at most make the save keep `current`; it never writes a new value.
  */
 function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Date {
   const isMidnight = read.getTime() % 86_400_000 === 0;
@@ -584,7 +586,9 @@ export async function updateInvoice(
       // `existingInvoice` was read (T40 review), and the save must not write the stale instants back.
       const [currentDates] = await tx.$queryRaw<
         { issueDate: Date; dueDate: Date }[]
-      >`SELECT "issueDate", "dueDate" FROM "Invoice" WHERE id = ${id} FOR UPDATE`;
+      >`SELECT i."issueDate", i."dueDate" FROM "Invoice" i
+        JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
+        WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
       if (!currentDates) throw new InvoiceVanishedError();
 
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
@@ -686,12 +690,16 @@ export async function updateInvoice(
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
           issueDate: keepUnchangedLegacyDay(
-            existingInvoice.issueDate,
+            validatedData.loadedIssueDate
+              ? new Date(validatedData.loadedIssueDate)
+              : existingInvoice.issueDate,
             validatedData.issueDate,
             currentDates.issueDate
           ),
           dueDate: keepUnchangedLegacyDay(
-            existingInvoice.dueDate,
+            validatedData.loadedDueDate
+              ? new Date(validatedData.loadedDueDate)
+              : existingInvoice.dueDate,
             validatedData.dueDate,
             currentDates.dueDate
           ),

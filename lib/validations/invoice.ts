@@ -117,6 +117,9 @@ function buildInvoiceFormSchema(day: typeof calendarDayStringSchema | typeof cli
     customerId: z.string().min(1, 'Customer is required'),
     issueDate: day,
     dueDate: day,
+    // The stored instants the editor was built from (T44, I-01): only ever compared, never written.
+    loadedIssueDate: z.string().datetime().optional(),
+    loadedDueDate: z.string().datetime().optional(),
     currency: z.nativeEnum(Currency),
     poNumber: z.string().optional().default(''),
     paymentTerms: z.string().optional().default(''),
