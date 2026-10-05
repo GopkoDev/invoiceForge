@@ -15,7 +15,7 @@ ticket: "mcp-server"
 
 ## Context
 
-Spec §6 sets a per-key limit of 60 calls per rolling 60 seconds (AC-11), a per-source limit of 30 refused key checks per 5 minutes, and requires the limiter to fail closed. invoiceFlow already counts limited events exactly in a Postgres event log under a per-key advisory lock (security-patch ADR-0002), purged daily (security-patch ADR-0007). Vercel runs many function instances, so any in-process counter would be per-instance and inexact.
+Spec §6 sets a per-key limit of 60 calls per rolling 60 seconds (AC-11), a per-source limit of 30 refused key checks per 5 minutes, and requires the limiter to fail closed. Invoice Forge already counts limited events exactly in a Postgres event log under a per-key advisory lock (security-patch ADR-0002), purged daily (security-patch ADR-0007). Vercel runs many function instances, so any in-process counter would be per-instance and inexact.
 
 ## Decision drivers
 

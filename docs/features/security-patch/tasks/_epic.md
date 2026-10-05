@@ -4,7 +4,7 @@
 
 ## Goal
 
-Close the holes in invoiceFlow's public surface before the demo URL is shared and `ai-chat` starts (spec §2). When the epic ships:
+Close the holes in Invoice Forge's public surface before the demo URL is shared and `ai-chat` starts (spec §2). When the epic ships:
 - no critical or high advisory affects production packages;
 - "signed in" means a verified session, and anonymous mutations are refused whatever their shape;
 - Sign-in link emails, the custom Dashboard period and data exports are bounded, and a limited sign-in request looks the same as a sent one;

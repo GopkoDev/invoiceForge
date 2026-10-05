@@ -64,7 +64,7 @@ Order below the header: `DashboardSetupAlert` (when setup is incomplete) → ove
 |--------------------------------------------------------------|
 | (*) Connect your AI                                          |
 |     Ask Claude or Cursor who owes you money and what's       |
-|     coming in, straight from your invoiceFlow data.          |
+|     coming in, straight from your Invoice Forge data.          |
 |     Read-only.                         [Connect your AI ->]  |
 |--------------------------------------------------------------|
 | [Invoiced] [Paid] [Overdue 1 240.00] [Pending]               |
@@ -132,11 +132,11 @@ New page at `/settings/assistants`, a Settings nav item "Connect your AI" next t
 **Setup steps** (one `Tabs` panel per launch client, sad.md §11; each snippet in a monospace block with a `CopyButton`; `{origin}` is the app origin, `YOUR_KEY` is replaced while the reveal is visible). Each panel's first line says the key is kept in a user-level, private setting and not in a project file (AC-02). The exact snippet text is checked against each client at `ship` (api-sync-report OQ-A2).
 
 - **Claude Code:** run in a terminal:
-  `claude mcp add --transport http --scope user invoiceflow {origin}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
+  `claude mcp add --transport http --scope user invoice-forge {origin}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
 - **Cursor:** add to the global `~/.cursor/mcp.json` (not the project's `.cursor/mcp.json`):
-  `{ "mcpServers": { "invoiceflow": { "url": "{origin}/api/mcp", "headers": { "Authorization": "Bearer YOUR_KEY" } } } }`
+  `{ "mcpServers": { "invoice-forge": { "url": "{origin}/api/mcp", "headers": { "Authorization": "Bearer YOUR_KEY" } } } }`
 - **Claude Desktop:** needs Node.js. Add to `claude_desktop_config.json` (Settings → Developer → Edit config), then restart Claude Desktop:
-  `{ "mcpServers": { "invoiceflow": { "command": "npx", "args": ["mcp-remote", "{origin}/api/mcp", "--header", "Authorization:${AUTH}"], "env": { "AUTH": "Bearer YOUR_KEY" } } } }`
+  `{ "mcpServers": { "invoice-forge": { "command": "npx", "args": ["mcp-remote", "{origin}/api/mcp", "--header", "Authorization:${AUTH}"], "env": { "AUTH": "Bearer YOUR_KEY" } } } }`
 
 **Example prompts** (three, each with a `CopyButton`; one per launch tool family: overdue/Debtors, Expected payments, summary figures):
 
@@ -163,7 +163,7 @@ New page at `/settings/assistants`, a Settings nav item "Connect your AI" next t
 |  Keep the key in your user settings, never in a project file.|
 |  +--------------------------------------------------------+  |
 |  | claude mcp add --transport http --scope user           |  |
-|  |   invoiceflow https://.../api/mcp --header             |  |
+|  |   invoice-forge https://.../api/mcp --header           |  |
 |  |   "Authorization: Bearer YOUR_KEY"              [Copy] |  |
 |  +--------------------------------------------------------+  |
 |                                                              |

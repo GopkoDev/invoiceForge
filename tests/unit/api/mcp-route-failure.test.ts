@@ -39,7 +39,7 @@ describe('POST /api/mcp failure', () => {
     expect(await res.json()).toEqual({
       jsonrpc: '2.0',
       id: null,
-      error: { code: -32603, message: 'Something went wrong in invoiceFlow. Try again.' },
+      error: { code: -32603, message: 'Something went wrong in Invoice Forge. Try again.' },
     });
     expect(captureExceptionMock).toHaveBeenCalledWith(boom);
   });

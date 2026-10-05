@@ -32,7 +32,7 @@ const output = z.object({
   terms: z.object({ freelancerText: z.string() }).nullable(),
   notes: z.object({ freelancerText: z.string() }).nullable(),
   poNumber: z.object({ freelancerText: z.string() }).nullable(),
-  link: z.string().describe('Absolute link that opens the invoice in invoiceFlow.'),
+  link: z.string().describe('Absolute link that opens the invoice in Invoice Forge.'),
 });
 
 export const invoiceTool: ReadOnlyToolDefinition<typeof input, typeof output> = {
@@ -40,7 +40,7 @@ export const invoiceTool: ReadOnlyToolDefinition<typeof input, typeof output> = 
   title: 'One invoice',
   description:
     'Returns one invoice as stored, by record id or by invoice number (optionally with a sender ' +
-    'profile name), with a link that opens it in invoiceFlow. Equal numbers on several sender ' +
+    'profile name), with a link that opens it in Invoice Forge. Equal numbers on several sender ' +
     'profiles are returned as candidates. A draft or cancelled invoice is labelled by its status.',
   inputSchema: input,
   outputSchema: output,

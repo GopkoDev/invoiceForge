@@ -81,9 +81,9 @@ No DB changes. (Reads/writes go through T10 and T11 functions.)
 ## API contract
 
 - `POST /api/mcp` → `200` JSON-RPC response · `202` for notifications · `400` / `406` / `415` transport errors (SDK) · `401` `KeyRefused` · `429` `Limited` · `503` `LimitStoreUnavailable` · `500` `ServerFailure`.
-- `KeyRefused`: header `WWW-Authenticate: Bearer realm="invoiceflow", error="invalid_token"` (no `resource_metadata`); body `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in invoiceFlow and put it in this assistant's settings.","data":{"code":"UNAUTHORIZED"}}}` — byte-identical for every cause.
+- `KeyRefused`: header `WWW-Authenticate: Bearer realm="Invoice Forge", error="invalid_token"` (no `resource_metadata`); body `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in Invoice Forge and put it in this assistant's settings.","data":{"code":"UNAUTHORIZED"}}}` — byte-identical for every cause.
 - `Limited`: `Retry-After` = whole seconds to `retryAt`, rounded up; `error.code -32029`, `data: { code: RATE_LIMITED, details: { kind: RETRY_AT, retryAt } }`; key message "Too many calls with this Personal key: at most 60 calls a minute. Try again after <retryAt>." · source message "Too many refused key checks from this network. Try again after <retryAt>."
-- `LimitStoreUnavailable`: `error.code -32003`, message "invoiceFlow cannot check its call limits right now, so the call was refused. Try again in a few minutes.", `data: { code: FAILED }`, no `Retry-After`.
+- `LimitStoreUnavailable`: `error.code -32003`, message "Invoice Forge cannot check its call limits right now, so the call was refused. Try again in a few minutes.", `data: { code: FAILED }`, no `Retry-After`.
 - `GET` / `DELETE /api/mcp` → `405`, `Allow: POST`, before any key check.
 
 — `contracts/openapi.yaml, operationIds postMcpMessage/getMcpStream/deleteMcpSession + components.responses, abridged` · full text: [openapi.yaml](../contracts/openapi.yaml)

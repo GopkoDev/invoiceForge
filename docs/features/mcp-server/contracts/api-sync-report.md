@@ -26,7 +26,7 @@ feature_size: "M"
 **Size / route:** M / standard (from `.size` / `.route`).
 
 **Decisions taken at `api` (2026-10-04, with the owner):**
-- **D-1.** A key refusal is `401` + `WWW-Authenticate: Bearer realm="invoiceflow", error="invalid_token"`, with no `resource_metadata` and a JSON-RPC error body. If a launch client misbehaves at `ship`, the fallback is `403` (OQ-A2).
+- **D-1.** A key refusal is `401` + `WWW-Authenticate: Bearer realm="Invoice Forge", error="invalid_token"`, with no `resource_metadata` and a JSON-RPC error body. If a launch client misbehaves at `ship`, the fallback is `403` (OQ-A2).
 - **D-2.** A request with no key, including one with a session cookie only, counts as a refused key check for the source limit (closes the sad.md §6 flag "Missing key counts as a refused key check").
 - **D-3.** Freelancer-entered text is the wrapper object `{ "freelancerText": "…" }` (closes the sad.md §8 "Untrusted text — exact shape at `api`").
 - **D-4.** A source block is `429` + `Retry-After`, worded differently from the key refusal (drift B4-1, accepted).

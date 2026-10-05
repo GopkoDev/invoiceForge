@@ -42,7 +42,7 @@ This task wires `list_customers`, `search_invoices` and `get_invoice` as thin ad
 
 ## Inlined context
 
-> Flow 9: alt the name matches no Customer, including another Freelancer's Customer → no such Customer, answered exactly like a name that does not exist; else the name matches several Customers → the candidate Customers, asking which one is meant; else search invoices, issued only unless drafts or cancelled are asked for, notes and lines not searched … rows, total matches, totals per currency, whether more pages exist and whether the page size was capped. Flow 10: exactly one invoice → wrap notes, line descriptions, product names, customer names and addresses and payment terms as Freelancer-entered data → the invoice and a link that opens it in invoiceFlow. Flow 11: Customers with their current details and record ids; names and addresses are marked as Freelancer-entered data.
+> Flow 9: alt the name matches no Customer, including another Freelancer's Customer → no such Customer, answered exactly like a name that does not exist; else the name matches several Customers → the candidate Customers, asking which one is meant; else search invoices, issued only unless drafts or cancelled are asked for, notes and lines not searched … rows, total matches, totals per currency, whether more pages exist and whether the page size was capped. Flow 10: exactly one invoice → wrap notes, line descriptions, product names, customer names and addresses and payment terms as Freelancer-entered data → the invoice and a link that opens it in Invoice Forge. Flow 11: Customers with their current details and record ids; names and addresses are marked as Freelancer-entered data.
 >
 > — `sad.md §6, Flows 9–11, abridged` · full text: [sad.md](../sad.md)
 
@@ -94,7 +94,7 @@ No DB changes.
 
 > **Given** an issued invoice of the Freelancer
 > **When** an Assistant asks for it
-> **Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in invoiceFlow. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
+> **Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in Invoice Forge. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
 >
 > — `spec.md §5, AC-19, verbatim` · full text: [spec.md](../spec.md)
 

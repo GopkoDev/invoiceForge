@@ -39,7 +39,7 @@ invent the missing part. -->
 > — `spec.md §4, US-04, verbatim` · full text: [spec.md](../spec.md)
 
 > **As an** Assistant acting for a Freelancer
-> **I want** per-currency summary figures for a Dashboard period, computed by invoiceFlow
+> **I want** per-currency summary figures for a Dashboard period, computed by Invoice Forge
 > **So that** the numbers I quote match the Freelancer's dashboard exactly
 >
 > — `spec.md §4, US-05, verbatim` · full text: [spec.md](../spec.md)
@@ -89,7 +89,7 @@ No DB changes.
 
 > **Given** a Freelancer in the Kyiv time zone with three issued, unpaid invoices: one due yesterday and never marked overdue, one marked overdue by hand, and one due tomorrow
 > **When** an Assistant asks for their overdue invoices
-> **Then** it receives the first two and not the third. Each row has the customer, invoice number, sender profile, amount, currency, due date and days overdue, together with the total overdue amount and count per currency, computed by invoiceFlow over every overdue invoice, not only the rows on the current page. Days overdue is the number of whole days from the due date to today in the Freelancer time zone, never below 0: the invoice due yesterday shows 1, and an invoice marked overdue by hand before its due date shows 0
+> **Then** it receives the first two and not the third. Each row has the customer, invoice number, sender profile, amount, currency, due date and days overdue, together with the total overdue amount and count per currency, computed by Invoice Forge over every overdue invoice, not only the rows on the current page. Days overdue is the number of whole days from the due date to today in the Freelancer time zone, never below 0: the invoice due yesterday shows 1, and an invoice marked overdue by hand before its due date shows 0
 >
 > — `spec.md §5, AC-12, verbatim` · full text: [spec.md](../spec.md)
 

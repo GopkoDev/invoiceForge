@@ -3,7 +3,7 @@ status: Living
 updated_at: "2026-10-04"
 ---
 
-# Domain Context — invoiceFlow (Invoice Forge)
+# Domain Context — Invoice Forge
 
 <!--
 CONTEXT.md is the domain glossary — not a spec and not a scratch pad. NO implementation

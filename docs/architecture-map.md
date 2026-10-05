@@ -11,7 +11,7 @@ migration_tool: "prisma migrate"
 frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
 ---
 
-# Architecture map — invoiceFlow (Invoice Forge)
+# Architecture map — Invoice Forge
 
 > The **current** architecture (what exists today), produced by `survey` and read by
 > specify / design / data-model / implement. Refresh with `survey` when the repo drifts past
@@ -29,7 +29,7 @@ frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
 
 ```mermaid
 C4Container
-    title Current containers - invoiceFlow
+    title Current containers - Invoice Forge
     Person(user, "Freelancer", "Creates customers, products and invoices; exports PDFs")
     Container(web, "Next.js app", "Next.js 16 App Router, React 19", "RSC pages, client components, PDF rendering in browser")
     Container(actions, "Server actions", "lib/actions, use server", "Auth-guarded CRUD returning ActionResult")

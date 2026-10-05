@@ -1,6 +1,6 @@
 ## Summary
 
-This PR lets a Freelancer connect their own AI assistant (Claude Desktop, Claude Code, Cursor or any MCP client) to invoiceFlow with a named, revocable Personal key. The assistant can then answer money questions through seven read-only tools on `POST /api/mcp`:
+This PR lets a Freelancer connect their own AI assistant (Claude Desktop, Claude Code, Cursor or any MCP client) to Invoice Forge with a named, revocable Personal key. The assistant can then answer money questions through seven read-only tools on `POST /api/mcp`:
 
 - who is overdue;
 - who the Debtors are;
@@ -168,6 +168,6 @@ Commit `d114858`, run on 2026-10-05.
 - **Feature flag / config:** none. The existing `LIMIT_KEY_SECRET` is reused.
 - **Release-day behaviour change:** the dashboard's overdue figures, Debtors and Expected payments change for anyone with past-due invoices they never marked overdue. A one-time dashboard notice explains why.
 - **Rollback:** redeploy the previous build. The new tables and columns are ignored by the old code. The down scripts exist if the schema must go too.
-- **Known follow-up (security review L-01, LOW):** `invoiceNumber`, sender and customer `email`, and `website` reach the Assistant without the `freelancerText` marking. AC-19b's list doesn't name these fields, and keys are read-only, so nothing in invoiceFlow can be changed through them.
+- **Known follow-up (security review L-01, LOW):** `invoiceNumber`, sender and customer `email`, and `website` reach the Assistant without the `freelancerText` marking. AC-19b's list doesn't name these fields, and keys are read-only, so nothing in Invoice Forge can be changed through them.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

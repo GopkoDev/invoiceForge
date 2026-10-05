@@ -42,7 +42,7 @@ const UNIFORM_401_BODY = JSON.stringify({
   error: {
     code: -32001,
     message:
-      "This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in invoiceFlow and put it in this assistant's settings.",
+      "This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in Invoice Forge and put it in this assistant's settings.",
     data: { code: 'UNAUTHORIZED' },
   },
 });
@@ -113,7 +113,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
   async function expectUniform401(res: Response) {
     expect(res.status).toBe(401);
     expect(res.headers.get('www-authenticate')).toBe(
-      'Bearer realm="invoiceflow", error="invalid_token"'
+      'Bearer realm="Invoice Forge", error="invalid_token"'
     );
     expect(await res.text()).toBe(UNIFORM_401_BODY);
   }
@@ -385,7 +385,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/mcp (T12)', () => {
     expect(body.error.code).toBe(-32003);
     expect(body.error.data).toEqual({ code: 'FAILED' });
     expect(body.error.message).toBe(
-      'invoiceFlow cannot check its call limits right now, so the call was refused. Try again in a few minutes.'
+      'Invoice Forge cannot check its call limits right now, so the call was refused. Try again in a few minutes.'
     );
   });
 

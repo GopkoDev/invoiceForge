@@ -15,7 +15,7 @@ ticket: "mcp-server"
 
 ## Context
 
-The feature has two kinds of caller. The Assistant reaches invoiceFlow without a browser and needs a machine interface (US-03 – US-06, US-09). The Freelancer needs a "Connect your AI" page, a time-zone setting and new overdue statuses on five existing screens (US-01, US-02, US-07, US-08, US-10; `ux-flows.md` inventories SCR-01 – SCR-11). The SAD must declare which C4 containers the feature owns so every downstream stage gates its output the same way.
+The feature has two kinds of caller. The Assistant reaches Invoice Forge without a browser and needs a machine interface (US-03 – US-06, US-09). The Freelancer needs a "Connect your AI" page, a time-zone setting and new overdue statuses on five existing screens (US-01, US-02, US-07, US-08, US-10; `ux-flows.md` inventories SCR-01 – SCR-11). The SAD must declare which C4 containers the feature owns so every downstream stage gates its output the same way.
 
 ## Decision drivers
 

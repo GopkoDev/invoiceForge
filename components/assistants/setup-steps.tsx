@@ -30,11 +30,11 @@ export function SetupSteps({ origin, fullKey }: SetupStepsProps) {
   const key = fullKey ?? PLACEHOLDER;
   const url = `${origin}/api/mcp`;
 
-  const claudeCode = `claude mcp add --transport http --scope user invoiceflow ${url} --header "Authorization: Bearer ${key}"`;
+  const claudeCode = `claude mcp add --transport http --scope user invoice-forge ${url} --header "Authorization: Bearer ${key}"`;
   const cursor = JSON.stringify(
     {
       mcpServers: {
-        invoiceflow: { url, headers: { Authorization: `Bearer ${key}` } },
+        'invoice-forge': { url, headers: { Authorization: `Bearer ${key}` } },
       },
     },
     null,
@@ -43,7 +43,7 @@ export function SetupSteps({ origin, fullKey }: SetupStepsProps) {
   const claudeDesktop = JSON.stringify(
     {
       mcpServers: {
-        invoiceflow: {
+        'invoice-forge': {
           command: 'npx',
           args: ['mcp-remote', url, '--header', 'Authorization:${AUTH}'],
           env: { AUTH: `Bearer ${key}` },

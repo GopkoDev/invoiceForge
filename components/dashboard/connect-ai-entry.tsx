@@ -14,7 +14,7 @@ export function ConnectAiEntry() {
         <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p>
             Ask Claude or Cursor who owes you money and what&apos;s coming in, straight from your
-            invoiceFlow data. Read-only.
+            Invoice Forge data. Read-only.
           </p>
           <Link
             href={protectedRoutes.settingsAssistants}

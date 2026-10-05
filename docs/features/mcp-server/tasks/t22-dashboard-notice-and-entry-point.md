@@ -50,7 +50,7 @@ This task adds the two SCR-01 banners: the dashboard entry point (AC-01) and the
 >
 > Order below the header: `DashboardSetupAlert` (when setup is incomplete) → overdue-rule notice → Connect your AI entry point → sections.
 >
-> Notice copy: "Overdue is now automatic" / "Pending invoices past their due date now count as overdue on their own: here, in your invoice list and in your AI assistant's answers. The invoice itself doesn't change, and you can still mark it paid." [Got it]. Entry copy: "Connect your AI" / "Ask Claude or Cursor who owes you money and what's coming in, straight from your invoiceFlow data." / "Read-only." [Connect your AI ->]. Phone: the two banners stack full-width; buttons go below the text.
+> Notice copy: "Overdue is now automatic" / "Pending invoices past their due date now count as overdue on their own: here, in your invoice list and in your AI assistant's answers. The invoice itself doesn't change, and you can still mark it paid." [Got it]. Entry copy: "Connect your AI" / "Ask Claude or Cursor who owes you money and what's coming in, straight from your Invoice Forge data." / "Read-only." [Connect your AI ->]. Phone: the two banners stack full-width; buttons go below the text.
 >
 > — `screens.md §SCR-01, states + wireframe, abridged` · full text: [screens.md](../screens.md)
 

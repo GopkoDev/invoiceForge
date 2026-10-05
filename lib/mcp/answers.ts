@@ -34,7 +34,7 @@ export type ToolError = {
   details?: ToolErrorDetails;
 };
 
-export const FAILED_MESSAGE = 'invoiceFlow could not complete this call. Try again later.';
+export const FAILED_MESSAGE = 'Invoice Forge could not complete this call. Try again later.';
 
 function candidate(
   reference: 'invoice' | 'customer' | 'senderProfile',

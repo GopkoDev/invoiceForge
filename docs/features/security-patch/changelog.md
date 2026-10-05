@@ -1,8 +1,8 @@
 # Changelog — security-patch
 
-## security-patch — close the pre-launch security holes before invoiceFlow goes public
+## security-patch — close the pre-launch security holes before Invoice Forge goes public
 
-**What:** invoiceFlow can now be shared publicly. Before this change, a Visitor could crash the server with one dashboard link, flood any mailbox with sign-in emails, or call private actions. These paths are now closed:
+**What:** Invoice Forge can now be shared publicly. Before this change, a Visitor could crash the server with one dashboard link, flood any mailbox with sign-in emails, or call private actions. These paths are now closed:
 
 - **Dependencies:** the framework, the sign-in library and the mail library are on patched releases. No critical or high advisory remains in production packages. Prisma is on 7.10 and the unused acceleration extension is gone.
 - **"Signed in" means a verified session and nothing else.** An error from the sign-in check never counts as a signed-in user. If the check fails, the Freelancer sees a "We couldn't load your data" page with "Try again". Their session is kept and they are never sent into a sign-in loop.

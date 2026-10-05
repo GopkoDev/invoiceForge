@@ -33,7 +33,7 @@ invent the missing part. -->
 > — `spec.md §4, US-04, verbatim` · full text: [spec.md](../spec.md)
 
 > **As an** Assistant acting for a Freelancer
-> **I want** per-currency summary figures for a Dashboard period, computed by invoiceFlow
+> **I want** per-currency summary figures for a Dashboard period, computed by Invoice Forge
 > **So that** the numbers I quote match the Freelancer's dashboard exactly
 >
 > — `spec.md §4, US-05, verbatim` · full text: [spec.md](../spec.md)

@@ -32,7 +32,7 @@ export const summaryTool: ReadOnlyToolDefinition<typeof input, typeof output> = 
   name: 'get_summary_figures',
   title: 'Summary figures',
   description:
-    'Returns four figures per currency for a Dashboard period, computed by invoiceFlow exactly as ' +
+    'Returns four figures per currency for a Dashboard period, computed by Invoice Forge exactly as ' +
     'the dashboard does: received, planned, overdue and all future payments, each a total and a ' +
     'count naming the date it is counted by. Never converted between currencies.',
   inputSchema: input,

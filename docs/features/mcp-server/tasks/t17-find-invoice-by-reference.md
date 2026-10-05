@@ -97,7 +97,7 @@ Internal — no API surface. The returned value feeds `get_invoice` (T19); its s
 
 > **Given** an issued invoice of the Freelancer
 > **When** an Assistant asks for it
-> **Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in invoiceFlow. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
+> **Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in Invoice Forge. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
 >
 > — `spec.md §5, AC-19, verbatim` · full text: [spec.md](../spec.md)
 

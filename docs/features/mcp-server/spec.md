@@ -13,9 +13,9 @@ feature_size: "M"
 
 ## 1. Context
 
-A Freelancer who already works in an AI assistant has to leave it and open invoiceFlow to answer simple money questions: who owes them, what comes in this month, how the quarter looks. Their invoicing data is invisible to the assistant they use for everything else. The first users of this feature are solo freelancers and small agency owners whose desktop or IDE assistant can connect to a remote tool server with a personal key. They ask these questions several times a week. A secondary group is technical Freelancers who wire invoiceFlow into their own scripts with the same key. The feature serves them with the same tools but is not designed for them first.
+A Freelancer who already works in an AI assistant has to leave it and open Invoice Forge to answer simple money questions: who owes them, what comes in this month, how the quarter looks. Their invoicing data is invisible to the assistant they use for everything else. The first users of this feature are solo freelancers and small agency owners whose desktop or IDE assistant can connect to a remote tool server with a personal key. They ask these questions several times a week. A secondary group is technical Freelancers who wire Invoice Forge into their own scripts with the same key. The feature serves them with the same tools but is not designed for them first.
 
-There is no external trigger: no incident, contract or deadline. The motivation is product direction and portfolio value. Making invoiceFlow usable from the Freelancer's own assistant is the next roadmap step after the business layer (`service-layer`) was made callable without a browser and the public surface was hardened (`security-patch`). Success means regular use: a meaningful share of active Freelancers connect an Assistant and use it every week within three months of launch.
+There is no external trigger: no incident, contract or deadline. The motivation is product direction and portfolio value. Making Invoice Forge usable from the Freelancer's own assistant is the next roadmap step after the business layer (`service-layer`) was made callable without a browser and the public surface was hardened (`security-patch`). Success means regular use: a meaningful share of active Freelancers connect an Assistant and use it every week within three months of launch.
 
 **Committed approach.** v1 is read-only. It offers a curated set of Freelancer questions through the Model Context Protocol, the standard way AI assistants connect to outside tools:
 - who is overdue,
@@ -28,7 +28,7 @@ There is no external trigger: no incident, contract or deadline. The motivation 
 These sit behind a "Connect your AI" page where the Freelancer creates named Personal keys, sees when each was last used, and revokes them. The central promise is that **an Assistant's numbers always match the dashboard**. Three things make that hold:
 - Every surface uses one overdue rule and one Freelancer time zone, and both ship in the same release as the tools.
 - Every answer that does not contain everything says so plainly.
-- Every "how much" or "how many" question has a total computed by invoiceFlow, so the assistant never has to add numbers up itself.
+- Every "how much" or "how many" question has a total computed by Invoice Forge, so the assistant never has to add numbers up itself.
 
 Outside research supports this direction. Invoicing products that ship an assistant connector expose either generic access to everything, write-first tools that can send invoices, or developer-grade key setup. None found offers dashboard-matching overdue, expected-payment and per-currency answers behind a simple connect page with named keys and example prompts. That gap is what v1 fills. The sharpest failure mode found is a split definition of "overdue". The dashboard counts only invoices marked overdue by hand, while an assistant would count every past-due one. The two would disagree from the first day, so the shared rule is part of this feature, not a follow-up.
 
@@ -43,7 +43,7 @@ Decisions taken during the interview, recorded for traceability:
 
 ## 2. Goals
 
-- A Freelancer can connect their own AI assistant to invoiceFlow in a few minutes, from a visible entry point, without help.
+- A Freelancer can connect their own AI assistant to Invoice Forge in a few minutes, from a visible entry point, without help.
 - The answers an Assistant gets about overdue invoices, Debtors, expected payments and summary figures are the same numbers the dashboard shows, for the same period, in the same time zone, every time.
 - The Freelancer stays in control of every Assistant connection. They can see it, revoke it at once, and trust that it only reads and only ever sees their own data.
 - Connected Freelancers keep using it: asking an Assistant becomes a weekly habit, not a one-time experiment. This is tracked by the §7 weekly-active KPI and supported by US-01's example prompts and the dashboard entry point (AC-01, AC-02).
@@ -57,7 +57,7 @@ Decisions taken during the interview, recorded for traceability:
 - **Currency conversion.** Figures are reported per currency exactly as the dashboard reports them; converting needs a rate source and would make the numbers disagree with the dashboard.
 - **Several access levels or per-resource permissions.** v1 has one level, read-only. A "read and drafts" level arrives with the drafts feature.
 - **Key expiry, first-use emails and automatic revocation of unused keys.** Each adds friction to weekly use or new personal data. The v1 mitigations are the recognisable key format, revocation and last-used display; the per-key call limit protects shared capacity, not the amount of data a key can read.
-- **Plan-based access.** invoiceFlow has no plans today, so every Freelancer can connect an Assistant.
+- **Plan-based access.** Invoice Forge has no plans today, so every Freelancer can connect an Assistant.
 
 ## 4. User stories
 
@@ -88,7 +88,7 @@ Decisions taken during the interview, recorded for traceability:
 ### US-05: Ask for summary figures
 
 **As an** Assistant acting for a Freelancer
-**I want** per-currency summary figures for a Dashboard period, computed by invoiceFlow
+**I want** per-currency summary figures for a Dashboard period, computed by Invoice Forge
 **So that** the numbers I quote match the Freelancer's dashboard exactly
 
 ### US-06: Look up customers and invoices
@@ -193,7 +193,7 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer in the Kyiv time zone with three issued, unpaid invoices: one due yesterday and never marked overdue, one marked overdue by hand, and one due tomorrow
 **When** an Assistant asks for their overdue invoices
-**Then** it receives the first two and not the third. Each row has the customer, invoice number, sender profile, amount, currency, due date and days overdue, together with the total overdue amount and count per currency, computed by invoiceFlow over every overdue invoice, not only the rows on the current page. Days overdue is the number of whole days from the due date to today in the Freelancer time zone, never below 0: the invoice due yesterday shows 1, and an invoice marked overdue by hand before its due date shows 0
+**Then** it receives the first two and not the third. Each row has the customer, invoice number, sender profile, amount, currency, due date and days overdue, together with the total overdue amount and count per currency, computed by Invoice Forge over every overdue invoice, not only the rows on the current page. Days overdue is the number of whole days from the due date to today in the Freelancer time zone, never below 0: the invoice due yesterday shows 1, and an invoice marked overdue by hand before its due date shows 0
 
 ### AC-13 (US-03) — happy path
 
@@ -247,7 +247,7 @@ They are reported per currency, for every currency that appears on the Freelance
 
 **Given** an issued invoice of the Freelancer
 **When** an Assistant asks for it
-**Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in invoiceFlow. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
+**Then** it receives the invoice as currently stored: number, sender profile and customer details as recorded on the invoice (not the Customer's current details), lines, totals, currency, status, issue and due dates. It also gets a link that opens the invoice in Invoice Forge. Bank account numbers and international bank account numbers are not included. A draft or cancelled invoice can be opened the same way and is labelled as a draft or as cancelled
 
 ### AC-19b (US-06) — domain invariant
 
@@ -337,7 +337,7 @@ They are reported per currency, for every currency that appears on the Freelance
   - **Leaked key** (sharpest; keys pasted into assistant configs end up in committed files, screen-shares and support tickets): the recognisable key format lets secret scanners flag it, setup keeps it out of project files, revocation is immediate, and last use is visible. The per-key limit caps the call rate and protects shared capacity; it does not bound how much a key can read. The residual risk is accepted: a leaked key reads everything until revoked.
   - **Cross-tenant guessing:** a reference to another Freelancer's record is answered exactly like a non-existent one (AC-08).
   - **Key guessing and invalid-key floods:** refusals are uniform and reveal nothing (AC-07); a source that fails 30 key checks in 5 minutes is refused before any key is checked.
-  - **Prompt injection through the Freelancer's own data:** notes, product names and other free text can carry instructions the assistant may follow with its other tools. Read-only keys keep the damage inside invoiceFlow at zero. Answers mark free text as data the Freelancer entered. The residual risk outside invoiceFlow is named, not eliminated.
+  - **Prompt injection through the Freelancer's own data:** notes, product names and other free text can carry instructions the assistant may follow with its other tools. Read-only keys keep the damage inside Invoice Forge at zero. Answers mark free text as data the Freelancer entered. The residual risk outside Invoice Forge is named, not eliminated.
   - **Oversized or over-sensitive answers:** every answer is capped at 50 rows (AC-18), and bank account numbers are never returned (AC-19).
 - **Security review:** Required. This adds a new authentication boundary and a new credential type, plus an exception to the anonymous-request refusal. Run `/security-review` before ship.
 

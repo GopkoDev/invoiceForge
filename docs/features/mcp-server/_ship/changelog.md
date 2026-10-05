@@ -2,7 +2,7 @@
 
 ## mcp-server — a Freelancer's own AI assistant can answer money questions, with numbers that match the dashboard
 
-**What:** A Freelancer can connect their own AI assistant (Claude Desktop, Claude Code, Cursor, or any client that speaks the Model Context Protocol) to invoiceFlow and ask about their money in the conversation. They don't need to open the app.
+**What:** A Freelancer can connect their own AI assistant (Claude Desktop, Claude Code, Cursor, or any client that speaks the Model Context Protocol) to Invoice Forge and ask about their money in the conversation. They don't need to open the app.
 
 - **Connect your AI** (Settings → Assistants, plus an entry point on the dashboard).
   - The Freelancer creates named Personal keys. A new key is shown once, with a copy action.
@@ -19,7 +19,7 @@
   - `search_invoices`
   - `get_invoice`
 
-  Every list has at most 50 rows per page. Totals and counts per currency are computed by invoiceFlow over the full set, and every answer says whether more pages exist. Text the Freelancer typed is marked as data, not instructions. Bank account numbers are never returned.
+  Every list has at most 50 rows per page. Totals and counts per currency are computed by Invoice Forge over the full set, and every answer says whether more pages exist. Text the Freelancer typed is marked as data, not instructions. Bank account numbers are never returned.
 - **One overdue rule everywhere.**
   - An issued, unpaid invoice is overdue when it was marked overdue by hand, or when its due date is before today in the Freelancer's time zone.
   - The dashboard, the invoice list, the customer page, the invoice itself and every Assistant answer use this rule.
@@ -43,10 +43,10 @@ The key decisions:
 - [ADR-0008](../adr/0008-show-dashboard-currency-tabs-for-bank-account-and-issued-invoice-currencies.md): dashboard tabs follow bank-account and issued-invoice currencies.
 - [ADR-0009](../adr/0009-store-invoice-dates-as-calendar-days.md): invoice dates are stored as calendar days, and legacy values are converted lazily.
 
-**How to use:** In invoiceFlow, open Settings → Assistants (or the dashboard's "Connect your AI") and create a key. Then add the server to your assistant, for example in Claude Code:
+**How to use:** In Invoice Forge, open Settings → Assistants (or the dashboard's "Connect your AI") and create a key. Then add the server to your assistant, for example in Claude Code:
 
 ```sh
-claude mcp add --transport http --scope user invoiceflow https://<your-invoiceflow-host>/api/mcp \
+claude mcp add --transport http --scope user invoice-forge https://<your-invoice-forge-host>/api/mcp \
   --header "Authorization: Bearer ifk_…"
 ```
 

@@ -42,9 +42,9 @@ export function keyRefusedResponse(): Response {
   return jsonRpcError(
     401,
     -32001,
-    "This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in invoiceFlow and put it in this assistant's settings.",
+    "This Personal key is not valid. Ask the Freelancer to create a key on the Connect your AI page in Invoice Forge and put it in this assistant's settings.",
     { code: 'UNAUTHORIZED' },
-    { 'www-authenticate': 'Bearer realm="invoiceflow", error="invalid_token"' }
+    { 'www-authenticate': 'Bearer realm="Invoice Forge", error="invalid_token"' }
   );
 }
 
@@ -71,7 +71,7 @@ function limitStoreUnavailableResponse(): Response {
   return jsonRpcError(
     503,
     -32003,
-    'invoiceFlow cannot check its call limits right now, so the call was refused. Try again in a few minutes.',
+    'Invoice Forge cannot check its call limits right now, so the call was refused. Try again in a few minutes.',
     { code: 'FAILED' }
   );
 }

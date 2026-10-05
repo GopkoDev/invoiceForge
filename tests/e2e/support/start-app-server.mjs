@@ -33,7 +33,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
 // Shared with the specs (tests/e2e/support/app-server.ts E2E_RUNTIME_DIR): the throwaway database
 // URL and the mail sink's inbox, so a spec can seed data and read the Sign-in link.
-const runtimeDir = path.join(os.tmpdir(), 'invoceflow-e2e');
+const runtimeDir = path.join(os.tmpdir(), 'invoice-forge-e2e');
 
 async function isDockerAvailable() {
   return new Promise((resolve) => {
@@ -83,7 +83,7 @@ async function startRealApp() {
   const { PostgreSqlContainer } = await import('@testcontainers/postgresql');
 
   const container = await new PostgreSqlContainer('postgres:16-alpine')
-    .withDatabase('invoceflow_e2e')
+    .withDatabase('invoice_forge_e2e')
     .withUsername('test')
     .withPassword('test')
     .start();

@@ -42,9 +42,9 @@ This task builds the page shell, its Settings entry, the setup steps and the exa
 > — `screens.md §SCR-03, header + loading state, verbatim` · full text: [screens.md](../screens.md)
 
 > **Setup steps** (one `Tabs` panel per launch client, sad.md §11; each snippet in a monospace block with a `CopyButton`; `{origin}` is the app origin, `YOUR_KEY` is replaced while the reveal is visible). Each panel's first line says the key is kept in a user-level, private setting and not in a project file (AC-02).
-> - **Claude Code:** run in a terminal: `claude mcp add --transport http --scope user invoiceflow {origin}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
-> - **Cursor:** add to the global `~/.cursor/mcp.json` (not the project's `.cursor/mcp.json`): `{ "mcpServers": { "invoiceflow": { "url": "{origin}/api/mcp", "headers": { "Authorization": "Bearer YOUR_KEY" } } } }`
-> - **Claude Desktop:** needs Node.js. Add to `claude_desktop_config.json` (Settings → Developer → Edit config), then restart Claude Desktop: `{ "mcpServers": { "invoiceflow": { "command": "npx", "args": ["mcp-remote", "{origin}/api/mcp", "--header", "Authorization:${AUTH}"], "env": { "AUTH": "Bearer YOUR_KEY" } } } }`
+> - **Claude Code:** run in a terminal: `claude mcp add --transport http --scope user invoice-forge {origin}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
+> - **Cursor:** add to the global `~/.cursor/mcp.json` (not the project's `.cursor/mcp.json`): `{ "mcpServers": { "invoice-forge": { "url": "{origin}/api/mcp", "headers": { "Authorization": "Bearer YOUR_KEY" } } } }`
+> - **Claude Desktop:** needs Node.js. Add to `claude_desktop_config.json` (Settings → Developer → Edit config), then restart Claude Desktop: `{ "mcpServers": { "invoice-forge": { "command": "npx", "args": ["mcp-remote", "{origin}/api/mcp", "--header", "Authorization:${AUTH}"], "env": { "AUTH": "Bearer YOUR_KEY" } } } }`
 >
 > **Example prompts** (three, each with a `CopyButton`):
 > 1. "Who owes me money right now, and how many days overdue is each invoice?"

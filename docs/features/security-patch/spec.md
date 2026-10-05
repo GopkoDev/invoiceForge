@@ -13,7 +13,7 @@ feature_size: "M"
 
 ## 1. Context
 
-invoiceFlow is about to become a public portfolio demo, followed by an in-app AI chat and an external Assistant connection. Both bring automated traffic and new callers. A read-only audit and a dependency advisory scan of the current surface found holes that put every Freelancer's account and data at risk. Several of them are reachable by a Visitor without signing in:
+Invoice Forge is about to become a public portfolio demo, followed by an in-app AI chat and an external Assistant connection. Both bring automated traffic and new callers. A read-only audit and a dependency advisory scan of the current surface found holes that put every Freelancer's account and data at risk. Several of them are reachable by a Visitor without signing in:
 
 - The web framework and the sign-in components are outdated and carry published critical advisories: remote code execution, edge-check bypass, and sign-in links delivered to the wrong mailbox.
 - The edge treats any non-empty sign-in result as a signed-in user.

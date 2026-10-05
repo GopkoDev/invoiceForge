@@ -10,8 +10,8 @@ import {
   isSameDatabase,
 } from '../support/db/env-guard';
 
-const SYNTHETIC_ENV_URL = 'postgresql://owner:secret@real-host.internal:5432/invoceflow_prod';
-const CONTAINER_SHAPED_URL = 'postgresql://test:test@127.0.0.1:55432/invoceflow_test';
+const SYNTHETIC_ENV_URL = 'postgresql://owner:secret@real-host.internal:5432/invoice_forge_prod';
+const CONTAINER_SHAPED_URL = 'postgresql://test:test@127.0.0.1:55432/invoice_forge_test';
 
 describe('env-guard comparison logic (always runs, no .env required)', () => {
   it('treats an identical connection string as the same database', () => {

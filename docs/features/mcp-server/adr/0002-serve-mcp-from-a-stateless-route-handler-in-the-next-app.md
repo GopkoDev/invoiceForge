@@ -15,7 +15,7 @@ ticket: "mcp-server"
 
 ## Context
 
-An MCP client lists and calls tools over HTTP. invoiceFlow's business logic lives in `lib/services`, marked `server-only` and reachable only in-process with an `ActingFreelancer` (service-layer ADR-0001, ADR-0006). The app runs as Vercel functions in one region (`iad1`) with no Redis or other session store. The tools are read-only, so the server never needs to push notifications to the client.
+An MCP client lists and calls tools over HTTP. Invoice Forge's business logic lives in `lib/services`, marked `server-only` and reachable only in-process with an `ActingFreelancer` (service-layer ADR-0001, ADR-0006). The app runs as Vercel functions in one region (`iad1`) with no Redis or other session store. The tools are read-only, so the server never needs to push notifications to the client.
 
 ## Decision drivers
 
@@ -28,7 +28,7 @@ An MCP client lists and calls tools over HTTP. invoiceFlow's business logic live
 
 1. **Route handler + official SDK, stateless** — `app/api/mcp/route.ts` hosts `@modelcontextprotocol/sdk`'s Streamable HTTP transport with no session id: a fresh server per POST, JSON responses, no standing SSE stream (GET answers 405).
 2. **Route handler + Vercel `mcp-handler` adapter** — the same location through a wrapper library; its SSE/resumable mode needs Redis, and its auth helper is shaped for OAuth.
-3. **A separate MCP service** — its own deployment calling invoiceFlow through a new internal API.
+3. **A separate MCP service** — its own deployment calling Invoice Forge through a new internal API.
 
 ## Decision outcome
 

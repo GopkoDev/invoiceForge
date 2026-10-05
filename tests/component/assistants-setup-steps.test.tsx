@@ -31,7 +31,7 @@ describe('SetupSteps', () => {
     render(<SetupSteps origin={ORIGIN} />);
     const text = document.body.textContent ?? '';
     expect(text).toContain(
-      `claude mcp add --transport http --scope user invoiceflow ${ORIGIN}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
+      `claude mcp add --transport http --scope user invoice-forge ${ORIGIN}/api/mcp --header "Authorization: Bearer YOUR_KEY"`
     );
     expect(text).toContain(
       'Keep the key in your user settings, never in a project file.'

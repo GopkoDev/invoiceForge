@@ -15,7 +15,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 ## 1. Introduction and goals
 
-**Intent.** A read-only Model Context Protocol (MCP) server inside invoiceFlow that lets a Freelancer's own AI assistant answer money questions — who is overdue, which Debtors owe what, which Expected payments fall in a period, the per-currency summary figures, customers, invoice search and one invoice — authenticated by a named, revocable Personal key and never by a browser session. Around it the feature ships the "Connect your AI" page (create, list, revoke keys), the Freelancer time zone saved on the account, and one shared overdue rule computed at read time, so that **an Assistant's numbers always match the dashboard** (spec §1, §2). Primary users are solo freelancers and small agency owners using a desktop or IDE assistant; technical Freelancers scripting against the same key are served but not designed for first.
+**Intent.** A read-only Model Context Protocol (MCP) server inside Invoice Forge that lets a Freelancer's own AI assistant answer money questions — who is overdue, which Debtors owe what, which Expected payments fall in a period, the per-currency summary figures, customers, invoice search and one invoice — authenticated by a named, revocable Personal key and never by a browser session. Around it the feature ships the "Connect your AI" page (create, list, revoke keys), the Freelancer time zone saved on the account, and one shared overdue rule computed at read time, so that **an Assistant's numbers always match the dashboard** (spec §1, §2). Primary users are solo freelancers and small agency owners using a desktop or IDE assistant; technical Freelancers scripting against the same key are served but not designed for first.
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
@@ -65,7 +65,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 ## 3. Context and scope
 
-invoiceFlow gains a new kind of caller: the Freelancer's own AI assistant (an MCP client such as Claude Desktop, Claude Code or Cursor), which reaches one new endpoint with a Personal key instead of a browser session and only ever reads. The Freelancer keeps using invoiceFlow in the browser, where they create and revoke keys, set their time zone, and see the dashboard that now applies the same overdue rule the Assistant sees. Nothing leaves invoiceFlow on the Assistant's behalf — no email, no outbound call (spec §3).
+Invoice Forge gains a new kind of caller: the Freelancer's own AI assistant (an MCP client such as Claude Desktop, Claude Code or Cursor), which reaches one new endpoint with a Personal key instead of a browser session and only ever reads. The Freelancer keeps using Invoice Forge in the browser, where they create and revoke keys, set their time zone, and see the dashboard that now applies the same overdue rule the Assistant sees. Nothing leaves Invoice Forge on the Assistant's behalf — no email, no outbound call (spec §3).
 
 <!-- brownfield: Next.js 16 monolith on Vercel; lib/services business layer with ActingFreelancer; proxy deny-by-default over /api; Postgres-backed limits; tz cookie (ADR-0010) to be superseded; no MCP SDK yet (explorer scan at 3acdeb6; architecture-map.md reflects ded1be7 and is stale) -->
 
@@ -92,19 +92,19 @@ C4Context
     Person_Ext(visitor, "Visitor", "Caller with no valid key or session")
     System_Ext(assistant, "Assistant", "The Freelancer's MCP client, e.g. Claude Desktop, Claude Code, Cursor")
 
-    System(invoiceflow, "invoiceFlow", "Invoicing web app plus the read-only Assistant connection")
+    System(invoiceforge, "Invoice Forge", "Invoicing web app plus the read-only Assistant connection")
 
     System_Ext(google, "Google OAuth", "Browser sign-in provider")
     System_Ext(smtp, "SMTP server", "Sends sign-in links")
     System_Ext(sentry, "Sentry", "Error tracking and request spans")
 
-    Rel(freelancer, invoiceflow, "Manages keys, time zone, reads dashboard", "HTTPS, browser session")
+    Rel(freelancer, invoiceforge, "Manages keys, time zone, reads dashboard", "HTTPS, browser session")
     Rel(freelancer, assistant, "Pastes a Personal key, asks money questions")
-    Rel(assistant, invoiceflow, "Lists and calls read-only tools", "MCP over HTTPS, Bearer Personal key")
-    Rel(visitor, invoiceflow, "Is refused", "HTTPS")
-    Rel(invoiceflow, google, "Signs Freelancers in", "OAuth 2.0")
-    Rel(invoiceflow, smtp, "Sends sign-in links", "SMTP")
-    Rel(invoiceflow, sentry, "Reports errors and spans", "HTTPS")
+    Rel(assistant, invoiceforge, "Lists and calls read-only tools", "MCP over HTTPS, Bearer Personal key")
+    Rel(visitor, invoiceforge, "Is refused", "HTTPS")
+    Rel(invoiceforge, google, "Signs Freelancers in", "OAuth 2.0")
+    Rel(invoiceforge, smtp, "Sends sign-in links", "SMTP")
+    Rel(invoiceforge, sentry, "Reports errors and spans", "HTTPS")
 ```
 
 ## 4. Solution strategy
@@ -159,10 +159,10 @@ prisma/schema/auth.prisma              EXT  User.timeZone, PersonalKey, weekly u
 C4Container
     title mcp-server — Containers
 
-    Person(freelancer, "Freelancer", "Uses invoiceFlow in a browser")
+    Person(freelancer, "Freelancer", "Uses Invoice Forge in a browser")
     System_Ext(assistant, "Assistant", "The Freelancer's MCP client")
 
-    Container_Boundary(invoiceflow, "invoiceFlow (one Next.js deployable on Vercel)") {
+    Container_Boundary(invoiceforge, "Invoice Forge (one Next.js deployable on Vercel)") {
         Container(proxy, "Proxy", "proxy.ts", "Deny by default; admits /api/mcp as the single bearer-only exception")
         Container(web, "Web app", "Next.js 16 App Router, RSC, server actions", "Dashboard, invoice list, customer page, Connect your AI, Profile time zone")
         Container(mcp, "MCP endpoint", "Route handler + MCP SDK, stateless Streamable HTTP", "Authenticates the Personal key, exposes read-only tools")
@@ -527,7 +527,7 @@ sequenceDiagram
     else exactly one invoice
         S-->>M: the invoice as stored with copied sender and customer details, lines, totals, currency, status, issue and due dates, without bank account numbers or IBANs
         M->>M: wrap notes, line descriptions, product names, customer names and addresses and payment terms as Freelancer-entered data
-        M-->>C: the invoice and a link that opens it in invoiceFlow, a draft or cancelled invoice labelled as such
+        M-->>C: the invoice and a link that opens it in Invoice Forge, a draft or cancelled invoice labelled as such
     end
     Note over M,S: every outcome counts one substantive attempt, and a returned invoice also one success, in the weekly usage aggregate
     Note over C,M: Postcondition: another Freelancer's invoice is never revealed, not even its existence
@@ -836,7 +836,7 @@ Each §1 goal expanded into scenarios; every target is quoted from spec §6.
 | Account deletion runs in one explicit transaction keeping `RESTRICT` foreign keys (architecture-hardening ADR-0007); new key and usage tables must be deleted inside it or deletion fails | Medium | `data-model` adds the tables to the deletion transaction; integration test for AC-26 | Dmytro Hopko |
 | `LimitEvent` write volume and advisory-lock contention grow with Assistant traffic (up to 60 rows per key per minute) | Low | Daily purge already covers new scopes; §7 threshold (≈5 million rows/day or limit check > 50 ms p95) triggers a counter-store review (ADR-0007) | Dmytro Hopko |
 | MCP SDK / protocol revisions change transport or auth behaviour | Low | Pin the SDK version; contract tests over `tools/list` and `tools/call`; review on SDK upgrades | Dmytro Hopko |
-| Prompt injection through Freelancer-entered text reaching an Assistant's other tools (residual, named in spec §6.1) | Low | Read-only keys keep in-app damage at zero; every Freelancer-entered field is marked as data (AC-19b); residual risk outside invoiceFlow accepted | Dmytro Hopko |
+| Prompt injection through Freelancer-entered text reaching an Assistant's other tools (residual, named in spec §6.1) | Low | Read-only keys keep in-app damage at zero; every Freelancer-entered field is marked as data (AC-19b); residual risk outside Invoice Forge accepted | Dmytro Hopko |
 | `docs/architecture-map.md` reflects `ded1be7`, 101 commits behind; downstream stages reading it may miss the service layer and proxy changes | Low | Run `/sdd:survey` before `tasks`; this SAD's §2 and §5 reflect the current code | Dmytro Hopko |
 | Open architectural decision: one-time notice about the new overdue rule (dashboard figures change on release day) — spec §8 default: a dismissable dashboard notice | Open question | Resolve before `sdd:tasks`; affects SCR-01 states and whether a per-Freelancer "notice dismissed" flag is stored | Dmytro Hopko |
 | Open architectural decision: `invoice-integrity` brief must drop D3 and depend on this feature's overdue rule (ADR-0005) | Open question | Resolve before `sdd:specify invoice-integrity`; edit the brief when that feature is specified | Dmytro Hopko |

@@ -973,7 +973,7 @@
       "acs": [
         "AC-07"
       ],
-      "dod": "I-02, I-03 fixed. When the SDK's catch-all answer carries error.data, the route reports it to Sentry once and returns the contract ServerFailure (HTTP 500, JSON-RPC -32603, 'Something went wrong in invoiceFlow. Try again.', id null); plain client refusals the SDK raises keep their 4xx. tests/unit/api/mcp-route-transport-errors.test.ts asserts the status and the full body. isMcpUrl normalises trailing slashes (pathname.replace(/\\/+$/, '') === '/api/mcp'), scrubMcpRequest reuses isMcpUrl, and tests/unit/config/mcp-sentry-transactions.test.ts covers '/api/mcp/' and '/api/mcp/?x=1'. openapi.yaml 400 / 500 descriptions and the test-plan row match.",
+      "dod": "I-02, I-03 fixed. When the SDK's catch-all answer carries error.data, the route reports it to Sentry once and returns the contract ServerFailure (HTTP 500, JSON-RPC -32603, 'Something went wrong in Invoice Forge. Try again.', id null); plain client refusals the SDK raises keep their 4xx. tests/unit/api/mcp-route-transport-errors.test.ts asserts the status and the full body. isMcpUrl normalises trailing slashes (pathname.replace(/\\/+$/, '') === '/api/mcp'), scrubMcpRequest reuses isMcpUrl, and tests/unit/config/mcp-sentry-transactions.test.ts covers '/api/mcp/' and '/api/mcp/?x=1'. openapi.yaml 400 / 500 descriptions and the test-plan row match.",
       "files_hint": [
         "app/api/mcp/route.ts",
         "sentry.server.config.ts",

@@ -100,7 +100,7 @@ export const CLEAR_SESSION_PATH = '/api/auth/clear-session';
 // A layout can't see the pathname, so proxy.ts forwards the requested path on
 // this request header (always overwriting any caller-supplied value) and requireLiveUser() passes
 // it to CLEAR_SESSION_PATH as `?next=`, the target of the check-unavailable page's "Try again".
-export const REQUEST_PATH_HEADER = 'x-invoiceflow-request-path';
+export const REQUEST_PATH_HEADER = 'x-invoice-forge-request-path';
 
 // ADR-0007: Vercel Cron carries no session; the route guards itself with CRON_SECRET.
 export const PURGE_LIMITS_CRON_PATH = '/api/cron/purge-limits';

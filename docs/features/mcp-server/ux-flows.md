@@ -22,7 +22,7 @@ updated_at: "2026-10-04"
 - **Revoking asks for confirmation, and it is final.** A confirmation dialog (SCR-04) sits between the revoke action and the revocation. A revoked key moves to a separate "revoked" list with its revocation date and has no action to reactivate it (AC-06).
 - **The time zone is saved silently and changed in Profile settings.** On the first visit with no saved time zone, the browser's time zone is saved with no prompt. Profile settings (SCR-02) show it and allow changing it. An already saved time zone is never overwritten by the browser.
 - **The overdue rule changes what existing screens show, not where the Freelancer goes.** The dashboard, invoice list, customer page and invoice page show past-due unpaid invoices as overdue. The "Mark as overdue" / "back to pending" actions disappear for them. The one-time notice about the new rule is a §8 open question. Its default (a dismissable notice on the dashboard) is drawn as a dotted branch.
-- **The Assistant conversation is outside invoiceFlow.** Nodes marked "outside invoiceFlow" are the Freelancer's own assistant. They have no SCR id, because invoiceFlow draws no screen there. The only way back into the app from it is the invoice link in an answer (AC-19), which goes through the normal sign-in check.
+- **The Assistant conversation is outside Invoice Forge.** Nodes marked "outside Invoice Forge" are the Freelancer's own assistant. They have no SCR id, because Invoice Forge draws no screen there. The only way back into the app from it is the invoice link in an answer (AC-19), which goes through the normal sign-in check.
 - **Design input, not decided here:** which existing page the AC-19 invoice link opens (the invoice editor is today's only per-invoice page) and whether a cancelled invoice opens read-only there. `design` / `screens` decide this.
 
 ## Screen inventory
@@ -31,7 +31,7 @@ updated_at: "2026-10-04"
 |---|---|---|---|---|
 | SCR-01 | Dashboard | Figures, Debtors, Expected payments and recent invoices for a Dashboard period in the Freelancer time zone. Shows the "Connect your AI" entry point until a key is first used, and (§8 OQ default) the one-time overdue-rule notice | After sign-in, app navigation | SCR-03 (Connect your AI entry), SCR-05, other private pages |
 | SCR-02 | Profile settings | Account profile, now including the Freelancer time zone | Settings navigation | Stays on SCR-02 after saving; Settings navigation to SCR-03 / SCR-08 |
-| SCR-03 | Connect your AI | Create a named Personal key. Shows the new key once, the setup steps per supported assistant, three example prompts, the active keys (name, creation date, last four characters, last use) and the revoked keys (revocation date) | Settings navigation; dashboard entry point on SCR-01 | SCR-04 (revoke); leaving the page ends the one-time key display; copy-paste into the Freelancer's assistant (outside invoiceFlow) |
+| SCR-03 | Connect your AI | Create a named Personal key. Shows the new key once, the setup steps per supported assistant, three example prompts, the active keys (name, creation date, last four characters, last use) and the revoked keys (revocation date) | Settings navigation; dashboard entry point on SCR-01 | SCR-04 (revoke); leaving the page ends the one-time key display; copy-paste into the Freelancer's assistant (outside Invoice Forge) |
 | SCR-04 | Revoke key confirmation | Confirm or cancel revoking one Personal key | Revoke action on SCR-03 | Back to SCR-03 (revoked list on confirm, unchanged on cancel) |
 | SCR-05 | Invoice list | Issued invoices with status filters and row actions; past-due unpaid invoices show as overdue | App navigation, dashboard | SCR-07, other private pages |
 | SCR-06 | Customer page | One Customer's details and invoices, with each invoice's status | Customers list, app navigation | SCR-07, other private pages |
@@ -45,7 +45,7 @@ updated_at: "2026-10-04"
 
 Out of scope for drawing (no human-facing screen of their own):
 
-- **US-03 — Ask who owes me.** The caller is the Assistant; the answer is shown in the Freelancer's own assistant, outside invoiceFlow. Its dashboard counterpart (overdue figures, Debtors) is the US-08 flow.
+- **US-03 — Ask who owes me.** The caller is the Assistant; the answer is shown in the Freelancer's own assistant, outside Invoice Forge. Its dashboard counterpart (overdue figures, Debtors) is the US-08 flow.
 - **US-04 — Ask what is coming in.** Assistant-only, as US-03. The dashboard's Expected payments appear in the US-08 flow.
 - **US-05 — Ask for summary figures.** Assistant-only. Parity with the dashboard is a data guarantee (NFR parity test), not a screen movement.
 - **US-09 — Only my data, only with a valid key.** Every AC here is a refusal returned to an Assistant or to a browser call on the Assistant connection, never a screen. The Freelancer-visible parts (revocation, last use) are the US-02 flow. A wrong-Freelancer invoice link is the not-found branch of the US-06 flow.
@@ -65,7 +65,7 @@ flowchart TD
     A3 -->|already 10 active keys| A5["SCR-03 nothing created, message: at most 10 active keys, revoke one to make room"]
     A5 -->|revoke a key, see US-02| A2
     A3 -->|valid| A6["SCR-03 full key shown once: copy action, will-not-be-shown-again warning, setup steps per assistant, 3 example prompts"]
-    A6 -->|copy key and setup| A7["Freelancer's assistant, outside invoiceFlow: key kept in a private setting"]
+    A6 -->|copy key and setup| A7["Freelancer's assistant, outside Invoice Forge: key kept in a private setting"]
     A6 -->|leave the page| A8["SCR-03 on return: key listed by name, creation date, last 4 characters, never used"]
     A7 -->|first call passes the key check| A9
 ```
@@ -82,7 +82,7 @@ flowchart TD
     B3 -->|cancel| B1
     B3 -->|confirm| B4["SCR-03 key moved to the revoked list with today's revocation date"]
     B4 --> B2
-    B4 -->|Assistant calls with the revoked key| B5["Freelancer's assistant, outside invoiceFlow: call refused, no data, asks for a valid key"]
+    B4 -->|Assistant calls with the revoked key| B5["Freelancer's assistant, outside Invoice Forge: call refused, no data, asks for a valid key"]
     B1 -->|Assistant calls with an active key| B6["Last use updated within 5 minutes, also for tool listings and limit-refused calls"]
     B6 --> B1
 ```
@@ -93,7 +93,7 @@ On the connect page the Freelancer sees two lists. Active keys show name, creati
 
 ```mermaid
 flowchart TD
-    C0["Freelancer's assistant, outside invoiceFlow: answer with an invoice link"] -->|open the link| C1{"Signed in on this browser?"}
+    C0["Freelancer's assistant, outside Invoice Forge: answer with an invoice link"] -->|open the link| C1{"Signed in on this browser?"}
     C1 -->|no| C2["SCR-10 Sign-in"]
     C2 -->|signs in| C3{"Invoice exists and belongs to this Freelancer?"}
     C1 -->|yes| C3
@@ -101,7 +101,7 @@ flowchart TD
     C3 -->|deleted, or another Freelancer's| C5["SCR-11 Not found, nothing revealed"]
 ```
 
-An Assistant answer about one invoice carries a link that opens it in invoiceFlow. The link is an ordinary private page: without a session the Freelancer goes through sign-in and comes back to the invoice. The key never signs anyone in. The invoice page shows the invoice with its status, and a draft or cancelled invoice is labelled as such. If the invoice was deleted, or the signed-in account is not its owner (for example the link was shared with another Freelancer), the normal "not found" page appears and reveals nothing about the record.
+An Assistant answer about one invoice carries a link that opens it in Invoice Forge. The link is an ordinary private page: without a session the Freelancer goes through sign-in and comes back to the invoice. The key never signs anyone in. The invoice page shows the invoice with its status, and a draft or cancelled invoice is labelled as such. If the invoice was deleted, or the signed-in account is not its owner (for example the link was shared with another Freelancer), the normal "not found" page appears and reveals nothing about the record.
 
 ### Flow: US-07 — One "today" everywhere
 
@@ -148,7 +148,7 @@ flowchart TD
     F0 -->|delete account| F2["SCR-09 Delete account confirmation"]
     F2 -->|cancel| F0
     F2 -->|confirm| F3["Account deleted, signed out"]
-    F3 -->|Assistant calls with any of the account's keys| F4["Freelancer's assistant, outside invoiceFlow: refused as for an unknown key"]
+    F3 -->|Assistant calls with any of the account's keys| F4["Freelancer's assistant, outside Invoice Forge: refused as for an unknown key"]
 ```
 
 In Privacy & data settings, the existing export now also lists every Personal key, active or revoked, with its name, creation date, last use and revocation date. The key itself never appears, nor anything it could be rebuilt from. Deleting the account goes through the existing confirmation. Cancelling returns to the settings. Confirming deletes the account and signs the Freelancer out. From that moment every one of their keys stops working, and an Assistant using one gets the same refusal as for an unknown key.
