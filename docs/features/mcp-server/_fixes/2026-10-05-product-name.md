@@ -3,7 +3,7 @@ slug: mcp-server
 date: 2026-10-05
 triage: spec-bug
 acs: [AC-07, AC-19]
-commit: <filled after the fix commit lands>
+commit: 34cc130
 recurrence_of: none
 ---
 
