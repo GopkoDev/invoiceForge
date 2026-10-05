@@ -44,9 +44,9 @@
 | T37 | [Keep request bodies out of Sentry, check Accept and Content-Type first, and put 413 and the batch refusal in the contract](../_review/review-2026-10-05.md) | ports | Dmytro Hopko | S | — | done |
 | T38 | [Map a submitted OVERDUE back to PENDING only for a derived-overdue invoice](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | — | done |
 | T39 | [Give the no-zone, export-schema, revoke-title and overdue-surface tests teeth](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | M | T35 | done |
-| T40 | [Keep unedited legacy invoice dates through an editor save, seed the zone from the editor, and accept only calendar-day strings on the server](../_review/review-2026-10-05-r2.md) | app | Dmytro Hopko | M | — | todo |
-| T41 | [Keep MCP request data out of Sentry transactions, report SDK failures, treat client aborts as client errors, and return the contract 405 body](../_review/review-2026-10-05-r2.md) | ports | Dmytro Hopko | M | — | todo |
-| T42 | [Label dashboard chart days as calendar days, resolve presets on the server, show the applied preset, and keep focus after a not-found revoke](../_review/review-2026-10-05-r2.md) | ui | Dmytro Hopko | M | — | todo |
-| T43 | [Bring the ADRs, contracts, data model, screens manifest and test plan in line with the fixes](../_review/review-2026-10-05-r2.md) | docs | Dmytro Hopko | S | T40, T41, T42 | todo |
+| T40 | [Keep unedited legacy invoice dates through an editor save, seed the zone from the editor, and accept only calendar-day strings on the server](../_review/review-2026-10-05-r2.md) | app | Dmytro Hopko | M | — | done |
+| T41 | [Keep MCP request data out of Sentry transactions, report SDK failures, treat client aborts as client errors, and return the contract 405 body](../_review/review-2026-10-05-r2.md) | ports | Dmytro Hopko | M | — | done |
+| T42 | [Label dashboard chart days as calendar days, resolve presets on the server, show the applied preset, and keep focus after a not-found revoke](../_review/review-2026-10-05-r2.md) | ui | Dmytro Hopko | M | — | done |
+| T43 | [Bring the ADRs, contracts, data model, screens manifest and test plan in line with the fixes](../_review/review-2026-10-05-r2.md) | docs | Dmytro Hopko | S | T40, T41, T42 | done |
 
 **Total:** 43 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2), ~31.5 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
