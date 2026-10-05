@@ -16,11 +16,13 @@ export default async function InvoicesPage({
   const rawParams = await searchParams;
   const query = invoiceListParamsSchema.parse(rawParams);
 
+  // ADR-0006: the account zone, not the tz cookie (which only seeds the first visit). Resolved before
+  // the list is read: the first-visit seed also normalises the legacy invoice dates (T35), and the
+  // list must not read them first.
+  const { timeZone } = unwrapPageResult(await actingFreelancerFromSession());
+
   const result = await getPaginatedInvoices(query);
   const data = unwrapPageResult(result);
-
-  // ADR-0006: the account zone, not the tz cookie (which only seeds the first visit).
-  const { timeZone } = unwrapPageResult(await actingFreelancerFromSession());
 
   return <InvoicesListContainer data={data} timeZone={timeZone} />;
 }

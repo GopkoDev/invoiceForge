@@ -1,5 +1,7 @@
 import 'server-only';
 import { prisma } from '@/prisma';
+import type { Prisma } from '@prisma/client';
+import { normalizeLegacyInvoiceDates } from '@/lib/services/_shared/invoice-calendar-days';
 import {
   profileFormSchema,
   timeZoneSchema,
@@ -97,14 +99,20 @@ export async function getSavedTimeZone(userId: string): Promise<string | null> {
 
 /**
  * First-visit seed (flow 12): saves the zone only while the column is still empty, so it never
- * overwrites a saved zone even when two first requests race. True when this call wrote it.
+ * overwrites a saved zone even when two first requests race. True when this call wrote it; only then
+ * are the Freelancer's legacy invoice dates normalised in that zone, in the same transaction (G-01),
+ * so two racing first requests normalise once.
  */
 export async function seedTimeZoneIfEmpty(userId: string, timeZone: string): Promise<boolean> {
-  const { count } = await prisma.user.updateMany({
-    where: { id: userId, timeZone: null },
-    data: { timeZone },
-  });
-  return count === 1;
+  return prisma.$transaction((tx) => saveZoneIfEmpty(tx, userId, timeZone));
+}
+
+/** NULL -> value only: writes the zone and normalises that Freelancer's legacy invoice dates with it. */
+async function saveZoneIfEmpty(tx: Prisma.TransactionClient, userId: string, timeZone: string): Promise<boolean> {
+  const { count } = await tx.user.updateMany({ where: { id: userId, timeZone: null }, data: { timeZone } });
+  if (count !== 1) return false;
+  await normalizeLegacyInvoiceDates(tx, userId, timeZone);
+  return true;
 }
 
 /** Settings change: a zone both Intl and pg_timezone_names know is saved; anything else is refused, never saved as UTC. */
@@ -116,8 +124,13 @@ export async function updateTimeZone(actor: ActingFreelancer, input: string): Pr
     if ((await resolveTimeZone(timeZone)) !== timeZone) {
       return fail('VALIDATION', TIME_ZONE_MESSAGE, { fieldErrors: { timeZone: [TIME_ZONE_MESSAGE] } });
     }
-    const { count } = await prisma.user.updateMany({ where: { id: actor.userId }, data: { timeZone } });
-    if (count === 0) return fail('NOT_FOUND', 'Account not found.');
+    // A first save (NULL -> value) normalises legacy invoice dates; a change of a saved zone moves no date.
+    const saved = await prisma.$transaction(async (tx) => {
+      if (await saveZoneIfEmpty(tx, actor.userId, timeZone)) return true;
+      const { count } = await tx.user.updateMany({ where: { id: actor.userId }, data: { timeZone } });
+      return count > 0;
+    });
+    if (!saved) return fail('NOT_FOUND', 'Account not found.');
     return ok();
   } catch (error) {
     return failed('Error updating time zone:', error, 'Failed to update the time zone. Please try again.');

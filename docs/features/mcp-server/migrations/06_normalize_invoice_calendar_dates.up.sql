@@ -1,8 +1,16 @@
--- mcp-server T25 (review-2026-10-05 F-02, F-03; owner decision): Invoice.issueDate and Invoice.dueDate
--- are calendar days, stored as that day at T00:00:00Z (the column stays timestamp). Until now the editor
--- stored the browser's local-midnight instant (or a time of day), so the day an owner saw depends on
--- their zone. This backfills each existing value to the calendar day the owner saw: the instant read in
--- the owner's saved zone (User.timeZone, UTC when none or not a zone PostgreSQL knows).
+-- mcp-server T25, T35 (review-2026-10-05 F-02, F-03, G-01; owner decisions): Invoice.issueDate and
+-- Invoice.dueDate are calendar days, stored as that day at T00:00:00Z (the column stays timestamp). Until
+-- now the editor stored the browser's local-midnight instant (or a time of day), so the day an owner saw
+-- depends on their zone. This backfills each existing value to the calendar day the owner saw: the
+-- instant read in the owner's saved zone (User.timeZone).
+--
+-- Lazy: User.timeZone ships in the same release with no backfill, so on a first run almost every zone is
+-- NULL. Only rows whose owner has a saved zone that pg_timezone_names knows are converted; there is no
+-- UTC fallback, because reading a Kyiv local-midnight value in UTC would move it to the day before and
+-- the original instant could not be recovered. Rows of an owner with a NULL or unknown zone stay exactly
+-- as they are and are read as their UTC day until the zone is first saved; at that moment the application
+-- converts that Freelancer's legacy values in the same transaction (lib/services/_shared/invoice-calendar-days.ts,
+-- the same expression as below).
 --
 -- Idempotent: a value already at exactly 00:00:00 UTC is a stored day (written by this release, or a
 -- date-only value), so it is left alone; every other value is converted, and its result is a midnight, so a
@@ -12,15 +20,11 @@
 -- instants and is a no-op.
 
 WITH owner_zone AS (
-    SELECT
-        i."id",
-        COALESCE(
-            (SELECT z."name" FROM pg_timezone_names z WHERE z."name" = u."timeZone" LIMIT 1),
-            'UTC'
-        ) AS "zone"
+    SELECT i."id", z."name" AS "zone"
     FROM "Invoice" i
     JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
     JOIN "User" u ON u."id" = sp."userId"
+    JOIN (SELECT DISTINCT "name" FROM pg_timezone_names) z ON z."name" = u."timeZone"
 )
 UPDATE "Invoice" AS i
 SET

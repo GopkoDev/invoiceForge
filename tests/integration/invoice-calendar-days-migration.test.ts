@@ -1,6 +1,8 @@
 // T25 (spec.md §1, §5 AC-12, AC-23b; review-2026-10-05 F-02) — the backfill that turns every stored
 // Invoice.issueDate / dueDate into the calendar day (T00:00:00Z) its owner saw, read in the owner's
-// saved time zone (UTC when none or unknown). Runs the migration's SQL on seeded rows.
+// saved time zone. Owners with no saved (or an unknown) zone are left alone: their values are
+// normalised lazily when the zone is first saved (T35, review-2026-10-05 G-01). Runs the migration's SQL
+// on seeded rows.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -102,12 +104,20 @@ describe.runIf(containerRuntimeAvailable)('normalize invoice calendar dates migr
     ]);
   });
 
-  it('an owner with no saved zone, or one the database does not know, is read in UTC', async () => {
-    const none = await ownerWith(null, [{ issueDate: '2026-10-15T23:30:00.000Z', dueDate: '2026-10-16T00:30:00.000Z' }]);
-    const unknown = await ownerWith('Mars/Olympus', [{ issueDate: '2026-10-15T23:30:00.000Z', dueDate: '2026-10-16T00:30:00.000Z' }]);
+  it('G-01: an owner with no saved zone keeps the original instants, while a Kyiv-zone owner is converted', async () => {
+    const row = { issueDate: '2026-09-30T21:00:00.000Z', dueDate: '2026-10-14T21:00:00.000Z' };
+    const none = await ownerWith(null, [row]);
+    const kyiv = await ownerWith('Europe/Kyiv', [row]);
     await run();
-    expect(await days(none)).toEqual([['2026-10-15T00:00:00.000Z', '2026-10-16T00:00:00.000Z']]);
-    expect(await days(unknown)).toEqual([['2026-10-15T00:00:00.000Z', '2026-10-16T00:00:00.000Z']]);
+    expect(await days(none)).toEqual([[row.issueDate, row.dueDate]]);
+    expect(await days(kyiv)).toEqual([['2026-10-01T00:00:00.000Z', '2026-10-15T00:00:00.000Z']]);
+  });
+
+  it('G-01: an owner whose saved zone the database does not know is left alone, with no UTC fallback', async () => {
+    const row = { issueDate: '2026-10-15T23:30:00.000Z', dueDate: '2026-10-16T00:30:00.000Z' };
+    const unknown = await ownerWith('Mars/Olympus', [row]);
+    await run();
+    expect(await days(unknown)).toEqual([[row.issueDate, row.dueDate]]);
   });
 
   it('is idempotent: a second run changes nothing, for a zone west of UTC as well', async () => {

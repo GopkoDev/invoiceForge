@@ -7,6 +7,7 @@ import { startTestDatabase, type TestDatabase } from '../../../support/db/contai
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
 import { createFreelancer } from '../../../support/factories/user';
+import { seedInvoicesWithDates, storedDates } from '../../../support/factories/invoice-dates';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -67,6 +68,33 @@ describe.runIf(containerRuntimeAvailable)('Freelancer time zone on the account (
     const r = await session.actingFreelancerFromSession();
     expect(r).toMatchObject({ success: true, data: { userId: f.id, timeZone: 'Europe/Kyiv' } });
     expect(await savedZone(f.id)).toBe('Europe/Kyiv');
+  });
+
+  it('T35: the first-visit seed with a Kyiv cookie normalises that Freelancer\'s legacy dates before returning', async () => {
+    const f = await signedIn();
+    const other = await createFreelancer(prisma);
+    const ids = await seedInvoicesWithDates(prisma, f.id, [
+      ['2026-09-30T21:00:00.000Z', '2026-10-14T21:00:00.000Z'],
+      ['2026-10-14T22:30:00.000Z', '2026-10-14T22:30:00.000Z'],
+    ]);
+    const otherIds = await seedInvoicesWithDates(prisma, other.id, [['2026-09-30T21:00:00.000Z', '2026-10-14T21:00:00.000Z']]);
+    cookieValue = 'Europe/Kyiv';
+    await session.actingFreelancerFromSession();
+    expect(await storedDates(prisma, ids)).toEqual([
+      ['2026-10-01T00:00:00.000Z', '2026-10-15T00:00:00.000Z'],
+      ['2026-10-15T00:00:00.000Z', '2026-10-15T00:00:00.000Z'],
+    ]);
+    expect(await storedDates(prisma, otherIds)).toEqual([['2026-09-30T21:00:00.000Z', '2026-10-14T21:00:00.000Z']]);
+  });
+
+  it('T35: the settings action from a NULL zone normalises, and a later change moves nothing', async () => {
+    const f = await signedIn();
+    const ids = await seedInvoicesWithDates(prisma, f.id, [['2026-09-30T21:00:00.000Z', '2026-10-14T21:00:00.000Z']]);
+    expect((await actions.updateTimeZone('Europe/Kyiv')).success).toBe(true);
+    const once = [['2026-10-01T00:00:00.000Z', '2026-10-15T00:00:00.000Z']];
+    expect(await storedDates(prisma, ids)).toEqual(once);
+    expect((await actions.updateTimeZone('America/New_York')).success).toBe(true);
+    expect(await storedDates(prisma, ids)).toEqual(once);
   });
 
   it('AC-22: the seed is conditional - a second seed with another zone affects 0 rows', async () => {
