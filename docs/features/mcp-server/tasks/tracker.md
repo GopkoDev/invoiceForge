@@ -50,7 +50,7 @@
 | T43 | [Bring the ADRs, contracts, data model, screens manifest and test plan in line with the fixes](../_review/review-2026-10-05-r2.md) | docs | Dmytro Hopko | S | T40, T41, T42 | done |
 | T44 | [Compare an editor save against the dates the editor loaded, lock the row with its owner, and make the normalisation race test deterministic](../_review/review-2026-10-05-r3.md) | app | Dmytro Hopko | M | — | done |
 | T45 | [Answer an SDK catch-all failure with the contract ServerFailure and scrub /api/mcp/ with a trailing slash](../_review/review-2026-10-05-r3.md) | ports | Dmytro Hopko | S | — | done |
-| T46 | [Ignore a save that resolves after the editor was reset, keep a number or status edited while a save is in flight, move LoadedDates into the store types, and list the loaded-dates tests in the test plan](../_review/review-2026-10-05-r4.md) | app | Dmytro Hopko | M | — | todo |
-| T47 | [Scrub /api/mcp requests whose path has repeated slashes](../_review/review-2026-10-05-r4.md) | ports | Dmytro Hopko | S | — | todo |
+| T46 | [Ignore a save that resolves after the editor was reset, keep a number or status edited while a save is in flight, move LoadedDates into the store types, and list the loaded-dates tests in the test plan](../_review/review-2026-10-05-r4.md) | app | Dmytro Hopko | M | — | done |
+| T47 | [Scrub /api/mcp requests whose path has repeated slashes](../_review/review-2026-10-05-r4.md) | ports | Dmytro Hopko | S | — | done |
 
 **Total:** 47 tasks (T25–T34 from review-2026-10-05, T35–T39 from its implement-run addendum, T40–T43 from review-2026-10-05-r2, T44–T45 from review-2026-10-05-r3, T46–T47 from review-2026-10-05-r4), ~34.5 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
