@@ -38,6 +38,6 @@
 | T31 | [Leave cancelled-only currencies out of summary currencies and dashboard tabs](../_review/review-2026-10-05.md) | app | Dmytro Hopko | S | T25 | done |
 | T32 | [Guard the overdue literal scan without obfuscation and validate the real 2.1 export body](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | S | — | done |
 | T33 | [Polish the key-name hint, revoke focus and time-zone labels, and test the one-time reveal on remount](../_review/review-2026-10-05.md) | ui | Dmytro Hopko | M | — | done |
-| T34 | [Add the e2e specs the test plan declares for the proxy, key flows, sign-in return, time zone and overdue surfaces](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | L | T25, T26, T28 | todo |
+| T34 | [Add the e2e specs the test plan declares for the proxy, key flows, sign-in return, time zone and overdue surfaces](../_review/review-2026-10-05.md) | tests | Dmytro Hopko | L | T25, T26, T28 | done |
 
 **Total:** 34 tasks (T25–T34 from review-2026-10-05), ~28 person-days (S = ½ day, M = 1 day, L ≈ 1.5 days).
