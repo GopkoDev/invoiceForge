@@ -329,5 +329,5 @@ Decisions taken during the interview, recorded for traceability:
 ## 8. Open questions
 
 - [ ] Where do enforced content-security-policy violation reports go, so a missed source shows up before users report it? Default now: error tracking. — owner: Dmytro Hopko, due: before `sdd:design` completes
-- [ ] Does any existing account use a non-ASCII email address that the new rule (AC-17) would lock out? Default now: refuse non-ASCII, and check production accounts first. — owner: Dmytro Hopko, due: before `sdd:tasks`
+- [x] Does any existing account use a non-ASCII email address that the new rule (AC-17) would lock out? Default now: refuse non-ASCII, and check production accounts first. — owner: Dmytro Hopko, due: before `sdd:tasks` Answered 2026-10-06: the user ran the read-only check on production (`User`, 5 accounts): 0 non-ASCII, over-254 or malformed emails. No account is locked out; the default stands.
 - [ ] Should the strict-transport header cover subdomains, given that a mail provider's click-tracking subdomain may be plain-text only? Default now: no subdomains until checked. — owner: Dmytro Hopko, due: before `sdd:design` completes
