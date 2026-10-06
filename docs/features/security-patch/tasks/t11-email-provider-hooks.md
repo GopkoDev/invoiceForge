@@ -173,7 +173,7 @@ This task builds the one place every Sign-in link passes through — `normalizeI
 
 ## Checklist
 
-- [ ] **TD-3 gate:** ask the user to run the read-only production check for accounts with a non-ASCII email (the agent does not connect to prod). Record the answer in this task's PR; any hit → stop and ask.
+- [x] **TD-3 gate:** ask the user to run the read-only production check for accounts with a non-ASCII email (the agent does not connect to prod). Record the answer in this task's PR; any hit → stop and ask.
 - [ ] `lib/validations/auth.ts` — `loginEmailSchema`: `.max(254)` + ASCII-only refine, both messages `Enter a valid email address.`; unit table test in `tests/unit/lib/validations/` (254 ok, 255 refused, `ü` refused).
 - [ ] `lib/auth/email-provider.ts` — `normalizeIdentifier`: keep today's identity normalization (trim + lower-case) exactly; apply `loginEmailSchema`; throw a typed invalid-address error before any token is created.
 - [ ] `lib/auth/email-provider.ts` — `sendVerificationRequest`: read source via T8 key helper (`ipAddress()`, never a client header), call the limit store (source + address under per-key locks), map `limited` → no send + floor; `unavailable` → typed `EmailSigninUnavailable` error (no send); allowed → send through T10's TLS transport, then record `SENT`; TLS/cert failure → typed `EmailSendFailed`, report to Sentry via `failed()`-style single report.
@@ -198,7 +198,7 @@ This task builds the one place every Sign-in link passes through — `normalizeI
 
 ## Definition of Done
 
-- [ ] TD-3 answered by the user (no non-ASCII production accounts, or the user's decision recorded)
+- [x] TD-3 answered by the user (no non-ASCII production accounts, or the user's decision recorded). Answered 2026-10-06: the user ran the read-only check on production (`User`, 5 accounts): 0 non-ASCII, over-254 or malformed emails. No account is locked out; the default stands.
 - [ ] integration tests for AC-03, AC-11 – AC-17 pass through both entry routes
 - [ ] timing test passes in both SMTP-latency modes (median difference ≤ 150 ms)
 - [ ] fail-closed test with the limit store unavailable passes

@@ -135,5 +135,6 @@ blocking as item 8: the release does not go to production until each one has pas
    in `lib/validations/auth.ts` refuses both, so such an account could no longer request a Sign-in link). The
    agent never connects to production. Record the answer in `tasks/t11-email-provider-hooks.md` (TD-3 gate
    and Definition of Done) and tick spec §8 OQ2. Any hit stops the release pending your decision.
+   **Done 2026-10-06:** 5 accounts, 0 hits (non-ASCII, over 254 characters or malformed). Recorded in T11 and spec §8 OQ2.
 9. Apply the `LimitEvent` migration to production with `prisma migrate deploy` against the production URL.
 10. Only then release to production.
