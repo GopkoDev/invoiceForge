@@ -3,7 +3,7 @@ slug: mcp-server
 date: 2026-10-07
 triage: regression
 acs: []
-commit: pending
+commit: a2d5d96
 recurrence_of: none
 ---
 
