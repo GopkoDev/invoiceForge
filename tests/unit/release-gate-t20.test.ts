@@ -104,6 +104,23 @@ describe('T20 release gate', () => {
     expect(unpatched.map((v) => v.join('.'))).toEqual([]);
   });
 
+  // GHSA-68fv-2mgg-jv7q (high) is patched in source-map-js 1.2.2; it reaches production
+  // through next > postcss, whose ^1 range accepts the patched release.
+  it('AC-01: source-map-js is overridden to the patched release and the lockfile has no older copy', () => {
+    expect(read('pnpm-workspace.yaml')).toMatch(
+      /^\s+'?source-map-js@<1\.2\.2'?: \^1\.2\.2$/m
+    );
+    const versions = [
+      ...read('pnpm-lock.yaml').matchAll(/source-map-js@(\d+)\.(\d+)\.(\d+)/g),
+    ].map((m) => m.slice(1, 4).map(Number));
+    expect(versions.length).toBeGreaterThan(0);
+    const unpatched = versions.filter(
+      ([major, minor, patch]) =>
+        major === 1 && (minor < 2 || (minor === 2 && patch < 2))
+    );
+    expect(unpatched.map((v) => v.join('.'))).toEqual([]);
+  });
+
   it('AC-01: ship notes explain the moderate and low advisories and the nodemailer peer range', () => {
     const notes = read('docs/features/security-patch/ship-notes.md');
     expect(notes).toMatch(/moderate and low/i);

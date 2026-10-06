@@ -42,6 +42,7 @@ F-08, F-09); `pnpm audit --prod` now reports no known vulnerabilities:
 |---|---|---|---|---|
 | `uuid` | moderate | GHSA-w5hq-g745-h8pq | direct dependency | Raised to `^13.0.1` (resolves 13.0.2). |
 | `@babel/core` | low | GHSA-4x5r-pxfx-6jf8 | `@sentry/nextjs > @sentry/bundler-plugin-core` (build time) | `pnpm-workspace.yaml` override `@babel/core@<7.29.6: ^7.29.6` (resolves 7.29.7). Every dependant declares a `^7` range (`@sentry/bundler-plugin-core` 5.3.0 declares `^7.18.5`), so the patched release is inside it. The same single copy also serves `next` and `eslint-config-next`. |
+| `source-map-js` | high | GHSA-68fv-2mgg-jv7q | `next > postcss` | Published after the release gate passed; CI went red on 2026-10-06. `pnpm-workspace.yaml` override `source-map-js@<1.2.2: ^1.2.2` (resolves 1.2.2), inside `postcss`'s `^1` range. Fix record: `_fixes/2026-10-06-source-map-js-advisory.md`. |
 
 ### Development-only advisories (41 high, listed, not gate-failing)
 
