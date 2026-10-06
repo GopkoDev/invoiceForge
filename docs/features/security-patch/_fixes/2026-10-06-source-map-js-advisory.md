@@ -3,7 +3,7 @@ slug: security-patch
 date: 2026-10-06
 triage: regression
 acs: [AC-01]
-commit: pending
+commit: 7456b58
 recurrence_of: none
 ---
 
