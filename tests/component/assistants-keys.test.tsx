@@ -40,6 +40,10 @@ vi.mock('@/lib/helpers/client-session-redirect', () => ({
 }));
 
 const { AssistantKeys } = await import('@/components/assistants/assistant-keys');
+const { SettingsModalContainer } = await import(
+  '@/components/modals/settings/settings-modal-container'
+);
+const { useModalStore } = await import('@/store/use-modal-store');
 const { KEY_NAME_MESSAGE, KEY_LIMIT_MESSAGE } = await import(
   '@/lib/validations/personal-key'
 );
@@ -80,9 +84,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+// The settings layout mounts SettingsModalContainer next to the page, as here.
 function renderKeys(list: { active: Active[]; revoked: (typeof old)[] }) {
   return render(
-    <AssistantKeys origin="https://app.test" timeZone="UTC" keys={list} />
+    <>
+      <AssistantKeys origin="https://app.test" timeZone="UTC" keys={list} />
+      <SettingsModalContainer />
+    </>
   );
 }
 
@@ -103,6 +111,7 @@ function created(name: string, id: string, fullKey: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useModalStore.getState().resetAllModals();
 });
 
 describe('SCR-03 key-name hint', () => {
@@ -284,6 +293,24 @@ describe('create', () => {
 });
 
 describe('SCR-04 revoke confirmation', () => {
+  // docs/architecture-map.md: modals go through store/use-modal-store.ts and render in the
+  // layout's modal container, never inline in the page.
+  it('opens the confirmation through the modal store, not inline', async () => {
+    const user = userEvent.setup();
+    render(
+      <AssistantKeys
+        origin="https://app.test"
+        timeZone="UTC"
+        keys={{ active: [laptop], revoked: [] }}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: /^Revoke/ }));
+    expect(useModalStore.getState().modals.confirmationModal?.title).toBe(
+      'Revoke "Laptop assistant"?'
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   async function openRevoke(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getAllByRole('button', { name: /^Revoke/ })[0]);
     return await screen.findByRole('dialog');

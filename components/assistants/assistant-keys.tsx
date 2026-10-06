@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ConfirmationModal } from '@/components/modals/global-modals/confirmation-modal/confirmation-modal';
 import { ExamplePrompts } from '@/components/assistants/example-prompts';
 import { KeyCreateForm } from '@/components/assistants/key-create-form';
 import { KeyList } from '@/components/assistants/key-list';
@@ -11,6 +10,7 @@ import { KeyReveal } from '@/components/assistants/key-reveal';
 import { SetupSteps } from '@/components/assistants/setup-steps';
 import { revokePersonalKey } from '@/lib/actions/personal-key-actions';
 import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
+import { useModal } from '@/store/use-modal-store';
 import type {
   PersonalKeyList,
   PersonalKeySummary,
@@ -34,25 +34,20 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
   const [seenKeys, setSeenKeys] = useState(keys);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<PersonalKeySummary | null>(
-    null
-  );
-
-  // The dialog keeps the last target's name while it animates closed.
-  const [lastTarget, setLastTarget] = useState<PersonalKeySummary | null>(null);
-  if (revokeTarget && revokeTarget !== lastTarget) setLastTarget(revokeTarget);
+  // Rendered by the settings layout's SettingsModalContainer.
+  const confirmationModal = useModal('confirmationModal');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [focusHeading, setFocusHeading] = useState(false);
 
   // The revoked row's Revoke button is gone, so focus would fall to <body>; park it on the list heading.
   useEffect(() => {
-    if (!focusHeading || revokeTarget) return;
+    if (!focusHeading || confirmationModal.isOpen) return;
     const id = setTimeout(() => {
       headingRef.current?.focus();
       setFocusHeading(false);
     }, 0);
     return () => clearTimeout(id);
-  }, [focusHeading, revokeTarget]);
+  }, [focusHeading, confirmationModal.isOpen]);
 
   // A fresh server render (after a create/revoke refresh) replaces the local copy.
   if (keys !== seenKeys) {
@@ -66,11 +61,22 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
     router.refresh();
   }
 
-  async function handleConfirmRevoke() {
-    const target = revokeTarget;
-    if (!target) return;
+  function openRevoke(target: PersonalKeySummary) {
+    confirmationModal.open({
+      open: true,
+      onClose: confirmationModal.close,
+      onConfirm: () => handleConfirmRevoke(target),
+      title: `Revoke "${target.name}"?`,
+      description:
+        "Any assistant using this key stops working right away. This can't be undone: you'll need a new key to reconnect.",
+      confirmText: 'Revoke key',
+      variant: 'destructive',
+    });
+  }
+
+  async function handleConfirmRevoke(target: PersonalKeySummary) {
     const result = await revokePersonalKey(target.id);
-    setRevokeTarget(null);
+    confirmationModal.close();
     if (redirectIfUnauthorized(result)) return;
 
     if (result.success) {
@@ -109,17 +115,8 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
         active={list.active}
         revoked={list.revoked}
         timeZone={timeZone}
-        onRevoke={setRevokeTarget}
+        onRevoke={openRevoke}
         headingRef={headingRef}
-      />
-      <ConfirmationModal
-        open={revokeTarget !== null}
-        onClose={() => setRevokeTarget(null)}
-        onConfirm={handleConfirmRevoke}
-        title={`Revoke "${(revokeTarget ?? lastTarget)?.name ?? ''}"?`}
-        description="Any assistant using this key stops working right away. This can't be undone: you'll need a new key to reconnect."
-        confirmText="Revoke key"
-        variant="destructive"
       />
     </>
   );
