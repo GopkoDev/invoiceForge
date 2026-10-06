@@ -3,7 +3,7 @@ slug: mcp-server
 date: 2026-10-06
 triage: regression
 acs: [security-patch AC-01]
-commit: pending
+commit: 06beb82
 recurrence_of: none
 ---
 
