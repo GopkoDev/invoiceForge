@@ -3,6 +3,7 @@
 import { auth } from '@/auth';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { failed } from '@/lib/services/_shared/result-helpers';
+import { isVerifiedSession } from '@/lib/helpers/verified-session';
 
 /**
  * Get authenticated user session
@@ -14,7 +15,7 @@ export async function getAuthenticatedUser(): Promise<
   try {
     const session = await auth();
 
-    if (!session?.user?.id) {
+    if (!isVerifiedSession(session)) {
       return fail('UNAUTHORIZED', 'Not signed in.');
     }
 

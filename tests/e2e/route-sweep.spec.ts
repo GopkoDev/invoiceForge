@@ -15,11 +15,31 @@
 // Location header is asserted instead of following it.
 import fs from 'node:fs';
 import path from 'node:path';
-import { test, expect } from '@playwright/test';
+import { test, expect, type BrowserContext } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
-import { isNextAuthCatchAll, type BuiltRoute } from './support/route-sweep-exclusion';
-import { APP_E2E_URL } from './support/app-server';
-import { authRoutes, isPublicPath, protectedRoutes } from '../../config/routes.config';
+import {
+  isNextAuthCatchAll,
+  type BuiltRoute,
+} from './support/route-sweep-exclusion';
+import {
+  APP_E2E_URL,
+  BASE_URL_OVERRIDE,
+  BROKEN_CHECK_URL,
+} from './support/app-server';
+import {
+  collectCspViolations,
+  type CspCollector,
+} from './support/csp-collector';
+import { signInWithSignInLink } from './support/genuine-session';
+import { seedWorkspace, type SeededWorkspace } from './support/seed';
+import { uniqueTestEmail } from '../support/factories/ids';
+import {
+  PURGE_LIMITS_CRON_PATH,
+  legalRoutes,
+  authRoutes,
+  isPublicPath,
+  protectedRoutes,
+} from '../../config/routes.config';
 
 const FAKE_ID = 'route-sweep-fake-id-0000000001';
 const REPO_ROOT = process.cwd(); // Playwright runs from the repo root (playwright.config.ts lives there)
@@ -30,14 +50,23 @@ const REPO_ROOT = process.cwd(); // Playwright runs from the repo root (playwrig
 // ("/(protected)/customers/[id]/page"), values the URL path ("/customers/[id]").
 
 function readBuiltRoutes(): BuiltRoute[] {
-  const manifestPath = path.join(REPO_ROOT, '.next', 'app-path-routes-manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, string>;
+  const manifestPath = path.join(
+    REPO_ROOT,
+    '.next',
+    'app-path-routes-manifest.json'
+  );
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<
+    string,
+    string
+  >;
   return (
     Object.entries(manifest)
       .map(([entry, urlPath]) => ({
         entry,
         urlPath,
-        kind: (entry.endsWith('/route') ? 'route' : 'page') as BuiltRoute['kind'],
+        kind: (entry.endsWith('/route')
+          ? 'route'
+          : 'page') as BuiltRoute['kind'],
       }))
       // Next's own internal entries (/_not-found, /_global-error) are not app routes.
       .filter((route) => !route.urlPath.startsWith('/_'))
@@ -46,7 +75,9 @@ function readBuiltRoutes(): BuiltRoute[] {
 
 // Dynamic segments (and a catch-all's) are filled with a fake id.
 function concretePath(urlPath: string): string {
-  return urlPath.replace(/\[\.\.\.[^\]]+\]/g, FAKE_ID).replace(/\[[^\]]+\]/g, FAKE_ID);
+  return urlPath
+    .replace(/\[\.\.\.[^\]]+\]/g, FAKE_ID)
+    .replace(/\[[^\]]+\]/g, FAKE_ID);
 }
 
 // next-auth's catch-all handler owns many public endpoints (config/routes.config.ts lists them
@@ -55,18 +86,41 @@ function concretePath(urlPath: string): string {
 
 // Route handlers are called with the method they really export, read from the source file.
 function exportedMethods(entry: string): string[] {
-  const source = fs.readFileSync(path.join(REPO_ROOT, 'app', `${entry}.ts`), 'utf8');
+  const source = fs.readFileSync(
+    path.join(REPO_ROOT, 'app', `${entry}.ts`),
+    'utf8'
+  );
   const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].filter((method) =>
     new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(source)
   );
-  expect(methods, `${entry} exports no recognised HTTP method`).not.toHaveLength(0);
+  expect(
+    methods,
+    `${entry} exports no recognised HTTP method`
+  ).not.toHaveLength(0);
   return methods;
 }
 
-const UNAUTHORIZED_BODY = { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' };
+// Route handlers that are public on purpose and guard themselves, so a cookie-less call gets their
+// own refusal rather than the proxy's UNAUTHORIZED: the Sentry tunnel refuses every envelope when
+// the build has no DSN (AC-22).
+const SELF_GUARDED_HANDLERS: Record<string, number> = { '/monitoring': 403 };
+
+const UNAUTHORIZED_BODY = {
+  success: false,
+  code: 'UNAUTHORIZED',
+  error: 'Not signed in.',
+};
 
 // Public paths whose handler is a redirect by design (the stale-cookie sweeper 302s to sign-in).
-const PUBLIC_REDIRECTS: Record<string, string> = { '/api/auth/clear-session': authRoutes.signIn };
+// The purge cron is public to the proxy (Vercel Cron carries no session) and guards itself with the
+// CRON_SECRET bearer: without it, 401 and nothing purged (ADR-0007).
+const PUBLIC_REFUSALS: Record<string, number> = {
+  [PURGE_LIMITS_CRON_PATH]: 401,
+};
+
+const PUBLIC_REDIRECTS: Record<string, string> = {
+  '/api/auth/clear-session': authRoutes.signIn,
+};
 
 test.describe('AC-05 route sweep — every built non-public route denies a cookie-less request', () => {
   test.beforeEach(async ({}, testInfo) => {
@@ -77,7 +131,9 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     const urlPaths = readBuiltRoutes().map((route) => route.urlPath);
 
     expect(urlPaths).toContain(protectedRoutes.senderProfileEditTab('[id]'));
-    expect(urlPaths).toContain(protectedRoutes.senderProfileEditBankAccounts('[id]'));
+    expect(urlPaths).toContain(
+      protectedRoutes.senderProfileEditBankAccounts('[id]')
+    );
   });
 
   test('the sweep exclusion matches exactly one manifest entry', async () => {
@@ -90,7 +146,8 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     playwright,
   }) => {
     const protectedInBuild = readBuiltRoutes().filter(
-      (route) => !isNextAuthCatchAll(route) && !isPublicPath(concretePath(route.urlPath))
+      (route) =>
+        !isNextAuthCatchAll(route) && !isPublicPath(concretePath(route.urlPath))
     );
     expect(protectedInBuild.length).toBeGreaterThan(0);
     const context = await playwright.request.newContext({ maxRedirects: 0 });
@@ -99,15 +156,32 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
         const url = `${APP_E2E_URL}${concretePath(route.urlPath)}`;
         if (route.kind === 'page') {
           const response = await context.get(url);
-          expect([302, 307], `page ${route.urlPath}`).toContain(response.status());
+          expect([302, 307], `page ${route.urlPath}`).toContain(
+            response.status()
+          );
           const location = response.headers()['location'];
           expect(location, `page ${route.urlPath} location`).toBeTruthy();
-          expect(new URL(location!, APP_E2E_URL).pathname, `page ${route.urlPath}`).toBe(authRoutes.signIn);
+          expect(
+            new URL(location!, APP_E2E_URL).pathname,
+            `page ${route.urlPath}`
+          ).toBe(authRoutes.signIn);
         } else {
+          const selfGuardedStatus = SELF_GUARDED_HANDLERS[route.urlPath];
           for (const method of exportedMethods(route.entry)) {
-            const response = await context.fetch(url, { method, ...(method === 'GET' ? {} : { data: {} }) });
+            const response = await context.fetch(url, {
+              method,
+              ...(method === 'GET' ? {} : { data: {} }),
+            });
+            if (selfGuardedStatus) {
+              expect(response.status(), `${method} ${route.urlPath}`).toBe(
+                selfGuardedStatus
+              );
+              continue;
+            }
             expect(response.status(), `${method} ${route.urlPath}`).toBe(401);
-            expect(await response.json(), `${method} ${route.urlPath}`).toEqual(UNAUTHORIZED_BODY);
+            expect(await response.json(), `${method} ${route.urlPath}`).toEqual(
+              UNAUTHORIZED_BODY
+            );
           }
         }
       }
@@ -116,22 +190,37 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     }
   });
 
-  test('every allowlisted built path returns 200 with no redirect to sign-in', async ({ playwright }) => {
+  test('every allowlisted built path returns 200 with no redirect to sign-in', async ({
+    playwright,
+  }) => {
     const publicInBuild = readBuiltRoutes().filter(
-      (route) => !isNextAuthCatchAll(route) && isPublicPath(concretePath(route.urlPath))
+      (route) =>
+        !isNextAuthCatchAll(route) && isPublicPath(concretePath(route.urlPath))
     );
     expect(publicInBuild.length).toBeGreaterThan(0);
     const context = await playwright.request.newContext({ maxRedirects: 0 });
     try {
       for (const route of publicInBuild) {
-        const response = await context.get(`${APP_E2E_URL}${concretePath(route.urlPath)}`);
+        const response = await context.get(
+          `${APP_E2E_URL}${concretePath(route.urlPath)}`
+        );
         const redirectTarget = PUBLIC_REDIRECTS[route.urlPath];
         if (redirectTarget) {
           expect(response.status(), route.urlPath).toBe(302);
-          expect(new URL(response.headers()['location']!, APP_E2E_URL).pathname, route.urlPath).toBe(redirectTarget);
+          expect(
+            new URL(response.headers()['location']!, APP_E2E_URL).pathname,
+            route.urlPath
+          ).toBe(redirectTarget);
+        } else if (PUBLIC_REFUSALS[route.urlPath]) {
+          expect(response.status(), route.urlPath).toBe(
+            PUBLIC_REFUSALS[route.urlPath]
+          );
         } else {
           expect(response.status(), route.urlPath).toBe(200);
-          expect(response.headers()['location'], `${route.urlPath} must not redirect`).toBeUndefined();
+          expect(
+            response.headers()['location'],
+            `${route.urlPath} must not redirect`
+          ).toBeUndefined();
         }
       }
     } finally {
@@ -139,16 +228,196 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
     }
   });
 
-  test('a server action (Next-Action header) with no session is refused with no data', async ({ playwright }) => {
+  test('a server action (Next-Action header) with no session is refused with no data', async ({
+    playwright,
+  }) => {
     const context = await playwright.request.newContext();
     try {
-      const response = await context.post(`${APP_E2E_URL}${protectedRoutes.dashboard}`, {
-        headers: { 'Next-Action': 'route-sweep-fake-action-id' },
-        data: {},
-      });
+      const response = await context.post(
+        `${APP_E2E_URL}${protectedRoutes.dashboard}`,
+        {
+          headers: { 'Next-Action': 'route-sweep-fake-action-id' },
+          data: {},
+        }
+      );
 
       expect(response.status()).toBe(401);
       expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  // AC-18: the other request shapes. A real, non-sign-in action id comes from the build's own
+  // server-reference manifest, so the framework would really dispatch it if the request got that far.
+  // Picked by its exported name, not by manifest order — getCustomers is the action that
+  // would return another account's data if it ran.
+  function readNonSignInActionId(
+    filename = 'lib/actions/customer-actions.ts',
+    exportedName = 'getCustomers'
+  ): string {
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          REPO_ROOT,
+          '.next',
+          'server',
+          'server-reference-manifest.json'
+        ),
+        'utf8'
+      )
+    ) as {
+      node: Record<string, { filename: string; exportedName: string }>;
+    };
+    const entry = Object.entries(manifest.node).find(
+      ([, action]) =>
+        action.filename === filename && action.exportedName === exportedName
+    );
+    expect(entry, `${filename}#${exportedName} in the manifest`).toBeTruthy();
+    return entry![0];
+  }
+
+  // ADR-0003: an action posted to a *public* page is refused too, so every anonymous-action shape
+  // is sent there, not only to private pages.
+  test('every anonymous-action shape POSTed to a public page is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext({ maxRedirects: 0 });
+    try {
+      const actionId = readNonSignInActionId();
+      for (const target of ['/', legalRoutes.privacy]) {
+        const shapes = {
+          'no action marker (JSON)': () =>
+            context.post(`${APP_E2E_URL}${target}`, { data: {} }),
+          'form-encoded $ACTION_ID_': () =>
+            context.post(`${APP_E2E_URL}${target}`, {
+              form: { [`$ACTION_ID_${actionId}`]: '' },
+            }),
+          'Next-Action header': () =>
+            context.post(`${APP_E2E_URL}${target}`, {
+              headers: { 'Next-Action': actionId },
+              data: '[]',
+            }),
+        };
+        for (const [shape, send] of Object.entries(shapes)) {
+          const response = await send();
+          expect(response.status(), `${shape} → ${target}`).toBe(401);
+          expect(await response.json(), `${shape} → ${target}`).toEqual(
+            UNAUTHORIZED_BODY
+          );
+        }
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  test('a header-less JSON POST to a private page is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const response = await context.post(
+        `${APP_E2E_URL}${protectedRoutes.dashboard}`,
+        { data: {} }
+      );
+
+      expect(response.status()).toBe(401);
+      expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  test('a form-encoded POST naming an action is refused with no data', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId();
+      for (const target of [
+        protectedRoutes.dashboard,
+        protectedRoutes.customers,
+      ]) {
+        const response = await context.post(`${APP_E2E_URL}${target}`, {
+          form: { [`$ACTION_ID_${actionId}`]: '' },
+        });
+
+        expect(response.status(), target).toBe(401);
+        expect(await response.json(), target).toEqual(UNAUTHORIZED_BODY);
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  test('POST /login naming a non-sign-in action is refused and the action does not run', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId();
+      const header = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        headers: { 'Next-Action': actionId },
+        data: '[]',
+      });
+      // The action never runs: the page it was posted to does not own it (an inert `{}`), or it
+      // refuses itself through its own session guard. Either way no data comes back.
+      const inertOrRefused = (body: string) =>
+        body === '{}' || body.includes('UNAUTHORIZED');
+      expect(header.status()).toBeLessThan(500);
+      const headerBody = await header.text();
+      expect(inertOrRefused(headerBody), headerBody).toBe(true);
+      expect(headerBody).not.toContain('"success":true');
+
+      const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        form: { [`$ACTION_ID_${actionId}`]: '' },
+      });
+      expect(form.status()).toBeLessThan(500);
+      expect(await form.text()).not.toContain('"success":true');
+    } finally {
+      await context.dispose();
+    }
+  });
+
+  // The absence of `"success":true` alone proves little, so another account's data is
+  // planted and must never come back, through either shape, from the action that would list it.
+  test("POST /login naming getCustomers never returns another account's customer", async ({
+    playwright,
+  }) => {
+    test.skip(
+      !!BASE_URL_OVERRIDE,
+      'seeded data needs the local throwaway database'
+    );
+    const customerName = `Other Account Customer ${Date.now().toString(36)}`;
+    await seedWorkspace(uniqueTestEmail('other-account'), { customerName });
+    const context = await playwright.request.newContext();
+    try {
+      const actionId = readNonSignInActionId(
+        'lib/actions/customer-actions.ts',
+        'getCustomers'
+      );
+      const header = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        headers: { 'Next-Action': actionId },
+        data: '[]',
+      });
+      const form = await context.post(`${APP_E2E_URL}${authRoutes.signIn}`, {
+        form: { [`$ACTION_ID_${actionId}`]: '' },
+      });
+      // `getCustomers` is not in the /login worker, so neither shape reaches the
+      // action body, and this does not exercise the action's own session guard (the guard scan
+      // does). It covers the proxy and the framework's worker lookup in front of it: the header
+      // shape is answered with the page's inert `{}` and the form shape with the sign-in page
+      // itself, both 200, with nothing of the planted account in either.
+      expect(header.status(), 'Next-Action header').toBe(200);
+      expect(await header.text(), 'Next-Action header').toBe('{}');
+      expect(form.status(), 'form-encoded').toBe(200);
+      expect(form.headers()['content-type'], 'form-encoded').toContain(
+        'text/html'
+      );
+      const formBody = await form.text();
+      expect(formBody, 'form-encoded').not.toContain(customerName);
+      expect(formBody, 'form-encoded').not.toContain('"success":true');
     } finally {
       await context.dispose();
     }
@@ -159,12 +428,260 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
   }) => {
     const context = await playwright.request.newContext({ maxRedirects: 0 });
     try {
-      const response = await context.get(`${APP_E2E_URL}/api/a-route-nobody-listed-yet`);
+      const response = await context.get(
+        `${APP_E2E_URL}/api/a-route-nobody-listed-yet`
+      );
 
       expect(response.status()).toBe(401);
       expect(await response.json()).toEqual(UNAUTHORIZED_BODY);
     } finally {
       await context.dispose();
+    }
+  });
+});
+
+// AC-02, AC-05: the other half of the sweep — a Freelancer holding a genuine session, issued
+// by the real Sign-in link flow (support/genuine-session.ts, never a hand-built cookie), reaches
+// every private page directly and is never bounced to sign-in.
+test.describe('AC-05 route sweep — a genuine session reaches every private page', () => {
+  test.describe.configure({ mode: 'serial' });
+  let context: BrowserContext;
+  let csp: CspCollector;
+  let workspace: SeededWorkspace;
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    await skipWithoutContainerRuntime(testInfo);
+    test.skip(
+      !!BASE_URL_OVERRIDE,
+      'seeded data needs the local throwaway database; the user runs the preview checklist'
+    );
+    const email = uniqueTestEmail('sweep');
+    workspace = await seedWorkspace(email);
+    context = await browser.newContext();
+    // AC-20: the same sweep also proves no private page breaks the enforced content-security policy.
+    csp = await collectCspViolations(context);
+    await signInWithSignInLink(await context.newPage(), email);
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  // Dynamic segments take the seeded record's real id, chosen by the section the path lives in.
+  function withSeededIds(urlPath: string): string {
+    const id = urlPath.startsWith('/sender-profiles/')
+      ? workspace.senderProfileId
+      : urlPath.startsWith('/customers/')
+        ? workspace.customerId
+        : urlPath.startsWith('/products/')
+          ? workspace.productId
+          : workspace.invoiceId;
+    return urlPath.replace(/\[\.\.\.[^\]]+\]/g, id).replace(/\[[^\]]+\]/g, id);
+  }
+
+  // Private pages whose handler is an in-app redirect by design (the settings index opens the
+  // profile tab); any other landing path, sign-in above all, fails the sweep.
+  const PRIVATE_REDIRECTS: Record<string, (path: string) => string> = {
+    '/settings': () => protectedRoutes.settingsProfile,
+    '/sender-profiles/[id]/edit': (path) =>
+      protectedRoutes.senderProfileEditTab(path.split('/')[2]),
+  };
+
+  test('every private page loads directly with no redirect to sign-in and zero CSP violations', async () => {
+    // One fresh tab per private page: well over the 30 s default when the suite runs in parallel.
+    test.setTimeout(240_000);
+    const privatePages = readBuiltRoutes().filter(
+      (route) =>
+        route.kind === 'page' && !isPublicPath(concretePath(route.urlPath))
+    );
+    expect(privatePages.length).toBeGreaterThan(0);
+    for (const route of privatePages) {
+      // A fresh tab per page: a client-side redirect still in flight must not abort the next goto().
+      const page = await context.newPage();
+      const path = withSeededIds(route.urlPath);
+      const response = await page.goto(`${APP_E2E_URL}${path}`);
+      const redirectTarget = PRIVATE_REDIRECTS[route.urlPath]?.(path);
+      // A server-component redirect() can complete client-side after goto() resolves.
+      if (redirectTarget) await page.waitForURL(`**${redirectTarget}`);
+      expect(
+        new URL(page.url()).pathname,
+        `${route.urlPath} must not bounce to sign-in`
+      ).toBe(redirectTarget ?? path);
+      expect(response?.status(), route.urlPath).toBeLessThan(400);
+      await page.waitForLoadState('networkidle');
+      csp.expectNone(`private page ${route.urlPath}`);
+      await page.close();
+    }
+  });
+});
+
+// AC-04, AC-06: the check is made to fail for real: BROKEN_CHECK_URL is the same build and
+// database booted with a different AUTH_SECRET (start-app-server.mjs), the misconfiguration AC-04
+// names. Cookies are scoped to the host, not the port, so the session issued by the real server is
+// the one that fails there, and "the check recovers" is simply going back to the real server.
+test.describe('AC-04 / AC-06 — a failing sign-in check never ends a session', () => {
+  test.describe.configure({ mode: 'serial' });
+  let context: BrowserContext;
+
+  // The twin is not part of Playwright's webServer readiness check, so wait for it here.
+  async function waitForBrokenCheckServer(): Promise<void> {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      try {
+        await fetch(BROKEN_CHECK_URL, { redirect: 'manual' });
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+    throw new Error(`${BROKEN_CHECK_URL} did not come up within 60s`);
+  }
+
+  function sessionCookieExpiries(headers: { name: string; value: string }[]) {
+    return headers.filter(
+      (h) =>
+        h.name.toLowerCase() === 'set-cookie' &&
+        /^(__Secure-)?authjs\.session-token(\.\d+)?=;/.test(h.value)
+    );
+  }
+
+  async function sessionCookieValue(): Promise<string | undefined> {
+    const cookies = await context.cookies(APP_E2E_URL);
+    return cookies.find((c) => /authjs\.session-token/.test(c.name))?.value;
+  }
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    await skipWithoutContainerRuntime(testInfo);
+    test.skip(
+      !!BASE_URL_OVERRIDE,
+      'the misconfigured twin server only exists for the local run'
+    );
+    await waitForBrokenCheckServer();
+    context = await browser.newContext();
+    await signInWithSignInLink(
+      await context.newPage(),
+      uniqueTestEmail('check-fails')
+    );
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  test('AC-04: while the check fails a private page goes to sign-in and data is refused; once it recovers the same cookie opens the dashboard', async () => {
+    // The dashboard render runs alongside the private-page sweep above: past the 30 s default.
+    test.setTimeout(120_000);
+    const before = await sessionCookieValue();
+    expect(before, 'the real sign-in flow left a session cookie').toBeTruthy();
+
+    const pageResponse = await context.request.get(
+      `${BROKEN_CHECK_URL}${protectedRoutes.dashboard}`,
+      { maxRedirects: 0 }
+    );
+    expect(pageResponse.status()).toBeGreaterThanOrEqual(300);
+    expect(pageResponse.status()).toBeLessThan(400);
+    expect(
+      new URL(pageResponse.headers()['location']!, BROKEN_CHECK_URL).pathname
+    ).toBe(authRoutes.signIn);
+    expect(sessionCookieExpiries(pageResponse.headersArray())).toEqual([]);
+
+    const dataResponse = await context.request.get(
+      `${BROKEN_CHECK_URL}/api/user/export`,
+      { maxRedirects: 0 }
+    );
+    expect(dataResponse.status()).toBe(401);
+    expect(await dataResponse.json()).toEqual(UNAUTHORIZED_BODY);
+    expect(sessionCookieExpiries(dataResponse.headersArray())).toEqual([]);
+
+    expect(
+      await sessionCookieValue(),
+      'a failed check must not touch the session cookie'
+    ).toBe(before);
+
+    const page = await context.newPage();
+    const recovered = await page.goto(
+      `${APP_E2E_URL}${protectedRoutes.dashboard}`
+    );
+    expect(new URL(page.url()).pathname).toBe(protectedRoutes.dashboard);
+    expect(recovered?.status()).toBeLessThan(400);
+    await page.close();
+  });
+
+  // The requests above are made one by one; a real browser loading a page
+  // also runs whatever the page's scripts fetch once they hydrate (a client session poller would
+  // call /api/auth/session, whose own failed check clears the cookie). So: the genuine cookie, a
+  // real page load on the failing server, every request settled, and the cookie is still there.
+  test('AC-04: hydrated sign-in and public pages on the failing server leave the genuine cookie untouched', async () => {
+    test.setTimeout(120_000);
+    const before = await sessionCookieValue();
+    expect(before, 'the real sign-in flow left a session cookie').toBeTruthy();
+
+    const page = await context.newPage();
+    const expiries: string[] = [];
+    page.on('response', async (response) => {
+      for (const header of sessionCookieExpiries(
+        await response.headersArray()
+      )) {
+        expiries.push(`${response.url()}: ${header.value}`);
+      }
+    });
+    for (const path of [authRoutes.signIn, '/', '/privacy']) {
+      const response = await page.goto(`${BROKEN_CHECK_URL}${path}`);
+      expect(response?.status(), path).toBe(200);
+      await page.waitForLoadState('networkidle');
+      expect(new URL(page.url()).pathname, path).toBe(path);
+    }
+    expect(expiries, 'no response may expire the session cookie').toEqual([]);
+    expect(
+      await sessionCookieValue(),
+      'a failed check in the browser must not touch the session cookie'
+    ).toBe(before);
+
+    const recovered = await page.goto(
+      `${APP_E2E_URL}${protectedRoutes.dashboard}`
+    );
+    expect(new URL(page.url()).pathname).toBe(protectedRoutes.dashboard);
+    expect(recovered?.status()).toBeLessThan(400);
+    await page.close();
+  });
+
+  test('AC-06: the sign-in and landing pages render in one response while the check fails, and sign-in works once it recovers', async ({
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    for (const path of [authRoutes.signIn, '/']) {
+      const response = await context.request.get(`${BROKEN_CHECK_URL}${path}`, {
+        maxRedirects: 0,
+      });
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()['location'], path).toBeUndefined();
+      expect(sessionCookieExpiries(response.headersArray()), path).toEqual([]);
+    }
+
+    // A Visitor in a real browser: carrying a cookie the check cannot verify, the pages still
+    // settle on themselves (no redirect chain, client-side or otherwise).
+    const visitor = await browser.newContext();
+    try {
+      await visitor.addCookies([
+        {
+          name: 'authjs.session-token',
+          value: 'a-token-this-server-cannot-verify',
+          url: BROKEN_CHECK_URL,
+        },
+      ]);
+      const page = await visitor.newPage();
+      for (const path of [authRoutes.signIn, '/']) {
+        const response = await page.goto(`${BROKEN_CHECK_URL}${path}`);
+        expect(response?.status(), path).toBe(200);
+        await page.waitForLoadState('networkidle');
+        expect(new URL(page.url()).pathname, path).toBe(path);
+      }
+
+      await signInWithSignInLink(page, uniqueTestEmail('check-recovers'));
+    } finally {
+      await visitor.close();
     }
   });
 });

@@ -13,11 +13,17 @@ vi.mock('next-auth', () => ({
   }),
 }));
 
+import { REQUEST_PATH_HEADER } from '@/config/routes.config';
+
 const BASE = 'https://app.example.test';
 
 function buildRequest(
   path: string,
-  options: { token?: unknown; method?: string; headers?: Record<string, string> } = {}
+  options: {
+    token?: unknown;
+    method?: string;
+    headers?: Record<string, string>;
+  } = {}
 ): NextRequest {
   const request = new NextRequest(new URL(path, BASE), {
     method: options.method ?? 'GET',
@@ -43,15 +49,19 @@ async function callProxy(request: NextRequest) {
 }
 
 describe('proxy (AC-05, deny by default, no session)', () => {
-  it.each(['/', '/login', '/robots.txt', '/sitemap.xml', '/manifest.json', '/opengraph-image'])(
-    'lets the public path %s through untouched',
-    async (path) => {
-      const res = await callProxy(buildRequest(path));
+  it.each([
+    '/',
+    '/login',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/manifest.json',
+    '/opengraph-image',
+  ])('lets the public path %s through untouched', async (path) => {
+    const res = await callProxy(buildRequest(path));
 
-      expect(res.status).toBe(200);
-      expect(res.headers.get('location')).toBeNull();
-    }
-  );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('location')).toBeNull();
+  });
 
   it('lets the next-auth handler prefix through', async () => {
     const res = await callProxy(buildRequest('/api/auth/session'));
@@ -106,24 +116,204 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     });
   });
 
-  it('treats a malformed session token as no session and clears both cookies', async () => {
-    const res = await callProxy(buildRequest('/dashboard', { token: 'reject' }));
+  it('treats a throwing check as a Visitor and never clears session cookies (AC-04)', async () => {
+    const res = await callProxy(
+      buildRequest('/dashboard', { token: 'reject' })
+    );
 
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.status).toBeLessThan(400);
-    const setCookie = res.headers.get('set-cookie') ?? '';
-    expect(setCookie).toContain('authjs.session-token=;');
+    const redirectUrl = new URL(res.headers.get('location') as string);
+    expect(redirectUrl.pathname).toBe('/login');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/dashboard');
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+});
+
+// AC-04 / AC-06: "signed in" means a verified session (`user.id` non-empty string), nothing else.
+describe('proxy (AC-04 / AC-06, verified session predicate)', () => {
+  const unverified: Array<[string, unknown]> = [
+    ['empty object', {}],
+    ['user without id', { user: {} }],
+    ['empty id', { user: { id: '' } }],
+    [
+      'Auth.js error object',
+      { message: 'There was a problem with the server configuration.' },
+    ],
+    ['non-session truthy string', 'error'],
+  ];
+
+  it.each(unverified)(
+    'treats %s as a Visitor on a private page',
+    async (_n, token) => {
+      const res = await callProxy(buildRequest('/dashboard', { token }));
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+      const redirectUrl = new URL(res.headers.get('location') as string);
+      expect(redirectUrl.pathname).toBe('/login');
+      expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/dashboard');
+    }
+  );
+
+  it.each(unverified)(
+    'treats %s as a Visitor on /api/*: 401, no data',
+    async (_n, token) => {
+      const res = await callProxy(
+        buildRequest('/api/user/export', { token, method: 'POST' })
+      );
+
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'Not signed in.',
+      });
+    }
+  );
+
+  it.each(unverified)(
+    'renders public /login and / for %s without a redirect (AC-06)',
+    async (_n, token) => {
+      for (const path of ['/login', '/']) {
+        const res = await callProxy(buildRequest(path, { token }));
+        expect(res.status).toBe(200);
+        expect(res.headers.get('location')).toBeNull();
+      }
+    }
+  );
+
+  it.each(['/login', '/', '/api/auth/session'])(
+    'renders public %s when the check throws, no cookie clearing',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: 'reject' }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('location')).toBeNull();
+      expect(res.headers.getSetCookie()).toEqual([]);
+    }
+  );
+
+  it('answers /api/* with 401 when the check throws, no cookie clearing', async () => {
+    const res = await callProxy(
+      buildRequest('/api/user/export', { token: 'reject', method: 'POST' })
+    );
+
+    expect(res.status).toBe(401);
+    expect(res.headers.getSetCookie()).toEqual([]);
   });
 
-  it('marks the __Secure- cookie deletion Secure, or browsers on https ignore it', async () => {
-    const res = await callProxy(buildRequest('/dashboard', { token: 'reject' }));
+  // Layouts can't see the pathname, so the proxy forwards it on a request header for
+  // requireLiveUser()'s "Try again" target; a caller-supplied value is always overwritten.
+  it.each(['/dashboard', '/invoices/inv_1/edit?tab=items'])(
+    'forwards the requested path %s to a verified private page on a request header',
+    async (path) => {
+      const res = await callProxy(
+        buildRequest(path, {
+          token: { user: { id: 'u1' } },
+          headers: { [REQUEST_PATH_HEADER]: '//evil.example' },
+        })
+      );
 
-    const secureDeletion = res.headers
-      .getSetCookie()
-      .find((cookie) => cookie.startsWith('__Secure-authjs.session-token='));
-    expect(secureDeletion).toBeDefined();
-    expect(secureDeletion).toMatch(/;\s*Secure/i);
-    expect(secureDeletion).toMatch(/;\s*Path=\//i);
+      expect(res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)).toBe(
+        path
+      );
+    }
+  );
+
+  it('lets a verified session through to a private page', async () => {
+    const res = await callProxy(
+      buildRequest('/dashboard', { token: { user: { id: 'u1' } } })
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('location')).toBeNull();
+  });
+});
+
+describe('proxy method rule (AC-18 / AC-19, refuse anonymous non-GET)', () => {
+  const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+  const JSON_H = { 'content-type': 'application/json' };
+
+  async function expectRefused(res: Response) {
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      success: false,
+      code: 'UNAUTHORIZED',
+      error: 'Not signed in.',
+    });
+  }
+
+  it.each(['/', '/privacy', '/terms'])(
+    'refuses a POST to the public page %s, with or without Next-Action, form or JSON',
+    async (path) => {
+      const shapes: Record<string, string>[] = [
+        {},
+        { 'next-action': 'abc123' },
+        FORM,
+        { ...FORM, 'next-action': 'abc123' },
+        JSON_H,
+        { ...JSON_H, 'next-action': 'abc123' },
+      ];
+      for (const headers of shapes) {
+        await expectRefused(
+          await callProxy(buildRequest(path, { method: 'POST', headers }))
+        );
+      }
+    }
+  );
+
+  it.each(['PUT', 'DELETE', 'PATCH'])(
+    'refuses an anonymous %s to a public page',
+    async (method) => {
+      await expectRefused(await callProxy(buildRequest('/', { method })));
+    }
+  );
+
+  it('refuses a header-less form POST to a public static asset path', async () => {
+    await expectRefused(
+      await callProxy(
+        buildRequest('/robots.txt', { method: 'POST', headers: FORM })
+      )
+    );
+  });
+
+  it('passes a POST to the sign-in service through', async () => {
+    const res = await callProxy(
+      buildRequest('/api/auth/signin/nodemailer', {
+        method: 'POST',
+        headers: FORM,
+      })
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('passes a POST to /login through (sign-in actions, AC-19)', async () => {
+    const res = await callProxy(
+      buildRequest('/login', {
+        method: 'POST',
+        headers: { 'next-action': 'abc123' },
+      })
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it.each(['GET', 'HEAD', 'OPTIONS'])(
+    'does not apply the method rule to %s on a public page',
+    async (method) => {
+      const res = await callProxy(buildRequest('/', { method }));
+      expect(res.status).toBe(200);
+    }
+  );
+
+  it('leaves a signed-in POST unaffected', async () => {
+    const res = await callProxy(
+      buildRequest('/dashboard', {
+        method: 'POST',
+        token: { user: { id: 'u1' } },
+      })
+    );
+    expect(res.status).toBe(200);
   });
 });
 

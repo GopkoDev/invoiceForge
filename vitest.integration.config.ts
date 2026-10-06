@@ -7,7 +7,12 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: 'node',
-    setupFiles: ['tests/support/server-only-mock.ts'],
+    // Same next-auth ESM workaround as vitest.config.ts.
+    server: { deps: { inline: ['next-auth'] } },
+    setupFiles: [
+      'tests/support/server-only-mock.ts',
+      'tests/support/limit-key-env.ts',
+    ],
     include: ['tests/integration/**/*.test.ts'],
     exclude: ['node_modules/**'],
     // Container start + `prisma migrate deploy` can take a while on a cold pull.

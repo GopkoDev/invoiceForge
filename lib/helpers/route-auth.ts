@@ -6,74 +6,142 @@
 
 import { NextResponse } from 'next/server';
 import { redirect, unstable_rethrow } from 'next/navigation';
+import { headers } from 'next/headers';
+import type { Session } from 'next-auth';
 import { auth } from '@/auth';
-import { CLEAR_SESSION_PATH } from '@/config/routes.config';
+import {
+  CLEAR_SESSION_PATH,
+  REQUEST_PATH_HEADER,
+} from '@/config/routes.config';
+import { isVerifiedSession } from '@/lib/helpers/verified-session';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 
-export type RequireSessionResult = { ok: true; userId: string } | { ok: false; response: NextResponse };
+/**
+ * Why a caller is not a live user (AC-04):
+ * - `signed-out`: `auth()` resolved no session at all. Note @auth/core also resolves null when
+ *   the token can't be decoded or the session callback's lookup throws, so this alone does not
+ *   prove the session is dead.
+ * - `account-gone`: the session decoded, but there is definitively no live account behind it
+ *   (AC-21). The only outcome that may end the session.
+ * - `check-failed`: the check itself threw. Never ends the session.
+ */
+export type SessionFailureReason =
+  | 'signed-out'
+  | 'account-gone'
+  | 'check-failed';
 
-const NOT_SIGNED_IN_BODY = { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' } as const;
+export type RequireSessionResult =
+  | { ok: true; userId: string }
+  | { ok: false; reason: SessionFailureReason; response: NextResponse };
+
+const NOT_SIGNED_IN_BODY = {
+  success: false,
+  code: 'UNAUTHORIZED',
+  error: 'Not signed in.',
+} as const;
 
 // Re-exported for existing importers; the path lives in routes.config so client-safe code
 // (e.g. unwrapPageResult) can use it without importing Prisma.
 export { CLEAR_SESSION_PATH };
+
+function refused(reason: SessionFailureReason): RequireSessionResult {
+  return {
+    ok: false,
+    reason,
+    response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }),
+  };
+}
 
 /**
  * Resolves the live caller for a route handler, or a ready-to-return 401 `NotSignedIn`
  * response (ADR-0002/openapi.yaml `#/components/responses/NotSignedIn`).
  */
 export async function requireSession(): Promise<RequireSessionResult> {
-  let userId: string | undefined;
+  let session: Session | null;
 
   try {
-    const session = await auth();
-    userId = session?.user?.id;
+    session = await auth();
   } catch (error) {
     unstable_rethrow(error);
-    // Fail closed: a thrown auth() call (e.g. the session callback's DB lookup is down) is
-    // treated as no session, never as a live user (T09 edge case table).
-    console.error('[requireSession] auth() failed, treating as no session:', redactError(error));
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+    // Fail closed: a thrown auth() call is refused like no session, never as a live user, but
+    // reported as a failed check so the session is kept (AC-04).
+    console.error(
+      '[requireSession] auth() failed, treating as no session:',
+      redactError(error)
+    );
+    return refused('check-failed');
   }
 
-  if (!userId) {
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+  if (!isVerifiedSession(session)) {
+    // A decoded session without an id is the session callback's "no live account" (AC-21).
+    return refused(session?.user ? 'account-gone' : 'signed-out');
   }
 
-  // Lazy: keeps the no-session path importable without DATABASE_URL (prisma.ts throws at import).
-  const { prisma } = await import('@/prisma');
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-  if (!user) {
-    return { ok: false, response: NextResponse.json(NOT_SIGNED_IN_BODY, { status: 401 }) };
+  let user: { id: string } | null;
+  try {
+    // Lazy: keeps the no-session path importable without DATABASE_URL (prisma.ts throws at import).
+    const { prisma } = await import('@/prisma');
+    user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error(
+      '[requireSession] account lookup failed, treating as no session:',
+      redactError(error)
+    );
+    return refused('check-failed');
   }
 
-  return { ok: true, userId: user.id };
+  return user ? { ok: true, userId: user.id } : refused('account-gone');
 }
 
 export type LiveUser = { userId: string };
 
 /**
  * Server-only guard for the `(protected)` and `(invoice-editor)` layouts (ADR-0002, AC-21). A
- * session whose `User` row is gone (or whose `auth()` call throws — Session callback throws ⇒
- * fail closed, per the task's edge case table) is treated exactly like no session: redirected to
- * the cookie-clearing route rather than rendering any data.
+ * session whose `User` row is gone, no session at all, or a thrown `auth()` call (fail closed) is
+ * redirected to the cookie-clearing route rather than rendering any data. That route re-checks and
+ * decides: it clears cookies only for a definitively missing account, and answers 503 with the
+ * cookies kept when its own check fails too, so a failed check never ends an existing session
+ * (AC-04). The redirect, not a thrown error, is deliberate: a segment's error.tsx never
+ * catches its own layout's error, so an error here would only reach app/global-error.tsx.
  */
 export async function requireLiveUser(): Promise<LiveUser> {
   let userId: string | undefined;
 
   try {
     const session = await auth();
-    userId = session?.user?.id;
+    userId = isVerifiedSession(session) ? session.user.id : undefined;
   } catch (error) {
     // Next's own control-flow errors (dynamic-rendering bail-out, redirects) must propagate.
     unstable_rethrow(error);
-    console.error('[requireLiveUser] auth() failed, treating as no session:', redactError(error));
+    console.error(
+      '[requireLiveUser] auth() failed, treating as no session:',
+      redactError(error)
+    );
     userId = undefined;
   }
 
   if (!userId) {
-    redirect(CLEAR_SESSION_PATH);
+    redirect(await clearSessionTarget());
   }
 
   return { userId };
+}
+
+// Carries the requested page (forwarded by proxy.ts) to the cookie-clearing
+// route so its check-unavailable page can link "Try again" back to it. That route validates the
+// value again; without it the route falls back to the dashboard.
+async function clearSessionTarget(): Promise<string> {
+  let requestedPath: string | null = null;
+  try {
+    requestedPath = (await headers()).get(REQUEST_PATH_HEADER);
+  } catch (error) {
+    // A prerender bail-out must propagate; outside a request scope there is simply no path.
+    unstable_rethrow(error);
+  }
+  return requestedPath
+    ? `${CLEAR_SESSION_PATH}?${new URLSearchParams({ next: requestedPath })}`
+    : CLEAR_SESSION_PATH;
 }

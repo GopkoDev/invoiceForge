@@ -11,6 +11,9 @@ if (sentryEnabled && process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
+    // App-owned tunnel (app/monitoring/route.ts) forwards only the configured DSN.
+    tunnel: '/monitoring',
+
     // Disable Sentry in development
     enabled: isProduction,
 

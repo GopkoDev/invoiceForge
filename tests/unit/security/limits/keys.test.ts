@@ -1,0 +1,123 @@
+// Limit keys (AC-12, AC-13). The secret is read from process.env.LIMIT_KEY_SECRET at call time.
+import { createHmac } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { HeadersAdapter } from 'next/dist/server/web/spec-extension/adapters/headers';
+import {
+  addressLimitKey,
+  clientSource,
+  foldAddress,
+  sourceLimitKey,
+} from '@/lib/security/limits/keys';
+
+const SECRET = 'unit-test-limit-key-secret';
+const hmac = (v: string) =>
+  createHmac('sha256', SECRET).update(v).digest('hex');
+
+describe('limit keys (T8)', () => {
+  let previous: string | undefined;
+  beforeAll(() => {
+    previous = process.env.LIMIT_KEY_SECRET;
+    process.env.LIMIT_KEY_SECRET = SECRET;
+  });
+  afterAll(() => {
+    if (previous === undefined) delete process.env.LIMIT_KEY_SECRET;
+    else process.env.LIMIT_KEY_SECRET = previous;
+  });
+
+  describe('foldAddress', () => {
+    it('folds letter case', () => {
+      expect(foldAddress('John.Doe@Example.COM')).toBe('john.doe@example.com');
+    });
+    it('strips a +tag from the local part', () => {
+      expect(foldAddress('john+invoices@example.com')).toBe('john@example.com');
+    });
+    it('strips dots in the local part for gmail.com and googlemail.com', () => {
+      expect(foldAddress('u.s.e.r+x@gmail.com')).toBe('user@gmail.com');
+      expect(foldAddress('U.ser@googlemail.com')).toBe('user@googlemail.com');
+    });
+    it('keeps dots for non-Gmail domains', () => {
+      expect(foldAddress('john.doe@example.com')).toBe('john.doe@example.com');
+    });
+  });
+
+  describe('addressLimitKey', () => {
+    it('groups every spelling of one Gmail mailbox', () => {
+      expect(addressLimitKey('User@Gmail.com')).toBe(
+        addressLimitKey('u.s.e.r+x@gmail.com')
+      );
+    });
+    it('keeps john.doe and johndoe apart on a non-Gmail domain', () => {
+      expect(addressLimitKey('john.doe@example.com')).not.toBe(
+        addressLimitKey('johndoe@example.com')
+      );
+    });
+    it('is the lower-hex HMAC-SHA256 of the folded address and never the raw value', () => {
+      const key = addressLimitKey('User+tag@Example.com');
+      expect(key).toMatch(/^[0-9a-f]{64}$/);
+      expect(key).toBe(hmac('user@example.com'));
+      expect(key).not.toContain('example');
+    });
+  });
+
+  describe('sourceLimitKey', () => {
+    it('digests an IPv4 address as-is', () => {
+      const key = sourceLimitKey('203.0.113.7');
+      expect(key).toMatch(/^[0-9a-f]{64}$/);
+      expect(key).toBe(hmac('203.0.113.7'));
+      expect(key).not.toContain('203.0.113.7');
+    });
+    it('gives two IPv6 addresses in one /64 the same key', () => {
+      expect(sourceLimitKey('2001:db8:1:2:aaaa::1')).toBe(
+        sourceLimitKey('2001:0db8:0001:0002:bbbb:cccc:dddd:eeee')
+      );
+    });
+    it('gives IPv6 addresses in different /64 networks different keys', () => {
+      expect(sourceLimitKey('2001:db8:1:2::1')).not.toBe(
+        sourceLimitKey('2001:db8:1:3::1')
+      );
+    });
+    it('gives different IPv4 addresses different keys', () => {
+      expect(sourceLimitKey('203.0.113.7')).not.toBe(
+        sourceLimitKey('203.0.113.8')
+      );
+    });
+    it('keys an IPv4-mapped IPv6 address (::ffff:a.b.c.d) as its IPv4 address', () => {
+      expect(sourceLimitKey('::ffff:203.0.113.7')).toBe(hmac('203.0.113.7'));
+      expect(sourceLimitKey('::FFFF:203.0.113.7')).toBe(hmac('203.0.113.7'));
+      expect(sourceLimitKey('0:0:0:0:0:ffff:cb00:7107')).toBe(
+        hmac('203.0.113.7')
+      );
+    });
+    it('gives two different IPv4-mapped addresses different keys', () => {
+      expect(sourceLimitKey('::ffff:203.0.113.7')).not.toBe(
+        sourceLimitKey('::ffff:198.51.100.9')
+      );
+    });
+  });
+});
+
+// callbacks.signIn passes the object next/headers' headers() resolves to. That is Next's
+// HeadersAdapter, which keeps the raw Node header map in its own `headers` field; passed as is,
+// @vercel/functions ipAddress() takes it for a Request and fails every Sign-in link request.
+describe('clientSource', () => {
+  it("reads the platform address from next/headers' headers() object", () => {
+    const fromNext = HeadersAdapter.seal(
+      new HeadersAdapter({ 'x-real-ip': '203.0.113.7' })
+    );
+    expect(clientSource(fromNext)).toBe('203.0.113.7');
+  });
+
+  it('reads it from a plain Headers and from a Request', () => {
+    const headers = new Headers({ 'x-real-ip': '198.51.100.4' });
+    expect(clientSource(headers)).toBe('198.51.100.4');
+    expect(clientSource(new Request('http://localhost/', { headers }))).toBe(
+      '198.51.100.4'
+    );
+  });
+
+  it('never reads a client-settable header', () => {
+    expect(
+      clientSource(new Headers({ 'x-forwarded-for': '192.0.2.1' }))
+    ).toBeUndefined();
+  });
+});

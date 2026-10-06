@@ -1,7 +1,16 @@
 import { z } from 'zod';
 import { InvoiceStatus } from '@prisma/client';
-import type { InvoiceSortField, InvoiceTab, SortDirection } from '@/types/invoice/types';
-import { currentLocalMonth, formatLocalDateKey, localDayRange } from '@/lib/helpers/time-zone';
+import type {
+  InvoiceSortField,
+  InvoiceTab,
+  SortDirection,
+} from '@/types/invoice/types';
+import { isWithinMaxCustomPeriod } from '@/lib/validations/dashboard-period';
+import {
+  currentLocalMonth,
+  formatLocalDateKey,
+  localDayRange,
+} from '@/lib/helpers/time-zone';
 
 // T23 (spec.md §5 AC-26, AC-27) — invoice-list link parameters are parsed with fallback-to-default
 // schemas, so a malformed or tampered link never throws and always opens with a documented
@@ -21,8 +30,15 @@ const SORT_FIELDS = [
   'total',
   'invoiceNumber',
 ] as const satisfies readonly InvoiceSortField[];
-const SORT_DIRECTIONS = ['asc', 'desc'] as const satisfies readonly SortDirection[];
-const TABS = ['all', 'drafts', 'final'] as const satisfies readonly InvoiceTab[];
+const SORT_DIRECTIONS = [
+  'asc',
+  'desc',
+] as const satisfies readonly SortDirection[];
+const TABS = [
+  'all',
+  'drafts',
+  'final',
+] as const satisfies readonly InvoiceTab[];
 
 const MAX_SEARCH_LENGTH = 100;
 
@@ -50,10 +66,19 @@ const pageSchema = z
   .catch(1);
 
 const pageSizeSchema = z
-  .preprocess((value) => {
-    const raw = firstString(value);
-    return raw === undefined ? NaN : Number(raw);
-  }, z.union([z.literal(PAGE_SIZE_OPTIONS[0]), z.literal(PAGE_SIZE_OPTIONS[1]), z.literal(PAGE_SIZE_OPTIONS[2]), z.literal(PAGE_SIZE_OPTIONS[3]), z.literal(PAGE_SIZE_OPTIONS[4])]))
+  .preprocess(
+    (value) => {
+      const raw = firstString(value);
+      return raw === undefined ? NaN : Number(raw);
+    },
+    z.union([
+      z.literal(PAGE_SIZE_OPTIONS[0]),
+      z.literal(PAGE_SIZE_OPTIONS[1]),
+      z.literal(PAGE_SIZE_OPTIONS[2]),
+      z.literal(PAGE_SIZE_OPTIONS[3]),
+      z.literal(PAGE_SIZE_OPTIONS[4]),
+    ])
+  )
   .catch(PAGE_SIZE_OPTIONS[0]);
 
 const sortFieldSchema = z
@@ -71,7 +96,9 @@ const statusSchema = z
   )
   .catch('all');
 
-const tabSchema = z.preprocess((value) => firstString(value), z.enum(TABS)).catch('all');
+const tabSchema = z
+  .preprocess((value) => firstString(value), z.enum(TABS))
+  .catch('all');
 
 const idSchema = z
   .preprocess((value) => firstString(value), z.string().min(1).optional())
@@ -80,7 +107,9 @@ const idSchema = z
 const searchSchema = z
   .preprocess((value) => {
     const raw = firstString(value);
-    return typeof raw === 'string' ? raw.trim().slice(0, MAX_SEARCH_LENGTH) : '';
+    return typeof raw === 'string'
+      ? raw.trim().slice(0, MAX_SEARCH_LENGTH)
+      : '';
   }, z.string())
   .catch('');
 
@@ -121,11 +150,14 @@ export const invoiceListParamsSchema = z
         ? parsed.dateFrom
         : undefined;
     const dateTo =
-      parsed.dateTo !== undefined && isValidIsoDate(parsed.dateTo) ? parsed.dateTo : undefined;
+      parsed.dateTo !== undefined && isValidIsoDate(parsed.dateTo)
+        ? parsed.dateTo
+        : undefined;
 
     // A reversed, partial, or otherwise unusable range: both bounds are dropped rather than
     // applying only one of them (task file §Inlined context, Link parameters table).
-    const validRange = dateFrom !== undefined && dateTo !== undefined && dateFrom <= dateTo;
+    const validRange =
+      dateFrom !== undefined && dateTo !== undefined && dateFrom <= dateTo;
 
     return {
       ...parsed,
@@ -160,7 +192,10 @@ function resolveTimeZone(timeZone: string): string {
   }
 }
 
-export function dashboardParamsSchema(timeZone: string, now: Date = new Date()) {
+export function dashboardParamsSchema(
+  timeZone: string,
+  now: Date = new Date()
+) {
   const zone = resolveTimeZone(timeZone);
 
   return z
@@ -182,10 +217,16 @@ export function dashboardParamsSchema(timeZone: string, now: Date = new Date()) 
           return { appliedRange: undefined, period: undefined };
         }
 
-        const validFrom = from !== undefined && isValidIsoDate(from) ? from : undefined;
+        const validFrom =
+          from !== undefined && isValidIsoDate(from) ? from : undefined;
         const validTo = to !== undefined && isValidIsoDate(to) ? to : undefined;
 
-        if (validFrom !== undefined && validTo !== undefined && validFrom <= validTo) {
+        if (
+          validFrom !== undefined &&
+          validTo !== undefined &&
+          validFrom <= validTo &&
+          isWithinMaxCustomPeriod(validFrom, validTo)
+        ) {
           const [start, endExclusive] = localDayRange(validFrom, validTo, zone);
           return {
             appliedRange: { start, endExclusive },

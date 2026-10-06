@@ -35,10 +35,22 @@
 // `Invoice.senderProfile/customer/bankAccount` for any Freelancer who has invoices, instead of
 // deleting invoices first inside an explicit transaction; (d) never deletes `VerificationToken`
 // rows for the account's email.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
-import { startTestDatabase, type TestDatabase } from '../../support/db/container';
+import {
+  startTestDatabase,
+  type TestDatabase,
+} from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
 import { truncateAllTables } from '../../support/db/truncate';
 import { createFreelancer } from '../../support/factories/user';
@@ -49,6 +61,11 @@ import { createProduct } from '../../support/factories/product';
 import { createCustomPrice } from '../../support/factories/custom-price';
 import { createInvoice as seedInvoiceRow } from '../../support/factories/invoice';
 import { createLogoFetchWindow } from '../../support/factories/logo-fetch-window';
+import { addressLimitKey } from '@/lib/security/limits/keys';
+import {
+  createLimitEvent,
+  TEST_LIMIT_KEY_SECRET,
+} from '../../support/factories/limit-event';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -57,7 +74,10 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 // imports it alongside `auth` from the same module — not asserted on here (client-side per T18).
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
 const signOutMock = vi.fn();
-vi.mock('@/auth', () => ({ auth: () => authMock(), signOut: (...args: unknown[]) => signOutMock(...args) }));
+vi.mock('@/auth', () => ({
+  auth: () => authMock(),
+  signOut: (...args: unknown[]) => signOutMock(...args),
+}));
 
 // --- next/cache's revalidatePath needs a live request/static-generation store, which this
 // same-process (non-served) import never has. Stubbed out, orthogonal to what this suite tests. -
@@ -73,8 +93,15 @@ vi.mock('@sentry/nextjs', () => ({
 
 type ActionResult<T> =
   | { success: true; data: T }
-  | { success: false; code: string; error: string; fieldErrors?: Record<string, string[]> };
-type GetAccountDeletionSummary = () => Promise<ActionResult<{ invoiceCount: number }>>;
+  | {
+      success: false;
+      code: string;
+      error: string;
+      fieldErrors?: Record<string, string[]>;
+    };
+type GetAccountDeletionSummary = () => Promise<
+  ActionResult<{ invoiceCount: number }>
+>;
 type DeleteUserAccount = () => Promise<ActionResult<void>>;
 
 describe.runIf(containerRuntimeAvailable)(
@@ -90,12 +117,11 @@ describe.runIf(containerRuntimeAvailable)(
       process.env.DATABASE_URL = db.connectionString;
       vi.resetModules();
       prisma = createTestPrismaClient(db.connectionString);
-      ({ getAccountDeletionSummary, deleteUserAccount } = (await import(
-        '@/lib/actions/account-actions'
-      )) as unknown as {
-        getAccountDeletionSummary: GetAccountDeletionSummary;
-        deleteUserAccount: DeleteUserAccount;
-      });
+      ({ getAccountDeletionSummary, deleteUserAccount } =
+        (await import('@/lib/actions/account-actions')) as unknown as {
+          getAccountDeletionSummary: GetAccountDeletionSummary;
+          deleteUserAccount: DeleteUserAccount;
+        });
     }, 60_000);
 
     afterAll(async () => {
@@ -116,16 +142,30 @@ describe.runIf(containerRuntimeAvailable)(
 
     /** Seeds a full AC-20 data graph (two sender profiles) for one Freelancer. */
     async function seedFullAccount(emailSuffix: string) {
-      const freelancer = await createFreelancer(prisma, { email: `owner-${emailSuffix}@example.com` });
-      const profileA = await createSenderProfile(prisma, freelancer.id, { isDefault: true });
-      const profileB = await createSenderProfile(prisma, freelancer.id, { isDefault: false });
+      const freelancer = await createFreelancer(prisma, {
+        email: `owner-${emailSuffix}@example.com`,
+      });
+      const profileA = await createSenderProfile(prisma, freelancer.id, {
+        isDefault: true,
+      });
+      const profileB = await createSenderProfile(prisma, freelancer.id, {
+        isDefault: false,
+      });
       const bankA = await createBankAccount(prisma, profileA.id);
       const bankB = await createBankAccount(prisma, profileB.id);
       const customer = await createCustomer(prisma, freelancer.id);
       const product = await createProduct(prisma, freelancer.id);
       await createCustomPrice(prisma, product.id, customer.id);
-      await seedInvoiceRow(prisma, { senderProfile: profileA, customer, bankAccount: bankA });
-      await seedInvoiceRow(prisma, { senderProfile: profileB, customer, bankAccount: bankB });
+      await seedInvoiceRow(prisma, {
+        senderProfile: profileA,
+        customer,
+        bankAccount: bankA,
+      });
+      await seedInvoiceRow(prisma, {
+        senderProfile: profileB,
+        customer,
+        bankAccount: bankB,
+      });
       await createLogoFetchWindow(prisma, { userId: freelancer.id });
       await prisma.account.create({
         data: {
@@ -156,7 +196,15 @@ describe.runIf(containerRuntimeAvailable)(
           expires: new Date(Date.now() + 60_000),
         },
       });
-      return { freelancer, profileA, profileB, bankA, bankB, customer, product };
+      return {
+        freelancer,
+        profileA,
+        profileB,
+        bankA,
+        bankB,
+        customer,
+        product,
+      };
     }
 
     async function rowCountsFor(userId: string, email: string) {
@@ -166,18 +214,30 @@ describe.runIf(containerRuntimeAvailable)(
         session: await prisma.session.count({ where: { userId } }),
         emailHistory: await prisma.emailHistory.count({ where: { userId } }),
         senderProfile: await prisma.senderProfile.count({ where: { userId } }),
-        bankAccount: await prisma.bankAccount.count({ where: { senderProfile: { userId } } }),
+        bankAccount: await prisma.bankAccount.count({
+          where: { senderProfile: { userId } },
+        }),
         customer: await prisma.customer.count({ where: { userId } }),
         product: await prisma.product.count({ where: { userId } }),
-        customPrice: await prisma.customPrice.count({ where: { product: { userId } } }),
-        invoice: await prisma.invoice.count({ where: { senderProfile: { userId } } }),
-        invoiceItem: await prisma.invoiceItem.count({ where: { invoice: { senderProfile: { userId } } } }),
-        logoFetchWindow: await prisma.logoFetchWindow.count({ where: { userId } }),
-        verificationToken: await prisma.verificationToken.count({ where: { identifier: email } }),
+        customPrice: await prisma.customPrice.count({
+          where: { product: { userId } },
+        }),
+        invoice: await prisma.invoice.count({
+          where: { senderProfile: { userId } },
+        }),
+        invoiceItem: await prisma.invoiceItem.count({
+          where: { invoice: { senderProfile: { userId } } },
+        }),
+        logoFetchWindow: await prisma.logoFetchWindow.count({
+          where: { userId },
+        }),
+        verificationToken: await prisma.verificationToken.count({
+          where: { identifier: email },
+        }),
       };
     }
 
-    it('AC-20: getAccountDeletionSummary counts only the caller\'s invoices across all of their sender profiles', async () => {
+    it("AC-20: getAccountDeletionSummary counts only the caller's invoices across all of their sender profiles", async () => {
       const owner = await seedFullAccount('summary-owner');
       const other = await seedFullAccount('summary-other');
       authMock.mockResolvedValue({ user: { id: owner.freelancer.id } });
@@ -209,7 +269,10 @@ describe.runIf(containerRuntimeAvailable)(
 
       expect(result.success).toBe(true);
 
-      const ownerCounts = await rowCountsFor(owner.freelancer.id, owner.freelancer.email);
+      const ownerCounts = await rowCountsFor(
+        owner.freelancer.id,
+        owner.freelancer.email
+      );
       expect(ownerCounts).toEqual({
         user: 0,
         account: 0,
@@ -226,7 +289,10 @@ describe.runIf(containerRuntimeAvailable)(
         verificationToken: 0,
       });
 
-      const otherCounts = await rowCountsFor(other.freelancer.id, other.freelancer.email);
+      const otherCounts = await rowCountsFor(
+        other.freelancer.id,
+        other.freelancer.email
+      );
       expect(otherCounts).toEqual({
         user: 1,
         account: 1,
@@ -244,6 +310,64 @@ describe.runIf(containerRuntimeAvailable)(
       });
     });
 
+    it('T13: deleteUserAccount removes EXPORT rows (cascade) and the SIGNIN_ADDRESS digest rows, leaves SIGNIN_SOURCE and other accounts', async () => {
+      process.env.LIMIT_KEY_SECRET = TEST_LIMIT_KEY_SECRET;
+      const owner = await seedFullAccount('limits-owner');
+      const other = await seedFullAccount('limits-other');
+      const addressKey = (email: string) => addressLimitKey(email);
+      for (const f of [owner.freelancer, other.freelancer]) {
+        await createLimitEvent(prisma, {
+          scope: 'EXPORT',
+          key: f.id,
+          userId: f.id,
+          outcome: 'STARTED',
+        });
+        await createLimitEvent(prisma, {
+          scope: 'SIGNIN_ADDRESS',
+          key: addressKey(f.email),
+          outcome: 'SENT',
+        });
+      }
+      await createLimitEvent(prisma, {
+        scope: 'SIGNIN_SOURCE',
+        outcome: 'REQUESTED',
+      });
+      authMock.mockResolvedValue({ user: { id: owner.freelancer.id } });
+
+      const result = await deleteUserAccount();
+
+      expect(result.success).toBe(true);
+      expect(
+        await prisma.limitEvent.count({
+          where: { scope: 'EXPORT', key: owner.freelancer.id },
+        })
+      ).toBe(0);
+      expect(
+        await prisma.limitEvent.count({
+          where: {
+            scope: 'SIGNIN_ADDRESS',
+            key: addressKey(owner.freelancer.email),
+          },
+        })
+      ).toBe(0);
+      expect(
+        await prisma.limitEvent.count({ where: { scope: 'SIGNIN_SOURCE' } })
+      ).toBe(1);
+      expect(
+        await prisma.limitEvent.count({
+          where: { scope: 'EXPORT', key: other.freelancer.id },
+        })
+      ).toBe(1);
+      expect(
+        await prisma.limitEvent.count({
+          where: {
+            scope: 'SIGNIN_ADDRESS',
+            key: addressKey(other.freelancer.email),
+          },
+        })
+      ).toBe(1);
+    });
+
     it('AC-20: deleteUserAccount returns UNAUTHORIZED without a live session, and deletes nothing', async () => {
       const owner = await seedFullAccount('unauth-owner');
       authMock.mockResolvedValue(null);
@@ -254,7 +378,10 @@ describe.runIf(containerRuntimeAvailable)(
       if (result.success) return;
       expect(result.code).toBe('UNAUTHORIZED');
 
-      const counts = await rowCountsFor(owner.freelancer.id, owner.freelancer.email);
+      const counts = await rowCountsFor(
+        owner.freelancer.id,
+        owner.freelancer.email
+      );
       expect(counts.user).toBe(1);
       expect(counts.invoice).toBe(2);
     });
@@ -290,9 +417,14 @@ describe.runIf(containerRuntimeAvailable)(
         expect(result.success).toBe(false);
         if (result.success) return;
         expect(result.code).toBe('FAILED');
-        expect(result.error).toBe("Your account couldn't be deleted. Nothing was removed.");
+        expect(result.error).toBe(
+          "Your account couldn't be deleted. Nothing was removed."
+        );
 
-        const counts = await rowCountsFor(owner.freelancer.id, owner.freelancer.email);
+        const counts = await rowCountsFor(
+          owner.freelancer.id,
+          owner.freelancer.email
+        );
         expect(counts).toEqual({
           user: 1,
           account: 1,
@@ -309,13 +441,20 @@ describe.runIf(containerRuntimeAvailable)(
           verificationToken: 1,
         });
       } finally {
-        await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS t17_trg_fail_on_marked_profile ON "SenderProfile"`);
-        await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS t17_fail_on_marked_profile()`);
+        await prisma.$executeRawUnsafe(
+          `DROP TRIGGER IF EXISTS t17_trg_fail_on_marked_profile ON "SenderProfile"`
+        );
+        await prisma.$executeRawUnsafe(
+          `DROP FUNCTION IF EXISTS t17_fail_on_marked_profile()`
+        );
       }
     });
   }
 );
 
-describe.runIf(!containerRuntimeAvailable)('getAccountDeletionSummary / deleteUserAccount (T17)', () => {
-  it.skip('skipped: no container runtime', () => {});
-});
+describe.runIf(!containerRuntimeAvailable)(
+  'getAccountDeletionSummary / deleteUserAccount (T17)',
+  () => {
+    it.skip('skipped: no container runtime', () => {});
+  }
+);
