@@ -1,0 +1,455 @@
+{
+  "slug": "invoice-integrity",
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Wrap invoice saves and status changes in Sentry spans and tag generic failures by path",
+      "layer": "app",
+      "deps": [],
+      "acs": [],
+      "dod": "createInvoice/updateInvoice/duplicateInvoice run inside an invoices.save span and updateInvoiceStatus inside an invoices.status-change span, failed() carries a path tag, a unit test asserts both span names and the tag, and no outcome of any existing test changes.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/_shared/result-helpers.ts",
+        "tests/unit/services/invoice-save-spans.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t01-save-and-status-spans.md"
+    },
+    {
+      "id": "T02",
+      "title": "Promote the four staged migrations, declare them in the Prisma schema and adapt the test factories",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "The four staged pairs are promoted into prisma/migrations, apply and revert cleanly on a throwaway database with an empty migrate diff, the default-repair integration test proves the AC-18 table with updatedAt unchanged, and a direct second isDefault=true fails with P2002 on both partial indexes.",
+      "files_hint": [
+        "docs/features/invoice-integrity/migrations/01_add_invoice_version.up.sql",
+        "docs/features/invoice-integrity/migrations/01_add_invoice_version.down.sql",
+        "docs/features/invoice-integrity/migrations/02_create_invoice_bank_account_id_index.up.sql",
+        "docs/features/invoice-integrity/migrations/02_create_invoice_bank_account_id_index.down.sql",
+        "docs/features/invoice-integrity/migrations/03_single_default_sender_profile.up.sql",
+        "docs/features/invoice-integrity/migrations/03_single_default_sender_profile.down.sql",
+        "docs/features/invoice-integrity/migrations/04_single_default_bank_account.up.sql",
+        "docs/features/invoice-integrity/migrations/04_single_default_bank_account.down.sql",
+        "prisma/schema/base.prisma",
+        "prisma/schema/invoice.prisma",
+        "tests/support/factories/sender-profile.ts",
+        "tests/support/factories/bank-account.ts",
+        "tests/support/factories/invoice.ts",
+        "tests/integration/invoice-integrity-migrations.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t02-promote-migrations-and-test-support.md"
+    },
+    {
+      "id": "T03",
+      "title": "Encode the status lifecycle as a transition table with decideStatusChange and add the new ActionResult detail kinds",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-04",
+        "AC-04b",
+        "AC-05",
+        "AC-06"
+      ],
+      "dod": "A unit matrix over decideStatusChange covers all 25 from–to pairs (20 refused/allowed per AC-04, 5 same-status accepted with paidAt untouched), creation in each non-draft status and delete of each non-draft status are refused with the contract messages and suggestions, and types/result.ts carries CHANGED_ELSEWHERE, STATUS_NOT_ALLOWED and ISSUED_INVOICE_LOCKED.",
+      "files_hint": [
+        "lib/helpers/invoice-status.ts",
+        "types/result.ts",
+        "tests/unit/invoice-status.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t03-lifecycle-module.md"
+    },
+    {
+      "id": "T04",
+      "title": "Add the pure locked-field comparison for issued invoices built on the write normalizers",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "Unit tests show compareLockedFields returns no difference for an unedited issued invoice (legacy instants and decimal scale included) and exactly one contract fieldErrors key per changed locked field, items.<i>.<field> and items for count/order changes included.",
+      "files_hint": [
+        "lib/helpers/invoice-locked-fields.ts",
+        "tests/unit/invoice-locked-fields.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t04-locked-field-comparison.md"
+    },
+    {
+      "id": "T05",
+      "title": "Bound every computed amount, cap the discount and require due date ≥ issue date in the shared invoice schema",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-09",
+        "AC-19",
+        "AC-20b"
+      ],
+      "dod": "Unit tests show the shared invoice rules return the contract messages under items.<i>.total, shipping, subtotal, taxAmount, total, discount and dueDate for the AC-19, AC-20b and AC-09 examples, each amount checked on its own, and the server schema requires loadedVersion as an integer ≥ 0 for updates.",
+      "files_hint": [
+        "lib/validations/invoice.ts",
+        "tests/unit/invoice-validation.test.ts",
+        "tests/unit/invoice-bounds.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t05-amount-and-date-bounds.md"
+    },
+    {
+      "id": "T06",
+      "title": "Check the bank account's and every catalogue line product's currency against the invoice in verifyInvoiceRelations",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "Integration tests show verifyInvoiceRelations returns fieldErrors.bankAccountId for a USD account on a EUR invoice and items.<i>.productId naming an inactive or active USD product on a EUR invoice, ignores free-text lines, and still answers NOT_FOUND for a foreign record.",
+      "files_hint": [
+        "lib/services/invoices/helpers.ts",
+        "tests/integration/services/invoices/currency-relations.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t06-currency-relations.md"
+    },
+    {
+      "id": "T07",
+      "title": "Create and duplicate invoices only as drafts under the draft rules, numbered by the issue date's year",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T02",
+        "T03",
+        "T05",
+        "T06"
+      ],
+      "acs": [
+        "AC-04b",
+        "AC-06",
+        "AC-21",
+        "AC-22"
+      ],
+      "dod": "Integration tests show createInvoice refuses every non-draft status with the AC-04b message and stores nothing, a cancelled invoice duplicates into a draft with version 0 and current issued details, a failing duplicate returns VALIDATION (never FAILED), and the AC-21/AC-22 numbers carry the issue date's year.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/numbering.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/actions/create-and-duplicate-invoice.test.ts",
+        "tests/unit/services/numbering-year.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t07-create-and-duplicate.md"
+    },
+    {
+      "id": "T08",
+      "title": "Refuse outdated, cancelled, lifecycle-breaking and locked-field saves in updateInvoice and write only the four editable fields on issued invoices",
+      "layer": "app",
+      "deps": [
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T07"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-14"
+      ],
+      "dod": "Integration tests show updateInvoice checks in contract order (NOT_FOUND → CHANGED_ELSEWHERE → cancelled → lifecycle → locked fields → due date), stores nothing on any refusal, writes only dueDate/notes/paymentTerms/poNumber plus version+1 on an issued invoice (issued details, lines and amounts unchanged per AC-01/AC-07), saves a legacy currency-mismatched issued invoice's notes (AC-14), and returns the new version.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/actions/update-invoice.test.ts",
+        "tests/integration/services/invoices/update-issued-invoice.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t08-update-freshness-and-issued-lock.md"
+    },
+    {
+      "id": "T09",
+      "title": "Apply every draft rule on draft saves and issuing from the editor, refreshing issued details only while the invoice is a draft",
+      "layer": "app",
+      "deps": [
+        "T05",
+        "T06",
+        "T08"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-11",
+        "AC-12",
+        "AC-14",
+        "AC-15",
+        "AC-19",
+        "AC-20b",
+        "AC-21b"
+      ],
+      "dod": "Integration tests show a draft save returns all failing draft rules together in one VALIDATION, a passing save refreshes the issued details and bumps version, Save with status PENDING freezes those details (a later Customer change does not reach the invoice), inactive-product lines are kept as sent, and a moved issue date keeps the number.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "tests/integration/services/invoices/update-draft-invoice.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t09-update-draft-branch.md"
+    },
+    {
+      "id": "T10",
+      "title": "Decide list status changes and deletes under the row lock with the lifecycle and the draft rules on issue",
+      "layer": "app",
+      "deps": [
+        "T02",
+        "T03",
+        "T05",
+        "T06",
+        "T09"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-10",
+        "AC-14",
+        "AC-23"
+      ],
+      "dod": "Integration tests show updateInvoiceStatus locks the row, accepts a same-status request without a write or version bump, refuses every pair outside the table with the contract message and currentStatus, refuses draft → pending for a stored draft that breaks a draft rule, sets/clears paidAt and bumps version on allowed moves, deleteInvoice refuses non-drafts with VALIDATION, and both answer NOT_FOUND for another Freelancer's invoice.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/actions/invoice-actions/invoice-actions.ts",
+        "tests/integration/actions/update-invoice-status.test.ts",
+        "tests/integration/services/invoices/delete-invoice.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t10-status-change-and-delete.md"
+    },
+    {
+      "id": "T11",
+      "title": "Keep exactly one default sender profile per Freelancer under the User row lock",
+      "layer": "app",
+      "deps": [
+        "T02"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-17b"
+      ],
+      "dod": "Integration tests show the first profile becomes default, switching clears and sets in one transaction, deleting the default promotes the earliest-created remaining one, unsetting without a replacement is VALIDATION with the contract text, P2002 maps to the retryable CONFLICT, and 10 parallel set-default requests leave exactly 1 default.",
+      "files_hint": [
+        "lib/services/sender-profiles/sender-profiles.ts",
+        "lib/actions/sender-profile-actions.ts",
+        "tests/integration/services/sender-profiles/single-default.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t11-sender-profile-defaults.md"
+    },
+    {
+      "id": "T12",
+      "title": "Keep exactly one default bank account per sender profile and lock the currency of an account used by invoices",
+      "layer": "app",
+      "deps": [
+        "T02"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-17",
+        "AC-17b"
+      ],
+      "dod": "Integration tests show the AC-17/AC-17b rules under the SenderProfile row lock (first default, switch, promote on delete, unset refused, P2002 → retryable CONFLICT, 10 parallel requests → exactly 1 default) and a currency change on an account used by N invoices of any status returns CONFLICT with HAS_INVOICES N and fieldErrors.currency while other-field edits still save when the currency is unchanged.",
+      "files_hint": [
+        "lib/services/bank-accounts/bank-accounts.ts",
+        "lib/actions/bank-account-actions.ts",
+        "tests/integration/services/bank-accounts/single-default-and-currency-lock.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t12-bank-account-defaults-and-currency-lock.md"
+    },
+    {
+      "id": "T13",
+      "title": "Require a strict two-decimal product price and count invoices, not lines, in the product currency lock",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-13b",
+        "AC-20"
+      ],
+      "dod": "Unit tests show the product schema returns the four contract price messages for 12abc, 12.345, -1 and 100000000, and an integration test shows a currency change on a product used on N distinct invoices (any status) returns CONFLICT with HAS_INVOICES N and fieldErrors.currency.",
+      "files_hint": [
+        "lib/validations/product.ts",
+        "lib/services/products/products.ts",
+        "tests/unit/product-price-schema.test.ts",
+        "tests/integration/services/products/currency-lock.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t13-product-price-and-currency-lock.md"
+    },
+    {
+      "id": "T14",
+      "title": "Print the PDF's sender, Customer and bank blocks from the issued details, account number always",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-03",
+        "AC-16"
+      ],
+      "dod": "A CI fixture test shows 100 % of issued fixture invoices produce identical PDF text before and after their sender profile, Customer and bank account change, the bank block prints account number always and IBAN/SWIFT only when present, and a deleted product's line prints as free text with an unchanged total.",
+      "files_hint": [
+        "lib/helpers/invoice-pdf-helpers.tsx",
+        "components/invoice-editor/invoice-pdf-document.tsx",
+        "tests/integration/services/invoices/pdf-fidelity.test.ts",
+        "tests/unit/lib/invoice-pdf-helpers.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t14-pdf-from-issued-details.md"
+    },
+    {
+      "id": "T15",
+      "title": "Offer only lifecycle-allowed row actions, confirm Cancel with SCR-04 and redraw refused rows at their current status",
+      "layer": "ui",
+      "deps": [
+        "T03",
+        "T07",
+        "T10"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-10"
+      ],
+      "dod": "Component tests show each stored status renders exactly the SCR-01 wireframe-A menu (Mark as Pending on stored overdue only while due date ≥ today in the Freelancer time zone), Cancel opens SCR-04 and calls updateInvoiceStatus only on confirm, and a STATUS_NOT_ALLOWED result shows the error verbatim and redraws the row at currentStatus.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/invoices-data-table.tsx",
+        "tests/component/invoice-row-actions-lifecycle.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t15-list-row-actions-and-cancel.md"
+    },
+    {
+      "id": "T16",
+      "title": "Render the editor in draft, issued and cancelled modes with Save and issue and retired-product lines kept",
+      "layer": "ui",
+      "deps": [
+        "T08",
+        "T09"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-15",
+        "AC-16"
+      ],
+      "dod": "Component tests show the draft mode with Save and Save and issue (none on a new invoice), the issued mode with only the four fields enabled, issued details as text and the permanent info Alert, the cancelled mode read-only with Save hidden, inactive/deleted-product lines shown as saved with no removal warning, and getInvoiceEditorData returning every product referenced by the lines.",
+      "files_hint": [
+        "components/invoice-editor/",
+        "components/modals/invoice-editor/invalid-items-warning-dialog.tsx",
+        "components/modals/modal-types-registry.ts",
+        "lib/services/invoices/editor-data.ts",
+        "tests/component/invoice-editor-modes.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t16-editor-modes-and-issue.md"
+    },
+    {
+      "id": "T17",
+      "title": "Show every new invoice rule refusal under its field in the editor",
+      "layer": "ui",
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11",
+        "AC-12",
+        "AC-14",
+        "AC-19",
+        "AC-20b"
+      ],
+      "dod": "Component tests show each contract fieldErrors key (bankAccountId, items.<i>.productId, items.<i>.total, shipping, subtotal, taxAmount, total, discount, dueDate) renders its message verbatim under its field with edits kept and no toast fallback, ISSUED_INVOICE_LOCKED shows the destructive Alert, and STATUS_NOT_ALLOWED shows the toast.",
+      "files_hint": [
+        "components/invoice-editor/",
+        "lib/helpers/invoice-editor/",
+        "tests/component/invoice-editor-field-errors.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t17-editor-field-errors.md"
+    },
+    {
+      "id": "T18",
+      "title": "Round-trip the loaded version and open the changed-elsewhere dialog and stale state on CHANGED_ELSEWHERE",
+      "layer": "ui",
+      "deps": [
+        "T08",
+        "T17"
+      ],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "Component tests show the editor sends loadedVersion and adopts the saved version, a CHANGED_ELSEWHERE result opens SCR-05 with the error verbatim, Reload re-initialises the editor in the current status's mode, and Close leaves the stale Alert with Reload while any save re-opens SCR-05.",
+      "files_hint": [
+        "components/invoice-editor/",
+        "tests/component/invoice-editor-changed-elsewhere.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t18-changed-elsewhere-dialog.md"
+    },
+    {
+      "id": "T19",
+      "title": "Show default-checkbox states and currency-lock and price errors in the sender profile, bank account and product forms",
+      "layer": "ui",
+      "deps": [
+        "T11",
+        "T12",
+        "T13"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-13b",
+        "AC-17b",
+        "AC-20"
+      ],
+      "dod": "Component tests show the default checkbox checked-and-disabled with the contract FieldDescription for a first or current default, enabled otherwise, HAS_INVOICES rendering a FieldError under currency with values kept in BankAccountModal and ProductForm, the default-race CONFLICT as a verbatim toast, and the four price messages under price.",
+      "files_hint": [
+        "components/sender-profiles/sender-profile-form.tsx",
+        "components/modals/sender-profile/bank-account-modal.tsx",
+        "components/products/product-form.tsx",
+        "tests/component/default-and-currency-lock-forms.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t19-profile-account-product-forms.md"
+    },
+    {
+      "id": "T20",
+      "title": "Add the count-only pre-release report script and the release runbook",
+      "layer": "infra",
+      "deps": [
+        "T02"
+      ],
+      "acs": [],
+      "dod": "An integration test seeds one record per data-model report category and shows scripts/invoice-integrity-report.ts prints the expected counts while writing nothing, and the runbook orders report → migrate deploy on dev then production → code deploy, with the rollback.",
+      "files_hint": [
+        "scripts/invoice-integrity-report.ts",
+        "tests/integration/invoice-integrity-report.test.ts",
+        "docs/features/invoice-integrity/release.md",
+        "package.json"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t20-pre-release-report-and-runbook.md"
+    },
+    {
+      "id": "T21",
+      "title": "Prove every invoice write path enforces the same rules: status matrix, race, version bump, tenancy and read-only Assistant",
+      "layer": "tests",
+      "deps": [
+        "T07",
+        "T08",
+        "T09",
+        "T10"
+      ],
+      "acs": [
+        "AC-23",
+        "AC-24",
+        "AC-25",
+        "AC-26"
+      ],
+      "dod": "CI integration tests cover the 25-pair matrix on updateInvoice and updateInvoiceStatus plus creation in each non-draft status, 50 races of an outdated editor save vs a status change with 0 lost changes, every invoice service write bumping version, NOT_FOUND parity for another Freelancer's invoice on every write path, a session-only caller getting the editor's refusals, and the MCP tool list being read-only with get_invoice returning the issued Customer name.",
+      "files_hint": [
+        "tests/integration/services/invoices/write-path-conformance.test.ts",
+        "tests/integration/services/invoices/concurrent-save-race.test.ts",
+        "tests/integration/actions/foreign-record-not-found-parity.test.ts",
+        "tests/integration/api/mcp-issued-details.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t21-write-path-conformance.md"
+    }
+  ]
+}
