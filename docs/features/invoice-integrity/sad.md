@@ -30,6 +30,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 | Freelancer | Issues, corrects, cancels and duplicates invoices; manages sender profiles, bank accounts and products under the new rules | No |
 | Customer | Receives and pays the PDF; needs it to match what was issued, account number included | No |
 | Assistant | Reads an invoice's issued details today; inherits every rule when write tools arrive in the next feature | No |
+| Visitor | Refused as today; gains no read or write path | No |
 | Security Lead | Confirms every invoice write path goes through the new rules (spec §6.1 "Security review: Required") | Yes |
 | Tech Lead | SAD approval | Yes |
 
@@ -40,7 +41,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 **Technical.**
 - TypeScript 5 (strict) on Node.js, pnpm.
 - Next.js 16.3 App Router (React Server Components, server actions, route handlers on the Node.js runtime), React 19.2, next-auth 5 beta (JWT sessions), zod 3.25.
-- PostgreSQL via Prisma 7.10 + `@prisma/adapter-pg`; split schema in `prisma/schema/`; migrations by `prisma migrate`, applied by `prisma migrate deploy` during `pnpm build`.
+- PostgreSQL via Prisma 7.10 + `@prisma/adapter-pg`; split schema in `prisma/schema/`; migrations by `prisma migrate`, applied as an explicit release step (`prisma migrate deploy` against dev, then production) — `pnpm build` runs only the settings check, `prisma generate` and `next build`.
 - Hosted on Vercel, single region `fra1` (`vercel.json`); one daily cron (`/api/cron/purge-limits`).
 - Business logic only in `lib/services/*`, every function taking a branded `ActingFreelancer { userId, timeZone }` first (service-layer ADR-0001), isolated behind `server-only` + lint rules (service-layer ADR-0006), returning `ActionResult<T>` (service-layer ADR-0002), every write scoped by owner in its own `WHERE` (service-layer ADR-0003).
 - Invoice numbers allocated under a `SenderProfile` row lock (architecture-hardening ADR-0005) and unique on the normalized key `(senderProfileId, invoiceNumberKey)` (architecture-hardening ADR-0004); amounts computed by the one shared decimal module (architecture-hardening ADR-0006); issue and due dates are calendar days stored at `T00:00:00Z` (mcp-server ADR-0009); overdue is derived at read time by one rule module (mcp-server ADR-0005).
@@ -114,7 +115,7 @@ C4Context
 
 1. **Issued details belong to the invoice** — the existing flat snapshot columns on `Invoice` (`sender*`, `customer*`, `bank*`, `accountName`) are refreshed from the current records only while the invoice is a draft and are never written again from the moment it leaves draft. The PDF, the editor and the Assistant read those columns; only the logo comes from the current sender profile (spec §3). Serves quality goal 1 (ADR-0001).
 2. **One rule set, evaluated inside the write transaction against the locked row** — a pure lifecycle module (the allowed-transition table as data, plus "new invoices start as drafts" and "only drafts are deleted") is called by every write path after the invoice row is locked `FOR UPDATE`, and the editor and list import the same table to offer only allowed actions (ADR-0002). For an issued invoice, `updateInvoice` compares every locked field with what is stored and refuses any difference, then checks only the rules of the fields that changed (ADR-0003). Currency, amount and date rules run in the same transaction and return `VALIDATION` with `fieldErrors`. Serves quality goals 2 and 3.
-3. **Optimistic concurrency with an explicit version** — `Invoice.version` is incremented by every service write; an editor save carries the version it loaded and is refused with `CONFLICT` when the locked row has moved on; a status change from the list is not version-checked but is judged by the lifecycle against the locked current status (ADR-0004). Serves quality goal 2 (spec AC-10).
+3. **Optimistic concurrency with an explicit version** — `Invoice.version` is incremented by every service write; an editor save carries the version it loaded and is refused with `CONFLICT` when the locked row has moved on; a status change from the list is not version-checked but is judged by the lifecycle against the locked current status (ADR-0004). Issuing from the list (draft → pending through `updateInvoiceStatus`) runs every draft rule — currency, amount bounds, due date not before the issue date — over the stored draft under the same row lock, with the same explanations, so a draft cannot be issued from any path while it breaks a rule (AC-14, AC-25); the issued details frozen are those of the draft's last save (AC-02). Serves quality goal 2 (spec AC-10).
 4. **Back an invariant with the database where it is cheap** — "at most one default" becomes two partial unique indexes, while "at least one" (first-created default, promote-on-delete, no unset) stays a service rule under a lock on the parent row; the release migration repairs existing duplicates and gaps before creating the indexes (ADR-0005). Invoice-number uniqueness already has its database backstop (architecture-hardening ADR-0004).
 
 **UI architecture (web-frontend):** unchanged — Next.js App Router with React Server Components and server actions, composed from the existing shadcn/ui primitives and tokens (`docs/design-system.md`). No ADR: the only alternative (a client-side SPA) contradicts the repo's established stack. The editor chooses one of three modes from the invoice's status (draft fully editable; issued with only due date, notes, payment terms and PO number editable; cancelled read-only). Issuing from the editor is a draft save with status `PENDING` through the same `updateInvoice` call, so every draft rule and the lifecycle run in one transaction; whether the editor shows a dedicated issue button is decided at `screens`.
@@ -146,7 +147,7 @@ lib/
 │   └── product.ts                   CHANGED  strict two-decimal price
 └── services/
     ├── invoices/
-    │   ├── invoices.ts              CHANGED  create/update/status/delete/duplicate: lock row, version check, lifecycle, locked-field check, snapshot only for drafts, version bump
+    │   ├── invoices.ts              CHANGED  create/update/status/delete/duplicate: lock row, version check, lifecycle, locked-field check, draft rules on draft → pending from any path, snapshot only for drafts, version bump
     │   ├── helpers.ts               CHANGED  verifyInvoiceRelations: bank and catalogue-product currency (inactive products included)
     │   ├── numbering.ts             CHANGED  year from the issue date's calendar day
     │   └── editor-data.ts           CHANGED  loads every product referenced by the invoice's lines
@@ -234,6 +235,8 @@ sequenceDiagram
     end
 ```
 
+Issuing a draft from the list follows the same lock-then-decide shape as flow 2: after the lifecycle allows draft → pending, the business layer re-checks the stored draft's currency, amount and date rules and refuses with the editor's explanation if any fails (AC-14); `sequences` draws it as its own flow.
+
 **Critical flow 2: a status change from the list racing an outdated editor save (AC-04, AC-10, NFR "Concurrent saves")**
 
 ```mermaid
@@ -261,12 +264,12 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-The feature runs inside the existing Vercel project in region `fra1` as part of the same Next.js deployable; no new function, cron job, environment setting or third-party service. One Prisma migration ships with the release and is applied by `prisma migrate deploy` during `pnpm build`: it adds `Invoice.version` (`INT NOT NULL DEFAULT 0`, a metadata-only change), repairs duplicate and missing defaults by keeping or promoting the earliest-created record (AC-18), and creates the two partial unique indexes in the same migration transaction (ADR-0005). Before the production deploy, the count-only report (`scripts/invoice-integrity-report.ts`) runs read-only against production and its counts become the baseline of the "new rule violations" KPI (spec §7, §8); it changes nothing.
+The feature runs inside the existing Vercel project in region `fra1` as part of the same Next.js deployable; no new function, cron job, environment setting or third-party service. One Prisma migration ships with the release and is applied as an explicit release step, `prisma migrate deploy` against dev and then production, **before** the code is deployed, because the new code reads `Invoice.version` (`pnpm build` does not migrate). The old code keeps working on the new schema: `version` has a default, and the default indexes only turn a double-click race into an error instead of a second default. Rollback: the down migration drops the two indexes and the column; the default repair is not reverted (it only removed duplicates and filled gaps, AC-18). The migration adds `Invoice.version` (`INT NOT NULL DEFAULT 0`, a metadata-only change), repairs duplicate and missing defaults by keeping or promoting the earliest-created record (AC-18), and creates the two partial unique indexes in the same migration transaction (ADR-0005). Before the production deploy, the count-only report (`scripts/invoice-integrity-report.ts`) runs read-only against production and its counts become the baseline of the "new rule violations" KPI (spec §7, §8); it changes nothing.
 
 **Monitoring:**
 - Sentry spans `invoices.save` (create and update) and `invoices.status-change` — the source for the spec §6 latency target (p95 no more than 10 % slower than the 7 days before release). The spans do not exist yet, so they ship first, as a behaviour-free change released at least 7 days before this feature, to give the pre-release baseline the spec measures against (§11).
 - Counted refusal outcomes per write path: lifecycle refusal, locked-field refusal, `CONFLICT` (changed elsewhere), currency refusal, bounds refusal — the friction signal next to the §7 cancel-and-duplicate KPI.
-- Generic save failures (`FAILED`) on invoices and products, tagged by path — the source for the §7 "generic save failures" KPI and the §6 "0 generic failures from user input" target.
+- Generic save failures (`FAILED`) on invoices and products — already sent to Sentry by `failed()` (`captureException`), so the spec §7 baseline over the 14 days before release exists today; a path tag is added in the same early release as the spans. Source for the §7 "generic save failures" KPI and the §6 "0 generic failures from user input" target.
 - Alert: any unique-constraint violation on the default indexes in production (a write path skipped the parent lock) → notify the owner.
 - Alert: generic invoice or product save failures above the pre-release weekly baseline in a rolling day → notify the owner.
 
@@ -352,9 +355,10 @@ Each top-3 goal from §1 expanded into scenarios; every number is quoted from sp
 | Invoices issued before the release carry the snapshot from their last save, which may already differ from what the Customer received (brief D2) | Medium | Accepted: no automatic repair (spec §3); from the release on the copy is frozen; the count-only report states how many issued invoices were saved after a related record changed, where that can be inferred | Dmytro Hopko |
 | Drafts saved before the release with mismatching currencies are blocked on their next save, even a notes-only one (AC-14) | Medium | Intended by the spec; the field error names the bank account or line to fix; the report counts such drafts before release | Dmytro Hopko |
 | The locked-field comparison drifts from the write normalizers and refuses a legitimate notes-only save (ADR-0003) | Medium | One comparison module built on the same decimal and calendar-day helpers as the write; unit tests per locked field, including legacy instants and decimal scale | Dmytro Hopko |
-| A future invoice write outside `lib/services` (a script or raw SQL) bypasses the lifecycle, the locked fields and the version bump (ADR-0002, ADR-0004) | Medium | Lint rules of service-layer ADR-0006; a test asserting every invoice write path bumps `version`; the security review confirms every write path (spec §6.1) | Security Lead |
+| A future invoice write outside `lib/services` (a script or raw SQL) bypasses the lifecycle, the locked fields and the version bump (ADR-0002, ADR-0004) | Medium | Lint rules of service-layer ADR-0006; a test asserting every invoice service write path bumps `version` (all except the lazy calendar-day normalisation, ADR-0004); the security review confirms every write path (spec §6.1) | Security Lead |
 | The partial unique default indexes live outside `schema.prisma`, so a later generated migration could drop them (ADR-0005) | Low | Record them in `data-model.md`; an integration test asserts the index refuses a second default | Dmytro Hopko |
 | Issued-invoice lock adds friction: corrections need Cancel then Duplicate | Medium | Track the spec §7 cancel-and-duplicate KPI (no more than 5 % of issued invoices per month within 60 days); above that, revisit which fields stay editable | Dmytro Hopko |
+| The release migration is applied by hand; deploying the code before it runs breaks every invoice save (the code reads `Invoice.version`) | Medium | Release checklist: `prisma migrate deploy` on dev, then production, before the deploy; the down migration is staged with it | Dmytro Hopko |
 | `docs/architecture-map.md` is stale (reflects `ded1be7`) | Low | The design relied on a fresh scan at `f8bfaf4`; refresh with `survey` before the next feature | Dmytro Hopko |
 | Open question (spec §8): what the pre-release report finds, and whether any category besides duplicate defaults needs a one-time repair | Open question | Resolve before the production deploy of `invoice-integrity`; default now: report counts only and repair nothing else | Dmytro Hopko |
 | Open question (spec §8): how existing Freelancers learn that issued invoices are locked except for the due date, notes, payment terms and PO number | Open question | Resolve before `sdd:tasks`; default now: a short note in the editor the first time they open an issued invoice after release | Dmytro Hopko |
@@ -385,7 +389,7 @@ Canonical definitions live in [`CONTEXT.md`](../../../CONTEXT.md); this table li
 | Freelancer time zone | The account's saved time zone that decides "today" for every surface; UTC until saved. |
 | Personal key | A revocable secret a Freelancer gives an Assistant to read their data; never grants writes. |
 | Locked fields | Every field of an issued invoice except its due date, notes, payment terms and PO number (design term; ADR-0003). |
-| Invoice version | A counter on `Invoice` bumped by every write, used to refuse saves from an outdated view (design term; ADR-0004). |
+| Invoice version | A counter on `Invoice` bumped by every service write except the lazy calendar-day normalisation, used to refuse saves from an outdated view (design term; ADR-0004). |
 | Outdated view | An editor loaded before the invoice changed in any way; its save is refused with "changed elsewhere" (spec AC-10). |
 | Transition table | The data form of the status lifecycle shared by the business layer and the UI (design term; ADR-0002). |
 
