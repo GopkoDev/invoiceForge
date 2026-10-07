@@ -4,7 +4,7 @@ owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
 updated_at: "2026-10-07"
 feature_size: "M"
-target_surfaces: []  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
+target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
 ---
 
 # Software Architecture Document — invoice-integrity
@@ -108,17 +108,24 @@ C4Context
 
 ## 4. Solution strategy
 
-<!-- 🎯 Why: the 3–4 STRATEGIC PILLARS every ADR grows from. Without §4 each ADR looks random —
-     there's no umbrella. ⭐ The densest section — the blast-radius gate fires almost always here
-     (decisions are irreversible + multi-module).
-     📋 Write: 3–4 choices; each a heading + 2–3 sentences of rationale.
-     📌 «Store content as a table of typed blocks» is a pillar — ADR-0001 grows from it. -->
+**Target surfaces:** `backend-service` (the business layer and the server actions that call it) + `web-frontend` (the invoice list, the editor's three modes, the PDF, the sender-profile, bank-account and product forms, the cancel and "changed elsewhere" dialogs). Both containers already exist in the one Next.js deployable; the feature adds none. Inline, not an ADR: the gate scores 1 of 3 (multi-module only — nothing is irreversible and there is no real alternative, since AC-08 and AC-10 require editor states).
 
 **Top strategic choices (the seeds for ADRs):**
 
-1. **<e.g. Module isolation through events>** — <2–3 sentences citing quality goals + constraints>.
-2. **<e.g. Single-store persistence>** — <2–3 sentences>.
-3. **<e.g. Server-rendered read side>** — <2–3 sentences>.
+1. **Issued details belong to the invoice** — the existing flat snapshot columns on `Invoice` (`sender*`, `customer*`, `bank*`, `accountName`) are refreshed from the current records only while the invoice is a draft and are never written again from the moment it leaves draft. The PDF, the editor and the Assistant read those columns; only the logo comes from the current sender profile (spec §3). Serves quality goal 1 (ADR-0001).
+2. **One rule set, evaluated inside the write transaction against the locked row** — a pure lifecycle module (the allowed-transition table as data, plus "new invoices start as drafts" and "only drafts are deleted") is called by every write path after the invoice row is locked `FOR UPDATE`, and the editor and list import the same table to offer only allowed actions (ADR-0002). For an issued invoice, `updateInvoice` compares every locked field with what is stored and refuses any difference, then checks only the rules of the fields that changed (ADR-0003). Currency, amount and date rules run in the same transaction and return `VALIDATION` with `fieldErrors`. Serves quality goals 2 and 3.
+3. **Optimistic concurrency with an explicit version** — `Invoice.version` is incremented by every service write; an editor save carries the version it loaded and is refused with `CONFLICT` when the locked row has moved on; a status change from the list is not version-checked but is judged by the lifecycle against the locked current status (ADR-0004). Serves quality goal 2 (spec AC-10).
+4. **Back an invariant with the database where it is cheap** — "at most one default" becomes two partial unique indexes, while "at least one" (first-created default, promote-on-delete, no unset) stays a service rule under a lock on the parent row; the release migration repairs existing duplicates and gaps before creating the indexes (ADR-0005). Invoice-number uniqueness already has its database backstop (architecture-hardening ADR-0004).
+
+**UI architecture (web-frontend):** unchanged — Next.js App Router with React Server Components and server actions, composed from the existing shadcn/ui primitives and tokens (`docs/design-system.md`). No ADR: the only alternative (a client-side SPA) contradicts the repo's established stack. The editor chooses one of three modes from the invoice's status (draft fully editable; issued with only due date, notes, payment terms and PO number editable; cancelled read-only). Issuing from the editor is a draft save with status `PENDING` through the same `updateInvoice` call, so every draft rule and the lifecycle run in one transaction; whether the editor shows a dedicated issue button is decided at `screens`.
+
+**Tactical choices recorded inline (gate below 2 of 3):**
+
+- **Numbering year.** `formatInvoiceNumber` takes the year from the invoice's issue date — the calendar day stored at `T00:00:00Z` (mcp-server ADR-0009), read by its UTC year — instead of the server clock. The number is still assigned on first save, the counter is not reset per year, and a later issue-date change keeps the number (AC-21, AC-21b, AC-22).
+- **Currency invariant.** Enforced in the business layer: `verifyInvoiceRelations` requires the bank account's currency to equal the invoice's and loads every catalogue product on the lines by id, inactive ones included, to compare currencies (AC-11, AC-12). A bank account's currency change is refused with a count of the invoices that use it, mirroring the existing product rule (AC-13, AC-13b). No database constraint: a composite key including currency would ripple through three tables for a rule the single write path already guarantees.
+- **Amount and date bounds.** One shared zod module checks every amount from `computeInvoiceAmounts` (line amount, shipping, subtotal, tax amount, total, each on its own) against 99,999,999.99, caps the discount at lines plus shipping, and requires the due date not to be before the issue date. The editor runs the same module; the product price uses the strict two-decimal format custom prices already use (AC-09, AC-19, AC-20, AC-20b).
+- **Retired products.** The editor loads every product referenced by the invoice's lines, active or not; lines are never removed automatically; inactive products are not offered for new lines (AC-15, AC-16).
+- **Duplicate reference (spec §8 open question, due before design).** Closed with the spec's default: a duplicate carries no reference to the invoice it replaces; no schema change.
 
 Each tactical decision in later sections should trace to one of these seeds. Tactical decisions that *contradict* a strategic choice are red flags — surface them in §11.
 
