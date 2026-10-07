@@ -367,13 +367,25 @@ Each top-3 goal from §1 expanded into scenarios; every number is quoted from sp
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
+Canonical definitions live in [`CONTEXT.md`](../../../CONTEXT.md); this table lists the terms this SAD relies on, plus the design terms it introduces.
 
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Freelancer | A signed-in account holder who owns sender profiles, customers, products and invoices and sees only their own data. |
+| Customer | A party a Freelancer bills; each invoice keeps a copy of the customer's details as they were when it was issued. |
+| Assistant | A program that reads (and later changes) data on behalf of exactly one Freelancer, without a browser session; read-only in this feature. |
+| Visitor | Anyone reaching the app without a signed-in session or a valid key. |
+| Draft invoice | An invoice still being prepared; fully editable or deletable; its issued details follow the current records on every save. |
+| Issued invoice | An invoice that has left draft and was not cancelled: pending, overdue or paid. |
+| Cancelled invoice | An invoice withdrawn after issuing; keeps its number, stays listed and printable, never changes again. |
+| Overdue invoice | An issued, unpaid invoice marked overdue by hand or whose due date is before today in the Freelancer time zone. |
+| Issued details | The copy of the sender profile's, Customer's and bank account's details an invoice keeps and prints; refreshed while a draft, fixed from issue. Stored as the flat snapshot columns on `Invoice` (ADR-0001). |
+| Default sender profile / Default bank account | The one profile a Freelancer's new invoices start from / the one account of a sender profile a new invoice starts from; exactly one while any exist. |
+| Invoice number / Invoice sequence | The printed identifier, unique within a sender profile / the per-profile running count that proposes the next system-assigned number. |
+| Freelancer time zone | The account's saved time zone that decides "today" for every surface; UTC until saved. |
+| Personal key | A revocable secret a Freelancer gives an Assistant to read their data; never grants writes. |
+| Locked fields | Every field of an issued invoice except its due date, notes, payment terms and PO number (design term; ADR-0003). |
+| Invoice version | A counter on `Invoice` bumped by every write, used to refuse saves from an outdated view (design term; ADR-0004). |
+| Outdated view | An editor loaded before the invoice changed in any way; its save is refused with "changed elsewhere" (spec AC-10). |
+| Transition table | The data form of the status lifecycle shared by the business layer and the UI (design term; ADR-0002). |
+
