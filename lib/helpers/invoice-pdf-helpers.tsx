@@ -64,58 +64,55 @@ export interface InvoicePdfActionResult {
 }
 
 /**
- * Prepares invoice data for PDF generation
+ * Prepares invoice data for PDF generation. invoice-integrity T14 (ADR-0001, AC-01, AC-03): the
+ * sender, Customer and bank blocks come from the invoice's issued details (its snapshot columns),
+ * never the current records; only the logo is the current sender profile's (spec §3). The
+ * relation-only fields the PDF never prints are filled from the ids and the invoice itself.
  */
 export function prepareInvoiceDataForPdf(
   invoice: SerializedInvoice
 ): InvoicePdfData {
-  const senderProfile: InvoiceSenderProfile | null = invoice.senderProfile
-    ? {
-        id: invoice.senderProfile.id,
-        name: invoice.senderProfile.name,
-        legalName: invoice.senderProfile.legalName,
-        address: invoice.senderProfile.address,
-        city: invoice.senderProfile.city,
-        country: invoice.senderProfile.country,
-        postalCode: invoice.senderProfile.postalCode,
-        email: invoice.senderProfile.email,
-        phone: invoice.senderProfile.phone,
-        taxId: invoice.senderProfile.taxId,
-        logo: invoice.senderProfile.logo,
-        invoicePrefix: invoice.senderProfile.invoicePrefix,
-        invoiceCounter: invoice.senderProfile.invoiceCounter,
-      }
-    : null;
+  const senderProfile: InvoiceSenderProfile = {
+    id: invoice.senderProfileId,
+    name: invoice.senderName,
+    legalName: invoice.senderLegalName,
+    address: invoice.senderAddress,
+    city: invoice.senderCity,
+    country: invoice.senderCountry,
+    postalCode: invoice.senderPostalCode,
+    email: invoice.senderEmail,
+    phone: invoice.senderPhone,
+    taxId: invoice.senderTaxId,
+    logo: invoice.senderProfile?.logo ?? null,
+    invoicePrefix: invoice.senderProfile?.invoicePrefix ?? '',
+    invoiceCounter: invoice.senderProfile?.invoiceCounter ?? 0,
+  };
 
-  const customer: InvoiceCustomer | null = invoice.customer
-    ? {
-        id: invoice.customer.id,
-        name: invoice.customer.name,
-        companyName: invoice.customer.companyName,
-        email: invoice.customer.email,
-        address: invoice.customer.address,
-        city: invoice.customer.city,
-        country: invoice.customer.country,
-        postalCode: invoice.customer.postalCode,
-        phone: invoice.customer.phone,
-        taxId: invoice.customer.taxId,
-        defaultCurrency: invoice.customer.defaultCurrency,
-      }
-    : null;
+  const customer: InvoiceCustomer = {
+    id: invoice.customerId,
+    name: invoice.customerName,
+    companyName: invoice.customerCompanyName,
+    email: invoice.customerEmail,
+    address: invoice.customerAddress,
+    city: invoice.customerCity,
+    country: invoice.customerCountry,
+    postalCode: invoice.customerPostalCode,
+    phone: invoice.customerPhone,
+    taxId: invoice.customerTaxId,
+    defaultCurrency: invoice.currency,
+  };
 
-  const bankAccount: InvoiceBankAccount | null = invoice.bankAccount
-    ? {
-        id: invoice.bankAccount.id,
-        senderProfileId: invoice.bankAccount.senderProfileId,
-        bankName: invoice.bankAccount.bankName,
-        accountName: invoice.bankAccount.accountName ?? '',
-        accountNumber: invoice.bankAccount.accountNumber ?? '',
-        iban: invoice.bankAccount.iban,
-        swift: invoice.bankAccount.swift,
-        currency: invoice.bankAccount.currency,
-        isDefault: invoice.bankAccount.isDefault,
-      }
-    : null;
+  const bankAccount: InvoiceBankAccount = {
+    id: invoice.bankAccountId,
+    senderProfileId: invoice.senderProfileId,
+    bankName: invoice.bankName,
+    accountName: invoice.accountName ?? '',
+    accountNumber: invoice.bankAccountNumber ?? '',
+    iban: invoice.bankIban || null,
+    swift: invoice.bankSwift || null,
+    currency: invoice.currency,
+    isDefault: false,
+  };
 
   const formData: InvoiceFormData = {
     invoiceNumber: invoice.invoiceNumber,

@@ -20,6 +20,7 @@ import {
   senderProfileSelect,
 } from '@/lib/services/invoices/select-queries';
 import {
+  INVOICE_ITEM_ORDER,
   computeInvoiceLegacyInfo,
   serializeDecimal,
   transformInvoiceToFormData,
@@ -51,7 +52,7 @@ export async function getInvoiceEditorData(
       invoiceId
         ? prisma.invoice.findFirst({
             where: { id: invoiceId, senderProfile: { userId } },
-            include: { items: true },
+            include: { items: { orderBy: INVOICE_ITEM_ORDER } },
           })
         : null,
     ]);

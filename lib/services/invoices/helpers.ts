@@ -13,6 +13,13 @@ import type {
 import { ActionResult, ok, fail } from '@/types/result';
 import { isInvoiceKeyTaken } from './numbering';
 
+/**
+ * The order an invoice's lines print and compare in (invoice-integrity T14): creation order. There
+ * is no position column; the lines of one save share a createdAt (one transaction), and their cuid
+ * ids sort in creation order. Without it Postgres may return them reordered after any row update.
+ */
+export const INVOICE_ITEM_ORDER = [{ createdAt: 'asc' }, { id: 'asc' }] satisfies Prisma.InvoiceItemOrderByWithRelationInput[];
+
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
 ): T {

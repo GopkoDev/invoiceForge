@@ -30,6 +30,7 @@ import {
   serializeDecimal,
   serializeInvoice,
   verifyInvoiceRelations,
+  INVOICE_ITEM_ORDER,
   verifyItemProductsOwnership,
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
@@ -68,7 +69,7 @@ export async function getInvoice(
     const invoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId: actor.userId } },
       include: {
-        items: true,
+        items: { orderBy: INVOICE_ITEM_ORDER },
         senderProfile: true,
         customer: true,
         bankAccount: true,
