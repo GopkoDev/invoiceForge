@@ -12,6 +12,7 @@ const p = vi.hoisted(() => ({
   senderProfile: { findFirst: vi.fn() },
   bankAccount: {
     findFirst: vi.fn(),
+    count: vi.fn(),
     updateMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -82,22 +83,34 @@ beforeEach(async () => {
 });
 
 describe('owner in the where clause (T22, S-05)', () => {
+  // invoice-integrity T12: default writes run in a transaction under the sender profile's row lock;
+  // the stub transaction records on the same mocks.
+  function lockedTransaction() {
+    p.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({ ...p, $queryRaw: vi.fn().mockResolvedValue([{ locked: 1 }]) })
+    );
+  }
+
   it('createBankAccount default reset is scoped to the owner', async () => {
+    lockedTransaction();
+    p.bankAccount.count.mockResolvedValue(1);
     await createBankAccount(actor, 'sp1', form);
     expect(p.bankAccount.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { senderProfileId: 'sp1', senderProfile: { userId: 'user-a' } },
+        where: { senderProfileId: 'sp1', isDefault: true, senderProfile: { userId: 'user-a' } },
       })
     );
   });
 
   it('updateBankAccount default reset is scoped to the owner', async () => {
-    p.bankAccount.findFirst.mockResolvedValue({ id: 'ba1', senderProfileId: 'sp1', isDefault: false });
+    lockedTransaction();
+    p.bankAccount.findFirst.mockResolvedValue({ id: 'ba1', senderProfileId: 'sp1', isDefault: false, currency: 'USD' });
     await updateBankAccount(actor, 'ba1', form);
     expect(p.bankAccount.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           senderProfileId: 'sp1',
+          isDefault: true,
           id: { not: 'ba1' },
           senderProfile: { userId: 'user-a' },
         },

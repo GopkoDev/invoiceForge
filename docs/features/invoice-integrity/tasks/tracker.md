@@ -16,7 +16,7 @@
 | T09 | [Apply every draft rule on draft saves and issuing from the editor, refreshing issued details only while the invoice is a draft](./t09-update-draft-branch.md) | app | Dmytro Hopko | M | T05, T06, T08 | done |
 | T10 | [Decide list status changes and deletes under the row lock with the lifecycle and the draft rules on issue](./t10-status-change-and-delete.md) | app | Dmytro Hopko | M | T02, T03, T05, T06, T09 | done |
 | T11 | [Keep exactly one default sender profile per Freelancer under the User row lock](./t11-sender-profile-defaults.md) | app | Dmytro Hopko | M | T02 | done |
-| T12 | [Keep exactly one default bank account per sender profile and lock the currency of an account used by invoices](./t12-bank-account-defaults-and-currency-lock.md) | app | Dmytro Hopko | M | T02 | todo |
+| T12 | [Keep exactly one default bank account per sender profile and lock the currency of an account used by invoices](./t12-bank-account-defaults-and-currency-lock.md) | app | Dmytro Hopko | M | T02 | done |
 | T13 | [Require a strict two-decimal product price and count invoices, not lines, in the product currency lock](./t13-product-price-and-currency-lock.md) | app | Dmytro Hopko | S | — | done |
 | T14 | [Print the PDF's sender, Customer and bank blocks from the issued details, account number always](./t14-pdf-from-issued-details.md) | ui | Dmytro Hopko | M | — | done |
 | T15 | [Offer only lifecycle-allowed row actions, confirm Cancel with SCR-04 and redraw refused rows at their current status](./t15-list-row-actions-and-cancel.md) | ui | Dmytro Hopko | M | T03, T07, T10 | todo |
