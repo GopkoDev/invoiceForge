@@ -131,49 +131,67 @@ Each tactical decision in later sections should trace to one of these seeds. Tac
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
-
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+The feature follows the repo's layered convention and adds no module: thin entry points (RSC pages, server actions, the read-only MCP route) over one business layer (`lib/services`, `server-only`, every function taking an `ActingFreelancer` first — service-layer ADR-0001, ADR-0006) over Prisma/PostgreSQL. Every new rule lands in the existing `invoices`, `bank-accounts`, `sender-profiles` and `products` services or in pure shared modules under `lib/helpers` and `lib/validations` that the editor also imports, so the browser shows the same rule the server enforces (the pattern of architecture-hardening ADR-0006). No rule lives in a server action, a component or the MCP adapter.
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+lib/
+├── helpers/
+│   ├── invoice-status.ts            CHANGED  transition table as data + decideStatusChange (lifecycle, paidAt, create-as-draft, delete-only-drafts) — ADR-0002
+│   ├── invoice-locked-fields.ts     NEW      pure comparison of an issued invoice's locked fields, using the write normalizers — ADR-0003
+│   └── invoice-pdf-helpers.tsx      CHANGED  builds sender/Customer/bank blocks from the snapshot columns; logo from the current profile — ADR-0001
+├── validations/
+│   ├── invoice.ts                   CHANGED  per-amount 99,999,999.99 bounds over computeInvoiceAmounts, discount cap, dueDate >= issueDate, loadedVersion
+│   └── product.ts                   CHANGED  strict two-decimal price
+└── services/
+    ├── invoices/
+    │   ├── invoices.ts              CHANGED  create/update/status/delete/duplicate: lock row, version check, lifecycle, locked-field check, snapshot only for drafts, version bump
+    │   ├── helpers.ts               CHANGED  verifyInvoiceRelations: bank and catalogue-product currency (inactive products included)
+    │   ├── numbering.ts             CHANGED  year from the issue date's calendar day
+    │   └── editor-data.ts           CHANGED  loads every product referenced by the invoice's lines
+    ├── bank-accounts/bank-accounts.ts      CHANGED  currency lock by invoice count; default switch/create/delete under SenderProfile row lock — ADR-0005
+    ├── sender-profiles/sender-profiles.ts  CHANGED  default switch/create/delete under User row lock — ADR-0005
+    └── products/products.ts                CHANGED  strict price (currency lock already present)
+components/
+├── invoice-editor/                  CHANGED  three modes by status; SCR-05 "changed elsewhere" dialog on CONFLICT; no auto-removal of lines; PDF document prints account number
+└── invoices/invoice-row-actions.tsx CHANGED  offers only lifecycle-allowed moves; SCR-04 cancel confirmation; Duplicate for every status; Delete only for drafts
+prisma/
+├── schema/invoice.prisma            CHANGED  Invoice.version — ADR-0004
+└── migrations/<ts>_invoice_integrity/       version column; default repair + partial unique indexes (raw SQL) — ADR-0005
+scripts/
+└── invoice-integrity-report.ts      NEW      pre-release count-only report of records breaking the new invariants (spec §1, §8)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title invoice-integrity - Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer")
+    System_Ext(assistant, "Assistant", "MCP client, read-only")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "Invoice Forge") {
+        Container(web, "Web UI", "Next.js 16 RSC, React 19, shadcn/ui", "Invoice list, editor in three modes, PDF, profile, account and product forms, cancel and changed-elsewhere dialogs")
+        Container(actions, "Server actions", "Next.js server actions", "Resolve the acting Freelancer from the session, call the business layer, revalidate")
+        Container(mcp, "MCP endpoint", "Route handler, MCP SDK", "Read-only tools, answers from issued details")
+        Container(services, "Business layer", "TypeScript, lib/services", "Lifecycle, locked fields, version check, currency, bounds, defaults, numbering")
+        Container(shared, "Shared rule modules", "TypeScript, lib/helpers and lib/validations", "Transition table, locked-field comparison, amount and date schemas, decimal module")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "PostgreSQL", "Prisma 7, adapter-pg", "Invoice with snapshot columns and version, InvoiceItem, SenderProfile, BankAccount, Product; partial unique default indexes")
+    System_Ext(sentry, "Sentry", "Errors and save and status-change spans")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, web, "Edits, issues, cancels, duplicates, downloads PDFs", "HTTPS")
+    Rel(web, actions, "Saves and status changes with loadedVersion", "server action RPC")
+    Rel(web, shared, "Shows only allowed actions and field errors")
+    Rel(actions, services, "Calls with ActingFreelancer")
+    Rel(assistant, mcp, "Reads invoices", "MCP over HTTPS")
+    Rel(mcp, services, "Read-only calls")
+    Rel(services, shared, "Applies the same rules")
+    Rel(services, db, "Reads and writes in one transaction, row locked", "SQL")
+    Rel(services, sentry, "Spans and errors", "HTTPS")
 ```
 
 ## 6. Runtime view
