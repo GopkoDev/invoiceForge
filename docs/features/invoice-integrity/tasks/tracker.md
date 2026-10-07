@@ -10,7 +10,7 @@
 | T03 | [Encode the status lifecycle as a transition table with decideStatusChange and add the new ActionResult detail kinds](./t03-lifecycle-module.md) | domain | Dmytro Hopko | M | — | done |
 | T04 | [Add the pure locked-field comparison for issued invoices built on the write normalizers](./t04-locked-field-comparison.md) | domain | Dmytro Hopko | M | — | done |
 | T05 | [Bound every computed amount, cap the discount and require due date ≥ issue date in the shared invoice schema](./t05-amount-and-date-bounds.md) | domain | Dmytro Hopko | M | — | done |
-| T06 | [Check the bank account's and every catalogue line product's currency against the invoice in verifyInvoiceRelations](./t06-currency-relations.md) | app | Dmytro Hopko | S | — | todo |
+| T06 | [Check the bank account's and every catalogue line product's currency against the invoice in verifyInvoiceRelations](./t06-currency-relations.md) | app | Dmytro Hopko | S | — | done |
 | T07 | [Create and duplicate invoices only as drafts under the draft rules, numbered by the issue date's year](./t07-create-and-duplicate.md) | app | Dmytro Hopko | M | T01, T02, T03, T05, T06 | todo |
 | T08 | [Refuse outdated, cancelled, lifecycle-breaking and locked-field saves in updateInvoice and write only the four editable fields on issued invoices](./t08-update-freshness-and-issued-lock.md) | app | Dmytro Hopko | L | T02, T03, T04, T05, T07 | todo |
 | T09 | [Apply every draft rule on draft saves and issuing from the editor, refreshing issued details only while the invoice is a draft](./t09-update-draft-branch.md) | app | Dmytro Hopko | M | T05, T06, T08 | todo |

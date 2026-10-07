@@ -8,6 +8,7 @@ import type {
   SenderProfile,
   Customer,
   BankAccount,
+  Currency,
 } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/result';
 import { isInvoiceKeyTaken } from './numbering';
@@ -153,26 +154,44 @@ export function transformInvoiceToFormData(
   };
 }
 
+/** The draft currency rule's input (AC-11, AC-12): the invoice's currency and its lines. */
+export interface InvoiceCurrencyCheck {
+  currency: Currency;
+  items: { productId?: string | null }[];
+}
+
+type RelationsClient = Pick<Prisma.TransactionClient, 'senderProfile' | 'customer' | 'bankAccount' | 'product'>;
+
+/**
+ * Ownership of the invoice's relations (another Freelancer's record is NOT_FOUND, like a missing
+ * one) and, when `currencies` is given (invoice-integrity T06, AC-11, AC-12), the currency
+ * invariant as fieldErrors: the bank account's currency, then every catalogue line product's,
+ * inactive products included. Free-text lines (no product, or 'custom') are not checked. Pass the
+ * transaction client to run it inside a save transaction.
+ */
 export async function verifyInvoiceRelations(
   userId: string,
   senderProfileId: string,
   customerId: string,
-  bankAccountId: string
+  bankAccountId: string,
+  currencies?: InvoiceCurrencyCheck,
+  db: RelationsClient = prisma
 ): Promise<
   ActionResult<{
     senderProfile: SenderProfile;
     customer: Customer;
     bankAccount: BankAccount;
+    fieldErrors: Record<string, string[]>;
   }>
 > {
   const [senderProfile, customer, bankAccount] = await Promise.all([
-    prisma.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
-    prisma.customer.findFirst({ where: { id: customerId, userId } }),
+    db.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
+    db.customer.findFirst({ where: { id: customerId, userId } }),
     // F-43: tied to the SPECIFIC sender profile the invoice is being saved under, not just to
     // any profile the same user owns — otherwise an invoice could carry senderProfileId A with
     // a bank account that actually belongs to the same user's profile B, which later makes
     // deleteSenderProfile's invoice count for B miss it entirely.
-    prisma.bankAccount.findFirst({
+    db.bankAccount.findFirst({
       where: { id: bankAccountId, senderProfileId, senderProfile: { userId } },
     }),
   ]);
@@ -181,7 +200,42 @@ export async function verifyInvoiceRelations(
   if (!customer) return fail('NOT_FOUND', 'Customer not found.');
   if (!bankAccount) return fail('NOT_FOUND', 'Bank account not found.');
 
-  return ok({ senderProfile, customer, bankAccount });
+  const fieldErrors: Record<string, string[]> = {};
+  if (currencies) {
+    const { currency, items } = currencies;
+    if (bankAccount.currency !== currency) {
+      fieldErrors.bankAccountId = [
+        `This account is in ${bankAccount.currency} while the invoice is in ${currency}.`,
+      ];
+    }
+
+    const productIds = Array.from(new Set(items.map((item) => item.productId).filter(isCatalogueProductId)));
+    // By id and owner only: an inactive (retired) product is checked too.
+    const products =
+      productIds.length === 0
+        ? []
+        : await db.product.findMany({
+            where: { id: { in: productIds }, userId },
+            select: { id: true, name: true, currency: true },
+          });
+    if (products.length !== productIds.length) return fail('NOT_FOUND', 'Product not found.');
+
+    const byId = new Map(products.map((product) => [product.id, product]));
+    items.forEach((item, i) => {
+      const product = isCatalogueProductId(item.productId) ? byId.get(item.productId) : undefined;
+      if (product && product.currency !== currency) {
+        fieldErrors[`items.${i}.productId`] = [
+          `“${product.name}” is priced in ${product.currency} while the invoice is in ${currency}.`,
+        ];
+      }
+    });
+  }
+
+  return ok({ senderProfile, customer, bankAccount, fieldErrors });
+}
+
+function isCatalogueProductId(id: string | null | undefined): id is string {
+  return Boolean(id) && id !== 'custom';
 }
 
 /**
