@@ -40,6 +40,9 @@ describe('product name', () => {
       .filter((f) => !f.endsWith('product-name.test.ts'))
       // Fix records quote the old name on purpose.
       .filter((f) => !f.includes('/_fixes/'))
+      // The docs site's build output and cache are generated (and gitignored); they copy the fix
+      // records into chunks and the search index.
+      .filter((f) => !/\/docs\/\.vitepress\/(dist|cache)\//.test(f))
       .flatMap((f) =>
         readFileSync(f, 'utf8')
           .split('\n')

@@ -9,7 +9,7 @@ feature_size: "M"
 # Spec — mcp-server
 
 > **Glossary:** [CONTEXT](../../../CONTEXT.md) (project-wide; this feature adds *Personal key*, *Overdue invoice*, *Freelancer time zone* and *Issued invoice*)
-> **Reference module / docs / channels used:** [`docs/idea-brief.md`](../../idea-brief.md) (the idea baseline and the interview), [`docs/architecture-map.md`](../../architecture-map.md), [`invoice-integrity/brief.md`](../invoice-integrity/brief.md) (finding D3), [`security-patch/spec.md`](../security-patch/spec.md) with its ADR-0003 (refusing anonymous requests that are not plain reads), architecture-hardening ADR-0010 (the browser time zone carried in a cookie), and service-layer ADR-0001 (the acting Freelancer) and ADR-0005 (the shared page envelope).
+> **Reference module / docs / channels used:** [`idea-brief.md`](./idea-brief.md) (the idea baseline and the interview), [`docs/architecture-map.md`](../../architecture-map.md), [`invoice-integrity/brief.md`](../invoice-integrity/brief.md) (finding D3), [`security-patch/spec.md`](../security-patch/spec.md) with its ADR-0003 (refusing anonymous requests that are not plain reads), architecture-hardening ADR-0010 (the browser time zone carried in a cookie), and service-layer ADR-0001 (the acting Freelancer) and ADR-0005 (the shared page envelope).
 
 ## 1. Context
 
