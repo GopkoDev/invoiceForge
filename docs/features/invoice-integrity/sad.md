@@ -276,21 +276,22 @@ The feature runs inside the existing Vercel project in region `fra1` as part of 
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
-
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Logging | Repo default — `console.error` inside `try/catch`, errors to Sentry in production; refusals are expected outcomes and are counted, not logged as errors. Never log form bodies, issued details or bank data; context is ids only. | `docs/architecture-map.md` §Conventions; here |
+| Authentication | Unchanged — browser session resolved to an `ActingFreelancer` by the trusted factory; Personal keys remain read-only and gain no write tool (AC-24). | service-layer ADR-0001; mcp-server ADR-0003 |
+| Authorization | Every read and write scoped by owner in its own `WHERE`, the row lock included; another Freelancer's invoice is answered exactly like a missing one (AC-23). | service-layer ADR-0003 |
+| Error handling | `ActionResult` with typed codes. Lifecycle, locked-field, currency, bounds and date refusals → `VALIDATION` with `fieldErrors` next to the field and the spec's explanation; outdated view → `CONFLICT` (the editor opens SCR-05); unique-constraint hit on a default index → retryable `CONFLICT`. Never a generic `FAILED` for user input. | `types/result.ts`; architecture-hardening ADR-0009 |
+| Status lifecycle | One transition table and `decideStatusChange`, called by every write path under the row lock; the UI imports the same table. | ADR-0002 |
+| Issued details | Written from the current records only while the invoice is a draft; read by the PDF, the editor and the Assistant; logo always current. | ADR-0001 |
+| Concurrency | Row lock `FOR UPDATE` on the invoice in every write transaction; `Invoice.version` bumped by every service write and checked on editor saves; parent-row lock for default changes; numbering keeps its sender-profile row lock. | ADR-0004, ADR-0005; architecture-hardening ADR-0005 |
+| Validation | Shared zod schemas in `lib/validations` run in the editor and in the service; amounts come from the shared decimal module and are bounded each on its own at 99,999,999.99. | architecture-hardening ADR-0006; here |
+| Money and currency | One currency per invoice, its bank account and its catalogue products; amounts never converted; free-text lines unchecked. | §4; here |
+| Dates and time zone | Issue and due dates are calendar days; the number's year is the issue date's year; "today" for the overdue rule comes from the Freelancer time zone. | mcp-server ADR-0005, ADR-0006, ADR-0009 |
+| ID strategy | `cuid()` unchanged; no new model. | repo default |
+| Observability | Sentry spans `invoices.save` and `invoices.status-change`; refusal outcomes counted per path. | §7 |
+| Caching | None added; pages revalidate after each successful write as today. | repo default |
+| Internationalisation | Messages in English, the app's single UI language. | — |
 
 ## 9. Architecture decisions
 
