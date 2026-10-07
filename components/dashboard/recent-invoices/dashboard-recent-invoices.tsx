@@ -107,6 +107,7 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
           invoiceId={row.original.id}
           invoiceNumber={row.original.invoiceNumber}
           status={row.original.status}
+          dueDate={row.original.dueDate}
           onDataChange={onDataChange}
         />
       ),

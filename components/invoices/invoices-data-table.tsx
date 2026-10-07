@@ -188,6 +188,8 @@ export function InvoicesDataTable({
             invoiceId={row.original.id}
             invoiceNumber={row.original.invoiceNumber}
             status={row.original.status}
+            dueDate={row.original.dueDate}
+            timeZone={timeZone}
           />
         ),
       },

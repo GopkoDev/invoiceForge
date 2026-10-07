@@ -19,7 +19,7 @@
 | T12 | [Keep exactly one default bank account per sender profile and lock the currency of an account used by invoices](./t12-bank-account-defaults-and-currency-lock.md) | app | Dmytro Hopko | M | T02 | done |
 | T13 | [Require a strict two-decimal product price and count invoices, not lines, in the product currency lock](./t13-product-price-and-currency-lock.md) | app | Dmytro Hopko | S | — | done |
 | T14 | [Print the PDF's sender, Customer and bank blocks from the issued details, account number always](./t14-pdf-from-issued-details.md) | ui | Dmytro Hopko | M | — | done |
-| T15 | [Offer only lifecycle-allowed row actions, confirm Cancel with SCR-04 and redraw refused rows at their current status](./t15-list-row-actions-and-cancel.md) | ui | Dmytro Hopko | M | T03, T07, T10 | todo |
+| T15 | [Offer only lifecycle-allowed row actions, confirm Cancel with SCR-04 and redraw refused rows at their current status](./t15-list-row-actions-and-cancel.md) | ui | Dmytro Hopko | M | T03, T07, T10 | done |
 | T16 | [Render the editor in draft, issued and cancelled modes with Save and issue and retired-product lines kept](./t16-editor-modes-and-issue.md) | ui | Dmytro Hopko | M | T08, T09 | todo |
 | T17 | [Show every new invoice rule refusal under its field in the editor](./t17-editor-field-errors.md) | ui | Dmytro Hopko | M | T16 | todo |
 | T18 | [Round-trip the loaded version and open the changed-elsewhere dialog and stale state on CHANGED_ELSEWHERE](./t18-changed-elsewhere-dialog.md) | ui | Dmytro Hopko | M | T08, T17 | todo |

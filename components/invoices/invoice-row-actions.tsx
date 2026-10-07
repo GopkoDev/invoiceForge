@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
+import type { ActionFailure } from '@/types/result';
 import { useRouter } from 'next/navigation';
 import {
   MoreHorizontal,
@@ -41,25 +42,44 @@ import {
   goToSignIn,
   redirectIfUnauthorized,
 } from '@/lib/helpers/client-session-redirect';
+import { allowedTargets } from '@/lib/helpers/invoice-status';
+import { todayInZone } from '@/lib/helpers/calendar-day';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
   invoiceNumber: string;
+  /** The row's status as the list shows it (an overdue-by-date pending row reads OVERDUE). */
   status: InvoiceStatus;
+  /** The stored due date: gates overdue → pending (not past due in the Freelancer's zone). */
+  dueDate?: Date | string;
+  /** The Freelancer's time zone, for "today". */
+  timeZone?: string;
   onDataChange?: () => void;
+}
+
+/** The status a refused action reports the invoice is really in (STATUS_NOT_ALLOWED). */
+function refusedAt(result: ActionFailure): InvoiceStatus | null {
+  return result.details?.kind === 'STATUS_NOT_ALLOWED' ? result.details.currentStatus : null;
 }
 
 export function InvoiceRowActions({
   invoiceId,
   invoiceNumber,
   status,
+  dueDate,
+  timeZone,
   onDataChange,
 }: InvoiceRowActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  // invoice-integrity T15 (SCR-01 status-refused): a refusal names the invoice's current status;
+  // the menu is redrawn at it until the refreshed row arrives.
+  const [refusedStatus, setRefusedStatus] = useState<{ from: InvoiceStatus; to: InvoiceStatus } | null>(null);
+  const rowStatus = refusedStatus && refusedStatus.from === status ? refusedStatus.to : status;
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
+  const confirmationModal = useModal('confirmationModal');
 
   const handleView = useCallback(async () => {
     setIsLoadingPdf(true);
@@ -159,6 +179,7 @@ export function InvoiceRowActions({
           router.refresh();
         } else if (!redirectIfUnauthorized(result)) {
           toast.error(result.error || 'Failed to delete invoice');
+          redrawAfterRefusal(result);
         }
       } catch {
         // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
@@ -167,24 +188,37 @@ export function InvoiceRowActions({
         setOpen(false);
       }
     });
+  };
+
+  /** SCR-01 status-refused / delete-refused: redraw the row at the status the server reports. */
+  const redrawAfterRefusal = (result: ActionFailure) => {
+    const current = refusedAt(result);
+    if (current) setRefusedStatus({ from: status, to: current });
+    if (result.code === 'VALIDATION') {
+      onDataChange?.();
+      router.refresh();
+    }
+  };
+
+  const reportStatusResult = (
+    newStatus: InvoiceStatus,
+    result: Awaited<ReturnType<typeof updateInvoiceStatus>>
+  ) => {
+    if (result.success) {
+      toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
+      onDataChange?.();
+      router.refresh();
+    } else if (!redirectIfUnauthorized(result)) {
+      // The server's explanation verbatim (a lifecycle refusal or the draft rules on issue).
+      toast.error(result.error || 'Failed to update invoice status');
+      redrawAfterRefusal(result);
+    }
   };
 
   const handleStatusChange = (newStatus: InvoiceStatus) => {
     startTransition(async () => {
       try {
-        const result = await updateInvoiceStatus(invoiceId, newStatus);
-        if (result.success) {
-          toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
-          onDataChange?.();
-          router.refresh();
-        } else if (!redirectIfUnauthorized(result)) {
-          toast.error(result.error || 'Failed to update invoice status');
-          // SCR-05 status-rejected: the row was stale (e.g. past due since load); show the current status.
-          if (result.code === 'VALIDATION') {
-            onDataChange?.();
-            router.refresh();
-          }
-        }
+        reportStatusResult(newStatus, await updateInvoiceStatus(invoiceId, newStatus));
       } catch {
         // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.
         goToSignIn();
@@ -194,11 +228,41 @@ export function InvoiceRowActions({
     });
   };
 
-  const canDelete = status === 'DRAFT';
-  const canMarkAsPaid = status === 'PENDING' || status === 'OVERDUE';
-  const canMarkAsPending = status === 'DRAFT';
-  const canMarkAsOverdue = status === 'PENDING';
-  const canCancel = status !== 'CANCELLED' && status !== 'PAID';
+  // SCR-04: cancelling is final, so it is confirmed first; the dialog is closed by us on every result.
+  const handleCancel = () => {
+    setOpen(false);
+    confirmationModal.open({
+      open: true,
+      onClose: confirmationModal.close,
+      title: `Cancel invoice ${invoiceNumber}?`,
+      description:
+        "A cancelled invoice is final. It stays in your list and can still be viewed, downloaded, printed and duplicated, but it can't be changed or deleted.",
+      variant: 'destructive',
+      confirmText: 'Cancel invoice',
+      cancelText: 'Keep invoice',
+      onConfirm: async () => {
+        try {
+          const result = await updateInvoiceStatus(invoiceId, 'CANCELLED');
+          confirmationModal.close();
+          reportStatusResult('CANCELLED', result);
+        } catch {
+          confirmationModal.close();
+          goToSignIn();
+        }
+      },
+    });
+  };
+
+  // The moves come from the shared transition table (ADR-0002); no status rule lives here. Without
+  // a due date, an overdue row is treated as past due (Mark as Pending is not offered).
+  const today = todayInZone(timeZone);
+  const targets = allowedTargets(rowStatus, dueDate ? new Date(dueDate) : new Date(0), today);
+  const canMarkAsPending = targets.includes('PENDING');
+  const canMarkAsPaid = targets.includes('PAID');
+  const canMarkAsOverdue = targets.includes('OVERDUE');
+  const canCancel = targets.includes('CANCELLED');
+  const canDelete = rowStatus === 'DRAFT';
+  const canEdit = rowStatus !== 'CANCELLED';
 
   const isShowSeparator =
     canMarkAsPending || canMarkAsPaid || canMarkAsOverdue || canCancel;
@@ -230,10 +294,12 @@ export function InvoiceRowActions({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem onClick={handleEdit}>
-          <Pencil className="size-4" />
-          Edit
-        </DropdownMenuItem>
+        {canEdit && (
+          <DropdownMenuItem onClick={handleEdit}>
+            <Pencil className="size-4" />
+            Edit
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleDuplicate} disabled={isDisabled}>
           <Copy className="size-4" />
           Duplicate
@@ -269,10 +335,7 @@ export function InvoiceRowActions({
           </DropdownMenuItem>
         )}
         {canCancel && (
-          <DropdownMenuItem
-            onClick={() => handleStatusChange('CANCELLED')}
-            disabled={isDisabled}
-          >
+          <DropdownMenuItem onClick={handleCancel} disabled={isDisabled}>
             <XCircle className="size-4" />
             Cancel Invoice
           </DropdownMenuItem>
