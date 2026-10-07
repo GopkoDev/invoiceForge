@@ -18,7 +18,9 @@ export async function createBankAccount(
       iban: overrides.iban,
       swift: overrides.swift,
       currency: (overrides.currency ?? 'USD') as Currency,
-      isDefault: overrides.isDefault ?? true,
+      // At most one default per sender profile (partial unique index, ADR-0005): the first account is.
+      isDefault:
+        overrides.isDefault ?? (await prisma.bankAccount.count({ where: { senderProfileId } })) === 0,
       ...(overrides.id ? { id: overrides.id } : {}),
     },
   });
