@@ -343,5 +343,5 @@ Decisions taken during the interview, recorded for traceability:
 ## 8. Open questions
 
 - [ ] What does the pre-release report find, and does any category besides duplicate defaults need a one-time repair? Default now: report counts only and repair nothing else. — owner: Dmytro Hopko, due: before the production deploy of `invoice-integrity`
-- [ ] How are existing Freelancers told that issued invoices are now locked except for the due date, notes, payment terms and PO number? Default now: a short note in the editor the first time they open an issued invoice after release. — owner: Dmytro Hopko, due: before `sdd:tasks`
+- [x] How are existing Freelancers told that issued invoices are now locked except for the due date, notes, payment terms and PO number? **Resolved 2026-10-07 at `screens`:** a permanent info note in the editor on every issued invoice (screens.md SCR-02 `issued`), replacing the one-time-note default; nothing stored, no schema change. — owner: Dmytro Hopko, due: before `sdd:tasks`
 - [ ] Should a duplicate made to correct a cancelled invoice show a reference to the invoice it replaces? Default now: no reference; the cancelled one keeps its number and stays listed. — owner: Dmytro Hopko, due: before `sdd:design`
