@@ -108,12 +108,13 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await snapshot(a.invoice.id)).toEqual(before);
   });
 
-  it("AC-24: a legacy rule-breaking source is FAILED \"This invoice can't be duplicated.\", nothing created, no Sentry call", async () => {
+  // invoice-integrity T07: a failing duplicate is VALIDATION (was FAILED), contracts §duplicateInvoice.
+  it("AC-24: a legacy rule-breaking source is VALIDATION \"This invoice can't be duplicated.\", nothing created, no Sentry call", async () => {
     const a = await seedWithInvoice('t16-a@example.com', {}, -5);
     const actor = await actingFreelancerForTest(a.user.id);
     const res = await svc.duplicateInvoice(actor, a.invoice.id);
     expect(res.success).toBe(false);
-    expect(res.code).toBe('FAILED');
+    expect(res.code).toBe('VALIDATION');
     expect(res.error).toContain("This invoice can't be duplicated.");
     expect(await prisma.invoice.count()).toBe(1);
     expect(await counter(a.senderProfile.id)).toBe(4);

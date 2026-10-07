@@ -32,10 +32,17 @@ import {
   verifyInvoiceRelations,
   INVOICE_ITEM_ORDER,
   verifyItemProductsOwnership,
+  checkDraftRules,
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage, startSpan } from '@sentry/nextjs';
-import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
+import {
+  invoiceAmountsSchema,
+  invoiceFormSchema,
+  invoiceShapeSchema,
+  type FieldErrors,
+  type InvoiceFormInput,
+} from '@/lib/validations/invoice';
 import {
   isDerivedOverdue,
   refusesManualStatus,
@@ -44,7 +51,7 @@ import {
   todayIn,
   withDerivedStatus,
 } from '@/lib/services/_shared/overdue';
-import { applyStatusChange } from '@/lib/helpers/invoice-status';
+import { applyStatusChange, decideCreateStatus } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import {
   allocateInvoiceNumber,
@@ -106,7 +113,13 @@ export async function peekNextInvoiceNumber(
     });
     if (!profile) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
 
-    const invoiceNumber = await peekNextNumber(senderProfileId, actor.userId);
+    // invoice-integrity T07: the hint has no issue date yet, so its year is today's calendar day in
+    // the Freelancer time zone; the number assigned on save may carry another year (AC-21).
+    const invoiceNumber = await peekNextNumber(
+      senderProfileId,
+      actor.userId,
+      dayToUtcDate(todayIn(actor.timeZone))
+    );
     if (invoiceNumber === null) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     return ok(invoiceNumber);
   } catch (error) {
@@ -305,7 +318,15 @@ export type SavedInvoice = {
    * so a second save compares against what is stored, not the pre-save snapshot (T44 review, I-01). */
   issueDate: string;
   dueDate: string;
+  /** Invoice.version after the write (ADR-0004): the editor's next loadedVersion. */
+  version: number;
 };
+
+const FIX_FIELDS_MESSAGE = 'Please fix the highlighted fields.';
+
+function hasFieldErrors(fieldErrors: FieldErrors): boolean {
+  return Object.keys(fieldErrors).length > 0;
+}
 
 const INVOICE_NUMBER_CONFLICT_MESSAGE =
   'This invoice number is already used in this sender profile.';
@@ -329,10 +350,11 @@ export async function resolveManualOrAllocatedNumber(
   senderProfileId: string,
   userId: string,
   invoiceNumber: string,
-  excludeInvoiceId?: string
+  excludeInvoiceId: string | undefined,
+  issueDate: Date
 ): Promise<{ invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean }> {
   if (invoiceNumber === '') {
-    const allocated = await allocateInvoiceNumber(tx, senderProfileId, userId);
+    const allocated = await allocateInvoiceNumber(tx, senderProfileId, userId, issueDate);
     return { ...allocated, wasAllocated: true };
   }
 
@@ -367,40 +389,40 @@ async function createInvoiceUnspanned(
 
   try {
     const { userId } = actor;
-    const parsed = invoiceFormSchema.safeParse(data);
+    // invoice-integrity T07 — contracts/server-actions.md §createInvoice, first failure wins:
+    // shape → status (AC-04b) → ownership (NOT_FOUND) → every draft rule together → number.
+    const parsed = invoiceShapeSchema.safeParse(data);
     if (!parsed.success) {
       return zodValidationFailure(parsed.error);
     }
     const validatedData = parsed.data;
 
-    // Verify ownership and get snapshot data
-    const relationsResult = await verifyInvoiceRelations(
-      userId,
-      validatedData.senderProfileId,
-      validatedData.customerId,
-      validatedData.bankAccountId
-    );
-    if (!relationsResult.success) {
-      return relationsResult;
+    const createStatus = decideCreateStatus(validatedData.status);
+    if (createStatus.kind === 'refused') {
+      return fail('VALIDATION', createStatus.message, {
+        fieldErrors: { status: [createStatus.message] },
+        details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'DRAFT', suggestion: null },
+      });
     }
 
-    // F-48: every item's productId, if any, must belong to this same Freelancer.
-    const productOwnershipResult = await verifyItemProductsOwnership(
-      userId,
-      validatedData.items
-    );
-    if (!productOwnershipResult.success) {
-      return productOwnershipResult;
+    const checked = await checkDraftRules(userId, validatedData);
+    if (!checked.success) {
+      return checked;
+    }
+    if (hasFieldErrors(checked.data.fieldErrors)) {
+      return fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: checked.data.fieldErrors });
     }
 
-    const { senderProfile, customer, bankAccount } = relationsResult.data;
+    const { senderProfile, customer, bankAccount } = checked.data;
 
     const invoice = await prisma.$transaction(async (tx) => {
       const resolved = await resolveManualOrAllocatedNumber(
         tx,
         senderProfile.id,
         userId,
-        validatedData.invoiceNumber
+        validatedData.invoiceNumber,
+        undefined,
+        validatedData.issueDate
       );
       const { invoiceNumber, invoiceNumberKey } = resolved;
       wasAllocated = resolved.wasAllocated;
@@ -418,11 +440,6 @@ async function createInvoiceUnspanned(
         taxRate: validatedData.taxRate,
       });
 
-      const { status, paidAt } = applyStatusChange(
-        { status: 'DRAFT', paidAt: null },
-        validatedData.status
-      );
-
       return tx.invoice.create({
         data: {
           invoiceNumber,
@@ -433,8 +450,9 @@ async function createInvoiceUnspanned(
           issueDate: validatedData.issueDate,
           dueDate: validatedData.dueDate,
           paymentTerms: validatedData.paymentTerms,
-          status,
-          paidAt,
+          status: 'DRAFT',
+          paidAt: null,
+          version: 0,
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
@@ -477,6 +495,7 @@ async function createInvoiceUnspanned(
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
+      version: invoice.version,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -644,7 +663,8 @@ async function updateInvoiceUnspanned(
           validatedData.senderProfileId,
           userId,
           validatedData.invoiceNumber,
-          existingInvoice.id
+          existingInvoice.id,
+          validatedData.issueDate
         );
       }
       const { invoiceNumber, invoiceNumberKey } = resolvedNumber;
@@ -767,6 +787,7 @@ async function updateInvoiceUnspanned(
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
+      version: invoice.version,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -888,54 +909,64 @@ async function duplicateInvoiceUnspanned(
 
     const originalInvoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId } },
-      include: { items: true },
+      include: { items: { orderBy: INVOICE_ITEM_ORDER } },
     });
 
     if (!originalInvoice) {
       return fail('NOT_FOUND', 'Invoice not found.');
     }
 
-    const senderProfile = await prisma.senderProfile.findFirst({
-      where: { id: originalInvoice.senderProfileId, userId },
-      select: { id: true },
+    // invoice-integrity T07 (contracts/server-actions.md §duplicateInvoice): a source in any status,
+    // CANCELLED included, becomes a new draft that goes through the create rules. The source may be
+    // a legacy row that breaks them (a negative rate, a currency that no longer matches): the amount
+    // shape (F-05/N-07) and every draft rule are checked, and a failure is VALIDATION with the
+    // reasons as a plain list — user input, never FAILED, never reported to Sentry.
+    const form = transformInvoiceToFormData(originalInvoice);
+    const issueDate = dayToUtcDate(today);
+    const dueDate = dayToUtcDate(addDaysToDay(today, 30));
+
+    const shape = invoiceAmountsSchema.safeParse(form);
+    const shapeErrors: FieldErrors = shape.success ? {} : zodValidationFailure(shape.error).fieldErrors ?? {};
+    const checked = await checkDraftRules(userId, {
+      senderProfileId: originalInvoice.senderProfileId,
+      customerId: originalInvoice.customerId,
+      bankAccountId: originalInvoice.bankAccountId,
+      currency: originalInvoice.currency,
+      items: form.items,
+      taxRate: form.taxRate,
+      discount: form.discount,
+      shipping: form.shipping,
+      issueDate,
+      dueDate,
     });
-
-    if (!senderProfile) {
-      return fail('NOT_FOUND', 'Sender profile not found.');
+    if (!checked.success) {
+      return checked;
     }
-
-    // F-05/N-07: the source invoice may be a legacy row whose amounts already break the rules
-    // (e.g. a negative rate) — check only the amount rules before recomputing, instead of blindly
-    // copying a rule-breaking source. Other form rules (names, units, relations) don't concern a
-    // copy, and the contract has no VALIDATION for this action: refuse with FAILED and a plain
-    // list message the row toast shows as is.
-    const parsed = invoiceAmountsSchema.safeParse(transformInvoiceToFormData(originalInvoice));
-    if (!parsed.success) {
-      const reasons = [...new Set(parsed.error.issues.map((issue) => issue.message))].join(' ');
-      return fail('FAILED', `This invoice can't be duplicated. ${reasons}`);
+    const fieldErrors = { ...shapeErrors, ...checked.data.fieldErrors };
+    if (hasFieldErrors(fieldErrors)) {
+      const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
+      return fail('VALIDATION', `This invoice can't be duplicated. ${reasons}`, { fieldErrors });
     }
-    const validatedData = parsed.data;
+    const { senderProfile, customer, bankAccount } = checked.data;
 
     // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
     // the original's quantity x rate rather than copying its (possibly stale) stored figures.
     const amounts = computeInvoiceAmounts({
-      items: validatedData.items.map((item) => ({
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      discount: validatedData.discount,
-      shipping: validatedData.shipping,
-      taxRate: validatedData.taxRate,
+      items: form.items.map((item) => ({ quantity: item.quantity, price: item.price })),
+      discount: form.discount,
+      shipping: form.shipping,
+      taxRate: form.taxRate,
     });
 
     const newInvoice = await prisma.$transaction(async (tx) => {
       const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
         tx,
         senderProfile.id,
-        userId
+        userId,
+        issueDate
       );
 
-      const created = await tx.invoice.create({
+      return tx.invoice.create({
         data: {
           invoiceNumber,
           invoiceNumberKey,
@@ -943,37 +974,18 @@ async function duplicateInvoiceUnspanned(
           customerId: originalInvoice.customerId,
           bankAccountId: originalInvoice.bankAccountId,
           // Calendar days (T25): today in the owner's zone and 30 days after it, each at T00:00:00Z.
-          issueDate: dayToUtcDate(today),
-          dueDate: dayToUtcDate(addDaysToDay(today, 30)),
+          issueDate,
+          dueDate,
           paymentTerms: originalInvoice.paymentTerms,
           status: 'DRAFT',
+          paidAt: null,
+          version: 0,
           currency: originalInvoice.currency,
           poNumber: null,
-          senderName: originalInvoice.senderName,
-          senderLegalName: originalInvoice.senderLegalName,
-          senderTaxId: originalInvoice.senderTaxId,
-          senderAddress: originalInvoice.senderAddress,
-          senderCity: originalInvoice.senderCity,
-          senderCountry: originalInvoice.senderCountry,
-          senderPostalCode: originalInvoice.senderPostalCode,
-          senderPhone: originalInvoice.senderPhone,
-          senderEmail: originalInvoice.senderEmail,
-          senderWebsite: originalInvoice.senderWebsite,
-          senderLogo: originalInvoice.senderLogo,
-          customerName: originalInvoice.customerName,
-          customerCompanyName: originalInvoice.customerCompanyName,
-          customerTaxId: originalInvoice.customerTaxId,
-          customerEmail: originalInvoice.customerEmail,
-          customerPhone: originalInvoice.customerPhone,
-          customerAddress: originalInvoice.customerAddress,
-          customerCity: originalInvoice.customerCity,
-          customerCountry: originalInvoice.customerCountry,
-          customerPostalCode: originalInvoice.customerPostalCode,
-          bankName: originalInvoice.bankName,
-          bankAccountNumber: originalInvoice.bankAccountNumber,
-          bankIban: originalInvoice.bankIban,
-          bankSwift: originalInvoice.bankSwift,
-          accountName: originalInvoice.accountName,
+          // A duplicate is a new draft: its issued details are the current records' (ADR-0001).
+          ...buildSenderSnapshot(senderProfile),
+          ...buildCustomerSnapshot(customer),
+          ...buildBankAccountSnapshot(bankAccount),
           subtotal: amounts.subtotal,
           taxRate: originalInvoice.taxRate,
           taxAmount: amounts.taxAmount,
@@ -997,8 +1009,6 @@ async function duplicateInvoiceUnspanned(
           },
         },
       });
-
-      return created;
     });
 
     return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });

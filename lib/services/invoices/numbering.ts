@@ -17,8 +17,10 @@ export { normalizeInvoiceNumber };
  * Formats a sender profile's prefix and a counter value into the invoice number shape shared by
  * create, duplicate and the "assigned on save" hint.
  */
-export function formatInvoiceNumber(prefix: string, n: number): string {
-  const year = new Date().getFullYear();
+export function formatInvoiceNumber(prefix: string, n: number, issueDate: Date = new Date()): string {
+  // invoice-integrity T07 (AC-21, AC-22): the year is the issue date's — a calendar day stored at
+  // T00:00:00Z, read by its UTC year — never the server clock. Every save path passes it.
+  const year = issueDate.getUTCFullYear();
   return `${prefix}-${year}-${String(n).padStart(4, '0')}`;
 }
 
@@ -77,7 +79,8 @@ export async function lockSenderProfileRow(
 export async function allocateInvoiceNumber(
   tx: Prisma.TransactionClient,
   senderProfileId: string,
-  userId: string
+  userId: string,
+  issueDate?: Date
 ): Promise<{ invoiceNumber: string; invoiceNumberKey: string }> {
   for (;;) {
     const [profile] = await tx.$queryRaw<{ invoiceCounter: number; invoicePrefix: string }[]>`
@@ -90,7 +93,7 @@ export async function allocateInvoiceNumber(
       throw new SenderProfileNotFoundError();
     }
 
-    const invoiceNumber = formatInvoiceNumber(profile.invoicePrefix, profile.invoiceCounter);
+    const invoiceNumber = formatInvoiceNumber(profile.invoicePrefix, profile.invoiceCounter, issueDate);
     const invoiceNumberKey = normalizeInvoiceNumber(invoiceNumber);
 
     if (await isInvoiceKeyTaken(tx, senderProfileId, invoiceNumberKey)) {
@@ -108,7 +111,8 @@ export async function allocateInvoiceNumber(
  */
 export async function peekNextInvoiceNumber(
   senderProfileId: string,
-  userId: string
+  userId: string,
+  today?: Date
 ): Promise<string | null> {
   const { prisma } = await import('@/prisma');
   const profile = await prisma.senderProfile.findUnique({
@@ -123,7 +127,7 @@ export async function peekNextInvoiceNumber(
   let counter = profile.invoiceCounter;
   for (;;) {
     counter += 1;
-    const candidate = formatInvoiceNumber(profile.invoicePrefix, counter);
+    const candidate = formatInvoiceNumber(profile.invoicePrefix, counter, today);
     const key = normalizeInvoiceNumber(candidate);
     const taken = await isInvoiceKeyTaken(prisma, senderProfileId, key);
     if (!taken) {

@@ -75,10 +75,16 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
   }
 
   /** What the editor sends: its form holds local Dates, which it turns into days on save. */
-  function editorForm(s: Awaited<ReturnType<typeof seedFreelancer>>, issueDate: Date, dueDate: Date) {
+  // invoice-integrity T07 (AC-04b): createInvoice only takes DRAFT, so creates pass 'DRAFT'.
+  function editorForm(
+    s: Awaited<ReturnType<typeof seedFreelancer>>,
+    issueDate: Date,
+    dueDate: Date,
+    status: 'DRAFT' | 'PENDING' = 'PENDING'
+  ) {
     return helpers.toSavePayload({
       invoiceNumber: '',
-      status: 'PENDING',
+      status,
       senderProfileId: s.profileId,
       bankAccountId: s.bank.USD.id,
       customerId: s.customer.id,
@@ -104,7 +110,8 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     const picked = new Date(2026, 9, 15); // the Calendar's value: Kyiv local midnight = 2026-10-14T21:00Z
     expect(picked.toISOString()).toBe('2026-10-14T21:00:00.000Z');
 
-    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), picked)));
+    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), picked, 'DRAFT')));
+    await testClient.invoice.update({ where: { id: created.id }, data: { status: 'PENDING' } }); // issued (fixture)
     const stored = await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } });
     expect(stored.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
     expect(stored.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
@@ -124,7 +131,7 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     clock('2026-10-15T09:00:00Z');
     const s = await seedFreelancer(testClient, ['USD']);
     const actor = await actingFreelancerForTest(s.userId, KYIV);
-    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), new Date(2026, 9, 20))));
+    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), new Date(2026, 9, 20), 'DRAFT')));
 
     data(await svc.updateInvoice(actor, created.id, { ...editorForm(s, new Date(2026, 9, 2), new Date(2026, 9, 15)), invoiceNumber: (await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } })).invoiceNumber }));
     const stored = await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } });

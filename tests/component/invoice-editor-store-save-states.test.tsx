@@ -30,6 +30,7 @@ function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
   return {
     id: 'inv-1',
     invoiceNumber: 'INV-0099',
+    version: 0,
     subtotal: 100,
     taxAmount: 10,
     total: 110,

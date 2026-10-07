@@ -25,6 +25,10 @@ vi.mock('@/prisma', () => ({
   prisma: {
     invoice: { findFirst: findFirstMock },
     senderProfile: { findFirst: senderProfileFindFirstMock },
+    // invoice-integrity T07: the duplicate runs the draft rules (relations + currencies).
+    customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+    bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+    product: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: transactionMock,
   },
 }));

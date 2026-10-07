@@ -16,6 +16,10 @@ vi.mock('@/prisma', () => ({
   prisma: {
     invoice: { findFirst: findFirstMock },
     senderProfile: { findFirst: senderProfileFindFirstMock },
+    // invoice-integrity T07: the duplicate runs the draft rules (relations + currencies).
+    customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+    bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+    product: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: transactionMock,
   },
 }));
@@ -88,7 +92,9 @@ describe('duplicateInvoice — amount rules only (T41, N-07)', () => {
 
   afterEach(() => vi.clearAllMocks());
 
-  it('a rule-breaking amount is refused with FAILED, a plain list message and no fieldErrors', async () => {
+  // invoice-integrity T07 (contracts/server-actions.md §duplicateInvoice): a failing duplicate is now
+  // VALIDATION with the reasons as a plain list and fieldErrors keyed as in the editor (was FAILED).
+  it('a rule-breaking amount is refused with VALIDATION, a plain list message and fieldErrors', async () => {
     findFirstMock.mockResolvedValue({
       ...originalInvoice,
       items: [{ ...baseItem, rate: -5 }],
@@ -99,8 +105,9 @@ describe('duplicateInvoice — amount rules only (T41, N-07)', () => {
 
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.code).toBe('FAILED');
-    expect(result.fieldErrors).toBeUndefined();
+    expect(result.code).toBe('VALIDATION');
+    expect(result.fieldErrors?.['items.0.price']).toEqual(["Price can't be negative."]);
+    expect(result.error).toMatch(/^This invoice can't be duplicated\. /);
     expect(result.error).toContain("Price can't be negative.");
     expect(result.error).not.toBe('Please fix the highlighted fields.');
     expect(transactionMock).not.toHaveBeenCalled();

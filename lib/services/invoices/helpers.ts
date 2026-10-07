@@ -12,6 +12,12 @@ import type {
 } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/result';
 import { isInvoiceKeyTaken } from './numbering';
+import {
+  checkDraftAmountRules,
+  checkDueDate,
+  type FieldErrors,
+  type InvoiceAmountRuleValues,
+} from '@/lib/validations/invoice';
 
 /**
  * The order an invoice's lines print and compare in (invoice-integrity T14): creation order. There
@@ -275,4 +281,52 @@ export async function verifyItemProductsOwnership(
   }
 
   return ok();
+}
+
+/** The values the draft rules read (invoice-integrity, flows 3, 4 and 5). */
+export interface DraftRuleValues extends InvoiceAmountRuleValues, InvoiceCurrencyCheck {
+  items: { productId?: string | null; quantity: number; price: number }[];
+  senderProfileId: string;
+  customerId: string;
+  bankAccountId: string;
+  issueDate: Date;
+  dueDate: Date;
+}
+
+/**
+ * Every draft rule, in the flow-4 order, all failures returned together (contracts §Shared input):
+ * ownership first (NOT_FOUND, identical for missing and foreign), then the bank-account and line
+ * product currencies, the amount bounds and discount cap, and the due date. Runs on a create, a
+ * duplicate, a draft save and a draft being issued; pass the transaction client to run it under the
+ * row lock.
+ */
+export async function checkDraftRules(
+  userId: string,
+  values: DraftRuleValues,
+  db: RelationsClient = prisma
+): Promise<
+  ActionResult<{
+    senderProfile: SenderProfile;
+    customer: Customer;
+    bankAccount: BankAccount;
+    fieldErrors: FieldErrors;
+  }>
+> {
+  const relations = await verifyInvoiceRelations(
+    userId,
+    values.senderProfileId,
+    values.customerId,
+    values.bankAccountId,
+    { currency: values.currency, items: values.items },
+    db
+  );
+  if (!relations.success) return relations;
+  return ok({
+    ...relations.data,
+    fieldErrors: {
+      ...relations.data.fieldErrors,
+      ...checkDraftAmountRules(values),
+      ...checkDueDate(values.issueDate, values.dueDate),
+    },
+  });
 }

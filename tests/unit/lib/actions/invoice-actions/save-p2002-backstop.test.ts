@@ -31,6 +31,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
+  // invoice-integrity T07: create/duplicate run every draft rule through checkDraftRules.
+  checkDraftRules: vi.fn().mockResolvedValue({
+    success: true,
+    data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' }, fieldErrors: {} },
+  }),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },

@@ -209,6 +209,12 @@ function buildInvoiceFormObject(day: typeof calendarDayStringSchema | typeof cli
 export const invoiceFormSchema = buildInvoiceFormObject(calendarDayStringSchema).superRefine(refineDiscountCap);
 
 /**
+ * The shape only (types, enums, calendar days, per-field bounds), without the business rules: the
+ * create path runs those as plain functions after the status and ownership checks (contract order).
+ */
+export const invoiceShapeSchema = buildInvoiceFormObject(calendarDayStringSchema);
+
+/**
  * updateInvoice's input (AC-10): the editor sends back the version it loaded. Required, an
  * integer ≥ 0; createInvoice ignores it.
  */
