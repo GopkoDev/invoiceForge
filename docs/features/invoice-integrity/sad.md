@@ -196,31 +196,68 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+Two seed flows for the riskiest paths; `sequences` completes the flows for every §5 acceptance criterion. Participants are the §5 containers.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: saving an issued invoice from the editor (AC-07, AC-08, AC-09, AC-10, AC-14)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor Freelancer
+    participant Web as Web UI
+    participant Act as Server actions
+    participant Svc as Business layer
+    participant DB as PostgreSQL
+    Freelancer->>Web: edits the due date and notes of a pending invoice, saves
+    Web->>Act: save with the form and loadedVersion
+    Act->>Svc: updateInvoice with ActingFreelancer
+    Svc->>DB: begin, lock the invoice row of this owner
+    DB-->>Svc: current row with status, version and stored fields
+    alt not found or another Freelancer's invoice
+        Svc-->>Act: NOT_FOUND
+        Act-->>Web: not found
+    else loadedVersion differs from the row's version
+        Svc-->>Act: CONFLICT, changed elsewhere
+        Act-->>Web: refusal
+        Web-->>Freelancer: changed-elsewhere dialog, reload required
+    else a locked field differs from the stored value
+        Svc-->>Act: VALIDATION, only due date, notes, payment terms and PO number can change
+        Act-->>Web: field errors on the changed locked fields
+    else due date before the issue date
+        Svc-->>Act: VALIDATION on the due date
+        Act-->>Web: field error, edits kept
+    else only editable fields changed
+        Svc->>DB: write the four editable fields, version plus one, commit
+        DB-->>Svc: saved
+        Svc-->>Act: saved invoice with the new version
+        Act-->>Web: saved, revalidated
+        Web-->>Freelancer: invoice shows the new due date and notes, issued details unchanged
+    end
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: a status change from the list racing an outdated editor save (AC-04, AC-10, NFR "Concurrent saves")**
+
+```mermaid
+sequenceDiagram
+    actor Freelancer
+    participant List as Web UI list
+    participant Ed as Web UI editor
+    participant Svc as Business layer
+    participant DB as PostgreSQL
+    Ed->>Svc: loads the pending invoice at version 3
+    Freelancer->>List: marks the invoice paid
+    List->>Svc: updateInvoiceStatus to paid, through a server action
+    Svc->>DB: begin, lock the invoice row
+    DB-->>Svc: status pending, version 3
+    Svc->>Svc: lifecycle allows pending to paid, records the payment date
+    Svc->>DB: write status paid, payment date, version 4, commit
+    Svc-->>List: paid
+    Freelancer->>Ed: saves the editor opened before the payment
+    Ed->>Svc: updateInvoice with loadedVersion 3, through a server action
+    Svc->>DB: begin, lock the invoice row
+    DB-->>Svc: status paid, version 4
+    Svc-->>Ed: CONFLICT, nothing stored
+    Ed-->>Freelancer: changed-elsewhere dialog, the invoice stays paid
+```
 
 ## 7. Deployment view
 
