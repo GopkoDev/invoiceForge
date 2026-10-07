@@ -307,29 +307,42 @@ ADR files live under `docs/features/invoice-integrity/adr/NNNN-<title>.md`. Inhe
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each top-3 goal from §1 expanded into scenarios; every number is quoted from spec §6.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Document fidelity**
+- **When:** the sender profile, Customer and bank account of a fixture of issued invoices are changed after issue (AC-01, AC-03).
+- **Then:** 100 % of fixture issued invoices produce identical PDF text before and after their sender profile, Customer and bank account are changed; the account number is printed, IBAN and SWIFT when present.
+- **How verify:** automated test over a seeded fixture, run in CI — extract the PDF text before and after the changes and compare; the logo is excluded because it stays current (ADR-0001).
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2a. Integrity — status lifecycle on every write path**
+- **When:** each of the 25 from–to status pairs is requested through create, update, status change, delete and duplicate.
+- **Then:** 100 % of the 25 from–to status pairs tested on every write path: of the 20 pairs between different statuses, each outside AC-04 refused; the 5 same-status pairs accepted with status and payment date unchanged; creation in each non-draft status refused (AC-04b).
+- **How verify:** automated test matrix, run in CI — a unit matrix over `decideStatusChange` plus one integration test per write path proving it calls the module under the row lock (ADR-0002).
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-2b. Integrity — concurrent saves**
+- **When:** an outdated editor save races a status change from the list (§6 flow 2).
+- **Then:** 0 lost status or payment-date changes across 50 runs of an outdated editor save racing a status change.
+- **How verify:** integration test on the throwaway PostgreSQL container, 50 runs with both writes released together, asserting the final status, payment date and the `CONFLICT` refusal (ADR-0004).
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-2c. Integrity — default uniqueness**
+- **When:** many "set as default" requests arrive at once for one Freelancer's sender profiles, or one profile's bank accounts.
+- **Then:** exactly 1 default after 10 parallel "set as default" requests, for sender profiles and for bank accounts.
+- **How verify:** integration test firing 10 parallel requests per entity type and counting defaults; a second test proves the partial unique index refuses a direct second default (ADR-0005).
+
+**QG-3a. Explainable refusals**
+- **When:** a Freelancer or any other caller submits an out-of-range amount, a due date before the issue date, a malformed price, an excessive discount or a mismatching currency.
+- **Then:** 0 generic failures for amount, date, price, discount or currency input; each comes back as a field error.
+- **How verify:** automated tests per AC-09, AC-11, AC-12, AC-19, AC-20, AC-20b + error tracking, 30 days after release (the `FAILED` count per path from §7).
+
+**QG-3b. No noticeable cost**
+- **When:** invoices are saved and statuses changed in production after the release.
+- **Then:** latency p95, invoice save and status change: no more than 10 % slower than the 7 days before release.
+- **How verify:** save and status-change spans in error tracking, 7-day window after release, compared with the 7 days before release measured by the same `invoices.save` and `invoices.status-change` spans shipped ahead (§7).
+
+**QG-3c. No silent regressions**
+- **When:** the feature's pull request runs the existing suite.
+- **Then:** 100 % of existing automated tests pass, except those that encode now-forbidden behaviour; each such change is listed in the pull request.
+- **How verify:** CI run + pull request review.
 
 ## 11. Risks and technical debt
 
