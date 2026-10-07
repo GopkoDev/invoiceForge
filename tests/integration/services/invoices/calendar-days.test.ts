@@ -8,6 +8,7 @@ import { isContainerRuntimeAvailable } from '../../../support/db/docker-availabi
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
+import { withLoadedVersion } from '../../../support/loaded-version';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 import { addInvoice, seedFreelancer } from '../dashboard/harness';
 import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
@@ -49,7 +50,12 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     process.env.DATABASE_URL = db.connectionString;
     vi.resetModules();
     testClient = createTestPrismaClient(db.connectionString);
-    svc = await import('@/lib/services/invoices/invoices');
+    const raw = await import('@/lib/services/invoices/invoices');
+    // invoice-integrity T08: saves carry the row's current version, as a freshly opened editor would.
+    svc = {
+      ...raw,
+      updateInvoice: async (a, id, data) => raw.updateInvoice(a, id, await withLoadedVersion(testClient, id, data)),
+    };
     find = await import('@/lib/services/invoices/find-by-reference');
     search = await import('@/lib/services/invoices/assistant-search');
     reads = await import('@/lib/services/dashboard/assistant-reads');
@@ -93,7 +99,9 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
       currency: 'USD',
       poNumber: '',
       paymentTerms: '',
-      items: [{ id: 'item-0', productId: '', productName: 'Widget', description: '', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+      // invoice-integrity T08: the line the harness's addInvoice stores ('Work', 1 x 100), so a notes-only save
+      // of an issued invoice changes no locked field (AC-08).
+      items: [{ id: 'item-0', productId: '', productName: 'Work', description: '', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
       taxRate: 0,
       discount: 0,
       shipping: 0,

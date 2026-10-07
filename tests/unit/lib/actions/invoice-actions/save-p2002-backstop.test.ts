@@ -70,6 +70,7 @@ function form(invoiceNumber: string) {
     dueDate: '2026-01-31',
     currency: 'USD',
     items: [{ id: 'i-1', productName: 'W', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+    loadedVersion: 0, // invoice-integrity T08: updateInvoice requires the loaded version
   } as never;
 }
 
@@ -83,6 +84,7 @@ const existing = {
   dueDate: new Date('2026-01-31T00:00:00.000Z'),
   status: 'DRAFT',
   paidAt: null,
+  version: 0,
   total: zero,
   discount: zero,
   shipping: zero,
@@ -95,7 +97,8 @@ function txRejecting(model: 'create' | 'update') {
     fn({
       $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]),
       invoiceItem: { deleteMany: vi.fn() },
-      invoice: { [model]: vi.fn().mockRejectedValue({ code: 'P2002' }) },
+      // invoice-integrity T08: updateInvoice reads the row under its lock.
+      invoice: { findFirst: invoiceFindFirstMock, [model]: vi.fn().mockRejectedValue({ code: 'P2002' }) },
     })
   );
 }

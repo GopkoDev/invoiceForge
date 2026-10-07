@@ -7,6 +7,7 @@ import { isContainerRuntimeAvailable } from '../../../support/db/docker-availabi
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
+import { withLoadedVersion } from '../../../support/loaded-version';
 import { createFreelancer } from '../../../support/factories/user';
 import { createCustomer } from '../../../support/factories/customer';
 import { createSenderProfile } from '../../../support/factories/sender-profile';
@@ -49,7 +50,12 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     prisma = createTestPrismaClient(db.connectionString);
     svc = (await import('@/lib/services/invoices/invoices')) as unknown as Svc;
     editor = (await import('@/lib/services/invoices/editor-data')) as unknown as Editor;
-    saver = svc as unknown as Saver;
+    // invoice-integrity T08: saves carry the row's current version, as a freshly opened editor would.
+    const raw = svc as unknown as Saver;
+    saver = {
+      updateInvoice: async (a, id, data) =>
+        raw.updateInvoice(a, id, await withLoadedVersion(prisma, id, data as object)),
+    };
   }, 60_000);
 
   afterAll(async () => {

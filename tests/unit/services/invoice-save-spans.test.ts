@@ -56,7 +56,7 @@ describe('invoice save and status-change spans (T01)', () => {
 
   it.each([
     ['create', () => createInvoice(actor, form), 'Failed to create invoice.'],
-    ['update', () => updateInvoice(actor, 'inv-1', form), 'Failed to update invoice.'],
+    ['update', () => updateInvoice(actor, 'inv-1', { ...form, loadedVersion: 0 }), 'Failed to update invoice.'],
     ['duplicate', () => duplicateInvoice(actor, 'inv-1'), 'Failed to duplicate invoice.'],
   ] as const)('%s runs inside invoices.save and tags its FAILED with the path', async (operation, run, message) => {
     const result = await run();
@@ -77,7 +77,7 @@ describe('invoice save and status-change spans (T01)', () => {
 
   it('attaches the operation only — no form body', async () => {
     await createInvoice(actor, form);
-    await updateInvoice(actor, 'inv-1', form);
+    await updateInvoice(actor, 'inv-1', { ...form, loadedVersion: 0 });
     expect(spans).toHaveLength(2);
     for (const span of spans) {
       expect(JSON.stringify(span)).not.toMatch(/Work|sp-1|ba-1|cu-1/);

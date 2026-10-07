@@ -216,7 +216,8 @@ export const invoiceShapeSchema = buildInvoiceFormObject(calendarDayStringSchema
 
 /**
  * updateInvoice's input (AC-10): the editor sends back the version it loaded. Required, an
- * integer ≥ 0; createInvoice ignores it.
+ * integer ≥ 0; createInvoice ignores it. The shape only: the service runs the business rules on the
+ * locked row, and only those AC-14 allows for the row's status (ADR-0003).
  */
 const RELOAD_MESSAGE = 'Reload the invoice and try again.';
 export const invoiceUpdateFormSchema = buildInvoiceFormObject(calendarDayStringSchema)
@@ -225,8 +226,7 @@ export const invoiceUpdateFormSchema = buildInvoiceFormObject(calendarDayStringS
       .number({ required_error: RELOAD_MESSAGE, invalid_type_error: RELOAD_MESSAGE })
       .int(RELOAD_MESSAGE)
       .min(0, RELOAD_MESSAGE),
-  })
-  .superRefine(refineDiscountCap);
+  });
 
 /** Client-only (editor validation of local Dates); never used by the server. Runs every draft rule. */
 export const clientInvoiceFormSchema = buildInvoiceFormObject(clientCalendarDaySchema).superRefine(
