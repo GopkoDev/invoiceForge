@@ -20,7 +20,7 @@ import {
   paginate,
   type Page,
 } from '@/lib/services/_shared/list-query';
-import { localDayRange } from '@/lib/services/_shared/time-zone';
+import { addDaysToDay, dayToUtcDate, utcDateToDay, utcDayRange } from '@/lib/helpers/calendar-day';
 import {
   transformInvoiceToFormData,
   buildBankAccountSnapshot,
@@ -34,7 +34,15 @@ import {
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage } from '@sentry/nextjs';
-import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormValues } from '@/lib/validations/invoice';
+import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
+import {
+  isDerivedOverdue,
+  refusesManualStatus,
+  statusFilterWhere,
+  statusToStoreOnSave,
+  todayIn,
+  withDerivedStatus,
+} from '@/lib/services/_shared/overdue';
 import { applyStatusChange } from '@/lib/helpers/invoice-status';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import {
@@ -68,7 +76,7 @@ export async function getInvoice(
     });
     if (!invoice) return fail('NOT_FOUND', 'Invoice not found.');
 
-    const serialized = serializeInvoice(invoice);
+    const serialized = serializeInvoice(withDerivedStatus(invoice, todayIn(actor.timeZone)));
     if (!serialized) {
       return failed(
         'Invoice serialize failed:',
@@ -212,11 +220,12 @@ export async function listInvoices(
       senderProfile: { userId: actor.userId },
     };
     const where: Prisma.InvoiceWhereInput = { ...baseWhere };
+    const today = todayIn(actor.timeZone);
 
     // The tab wins over the status filter, which applies on the all tab only (as the page does).
     if (tab === 'drafts') where.status = 'DRAFT';
     else if (tab === 'final') where.status = { not: 'DRAFT' };
-    else if (status !== 'all') where.status = status;
+    else if (status !== 'all') where.AND = [statusFilterWhere(status, today)];
 
     if (search) {
       where.OR = [
@@ -228,7 +237,8 @@ export async function listInvoices(
     if (customerId) where.customerId = customerId;
     if (senderProfileId) where.senderProfileId = senderProfileId;
     if (dateFrom && dateTo) {
-      const [gte, lt] = localDayRange(dateFrom, dateTo, actor.timeZone);
+      // The issue date is a stored calendar day (T25): the range is compared by day, in no zone.
+      const [gte, lt] = utcDayRange(dateFrom, dateTo);
       where.issueDate = { gte, lt };
     }
 
@@ -263,7 +273,7 @@ export async function listInvoices(
     return ok({
       ...page,
       items: page.items.map((inv) => ({
-        ...inv,
+        ...withDerivedStatus(inv, today),
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },
@@ -286,8 +296,14 @@ export type SavedInvoice = {
   subtotal: number;
   taxAmount: number;
   total: number;
+  /** The stored status; the editor shows the overdue badge from `derivedOverdue` instead (AC-24). */
   status: InvoiceStatus;
+  derivedOverdue: boolean;
   paidAt: string | null;
+  /** The stored issue/due instants after the save (ISO). The editor takes them as the dates it now holds,
+   * so a second save compares against what is stored, not the pre-save snapshot (T44 review, I-01). */
+  issueDate: string;
+  dueDate: string;
 };
 
 const INVOICE_NUMBER_CONFLICT_MESSAGE =
@@ -335,7 +351,7 @@ export async function resolveManualOrAllocatedNumber(
 
 export async function createInvoice(
   actor: ActingFreelancer,
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -450,7 +466,10 @@ export async function createInvoice(
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       status: invoice.status,
+      derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+      issueDate: invoice.issueDate.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -484,6 +503,7 @@ const LEGACY_SHARED_NUMBER_MESSAGE =
 /** Thrown inside updateInvoice's transaction for AC-17's shared-number case (step 4): the
  * invoice's own key is NULL or shared, and the submitted number is unchanged. */
 class InvoiceLegacySharedNumberError extends Error {}
+class InvoiceVanishedError extends Error {}
 
 /** Thrown inside updateInvoice's transaction for AC-17's totals case (step 5): the stored total
  * disagrees with a recompute of the invoice's own stored lines, and confirmedTotals doesn't (yet)
@@ -502,10 +522,25 @@ class InvoiceTotalsChangedError extends Error {
 // VALIDATION (schema) -> NOT_FOUND (invoice, or new relations not owned) -> the move/manual number
 // rules (AC-11) -> the legacy shared-number check (AC-17) -> the legacy totals confirmation
 // (AC-17) -> applyStatusChange (AC-18, AC-19), all inside one transaction.
+/**
+ * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
+ * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
+ * would lock in a wrong day before the zone is known (lazy normalisation skips midnights).
+ * `read` is the instant the editor loaded (`loadedIssueDate`/`loadedDueDate`, else the row as read
+ * before the transaction); `current` is the row's value under the lock, which a zone write may have
+ * normalised since, so an unedited date keeps `current`, never the stale `read`. A client-supplied
+ * `read` can at most make the save keep `current`; it never writes a new value.
+ */
+function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Date {
+  const isMidnight = read.getTime() % 86_400_000 === 0;
+  if (!isMidnight && utcDateToDay(read) === utcDateToDay(submitted)) return current;
+  return submitted;
+}
+
 export async function updateInvoice(
   actor: ActingFreelancer,
   id: string,
-  data: InvoiceFormValues
+  data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -553,6 +588,15 @@ export async function updateInvoice(
     const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
 
     const invoice = await prisma.$transaction(async (tx) => {
+      // Lock the row and re-read the dates: lazy normalisation may have rewritten them since
+      // `existingInvoice` was read (T40 review), and the save must not write the stale instants back.
+      const [currentDates] = await tx.$queryRaw<
+        { issueDate: Date; dueDate: Date }[]
+      >`SELECT i."issueDate", i."dueDate" FROM "Invoice" i
+        JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
+        WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
+      if (!currentDates) throw new InvoiceVanishedError();
+
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
       // move clears the number field and always applies the manual/allocate rules under B; an
       // unmoved, unchanged number instead runs the legacy shared-number check, and only when
@@ -636,7 +680,7 @@ export async function updateInvoice(
       // Step 6 (AC-18, AC-19): the one status/paid-date transition function.
       const { status, paidAt } = applyStatusChange(
         { status: existingInvoice.status, paidAt: existingInvoice.paidAt },
-        validatedData.status
+        statusToStoreOnSave(existingInvoice, validatedData.status, todayIn(actor.timeZone))
       );
 
       await tx.invoiceItem.deleteMany({
@@ -651,8 +695,20 @@ export async function updateInvoice(
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
-          issueDate: validatedData.issueDate,
-          dueDate: validatedData.dueDate,
+          issueDate: keepUnchangedLegacyDay(
+            validatedData.loadedIssueDate
+              ? new Date(validatedData.loadedIssueDate)
+              : existingInvoice.issueDate,
+            validatedData.issueDate,
+            currentDates.issueDate
+          ),
+          dueDate: keepUnchangedLegacyDay(
+            validatedData.loadedDueDate
+              ? new Date(validatedData.loadedDueDate)
+              : existingInvoice.dueDate,
+            validatedData.dueDate,
+            currentDates.dueDate
+          ),
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,
@@ -694,7 +750,10 @@ export async function updateInvoice(
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       status: invoice.status,
+      derivedOverdue: isDerivedOverdue(invoice, todayIn(actor.timeZone)),
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+      issueDate: invoice.issueDate.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -711,7 +770,7 @@ export async function updateInvoice(
         details: { kind: 'TOTALS_CHANGED', oldTotal: error.oldTotal, newTotal: error.newTotal },
       });
     }
-    if (isRecordNotFoundError(error)) {
+    if (isRecordNotFoundError(error) || error instanceof InvoiceVanishedError) {
       return fail('NOT_FOUND', 'Invoice not found.');
     }
     if (error instanceof SenderProfileNotFoundError) {
@@ -759,10 +818,13 @@ export async function updateInvoiceStatus(
     const outcome = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({
         where: { id, senderProfile: { userId } },
-        select: { status: true, paidAt: true },
+        select: { status: true, paidAt: true, dueDate: true },
       });
       if (!invoice) return null;
 
+      if (refusesManualStatus(invoice, parsedStatus.data, todayIn(actor.timeZone))) {
+        return 'REFUSED' as const;
+      }
       const next = applyStatusChange(invoice, parsedStatus.data);
       const written = await tx.invoice.updateMany({
         where: { id, senderProfile: { userId } },
@@ -771,6 +833,12 @@ export async function updateInvoiceStatus(
       return written.count === 0 ? null : next;
     });
     if (!outcome) return fail('NOT_FOUND', 'Invoice not found.');
+    if (outcome === 'REFUSED') {
+      return fail(
+        'VALIDATION',
+        'This invoice is overdue because its due date has passed. You can still mark it paid.'
+      );
+    }
 
     return ok({
       status: outcome.status,
@@ -791,6 +859,7 @@ export async function duplicateInvoice(
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
     const { userId } = actor;
+    const today = todayIn(actor.timeZone);
 
     const originalInvoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId } },
@@ -848,8 +917,9 @@ export async function duplicateInvoice(
           senderProfileId: originalInvoice.senderProfileId,
           customerId: originalInvoice.customerId,
           bankAccountId: originalInvoice.bankAccountId,
-          issueDate: new Date(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          // Calendar days (T25): today in the owner's zone and 30 days after it, each at T00:00:00Z.
+          issueDate: dayToUtcDate(today),
+          dueDate: dayToUtcDate(addDaysToDay(today, 30)),
           paymentTerms: originalInvoice.paymentTerms,
           status: 'DRAFT',
           currency: originalInvoice.currency,

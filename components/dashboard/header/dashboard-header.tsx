@@ -16,13 +16,16 @@ import { useCallback } from 'react';
 interface DashboardHeaderProps {
   currencyTabs: CurrencyTab[];
   selectedCurrency: Currency;
-  appliedRange?: { start: Date; endExclusive: Date } | undefined;
+  // The applied period and today, as calendar days in the account zone (T36, AC-22, AC-23).
+  appliedPeriod?: { from: string; to: string } | undefined;
+  today: string;
 }
 
 export function DashboardHeader({
   currencyTabs,
   selectedCurrency,
-  appliedRange,
+  appliedPeriod,
+  today,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,12 +55,9 @@ export function DashboardHeader({
     range: { from?: Date; to?: Date } | undefined,
     preset?: string
   ) => {
-    if (preset === 'all-time') {
-      updateSearchParams({
-        from: undefined,
-        to: undefined,
-        preset: 'all-time',
-      });
+    if (preset && preset !== 'custom') {
+      // The server resolves the named preset in the account zone (AC-22, AC-23).
+      updateSearchParams({ from: undefined, to: undefined, preset });
     } else if (range?.from && range?.to) {
       updateSearchParams({
         from: format(range.from, 'yyyy-MM-dd'),
@@ -74,7 +74,8 @@ export function DashboardHeader({
     >
       <div className="flex items-center gap-2">
         <DashboardFilters
-          appliedRange={appliedRange}
+          appliedPeriod={appliedPeriod}
+          today={today}
           onDateRangeChange={handleDateRangeChange}
         />
       </div>

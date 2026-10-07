@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const authMock = vi.fn();
 const cookieGet = vi.fn();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
+vi.mock('@/lib/services/profile/profile', () => ({
+  getSavedTimeZone: async () => null,
+  seedTimeZoneIfEmpty: async () => true,
+}));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: cookieGet }) }));
 vi.mock('@/lib/services/_shared/time-zone', async (orig) => ({
   ...(await orig<typeof import('@/lib/services/_shared/time-zone')>()),

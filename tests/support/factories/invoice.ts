@@ -9,6 +9,9 @@ import type {
   SenderProfile,
 } from '@prisma/client';
 import { normalizeInvoiceNumber } from '@/lib/services/invoices/numbering';
+import { dayToUtcDate, utcDateToDay } from '@/lib/helpers/calendar-day';
+
+const utcDay = (d: Date) => dayToUtcDate(utcDateToDay(d));
 
 export interface InvoiceItemInput {
   productId?: string | null;
@@ -66,8 +69,9 @@ export async function createInvoice(
 
       invoiceNumber,
       invoiceNumberKey: overrides.invoiceNumberKey ?? normalizeInvoiceNumber(invoiceNumber),
-      issueDate: overrides.issueDate ?? new Date(),
-      dueDate: overrides.dueDate ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      // Calendar days (T25): T00:00:00Z of the day, like every write path.
+      issueDate: overrides.issueDate ?? utcDay(new Date()),
+      dueDate: overrides.dueDate ?? utcDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
       paymentTerms: overrides.paymentTerms,
       status: (overrides.status ?? 'DRAFT') as InvoiceStatus,
 

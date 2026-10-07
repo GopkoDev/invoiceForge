@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
-import { InvoiceFormData } from '@/types/invoice/types';
+import { InvoiceFormData, InvoiceStatus } from '@/types/invoice/types';
 import { InvoiceEditorState, InvoiceEditorInitData, TotalsChanged } from './types';
 import { ActionFailure } from '@/types/actions';
 import {
@@ -24,14 +24,23 @@ import {
   createNewItem,
   createEmptyComputedValues,
   createEmptyNormalizedData,
+  toSavePayload,
+  loadedDatesOf,
+  withLocalDays,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
+import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 
 export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   set,
   get
 ) => {
   const initialFormData = createInitialFormData();
+
+  // Changes on every initialize() and reset(). A save captures it when it starts and drops its
+  // result when it no longer matches, so a slow response for invoice A can never write A's id,
+  // number or dates into the editor the Freelancer has since opened for something else.
+  let sessionToken = 0;
 
   // F-41: the field-error keys the editor actually renders a FieldError next to
   // (invoice-details-section.tsx, summary-section.tsx, invoice-item-fields.tsx). A fieldErrors
@@ -44,16 +53,26 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     return /^items\.\d+\.(price|quantity)$/.test(key);
   }
 
-  // Turns a failed save into the right UI state (AC-08, AC-14, AC-15, AC-17): TOTALS_CHANGED
-  // opens SCR-15, fieldErrors land next to the offending fields, everything else is a toast
-  // (FAILED gets a Retry action that resubmits with the same options).
+  // Turns a failed save into the right UI state (architecture-hardening AC-08, AC-14, AC-15,
+  // AC-17): TOTALS_CHANGED opens SCR-15, fieldErrors land next to the offending fields,
+  // everything else is a toast (FAILED gets a Retry action that resubmits with the same options).
   function handleSaveFailure(
     result: ActionFailure,
-    retry: () => void
+    retry: () => void,
+    token: number
   ): void {
-    // AC-21: a stale session's save must send the device to sign-in, not just toast a
-    // generic error and leave it on the editor.
+    // architecture-hardening AC-21: a stale session's save must send the device to sign-in, not
+    // just toast a generic error and leave it on the editor. The signed-out state is global, not
+    // per editor session, so this runs before the token check (same as a rejected save in the
+    // catch block).
     if (redirectIfUnauthorized(result)) {
+      return;
+    }
+
+    // A save that failed after the editor was reset still tells the user it was not stored, but
+    // writes no state and offers no Retry (the form it would resubmit is gone).
+    if (token !== sessionToken) {
+      toast.error(result.error || 'Error saving invoice.');
       return;
     }
 
@@ -90,22 +109,58 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     toast.error(result.error || 'Error saving invoice.');
   }
 
-  // On success the server's figures replace whatever the browser had (AC-06, AC-13), and any
-  // prior field error / totals confirmation is cleared.
-  function applySavedInvoice(saved: SavedInvoice): void {
+  // On success the server's figures replace whatever the browser had (architecture-hardening
+  // AC-06, AC-13), and any prior field error / totals confirmation is cleared.
+  // `submitted` is the form the save was built from: a date, number or status the Freelancer
+  // changed while the save was in flight is kept, and the form stays dirty so that edit is
+  // neither lost nor unguarded.
+  function applySavedInvoice(
+    saved: SavedInvoice,
+    submitted: InvoiceFormData,
+    token: number
+  ): void {
+    if (token !== sessionToken) return;
     const state = get();
+    const untouched = state.formData === submitted;
+    const storedOrEdited = (key: 'issueDate' | 'dueDate', stored: string): Date =>
+      localDateToDay(state.formData[key]) === localDateToDay(submitted[key])
+        ? storedDayToLocalDate(stored)
+        : state.formData[key];
+    // Switching the sender profile mid-save clears the number on purpose (the old profile's
+    // number is never proposed under the new one), so it counts as an edit of the number.
+    const senderSwitched =
+      state.formData.senderProfileId !== submitted.senderProfileId;
+    const storedUnlessEdited = <K extends 'invoiceNumber' | 'status'>(
+      key: K,
+      stored: InvoiceFormData[K]
+    ): InvoiceFormData[K] =>
+      state.formData[key] === submitted[key] &&
+      !(key === 'invoiceNumber' && senderSwitched)
+        ? stored
+        : state.formData[key];
     set({
-      formData: { ...state.formData, invoiceNumber: saved.invoiceNumber, status: saved.status },
+      formData: {
+        ...state.formData,
+        invoiceNumber: storedUnlessEdited('invoiceNumber', saved.invoiceNumber),
+        status: storedUnlessEdited('status', saved.status),
+        // The row's stored dates (a kept legacy / normalised value may differ from the submitted day).
+        issueDate: storedOrEdited('issueDate', saved.issueDate),
+        dueDate: storedOrEdited('dueDate', saved.dueDate),
+      },
+      derivedOverdue: saved.derivedOverdue,
       invoiceId: saved.id,
       subtotal: saved.subtotal,
       taxAmount: saved.taxAmount,
       total: saved.total,
       fieldErrors: undefined,
       totalsChanged: null,
-      hasUnsavedChanges: false,
+      hasUnsavedChanges: untouched ? false : state.hasUnsavedChanges,
       // F-46: the legacy shared-number Alert is computed once off the invoice as it was loaded
-      // (AC-17); once a save actually succeeds, that snapshot is stale and must not keep warning.
+      // (architecture-hardening AC-17); once a save actually succeeds, that snapshot is stale and
+      // must not keep warning.
       legacy: null,
+      // What the row holds now: the next save compares its days against these, not the first load.
+      loadedDates: { issueDate: saved.issueDate, dueDate: saved.dueDate },
     });
   }
 
@@ -117,12 +172,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     products: [],
     customPrices: [],
     invoiceId: undefined,
+    loadedDates: null,
     isSaving: false,
     hasUnsavedChanges: false,
     invoiceNumberHint: undefined,
     fieldErrors: undefined,
     totalsChanged: null,
     legacy: null,
+    derivedOverdue: false,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -130,7 +187,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     // Methods
     // ============================================================
     initialize: (data: InvoiceEditorInitData) => {
-      const formData = data.initialData || createInitialFormData();
+      sessionToken += 1;
+      const formData = data.initialData
+        ? withLocalDays(data.initialData)
+        : createInitialFormData();
       const normalizedData = normalizeData({
         senderProfiles: data.senderProfiles,
         bankAccounts: data.bankAccounts,
@@ -147,12 +207,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         products: data.products,
         customPrices: data.customPrices,
         invoiceId: data.invoiceId,
+        loadedDates: data.initialData && data.invoiceId ? loadedDatesOf(data.initialData) : null,
         isSaving: false,
         hasUnsavedChanges: false,
         invoiceNumberHint: undefined,
         fieldErrors: undefined,
         totalsChanged: null,
         legacy: data.legacy ?? null,
+        derivedOverdue: data.derivedOverdue ?? false,
         ...normalizedData,
       };
 
@@ -202,9 +264,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     selectSenderProfile: async (id: string) => {
       const state = get();
 
-      // F-42: re-selecting the CURRENT sender profile is not a move (AC-11 is about actually
-      // moving an invoice to a DIFFERENT profile) — a no-op reselect must not wipe the number
-      // and renumber under the same profile.
+      // F-42: re-selecting the CURRENT sender profile is not a move (architecture-hardening AC-11
+      // is about actually moving an invoice to a DIFFERENT profile) — a no-op reselect must not
+      // wipe the number and renumber under the same profile.
       if (id === state.formData.senderProfileId) {
         return;
       }
@@ -217,9 +279,9 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       );
       const selectedBankAccount = defaultBankAccount || senderBankAccounts[0];
 
-      // An empty number field is the only signal a number is system-proposed (AC-06, AC-11): the
-      // proposed number is exposed as a separate hint, never merged into the value the Freelancer
-      // would submit. This also clears a moved invoice's old number — A's number is never
+      // An empty number field is the only signal a number is system-proposed (architecture-hardening
+      // AC-06, AC-11): the proposed number is exposed as a separate hint, never merged into the
+      // value the Freelancer would submit. This also clears a moved invoice's old number — A's number is never
       // proposed again under B.
       const updates: Partial<InvoiceFormData> = {
         senderProfileId: id,
@@ -244,14 +306,16 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         ...computedValues,
       });
 
+      const token = sessionToken;
       try {
         const result = await generateInvoiceNumber(id);
         if (redirectIfUnauthorized(result)) return;
-        if (result.success) {
+        // A later pick, reset or re-initialize owns the hint now.
+        if (result.success && token === sessionToken && get().formData.senderProfileId === id) {
           set({ invoiceNumberHint: result.data });
         }
       } catch {
-        // AC-21: a rejected call is treated like UNAUTHORIZED.
+        // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
         goToSignIn();
       }
     },
@@ -419,39 +483,47 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
 
     saveInvoice: async (options?: { confirmedTotals?: TotalsChanged }) => {
       const state = get();
+      const token = sessionToken;
       set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
 
-      const payload = options?.confirmedTotals
-        ? { ...state.formData, confirmedTotals: options.confirmedTotals }
-        : state.formData;
-      const retry = () => get().saveInvoice(options);
+      const payload = toSavePayload(
+        state.formData,
+        options?.confirmedTotals,
+        state.loadedDates
+      );
+      const retry = () => {
+        // A Retry clicked after the editor was reset would save another invoice's form;
+        // one clicked while a save is in flight would run a second save (a duplicate create).
+        if (token === sessionToken && !get().isSaving) void get().saveInvoice(options);
+      };
 
       try {
         if (state.invoiceId) {
           // Update existing invoice
           const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
-            applySavedInvoice(result.data);
+            applySavedInvoice(result.data, state.formData, token);
             toast.success('Invoice updated');
           } else {
-            handleSaveFailure(result, retry);
+            handleSaveFailure(result, retry, token);
           }
         } else {
           // Create new invoice
           const result = await createInvoice(payload);
           if (result.success) {
-            applySavedInvoice(result.data);
+            applySavedInvoice(result.data, state.formData, token);
             toast.success('Invoice created');
             return; // Router redirect will be handled in component
           } else {
-            handleSaveFailure(result, retry);
+            handleSaveFailure(result, retry, token);
           }
         }
       } catch {
-        // AC-21: a rejected save is treated like UNAUTHORIZED.
+        // architecture-hardening AC-21: a rejected save is treated like UNAUTHORIZED.
         goToSignIn();
       } finally {
-        set({ isSaving: false });
+        // A reset or re-initialize already cleared isSaving for the session that owns the store now.
+        if (token === sessionToken) set({ isSaving: false });
       }
     },
 
@@ -460,6 +532,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     },
 
     reset: () => {
+      sessionToken += 1;
       const formData = createInitialFormData();
       set({
         formData,
@@ -469,12 +542,14 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         products: [],
         customPrices: [],
         invoiceId: undefined,
+        loadedDates: null,
         isSaving: false,
         hasUnsavedChanges: false,
         invoiceNumberHint: undefined,
         fieldErrors: undefined,
         totalsChanged: null,
         legacy: null,
+        derivedOverdue: false,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -492,8 +567,11 @@ export const useFormData = () =>
 export const useInvoiceNumber = () =>
   useInvoiceEditorStore((state) => state.formData.invoiceNumber);
 
+// The status the header badge shows: Overdue for a past-due pending invoice, else the stored one.
 export const useInvoiceStatus = () =>
-  useInvoiceEditorStore((state) => state.formData.status);
+  useInvoiceEditorStore((state) =>
+    state.derivedOverdue ? ('OVERDUE' satisfies InvoiceStatus) : state.formData.status,
+  );
 
 export const usePoNumber = () =>
   useInvoiceEditorStore((state) => state.formData.poNumber);

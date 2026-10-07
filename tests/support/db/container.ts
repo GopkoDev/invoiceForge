@@ -19,7 +19,7 @@ export interface TestDatabase {
 
 export async function startTestDatabase(): Promise<TestDatabase> {
   const container = await new PostgreSqlContainer('postgres:16-alpine')
-    .withDatabase('invoceflow_test')
+    .withDatabase('invoice_forge_test')
     .withUsername('test')
     .withPassword('test')
     .start();

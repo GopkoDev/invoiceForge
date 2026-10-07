@@ -20,6 +20,8 @@ const APP_TABLES = [
   'Account',
   'LogoFetchWindow',
   'LimitEvent',
+  'PersonalKeyUsageWeek',
+  'PersonalKey',
   'User',
 ];
 

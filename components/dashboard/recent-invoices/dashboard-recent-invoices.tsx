@@ -20,20 +20,23 @@ import {
 } from '@/components/ui/table';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { InvoiceRowActions } from '@/components/invoices/invoice-row-actions';
+import { InvoiceStatus } from '@/types/invoice/types';
 import { RecentInvoice } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
+import { formatStoredDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { useCallback, useMemo, useState } from 'react';
 
-const STATUS_ORDER = {
-  OVERDUE: 0,
-  PENDING: 1,
-  DRAFT: 2,
-  PAID: 3,
-  CANCELLED: 4,
-} as const;
+const STATUS_ORDER: readonly InvoiceStatus[] = [
+  'OVERDUE',
+  'PENDING',
+  'DRAFT',
+  'PAID',
+  'CANCELLED',
+];
 
+// Issue and due dates are stored calendar days: formatted in UTC so every browser zone shows the same day.
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
+  return formatStoredDay(date, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -63,16 +66,17 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
       header: 'Status',
       cell: ({ row }) => <InvoiceStatusBadge status={row.original.status} />,
       sortingFn: (rowA, rowB) => {
-        const statusA = rowA.original.status as keyof typeof STATUS_ORDER;
-        const statusB = rowB.original.status as keyof typeof STATUS_ORDER;
-        return STATUS_ORDER[statusA] - STATUS_ORDER[statusB];
+        return (
+          STATUS_ORDER.indexOf(rowA.original.status) -
+          STATUS_ORDER.indexOf(rowB.original.status)
+        );
       },
     },
     {
       accessorKey: 'issueDate',
       header: 'Issue Date',
       cell: ({ row }) => (
-        <time dateTime={new Date(row.original.issueDate).toISOString()}>
+        <time dateTime={utcDateToDay(new Date(row.original.issueDate))}>
           {formatDate(row.original.issueDate)}
         </time>
       ),
@@ -81,7 +85,7 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
       accessorKey: 'dueDate',
       header: 'Due Date',
       cell: ({ row }) => (
-        <time dateTime={new Date(row.original.dueDate).toISOString()}>
+        <time dateTime={utcDateToDay(new Date(row.original.dueDate))}>
           {formatDate(row.original.dueDate)}
         </time>
       ),

@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { Currency } from '@prisma/client';
 
 import { DashboardHeader } from '@/components/dashboard/header/dashboard-header';
-import { DashboardSetupAlert } from '@/components/dashboard/dashboard-setup-alert';
+import { DashboardBanners } from '@/components/dashboard/dashboard-banners';
 import {
   DashboardStatsCardsSkeleton,
   DashboardChartSkeleton,
@@ -21,11 +21,16 @@ import {
   SenderAccountsSection,
   RecentInvoicesSection,
 } from './_sections';
-import { getDashboardCurrencyTabs } from '@/lib/actions/dashboard-actions';
+import {
+  getDashboardCurrencyTabs,
+  getDashboardNoticeState,
+  getConnectAiEntryState,
+} from '@/lib/actions/dashboard-actions';
 import { checkDashboardSetup } from '@/lib/actions/dashboard-setup-check';
 import { getCurrenciesValues } from '@/constants/currency-options';
 import { dashboardParamsSchema } from '@/lib/validations/search-params';
-import { getRequestTimeZone } from '@/lib/helpers/time-zone';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { formatLocalDateKey } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -71,9 +76,18 @@ export default async function DashboardPage({
 }: DashboardPageProps) {
   const params = await searchParams;
 
-  const [currencyTabsResult, setupStatusResult] = await Promise.all([
+  const [
+    currencyTabsResult,
+    setupStatusResult,
+    noticeResult,
+    entryResult,
+    actorResult,
+  ] = await Promise.all([
     getDashboardCurrencyTabs(),
     checkDashboardSetup(),
+    getDashboardNoticeState(),
+    getConnectAiEntryState(),
+    actingFreelancerFromSession(),
   ]);
 
   // A failed read is a load error (SCR-17), never "no currencies" or an unfinished setup.
@@ -81,10 +95,16 @@ export default async function DashboardPage({
 
   const currency = validateCurrency(params.currency, currencyTabs);
 
-  const timeZone = await getRequestTimeZone();
+  // ADR-0006: the default period is the account zone's month, like the Assistant's this-month;
+  // the tz cookie only seeds the first visit (inside the session factory).
+  const { timeZone } = unwrapPageResult(actorResult);
   const { appliedRange, period } = dashboardParamsSchema(timeZone).parse(params);
+  // T36 (AC-22, AC-23): the header builds its presets and label from days in this zone.
+  const today = formatLocalDateKey(new Date(), timeZone);
 
   const setupStatus = unwrapPageResult(setupStatusResult);
+  const { showOverdueRuleNotice } = unwrapPageResult(noticeResult);
+  const { showConnectAiEntry } = unwrapPageResult(entryResult);
 
   // T24 (spec.md §6 NFR "Dashboard date-range change"; sad.md §8 Hard rule "Cache invalidation":
   // debtors/expected-payments/recent-invoices Suspense boundaries key on currency only) — sections
@@ -98,10 +118,15 @@ export default async function DashboardPage({
       <DashboardHeader
         currencyTabs={currencyTabs}
         selectedCurrency={currency}
-        appliedRange={appliedRange}
+        appliedPeriod={period}
+        today={today}
       />
 
-      <DashboardSetupAlert setupStatus={setupStatus} />
+      <DashboardBanners
+        setupStatus={setupStatus}
+        showOverdueRuleNotice={showOverdueRuleNotice}
+        showConnectAiEntry={showConnectAiEntry}
+      />
 
       <Suspense
         key={`stats-${currencyKey}-${rangeKey}`}

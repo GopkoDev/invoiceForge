@@ -37,6 +37,15 @@ export async function getRequestTimeZone(): Promise<string> {
   }
 }
 
+/**
+ * The browser-reported zone from the `tz` cookie, or undefined when absent, oversized or unknown to
+ * Intl. Since ADR-0006 this is only the first-visit seed for User.timeZone, never "today" itself.
+ */
+export async function getBrowserTimeZone(): Promise<string | undefined> {
+  const zone = await getRequestTimeZone();
+  return zone === FALLBACK_TIME_ZONE ? undefined : zone;
+}
+
 export {
   startOfLocalDay,
   localDayRange,

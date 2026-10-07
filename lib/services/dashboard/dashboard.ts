@@ -1,6 +1,6 @@
 import 'server-only';
 import * as Sentry from '@sentry/nextjs';
-import type { Currency } from '@prisma/client';
+import type { Currency, InvoiceStatus } from '@prisma/client';
 import type {
   ChartDataPoint,
   CurrencyTab,
@@ -13,8 +13,8 @@ import type {
 import { ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed } from '@/lib/services/_shared/result-helpers';
-import { currentLocalMonth, formatLocalDateKey } from '@/lib/services/_shared/time-zone';
-import { parseDashboardInput, periodBounds, type DashboardPeriod } from './period';
+import { derivedStatus, todayIn } from '@/lib/services/_shared/overdue';
+import { currentMonthPeriod, parseDashboardInput, periodBounds, type DashboardPeriod } from './period';
 import {
   queryChartBuckets,
   queryCurrencyTabs,
@@ -59,8 +59,8 @@ export async function getSummaryStats(
     const input = parseDashboardInput(currency, period);
     if (!input.success) return input;
     try {
-      const [start, endExclusive] = input.period ? periodBounds(input.period, actor.timeZone) : [null, null];
-      return ok(await querySummaryStats(actor, input.currency, start, endExclusive));
+      const [start, endExclusive] = input.period ? periodBounds(input.period) : [null, null];
+      return ok(await querySummaryStats(actor, input.currency, start, endExclusive, todayIn(actor.timeZone)));
     } catch (error) {
       return failed('Error fetching dashboard summary stats:', error, 'Failed to fetch summary statistics.');
     }
@@ -96,13 +96,10 @@ export async function getChartData(
     const input = parseDashboardInput(currency, period);
     if (!input.success) return input;
     try {
-      const zone = actor.timeZone;
-      // No period: the current local month, as the chart does today.
-      const [start, endExclusive] = input.period
-        ? periodBounds(input.period, zone)
-        : currentLocalMonth(zone);
-      const fromKey = input.period?.from ?? formatLocalDateKey(start, zone);
-      const toKey_ = input.period?.to ?? formatLocalDateKey(new Date(endExclusive.getTime() - 1), zone);
+      const today = todayIn(actor.timeZone);
+      // No period: the current month in the actor's zone, as the chart does today.
+      const { from: fromKey, to: toKey_ } = input.period ?? currentMonthPeriod(today);
+      const [start, endExclusive] = periodBounds({ from: fromKey, to: toKey_ });
 
       const dayKeys: string[] = [];
       for (let ms = utcMs(fromKey); ms <= utcMs(toKey_); ms += DAY_MS) dayKeys.push(toKey(ms));
@@ -113,10 +110,9 @@ export async function getChartData(
         mode,
         fromKey,
         fromMonthIndex,
-      });
+      }, today);
       const byBucket = new Map(rows.map((r) => [r.bucket, r]));
 
-      const todayKey = formatLocalDateKey(new Date(), zone);
       // Running totals in whole cents: the SQL sums are exact, so no float drift builds up here.
       const toCents = (n: number) => Math.round(n * 100);
       let paidCents = 0;
@@ -124,7 +120,7 @@ export async function getChartData(
       const points = groups.map((group, index): ChartDataPoint => {
         const row = byBucket.get(index);
         paidCents += toCents(row?.paid ?? 0);
-        if (group[0] <= todayKey) expectedCents = paidCents;
+        if (group[0] <= today) expectedCents = paidCents;
         else expectedCents += toCents(row?.planned ?? 0);
         return { date: group[0], paid: paidCents / 100, expected: expectedCents / 100 };
       });
@@ -146,8 +142,8 @@ export async function getSenderAccounts(
     const input = parseDashboardInput(currency, period);
     if (!input.success) return input;
     try {
-      const [start, endExclusive] = input.period ? periodBounds(input.period, actor.timeZone) : [null, null];
-      const rows = await querySenderAccounts(actor, input.currency, start, endExclusive);
+      const [start, endExclusive] = input.period ? periodBounds(input.period) : [null, null];
+      const rows = await querySenderAccounts(actor, input.currency, start, endExclusive, todayIn(actor.timeZone));
       // Rows arrive ordered by profile, so each profile's accounts are contiguous. Account sums are
       // exact; the profile totals add whole cents.
       const senders: SenderAccountMetrics[] = [];
@@ -190,10 +186,12 @@ export async function getRecentInvoices(
     if (!input.success) return input;
     try {
       const rows = await queryRecentInvoices(actor, input.currency);
+      const today = todayIn(actor.timeZone);
       return ok(
         rows.map((r): RecentInvoice => ({
           ...r,
-          status: r.status as RecentInvoice['status'],
+          // The shared rule: a past-due pending invoice shows as overdue; the stored status is untouched.
+          status: derivedStatus({ status: r.status as InvoiceStatus, dueDate: r.dueDate }, today).toUpperCase() as RecentInvoice['status'],
           currency: r.currency as Currency,
         })),
       );
@@ -208,7 +206,7 @@ export async function getDebtors(actor: ActingFreelancer, currency: Currency): P
     const input = parseDashboardInput(currency, undefined);
     if (!input.success) return input;
     try {
-      const rows = await queryDebtors(actor, input.currency);
+      const rows = await queryDebtors(actor, input.currency, todayIn(actor.timeZone));
       return ok(rows.map((r): DebtorInfo => ({ ...r, currencies: [input.currency] })));
     } catch (error) {
       return failed('Error fetching dashboard debtors:', error, 'Failed to fetch debtors.');
@@ -224,7 +222,7 @@ export async function getExpectedPayments(
     const input = parseDashboardInput(currency, undefined);
     if (!input.success) return input;
     try {
-      const rows = await queryExpectedPayments(actor, input.currency);
+      const rows = await queryExpectedPayments(actor, input.currency, todayIn(actor.timeZone));
       if (rows.length === 0) return ok([]);
       return ok([
         {

@@ -5,8 +5,9 @@ import { fail, type ActionFailure } from '@/types/result';
 import {
   PERIOD_TOO_LONG,
   isWithinMaxCustomPeriod,
+  presetPeriodDays,
 } from '@/lib/validations/dashboard-period';
-import { localDayRange } from '@/lib/services/_shared/time-zone';
+import { utcDayRange } from '@/lib/helpers/calendar-day';
 
 /** Inclusive local calendar dates (YYYY-MM-DD), read in the actor's time zone. */
 export type LocalDate = string;
@@ -73,10 +74,55 @@ export function parseDashboardInput(
   };
 }
 
-/** `[startOfLocalDay(from), startOfLocalDay(to + 1))` in the actor's zone. */
-export function periodBounds(
-  period: DashboardPeriod,
-  timeZone: string
-): [Date, Date] {
-  return localDayRange(period.from, period.to, timeZone);
+/**
+ * `[from at 00:00Z, the day after to at 00:00Z)`. Issue and due dates are stored calendar days
+ * (T25), so a period is compared by calendar day with no zone: the zone only decides which days
+ * `from` and `to` are (the preset and "today").
+ */
+export function periodBounds(period: DashboardPeriod): [Date, Date] {
+  return utcDayRange(period.from, period.to);
+}
+
+// T15 (AC-14, AC-15, AC-16): the Assistant's period input, resolved to calendar days in the actor's zone.
+
+export const ASSISTANT_PERIOD_PRESETS = ['this-month', 'last-month', 'this-year', 'last-year', 'all-time'] as const;
+export type AssistantPeriodPreset = (typeof ASSISTANT_PERIOD_PRESETS)[number];
+export type AssistantPeriodInput = { preset: AssistantPeriodPreset } | { from: LocalDate; to: LocalDate };
+export type AppliedPeriod = { preset: AssistantPeriodPreset | null; from: LocalDate | null; to: LocalDate | null };
+
+export const ASSISTANT_PERIOD_MESSAGE =
+  'The period must be a named preset (this-month, last-month, this-year, last-year, all-time) or a from–to range of at most 5 years whose start is not after its end.';
+
+export const NO_PERIOD: AppliedPeriod = { preset: null, from: null, to: null };
+
+function presetRange(preset: Exclude<AssistantPeriodPreset, 'all-time'>, today: LocalDate): DashboardPeriod {
+  return presetPeriodDays(preset, today);
+}
+
+/** The calendar month `today` falls in, as a period (the chart's default when no period is given). */
+export const currentMonthPeriod = (today: LocalDate): DashboardPeriod => presetRange('this-month', today);
+
+export type ResolvedAssistantPeriod = { applied: AppliedPeriod; range: DashboardPeriod | null };
+
+/** `undefined` is no period; anything else must be a preset or a real from-to range of at most 5 years. */
+export function resolveAssistantPeriod(input: unknown, today: LocalDate): ResolvedAssistantPeriod | ActionFailure {
+  if (input === undefined) return { applied: NO_PERIOD, range: null };
+  const refuse = () =>
+    fail('VALIDATION', ASSISTANT_PERIOD_MESSAGE, { fieldErrors: { period: [ASSISTANT_PERIOD_MESSAGE] } });
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return refuse();
+  const o = input as Record<string, unknown>;
+  const keys = Object.keys(o);
+  if (keys.length === 1 && keys[0] === 'preset') {
+    const preset = ASSISTANT_PERIOD_PRESETS.find((p) => p === o.preset);
+    if (!preset) return refuse();
+    if (preset === 'all-time') return { applied: { preset, from: null, to: null }, range: null };
+    const range = presetRange(preset, today);
+    return { applied: { preset, ...range }, range };
+  }
+  if (keys.length === 2 && 'from' in o && 'to' in o) {
+    const { from, to } = o;
+    if (!isRealLocalDate(from) || !isRealLocalDate(to) || !isWithinMaxCustomPeriod(from, to)) return refuse();
+    return { applied: { preset: null, from, to }, range: { from, to } };
+  }
+  return refuse();
 }

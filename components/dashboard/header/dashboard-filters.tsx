@@ -2,22 +2,18 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import {
-  endOfMonth,
-  endOfYear,
-  format,
-  startOfMonth,
-  startOfYear,
-  subDays,
-  subMonths,
-  subYears,
-} from 'date-fns';
+import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
+import { dayToLocalDate } from '@/lib/helpers/calendar-day';
 import {
+  isPresetPeriodName,
   isWithinMaxCustomPeriod,
   PERIOD_TOO_LONG,
+  PRESET_PERIOD_NAMES,
+  presetPeriodDays,
+  type PresetPeriodName,
 } from '@/lib/validations/dashboard-period';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -28,82 +24,68 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-type DatePreset =
-  | 'next-month'
-  | 'this-month'
-  | 'last-month'
-  | 'this-year'
-  | 'last-year'
-  | 'all-time'
-  | 'custom';
+type DatePreset = PresetPeriodName | 'all-time' | 'custom';
 
 // T24 (spec.md §5 AC-25) — the filter shows the range the page actually applied
-// (`appliedRange`), not a range re-derived from the raw link values, per
+// (`appliedPeriod`), not a range re-derived from the raw link values, per
 // docs/features/architecture-hardening/tasks/t24-dashboard-link-params.md (Checklist item 4;
-// contracts/server-actions.md §Link parameters, Dashboard: "The page returns `appliedRange` to
-// the date filter"). `endExclusive` is the next local midnight after the last included day
-// (sad.md §8 "Time and time zones"), so the displayed end date is one day before it.
+// contracts/server-actions.md §Link parameters, Dashboard: "The page returns the applied range to
+// the date filter").
+// T36 (spec.md §5 AC-22, AC-23; review-2026-10-05 G-02) — the applied range and "today" arrive as
+// calendar days (yyyy-MM-dd) read in the account zone, so the presets and the label never use the
+// browser clock or zone; a day is turned into a local-midnight Date only to feed the Calendar and
+// date-fns, which then show the same Y/M/D in any browser zone.
 interface DashboardFiltersProps {
-  appliedRange?: { start: Date; endExclusive: Date } | undefined;
+  appliedPeriod?: { from: string; to: string } | undefined;
+  today: string;
   onDateRangeChange: (
     range: { from?: Date; to?: Date } | undefined,
     preset?: string
   ) => void;
 }
 
+const PRESET_LABELS: Record<PresetPeriodName, string> = {
+  'next-month': 'Next Month',
+  'this-month': 'This Month',
+  'last-month': 'Last Month',
+  'this-year': 'This Year',
+  'last-year': 'Last Year',
+};
+
+// Named presets come from the single shared list; "All Time" is the filter's own extra choice.
 const PRESETS: ReadonlyArray<{ value: DatePreset; label: string }> = [
-  { value: 'next-month', label: 'Next Month' },
-  { value: 'this-month', label: 'This Month' },
-  { value: 'last-month', label: 'Last Month' },
-  { value: 'this-year', label: 'This Year' },
-  { value: 'last-year', label: 'Last Year' },
+  ...PRESET_PERIOD_NAMES.map((value) => ({
+    value,
+    label: PRESET_LABELS[value],
+  })),
   { value: 'all-time', label: 'All Time' },
-] as const;
+];
 
-function getPresetDateRange(preset: DatePreset): DateRange | undefined {
-  const now = new Date();
-
-  switch (preset) {
-    case 'next-month': {
-      const nextMonth = subMonths(now, -1);
-      return { from: startOfMonth(nextMonth), to: endOfMonth(nextMonth) };
-    }
-    case 'this-month':
-      return { from: startOfMonth(now), to: endOfMonth(now) };
-    case 'last-month': {
-      const lastMonth = subMonths(now, 1);
-      return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
-    }
-    case 'this-year':
-      return { from: startOfYear(now), to: endOfYear(now) };
-    case 'last-year': {
-      const lastYear = subYears(now, 1);
-      return { from: startOfYear(lastYear), to: endOfYear(lastYear) };
-    }
-    case 'all-time':
-      return undefined;
-    default:
-      return undefined;
-  }
+function getPresetDateRange(
+  preset: DatePreset,
+  today: string
+): DateRange | undefined {
+  if (!isPresetPeriodName(preset)) return undefined;
+  const { from, to } = presetPeriodDays(preset, today);
+  return { from: dayToLocalDate(from), to: dayToLocalDate(to) };
 }
 
 export function DashboardFilters({
-  appliedRange,
+  appliedPeriod,
+  today,
   onDateRangeChange,
 }: DashboardFiltersProps) {
-  const [preset, setPreset] = useState<DatePreset>('this-month');
   const [isOpen, setIsOpen] = useState(false);
   const [rejectedRange, setRejectedRange] = useState<DateRange | undefined>();
 
   const handlePresetChange = useCallback(
     (value: DatePreset) => {
-      setPreset(value);
       setRejectedRange(undefined);
-      const newRange = getPresetDateRange(value);
+      const newRange = getPresetDateRange(value, today);
       onDateRangeChange(newRange, value);
       setIsOpen(false);
     },
-    [onDateRangeChange]
+    [onDateRangeChange, today]
   );
 
   const handleCalendarSelect = useCallback(
@@ -120,7 +102,6 @@ export function DashboardFilters({
           return;
         }
         setRejectedRange(undefined);
-        setPreset('custom');
         onDateRangeChange(range);
         setIsOpen(false);
       }
@@ -128,17 +109,26 @@ export function DashboardFilters({
     [onDateRangeChange]
   );
 
-  // The calendar and the label both show the range the server applied, last day inclusive.
+  // The calendar and the label both show the days the server applied, last day inclusive.
+  const appliedFrom = appliedPeriod?.from;
+  const appliedTo = appliedPeriod?.to;
   const selectedRange = useMemo<DateRange | undefined>(
     () =>
-      appliedRange
-        ? {
-            from: appliedRange.start,
-            to: subDays(appliedRange.endExclusive, 1),
-          }
+      appliedFrom && appliedTo
+        ? { from: dayToLocalDate(appliedFrom), to: dayToLocalDate(appliedTo) }
         : undefined,
-    [appliedRange]
+    [appliedFrom, appliedTo]
   );
+
+  // The pressed preset is derived from the applied period and today, so it is right after a load.
+  const preset: DatePreset = useMemo(() => {
+    if (!appliedFrom || !appliedTo) return 'all-time';
+    for (const name of PRESET_PERIOD_NAMES) {
+      const days = presetPeriodDays(name, today);
+      if (days.from === appliedFrom && days.to === appliedTo) return name;
+    }
+    return 'custom';
+  }, [appliedFrom, appliedTo, today]);
 
   const calendarSelected = rejectedRange ?? selectedRange;
 
@@ -155,7 +145,7 @@ export function DashboardFilters({
             variant="outline"
             className={cn(
               'w-60 justify-start text-left font-normal',
-              !appliedRange && 'text-muted-foreground'
+              !appliedPeriod && 'text-muted-foreground'
             )}
             aria-label="Select date range"
             aria-expanded={isOpen}

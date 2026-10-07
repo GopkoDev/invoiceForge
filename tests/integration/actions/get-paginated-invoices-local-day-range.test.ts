@@ -107,32 +107,30 @@ describe.runIf(containerRuntimeAvailable)('getPaginatedInvoices local day range 
     await truncateAllTables(prisma);
   });
 
-  it('AC-27: an invoice issued at 23:30 local on the range\'s last day is included, one at 00:30 the next local day is not (Europe/Kyiv, UTC+2)', async () => {
+  it('AC-27: an invoice issued on the range\'s last day is included, one issued the next day is not (Europe/Kyiv)', async () => {
     const freelancer = await createFreelancer(prisma, { email: 'kyiv-range@example.com' });
     const senderProfile = await createSenderProfile(prisma, freelancer.id);
     const bankAccount = await createBankAccount(prisma, senderProfile.id);
     const customer = await createCustomer(prisma, freelancer.id);
 
-    // Europe/Kyiv is UTC+2 (EET) in mid-January — no DST ambiguity.
-    // Local 2026-01-15T23:30:00+02:00 == UTC 2026-01-15T21:30:00Z (inside the range).
+    // T25: an issue date is a calendar day stored at T00:00:00Z, compared by day in no zone: the
+    // range 15..15 Jan holds the invoice issued on the 15th and not the one issued on the 16th.
     const lateOnLastDay = await seedInvoiceRow(prisma, {
       senderProfile,
       customer,
       bankAccount,
       overrides: {
         invoiceNumber: `${senderProfile.invoicePrefix}-0001`,
-        issueDate: new Date('2026-01-15T21:30:00.000Z'),
+        issueDate: new Date('2026-01-15T00:00:00.000Z'),
       },
     });
-    // Local 2026-01-16T00:30:00+02:00 == UTC 2026-01-15T22:30:00Z (just past local midnight,
-    // outside the range).
     const justAfterMidnightNextDay = await seedInvoiceRow(prisma, {
       senderProfile,
       customer,
       bankAccount,
       overrides: {
         invoiceNumber: `${senderProfile.invoicePrefix}-0002`,
-        issueDate: new Date('2026-01-15T22:30:00.000Z'),
+        issueDate: new Date('2026-01-16T00:00:00.000Z'),
       },
     });
 

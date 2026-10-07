@@ -4,13 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { ExpectedPaymentGroup } from '@/types/dashboard';
+import { formatStoredDay } from '@/lib/helpers/calendar-day';
 
 interface DashboardExpectedPaymentsProps {
   payments: ExpectedPaymentGroup[];
 }
 
+// The due date is a stored calendar day: formatted in UTC so every browser zone shows the same day.
 function formatDueDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
+  return formatStoredDay(date, {
     month: 'short',
     day: 'numeric',
   });

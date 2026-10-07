@@ -92,7 +92,11 @@ export async function addInvoice(
   });
 }
 
-const d = (iso: string) => new Date(iso);
+// T25: issue and due dates are calendar days stored at T00:00:00Z. The fixture names instants as the old
+// dashboard saw them (zone-local, Kyiv), so each one is stored as the Kyiv calendar day it fell on, the
+// same cut the backfill migration makes. The edge cases (00:30 on a Kyiv day, late evening) keep their day.
+const kyivDay = new Intl.DateTimeFormat('en-CA', { timeZone: KYIV, year: 'numeric', month: '2-digit', day: '2-digit' });
+const d = (iso: string) => new Date(`${kyivDay.format(new Date(iso))}T00:00:00.000Z`);
 
 /** The AC-05 fixture: float drift, 2 currencies, renamed Customer, Debtor tie, DST switch. */
 export async function seedParityFixture(prisma: PrismaClient) {

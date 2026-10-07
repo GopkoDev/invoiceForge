@@ -17,6 +17,7 @@ import {
   GroupedProducts,
   InvalidItem,
   RecalculateComputedValuesStateInput,
+  LoadedDates,
 } from './types';
 import { getValidItems } from '@/lib/helpers/invoice-editor';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,6 +25,8 @@ import {
   computeInvoiceAmounts,
   decimalStringToNumber,
 } from '@/lib/helpers/invoice-calculations';
+import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
+import type { InvoiceFormInput } from '@/lib/validations/invoice';
 
 // ============================================
 // Normalization functions
@@ -322,15 +325,60 @@ export function recalculateComputedValues(
 // Initial form data
 // ============================================
 
+// T25 (spec.md §1, review-2026-10-05 F-02): the form holds the issue and due dates as local Dates
+// (what the Calendar shows and picks). They are calendar days: a day saved on the server comes in as
+// its UTC midnight and is turned into the local Date with the same Y/M/D, and a save sends the
+// picked day as `yyyy-MM-dd`, so no browser zone ever shifts it.
+
+/** `data` with its stored issue and due days as local Dates showing the same Y/M/D. */
+export function withLocalDays(data: InvoiceFormData): InvoiceFormData {
+  return {
+    ...data,
+    issueDate: storedDayToLocalDate(data.issueDate),
+    dueDate: storedDayToLocalDate(data.dueDate),
+  };
+}
+
+/** The stored instants of `data`, or null when it holds no valid dates. */
+export function loadedDatesOf(data: InvoiceFormData): LoadedDates | null {
+  const issue = new Date(data.issueDate);
+  const due = new Date(data.dueDate);
+  if (Number.isNaN(issue.getTime()) || Number.isNaN(due.getTime())) return null;
+  return { issueDate: issue.toISOString(), dueDate: due.toISOString() };
+}
+
+/** The editor form as the create/update actions take it: the days as `yyyy-MM-dd`. */
+export function toSavePayload(
+  formData: InvoiceFormData,
+  confirmedTotals?: InvoiceFormInput['confirmedTotals'],
+  loadedDates?: LoadedDates | null
+): InvoiceFormInput {
+  return {
+    ...formData,
+    issueDate: localDateToDay(formData.issueDate),
+    dueDate: localDateToDay(formData.dueDate),
+    ...(loadedDates
+      ? { loadedIssueDate: loadedDates.issueDate, loadedDueDate: loadedDates.dueDate }
+      : {}),
+    ...(confirmedTotals ? { confirmedTotals } : {}),
+  };
+}
+
+function localToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 export function createInitialFormData(): InvoiceFormData {
+  const today = localToday();
   return {
     invoiceNumber: '',
     status: 'DRAFT' as InvoiceStatus,
     senderProfileId: '',
     bankAccountId: '',
     customerId: '',
-    issueDate: new Date(),
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 days
+    issueDate: today,
+    dueDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30), // +30 calendar days
     currency: 'USD' as Currency,
     poNumber: '',
     paymentTerms: '',

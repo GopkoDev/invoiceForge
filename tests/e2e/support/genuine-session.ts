@@ -62,16 +62,22 @@ async function waitForLink(email: string, since: number): Promise<string> {
   );
 }
 
-/** Signs `email` in through /login and the mailed Sign-in link; leaves `page` on a private page. */
+/**
+ * Signs `email` in through /login and the mailed Sign-in link; leaves `page` on a private page.
+ * `from` is a private path to open first (AC-19): the proxy sends the visitor to /login with the
+ * path as callbackUrl, and the sign-in then continues from there.
+ */
 export async function signInWithSignInLink(
   page: Page,
-  email: string
+  email: string,
+  options: { from?: string } = {}
 ): Promise<void> {
   if (process.env.E2E_SIGNIN_LINK_FILE)
     fs.rmSync(process.env.E2E_SIGNIN_LINK_FILE, { force: true });
   const requestedAt = Date.now();
 
-  await page.goto(`${APP_E2E_URL}/login`);
+  await page.goto(`${APP_E2E_URL}${options.from ?? '/login'}`);
+  if (options.from) await page.waitForURL('**/login**');
   await page.getByRole('checkbox').click();
   await page.locator('#login-email').fill(email);
   await page.getByRole('button', { name: 'Continue' }).click();

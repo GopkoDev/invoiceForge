@@ -42,7 +42,7 @@ beforeAll(async () => {
   vi.stubEnv('SENTRY_DSN', 'https://k@example.ingest.sentry.io/1');
   vi.stubEnv('NODE_ENV', 'production');
   const init = vi.fn();
-  vi.doMock('@sentry/nextjs', () => ({ init }));
+  vi.doMock('@sentry/nextjs', () => ({ init, httpIntegration: () => ({ name: 'Http' }) }));
   await import('@/sentry.server.config');
   const opts = init.mock.calls[0]?.[0] as {
     beforeSend?: Handler;

@@ -22,7 +22,7 @@ export const BROKEN_CHECK_PORT = 4312;
 export const BROKEN_CHECK_URL = `http://127.0.0.1:${BROKEN_CHECK_PORT}`;
 
 /** Where start-app-server.mjs leaves the throwaway database URL and the mail sink's inbox. */
-export const E2E_RUNTIME_DIR = path.join(os.tmpdir(), 'invoceflow-e2e');
+export const E2E_RUNTIME_DIR = path.join(os.tmpdir(), 'invoice-forge-e2e');
 
 export interface E2eRuntime {
   databaseUrl: string;

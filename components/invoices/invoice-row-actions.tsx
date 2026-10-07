@@ -179,6 +179,11 @@ export function InvoiceRowActions({
           router.refresh();
         } else if (!redirectIfUnauthorized(result)) {
           toast.error(result.error || 'Failed to update invoice status');
+          // SCR-05 status-rejected: the row was stale (e.g. past due since load); show the current status.
+          if (result.code === 'VALIDATION') {
+            onDataChange?.();
+            router.refresh();
+          }
         }
       } catch {
         // AC-21: a rejected call must not reach the error boundary; treat it like UNAUTHORIZED.

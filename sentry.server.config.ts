@@ -60,6 +60,39 @@ export function scrubPrismaBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T):
   return crumb;
 }
 
+type ScrubbableRequest = {
+  request?: {
+    url?: string;
+    headers?: Record<string, string>;
+    data?: unknown;
+    cookies?: unknown;
+  };
+};
+
+/** /api/mcp: never report the Authorization header, any other header, or a body (sad.md §8). */
+export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
+  const request = event.request;
+  if (!request || typeof request.url !== 'string') return event;
+  if (!isMcpUrl(request.url)) return event;
+  delete request.headers;
+  delete request.data;
+  delete request.cookies;
+  return event;
+}
+
+export function isMcpUrl(url: string): boolean {
+  try {
+    // A leading slash run must stay a path ('//api/mcp' would parse as a host), so join it to the base.
+    const target = /^[/\\]/.test(url) ? `http://localhost${url}` : url;
+    // Next matches the percent-decoded path in production ('/api/%6Dcp' reaches the handler).
+    const path = decodeURIComponent(new URL(target, 'http://localhost').pathname).replace(/[/\\]+/g, '/');
+    return path.replace(/\/$/, '') === '/api/mcp';
+  } catch {
+    // A path that fails to decode is treated as MCP: scrub rather than leak.
+    return true;
+  }
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const sentryEnabled = isProduction;
 
@@ -83,7 +116,17 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     // Configuration for production environment
     environment: process.env.NODE_ENV,
 
-    beforeSend: (event, hint) => scrubPrismaEvent(event, hint),
+    // Node's HTTP integration would attach the incoming body to the transaction; never for /api/mcp.
+    // Replaces the @sentry/nextjs default, so it keeps that default's disabled request spans.
+    integrations: [
+      Sentry.httpIntegration({
+        disableIncomingRequestSpans: true,
+        ignoreIncomingRequestBody: isMcpUrl,
+      }),
+    ],
+    beforeSend: (event, hint) =>
+      scrubMcpRequest(scrubPrismaEvent(event, hint)),
+    beforeSendTransaction: (event) => scrubMcpRequest(event),
     beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }

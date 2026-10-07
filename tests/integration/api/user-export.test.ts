@@ -39,6 +39,7 @@ import {
   it,
   vi,
 } from 'vitest';
+import { createHash } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../support/db/docker-availability';
 import {
@@ -58,6 +59,7 @@ import {
   SECURITY_PATCH_SPEC_PATH,
 } from '../../support/contract/validate';
 import { createLimitEvent } from '../../support/factories/limit-event';
+import { createPersonalKeyUsageWeek } from '../../support/factories/personal-key-usage-week';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -171,11 +173,14 @@ describe.runIf(containerRuntimeAvailable)(
       expect(response.status).toBe(200);
       expect(body).toEqual({
         exportDate: expect.any(String),
-        exportVersion: '2.0',
+        exportVersion: '2.1',
         user: expect.objectContaining({
           id: freelancer.id,
           email: freelancer.email,
+          timeZone: null,
+          overdueNoticeDismissedAt: null,
         }),
+        personalKeys: [],
         accounts: [],
         emailHistory: [],
         senderProfiles: [],
@@ -187,6 +192,7 @@ describe.runIf(containerRuntimeAvailable)(
         operationId: 'exportUserData',
         status: 200,
         body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
       });
     });
 
@@ -246,6 +252,7 @@ describe.runIf(containerRuntimeAvailable)(
         operationId: 'exportUserData',
         status: 200,
         body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
       });
 
       // Product-named file, UTC date, per contract's Content-Disposition pattern.
@@ -259,7 +266,7 @@ describe.runIf(containerRuntimeAvailable)(
       // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
       // enforces this above, but assert it explicitly too since it's the AC's own wording.
       expect(body).not.toHaveProperty('sessions');
-      expect(body.exportVersion).toBe('2.0');
+      expect(body.exportVersion).toBe('2.1');
 
       // Scoped to the caller only — another Freelancer's data never appears.
       const bodyText = JSON.stringify(body);
@@ -278,6 +285,113 @@ describe.runIf(containerRuntimeAvailable)(
       // No OAuth tokens: accounts is empty here (no Account row created), but the shape allowed by
       // the contract only ever carries provider/type/createdAt — never access/refresh tokens.
       expect(body.accounts).toEqual([]);
+    });
+
+    it('AC-25: lists each key name, createdAt, lastUsedAt, revokedAt and usage weeks, never the key or what rebuilds it', async () => {
+      const owner = await createFreelancer(factoryPrisma, {
+        timeZone: 'Europe/Kyiv',
+        overdueNoticeDismissedAt: new Date('2026-09-01T10:00:00Z'),
+      });
+      const stranger = await createFreelancer(factoryPrisma);
+      const fullKey = 'ifk_' + 'a'.repeat(40);
+      const digest = createHash('sha256').update(fullKey).digest('hex');
+      const lastUsedAt = new Date('2026-09-20T08:00:00Z');
+      const revokedAt = new Date('2026-09-25T08:00:00Z');
+      const active = await factoryPrisma.personalKey.create({
+        data: {
+          userId: owner.id,
+          name: 'Claude Desktop',
+          activeNameKey: 'claude desktop',
+          digest,
+          lastFour: 'aaaa',
+          lastUsedAt,
+        },
+      });
+      const revoked = await factoryPrisma.personalKey.create({
+        data: {
+          userId: owner.id,
+          name: 'Old laptop',
+          digest: createHash('sha256').update('other-key').digest('hex'),
+          lastFour: 'zzzz',
+          revokedAt,
+        },
+      });
+      const strangerKey = await factoryPrisma.personalKey.create({
+        data: {
+          userId: stranger.id,
+          name: 'Stranger key',
+          activeNameKey: 'stranger key',
+          digest: createHash('sha256').update('stranger').digest('hex'),
+          lastFour: 'qqqq',
+        },
+      });
+      const week = new Date('2026-09-14T00:00:00Z');
+      await createPersonalKeyUsageWeek(factoryPrisma, {
+        personalKeyId: active.id,
+        weekStart: week,
+        attempts: 5,
+        successes: 4,
+        assistantErrors: 1,
+      });
+      await createPersonalKeyUsageWeek(factoryPrisma, {
+        personalKeyId: strangerKey.id,
+        weekStart: week,
+        attempts: 99,
+      });
+      authMock.mockResolvedValue({ user: { id: owner.id } });
+
+      const response = await GET();
+      const text = await response.text();
+      const body = JSON.parse(text);
+
+      expect(response.status).toBe(200);
+      expect(body.exportVersion).toBe('2.1');
+      expect(body.user.timeZone).toBe('Europe/Kyiv');
+      expect(body.user.overdueNoticeDismissedAt).toBe(
+        '2026-09-01T10:00:00.000Z'
+      );
+      // Populated keys and usage weeks, so the item schemas (additionalProperties: false) see real rows.
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 200,
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
+      });
+      expect(body.personalKeys).toHaveLength(2);
+      const byName = Object.fromEntries(
+        body.personalKeys.map((k: { name: string }) => [k.name, k])
+      );
+      expect(byName['Claude Desktop']).toEqual({
+        name: 'Claude Desktop',
+        createdAt: active.createdAt.toISOString(),
+        lastUsedAt: lastUsedAt.toISOString(),
+        revokedAt: null,
+        usageWeeks: [
+          {
+            weekStart: week.toISOString(),
+            attempts: 5,
+            successes: 4,
+            assistantErrors: 1,
+          },
+        ],
+      });
+      expect(byName['Old laptop']).toEqual({
+        name: 'Old laptop',
+        createdAt: revoked.createdAt.toISOString(),
+        lastUsedAt: null,
+        revokedAt: revokedAt.toISOString(),
+        usageWeeks: [],
+      });
+      for (const key of body.personalKeys) {
+        for (const forbidden of ['id', 'digest', 'lastFour', 'activeNameKey']) {
+          expect(key).not.toHaveProperty(forbidden);
+        }
+      }
+      expect(text).not.toContain(fullKey);
+      expect(text).not.toContain(digest);
+      expect(text).not.toContain(active.id);
+      expect(text).not.toContain('Stranger key');
+      expect(text).not.toContain('"aaaa"');
     });
 
     it('AC-24: the 4th export in the hour is 429 RATE_LIMITED with retryAt and Retry-After (T13)', async () => {

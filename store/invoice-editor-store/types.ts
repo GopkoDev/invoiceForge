@@ -17,6 +17,12 @@ export interface TotalsChanged {
   newTotal: string;
 }
 
+/** The stored instants the editor was built from, as ISO strings (T44, I-01). */
+export interface LoadedDates {
+  issueDate: string;
+  dueDate: string;
+}
+
 export interface NormalizedData {
   senderProfilesById: Map<string, InvoiceSenderProfile>;
   bankAccountsById: Map<string, InvoiceBankAccount>;
@@ -73,6 +79,9 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   invoiceId?: string;
   isSaving: boolean;
   hasUnsavedChanges: boolean;
+  /** The stored issue/due instants the editor was built from; a save sends them so the server can
+   * tell an untouched legacy date from an edited one (T44, I-01). Null for a new invoice; after a save, the stored instants the row now holds. */
+  loadedDates: LoadedDates | null;
 
   /** The hint from `generateInvoiceNumber`, shown only as a placeholder — never merged into
    * `formData.invoiceNumber` (AC-06, AC-11). */
@@ -85,6 +94,9 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   totalsChanged: TotalsChanged | null;
   /** `legacy` flags from `getInvoiceEditorData`, carried in on `initialize` (AC-17). */
   legacy: InvoiceLegacyInfo | null;
+  /** The invoice is stored PENDING but past its due date: the header badge reads Overdue while
+   * `formData.status` keeps the stored status a save sends back (AC-24). */
+  derivedOverdue: boolean;
 
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(
@@ -125,6 +137,7 @@ export interface InvoiceEditorInitData {
   products: InvoiceProduct[];
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
+  derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
 }

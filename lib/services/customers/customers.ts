@@ -11,7 +11,17 @@ import {
 } from '@/lib/services/_shared/result-helpers';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { notFoundOnMiss } from '@/lib/services/_shared/owner-scope';
-import { ilikeAny, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
+import { escapeLike, ilikeAny, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
+import { z } from 'zod';
+import type { Currency, Prisma } from '@prisma/client';
+import {
+  isPageOutOfRange,
+  pageOutOfRange,
+  strictPage,
+  strictPageInfo,
+  type StrictPageInfo,
+} from '@/lib/services/_shared/strict-page';
+import type { NameMatch } from '@/lib/services/sender-profiles/resolve-by-name';
 
 const NOT_FOUND_MESSAGE = 'Customer not found.';
 const SEARCH_FIELDS = ['name', 'companyName', 'email'];
@@ -121,5 +131,117 @@ export async function deleteCustomer(actor: ActingFreelancer, id: string): Promi
     return ok();
   } catch (error) {
     return failed('Error deleting customer:', error, 'Failed to delete customer.');
+  }
+}
+
+// T16 (AC-08, AC-17, AC-21): the Assistant reads of Customers. A Customer is found by part of its
+// current name or of a name copied onto one of its invoices, ignoring case; only the acting
+// Freelancer's Customers are ever scanned, so another Freelancer's is answered like a missing one.
+
+const MAX_CANDIDATES = 50;
+const MAX_INT = 2 ** 31 - 1;
+
+function nameMatchWhere(actor: ActingFreelancer, text: string): Prisma.CustomerWhereInput {
+  const contains = { contains: escapeLike(text), mode: 'insensitive' } as const;
+  return {
+    userId: actor.userId,
+    OR: [{ name: contains }, { invoices: { some: { customerName: contains } } }],
+  };
+}
+
+export type CustomerMatch = NameMatch<{ customerId: string; name: string }>;
+
+export async function resolveCustomerByName(
+  actor: ActingFreelancer,
+  name: string,
+): Promise<ActionResult<CustomerMatch>> {
+  const text = name.trim();
+  if (text === '') return ok({ kind: 'none' });
+  try {
+    const rows = await prisma.customer.findMany({
+      where: nameMatchWhere(actor, text),
+      select: { id: true, name: true, companyName: true, email: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: MAX_CANDIDATES,
+    });
+    if (rows.length === 0) return ok({ kind: 'none' });
+    if (rows.length === 1) return ok({ kind: 'one', customerId: rows[0].id, name: rows[0].name });
+    return ok({
+      kind: 'candidates',
+      candidates: rows.map((r) => {
+        const detail = r.email ?? r.companyName;
+        return { id: r.id, name: r.name, ...(detail ? { detail } : {}) };
+      }),
+    });
+  } catch (error) {
+    return failed('Error resolving customer by name:', error, 'Failed to fetch customers.');
+  }
+}
+
+const listCustomersInput = z.object({
+  page: z.number().int().min(1).max(MAX_INT).optional(),
+  pageSize: z.number().int().min(1).max(MAX_INT).optional(),
+  name: z.string().trim().max(100, 'Name can be at most 100 characters.').optional(),
+});
+
+export type ListCustomersForAssistantInput = z.input<typeof listCustomersInput>;
+
+export type CustomerDetails = {
+  customerId: string;
+  name: string;
+  companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  taxId: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  postalCode: string | null;
+  defaultCurrency: Currency;
+};
+
+export type CustomersAnswer = { rows: CustomerDetails[]; pageInfo: StrictPageInfo };
+
+export async function listCustomersForAssistant(
+  actor: ActingFreelancer,
+  input: ListCustomersForAssistantInput = {},
+): Promise<ActionResult<CustomersAnswer>> {
+  const parsed = listCustomersInput.safeParse(input ?? {});
+  if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
+  const where: Prisma.CustomerWhereInput = parsed.data.name
+    ? nameMatchWhere(actor, parsed.data.name)
+    : { userId: actor.userId };
+  try {
+    const plan = strictPage(parsed.data);
+    const total = await prisma.customer.count({ where });
+    if (isPageOutOfRange(plan.page, total, plan.pageSize)) return pageOutOfRange(total, plan.pageSize);
+    const rows =
+      total === 0
+        ? []
+        : await prisma.customer.findMany({
+            where,
+            select: {
+              id: true,
+              name: true,
+              companyName: true,
+              email: true,
+              phone: true,
+              taxId: true,
+              address: true,
+              city: true,
+              country: true,
+              postalCode: true,
+              defaultCurrency: true,
+            },
+            orderBy: [{ name: 'asc' }, { id: 'asc' }],
+            skip: plan.offset,
+            take: plan.limit,
+          });
+    return ok({
+      rows: rows.map(({ id, ...rest }): CustomerDetails => ({ customerId: id, ...rest })),
+      pageInfo: strictPageInfo(plan, total),
+    });
+  } catch (error) {
+    return failed('Error listing customers for the Assistant:', error, 'Failed to fetch customers.');
   }
 }

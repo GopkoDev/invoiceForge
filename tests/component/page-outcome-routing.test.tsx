@@ -42,6 +42,11 @@ vi.mock('next/navigation', () => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
+// T28: the invoices page reads the account zone from the session actor (ADR-0006).
+vi.mock('@/lib/helpers/session-actor', () => ({
+  actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
+}));
+
 const getCustomersMock = vi.fn();
 const getCustomerMock = vi.fn();
 vi.mock('@/lib/actions/customer-actions', () => ({

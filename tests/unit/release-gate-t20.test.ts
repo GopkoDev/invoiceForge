@@ -121,6 +121,27 @@ describe('T20 release gate', () => {
     expect(unpatched.map((v) => v.join('.'))).toEqual([]);
   });
 
+  // GHSA-jqcg-44mw-7w3h (critical) and GHSA-j3q9-mxjg-w52f (high) reach production
+  // through @modelcontextprotocol/sdk > express; express's ~2.0.7 and router's ^8.0.0
+  // ranges accept the patched releases. path-to-regexp 6.x is a separate, unaffected line.
+  it('AC-01: proxy-addr and path-to-regexp 8 are overridden to the patched releases', () => {
+    const workspace = read('pnpm-workspace.yaml');
+    expect(workspace).toMatch(/^\s+'?proxy-addr@<2\.0\.8'?: \^2\.0\.8$/m);
+    expect(workspace).toMatch(
+      /^\s+'?path-to-regexp@>=8\.0\.0 <8\.4\.0'?: \^8\.4\.0$/m
+    );
+    const lock = read('pnpm-lock.yaml');
+    const unpatched = [
+      ...[...lock.matchAll(/proxy-addr@(2)\.(0)\.(\d+)/g)].filter(
+        (m) => Number(m[3]) < 8
+      ),
+      ...[...lock.matchAll(/path-to-regexp@(8)\.(\d+)\.(\d+)/g)].filter(
+        (m) => Number(m[2]) < 4
+      ),
+    ].map((m) => m[0]);
+    expect(unpatched).toEqual([]);
+  });
+
   it('AC-01: ship notes explain the moderate and low advisories and the nodemailer peer range', () => {
     const notes = read('docs/features/security-patch/ship-notes.md');
     expect(notes).toMatch(/moderate and low/i);

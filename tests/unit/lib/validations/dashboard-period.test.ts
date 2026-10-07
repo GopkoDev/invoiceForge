@@ -8,6 +8,7 @@ import {
   PERIOD_TOO_LONG,
   addCalendarYears,
   isWithinMaxCustomPeriod,
+  presetPeriodDays,
 } from '@/lib/validations/dashboard-period';
 
 const originalTZ = process.env.TZ;
@@ -52,6 +53,20 @@ describe.each(['Pacific/Kiritimati', 'Etc/GMT+12', 'UTC'])(
   }
 );
 
+describe('presetPeriodDays (AC-22, AC-23)', () => {
+  it.each([
+    ['this-month', '2026-02-10', '2026-02-01', '2026-02-28'],
+    ['this-month', '2028-02-10', '2028-02-01', '2028-02-29'],
+    ['last-month', '2026-01-31', '2025-12-01', '2025-12-31'],
+    ['next-month', '2026-12-31', '2027-01-01', '2027-01-31'],
+    ['next-month', '2026-01-31', '2026-02-01', '2026-02-28'],
+    ['this-year', '2026-06-15', '2026-01-01', '2026-12-31'],
+    ['last-year', '2026-06-15', '2025-01-01', '2025-12-31'],
+  ] as const)('%s on %s is %s..%s', (preset, today, from, to) => {
+    expect(presetPeriodDays(preset, today)).toEqual({ from, to });
+  });
+});
+
 describe('dashboard-period module is dependency-free (ADR-0004)', () => {
   it('imports nothing and has no server/browser dependencies', () => {
     const src = readFileSync(
@@ -61,5 +76,22 @@ describe('dashboard-period module is dependency-free (ADR-0004)', () => {
     expect(src).not.toMatch(/^\s*import\s/m);
     expect(src).not.toMatch(/from\s+['"]/);
     expect(src).not.toMatch(/server-only|next\/|node:|['"]react['"]/);
+  });
+});
+
+describe('PRESET_PERIOD_NAMES (T42 review)', () => {
+  it('is the single list of named presets: every name resolves to days and is recognised', async () => {
+    const { PRESET_PERIOD_NAMES, isPresetPeriodName } = await import(
+      '@/lib/validations/dashboard-period'
+    );
+    expect([...PRESET_PERIOD_NAMES].sort()).toEqual(
+      ['last-month', 'last-year', 'next-month', 'this-month', 'this-year']
+    );
+    for (const name of PRESET_PERIOD_NAMES) {
+      expect(isPresetPeriodName(name)).toBe(true);
+      expect(presetPeriodDays(name, '2026-10-05').from).toMatch(/^\d{4}-\d{2}-01$/);
+    }
+    expect(isPresetPeriodName('all-time')).toBe(false);
+    expect(isPresetPeriodName(undefined)).toBe(false);
   });
 });

@@ -15,3 +15,9 @@ export const profileFormSchema = z.object({
 });
 
 export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+export const TIME_ZONE_MESSAGE = 'Choose a time zone from the list.';
+
+export const timeZoneSchema = z.object({
+  timeZone: z.string({ message: TIME_ZONE_MESSAGE }).trim().min(1, TIME_ZONE_MESSAGE).max(100, TIME_ZONE_MESSAGE),
+});

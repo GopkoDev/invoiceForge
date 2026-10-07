@@ -180,6 +180,8 @@ export interface InvoiceEditorData {
   products: InvoiceProduct[];
   customPrices: InvoiceCustomPrice[];
   initialData?: InvoiceFormData;
+  /** The stored status is PENDING but the due date has passed: the header badge reads Overdue (AC-24). */
+  derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
 }
@@ -195,8 +197,9 @@ export const invoiceStatusConfig: Record<
   DRAFT: { label: 'Draft', variant: 'secondary' },
   PENDING: { label: 'Pending', variant: 'outline' },
   PAID: { label: 'Paid', variant: 'default' },
-  OVERDUE: { label: 'Overdue', variant: 'destructive' },
   CANCELLED: { label: 'Cancelled', variant: 'secondary' },
+  // The services return the derived status (ADR-0005); screens only display it.
+  OVERDUE: { label: 'Overdue', variant: 'destructive' },
 };
 
 // Invoice list tab type

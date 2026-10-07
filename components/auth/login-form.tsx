@@ -25,8 +25,9 @@ import { legalRoutes } from '@/config/routes.config';
 
 export function LoginForm({
   className,
+  returnPath,
   ...props
-}: React.ComponentProps<'div'>) {
+}: React.ComponentProps<'div'> & { returnPath?: string }) {
   const [isAgeAndTermsAccepted, setIsAgeAndTermsAccepted] = useState(false);
   const checkboxId = useId();
 
@@ -39,7 +40,7 @@ export function LoginForm({
 
   const onEmailSubmit = async (data: LoginEmailInput) => {
     if (!isAgeAndTermsAccepted) return;
-    const result = await signInWithEmail(data.email);
+    const result = await signInWithEmail(data.email, returnPath);
 
     if (!result.success) {
       if (result.code === 'VALIDATION' && result.fieldErrors?.email?.[0]) {
@@ -59,7 +60,7 @@ export function LoginForm({
 
   const handleGoogleSignIn = () => {
     startTransition(async () => {
-      await signInWithGoogle();
+      await signInWithGoogle(returnPath);
     });
   };
 

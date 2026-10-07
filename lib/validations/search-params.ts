@@ -5,7 +5,11 @@ import type {
   InvoiceTab,
   SortDirection,
 } from '@/types/invoice/types';
-import { isWithinMaxCustomPeriod } from '@/lib/validations/dashboard-period';
+import {
+  isWithinMaxCustomPeriod,
+  presetPeriodDays,
+  isPresetPeriodName,
+} from '@/lib/validations/dashboard-period';
 import {
   currentLocalMonth,
   formatLocalDateKey,
@@ -215,6 +219,17 @@ export function dashboardParamsSchema(
       } => {
         if (preset === 'all-time') {
           return { appliedRange: undefined, period: undefined };
+        }
+
+        // A named preset is resolved here, in the account zone, and beats any from/to pair
+        // (AC-22, AC-23): a tab left open past midnight never sends a stale month.
+        if (isPresetPeriodName(preset)) {
+          const days = presetPeriodDays(
+            preset,
+            formatLocalDateKey(now, zone)
+          );
+          const [start, endExclusive] = localDayRange(days.from, days.to, zone);
+          return { appliedRange: { start, endExclusive }, period: days };
         }
 
         const validFrom =

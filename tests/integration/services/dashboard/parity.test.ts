@@ -59,7 +59,7 @@ describe.runIf(containerRuntimeAvailable)('dashboard parity on recorded values (
     await truncateAllTables(testClient);
   });
 
-  it('every section equals the recorded old output: amounts to the cent, counts, groups, listed invoices', async () => {
+  async function takeSnapshot() {
     const labels = await fixtureLabels(testClient);
     const snapshot = await snapshotDashboard({
       tabs: () => svc.getCurrencyTabs(actor),
@@ -70,7 +70,19 @@ describe.runIf(containerRuntimeAvailable)('dashboard parity on recorded values (
       debtors: (c) => svc.getDebtors(actor, c as 'USD'),
       expected: (c) => svc.getExpectedPayments(actor, c as 'USD'),
     }, labels);
-    expect(snapshot).toEqual(RECORDED_OLD_DASHBOARD);
+    return snapshot;
+  }
+
+  it('every section equals the recorded old output: amounts to the cent, counts, groups, listed invoices', async () => {
+    expect(await takeSnapshot()).toEqual(RECORDED_OLD_DASHBOARD);
+  });
+
+  // T39 (review 2026-10-05 G-05): the recorded instants were re-baselined by hand in T25; amounts, counts
+  // and groups are checked here with every instant masked, so they stand apart from that edit.
+  it('amounts, counts and groups equal the recorded old output with the instants masked', async () => {
+    const mask = (v: unknown) =>
+      JSON.parse(JSON.stringify(v), (_k, x) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(x) ? '<instant>' : x));
+    expect(mask(await takeSnapshot())).toEqual(mask(RECORDED_OLD_DASHBOARD));
   });
 
   it('the recorded values really cover the drift, the DST switch and the tied top three', () => {

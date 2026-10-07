@@ -27,6 +27,7 @@ import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { protectedRoutes } from '@/config/routes.config';
 import { InvoiceStatusBadge } from './invoice-status-badge';
 import { InvoiceRowActions } from './invoice-row-actions';
+import { formatStoredDay } from '@/lib/helpers/calendar-day';
 
 interface InvoicesDataTableProps {
   invoices: InvoiceListItem[];
@@ -36,10 +37,9 @@ interface InvoicesDataTableProps {
   timeZone?: string;
 }
 
-// Helper function to format dates consistently on server and client
+// Issue and due dates are stored calendar days: formatted in UTC so the server and every browser zone show the same day.
 function formatDate(date: Date | string): string {
-  const d = new Date(date);
-  return d.toLocaleDateString('en-US', {
+  return formatStoredDay(date, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

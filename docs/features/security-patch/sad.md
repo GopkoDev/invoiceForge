@@ -11,7 +11,7 @@ target_surfaces: [backend-service, web-frontend]
 
 ## 1. Introduction and goals
 
-**Intent.** Close the holes in invoiceFlow's current public surface before it becomes a public portfolio demo and gains an in-app AI chat (spec §1, §2). The feature upgrades the framework, sign-in and mail components to versions with no critical or high production advisory. It makes "signed in" mean a verified session and nothing else. It bounds what a Visitor can make the app do: Sign-in link emails per address and per source, the custom Dashboard period, and data exports per Freelancer. It sends mail only over verified TLS and refuses anonymous server actions however the request is shaped. Finally, it gives the browser a baseline content-security policy and transport headers, and closes the open error-reporting relay. Every hole is closed at the point all callers pass through, not only in the page the brief cites.
+**Intent.** Close the holes in Invoice Forge's current public surface before it becomes a public portfolio demo and gains an in-app AI chat (spec §1, §2). The feature upgrades the framework, sign-in and mail components to versions with no critical or high production advisory. It makes "signed in" mean a verified session and nothing else. It bounds what a Visitor can make the app do: Sign-in link emails per address and per source, the custom Dashboard period, and data exports per Freelancer. It sends mail only over verified TLS and refuses anonymous server actions however the request is shaped. Finally, it gives the browser a baseline content-security policy and transport headers, and closes the open error-reporting relay. Every hole is closed at the point all callers pass through, not only in the page the brief cites.
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
@@ -61,7 +61,7 @@ target_surfaces: [backend-service, web-frontend]
 
 ## 3. Context and scope
 
-invoiceFlow is a Next.js invoicing app for Freelancers, about to be shared publicly as a demo. This feature does not add a new product capability. It hardens the existing boundary between the public internet (Visitors, including scripts and bots) and each Freelancer's private data, and it bounds what an anonymous or signed-in caller can make the app spend: emails, CPU and export runs.
+Invoice Forge is a Next.js invoicing app for Freelancers, about to be shared publicly as a demo. This feature does not add a new product capability. It hardens the existing boundary between the public internet (Visitors, including scripts and bots) and each Freelancer's private data, and it bounds what an anonymous or signed-in caller can make the app spend: emails, CPU and export runs.
 
 <!-- brownfield: Next.js 16 App Router monolith on Vercel; deny-by-default proxy.ts, business layer in lib/services (server-only), Postgres via Prisma 7, Auth.js v5 beta with JWT sessions, Postgres sliding-window limiter precedent (LogoFetchWindow). Scanned at 0c891dc; docs/architecture-map.md (ded1be7) predates the service layer. -->
 
@@ -90,7 +90,7 @@ C4Context
     Person(freelancer, "Freelancer", "Signed-in account holder; owns invoices, customers, sender profiles")
     Person_Ext(assistant, "Assistant", "Future program acting for one Freelancer via the business layer")
 
-    System(app, "invoiceFlow", "Invoicing web app: public pages, sign-in, private pages, data export")
+    System(app, "Invoice Forge", "Invoicing web app: public pages, sign-in, private pages, data export")
 
     System_Ext(google, "Google OAuth", "Identity provider for Google sign-in")
     System_Ext(smtp, "SMTP mail server", "Delivers Sign-in link emails over verified TLS only")
@@ -187,7 +187,7 @@ C4Container
     Person(visitor, "Visitor", "No verified session; may be a script")
     Person(freelancer, "Freelancer", "Verified session")
 
-    Container_Boundary(app, "invoiceFlow (one Next.js deployable on Vercel)") {
+    Container_Boundary(app, "Invoice Forge (one Next.js deployable on Vercel)") {
         Container(web, "Web pages", "React 19 RSC + client components", "Sign-in, dashboard filters, editors, privacy settings")
         Container(proxy, "Edge proxy", "proxy.ts, Auth.js edge config", "Verified-session predicate, deny by default, refuses anonymous mutations by method")
         Container(actions, "Server actions", "lib/actions, use server", "Each resolves the session first; login actions exempt")

@@ -1,8 +1,8 @@
 import { InvoiceFormData } from '@/types/invoice/types';
-import { invoiceFormSchema } from '@/lib/validations/invoice';
+import { clientInvoiceFormSchema } from '@/lib/validations/invoice';
 
 export function validateInvoiceForm(formData: InvoiceFormData): string[] {
-  const result = invoiceFormSchema.safeParse(formData);
+  const result = clientInvoiceFormSchema.safeParse(formData);
 
   if (result.success) {
     return [];

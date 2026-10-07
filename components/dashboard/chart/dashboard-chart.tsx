@@ -16,6 +16,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/types/dashboard';
+import { formatStoredDay } from '@/lib/helpers/calendar-day';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
 
 const chartConfig = {
@@ -103,8 +104,7 @@ export function DashboardChart({ data, currency }: DashboardChartProps) {
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(value) => {
-                const date = new Date(value);
-                return date.toLocaleDateString('en-US', {
+                return formatStoredDay(value, {
                   month: 'short',
                   day: 'numeric',
                 });
@@ -115,7 +115,7 @@ export function DashboardChart({ data, currency }: DashboardChartProps) {
               content={
                 <ChartTooltipContent
                   labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString('en-US', {
+                    return formatStoredDay(value, {
                       month: 'short',
                       day: 'numeric',
                     });

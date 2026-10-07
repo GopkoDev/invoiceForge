@@ -57,7 +57,8 @@ type DecimalString = string;   // /^-?\d{1,8}\.\d{2}$/ — exact 2-dp value from
 | `invoiceNumber` | `string`, trimmed. **Empty (`''` or whitespace only) = system-assigned**; anything else is manual | ✎ was `min(1)` | AC-06, AC-10 |
 | `senderProfileId`, `customerId`, `bankAccountId` | `string min(1)`. Ownership checked in the action → `NOT_FOUND` | — | AC-29 |
 | `status` | `enum InvoiceStatus` = `DRAFT \| PENDING \| PAID \| OVERDUE \| CANCELLED`. Unknown → `VALIDATION` "Unknown status" | message ✎ | AC-19 |
-| `issueDate`, `dueDate` | date | — | — |
+| `issueDate`, `dueDate` | `yyyy-MM-dd` calendar day, stored at `T00:00:00Z`; a `Date` is refused (mcp-server ADR-0009) | ✎ mcp-server | — |
+| `loadedIssueDate?`, `loadedDueDate?` | `updateInvoice` only: optional ISO datetime, the stored instant the editor loaded; anything else → `VALIDATION`. Decides only whether an unedited legacy date keeps its stored value (mcp-server ADR-0009) | ✎ mcp-server | — |
 | `currency` | `enum Currency` | — | — |
 | `items[]` | `min(1)` | — | — |
 | `items[].quantity` | `number > 0`, ≤ 99 999 999.99, 2 dp | ★ max | AC-14 |
@@ -91,8 +92,11 @@ type SavedInvoice = {
   id: string;
   invoiceNumber: string;        // final number: as typed (manual) or allocated
   subtotal: number; taxAmount: number; total: number;   // stored figures (AC-13)
-  status: InvoiceStatus;
+  status: InvoiceStatus;        // stored status (✎ mcp-server)
+  derivedOverdue: boolean;      // ✎ mcp-server ADR-0005: the shared overdue rule's answer
   paidAt: string | null;        // ISO; set by applyStatusChange() (AC-18)
+  issueDate: string;            // ✎ mcp-server ADR-0009: stored instant, ISO
+  dueDate: string;              // ✎ mcp-server ADR-0009: stored instant, ISO
 };
 ```
 
@@ -238,7 +242,7 @@ Date bounds: `[startOfDay(dateFrom, tz), startOfDay(dateTo + 1 day, tz))`, so th
 | Param | Accepted | Default |
 |---|---|---|
 | `from`, `to` | `YYYY-MM-DD`, both valid and from ≤ to | the current month in `tz` (AC-25) |
-| `preset` | `all-time` (no range) or absent | absent |
+| `preset` | `all-time` (no range), a named preset (`this-month`, `last-month`, `next-month`, `this-year`, `last-year`) resolved on the server in the account zone and taking priority over `from`/`to`, or absent | absent |
 | `currency` | enum `Currency`, among the Freelancer's currency tabs | the first currency tab (existing `validateCurrency`) |
 
 The page returns `appliedRange` to the date filter (AC-25).

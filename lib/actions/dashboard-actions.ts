@@ -13,7 +13,7 @@ import {
   getSummaryStats,
   type DashboardPeriod,
 } from '@/lib/services/dashboard/dashboard';
-import type { ActionResult } from '@/types/result';
+import { ok, type ActionResult } from '@/types/result';
 import type { CurrencyTab } from '@/types/dashboard';
 
 // T19 (service-layer; public-api.md §2.7 + §3): thin wrappers. Session actor first (UNAUTHORIZED is
@@ -88,4 +88,30 @@ export async function getDashboardExpectedPayments(currency: Currency) {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
   return getExpectedPayments(actor.data, currency);
+}
+
+// T22 (AC-24 notice, AC-01 entry point): session actor first, then the layer function.
+export async function getDashboardNoticeState(): Promise<ActionResult<{ showOverdueRuleNotice: boolean }>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  // Lazy: loading this module must not require DATABASE_URL (same reason as session-actor).
+  const { getOverdueNoticeState } = await import('@/lib/services/profile/overdue-notice');
+  return getOverdueNoticeState(actor.data);
+}
+
+export async function dismissOverdueRuleNotice(): Promise<ActionResult<void>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const { dismissOverdueNotice } = await import('@/lib/services/profile/overdue-notice');
+  return dismissOverdueNotice(actor.data);
+}
+
+/** The entry point shows while no key has ever passed a key check (revoked keys count). */
+export async function getConnectAiEntryState(): Promise<ActionResult<{ showConnectAiEntry: boolean }>> {
+  const actor = await actingFreelancerFromSession();
+  if (!actor.success) return actor;
+  const { hasUsedAnyPersonalKey } = await import('@/lib/services/personal-keys/personal-keys');
+  const used = await hasUsedAnyPersonalKey(actor.data);
+  if (!used.success) return used;
+  return ok({ showConnectAiEntry: !used.data });
 }

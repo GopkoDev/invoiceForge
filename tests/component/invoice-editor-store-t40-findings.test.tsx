@@ -125,6 +125,8 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
         total: 100,
         status: 'DRAFT' as const,
         paidAt: null,
+        issueDate: '2026-10-01T00:00:00.000Z',
+        dueDate: '2026-10-15T00:00:00.000Z',
       })
     );
 

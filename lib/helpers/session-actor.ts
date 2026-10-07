@@ -1,17 +1,38 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/helpers/auth-helpers';
-import { getRequestTimeZone } from '@/lib/helpers/time-zone';
-import { createActingFreelancer, type ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { getBrowserTimeZone } from '@/lib/helpers/time-zone';
+import { resolveTimeZone } from '@/lib/services/_shared/time-zone';
+import {
+  actingFreelancerFromPersonalKey,
+  type ActingFreelancer,
+} from '@/lib/services/_shared/acting-freelancer';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { ok, type ActionResult } from '@/types/result';
 
-/** Session + tz cookie -> ActingFreelancer, or UNAUTHORIZED (AC-10). Web layer only. */
+/**
+ * Session factory (ADR-0006, flow 12): the zone saved on the account wins and the browser value is
+ * ignored; with none saved, a browser zone that resolveTimeZone accepts is saved only while the
+ * column is still empty and used; otherwise UTC and nothing is saved.
+ */
+async function buildSessionActor(userId: string): Promise<ActingFreelancer> {
+  // Lazy: loading this module must not require DATABASE_URL (same reason as resolveTimeZone).
+  const { getSavedTimeZone, seedTimeZoneIfEmpty } = await import('@/lib/services/profile/profile');
+  const saved = await getSavedTimeZone(userId);
+  if (saved) return actingFreelancerFromPersonalKey(userId, saved);
+
+  const browser = await getBrowserTimeZone();
+  const seed = browser ? await resolveTimeZone(browser) : 'UTC';
+  if (seed !== 'UTC') await seedTimeZoneIfEmpty(userId, seed);
+  return actingFreelancerFromPersonalKey(userId, seed);
+}
+
+/** Session -> ActingFreelancer (zone from the account), or UNAUTHORIZED (AC-10). Web layer only. */
 export async function actingFreelancerFromSession(): Promise<ActionResult<ActingFreelancer>> {
   const user = await getAuthenticatedUser();
   if (!user.success) return user;
   try {
-    return ok(await createActingFreelancer(user.data.userId, await getRequestTimeZone()));
+    return ok(await buildSessionActor(user.data.userId));
   } catch (error) {
     return failed('Error resolving the acting freelancer:', error, 'Something went wrong. Please try again.');
   }
@@ -32,7 +53,7 @@ export async function actingFreelancerForRoute(
   const session = await requireSession();
   if (!session.ok) return session;
   try {
-    return { ok: true, actor: await createActingFreelancer(session.userId, await getRequestTimeZone()) };
+    return { ok: true, actor: await buildSessionActor(session.userId) };
   } catch (error) {
     failed('Error resolving the acting freelancer:', error, 'Something went wrong. Please try again.');
     return { ok: false, response: failureResponse() };

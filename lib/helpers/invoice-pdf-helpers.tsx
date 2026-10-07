@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
 import { fetchLogoDataUrl } from '@/lib/utils/image-to-base64';
 import { siteConfig } from '@/config/site.config';
+import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 import type {
   SerializedInvoice,
   InvoiceFormData,
@@ -122,8 +123,9 @@ export function prepareInvoiceDataForPdf(
     senderProfileId: invoice.senderProfileId,
     bankAccountId: invoice.bankAccountId || '',
     customerId: invoice.customerId,
-    issueDate: new Date(invoice.issueDate),
-    dueDate: new Date(invoice.dueDate),
+    // A stored day (UTC midnight) as the local Date with the same Y/M/D, which date-fns formats as-is.
+    issueDate: storedDayToLocalDate(invoice.issueDate),
+    dueDate: storedDayToLocalDate(invoice.dueDate),
     currency: invoice.currency,
     poNumber: invoice.poNumber || '',
     paymentTerms: invoice.paymentTerms || '',

@@ -6,6 +6,7 @@ import authConfig from '@/auth.config';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { getEmailServerConfig } from './lib/get-email-server-config';
 import { createEmailProviderHooks } from './lib/auth/email-provider';
+import { authRedirectTarget } from './lib/auth/redirect-target';
 import type { Adapter } from 'next-auth/adapters';
 import { jwtConfig } from './config/jwt.config';
 import { authRoutes } from './config/routes.config';
@@ -95,9 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         params as unknown as Parameters<typeof sessionCallback>[0]
       ),
     async redirect({ url, baseUrl }) {
-      if (url.startsWith('/')) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      return authRedirectTarget(url, baseUrl, process.env.AUTH_URL);
     },
   },
 });
