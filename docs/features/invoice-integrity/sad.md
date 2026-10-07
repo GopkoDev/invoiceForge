@@ -262,6 +262,348 @@ sequenceDiagram
     Ed-->>Freelancer: changed-elsewhere dialog, the invoice stays paid
 ```
 
+The flows below complete the runtime view for every §4 user story and §5 acceptance criterion. Participants are generic: `user` is the Freelancer, `ui` the web pages and dialogs, `service` the business layer behind the server actions or the MCP endpoint, `data-store` the database, `client` a non-browser caller. Every write carries a persist note for `data-model`.
+
+### Flow 3: Creating a new invoice or a duplicate (AC-04b, AC-21, AC-22)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,S: Precondition - the Freelancer is signed in, from the editor or any other path
+    U->>UI: fills a new invoice, or chooses Duplicate on an invoice in any status
+    UI->>S: create the invoice with the requested status and issue date
+    Note over UI,S: Duplicate always sends draft, a duplicate carries no reference to its source
+    alt requested status is not draft
+        S-->>UI: refused, a new invoice always starts as a draft and is issued by moving it to pending
+        UI-->>U: explanation, nothing stored
+    else status draft
+        S->>D: begin, read the sender profile, Customer, bank account and line products of this owner
+        D-->>S: records, inactive products included
+        alt a referenced record is missing or another Freelancer's
+            S-->>UI: not found
+        else a draft rule fails, currency, amount bounds, discount cap or due date
+            S-->>UI: field errors, the same as in flow 4
+        else every draft rule passes
+            S->>D: lock the sender profile row, read its invoice sequence
+            S->>S: when no number was typed, take the year from the issue date calendar day, not the server clock
+            S->>D: write the draft with the current records as issued details, lines, version 0, advance the sequence, commit
+            Note over S,D: persists Invoice (status draft, snapshot columns, number, version), InvoiceItem, SenderProfile invoice sequence
+            S-->>UI: created draft with its number
+            UI-->>U: editor opens the new draft
+        end
+    end
+    Note over U,S: Postcondition - the draft is numbered with its issue date year, the counter runs on across years without reset
+```
+
+### Flow 4: Saving a draft from the editor, issuing from the editor, editing a cancelled invoice (AC-02, AC-06, AC-10, AC-11, AC-12, AC-14, AC-15, AC-19, AC-20b, AC-21b, AC-23, AC-25)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,S: Precondition - the editor loaded the invoice at some version. Any caller with the Freelancer's session gets the same answers, a stale tab or a script included
+    U->>UI: edits a draft and saves it, or saves it with status pending to issue it
+    UI->>S: update the invoice with the form and loadedVersion
+    S->>D: begin, lock the invoice row of this owner
+    D-->>S: current row with status, version and stored fields
+    alt not found or another Freelancer's invoice
+        S-->>UI: not found, the same answer as for a missing invoice
+    else status is cancelled
+        S-->>UI: refused, a cancelled invoice is final, Duplicate is offered
+    else loadedVersion differs from the row's version
+        S-->>UI: conflict, changed elsewhere, nothing stored
+        UI-->>U: changed-elsewhere dialog SCR-05, reload required
+    else requested status change not allowed by the lifecycle
+        S-->>UI: refused with the lifecycle explanation
+    else bank account currency differs from the invoice currency
+        S-->>UI: field error on the bank account, account in USD while the invoice is in EUR
+    else a catalogue product line in another currency, inactive products included
+        S-->>UI: field error naming the line, free-text lines are not checked
+    else an amount over 99,999,999.99, a discount over lines plus shipping, or a due date before the issue date
+        S-->>UI: field errors on the line, shipping, totals, discount or due date, each amount checked on its own
+    else every draft rule passes
+        S->>D: refresh the issued details from the current sender profile, Customer and bank account, write fields and lines as sent, keep the number even if the issue date moved, version plus one, commit
+        Note over S,D: persists Invoice (snapshot columns, status draft or pending, version), InvoiceItem as sent with inactive product lines kept, number unchanged
+        S-->>UI: saved invoice with the new version
+        UI-->>U: the draft shows the current records, or the issued invoice with its details now fixed
+    end
+    Note over U,S: Postcondition - a draft saved before the release with mismatching currencies is refused on every save until fixed, and so cannot be issued
+```
+
+### Flow 5: Changing a status from the invoice list, issuing and cancelling included (AC-02, AC-04, AC-05, AC-06, AC-14, AC-23, AC-25)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition - each row offers only the moves the transition table allows from its status
+    U->>UI: chooses Mark as pending, Mark paid, Mark overdue, Back to pending or Cancel on a row
+    opt Cancel
+        UI-->>U: cancel confirmation SCR-04, a cancelled invoice is final
+        U->>UI: confirms
+    end
+    UI->>S: change the status to the target, no version check
+    S->>D: begin, lock the invoice row of this owner
+    D-->>S: current status, due date, payment date and the stored draft fields
+    alt not found or another Freelancer's invoice
+        S-->>UI: not found, the invoice is unchanged
+    else target equals the current status
+        S-->>UI: accepted without a write, the payment date untouched
+    else the lifecycle refuses the move from the current status
+        Note over S: back to draft, out of cancelled, or overdue to pending once the due date has passed
+        S-->>UI: refused with the explanation, back to draft suggests cancel and duplicate
+        UI-->>U: message, row refreshed to its current status, nothing changed
+    else draft to pending and the stored draft breaks a draft rule
+        S-->>UI: refused with the editor's explanation, still a draft
+    else allowed
+        S->>D: write the status, set the payment date on entering paid or clear it on paid to pending, version plus one, commit
+        Note over S,D: persists Invoice (status, paidAt, version), snapshot columns untouched so the draft's last save becomes the fixed issued details
+        S-->>UI: new status
+        UI-->>U: row shows the new status
+    end
+```
+
+### Flow 6: Deleting an invoice (AC-06, AC-23)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition - Delete is offered only on draft rows
+    U->>UI: chooses Delete on a draft
+    UI->>S: delete the invoice
+    S->>D: begin, lock the invoice row of this owner
+    D-->>S: current status
+    alt not found or another Freelancer's invoice
+        S-->>UI: not found, the invoice is unchanged
+    else status is not draft
+        S-->>UI: refused, only drafts can be deleted, a cancelled invoice is final and stays listed
+    else draft
+        S->>D: delete the invoice and its lines, commit
+        Note over S,D: removes Invoice and its InvoiceItem rows
+        S-->>UI: deleted
+        UI-->>U: draft removed from the list
+    end
+```
+
+### Flow 7: Opening an invoice and printing its PDF (AC-01, AC-03, AC-15, AC-16)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,S: Precondition - the sender profile, Customer or bank account may have changed since the invoice was issued
+    U->>UI: opens an invoice, or chooses view, download or print
+    UI->>S: read the invoice
+    S->>D: read the invoice of this owner, its lines, every product its lines reference active or not, and the current sender profile logo
+    alt not found or another Freelancer's invoice
+        S-->>UI: not found
+        UI-->>U: not found page SCR-13
+    else found
+        D-->>S: snapshot columns, lines as saved, logo
+        S->>S: build the sender, Customer and bank blocks from the snapshot columns only, overdue derived at read time
+        S-->>UI: the invoice in the editor mode of its status, or the PDF
+        UI-->>U: issued legal name, address, bank name, holder and account number, IBAN and SWIFT when present, lines and total as saved
+    end
+    Note over U,S: Postcondition - a deleted product's line shows as free text, a deactivated product is not offered for new lines, a draft prints the details of its last save
+```
+
+### Flow 8: An Assistant reads an invoice (AC-24, AC-26)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (Assistant)
+    participant S as service
+    participant D as data-store
+
+    Note over C,S: Precondition - the Assistant holds a valid Personal key of one Freelancer
+    C->>S: list the available tools
+    S-->>C: read-only tools only, none changes an invoice or its status
+    C->>S: get the invoice by id
+    S->>D: read the invoice of this owner with its snapshot columns
+    alt not found or another Freelancer's invoice
+        S-->>C: not found
+    else found
+        D-->>S: invoice with its issued details
+        S-->>C: the Customer name and other details from the issued details, the same the PDF prints
+    end
+    Note over C,S: Postcondition - nothing is written, Personal keys stay read-only
+```
+
+### Flow 9: Changing a bank account or a product (AC-13, AC-13b, AC-20)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    U->>UI: edits a bank account or a product and saves
+    UI->>S: update the record
+    S->>D: begin, read the record of this owner
+    D-->>S: stored record with its currency
+    opt the currency changed
+        S->>D: count invoices in any status that use the account, or have a line with the product
+        D-->>S: N invoices
+    end
+    alt not found or another Freelancer's record
+        S-->>UI: not found
+    else product price is not a number with at most two decimal places
+        S-->>UI: field error on the price
+    else currency changed and N is above zero
+        S-->>UI: field error on the currency, used by N invoices so it cannot change
+    else allowed
+        S->>D: write the record, commit
+        Note over S,D: persists BankAccount or Product, no invoice touched
+        S-->>UI: saved
+        UI-->>U: record updated
+    end
+```
+
+### Flow 10: Keeping exactly one default sender profile and bank account (AC-17, AC-17b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,S: Precondition - sender profiles are guarded by the Freelancer's row lock, bank accounts by their sender profile's row lock
+    U->>UI: makes B the default, creates one, deletes the current default, or tries to unset it
+    UI->>S: the request, possibly twice at once from a double click or two tabs
+    S->>D: begin, lock the parent row, a parallel request waits here
+    alt make B the default
+        S->>D: unset the current default, set B, commit
+        Note over S,D: persists isDefault, a partial unique index allows at most one default per parent
+        S-->>UI: B is the default, a repeated request finds B already default
+    else create
+        S->>D: write the new record, default only if it is the first, commit
+        Note over S,D: persists SenderProfile or BankAccount with isDefault
+        S-->>UI: created
+    else delete the current default while others remain
+        S->>D: delete it, make the earliest-created remaining one the default, commit
+        Note over S,D: removes the record, persists isDefault on the promoted one
+        S-->>UI: deleted, new default shown
+    else unset the default without choosing another
+        S-->>UI: refused, the default can only be replaced by making another one the default
+    else the write fails or hits the unique index
+        D-->>S: rolled back
+        S-->>UI: retryable conflict, A stays the default
+    end
+    Note over U,S: Postcondition - exactly one default while any exist
+```
+
+### Flow 11: Release, the pre-release report and the default repair (AC-18)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as client (release step)
+    participant S as service (report script)
+    participant D as data-store
+
+    Note over C,D: Before the production deploy, the code is not live yet
+    C->>S: run the count-only report
+    S->>D: read-only counts of records that break the new rules
+    D-->>S: counts per category
+    S-->>C: report, nothing changed, the counts become the KPI baseline
+    C->>D: apply the migration in one transaction
+    D->>D: add the invoice version column with default 0
+    D->>D: keep only the earliest-created default per parent, promote the earliest-created where none
+    D->>D: create the two partial unique default indexes
+    Note over D: persists Invoice version, repaired isDefault, partial unique indexes on SenderProfile and BankAccount
+    alt the migration fails
+        D-->>C: rolled back as a whole, the code is not deployed
+    else applied
+        D-->>C: applied, no invoice changed
+        C->>C: deploy the code
+    end
+    Note over C,D: Postcondition - flow 10 holds from now on
+```
+
+### Coverage: user stories and acceptance criteria to flows
+
+| User story | Flows |
+|---|---|
+| US-01 Issued invoice keeps its details | 1, 4, 5, 7 |
+| US-02 Customer can pay from the PDF | 7 |
+| US-03 Statuses follow one lifecycle | 2, 3, 5, 6 |
+| US-04 Correct an issued invoice safely | 1 |
+| US-05 An old view never overwrites a newer change | 1, 2, 4 |
+| US-06 One currency per invoice | 1, 4, 5, 9 |
+| US-07 Retired products do not break old invoices | 4, 7 |
+| US-08 Exactly one default profile and account | 10, 11 |
+| US-09 Plain errors for out-of-range values | 1, 4, 9 |
+| US-10 Invoice number year matches the invoice | 3, 4 |
+| US-11 The same rules for every caller | 4, 5, 6, 8 |
+
+| AC | Where it is shown |
+|---|---|
+| AC-01 | Flow 7 (PDF and editor from the snapshot), flow 1 (notes-only save keeps every other field) |
+| AC-02 | Flow 4 (draft save refreshes the issued details), flow 5 (issuing from the list freezes the last save), flow 7 (draft PDF prints its last save) |
+| AC-03 | Flow 7 (bank name, holder, account number, IBAN and SWIFT when present) |
+| AC-04 | Flow 5 (lifecycle, payment date set and cleared, same-status branch), flow 2 |
+| AC-04b | Flow 3 (non-draft status on create refused, duplicate always draft) |
+| AC-05 | Flow 5 (back to draft refused, cancel and duplicate suggested) |
+| AC-06 | Flow 4 (edit refused), flow 5 (status change out of cancelled refused), flow 6 (delete refused) |
+| AC-07 | Flow 1 (only editable fields changed), overdue derived at read time in flow 7 |
+| AC-08 | Flow 1 (locked-field branch). The read-only editor fields are a UI state, drawn at `screens` |
+| AC-09 | Flow 1 (due date before the issue date) |
+| AC-10 | Flow 2 (list race), flow 1 and flow 4 (version branch), flow 5 (list change not version-checked) |
+| AC-11 | Flow 4 (bank account currency branch) |
+| AC-12 | Flow 4 (catalogue line currency branch, inactive products included, free text unchecked) |
+| AC-13 | Flow 9 (bank account currency with invoice count) |
+| AC-13b | Flow 9 (product currency with invoice count) |
+| AC-14 | Flow 1 (issued, only changed fields checked), flow 4 postcondition (old draft blocked), flow 5 (issue from the list re-checks draft rules) |
+| AC-15 | Flow 4 (inactive product lines kept on save), flow 7 (opened unchanged, not offered for new lines) |
+| AC-16 | Flow 7 postcondition (deleted product line as free text) |
+| AC-17 | Flow 10 (make default, parallel requests, failure keeps A) |
+| AC-17b | Flow 10 (first created, promote on delete, unset refused) |
+| AC-18 | Flow 11 (default repair before the indexes) |
+| AC-19 | Flow 4 (amount bounds branch, each amount on its own) |
+| AC-20 | Flow 9 (strict price) |
+| AC-20b | Flow 4 (discount cap in the bounds branch) |
+| AC-21 | Flow 3 (year from the issue date, counter runs on) |
+| AC-21b | Flow 4 (number kept when the issue date moves) |
+| AC-22 | Flow 3 (issue date calendar day, not the server clock) |
+| AC-23 | Not-found branch in flows 1, 4, 5, 6, 7, 8, 9 |
+| AC-24 | Flow 8 (tool list offers read-only tools only) |
+| AC-25 | Flow 4 precondition and flow 5, the same service answers for any caller with the Freelancer's session |
+| AC-26 | Flow 8 (Customer name from the issued details) |
+
+### Notes from sequences (flags, not decisions)
+
+- **Pre-existing flows 1 and 2** name concrete containers (Web UI, PostgreSQL). They were left untouched; flows 3 to 11 use the generic vocabulary.
+- **New participant:** flow 11 has a `client (release step)`, the human-run `prisma migrate deploy` and report run from §7. It is not a §5 container; reconcile in `design` only if wanted.
+- **Hints for `data-model`:** the currency-lock counts in flow 9 read invoices by bank account and lines by product, so `Invoice.bankAccountId` and `InvoiceItem.productId` need indexes (check whether they exist). Flow 10 and flow 11 need the two partial unique default indexes, created after the repair. Every invoice write bumps `Invoice.version`.
+- **For `implement`:** the order of the `alt` branches in flow 4 is the order checks run. Whether currency and bounds errors come back together in one `fieldErrors` set is an implementation choice the diagram leaves open. No new ADR is needed.
+
 ## 7. Deployment view
 
 The feature runs inside the existing Vercel project in region `fra1` as part of the same Next.js deployable; no new function, cron job, environment setting or third-party service. One Prisma migration ships with the release and is applied as an explicit release step, `prisma migrate deploy` against dev and then production, **before** the code is deployed, because the new code reads `Invoice.version` (`pnpm build` does not migrate). The old code keeps working on the new schema: `version` has a default, and the default indexes only turn a double-click race into an error instead of a second default. Rollback: the down migration drops the two indexes and the column; the default repair is not reverted (it only removed duplicates and filled gaps, AC-18). The migration adds `Invoice.version` (`INT NOT NULL DEFAULT 0`, a metadata-only change), repairs duplicate and missing defaults by keeping or promoting the earliest-created record (AC-18), and creates the two partial unique indexes in the same migration transaction (ADR-0005). Before the production deploy, the count-only report (`scripts/invoice-integrity-report.ts`) runs read-only against production and its counts become the baseline of the "new rule violations" KPI (spec §7, §8); it changes nothing.
