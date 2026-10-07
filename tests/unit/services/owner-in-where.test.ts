@@ -26,6 +26,11 @@ vi.mock('@/prisma', () => ({ prisma: p }));
 
 vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
+  // invoice-integrity T07/T09: create, duplicate and the draft save run checkDraftRules.
+  checkDraftRules: vi.fn().mockResolvedValue({
+    success: true,
+    data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' }, fieldErrors: {} },
+  }),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },

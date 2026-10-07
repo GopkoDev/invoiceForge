@@ -29,9 +29,7 @@ import {
   computeInvoiceLegacyInfo,
   serializeDecimal,
   serializeInvoice,
-  verifyInvoiceRelations,
   INVOICE_ITEM_ORDER,
-  verifyItemProductsOwnership,
   checkDraftRules,
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
@@ -40,7 +38,6 @@ import {
   invoiceAmountsSchema,
   invoiceShapeSchema,
   invoiceUpdateFormSchema,
-  checkDiscountCap,
   checkDueDate,
   type FieldErrors,
   type InvoiceFormInput,
@@ -711,28 +708,19 @@ async function updateInvoiceUnspanned(
         });
       }
 
-      // Step 7: a draft (T09 adds every draft rule). The issued details are refreshed from the
-      // current records, which is what freezes when the draft is issued.
-      const relationsResult = await verifyInvoiceRelations(
-        userId,
-        validatedData.senderProfileId,
-        validatedData.customerId,
-        validatedData.bankAccountId,
-        undefined,
-        tx
-      );
-      if (!relationsResult.success) throw new InvoiceRefusal(relationsResult);
-
-      // F-48: every item's productId, if any, must belong to this same Freelancer.
-      const productOwnershipResult = await verifyItemProductsOwnership(userId, validatedData.items);
-      if (!productOwnershipResult.success) throw new InvoiceRefusal(productOwnershipResult);
-
-      const discountErrors = checkDiscountCap(validatedData);
-      if (hasFieldErrors(discountErrors)) {
-        throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: discountErrors }));
+      // Step 7 (T09, flow 4): a draft, including one being issued from the editor. Every draft rule
+      // on the locked row, all failures together: ownership (NOT_FOUND), currencies, amount bounds,
+      // discount cap, due date. The issued details are then refreshed from the current records,
+      // which is what freezes when the draft is issued (AC-02).
+      const draftRules = await checkDraftRules(userId, validatedData, tx);
+      if (!draftRules.success) throw new InvoiceRefusal(draftRules);
+      if (hasFieldErrors(draftRules.data.fieldErrors)) {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: draftRules.data.fieldErrors })
+        );
       }
 
-      const { senderProfile, customer, bankAccount } = relationsResult.data;
+      const { senderProfile, customer, bankAccount } = draftRules.data;
       const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
 
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a

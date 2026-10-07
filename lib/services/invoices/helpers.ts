@@ -251,38 +251,6 @@ function isCatalogueProductId(id: string | null | undefined): id is string {
   return Boolean(id) && id !== 'custom';
 }
 
-/**
- * F-48: item.productId was stored with no ownership check at all, so a request could carry
- * another Freelancer's product id — which that product's real owner then couldn't have its
- * currency/unit changed or be deleted (the "used in N invoice(s)" conflict would count an
- * invoice that isn't theirs). Checked against every non-empty, non-'custom' productId at once.
- */
-export async function verifyItemProductsOwnership(
-  userId: string,
-  items: { productId?: string }[]
-): Promise<ActionResult<void>> {
-  const productIds = Array.from(
-    new Set(
-      items
-        .map((item) => item.productId)
-        .filter((id): id is string => Boolean(id) && id !== 'custom')
-    )
-  );
-
-  if (productIds.length === 0) return ok();
-
-  const owned = await prisma.product.findMany({
-    where: { id: { in: productIds }, userId },
-    select: { id: true },
-  });
-
-  if (owned.length !== productIds.length) {
-    return fail('NOT_FOUND', 'Product not found.');
-  }
-
-  return ok();
-}
-
 /** The values the draft rules read (invoice-integrity, flows 3, 4 and 5). */
 export interface DraftRuleValues extends InvoiceAmountRuleValues, InvoiceCurrencyCheck {
   items: { productId?: string | null; quantity: number; price: number }[];

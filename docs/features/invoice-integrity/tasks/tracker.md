@@ -13,7 +13,7 @@
 | T06 | [Check the bank account's and every catalogue line product's currency against the invoice in verifyInvoiceRelations](./t06-currency-relations.md) | app | Dmytro Hopko | S | — | done |
 | T07 | [Create and duplicate invoices only as drafts under the draft rules, numbered by the issue date's year](./t07-create-and-duplicate.md) | app | Dmytro Hopko | M | T01, T02, T03, T05, T06 | done |
 | T08 | [Refuse outdated, cancelled, lifecycle-breaking and locked-field saves in updateInvoice and write only the four editable fields on issued invoices](./t08-update-freshness-and-issued-lock.md) | app | Dmytro Hopko | L | T02, T03, T04, T05, T07 | done |
-| T09 | [Apply every draft rule on draft saves and issuing from the editor, refreshing issued details only while the invoice is a draft](./t09-update-draft-branch.md) | app | Dmytro Hopko | M | T05, T06, T08 | todo |
+| T09 | [Apply every draft rule on draft saves and issuing from the editor, refreshing issued details only while the invoice is a draft](./t09-update-draft-branch.md) | app | Dmytro Hopko | M | T05, T06, T08 | done |
 | T10 | [Decide list status changes and deletes under the row lock with the lifecycle and the draft rules on issue](./t10-status-change-and-delete.md) | app | Dmytro Hopko | M | T02, T03, T05, T06, T09 | todo |
 | T11 | [Keep exactly one default sender profile per Freelancer under the User row lock](./t11-sender-profile-defaults.md) | app | Dmytro Hopko | M | T02 | todo |
 | T12 | [Keep exactly one default bank account per sender profile and lock the currency of an account used by invoices](./t12-bank-account-defaults-and-currency-lock.md) | app | Dmytro Hopko | M | T02 | todo |
