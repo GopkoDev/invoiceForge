@@ -106,14 +106,21 @@ export async function updateProduct(
     });
     if (!existing) return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
 
+    // invoice-integrity T13 (AC-13b): the currency lock counts invoices in any status, not lines.
+    if (validatedData.currency !== existing.currency) {
+      const usedBy = await prisma.invoiceItem.groupBy({ by: ['invoiceId'], where: { productId: id } });
+      const invoiceCount = usedBy.length;
+      if (invoiceCount > 0) {
+        const message = `The currency of a product used on ${invoiceCount} invoice(s) can't change.`;
+        return fail('CONFLICT', message, {
+          fieldErrors: { currency: [message] },
+          details: { kind: 'HAS_INVOICES', invoiceCount },
+        });
+      }
+    }
+
     const used = existing._count.invoiceItems;
     if (used > 0) {
-      if (validatedData.currency !== existing.currency) {
-        return fail(
-          'CONFLICT',
-          `Cannot change currency for product used in ${used} invoice(s). Create a new product instead.`,
-        );
-      }
       if (validatedData.unit !== existing.unit) {
         return fail(
           'CONFLICT',
