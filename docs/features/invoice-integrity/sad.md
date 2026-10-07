@@ -15,26 +15,22 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 1. Introduction and goals
 
-<!-- 🎯 Why: durable memory of «what + the three dominant qualities + who cares». A year from
-     now nobody recalls which three qualities were critical for this system.
-     📋 Write: 1 ¶ intent + 3 lines of top-3 quality goals + a stakeholders table.
-     ¶4 is the override slot — critic `Override` resolutions emit «Decision override: <headline>
-     — rationale: <reason>» bullets here so downstream skills see the deliberate choice. -->
-
-**Intent.** <One paragraph from spec §2 Goals — what we're building and for whom.>
+**Intent.** Make every invoice rule hold in the one shared business layer (`lib/services`), so the editor, any other web path, a stale tab, a script with the Freelancer's session and the coming Assistant write tools all get the same answer (spec §1, §2). Concretely: an issued invoice keeps its issued details, lines, amounts, issue date, currency and number, and its PDF prints those issued details, the bank account number included; statuses follow one lifecycle with no way back to draft and a final cancelled state; a save made from an outdated view is refused; currency, amount and date rules return field errors instead of generic failures; each Freelancer has exactly one default sender profile and each sender profile exactly one default bank account; and the year in a system-assigned invoice number comes from the issue date. The feature is the prerequisite for letting an Assistant create and edit drafts, which stays out of scope (spec §3). The people served are every Freelancer with issued invoices and the Customers who receive and pay them.
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
-1. <e.g. "Availability under partial failure of a downstream module">
-2. <e.g. "Read performance for the dashboard under data-scale growth">
-3. <e.g. "Recoverability with <30 min RTO">
+1. **Document fidelity** — an issued invoice and its PDF keep saying what the Customer received, whatever later happens to the sender profile, Customer or bank account.
+2. **Integrity on every write path** — no caller can move a status outside the lifecycle, edit an issued invoice beyond its four editable fields, store mismatched currencies, leave more or fewer than one default, or overwrite a newer change from an outdated view.
+3. **Explainable refusals at no noticeable cost** — every rejected amount, date, price, discount or currency comes back as a field error, and saves and status changes stay within 10 % of their pre-release latency.
 
 **Stakeholders.**
 
 | Role | Interest | Sign-off owner? |
 |---|---|---|
-| <author role from glossary> | <feature usage> | No |
-| <consumer role from glossary> | <read usage> | No |
+| Freelancer | Issues, corrects, cancels and duplicates invoices; manages sender profiles, bank accounts and products under the new rules | No |
+| Customer | Receives and pays the PDF; needs it to match what was issued, account number included | No |
+| Assistant | Reads an invoice's issued details today; inherits every rule when write tools arrive in the next feature | No |
+| Security Lead | Confirms every invoice write path goes through the new rules (spec §6.1 "Security review: Required") | Yes |
 | Tech Lead | SAD approval | Yes |
 
 <!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
