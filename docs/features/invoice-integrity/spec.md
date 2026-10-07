@@ -18,10 +18,10 @@ An invoice is a legal and financial document. Once a Freelancer sends it, it mus
 There is no incident behind this. The trigger is sequencing. `service-layer` moved every invoice rule into one business layer that the web app and Assistants share, and `mcp-server` gave Assistants read access. The next roadmap step, letting an Assistant create and edit drafts, was explicitly deferred until the server enforces status transitions (D4) and currency rules (D6). This feature is that prerequisite. A check of the current code confirmed D1, D2, D5, D6, D8, D9 and D11 are still open, D4, D7 and D10 are partly open, and D3 is closed: `mcp-server` already derives overdue invoices from the due date in the Freelancer time zone, so D3 is out of scope here.
 
 **Committed approach.** Every rule is enforced once, in the shared business layer, so the editor, any other web path and any future Assistant write tool get the same answer. The rules:
-- **Issued invoices are fixed documents.** A draft is fully editable and follows the current records on each save. From the moment it is issued, an invoice keeps its issued details, lines, amounts, issue date and currency; only its due date and notes can change. Anything else needs Cancel and then Duplicate.
+- **Issued invoices are fixed documents.** A draft is fully editable and follows the current records on each save. From the moment it is issued, an invoice keeps its issued details, lines, amounts, issue date, currency, number and every other field; only its due date, notes, payment terms and PO number can change. Anything else needs Cancel and then Duplicate.
 - **The PDF prints the invoice's issued details**, including the bank account number, not the current records.
-- **One status lifecycle:** draft → pending; pending → paid, overdue or cancelled; overdue (marked by hand) → pending while not yet past due, paid or cancelled; paid → pending to undo a mistaken payment. Cancelled is final, an issued invoice never returns to draft, and only drafts can be deleted.
-- **A save made from an outdated view is refused** rather than overwriting a newer status or payment date.
+- **One status lifecycle:** every new invoice, including a duplicate, starts as a draft; draft → pending; pending → paid, overdue or cancelled; overdue (marked by hand) → pending while not yet past due, paid or cancelled; paid → pending to undo a mistaken payment. Cancelled is final, an issued invoice never returns to draft, and only drafts can be deleted.
+- **A save made from an outdated view is refused** rather than overwriting a newer status or payment date. A view is outdated when the invoice changed in any way after the view was loaded. Status changes from the invoice list are judged by the lifecycle against the invoice's current status.
 - **Currency, amount and date rules** from the editor also hold in the business layer and come back as plain field errors.
 - **Exactly one default** sender profile per Freelancer and one default bank account per sender profile.
 - **The year in a system-assigned invoice number comes from the invoice's issue date.**
@@ -30,7 +30,7 @@ The approach was chosen at easy interview depth, without competitive research, f
 
 Decisions taken during the interview, recorded for traceability:
 
-- **Editing an issued invoice:** only the due date and notes. Every other change requires cancelling the invoice and duplicating it. A cancelled invoice is read-only. (Freelancer's choice over "editable with fixed details" and "paid and cancelled read-only".)
+- **Editing an issued invoice:** only the due date, notes, payment terms and PO number (payment terms and PO number added during clarify, because they travel with the due date and are often corrected after sending). Every other change requires cancelling the invoice and duplicating it. A cancelled invoice is read-only. (Freelancer's choice over "editable with fixed details" and "paid and cancelled read-only".)
 - **Status matrix:** the brief's matrix without any path back to draft; cancelled is final. Two changes from the brief: draft → cancelled is removed, because a draft is simply deleted and a cancelled invoice is, by definition, one withdrawn after issuing. Overdue → pending is allowed only for an invoice marked overdue by hand whose due date has not passed, so that the matrix agrees with `mcp-server`'s overdue rule, under which a past-due invoice is overdue regardless of its stored status.
 - **Numbering:** the year comes from the issue date; the counter keeps running across years without resetting; the number is still assigned on first save.
 - **Existing data:** before release, a count-only report lists records that already break the new rules. Duplicate defaults are repaired automatically at release by keeping the earliest-created default. No invoice is changed by the release.
@@ -38,7 +38,7 @@ Decisions taken during the interview, recorded for traceability:
 
 ## 2. Goals
 
-- An issued invoice stays the document the Customer received. Its PDF and its details do not change when the Freelancer later edits their sender profile, Customer or bank account, or edits the invoice's due date or notes.
+- An issued invoice stays the document the Customer received. Its PDF and its details do not change when the Freelancer later edits their sender profile, Customer or bank account, or edits the invoice's due date, notes, payment terms and PO number.
 - No caller, whether the editor, a stale tab, a script using the Freelancer's session or a future Assistant, can move an invoice through a status change outside the lifecycle, store an invoice whose currencies disagree, or overwrite a newer status with an older one.
 - Every invalid amount, date or currency is answered with a plain explanation tied to the field, never a generic failure. This makes the business layer safe to open to Assistant writes.
 
@@ -75,7 +75,7 @@ Decisions taken during the interview, recorded for traceability:
 ### US-04: Correct an issued invoice safely
 
 **As a** Freelancer
-**I want** to change only the due date and notes of an issued invoice, and to cancel and duplicate it for anything else
+**I want** to change only the due date, notes, payment terms and PO number of an issued invoice, and to cancel and duplicate it for anything else
 **So that** small corrections stay easy while what I billed stays fixed
 
 ### US-05: An old view never overwrites a newer change
@@ -132,7 +132,7 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer with a draft invoice for a Customer whose address they have just corrected
 **When** they save the draft
-**Then** the draft shows the corrected address. When they later issue it, that address becomes part of its issued details and no longer changes
+**Then** the draft shows the corrected address. When they later issue it, from the editor or from the invoice list, the issued details saved with the draft at its last save become fixed and no longer change. A Customer, sender profile or bank account change made after the draft's last save reaches the invoice only if the draft is saved again before it is issued. The PDF of a draft prints the issued details from its last save
 
 ### AC-03 (US-02) — happy path
 
@@ -144,7 +144,13 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer with invoices in each status
 **When** they change statuses
-**Then** only these changes are accepted: draft to pending; pending to paid, overdue or cancelled; overdue that was marked by hand to pending, while the due date has not passed; overdue to paid or cancelled; paid to pending. Entering paid records the payment date, and paid to pending clears it. Every other change is refused, and the invoice is left as it was
+**Then** only these changes are accepted: draft to pending; pending to paid, overdue or cancelled; overdue that was marked by hand to pending, while the due date has not passed; overdue to paid or cancelled; paid to pending. Entering paid records the payment date, the moment the invoice was marked paid, and paid to pending clears it. A request for the status the invoice already has is not a status change: it is accepted together with the rest of the save, subject to the other rules, and never touches the payment date. Every other change is refused, and the invoice is left as it was
+
+### AC-04b (US-03) — domain invariant
+
+**Given** a Freelancer creating a new invoice or duplicating an existing one, from the editor or from any other path
+**When** the new invoice is saved with any status other than draft
+**Then** the system refuses and explains that a new invoice always starts as a draft and is issued by moving it to pending. A duplicate is always created as a draft
 
 ### AC-05 (US-03) — domain invariant
 
@@ -162,13 +168,13 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer with a pending invoice that became overdue yesterday
 **When** they move its due date to next week, add a note and save
-**Then** both changes are saved, the invoice is no longer counted as overdue, and its issued details, lines, amounts, issue date, currency and number are unchanged
+**Then** both changes are saved, the invoice is no longer counted as overdue, and its issued details, lines, amounts, issue date, currency and number are unchanged. An invoice the Freelancer marked overdue by hand stays overdue when its due date is moved into the future, until they move it back to pending themselves
 
 ### AC-08 (US-04) — domain invariant
 
 **Given** a Freelancer with an issued invoice
-**When** they try to change a line, a price, a quantity, the tax, the discount, the issue date, the currency, the Customer, the sender profile, the bank account or the number
-**Then** the editor shows those fields as read-only. Any such change that reaches the system anyway is refused with the explanation that an issued invoice can only change its due date and notes, and that cancelling and duplicating it is the way to correct it
+**When** they try to change any field other than the due date, notes, payment terms and PO number, such as a line (its product, description, unit, quantity or price), the tax, the discount, the shipping, the terms, the issue date, the currency, the Customer, the sender profile, the bank account or the number
+**Then** the editor shows those fields as read-only. Any such change that reaches the system anyway is refused with the explanation that an issued invoice can only change its due date, notes, payment terms and PO number, and that cancelling and duplicating it is the way to correct it
 
 ### AC-09 (US-04) — error
 
@@ -180,7 +186,7 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer has a pending invoice open in the editor, and marks it paid from the invoice list in another tab
 **When** they save from the editor that was opened before the payment
-**Then** the system refuses the save and tells them the invoice was changed elsewhere and must be reloaded. The invoice stays paid with its payment date, and nothing from the refused save is stored
+**Then** the system refuses the save and tells them the invoice was changed elsewhere and must be reloaded. The invoice stays paid with its payment date, and nothing from the refused save is stored. The same refusal applies to drafts and to any change made elsewhere after the editor was opened, including a notes-only edit. A status change from the invoice list is not checked for freshness; it is accepted or refused by AC-04 against the invoice's current status, so marking paid an invoice that was cancelled elsewhere is refused as a change out of cancelled
 
 ### AC-11 (US-06) — error
 
@@ -196,15 +202,21 @@ Decisions taken during the interview, recorded for traceability:
 
 ### AC-13 (US-06) — domain invariant
 
-**Given** a bank account used by three invoices
+**Given** a bank account used by three invoices, counting invoices in any status, drafts and cancelled invoices included
 **When** the Freelancer tries to change that account's currency
 **Then** the system refuses and explains that the currency of an account used by invoices cannot change, naming how many invoices use it. Other fields of the account can still be edited
+
+### AC-13b (US-06) — domain invariant
+
+**Given** a catalogue product that appears on a line of at least one invoice in any status, drafts and cancelled invoices included
+**When** the Freelancer tries to change that product's currency
+**Then** the system refuses and explains that the currency of a product used on invoices cannot change, naming how many invoices use it. Other fields of the product can still be edited
 
 ### AC-14 (US-06) — cross-context
 
 **Given** an invoice issued before this release whose currency differs from its bank account's
 **When** the Freelancer changes its notes or due date and saves
-**Then** the save succeeds, because the currency rule is checked only when the currency, bank account or lines change, and those are fixed on an issued invoice. A draft saved before this release with mismatching currencies is blocked on its next save with the explanation from AC-11 until the Freelancer fixes it
+**Then** the save succeeds. On an issued invoice only the rules of the fields that actually changed are checked: a changed due date must not be before the issue date (AC-09), while the currency, amount and discount rules are not re-checked, because those fields are fixed. On a draft every rule, the currency rule included, is checked on every save and when it moves to pending from any path. A draft saved before this release with mismatching currencies is therefore blocked on its next save, even a notes-only one, and cannot be issued, with the explanation from AC-11, until the Freelancer fixes it
 
 ### AC-15 (US-07) — cross-context
 
@@ -224,6 +236,12 @@ Decisions taken during the interview, recorded for traceability:
 **When** they make B the default by double-clicking, or from two tabs at the same moment
 **Then** exactly one profile is the default afterwards. The same holds for bank accounts within one sender profile. If making B the default fails, A stays the default
 
+### AC-17b (US-08) — domain invariant
+
+**Given** a Freelancer managing sender profiles, or the bank accounts of one sender profile
+**When** they create the first one, delete the current default while others remain, or try to unset the default without choosing another
+**Then** the first one created becomes the default automatically; after the default is deleted, the earliest-created remaining one becomes the default; and the default cannot simply be unset, only replaced by making another one the default. At every moment exactly one is the default while any exist
+
 ### AC-18 (US-08) — cross-context
 
 **Given** Freelancers who, before this release, ended up with two default sender profiles, a sender profile with two default bank accounts, or sender profiles or bank accounts with no default at all
@@ -233,8 +251,8 @@ Decisions taken during the interview, recorded for traceability:
 ### AC-19 (US-09) — error
 
 **Given** a Freelancer editing a draft
-**When** they enter 1,000 hours at 150,000 on one line, making the line or the invoice total larger than 99,999,999.99, and save
-**Then** the system blocks the save and shows, on that line or on the total, that the amount cannot exceed 99,999,999.99. Nothing is stored and no generic failure is shown
+**When** they enter 1,000 hours at 150,000 on one line, making the line amount, the subtotal, the tax amount, the shipping or the total larger than 99,999,999.99, and save
+**Then** the system blocks the save and shows that the amount cannot exceed 99,999,999.99: on the line for a line amount, on the shipping field for shipping, and on the totals for the subtotal, tax amount or total. Each of these amounts is checked on its own, so a subtotal over the limit is refused even when a discount brings the total back under it. Nothing is stored and no generic failure is shown
 
 ### AC-20 (US-09) — error
 
@@ -244,15 +262,21 @@ Decisions taken during the interview, recorded for traceability:
 
 ### AC-20b (US-09) — error
 
-**Given** a Freelancer editing a draft whose lines add up to 1,000.00
+**Given** a Freelancer editing a draft whose lines add up to 1,000.00 with a shipping of 200.00
 **When** they enter a discount of 1,250.00 and save, from the editor or from any other path
-**Then** the system blocks the save and shows on the discount field that the discount cannot exceed the sum of the lines
+**Then** the system blocks the save and shows on the discount field that the discount cannot exceed the sum of the lines plus the shipping. A discount of 1,200.00 is accepted
 
 ### AC-21 (US-10) — happy path
 
 **Given** a Freelancer whose last system-assigned number for a sender profile was INV-2026-0041
 **When** on 2 January 2027 they create an invoice with issue date 28 December 2026
 **Then** it is numbered INV-2026-0042, and the next invoice dated in 2027 gets INV-2027-0043
+
+### AC-21b (US-10) — domain invariant
+
+**Given** a draft created on 28 December 2026 with issue date 28 December 2026 and system-assigned number INV-2026-0042
+**When** the Freelancer moves its issue date to 3 January 2027 and saves
+**Then** the number stays INV-2026-0042. The year is taken from the issue date only when the number is assigned, on the first save; a Freelancer who wants a different number types it by hand
 
 ### AC-22 (US-10) — cross-context
 
@@ -275,7 +299,7 @@ Decisions taken during the interview, recorded for traceability:
 ### AC-25 (US-11) — cross-context
 
 **Given** a request that does not come from the editor, such as a stale tab or a script using the Freelancer's own session
-**When** it asks for a forbidden status change, an issued-invoice edit beyond the due date and notes, or a draft with mismatching currencies
+**When** it asks for a forbidden status change, an issued-invoice edit beyond the due date, notes, payment terms and PO number, or a draft with mismatching currencies
 **Then** it receives the same refusal and explanation the editor would get, and nothing is stored
 
 ### AC-26 (US-11) — cross-context
@@ -290,7 +314,7 @@ Decisions taken during the interview, recorded for traceability:
 |---|---|---|
 | Latency p95, invoice save and status change | no more than 10 % slower than the 7 days before release | save and status-change spans in error tracking, 7-day window after release |
 | PDF fidelity | 100 % of fixture issued invoices produce identical PDF text before and after their sender profile, Customer and bank account are changed. This is text, not byte-for-byte as the brief proposed, because the logo stays current (§3) | automated test over a seeded fixture, run in CI |
-| Status lifecycle coverage | 100 % of the 25 from–to status pairs tested on every write path; each pair outside AC-04 refused | automated test matrix, run in CI |
+| Status lifecycle coverage | 100 % of the 25 from–to status pairs tested on every write path: of the 20 pairs between different statuses, each outside AC-04 refused; the 5 same-status pairs accepted with status and payment date unchanged; creation in each non-draft status refused (AC-04b) | automated test matrix, run in CI |
 | Concurrent saves | 0 lost status or payment-date changes across 50 runs of an outdated editor save racing a status change | integration test |
 | Default uniqueness | exactly 1 default after 10 parallel "set as default" requests, for sender profiles and for bank accounts | integration test |
 | Generic failures from user input | 0 generic failures for amount, date, price, discount or currency input; each comes back as a field error | automated tests per AC-09, AC-11, AC-12, AC-19, AC-20, AC-20b + error tracking, 30 days after release |
@@ -319,5 +343,5 @@ Decisions taken during the interview, recorded for traceability:
 ## 8. Open questions
 
 - [ ] What does the pre-release report find, and does any category besides duplicate defaults need a one-time repair? Default now: report counts only and repair nothing else. — owner: Dmytro Hopko, due: before the production deploy of `invoice-integrity`
-- [ ] How are existing Freelancers told that issued invoices are now locked except for the due date and notes? Default now: a short note in the editor the first time they open an issued invoice after release. — owner: Dmytro Hopko, due: before `sdd:tasks`
+- [ ] How are existing Freelancers told that issued invoices are now locked except for the due date, notes, payment terms and PO number? Default now: a short note in the editor the first time they open an issued invoice after release. — owner: Dmytro Hopko, due: before `sdd:tasks`
 - [ ] Should a duplicate made to correct a cancelled invoice show a reference to the invoice it replaces? Default now: no reference; the cancelled one keeps its number and stays listed. — owner: Dmytro Hopko, due: before `sdd:design`

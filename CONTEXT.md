@@ -41,6 +41,6 @@ lives in spec.md.
 - An invoice number can never repeat within one sender profile.
 - A customer or sender profile that has invoices can never be deleted on its own; only deleting the whole account removes them together.
 - An issued invoice never returns to draft, and a cancelled invoice never changes again.
-- Once issued, an invoice keeps its issued details, lines, amounts, issue date and currency; only its due date and notes can still change.
+- Once issued, an invoice keeps its issued details, lines, amounts, issue date and currency; only its due date, notes, payment terms and PO number can still change.
 - An invoice, its bank account and every catalogue product on its lines share one currency.
 - A Freelancer has exactly one default sender profile while they have any, and a sender profile exactly one default bank account while it has any.
