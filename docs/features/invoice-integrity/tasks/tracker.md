@@ -8,7 +8,7 @@
 | T01 | [Wrap invoice saves and status changes in Sentry spans and tag generic failures by path](./t01-save-and-status-spans.md) | app | Dmytro Hopko | S | — | todo |
 | T02 | [Promote the four staged migrations, declare them in the Prisma schema and adapt the test factories](./t02-promote-migrations-and-test-support.md) | migration | Dmytro Hopko | M | — | done |
 | T03 | [Encode the status lifecycle as a transition table with decideStatusChange and add the new ActionResult detail kinds](./t03-lifecycle-module.md) | domain | Dmytro Hopko | M | — | done |
-| T04 | [Add the pure locked-field comparison for issued invoices built on the write normalizers](./t04-locked-field-comparison.md) | domain | Dmytro Hopko | M | — | todo |
+| T04 | [Add the pure locked-field comparison for issued invoices built on the write normalizers](./t04-locked-field-comparison.md) | domain | Dmytro Hopko | M | — | done |
 | T05 | [Bound every computed amount, cap the discount and require due date ≥ issue date in the shared invoice schema](./t05-amount-and-date-bounds.md) | domain | Dmytro Hopko | M | — | todo |
 | T06 | [Check the bank account's and every catalogue line product's currency against the invoice in verifyInvoiceRelations](./t06-currency-relations.md) | app | Dmytro Hopko | S | — | todo |
 | T07 | [Create and duplicate invoices only as drafts under the draft rules, numbered by the issue date's year](./t07-create-and-duplicate.md) | app | Dmytro Hopko | M | T01, T02, T03, T05, T06 | todo |
