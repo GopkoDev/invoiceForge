@@ -346,22 +346,24 @@ Each top-3 goal from §1 expanded into scenarios; every number is quoted from sp
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| The latency baseline does not exist: no Sentry spans wrap invoice saves or status changes today, so "7 days before release" cannot be measured if the spans ship with the feature | High | Ship `invoices.save` and `invoices.status-change` spans first as a behaviour-free change, released at least 7 days before this feature; resolve before `implement` (it is the first task) | Dmytro Hopko |
+| Invoices issued before the release carry the snapshot from their last save, which may already differ from what the Customer received (brief D2) | Medium | Accepted: no automatic repair (spec §3); from the release on the copy is frozen; the count-only report states how many issued invoices were saved after a related record changed, where that can be inferred | Dmytro Hopko |
+| Drafts saved before the release with mismatching currencies are blocked on their next save, even a notes-only one (AC-14) | Medium | Intended by the spec; the field error names the bank account or line to fix; the report counts such drafts before release | Dmytro Hopko |
+| The locked-field comparison drifts from the write normalizers and refuses a legitimate notes-only save (ADR-0003) | Medium | One comparison module built on the same decimal and calendar-day helpers as the write; unit tests per locked field, including legacy instants and decimal scale | Dmytro Hopko |
+| A future invoice write outside `lib/services` (a script or raw SQL) bypasses the lifecycle, the locked fields and the version bump (ADR-0002, ADR-0004) | Medium | Lint rules of service-layer ADR-0006; a test asserting every invoice write path bumps `version`; the security review confirms every write path (spec §6.1) | Security Lead |
+| The partial unique default indexes live outside `schema.prisma`, so a later generated migration could drop them (ADR-0005) | Low | Record them in `data-model.md`; an integration test asserts the index refuses a second default | Dmytro Hopko |
+| Issued-invoice lock adds friction: corrections need Cancel then Duplicate | Medium | Track the spec §7 cancel-and-duplicate KPI (no more than 5 % of issued invoices per month within 60 days); above that, revisit which fields stay editable | Dmytro Hopko |
+| `docs/architecture-map.md` is stale (reflects `ded1be7`) | Low | The design relied on a fresh scan at `f8bfaf4`; refresh with `survey` before the next feature | Dmytro Hopko |
+| Open question (spec §8): what the pre-release report finds, and whether any category besides duplicate defaults needs a one-time repair | Open question | Resolve before the production deploy of `invoice-integrity`; default now: report counts only and repair nothing else | Dmytro Hopko |
+| Open question (spec §8): how existing Freelancers learn that issued invoices are locked except for the due date, notes, payment terms and PO number | Open question | Resolve before `sdd:tasks`; default now: a short note in the editor the first time they open an issued invoice after release | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- Issued details stay as flat columns; adding a printed field means adding a column (ADR-0001).
+- "At least one default" is a service rule, not a database constraint (ADR-0005).
+- No database backstop for the status lifecycle; it relies on every write going through `lib/services` (ADR-0002).
+- `Invoice.senderLogo` stays stored but unused for printing; the PDF shows the current logo (spec §3).
 
 ## 12. Glossary
 
