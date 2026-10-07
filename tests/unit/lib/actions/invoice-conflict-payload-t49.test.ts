@@ -12,6 +12,9 @@ vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () =>
 
 const captureMessageMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+
   captureMessage: (...a: unknown[]) => captureMessageMock(...a),
   captureException: vi.fn(),
 }));

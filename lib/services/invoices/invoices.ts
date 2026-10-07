@@ -33,7 +33,7 @@ import {
   verifyItemProductsOwnership,
 } from '@/lib/services/invoices/helpers';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
-import { captureMessage } from '@sentry/nextjs';
+import { captureMessage, startSpan } from '@sentry/nextjs';
 import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
 import {
   isDerivedOverdue,
@@ -349,7 +349,13 @@ export async function resolveManualOrAllocatedNumber(
 }
 
 
-export async function createInvoice(
+export async function createInvoice(actor: ActingFreelancer, data: InvoiceFormInput) {
+  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'create' } }, () =>
+    createInvoiceUnspanned(actor, data)
+  );
+}
+
+async function createInvoiceUnspanned(
   actor: ActingFreelancer,
   data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
@@ -493,7 +499,7 @@ export async function createInvoice(
       }
       return invoiceNumberConflict();
     }
-    return failed('Error creating invoice:', error, 'Failed to create invoice.');
+    return failed('Error creating invoice:', error, 'Failed to create invoice.', 'invoices.create');
   }
 }
 
@@ -537,7 +543,13 @@ function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Dat
   return submitted;
 }
 
-export async function updateInvoice(
+export async function updateInvoice(actor: ActingFreelancer, id: string, data: InvoiceFormInput) {
+  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'update' } }, () =>
+    updateInvoiceUnspanned(actor, id, data)
+  );
+}
+
+async function updateInvoiceUnspanned(
   actor: ActingFreelancer,
   id: string,
   data: InvoiceFormInput
@@ -791,14 +803,20 @@ export async function updateInvoice(
       }
       return invoiceNumberConflict();
     }
-    return failed('Error updating invoice:', error, 'Failed to update invoice.');
+    return failed('Error updating invoice:', error, 'Failed to update invoice.', 'invoices.update');
   }
 }
 
 // Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
 // amount, number or legacy checks (AC-17 last sentence). The status/paid-date rule itself lives
 // once in applyStatusChange (sad.md §8).
-export async function updateInvoiceStatus(
+export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
+  return startSpan({ name: 'invoices.status-change', op: 'function' }, () =>
+    updateInvoiceStatusUnspanned(actor, id, status)
+  );
+}
+
+async function updateInvoiceStatusUnspanned(
   actor: ActingFreelancer,
   id: string,
   status: string
@@ -845,7 +863,7 @@ export async function updateInvoiceStatus(
       paidAt: outcome.paidAt ? outcome.paidAt.toISOString() : null,
     });
   } catch (error) {
-    return failed('Error updating invoice status:', error, 'Failed to update invoice status.');
+    return failed('Error updating invoice status:', error, 'Failed to update invoice status.', 'invoices.status-change');
   }
 }
 
@@ -853,7 +871,13 @@ export async function updateInvoiceStatus(
 // Duplicate an existing invoice (Flow 6, duplicate branch, AC-12). In one transaction: allocate
 // from the original's sender-profile sequence (same allocator and format as createInvoice),
 // insert the copy with recomputed amounts, status DRAFT, paidAt null.
-export async function duplicateInvoice(
+export async function duplicateInvoice(actor: ActingFreelancer, id: string) {
+  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'duplicate' } }, () =>
+    duplicateInvoiceUnspanned(actor, id)
+  );
+}
+
+async function duplicateInvoiceUnspanned(
   actor: ActingFreelancer,
   id: string
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
@@ -990,7 +1014,7 @@ export async function duplicateInvoice(
       captureMessage('invoice_number_conflict', { extra: { id } });
       return fail('FAILED', 'Failed to duplicate invoice.');
     }
-    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.');
+    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.', 'invoices.duplicate');
   }
 }
 

@@ -17,7 +17,10 @@ import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
 
 type Result = {
   success: boolean;

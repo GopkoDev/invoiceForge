@@ -36,7 +36,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () => null, seedTimeZoneIfEmpty: async () => false }));
 
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
 
 // duplicateInvoice always auto-allocates (never a manual number), so this test skips the real
 // row-locked allocator entirely and drives the P2002-despite-the-lock path directly.

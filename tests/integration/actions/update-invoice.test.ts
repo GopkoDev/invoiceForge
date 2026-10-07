@@ -69,7 +69,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
 // --- Sentry: invoice-actions.ts imports captureMessage at module load; stub so no real DSN/init
 // is required. --------------------------------------------------------------------------------
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: vi.fn() }));
 
 type SavedInvoice = {
   id: string;

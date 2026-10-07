@@ -68,7 +68,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 // Sentry.captureMessage('invoice_number_conflict', ...). Mocked so the test can observe the call
 // without a real DSN/init. ------------------------------------------------------------------------
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
 
 type SavedInvoice = {
   id: string;

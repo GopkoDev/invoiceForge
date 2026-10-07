@@ -42,9 +42,17 @@ export function isUniqueConstraintError(error: unknown): boolean {
  * called captureException), and returns the plain-language message the client shows. The log line
  * carries a redacted form of the error: Prisma messages embed the call arguments (U-01).
  */
-export function failed(logContext: string, error: unknown, message: string): ActionFailure {
+export function failed(
+  logContext: string,
+  error: unknown,
+  message: string,
+  path?: string
+): ActionFailure {
   console.error(logContext, redactError(error));
-  captureException(error);
+  // invoice-integrity T01: `path` tags the event (e.g. 'invoices.update') so generic save failures
+  // can be counted per write path (spec.md §6, sad.md §7 Monitoring). Ids only, never form data.
+  if (path) captureException(error, { tags: { path } });
+  else captureException(error);
   return fail('FAILED', message);
 }
 
