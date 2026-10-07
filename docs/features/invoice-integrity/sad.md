@@ -37,30 +37,33 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 2. Constraints
 
-<!-- 🎯 Why: §4 strategy only works when §2 has fixed WHAT IS ALREADY FIXED — stack, versions,
-     deadline, regulatory. This is an input, not an output.
-     📋 Write: four blocks — Technical / Organisational / Conventions / Regulatory.
-     📌 Pin versions («<datastore> 18», not «<datastore>»); «Q3 deadline — hard», not «ideally».
-     Never N/A — every feature inherits at least Conventions + Technical. -->
-
 **Technical.**
-- <Language + version>
-- <Framework(s) + version>
-- <Datastore(s) + version>
-- <Architecture convention — e.g. the layering style from the project convention file>
+- TypeScript 5 (strict) on Node.js, pnpm.
+- Next.js 16.3 App Router (React Server Components, server actions, route handlers on the Node.js runtime), React 19.2, next-auth 5 beta (JWT sessions), zod 3.25.
+- PostgreSQL via Prisma 7.10 + `@prisma/adapter-pg`; split schema in `prisma/schema/`; migrations by `prisma migrate`, applied by `prisma migrate deploy` during `pnpm build`.
+- Hosted on Vercel, single region `fra1` (`vercel.json`); one daily cron (`/api/cron/purge-limits`).
+- Business logic only in `lib/services/*`, every function taking a branded `ActingFreelancer { userId, timeZone }` first (service-layer ADR-0001), isolated behind `server-only` + lint rules (service-layer ADR-0006), returning `ActionResult<T>` (service-layer ADR-0002), every write scoped by owner in its own `WHERE` (service-layer ADR-0003).
+- Invoice numbers allocated under a `SenderProfile` row lock (architecture-hardening ADR-0005) and unique on the normalized key `(senderProfileId, invoiceNumberKey)` (architecture-hardening ADR-0004); amounts computed by the one shared decimal module (architecture-hardening ADR-0006); issue and due dates are calendar days stored at `T00:00:00Z` (mcp-server ADR-0009); overdue is derived at read time by one rule module (mcp-server ADR-0005).
+- The issued details already exist as flat snapshot columns on `Invoice` (`sender*`, `customer*`, `bank*`, `accountName`); lines are copies in `InvoiceItem` with a nullable `productId` (`SetNull` on product delete); `Invoice.paidAt`, `Invoice.updatedAt` exist; `SenderProfile.isDefault` and `BankAccount.isDefault` are plain booleans with no constraint.
+- Tests: vitest (unit, component) + an integration config on throwaway PostgreSQL containers (testcontainers, `fileParallelism: false`).
 
 **Organisational.**
-- <Effort budget — e.g. 3 person-weeks>
-- <Deadline — e.g. 2026-Q3 hard>
-- <Team composition>
+- No external deadline; the trigger is sequencing — this feature must ship before Assistant write tools (spec §1).
+- Size M (`docs/features/invoice-integrity/.size`), route `standard`.
+- Team: one developer (Dmytro Hopko) working with AI agents through the SDD pipeline.
 
 **Conventions.**
-- <Link to the project's convention file>
-- <Naming, ID strategy, error-handling pattern>
+- `docs/architecture-map.md` §Conventions — stale (reflects `ded1be7`, before `service-layer`, `security-patch`, `architecture-hardening` and `mcp-server`); the ADRs cited above are authoritative where they differ.
+- Results: `ActionResult<T>` with typed codes `UNAUTHORIZED | NOT_FOUND | VALIDATION | CONFLICT | FAILED | RATE_LIMITED` and `fieldErrors` next to the offending field (`types/result.ts`; architecture-hardening ADR-0009).
+- Shared zod schemas in `lib/validations/` (server schema plus a client-only variant for the editor).
+- IDs: `cuid()` strings on every domain model.
+- Another Freelancer's record is answered exactly like a missing one (`NOT_FOUND`).
 
 **Regulatory / external.**
-- <e.g. data-retention / deletion behaviour per ADR-NNNN>
-- <e.g. applicable compliance controls, or N/A with a reason>
+- Data classification Confidential; issued invoices have legal weight (spec §6.1).
+- No new personal data; issued details are kept unchanged rather than refreshed (spec §6.1).
+- `/security-review` is mandatory before ship (spec §6.1, size M).
+- No automatic rewrite of issued invoices at release; only duplicate or missing defaults are repaired (spec §3, AC-18).
 
 ## 3. Context and scope
 
