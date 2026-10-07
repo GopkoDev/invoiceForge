@@ -32,7 +32,7 @@ ticket: "invoice-integrity"
 
 ## Decision outcome
 
-**Chosen:** Option 1. The database guarantees "at most one" on every path, present and future; the service guarantees "at least one" under a lock on the parent (`User` row for profiles, `SenderProfile` row for accounts) that also serializes the 10 parallel requests. Make-default clears and sets inside that transaction, so a failure rolls back to the old default. Create sets `isDefault` when no sibling exists; delete of the default promotes the earliest-created remaining sibling in the same transaction; an update that tries to clear the flag without choosing another is refused. Prisma's schema cannot express partial indexes, so they are raw SQL in the migration, which first repairs duplicates and gaps (earliest-created wins) and then creates the indexes in the same migration transaction. Option 2 would rewrite every reader and add cyclic foreign keys that complicate account deletion, and still needs the service for "at least one"; option 3 leaves no backstop for a future writer that forgets the lock.
+**Chosen:** Option 1. The database guarantees "at most one" on every path, present and future; the service guarantees "at least one" under a lock on the parent (`User` row for profiles, `SenderProfile` row for accounts) that also serializes the 10 parallel requests. Make-default clears and sets inside that transaction, so a failure rolls back to the old default. Create sets `isDefault` when no sibling exists; delete of the default promotes the earliest-created remaining sibling in the same transaction; an update that tries to clear the flag without choosing another is refused. The migration first repairs duplicates and gaps (earliest-created wins) and then creates the indexes in the same migration transaction. *Amended at `data-model`, 2026-10-07 (owner decision):* the indexes are also declared in the schema through Prisma 7.10's `partialIndexes` preview feature (`@@unique([…], where: { isDefault: true })`), so `migrate diff` sees them and a later generated migration does not drop them; the earlier premise that Prisma cannot express them no longer holds. Option 2 would rewrite every reader and add cyclic foreign keys that complicate account deletion, and still needs the service for "at least one"; option 3 leaves no backstop for a future writer that forgets the lock.
 
 ## Consequences
 
@@ -41,7 +41,7 @@ ticket: "invoice-integrity"
 - No reader changes.
 
 **Negative**
-- The indexes live outside `schema.prisma` and must be recorded in the data model so later migrations do not drop them.
+- The repo depends on a Prisma preview feature (`partialIndexes`); a Prisma upgrade that changes it must re-run `migrate diff` (amended 2026-10-07; the indexes are recorded in `data-model.md`).
 
 **Neutral**
 - The repair runs once at release and reports how many rows it changed.
