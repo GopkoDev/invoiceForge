@@ -67,37 +67,43 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+Invoice Forge is the invoicing web app a Freelancer uses to bill Customers. This feature changes no boundary: the Freelancer still works in the browser, the Customer still only receives the PDF the Freelancer sends, and an Assistant still reaches the read-only MCP endpoint with a Personal key. What changes is inside: every rule about issued invoices, statuses, currencies, amounts, defaults and numbering moves behind the business layer that all three paths share, and the PDF and the Assistant read the invoice's issued details instead of the current records.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: Next.js 16 monolith on Vercel fra1; lib/services business layer with ActingFreelancer and ActionResult; flat snapshot columns already on Invoice but re-copied on every save and ignored by the PDF (reads live relations); applyStatusChange accepts any transition; updateInvoice already locks the row FOR UPDATE; isDefault switch is two queries without a constraint; formatInvoiceNumber uses the server clock year; product currency lock exists, bank-account currency lock does not; no Sentry spans on invoice saves yet (explorer scan at f8bfaf4; architecture-map.md reflects ded1be7 and is stale) -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| Freelancer | Person | Edits drafts, issues, corrects, cancels and duplicates invoices; manages sender profiles, bank accounts and products; downloads PDFs |
+| Customer | Person (external) | Receives the PDF from the Freelancer outside Invoice Forge and pays it; never signs in |
+| Assistant (the Freelancer's MCP client) | System (external) | Reads invoices over the read-only MCP endpoint with a Personal key; now sees the issued details; still has no write tool (AC-24, AC-26) |
+| Visitor | Person (external) | Any caller without a session or key, a script with no session included; refused as today |
+| Sentry | System (external) | Error tracking and the new save and status-change spans — the measurement source for the latency and generic-failure NFRs |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+External: no new third-party system — deliberate; the feature only tightens rules inside the existing app.
+
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title invoice-integrity - System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(freelancer, "Freelancer", "Issues, corrects, cancels and duplicates invoices")
+    Person_Ext(customer, "Customer", "Receives and pays the invoice PDF")
+    Person_Ext(visitor, "Visitor", "Caller with no session or key")
+    System_Ext(assistant, "Assistant", "The Freelancer's MCP client, read-only")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(invoiceforge, "Invoice Forge", "Invoicing web app whose business layer enforces every invoice rule")
+
+    System_Ext(sentry, "Sentry", "Error tracking and request spans")
+
+    Rel(freelancer, invoiceforge, "Edits drafts, changes statuses, downloads PDFs", "HTTPS, browser session")
+    Rel(freelancer, customer, "Sends the PDF", "email, outside Invoice Forge")
+    Rel(freelancer, assistant, "Asks about invoices")
+    Rel(assistant, invoiceforge, "Reads invoices and their issued details", "MCP over HTTPS, Bearer Personal key")
+    Rel(visitor, invoiceforge, "Is refused", "HTTPS")
+    Rel(invoiceforge, sentry, "Reports errors and spans", "HTTPS")
 ```
 
 ## 4. Solution strategy
