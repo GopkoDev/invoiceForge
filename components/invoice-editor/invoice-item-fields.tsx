@@ -38,6 +38,7 @@ export function InvoiceItemFields({
   const itemIndex = items.findIndex((i) => i.id === item.id);
   const priceErrors = fieldErrors?.[`items.${itemIndex}.price`];
   const quantityErrors = fieldErrors?.[`items.${itemIndex}.quantity`];
+  const totalErrors = fieldErrors?.[`items.${itemIndex}.total`];
 
   if (layout === 'mobile') {
     return (
@@ -77,6 +78,7 @@ export function InvoiceItemFields({
           <span className="text-muted-foreground text-sm">Amount:</span>
           <span className="font-semibold">{total}</span>
         </div>
+        <FieldError errors={totalErrors?.map((message) => ({ message }))} />
       </>
     );
   }
@@ -111,7 +113,10 @@ export function InvoiceItemFields({
         />
       </div>
 
-      <div className="w-24 text-right font-medium">{total}</div>
+      <div className="w-24 text-right font-medium">
+        {total}
+        <FieldError errors={totalErrors?.map((message) => ({ message }))} />
+      </div>
     </>
   );
 }

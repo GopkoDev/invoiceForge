@@ -181,6 +181,7 @@ export function InvoiceDetailsSection() {
                 </div>
               </PopoverContent>
             </Popover>
+            <FieldError errors={fieldErrors?.dueDate?.map((message) => ({ message }))} />
           </div>
         </div>
 

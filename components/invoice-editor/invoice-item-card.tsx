@@ -4,7 +4,8 @@ import { GripVertical } from 'lucide-react';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useInvoiceItemHandlers } from '@/hooks/use-invoice-item-handlers';
-import { useEditorLocks } from '@/store/invoice-editor-store';
+import { useEditorLocks, useFieldErrors, useInvoiceItems } from '@/store/invoice-editor-store';
+import { FieldError } from '@/components/ui/field';
 import { InvoiceItemProductSelector } from './invoice-item-product-selector';
 import { InvoiceItemActions } from './invoice-item-actions';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,10 @@ export function InvoiceItemCard({
   } = useInvoiceItemHandlers({ itemId });
   // invoice-integrity T16 (SCR-02): an issued or cancelled invoice's lines are read-only.
   const { locked } = useEditorLocks();
+  // invoice-integrity T17: a catalogue product in another currency is named under its line (AC-12).
+  const fieldErrors = useFieldErrors();
+  const itemIndex = useInvoiceItems().findIndex((i) => i.id === itemId);
+  const productErrors = fieldErrors?.[`items.${itemIndex}.productId`];
 
   return (
     <div className="bg-background space-y-3 rounded-lg border p-4">
@@ -72,6 +77,7 @@ export function InvoiceItemCard({
           onProductNameChange={handleProductNameChange}
           disabled={locked}
         />
+        <FieldError errors={productErrors?.map((message) => ({ message }))} />
       </div>
 
       <InvoiceItemFields

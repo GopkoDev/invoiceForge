@@ -39,7 +39,9 @@ import {
   useInvoiceEditorActions,
   useEditorLocks,
   useIssuedDetails,
+  useFieldErrors,
 } from '@/store/invoice-editor-store';
+import { FieldError } from '@/components/ui/field';
 import { IssuedDetailsCard } from './issued-details-card';
 import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview';
 
@@ -55,6 +57,7 @@ export function SenderSection() {
   const { selectSenderProfile, selectBankAccount } = useInvoiceEditorActions();
   const { locked } = useEditorLocks();
   const issued = useIssuedDetails();
+  const fieldErrors = useFieldErrors();
 
   const isBankAccountDisabled =
     !selectedProfile || availableBankAccounts.length === 0;
@@ -252,6 +255,7 @@ export function SenderSection() {
               </Command>
             </PopoverContent>
           </Popover>
+          <FieldError errors={fieldErrors?.bankAccountId?.map((message) => ({ message }))} />
         </div>
 
         {/* Selected Bank Preview */}

@@ -21,7 +21,7 @@
 | T14 | [Print the PDF's sender, Customer and bank blocks from the issued details, account number always](./t14-pdf-from-issued-details.md) | ui | Dmytro Hopko | M | — | done |
 | T15 | [Offer only lifecycle-allowed row actions, confirm Cancel with SCR-04 and redraw refused rows at their current status](./t15-list-row-actions-and-cancel.md) | ui | Dmytro Hopko | M | T03, T07, T10 | done |
 | T16 | [Render the editor in draft, issued and cancelled modes with Save and issue and retired-product lines kept](./t16-editor-modes-and-issue.md) | ui | Dmytro Hopko | M | T08, T09 | done |
-| T17 | [Show every new invoice rule refusal under its field in the editor](./t17-editor-field-errors.md) | ui | Dmytro Hopko | M | T16 | todo |
+| T17 | [Show every new invoice rule refusal under its field in the editor](./t17-editor-field-errors.md) | ui | Dmytro Hopko | M | T16 | done |
 | T18 | [Round-trip the loaded version and open the changed-elsewhere dialog and stale state on CHANGED_ELSEWHERE](./t18-changed-elsewhere-dialog.md) | ui | Dmytro Hopko | M | T08, T17 | todo |
 | T19 | [Show default-checkbox states and currency-lock and price errors in the sender profile, bank account and product forms](./t19-profile-account-product-forms.md) | ui | Dmytro Hopko | M | T11, T12, T13 | todo |
 | T20 | [Add the count-only pre-release report script and the release runbook](./t20-pre-release-report-and-runbook.md) | infra | Dmytro Hopko | S | T02 | done |

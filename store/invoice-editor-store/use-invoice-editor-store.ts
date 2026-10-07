@@ -48,10 +48,21 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   // key outside this set (e.g. senderProfileId/bankAccountId/customerId, or an item field the
   // editor never shows an input for) has nowhere on screen to appear, so it must not be dropped
   // silently — it gets toasted as a fallback instead.
-  const RENDERED_FIELD_ERROR_KEYS = new Set(['invoiceNumber', 'discount', 'shipping', 'taxRate']);
+  // invoice-integrity T17: every draft-rule key has a rendered field (SCR-02 draft — validation).
+  const RENDERED_FIELD_ERROR_KEYS = new Set([
+    'invoiceNumber',
+    'discount',
+    'shipping',
+    'taxRate',
+    'bankAccountId',
+    'dueDate',
+    'subtotal',
+    'taxAmount',
+    'total',
+  ]);
   function isRenderedFieldErrorKey(key: string): boolean {
     if (RENDERED_FIELD_ERROR_KEYS.has(key)) return true;
-    return /^items\.\d+\.(price|quantity)$/.test(key);
+    return /^items\.\d+\.(price|quantity|productId|total)$/.test(key);
   }
 
   // Turns a failed save into the right UI state (architecture-hardening AC-08, AC-14, AC-15,
@@ -85,6 +96,17 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         },
       });
       return;
+    }
+
+    // invoice-integrity T17 (SCR-02 refused): a lifecycle refusal is a toast with the error verbatim.
+    if (result.details?.kind === 'STATUS_NOT_ALLOWED') {
+      toast.error(result.error);
+      return;
+    }
+
+    // SCR-02 issued — locked-field refusal: the explanation goes in an Alert above the form.
+    if (result.details?.kind === 'ISSUED_INVOICE_LOCKED') {
+      set({ lockedRefusal: result.error });
     }
 
     if (result.fieldErrors) {
@@ -185,6 +207,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     derivedOverdue: false,
     storedStatus: null,
     issuedDetails: null,
+    lockedRefusal: null,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -222,6 +245,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         derivedOverdue: data.derivedOverdue ?? false,
         storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
         issuedDetails: data.issuedDetails ?? null,
+        lockedRefusal: null,
         ...normalizedData,
       };
 
@@ -491,7 +515,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     saveInvoice: async (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => {
       const state = get();
       const token = sessionToken;
-      set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
+      set({ isSaving: true, fieldErrors: undefined, totalsChanged: null, lockedRefusal: null });
 
       // Save and issue (SCR-02): the same save, sent with status PENDING; the form keeps DRAFT
       // until the server confirms, so a refused issue leaves a draft.
@@ -561,6 +585,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         derivedOverdue: false,
         storedStatus: null,
         issuedDetails: null,
+        lockedRefusal: null,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -656,6 +681,9 @@ export const useFieldErrors = () =>
 
 export const useTotalsChanged = () =>
   useInvoiceEditorStore(useShallow((state) => state.totalsChanged));
+
+/** The ISSUED_INVOICE_LOCKED explanation from the last save, shown above the form (SCR-02). */
+export const useLockedRefusal = () => useInvoiceEditorStore((state) => state.lockedRefusal);
 
 export const useLegacy = () =>
   useInvoiceEditorStore(useShallow((state) => state.legacy));

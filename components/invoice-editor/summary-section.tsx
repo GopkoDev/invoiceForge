@@ -72,6 +72,7 @@ export function SummarySection() {
             {subtotal.toFixed(2)} {currency}
           </span>
         </div>
+        <FieldError errors={fieldErrors?.subtotal?.map((message) => ({ message }))} />
 
         <Separator className="my-3" />
 
@@ -152,6 +153,7 @@ export function SummarySection() {
             {taxAmount.toFixed(2)} {currency}
           </span>
         </div>
+        <FieldError errors={fieldErrors?.taxAmount?.map((message) => ({ message }))} />
         <FieldError
           errors={fieldErrors?.taxRate?.map((message) => ({ message }))}
         />
@@ -164,6 +166,7 @@ export function SummarySection() {
             {total.toFixed(2)} {currency}
           </span>
         </div>
+        <FieldError errors={fieldErrors?.total?.map((message) => ({ message }))} />
       </CardContent>
     </Card>
   );

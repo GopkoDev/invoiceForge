@@ -104,6 +104,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   storedStatus: InvoiceStatus | null;
   /** The issued details shown as text once the invoice is issued (ADR-0001). */
   issuedDetails: InvoiceIssuedDetails | null;
+  /** The `error` of the last save's ISSUED_INVOICE_LOCKED refusal; cleared when a save starts. */
+  lockedRefusal: string | null;
 
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(

@@ -39,5 +39,6 @@ export {
   useFieldErrors,
   useTotalsChanged,
   useLegacy,
+  useLockedRefusal,
 } from './use-invoice-editor-store';
 export { usePdfParties } from './pdf-parties';
