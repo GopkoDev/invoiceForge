@@ -11,6 +11,9 @@ import { PDFPreviewPanel } from './pdf-preview-panel';
 import { InvoiceEditorForm } from './invoice-editor-form';
 import { EditorModeAlert } from './edit-sented-invoice-alert';
 import { InvoiceEditorResizePanels } from './invoice-editor-resize-panels';
+import { Button } from '@/components/ui/button';
+import { LoadError } from '@/components/layout/content-area/load-error';
+import { useInvoiceReload } from '@/hooks/use-invoice-reload';
 
 // SCR-15's dialog is the shared, T15-extended ConfirmationModal (sad.md §4 "modals go through
 // store/use-modal-store.ts"); use-editor-header-buttons.tsx opens it on CONFLICT TOTALS_CHANGED.
@@ -29,6 +32,8 @@ import {
   useInvoiceEditorActions,
   useLegacy,
   usePdfParties,
+  useIsStale,
+  useReloadFailed,
 } from '@/store/invoice-editor-store';
 
 // The contract's shared-number text (lib/actions/invoice-actions/invoice-actions.ts
@@ -50,6 +55,9 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
   const { subtotal, taxAmount, total } = useSummary();
   const mode = useEditorMode();
   const legacy = useLegacy();
+  const stale = useIsStale();
+  const reloadFailed = useReloadFailed();
+  const reload = useInvoiceReload();
 
   const { initialize, reset } = useInvoiceEditorActions();
   const confirmationModal = useModal('confirmationModal');
@@ -68,6 +76,25 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
       <InvoiceEditorHeader />
 
       <EditorModeAlert mode={mode} />
+
+      {/* invoice-integrity T18 (SCR-02 stale): SCR-05 closed without reloading; a save re-opens it. */}
+      {stale && !reloadFailed && (
+        <section className="bg-background mt-3 flex border-b">
+          <Alert className="mx-4 mb-3 flex items-center justify-between gap-3 lg:mx-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>This invoice was changed elsewhere. Reload it to continue.</AlertDescription>
+            <Button size="sm" variant="outline" onClick={() => void reload()}>
+              Reload
+            </Button>
+          </Alert>
+        </section>
+      )}
+
+      {reloadFailed && (
+        <section className="bg-background mt-3 flex border-b">
+          <LoadError onRetry={async () => void (await reload())} />
+        </section>
+      )}
 
       {legacy?.sharedNumber && (
         <section className="bg-background mt-3 flex border-b">

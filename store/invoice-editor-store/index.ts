@@ -40,5 +40,8 @@ export {
   useTotalsChanged,
   useLegacy,
   useLockedRefusal,
+  useChangedElsewhere,
+  useIsStale,
+  useReloadFailed,
 } from './use-invoice-editor-store';
 export { usePdfParties } from './pdf-parties';

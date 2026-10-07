@@ -7,6 +7,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useModal } from '@/store/use-modal-store';
+import { useInvoiceReload } from '@/hooks/use-invoice-reload';
 import {
   useEditorMode,
   useHasUnsavedChanges,
@@ -25,7 +26,8 @@ export function useEditorHeaderButtons() {
   const isSaving = useIsSaving();
   const invoiceId = useInvoiceId();
   const mode = useEditorMode();
-  const { saveInvoice, clearTotalsChanged } = useInvoiceEditorActions();
+  const { saveInvoice, clearTotalsChanged, markStale } = useInvoiceEditorActions();
+  const reload = useInvoiceReload();
 
   const isSaved = !hasUnsavedChanges;
   const isSavingOrPending = isSaving;
@@ -85,9 +87,37 @@ export function useEditorHeaderButtons() {
     openTotalsConfirmationRef.current = openTotalsConfirmation;
   }, [openTotalsConfirmation]);
 
+  // invoice-integrity T18 (SCR-05): the invoice changed after this editor loaded it. Reload
+  // re-initialises from the current invoice; Close (or Esc) leaves the editor stale, edits kept.
+  const openChangedElsewhere = useCallback(() => {
+    const error = useInvoiceEditorStore.getState().changedElsewhere;
+    if (!error) return;
+    confirmationModal.open({
+      open: true,
+      title: 'This invoice changed elsewhere',
+      description: error,
+      body: <p className="text-muted-foreground text-sm">Reloading discards your unsaved changes.</p>,
+      confirmText: 'Reload invoice',
+      cancelText: 'Close',
+      onClose: () => {
+        markStale();
+        confirmationModal.close();
+      },
+      onConfirm: async () => {
+        await reload();
+        confirmationModal.close();
+      },
+    });
+  }, [confirmationModal, markStale, reload]);
+
   const performSave = useCallback(async (options?: { issue?: boolean }) => {
     const beforeInvoiceId = invoiceId;
     await saveInvoice(options);
+
+    if (useInvoiceEditorStore.getState().changedElsewhere) {
+      openChangedElsewhere();
+      return;
+    }
 
     if (useInvoiceEditorStore.getState().totalsChanged) {
       openTotalsConfirmation();
@@ -105,7 +135,7 @@ export function useEditorHeaderButtons() {
         }
       }
     }
-  }, [saveInvoice, invoiceId, router, openTotalsConfirmation]);
+  }, [saveInvoice, invoiceId, router, openTotalsConfirmation, openChangedElsewhere]);
 
   // F-03: a flat, client-side re-run of the schema used to short-circuit Save here and open a
   // dialog listing every message, so the server's fieldErrors path (SCR-03 "validation": a

@@ -106,6 +106,14 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   issuedDetails: InvoiceIssuedDetails | null;
   /** The `error` of the last save's ISSUED_INVOICE_LOCKED refusal; cleared when a save starts. */
   lockedRefusal: string | null;
+  /** invoice-integrity T18 (ADR-0004): Invoice.version as loaded, then as returned by each save. */
+  loadedVersion: number | null;
+  /** The CHANGED_ELSEWHERE `error` of the last save: opens SCR-05. */
+  changedElsewhere: string | null;
+  /** SCR-05 closed without reloading: the stale Alert shows (SCR-02 stale). */
+  stale: boolean;
+  /** The last reload failed: the load error shows (SCR-17). */
+  reloadFailed: boolean;
 
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(
@@ -130,6 +138,10 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** `issue`: Save and issue — the saved draft is sent with status PENDING (SCR-02). */
   saveInvoice: (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => Promise<void>;
   clearTotalsChanged: () => void;
+  /** SCR-05 closed: the editor turns stale, edits kept. */
+  markStale: () => void;
+  /** Re-fetches the editor data and re-initialises from the current invoice (SCR-05 Reload). */
+  reloadInvoice: () => Promise<'reloaded' | 'not-found' | 'failed'>;
   reset: () => void;
 }
 

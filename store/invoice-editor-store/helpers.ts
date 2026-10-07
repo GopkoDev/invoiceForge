@@ -273,10 +273,14 @@ export function loadedDatesOf(data: InvoiceFormData): LoadedDates | null {
 export function toSavePayload(
   formData: InvoiceFormData,
   confirmedTotals?: InvoiceFormInput['confirmedTotals'],
-  loadedDates?: LoadedDates | null
-): InvoiceFormInput {
+  loadedDates?: LoadedDates | null,
+  loadedVersion?: number | null
+): InvoiceFormInput & { loadedVersion?: number } {
   return {
     ...formData,
+    // invoice-integrity T18 (AC-10, ADR-0004): the version this editor loaded; updateInvoice refuses an
+    // outdated one. createInvoice ignores it.
+    ...(loadedVersion !== null && loadedVersion !== undefined ? { loadedVersion } : {}),
     issueDate: localDateToDay(formData.issueDate),
     dueDate: localDateToDay(formData.dueDate),
     ...(loadedDates

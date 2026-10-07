@@ -597,7 +597,8 @@ function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Dat
 
 /**
  * updateInvoice's input. `loadedVersion` is required at runtime (the shape parse refuses a missing
- * one, AC-10); it is typed optional until the editor round-trips it (invoice-integrity T18).
+ * one, AC-10); the type keeps it optional because the editor builds create and update payloads with
+ * one function, and a new invoice has no version yet.
  */
 export type UpdateInvoiceInput = InvoiceFormInput & { loadedVersion?: number };
 

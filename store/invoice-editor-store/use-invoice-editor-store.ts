@@ -15,6 +15,7 @@ import {
   generateInvoiceNumber,
   createInvoice,
   updateInvoice,
+  getInvoiceEditorData,
   SavedInvoice,
 } from '@/lib/actions/invoice-actions/invoice-actions';
 import {
@@ -85,6 +86,12 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     // writes no state and offers no Retry (the form it would resubmit is gone).
     if (token !== sessionToken) {
       toast.error(result.error || 'Error saving invoice.');
+      return;
+    }
+
+    // invoice-integrity T18 (AC-10): the invoice changed since this editor loaded it → SCR-05.
+    if (result.details?.kind === 'CHANGED_ELSEWHERE') {
+      set({ changedElsewhere: result.error });
       return;
     }
 
@@ -174,6 +181,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       invoiceId: saved.id,
       // The mode follows what the row holds now: a draft issued by Save and issue turns issued.
       storedStatus: saved.status,
+      // The row's version now: the next save's loadedVersion (ADR-0004).
+      loadedVersion: saved.version,
       subtotal: saved.subtotal,
       taxAmount: saved.taxAmount,
       total: saved.total,
@@ -208,6 +217,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     storedStatus: null,
     issuedDetails: null,
     lockedRefusal: null,
+    loadedVersion: null,
+    changedElsewhere: null,
+    stale: false,
+    reloadFailed: false,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -246,6 +259,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
         issuedDetails: data.issuedDetails ?? null,
         lockedRefusal: null,
+        loadedVersion: data.invoiceId && data.initialData ? (data.version ?? null) : null,
+        changedElsewhere: null,
+        stale: false,
+        reloadFailed: false,
         ...normalizedData,
       };
 
@@ -515,14 +532,21 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     saveInvoice: async (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => {
       const state = get();
       const token = sessionToken;
-      set({ isSaving: true, fieldErrors: undefined, totalsChanged: null, lockedRefusal: null });
+      set({
+        isSaving: true,
+        fieldErrors: undefined,
+        totalsChanged: null,
+        lockedRefusal: null,
+        changedElsewhere: null,
+      });
 
       // Save and issue (SCR-02): the same save, sent with status PENDING; the form keeps DRAFT
       // until the server confirms, so a refused issue leaves a draft.
       const payload = toSavePayload(
         options?.issue ? { ...state.formData, status: 'PENDING' } : state.formData,
         options?.confirmedTotals,
-        state.loadedDates
+        state.loadedDates,
+        state.loadedVersion
       );
       const retry = () => {
         // A Retry clicked after the editor was reset would save another invoice's form;
@@ -564,6 +588,29 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({ totalsChanged: null });
     },
 
+    markStale: () => {
+      set({ changedElsewhere: null, stale: true });
+    },
+
+    reloadInvoice: async () => {
+      const { invoiceId } = get();
+      try {
+        const result = await getInvoiceEditorData(invoiceId);
+        if (!result.success) {
+          if (redirectIfUnauthorized(result)) return 'failed';
+          set({ reloadFailed: true, changedElsewhere: null });
+          return 'failed';
+        }
+        // A missing or foreign invoice comes back without initialData (the edit page's not-found).
+        if (!result.data.initialData) return 'not-found';
+        get().initialize(result.data);
+        return 'reloaded';
+      } catch {
+        goToSignIn();
+        return 'failed';
+      }
+    },
+
     reset: () => {
       sessionToken += 1;
       const formData = createInitialFormData();
@@ -586,6 +633,10 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         storedStatus: null,
         issuedDetails: null,
         lockedRefusal: null,
+        loadedVersion: null,
+        changedElsewhere: null,
+        stale: false,
+        reloadFailed: false,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -682,6 +733,11 @@ export const useFieldErrors = () =>
 export const useTotalsChanged = () =>
   useInvoiceEditorStore(useShallow((state) => state.totalsChanged));
 
+/** invoice-integrity T18: the CHANGED_ELSEWHERE error, the stale flag and a failed reload. */
+export const useChangedElsewhere = () => useInvoiceEditorStore((state) => state.changedElsewhere);
+export const useIsStale = () => useInvoiceEditorStore((state) => state.stale);
+export const useReloadFailed = () => useInvoiceEditorStore((state) => state.reloadFailed);
+
 /** The ISSUED_INVOICE_LOCKED explanation from the last save, shown above the form (SCR-02). */
 export const useLockedRefusal = () => useInvoiceEditorStore((state) => state.lockedRefusal);
 
@@ -737,6 +793,8 @@ export const useInvoiceEditorActions = () =>
       markAsSaved: state.markAsSaved,
       saveInvoice: state.saveInvoice,
       clearTotalsChanged: state.clearTotalsChanged,
+      markStale: state.markStale,
+      reloadInvoice: state.reloadInvoice,
       reset: state.reset,
     }))
   );
