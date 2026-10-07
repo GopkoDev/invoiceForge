@@ -23,7 +23,7 @@
 | T16 | [Render the editor in draft, issued and cancelled modes with Save and issue and retired-product lines kept](./t16-editor-modes-and-issue.md) | ui | Dmytro Hopko | M | T08, T09 | done |
 | T17 | [Show every new invoice rule refusal under its field in the editor](./t17-editor-field-errors.md) | ui | Dmytro Hopko | M | T16 | done |
 | T18 | [Round-trip the loaded version and open the changed-elsewhere dialog and stale state on CHANGED_ELSEWHERE](./t18-changed-elsewhere-dialog.md) | ui | Dmytro Hopko | M | T08, T17 | done |
-| T19 | [Show default-checkbox states and currency-lock and price errors in the sender profile, bank account and product forms](./t19-profile-account-product-forms.md) | ui | Dmytro Hopko | M | T11, T12, T13 | todo |
+| T19 | [Show default-checkbox states and currency-lock and price errors in the sender profile, bank account and product forms](./t19-profile-account-product-forms.md) | ui | Dmytro Hopko | M | T11, T12, T13 | done |
 | T20 | [Add the count-only pre-release report script and the release runbook](./t20-pre-release-report-and-runbook.md) | infra | Dmytro Hopko | S | T02 | done |
 | T21 | [Prove every invoice write path enforces the same rules: status matrix, race, version bump, tenancy and read-only Assistant](./t21-write-path-conformance.md) | tests | Dmytro Hopko | M | T07, T08, T09, T10 | done |
 

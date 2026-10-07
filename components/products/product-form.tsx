@@ -84,6 +84,14 @@ export function ProductForm({
 
       if (!result.success) {
         if (redirectIfUnauthorized(result)) return;
+        // invoice-integrity T19 (SCR-12): a currency used on invoices (HAS_INVOICES) or a price
+        // refusal lands under its field with every value kept; anything else is a toast.
+        if (result.fieldErrors) {
+          for (const [name, messages] of Object.entries(result.fieldErrors)) {
+            if (messages[0]) form.setError(name as keyof ProductFormValues, { message: messages[0] });
+          }
+          return;
+        }
         toast.error(result.error || 'Failed to update product');
         return;
       }
@@ -292,10 +300,8 @@ export function ProductForm({
                     type="text"
                     aria-invalid={fieldState.invalid}
                     placeholder="100.00"
-                    onChange={(e) => {
-                      const sanitized = e.target.value.replace(/[^\d.]/g, '');
-                      field.onChange(sanitized);
-                    }}
+                    // invoice-integrity T19 (AC-20): the price is kept as typed; the shared rule explains
+                    // a malformed one under the field instead of silently correcting it (F-04).
                   />
 
                   <FieldError errors={[fieldState.error]} />
@@ -319,7 +325,9 @@ export function ProductForm({
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
-                    disabled={form.formState.isSubmitting || isUsedInInvoices}
+                    // Not locked up front: the server refuses a currency used on invoices on save and
+                    // the refusal shows under this field (SCR-12, AC-13b).
+                    disabled={form.formState.isSubmitting}
                   >
                     <SelectTrigger
                       id="product-form-currency"
