@@ -184,6 +184,45 @@ export interface InvoiceEditorData {
   derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
+  /** invoice-integrity (ADR-0004): Invoice.version as loaded; the editor sends it back as loadedVersion. */
+  version?: number;
+  /** invoice-integrity (ADR-0001, AC-01): the invoice's issued details (its snapshot columns), which the
+   * editor shows as text once the invoice is issued. Null for a new invoice. */
+  issuedDetails?: InvoiceIssuedDetails | null;
+}
+
+/** The issued details of an invoice: the sender, Customer and bank blocks as recorded on it. */
+export interface InvoiceIssuedDetails {
+  sender: {
+    name: string;
+    legalName: string | null;
+    taxId: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    postalCode: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+  };
+  customer: {
+    name: string;
+    companyName: string | null;
+    taxId: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    postalCode: string | null;
+  };
+  bank: {
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    iban: string | null;
+    swift: string | null;
+  };
 }
 
 // Status configuration for UI

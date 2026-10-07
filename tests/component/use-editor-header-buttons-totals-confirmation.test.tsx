@@ -113,7 +113,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
     const { result } = renderHook(() => useEditorHeaderButtons());
 
     await act(async () => {
-      await result.current.SaveButton.props.onClick();
+      await result.current.SaveButton!.props.onClick();
     });
 
     const modal = useModalStore.getState().modals.confirmationModal;

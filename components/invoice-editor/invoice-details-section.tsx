@@ -30,6 +30,7 @@ import {
   useInvoiceDates,
   useInvoiceCurrency,
   usePoNumber,
+  useEditorLocks,
   useInvoiceEditorActions,
 } from '@/store/invoice-editor-store';
 
@@ -49,6 +50,8 @@ export function InvoiceDetailsSection() {
   const poNumber = usePoNumber();
 
   const { updateField } = useInvoiceEditorActions();
+  // invoice-integrity T16 (SCR-02): issued → only the due date and PO number here; cancelled → none.
+  const { locked, readOnly } = useEditorLocks();
 
   const applyDueDatePreset = (days: number) => {
     const newDueDate = new Date(issueDate);
@@ -80,6 +83,7 @@ export function InvoiceDetailsSection() {
               value={invoiceNumber}
               onChange={(e) => updateField('invoiceNumber', e.target.value)}
               placeholder={invoiceNumberHint}
+              disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
             />
 
@@ -113,6 +117,7 @@ export function InvoiceDetailsSection() {
             <Label>Issue Date</Label>
             <Popover>
               <PopoverTrigger
+                disabled={locked}
                 className={cn(
                   'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
                   !issueDate && 'text-muted-foreground'
@@ -140,6 +145,7 @@ export function InvoiceDetailsSection() {
             <Label>Due Date</Label>
             <Popover>
               <PopoverTrigger
+                disabled={readOnly}
                 className={cn(
                   'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
                   !dueDate && 'text-muted-foreground'
@@ -185,6 +191,7 @@ export function InvoiceDetailsSection() {
             value={poNumber}
             onChange={(e) => updateField('poNumber', e.target.value)}
             placeholder="Customer purchase order number"
+            disabled={readOnly}
           />
         </div>
       </CardContent>

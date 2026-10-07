@@ -1,4 +1,5 @@
 import 'server-only';
+import type { Invoice } from '@prisma/client';
 import { prisma } from '@/prisma';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type {
@@ -6,6 +7,7 @@ import type {
   InvoiceCustomPrice,
   InvoiceCustomer,
   InvoiceEditorData,
+  InvoiceIssuedDetails,
   InvoiceProduct,
   InvoiceSenderProfile,
 } from '@/types/invoice/types';
@@ -41,8 +43,12 @@ export async function getInvoiceEditorData(
         orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
       }),
       prisma.customer.findMany({ where: { userId }, select: customerSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
+      // invoice-integrity T16 (AC-15): active products, plus every product the invoice's lines refer
+      // to, active or not. The editor offers only active ones for new lines and keeps every line.
       prisma.product.findMany({
-        where: { userId, isActive: true },
+        where: invoiceId
+          ? { userId, OR: [{ isActive: true }, { invoiceItems: { some: { invoiceId } } }] }
+          : { userId, isActive: true },
         select: productSelect,
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
       }),
@@ -87,8 +93,46 @@ export async function getInvoiceEditorData(
       derivedOverdue: existingInvoice ? isDerivedOverdue(existingInvoice, todayIn(actor.timeZone)) : undefined,
       invoiceId,
       legacy,
+      version: existingInvoice?.version,
+      issuedDetails: existingInvoice ? issuedDetailsOf(existingInvoice) : null,
     });
   } catch (error) {
     return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');
   }
+}
+
+/** The invoice's snapshot columns as the editor's read-only issued blocks (ADR-0001). */
+function issuedDetailsOf(invoice: Invoice): InvoiceIssuedDetails {
+  return {
+    sender: {
+      name: invoice.senderName,
+      legalName: invoice.senderLegalName,
+      taxId: invoice.senderTaxId,
+      address: invoice.senderAddress,
+      city: invoice.senderCity,
+      country: invoice.senderCountry,
+      postalCode: invoice.senderPostalCode,
+      phone: invoice.senderPhone,
+      email: invoice.senderEmail,
+      website: invoice.senderWebsite,
+    },
+    customer: {
+      name: invoice.customerName,
+      companyName: invoice.customerCompanyName,
+      taxId: invoice.customerTaxId,
+      email: invoice.customerEmail,
+      phone: invoice.customerPhone,
+      address: invoice.customerAddress,
+      city: invoice.customerCity,
+      country: invoice.customerCountry,
+      postalCode: invoice.customerPostalCode,
+    },
+    bank: {
+      bankName: invoice.bankName,
+      accountName: invoice.accountName,
+      accountNumber: invoice.bankAccountNumber,
+      iban: invoice.bankIban,
+      swift: invoice.bankSwift,
+    },
+  };
 }

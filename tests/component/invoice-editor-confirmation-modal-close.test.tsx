@@ -23,7 +23,7 @@ vi.mock('@/components/invoice-editor/invoice-editor-form', () => ({
   InvoiceEditorForm: () => null,
 }));
 vi.mock('@/components/invoice-editor/edit-sented-invoice-alert', () => ({
-  EditSentedInvoiceAlert: () => null,
+  EditorModeAlert: () => null,
 }));
 vi.mock('@/components/invoice-editor/invoice-editor-resize-panels', () => ({
   InvoiceEditorResizePanels: () => null,
@@ -34,12 +34,10 @@ const resetMock = vi.fn();
 
 vi.mock('@/store/invoice-editor-store', () => ({
   useFormData: () => ({ items: [] }),
-  useSelectedSenderProfile: () => undefined,
-  useSelectedCustomer: () => undefined,
-  useSelectedBankAccount: () => undefined,
+  // invoice-integrity T16: the preview's parties and the mode replace the invalid-items filter.
+  usePdfParties: () => ({ senderProfile: undefined, customer: undefined, bankAccount: undefined }),
   useSummary: () => ({ subtotal: 0, taxAmount: 0, total: 0 }),
-  useIsEditingSentInvoice: () => false,
-  useInvalidItems: () => [],
+  useEditorMode: () => 'new',
   useLegacy: () => null,
   useInvoiceEditorActions: () => ({ initialize: initializeMock, reset: resetMock }),
 }));

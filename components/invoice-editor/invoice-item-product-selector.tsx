@@ -29,6 +29,8 @@ interface InvoiceItemProductSelectorProps {
   isCustomItem: boolean;
   onProductSelect: (product: ProductOption, closePopover: () => void) => void;
   onProductNameChange: (value: string) => void;
+  /** The line is locked (issued or cancelled invoice): shown as saved, not editable. */
+  disabled?: boolean;
 }
 
 export function InvoiceItemProductSelector({
@@ -39,11 +41,16 @@ export function InvoiceItemProductSelector({
   isCustomItem,
   onProductSelect,
   onProductNameChange,
+  disabled = false,
 }: InvoiceItemProductSelectorProps) {
   const [productOpen, setProductOpen] = useState(false);
 
   const hasCustomPriceProducts = groupedProducts.withCustomPrices.length > 0;
   const hasRegularProducts = groupedProducts.regular.length > 0;
+
+  if (disabled) {
+    return <p className="truncate px-2.5 py-2 text-sm">{productName || 'Untitled'}</p>;
+  }
 
   if (isCustomItem) {
     return (

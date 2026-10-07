@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -27,12 +27,11 @@ import { Button } from '@/components/ui/button';
 import { Package, Plus } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
+  useEditorLocks,
   useInvoiceItems,
-  useInvalidItems,
   useInvoiceEditorActions,
 } from '@/store/invoice-editor-store';
 import { SortableItem } from './sortable-item';
-import { ItemSectionInvalidItems } from './item-section-invalid-items';
 
 function ItemsEmptyState() {
   return (
@@ -46,19 +45,11 @@ function ItemsEmptyState() {
 export function ItemsSection() {
   const isMobile = useIsMobile();
 
-  const items = useInvoiceItems();
-  const invalidItems = useInvalidItems();
+  // invoice-integrity T16 (AC-15): every line is shown as saved, none is ever flagged for removal;
+  // an issued or cancelled invoice's lines can't be added, removed or reordered (SCR-02).
+  const validItems = useInvoiceItems();
+  const { locked } = useEditorLocks();
   const { addItem, addCustomItem, reorderItems } = useInvoiceEditorActions();
-
-  const invalidItemIds = useMemo(
-    () => new Set(invalidItems.map((inv) => inv.item.id)),
-    [invalidItems]
-  );
-
-  const validItems = useMemo(
-    () => items.filter((item) => !invalidItemIds.has(item.id)),
-    [items, invalidItemIds]
-  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -104,6 +95,7 @@ export function ItemsSection() {
             </CardDescription>
           </div>
 
+          {!locked && (
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={addCustomItem}>
               <Plus className="mr-1 h-4 w-4" />
@@ -115,13 +107,11 @@ export function ItemsSection() {
               From List
             </Button>
           </div>
+          )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Invalid Items Alert */}
-        <ItemSectionInvalidItems />
-
         {/* Valid Items */}
         {validItems.length === 0 ? (
           <ItemsEmptyState />

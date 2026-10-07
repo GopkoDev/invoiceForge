@@ -2,31 +2,29 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Loader2, Save } from 'lucide-react';
+import { ChevronLeft, Loader2, Save, Send } from 'lucide-react';
 import { protectedRoutes } from '@/config/routes.config';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useModal } from '@/store/use-modal-store';
 import {
+  useEditorMode,
   useHasUnsavedChanges,
-  useInvalidItems,
   useInvoiceEditorActions,
   useInvoiceEditorStore,
   useInvoiceId,
   useIsSaving,
 } from '@/store/invoice-editor-store';
-import { getValidItems } from '@/lib/helpers/invoice-editor';
 
 export function useEditorHeaderButtons() {
   const router = useRouter();
   const unsavedChangesModal = useModal('unsavedChangesDialog');
-  const invalidItemsWarningModal = useModal('invalidItemsWarningDialog');
   const confirmationModal = useModal('confirmationModal');
 
   const hasUnsavedChanges = useHasUnsavedChanges();
   const isSaving = useIsSaving();
   const invoiceId = useInvoiceId();
-  const invalidItems = useInvalidItems();
+  const mode = useEditorMode();
   const { saveInvoice, clearTotalsChanged } = useInvoiceEditorActions();
 
   const isSaved = !hasUnsavedChanges;
@@ -87,16 +85,9 @@ export function useEditorHeaderButtons() {
     openTotalsConfirmationRef.current = openTotalsConfirmation;
   }, [openTotalsConfirmation]);
 
-  const performSave = useCallback(async () => {
-    const state = useInvoiceEditorStore.getState();
-
-    if (invalidItems.length > 0) {
-      const validItems = getValidItems(state.formData.items, invalidItems);
-      state.updateFields({ items: validItems });
-    }
-
+  const performSave = useCallback(async (options?: { issue?: boolean }) => {
     const beforeInvoiceId = invoiceId;
-    await saveInvoice();
+    await saveInvoice(options);
 
     if (useInvoiceEditorStore.getState().totalsChanged) {
       openTotalsConfirmation();
@@ -114,7 +105,7 @@ export function useEditorHeaderButtons() {
         }
       }
     }
-  }, [saveInvoice, invoiceId, router, invalidItems, openTotalsConfirmation]);
+  }, [saveInvoice, invoiceId, router, openTotalsConfirmation]);
 
   // F-03: a flat, client-side re-run of the schema used to short-circuit Save here and open a
   // dialog listing every message, so the server's fieldErrors path (SCR-03 "validation": a
@@ -122,31 +113,16 @@ export function useEditorHeaderButtons() {
   // checked only once, server-side, in performSave -> saveInvoice; a VALIDATION/CONFLICT result
   // already lands on the store's fieldErrors (see handleSaveFailure) for the fields to render.
   const handleSave = useCallback(async (): Promise<boolean> => {
-    return await new Promise<boolean>(async (resolve) => {
-      if (invalidItems.length > 0) {
-        invalidItemsWarningModal.open({
-          open: true,
-          invalidItems,
-          onConfirm: async () => {
-            invalidItemsWarningModal.close();
-            await performSave();
-            resolve(!useInvoiceEditorStore.getState().hasUnsavedChanges);
-          },
-          onCancel: () => {
-            invalidItemsWarningModal.close();
-            resolve(false);
-          },
-        });
-        return;
-      }
+    await performSave();
+    // A VALIDATION/CONFLICT failure (fieldErrors) or a pending TOTALS_CHANGED confirmation both
+    // leave hasUnsavedChanges true — the caller (e.g. handleExit) must not treat those as saved.
+    return !useInvoiceEditorStore.getState().hasUnsavedChanges;
+  }, [performSave]);
 
-      await performSave();
-      // A VALIDATION/CONFLICT failure (fieldErrors) or a pending TOTALS_CHANGED confirmation
-      // both leave hasUnsavedChanges true — the caller (e.g. handleExit) must not treat those as
-      // saved.
-      resolve(!useInvoiceEditorStore.getState().hasUnsavedChanges);
-    });
-  }, [invalidItems, performSave, invalidItemsWarningModal]);
+  // invoice-integrity T16 (SCR-02): Save and issue on a saved draft — the same save, sent as PENDING.
+  const handleSaveAndIssue = useCallback(async () => {
+    await performSave({ issue: true });
+  }, [performSave]);
 
   const handleExit = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -189,7 +165,10 @@ export function useEditorHeaderButtons() {
     </DropdownMenuItem>
   );
 
-  const SaveButton = (
+  // A cancelled invoice is read-only: no Save (SCR-02 cancelled).
+  const canSave = mode !== 'cancelled';
+
+  const SaveButton = canSave ? (
     <Button
       variant="outline"
       size="sm"
@@ -203,9 +182,9 @@ export function useEditorHeaderButtons() {
       )}
       {isSavingOrPending ? 'Saving...' : 'Save'}
     </Button>
-  );
+  ) : null;
 
-  const SaveMobileButton = (
+  const SaveMobileButton = canSave ? (
     <Button
       variant="outline"
       size="icon"
@@ -218,7 +197,31 @@ export function useEditorHeaderButtons() {
         <Save className="h-4 w-4" />
       )}
     </Button>
-  );
+  ) : null;
 
-  return { HomeButton, HomeMobileButton, SaveButton, SaveMobileButton };
+  // Only a saved draft can be issued from the editor; a new invoice always starts as a draft (AC-04b).
+  const SaveAndIssueButton =
+    mode === 'draft' ? (
+      <Button size="sm" onClick={handleSaveAndIssue} disabled={isSavingOrPending}>
+        <Send className="h-4 w-4" />
+        Save and issue
+      </Button>
+    ) : null;
+
+  const SaveAndIssueMobileItem =
+    mode === 'draft' ? (
+      <DropdownMenuItem onClick={handleSaveAndIssue} disabled={isSavingOrPending}>
+        <Send className="mr-2 h-4 w-4" />
+        Save and issue
+      </DropdownMenuItem>
+    ) : null;
+
+  return {
+    HomeButton,
+    HomeMobileButton,
+    SaveButton,
+    SaveMobileButton,
+    SaveAndIssueButton,
+    SaveAndIssueMobileItem,
+  };
 }

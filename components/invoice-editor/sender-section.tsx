@@ -37,7 +37,10 @@ import {
   useSelectedSenderProfile,
   useSelectedBankAccount,
   useInvoiceEditorActions,
+  useEditorLocks,
+  useIssuedDetails,
 } from '@/store/invoice-editor-store';
+import { IssuedDetailsCard } from './issued-details-card';
 import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview';
 
 export function SenderSection() {
@@ -50,9 +53,39 @@ export function SenderSection() {
   const selectedBank = useSelectedBankAccount();
 
   const { selectSenderProfile, selectBankAccount } = useInvoiceEditorActions();
+  const { locked } = useEditorLocks();
+  const issued = useIssuedDetails();
 
   const isBankAccountDisabled =
     !selectedProfile || availableBankAccounts.length === 0;
+
+  if (locked && issued) {
+    const { sender, bank } = issued;
+    return (
+      <IssuedDetailsCard
+        title="From"
+        icon={<Building2 className="h-4 w-4" />}
+        lines={[
+          sender.name,
+          sender.legalName,
+          sender.address,
+          [sender.postalCode, sender.city, sender.country].filter(Boolean).join(', '),
+          sender.email,
+          sender.taxId && `Tax ID: ${sender.taxId}`,
+        ]}
+        extra={{
+          label: 'Bank account',
+          lines: [
+            bank.bankName,
+            bank.accountName,
+            bank.accountNumber && `Account number: ${bank.accountNumber}`,
+            bank.iban && `IBAN: ${bank.iban}`,
+            bank.swift && `SWIFT: ${bank.swift}`,
+          ],
+        }}
+      />
+    );
+  }
 
   return (
     <Card>

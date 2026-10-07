@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle } from 'lucide-react';
 import { InvoiceEditorData } from '@/types/invoice/types';
@@ -9,7 +9,7 @@ import { useModal } from '@/store/use-modal-store';
 import { InvoiceEditorHeader } from './invoice-editor-header';
 import { PDFPreviewPanel } from './pdf-preview-panel';
 import { InvoiceEditorForm } from './invoice-editor-form';
-import { EditSentedInvoiceAlert } from './edit-sented-invoice-alert';
+import { EditorModeAlert } from './edit-sented-invoice-alert';
 import { InvoiceEditorResizePanels } from './invoice-editor-resize-panels';
 
 // SCR-15's dialog is the shared, T15-extended ConfirmationModal (sad.md §4 "modals go through
@@ -24,14 +24,11 @@ const ConfirmationModal = dynamic(
 
 import {
   useFormData,
-  useSelectedSenderProfile,
-  useSelectedCustomer,
-  useSelectedBankAccount,
   useSummary,
-  useIsEditingSentInvoice,
+  useEditorMode,
   useInvoiceEditorActions,
-  useInvalidItems,
   useLegacy,
+  usePdfParties,
 } from '@/store/invoice-editor-store';
 
 // The contract's shared-number text (lib/actions/invoice-actions/invoice-actions.ts
@@ -46,22 +43,13 @@ interface InvoiceEditorProps {
 }
 
 export function InvoiceEditor({ data }: InvoiceEditorProps) {
-  const formData = useFormData();
-  const selectedSenderProfile = useSelectedSenderProfile();
-  const selectedCustomer = useSelectedCustomer();
-  const selectedBankAccount = useSelectedBankAccount();
+  // The preview renders the form as it stands, every line included (invoice-integrity AC-15);
+  // once issued, its parties are the issued details (SCR-03 decision 4).
+  const pdfFormData = useFormData();
+  const { senderProfile, customer, bankAccount } = usePdfParties();
   const { subtotal, taxAmount, total } = useSummary();
-  const isEditingSentInvoice = useIsEditingSentInvoice();
-  const invalidItems = useInvalidItems();
+  const mode = useEditorMode();
   const legacy = useLegacy();
-
-  const pdfFormData = useMemo(() => {
-    const invalidItemIds = new Set(invalidItems.map((inv) => inv.item.id));
-    return {
-      ...formData,
-      items: formData.items.filter((item) => !invalidItemIds.has(item.id)),
-    };
-  }, [formData, invalidItems]);
 
   const { initialize, reset } = useInvoiceEditorActions();
   const confirmationModal = useModal('confirmationModal');
@@ -79,7 +67,7 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
     <div className="bg-background flex h-screen flex-col">
       <InvoiceEditorHeader />
 
-      {isEditingSentInvoice && <EditSentedInvoiceAlert />}
+      <EditorModeAlert mode={mode} />
 
       {legacy?.sharedNumber && (
         <section className="bg-background mt-3 flex border-b">
@@ -95,9 +83,9 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
         PDFPreviewComponent={
           <PDFPreviewPanel
             formData={pdfFormData}
-            senderProfile={selectedSenderProfile}
-            customer={selectedCustomer}
-            bankAccount={selectedBankAccount}
+            senderProfile={senderProfile}
+            customer={customer}
+            bankAccount={bankAccount}
             subtotal={subtotal}
             taxAmount={taxAmount}
             total={total}

@@ -22,6 +22,8 @@ vi.mock('@/store/invoice-editor-store', () => ({
   useInvoiceDates: () => ({ issueDate: new Date('2026-01-01'), dueDate: new Date('2026-01-15') }),
   useInvoiceCurrency: () => 'USD',
   usePoNumber: () => '',
+  // invoice-integrity T16: the field locks follow the editor mode (a draft here).
+  useEditorLocks: () => ({ locked: false, readOnly: false }),
   useInvoiceEditorActions: () => ({ updateField: updateFieldMock }),
 }));
 

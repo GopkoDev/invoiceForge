@@ -7,8 +7,17 @@ import {
   InvoiceProduct,
   InvoiceCustomPrice,
   InvoiceLegacyInfo,
+  InvoiceIssuedDetails,
+  InvoiceStatus,
   Currency,
 } from '@/types/invoice/types';
+
+/**
+ * invoice-integrity T16 (SCR-02): what the editor allows, from the invoice's stored status.
+ * `new` and `draft` edit everything; `issued` (pending, overdue, paid) edits only the due date,
+ * notes, payment terms and PO number; `cancelled` is read-only.
+ */
+export type EditorMode = 'new' | 'draft' | 'issued' | 'cancelled';
 
 /** The pair a CONFLICT TOTALS_CHANGED carries (contracts/server-actions.md, AC-17): the SCR-15
  * dialog shows these, and a confirmed resubmit echoes them back as `confirmedTotals`. */
@@ -48,11 +57,6 @@ export interface GroupedProducts {
   regular: ProductOption[];
 }
 
-export interface InvalidItem {
-  item: InvoiceFormItem;
-  reason: 'currency' | 'customPrice';
-}
-
 export interface ComputedValues {
   subtotal: number;
   taxAmount: number;
@@ -60,13 +64,11 @@ export interface ComputedValues {
   selectedSenderProfile: InvoiceSenderProfile | undefined;
   selectedCustomer: InvoiceCustomer | undefined;
   selectedBankAccount: InvoiceBankAccount | undefined;
-  isEditingSentInvoice: boolean;
   invoiceCurrency: Currency;
   filteredProducts: InvoiceProduct[];
   groupedProducts: GroupedProducts;
   senderProfileOptions: SenderProfileOption[];
   availableBankAccounts: InvoiceBankAccount[];
-  invalidItems: InvalidItem[];
 }
 
 export interface InvoiceEditorState extends NormalizedData, ComputedValues {
@@ -97,6 +99,11 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** The invoice is stored PENDING but past its due date: the header badge reads Overdue while
    * `formData.status` keeps the stored status a save sends back (AC-24). */
   derivedOverdue: boolean;
+  /** The status the invoice has in the database (at load, then after each save): the mode follows
+   * it, not the status picked in the form (invoice-integrity T16). Null for a new invoice. */
+  storedStatus: InvoiceStatus | null;
+  /** The issued details shown as text once the invoice is issued (ADR-0001). */
+  issuedDetails: InvoiceIssuedDetails | null;
 
   initialize: (data: InvoiceEditorInitData) => void;
   updateField: <K extends keyof InvoiceFormData>(
@@ -118,7 +125,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
 
   setIsSaving: (isSaving: boolean) => void;
   markAsSaved: () => void;
-  saveInvoice: (options?: { confirmedTotals?: TotalsChanged }) => Promise<void>;
+  /** `issue`: Save and issue — the saved draft is sent with status PENDING (SCR-02). */
+  saveInvoice: (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => Promise<void>;
   clearTotalsChanged: () => void;
   reset: () => void;
 }
@@ -140,6 +148,8 @@ export interface InvoiceEditorInitData {
   derivedOverdue?: boolean;
   invoiceId?: string;
   legacy?: InvoiceLegacyInfo | null;
+  version?: number;
+  issuedDetails?: InvoiceIssuedDetails | null;
 }
 
 export interface RecalculateComputedValuesStateInput extends NormalizedData {

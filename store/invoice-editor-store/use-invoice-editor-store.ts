@@ -27,6 +27,7 @@ import {
   toSavePayload,
   loadedDatesOf,
   withLocalDays,
+  editorModeOf,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
 import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
@@ -149,6 +150,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       },
       derivedOverdue: saved.derivedOverdue,
       invoiceId: saved.id,
+      // The mode follows what the row holds now: a draft issued by Save and issue turns issued.
+      storedStatus: saved.status,
       subtotal: saved.subtotal,
       taxAmount: saved.taxAmount,
       total: saved.total,
@@ -180,6 +183,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     totalsChanged: null,
     legacy: null,
     derivedOverdue: false,
+    storedStatus: null,
+    issuedDetails: null,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -215,6 +220,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         totalsChanged: null,
         legacy: data.legacy ?? null,
         derivedOverdue: data.derivedOverdue ?? false,
+        storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
+        issuedDetails: data.issuedDetails ?? null,
         ...normalizedData,
       };
 
@@ -481,13 +488,15 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({ hasUnsavedChanges: false });
     },
 
-    saveInvoice: async (options?: { confirmedTotals?: TotalsChanged }) => {
+    saveInvoice: async (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => {
       const state = get();
       const token = sessionToken;
       set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
 
+      // Save and issue (SCR-02): the same save, sent with status PENDING; the form keeps DRAFT
+      // until the server confirms, so a refused issue leaves a draft.
       const payload = toSavePayload(
-        state.formData,
+        options?.issue ? { ...state.formData, status: 'PENDING' } : state.formData,
         options?.confirmedTotals,
         state.loadedDates
       );
@@ -503,7 +512,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
             applySavedInvoice(result.data, state.formData, token);
-            toast.success('Invoice updated');
+            toast.success(options?.issue ? 'Invoice issued' : 'Invoice updated');
           } else {
             handleSaveFailure(result, retry, token);
           }
@@ -550,6 +559,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         totalsChanged: null,
         legacy: null,
         derivedOverdue: false,
+        storedStatus: null,
+        issuedDetails: null,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -608,17 +619,31 @@ export const useInvoiceItem = (itemId: string) =>
     (state) => state.formData.items.find((i) => i.id === itemId)!
   );
 
-export const useInvalidItems = () =>
-  useInvoiceEditorStore(useShallow((state) => state.invalidItems));
-
 export const useHasUnsavedChanges = () =>
   useInvoiceEditorStore((state) => state.hasUnsavedChanges);
 
 export const useIsSaving = () =>
   useInvoiceEditorStore((state) => state.isSaving);
 
-export const useIsEditingSentInvoice = () =>
-  useInvoiceEditorStore((state) => state.isEditingSentInvoice);
+/** invoice-integrity T16: new / draft / issued / cancelled, from the stored status (SCR-02). */
+export const useEditorMode = () =>
+  useInvoiceEditorStore((state) => editorModeOf(state.invoiceId, state.storedStatus));
+
+/**
+ * What the mode locks (SCR-02): `locked` — everything but the due date, notes, payment terms and PO
+ * number (issued and cancelled); `readOnly` — every field (cancelled).
+ */
+export const useEditorLocks = () =>
+  useInvoiceEditorStore(
+    useShallow((state) => {
+      const mode = editorModeOf(state.invoiceId, state.storedStatus);
+      return { locked: mode === 'issued' || mode === 'cancelled', readOnly: mode === 'cancelled' };
+    })
+  );
+
+/** The issued details shown as text once the invoice is issued (ADR-0001). */
+export const useIssuedDetails = () =>
+  useInvoiceEditorStore(useShallow((state) => state.issuedDetails));
 
 export const useInvoiceId = () =>
   useInvoiceEditorStore((state) => state.invoiceId);
@@ -652,6 +677,7 @@ export const useNotesAndTerms = () =>
     useShallow((state) => ({
       notes: state.formData.notes,
       terms: state.formData.terms,
+      paymentTerms: state.formData.paymentTerms,
     }))
   );
 

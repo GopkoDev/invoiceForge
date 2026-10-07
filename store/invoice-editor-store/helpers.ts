@@ -10,16 +10,15 @@ import {
   Currency,
 } from '@/types/invoice/types';
 import {
+  EditorMode,
   NormalizedData,
   ComputedValues,
   SenderProfileOption,
   ProductOption,
   GroupedProducts,
-  InvalidItem,
   RecalculateComputedValuesStateInput,
   LoadedDates,
 } from './types';
-import { getValidItems } from '@/lib/helpers/invoice-editor';
 import { v4 as uuidv4 } from 'uuid';
 import {
   computeInvoiceAmounts,
@@ -167,68 +166,6 @@ function _groupProductsByCustomPrice(
 }
 
 // ============================================
-// Invalid items detection
-// ============================================
-
-function _findInvalidItems(
-  items: InvoiceFormItem[],
-  productsById: Map<string, InvoiceProduct>,
-  customPricesByProductId: Map<string, InvoiceCustomPrice[]>,
-  invoiceCurrency: Currency,
-  customerId: string
-): InvalidItem[] {
-  const invalidItems: InvalidItem[] = [];
-
-  for (const item of items) {
-    // Skip custom items (productId === 'custom')
-    if (item.productId === 'custom' || !item.productId) {
-      continue;
-    }
-
-    const product = productsById.get(item.productId);
-
-    // If product doesn't exist or has wrong currency
-    if (!product) {
-      invalidItems.push({ item, reason: 'currency' });
-      continue;
-    }
-
-    if (product.currency !== invoiceCurrency) {
-      invalidItems.push({ item, reason: 'currency' });
-      continue;
-    }
-
-    // Check if item was using a custom price that's no longer valid
-    const customPrices = customPricesByProductId.get(item.productId) || [];
-    const hasCustomPriceForCustomer = customPrices.some(
-      (cp) => cp.customerId === customerId
-    );
-
-    // If item has a price different from product price and there's no custom price for this customer
-    if (item.price !== product.price && !hasCustomPriceForCustomer) {
-      // This item might have been using a custom price from a different customer
-      const anyCustomPrice = customPrices.find((cp) => cp.price === item.price);
-      if (anyCustomPrice && anyCustomPrice.customerId !== customerId) {
-        invalidItems.push({ item, reason: 'customPrice' });
-      }
-    }
-  }
-
-  return invalidItems;
-}
-
-// ============================================
-// State check functions
-// ============================================
-
-function _checkIsEditingSentInvoice(
-  invoiceId: string | undefined,
-  status: InvoiceStatus
-): boolean {
-  return !!invoiceId && ['PENDING', 'PAID', 'OVERDUE'].includes(status);
-}
-
-// ============================================
 // Computed values
 // ============================================
 
@@ -252,20 +189,10 @@ export function recalculateComputedValues(
   const invoiceCurrency =
     selectedBankAccount?.currency || state.formData.currency;
 
-  // Find invalid items (wrong currency or invalid custom prices)
-  const invalidItems = _findInvalidItems(
-    state.formData.items,
-    state.productsById,
-    state.customPricesByProductId,
-    invoiceCurrency,
-    state.formData.customerId
-  );
-
-  // Calculate totals only for valid items, using the shared exact-decimal module so the
-  // displayed totals always match what the server will store (ADR-0006, AC-13).
-  const validItems = getValidItems(state.formData.items, invalidItems);
+  // Every line counts: lines are never dropped automatically (invoice-integrity AC-15). The shared
+  // exact-decimal module keeps the displayed totals equal to what the server stores (ADR-0006).
   const amounts = computeInvoiceAmounts({
-    items: validItems.map((item) => ({
+    items: state.formData.items.map((item) => ({
       quantity: item.quantity,
       price: item.price,
     })),
@@ -308,16 +235,11 @@ export function recalculateComputedValues(
     selectedSenderProfile,
     selectedCustomer,
     selectedBankAccount,
-    isEditingSentInvoice: _checkIsEditingSentInvoice(
-      state.invoiceId,
-      state.formData.status
-    ),
     invoiceCurrency,
     filteredProducts,
     groupedProducts,
     senderProfileOptions,
     availableBankAccounts,
-    invalidItems,
   };
 }
 
@@ -412,13 +334,11 @@ export function createEmptyComputedValues(): ComputedValues {
     selectedSenderProfile: undefined,
     selectedCustomer: undefined,
     selectedBankAccount: undefined,
-    isEditingSentInvoice: false,
     invoiceCurrency: 'USD' as const,
     filteredProducts: [],
     groupedProducts: { withCustomPrices: [], regular: [] },
     senderProfileOptions: [],
     availableBankAccounts: [],
-    invalidItems: [],
   };
 }
 
@@ -432,4 +352,12 @@ export function createEmptyNormalizedData(): NormalizedData {
     customPricesByCustomerId: new Map(),
     bankAccountsBySenderProfileId: new Map(),
   };
+}
+
+/** The editor's mode from the stored status (invoice-integrity T16, SCR-02). */
+export function editorModeOf(invoiceId: string | undefined, storedStatus: InvoiceStatus | null): EditorMode {
+  if (!invoiceId || !storedStatus) return 'new';
+  if (storedStatus === 'DRAFT') return 'draft';
+  if (storedStatus === 'CANCELLED') return 'cancelled';
+  return 'issued';
 }

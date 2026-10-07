@@ -18,6 +18,7 @@ import {
   useInvoiceCurrency,
   useInvoiceEditorActions,
   useFieldErrors,
+  useEditorLocks,
 } from '@/store/invoice-editor-store';
 
 export function SummarySection() {
@@ -26,6 +27,8 @@ export function SummarySection() {
   const { subtotal, taxRate, taxAmount, discount, shipping, total } =
     useSummary();
   const fieldErrors = useFieldErrors();
+  // invoice-integrity T16 (SCR-02): tax, discount and shipping are locked once issued.
+  const { locked } = useEditorLocks();
 
   // F-04: the entered value is never silently corrected — parse the raw input as typed
   // (including "-" and letters) and let invoiceFormSchema reject it on save, rather than
@@ -87,6 +90,7 @@ export function SummarySection() {
                 value={discountInput.value}
                 onChange={(e) => discountInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
+                disabled={locked}
                 aria-invalid={!!fieldErrors?.discount}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
@@ -106,6 +110,7 @@ export function SummarySection() {
                 value={shippingInput.value}
                 onChange={(e) => shippingInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
+                disabled={locked}
                 aria-invalid={!!fieldErrors?.shipping}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
@@ -136,6 +141,7 @@ export function SummarySection() {
                 value={taxRateInput.value}
                 onChange={(e) => taxRateInput.onChange(e.target.value)}
                 className="h-8 w-16 text-right"
+                disabled={locked}
                 aria-invalid={!!fieldErrors?.taxRate}
               />
               <span className="text-muted-foreground ml-1">%</span>

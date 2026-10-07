@@ -13,6 +13,8 @@ interface InvoiceItemFieldsProps {
   onPriceChange: (value: string) => void;
   onQuantityChange: (value: string) => void;
   isPriceDisabled: boolean;
+  /** The line is locked (issued or cancelled invoice). */
+  disabled?: boolean;
   layout?: 'desktop' | 'mobile';
 }
 
@@ -22,6 +24,7 @@ export function InvoiceItemFields({
   onPriceChange,
   onQuantityChange,
   isPriceDisabled,
+  disabled = false,
   layout = 'desktop',
 }: InvoiceItemFieldsProps) {
   const total = `${item.total.toFixed(2)} ${currency}`;
@@ -47,7 +50,7 @@ export function InvoiceItemFields({
               value={priceInput.value}
               onChange={(e) => priceInput.onChange(e.target.value)}
               className="text-right"
-              disabled={isPriceDisabled}
+              disabled={disabled || isPriceDisabled}
               aria-invalid={!!priceErrors}
             />
             <FieldError
@@ -61,6 +64,7 @@ export function InvoiceItemFields({
               value={quantityInput.value}
               onChange={(e) => quantityInput.onChange(e.target.value)}
               className="text-right"
+              disabled={disabled}
               aria-invalid={!!quantityErrors}
             />
             <FieldError
@@ -86,7 +90,7 @@ export function InvoiceItemFields({
           onChange={(e) => priceInput.onChange(e.target.value)}
           className="text-right"
           placeholder="Price"
-          disabled={isPriceDisabled}
+          disabled={disabled || isPriceDisabled}
           aria-invalid={!!priceErrors}
         />
         <FieldError errors={priceErrors?.map((message) => ({ message }))} />
@@ -99,7 +103,8 @@ export function InvoiceItemFields({
           onChange={(e) => quantityInput.onChange(e.target.value)}
           className="text-right"
           placeholder="Qty"
-          aria-invalid={!!quantityErrors}
+          disabled={disabled}
+              aria-invalid={!!quantityErrors}
         />
         <FieldError
           errors={quantityErrors?.map((message) => ({ message }))}
