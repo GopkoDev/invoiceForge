@@ -130,15 +130,18 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await prisma.invoiceItem.count()).toBe(0);
   });
 
-  it('delete of a PENDING invoice is CONFLICT and the invoice stays unchanged', async () => {
+  // invoice-integrity T10 (contracts §deleteInvoice): a non-draft is VALIDATION (was CONFLICT).
+  it('delete of a PENDING invoice is VALIDATION and the invoice stays unchanged', async () => {
     const a = await seedWithInvoice('t16-a@example.com', { status: 'PENDING' });
     const actor = await actingFreelancerForTest(a.user.id);
     const before = await snapshot(a.invoice.id);
     const res = await svc.deleteInvoice(actor, a.invoice.id);
     expect(res).toMatchObject({
       success: false,
-      code: 'CONFLICT',
-      error: 'Only draft invoices can be deleted. Consider cancelling instead.',
+      code: 'VALIDATION',
+      error:
+        'Only drafts can be deleted. An issued invoice can be cancelled instead; a cancelled invoice is final and stays listed.',
+      details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'PENDING', suggestion: null },
     });
     expect(await snapshot(a.invoice.id)).toEqual(before);
   });

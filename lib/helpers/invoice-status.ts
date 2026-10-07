@@ -3,22 +3,9 @@
 // Pure and client-importable (no `server-only`, no Prisma client beyond the enum type): the editor and
 // the list read TRANSITIONS / allowedTargets to offer only the allowed actions. `today` is the
 // Freelancer's calendar date (`yyyy-MM-dd`), always passed in by the caller.
-//
-// Before this feature (architecture-hardening T11) the only rule was the paid date, in
-// applyStatusChange; it stays exported until the callers move to decideStatusChange (T07/T10).
 
 import type { InvoiceStatus } from '@prisma/client';
 import { utcDateToDay, type CalendarDay } from '@/lib/helpers/calendar-day';
-
-export interface InvoiceStatusSnapshot {
-  status: InvoiceStatus;
-  paidAt: Date | null;
-}
-
-export interface InvoiceStatusChangeResult {
-  status: InvoiceStatus;
-  paidAt: Date | null;
-}
 
 const STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED'];
 
@@ -120,39 +107,6 @@ export function decideCreateStatus(
 }
 
 /** Only drafts can be deleted (AC-06); a cancelled invoice is final and stays listed. */
-export function decideDelete(
-  status: InvoiceStatus
-): { kind: 'ok' } | { kind: 'refused'; message: string; suggestion: StatusSuggestion } {
-  if (status === 'DRAFT') return { kind: 'ok' };
-  return {
-    kind: 'refused',
-    message: STATUS_MESSAGES.deleteNonDraft,
-    suggestion: status === 'CANCELLED' ? 'DUPLICATE' : null,
-  };
-}
-
-/**
- * @deprecated Use decideStatusChange, which also applies the lifecycle (ADR-0002). Kept until
- * T07/T10 move every caller.
- *
- * Applies the status/paid-date rule for a single transition:
- * - entering PAID from anything else sets paidAt to `now`
- * - re-saving an already-PAID invoice as PAID keeps its existing paidAt
- * - leaving PAID for any other status clears paidAt
- * - a status outside the known enum is rejected (never persisted)
- */
-export function applyStatusChange(
-  prev: InvoiceStatusSnapshot,
-  next: InvoiceStatus,
-  now: Date = new Date()
-): InvoiceStatusChangeResult {
-  if (!isKnownStatus(next)) {
-    throw new Error('Unknown status.');
-  }
-
-  if (next !== 'PAID') {
-    return { status: next, paidAt: null };
-  }
-
-  return { status: 'PAID', paidAt: prev.status === 'PAID' ? prev.paidAt : now };
+export function decideDelete(status: InvoiceStatus): { kind: 'ok' } | { kind: 'refused'; message: string } {
+  return status === 'DRAFT' ? { kind: 'ok' } : { kind: 'refused', message: STATUS_MESSAGES.deleteNonDraft };
 }

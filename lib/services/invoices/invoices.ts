@@ -44,7 +44,6 @@ import {
 } from '@/lib/validations/invoice';
 import {
   isDerivedOverdue,
-  refusesManualStatus,
   statusFilterWhere,
   statusToStoreOnSave,
   todayIn,
@@ -52,8 +51,8 @@ import {
 } from '@/lib/services/_shared/overdue';
 import {
   STATUS_MESSAGES,
-  applyStatusChange,
   decideCreateStatus,
+  decideDelete,
   decideStatusChange,
 } from '@/lib/helpers/invoice-status';
 import { ISSUED_INVOICE_LOCKED_MESSAGE, compareLockedFields } from '@/lib/helpers/invoice-locked-fields';
@@ -543,6 +542,24 @@ class InvoiceRefusal extends Error {
   }
 }
 
+/**
+ * Locks the invoice row of this owner (`FOR UPDATE OF i`, the owner in the lock's own WHERE) and
+ * reads it with its lines under the lock. Another Freelancer's invoice locks nothing and is treated
+ * exactly like a missing one (InvoiceVanishedError → NOT_FOUND, AC-23).
+ */
+async function lockInvoiceRow(tx: Prisma.TransactionClient, id: string, userId: string) {
+  const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT i.id FROM "Invoice" i
+    JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
+    WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
+  if (!locked) throw new InvoiceVanishedError();
+  const invoice = await tx.invoice.findFirst({
+    where: { id, senderProfile: { userId } },
+    include: { items: { orderBy: INVOICE_ITEM_ORDER } },
+  });
+  if (!invoice) throw new InvoiceVanishedError();
+  return invoice;
+}
+
 const CHANGED_ELSEWHERE_MESSAGE =
   'This invoice was changed elsewhere after you opened it. Reload it to see the latest version.';
 
@@ -558,11 +575,11 @@ class InvoiceTotalsChangedError extends Error {
   }
 }
 
-// Update an existing invoice (Flows 2, 6 move, 7 legacy, 8 status from the editor). The checks
-// run in the order fixed by contracts/server-actions.md §updateInvoice, verbatim: UNAUTHORIZED ->
-// VALIDATION (schema) -> NOT_FOUND (invoice, or new relations not owned) -> the move/manual number
-// rules (AC-11) -> the legacy shared-number check (AC-17) -> the legacy totals confirmation
-// (AC-17) -> applyStatusChange (AC-18, AC-19), all inside one transaction.
+// Update an existing invoice (flows 1, 2 and 4). The checks run in the order fixed by
+// contracts/server-actions.md §updateInvoice (invoice-integrity): shape -> on the locked row
+// NOT_FOUND -> CHANGED_ELSEWHERE -> cancelled -> the lifecycle -> issued: locked fields and the due
+// date / draft: every draft rule, then the move/manual number rules (AC-11), the legacy
+// shared-number check and totals confirmation (AC-17).
 /**
  * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
  * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
@@ -612,15 +629,7 @@ async function updateInvoiceUnspanned(
 
     const invoice = await prisma.$transaction(async (tx) => {
       // Step 2: lock the row of this owner, then read it (and its lines) under the lock.
-      const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT i.id FROM "Invoice" i
-        JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
-        WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
-      if (!locked) throw new InvoiceVanishedError();
-      const existingInvoice = await tx.invoice.findFirst({
-        where: { id, senderProfile: { userId } },
-        include: { items: { orderBy: INVOICE_ITEM_ORDER } },
-      });
-      if (!existingInvoice) throw new InvoiceVanishedError();
+      const existingInvoice = await lockInvoiceRow(tx, id, userId);
 
       // Step 3 (AC-10, ADR-0004): an outdated view is refused before any other rule.
       if (validatedData.loadedVersion !== existingInvoice.version) {
@@ -923,9 +932,9 @@ async function updateInvoiceUnspanned(
   }
 }
 
-// Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
-// amount, number or legacy checks (AC-17 last sentence). The status/paid-date rule itself lives
-// once in applyStatusChange (sad.md §8).
+// Update invoice status (the list, flow 5). Touches only status/paidAt/version: never runs the
+// number or legacy-total checks (AC-17 last sentence). The lifecycle and the paid-date rule live
+// once in decideStatusChange (ADR-0002).
 export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
   return startSpan({ name: 'invoices.status-change', op: 'function' }, () =>
     updateInvoiceStatusUnspanned(actor, id, status)
@@ -948,37 +957,57 @@ async function updateInvoiceStatusUnspanned(
       });
     }
 
+    // invoice-integrity T10 (flow 5, ADR-0002): no version check; one transaction on the locked
+    // row, decided against its current status. Issued details are never written here.
     const { userId } = actor;
     const outcome = await prisma.$transaction(async (tx) => {
-      const invoice = await tx.invoice.findFirst({
-        where: { id, senderProfile: { userId } },
-        select: { status: true, paidAt: true, dueDate: true },
-      });
-      if (!invoice) return null;
-
-      if (refusesManualStatus(invoice, parsedStatus.data, todayIn(actor.timeZone))) {
-        return 'REFUSED' as const;
+      const invoice = await lockInvoiceRow(tx, id, userId);
+      const today = todayIn(actor.timeZone);
+      // The overdue status of a derived-overdue invoice is never stored (mcp-server ADR-0005):
+      // asking for it is asking for the status it already has.
+      const target = statusToStoreOnSave(invoice, parsedStatus.data, today);
+      const decision = decideStatusChange(invoice, target, { now: new Date(), today });
+      if (decision.kind === 'unchanged') {
+        return { status: invoice.status, paidAt: invoice.paidAt };
       }
-      const next = applyStatusChange(invoice, parsedStatus.data);
-      const written = await tx.invoice.updateMany({
+      if (decision.kind === 'refused') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', decision.message, {
+            details: {
+              kind: 'STATUS_NOT_ALLOWED',
+              currentStatus: invoice.status,
+              suggestion: decision.suggestion,
+            },
+          })
+        );
+      }
+
+      // Issuing from the list runs every draft rule over the stored draft (AC-14, AC-25).
+      if (invoice.status === 'DRAFT') {
+        const form = transformInvoiceToFormData(invoice);
+        const draftRules = await checkDraftRules(userId, form, tx);
+        if (!draftRules.success) throw new InvoiceRefusal(draftRules);
+        const { fieldErrors } = draftRules.data;
+        if (hasFieldErrors(fieldErrors)) {
+          const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
+          throw new InvoiceRefusal(fail('VALIDATION', reasons, { fieldErrors }));
+        }
+      }
+
+      return tx.invoice.update({
         where: { id, senderProfile: { userId } },
-        data: { status: next.status, paidAt: next.paidAt },
+        data: { status: decision.status, paidAt: decision.paidAt, version: { increment: 1 } },
+        select: { status: true, paidAt: true },
       });
-      return written.count === 0 ? null : next;
     });
-    if (!outcome) return fail('NOT_FOUND', 'Invoice not found.');
-    if (outcome === 'REFUSED') {
-      return fail(
-        'VALIDATION',
-        'This invoice is overdue because its due date has passed. You can still mark it paid.'
-      );
-    }
 
     return ok({
       status: outcome.status,
       paidAt: outcome.paidAt ? outcome.paidAt.toISOString() : null,
     });
   } catch (error) {
+    if (error instanceof InvoiceRefusal) return error.result;
+    if (error instanceof InvoiceVanishedError) return fail('NOT_FOUND', 'Invoice not found.');
     return failed('Error updating invoice status:', error, 'Failed to update invoice status.', 'invoices.status-change');
   }
 }
@@ -1125,22 +1154,24 @@ async function duplicateInvoiceUnspanned(
 
 export async function deleteInvoice(actor: ActingFreelancer, id: string): Promise<ActionResult> {
   try {
+    // invoice-integrity T10 (flow 6, AC-06): only a draft is deleted, decided on the locked row.
     const { userId } = actor;
-    const invoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId } },
-      select: { status: true },
+    await prisma.$transaction(async (tx) => {
+      const invoice = await lockInvoiceRow(tx, id, userId);
+      const decision = decideDelete(invoice.status);
+      if (decision.kind === 'refused') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', decision.message, {
+            details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: invoice.status, suggestion: null },
+          })
+        );
+      }
+      await tx.invoice.deleteMany({ where: { id, status: 'DRAFT', senderProfile: { userId } } });
     });
-    if (!invoice) return fail('NOT_FOUND', 'Invoice not found.');
-    if (invoice.status !== 'DRAFT') {
-      return fail('CONFLICT', 'Only draft invoices can be deleted. Consider cancelling instead.');
-    }
-
-    const deleted = await prisma.invoice.deleteMany({
-      where: { id, status: 'DRAFT', senderProfile: { userId } },
-    });
-    if (deleted.count === 0) return fail('NOT_FOUND', 'Invoice not found.');
     return ok();
   } catch (error) {
+    if (error instanceof InvoiceRefusal) return error.result;
+    if (error instanceof InvoiceVanishedError) return fail('NOT_FOUND', 'Invoice not found.');
     return failed('Error deleting invoice:', error, 'Failed to delete invoice.');
   }
 }

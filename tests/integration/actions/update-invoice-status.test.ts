@@ -98,8 +98,10 @@ describe.runIf(containerRuntimeAvailable)(
       return invoice;
     }
 
-    it('AC-18: DRAFT -> PAID sets paidAt to the moment of the change and returns it', async () => {
-      const invoice = await seedInvoice({ status: 'DRAFT', paidAt: null });
+    // invoice-integrity T10 (AC-04): DRAFT -> PAID is no longer a move; the paid date is recorded on
+    // PENDING -> PAID.
+    it('AC-18: PENDING -> PAID sets paidAt to the moment of the change and returns it', async () => {
+      const invoice = await seedInvoice({ status: 'PENDING', paidAt: null });
       const before = new Date();
 
       const result = await updateInvoiceStatus(invoice.id, 'PAID');
@@ -162,7 +164,7 @@ describe.runIf(containerRuntimeAvailable)(
 
     it('AC-17 last sentence (edge case): a status change on a legacy invoice with a bad stored total succeeds and leaves amounts and number untouched', async () => {
       const invoice = await seedInvoice({
-        status: 'DRAFT',
+        status: 'PENDING', // invoice-integrity T10: an issued invoice (DRAFT -> PAID is not a move)
         paidAt: null,
         subtotal: 100,
         total: 999, // deliberately wrong vs a fresh recompute of the seeded item (100)
@@ -177,6 +179,114 @@ describe.runIf(containerRuntimeAvailable)(
       expect(stored.status).toBe('PAID');
       expect(Number(stored.total)).toBe(999);
       expect(stored.invoiceNumber).toBe('LEGACY-0001');
+    });
+
+    // ---- invoice-integrity T10 (AC-04, AC-05, AC-06, AC-10, AC-14, AC-23) ----------------------
+    const ALLOWED: Array<[string, string]> = [
+      ['PENDING', 'PAID'],
+      ['PENDING', 'OVERDUE'],
+      ['PENDING', 'CANCELLED'],
+      ['OVERDUE', 'PAID'],
+      ['OVERDUE', 'CANCELLED'],
+      ['PAID', 'PENDING'],
+      ['DRAFT', 'PENDING'],
+    ];
+    const FUTURE_DUE = new Date('2999-01-10T00:00:00.000Z');
+
+    it.each(ALLOWED)('T10 AC-04: %s -> %s is accepted and bumps the version', async (from, to) => {
+      const invoice = await seedInvoice({
+        status: from as never,
+        paidAt: from === 'PAID' ? new Date('2026-01-01T00:00:00Z') : null,
+        dueDate: FUTURE_DUE,
+      });
+      const result = await updateInvoiceStatus(invoice.id, to);
+      expect(result).toMatchObject({ success: true, data: { status: to } });
+      const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      expect(stored.status).toBe(to);
+      expect(stored.version).toBe(invoice.version + 1);
+      expect(stored.paidAt === null).toBe(to !== 'PAID');
+    });
+
+    it.each([
+      ['PAID', 'DRAFT', 'An issued invoice can never return to draft. Cancel it and duplicate it instead.', 'CANCEL_AND_DUPLICATE'],
+      ['PENDING', 'DRAFT', 'An issued invoice can never return to draft. Cancel it and duplicate it instead.', 'CANCEL_AND_DUPLICATE'],
+      ['CANCELLED', 'PAID', "A cancelled invoice is final and can't be changed. Duplicate it to make a new draft.", 'DUPLICATE'],
+      ['DRAFT', 'CANCELLED', "A draft can't be cancelled. Delete it instead.", null],
+      ['DRAFT', 'PAID', "An invoice can't move from DRAFT to PAID.", null],
+      ['PAID', 'CANCELLED', "An invoice can't move from PAID to CANCELLED.", null],
+    ])('T10 AC-04/05/06: %s -> %s is refused with the contract message', async (from, to, error, suggestion) => {
+      const invoice = await seedInvoice({
+        status: from as never,
+        paidAt: from === 'PAID' ? new Date('2026-01-01T00:00:00Z') : null,
+      });
+      const result = await updateInvoiceStatus(invoice.id, to);
+      expect(result).toEqual({
+        success: false,
+        code: 'VALIDATION',
+        error,
+        details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: from, suggestion },
+      });
+      const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      expect(stored).toMatchObject({ status: from, version: invoice.version, paidAt: invoice.paidAt });
+    });
+
+    it('T10: a hand-marked OVERDUE invoice past its due date cannot go back to pending', async () => {
+      const invoice = await seedInvoice({ status: 'OVERDUE', dueDate: new Date('2020-01-10T00:00:00.000Z') });
+      const result = await updateInvoiceStatus(invoice.id, 'PENDING');
+      expect(result).toMatchObject({
+        code: 'VALIDATION',
+        error: "This invoice is past its due date, so it can't move back to pending. Move its due date first, or mark it paid.",
+      });
+    });
+
+    it('T10 AC-04: a same-status request is accepted without a write or a version bump', async () => {
+      const paidAt = new Date('2026-01-01T00:00:00.000Z');
+      const invoice = await seedInvoice({ status: 'PAID', paidAt, version: 4 });
+      const before = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      const result = await updateInvoiceStatus(invoice.id, 'PAID');
+      expect(result).toEqual({ success: true, data: { status: 'PAID', paidAt: paidAt.toISOString() } });
+      expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toEqual(before);
+    });
+
+    it('T10 AC-10: marking paid an invoice that was cancelled elsewhere is refused as a change out of cancelled', async () => {
+      const invoice = await seedInvoice({ status: 'PENDING' });
+      await prisma.invoice.update({ where: { id: invoice.id }, data: { status: 'CANCELLED' } }); // the other tab
+      const result = await updateInvoiceStatus(invoice.id, 'PAID');
+      expect(result).toEqual({
+        success: false,
+        code: 'VALIDATION',
+        error: "A cancelled invoice is final and can't be changed. Duplicate it to make a new draft.",
+        details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'CANCELLED', suggestion: 'DUPLICATE' },
+      });
+    });
+
+    it('T10 AC-14: issuing from the list a stored draft whose currency differs from its bank account is refused; it stays a draft', async () => {
+      const invoice = await seedInvoice({ status: 'DRAFT', currency: 'EUR' });
+      const result = await updateInvoiceStatus(invoice.id, 'PENDING');
+      expect(result).toEqual({
+        success: false,
+        code: 'VALIDATION',
+        error: 'This account is in USD while the invoice is in EUR.',
+        fieldErrors: { bankAccountId: ['This account is in USD while the invoice is in EUR.'] },
+      });
+      const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      expect(stored).toMatchObject({ status: 'DRAFT', version: invoice.version });
+    });
+
+    it('T10: issuing a draft keeps its issued details from the last save (no refresh)', async () => {
+      const invoice = await seedInvoice({ status: 'DRAFT', customerName: 'As saved' });
+      const result = await updateInvoiceStatus(invoice.id, 'PENDING');
+      expect(result.success).toBe(true);
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).customerName).toBe('As saved');
+    });
+
+    it("T10 AC-23: another Freelancer's invoice is NOT_FOUND and unchanged", async () => {
+      const foreign = await seedInvoice({ status: 'PENDING' });
+      const other = await createFreelancer(prisma);
+      authMock.mockResolvedValue({ user: { id: other.id } });
+      const result = await updateInvoiceStatus(foreign.id, 'PAID');
+      expect(result).toEqual({ success: false, code: 'NOT_FOUND', error: 'Invoice not found.' });
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: foreign.id } })).status).toBe('PENDING');
     });
 
     it('UNAUTHORIZED: no session returns not signed in and touches nothing', async () => {

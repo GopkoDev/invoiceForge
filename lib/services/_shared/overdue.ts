@@ -99,14 +99,6 @@ export function isDerivedOverdue(row: OverdueRow, today: LocalDate): boolean {
 }
 
 /**
- * True when a manual change to `target` must be refused: the invoice is overdue only because its
- * due date has passed, and `target` is the overdue or pending status (marking it paid still works).
- */
-export function refusesManualStatus(row: OverdueRow, target: InvoiceStatus, today: LocalDate): boolean {
-  return isDerivedOverdue(row, today) && (target === 'OVERDUE' || target === 'PENDING');
-}
-
-/**
  * The status an editor save stores (AC-24, ADR-0005): the overdue status of a derived-overdue
  * invoice (stored PENDING, due date passed) is never persisted, so a save that echoes it keeps
  * PENDING. Any other submitted status, including OVERDUE on a not-yet-due invoice, is stored as sent.

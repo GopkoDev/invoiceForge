@@ -117,7 +117,9 @@ describe.runIf(containerRuntimeAvailable)('updateInvoiceStatus service (T15, AC-
     expect(res.success).toBe(true);
     const after = await snapshot(a.invoice.id);
     expect(Number(after.total)).toBe(120.5);
-    const strip = (r: typeof after) => ({ ...r, status: null, paidAt: null, updatedAt: null });
+    // invoice-integrity T10: an allowed move also bumps version (ADR-0004).
+    const strip = (r: typeof after) => ({ ...r, status: null, paidAt: null, updatedAt: null, version: null });
+    expect(after.version).toBe(before.version + 1);
     expect(strip(after)).toEqual(strip(before));
   });
 
