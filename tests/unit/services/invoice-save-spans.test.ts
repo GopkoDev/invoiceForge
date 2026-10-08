@@ -54,6 +54,7 @@ vi.mock('@sentry/nextjs', () => ({
 
 import {
   createInvoice,
+  deleteInvoice,
   duplicateInvoice,
   updateInvoice,
   updateInvoiceStatus,
@@ -101,6 +102,14 @@ describe('invoice save and status-change spans (T01)', () => {
     expect(result).toEqual({ success: false, code: 'FAILED', error: 'Failed to update invoice status.' });
     expect(spans).toEqual([{ name: 'invoices.status-change', op: 'function' }]);
     expect(captureExceptionMock.mock.calls[0][1]).toEqual({ tags: { path: 'invoices.status-change' } });
+  });
+
+  it('deleteInvoice runs inside invoices.delete and tags its FAILED with the path (T36)', async () => {
+    const result = await deleteInvoice(actor, 'inv-1');
+
+    expect(result).toEqual({ success: false, code: 'FAILED', error: 'Failed to delete invoice.' });
+    expect(spans).toEqual([{ name: 'invoices.delete', op: 'function' }]);
+    expect(captureExceptionMock.mock.calls[0][1]).toEqual({ tags: { path: 'invoices.delete' } });
   });
 
   it('attaches the operation only — no form body', async () => {
@@ -224,6 +233,21 @@ describe('invoice save and status-change span outcomes (T28)', () => {
     withInvoice(stored({ status: 'PAID', paidAt: new Date('2026-03-12T00:00:00Z') }));
     const result = await updateInvoiceStatus(actor, 'inv-1', 'PAID');
     expect(result.success).toBe(true);
+    expect(outcome()).toBe('ok');
+  });
+
+  // T36 (review r2 L1): a refused delete is a lifecycle refusal on its own write path.
+  it('sets refused:lifecycle on a delete of an issued invoice, ok on a draft delete', async () => {
+    withInvoice(stored({ status: 'PENDING' }));
+    const refused = await deleteInvoice(actor, 'inv-1');
+    expect(refused).toMatchObject({ success: false, code: 'VALIDATION', details: { kind: 'STATUS_NOT_ALLOWED' } });
+    expect(spans.at(-1)?.name).toBe('invoices.delete');
+    expect(outcome()).toBe('refused:lifecycle');
+
+    withInvoice(stored());
+    (tx.current as Record<string, Record<string, unknown>>).invoice.deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const deleted = await deleteInvoice(actor, 'inv-1');
+    expect(deleted.success).toBe(true);
     expect(outcome()).toBe('ok');
   });
 

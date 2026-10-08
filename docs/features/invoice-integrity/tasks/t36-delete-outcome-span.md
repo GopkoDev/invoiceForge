@@ -9,7 +9,7 @@ files_hint: ["lib/services/invoices/invoices.ts", "tests/unit/services/invoice-s
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 source: "review-2026-10-08-r2"
 ---
 

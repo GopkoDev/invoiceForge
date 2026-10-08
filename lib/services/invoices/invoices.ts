@@ -1232,6 +1232,11 @@ async function duplicateInvoiceUnspanned(
 }
 
 export async function deleteInvoice(actor: ActingFreelancer, id: string): Promise<ActionResult> {
+  // T36 (review r2 L1, sad §7): a refused delete is counted on its own write path.
+  return inOutcomeSpan({ name: 'invoices.delete' }, () => deleteInvoiceInSpan(actor, id));
+}
+
+async function deleteInvoiceInSpan(actor: ActingFreelancer, id: string): Promise<ActionResult> {
   try {
     // invoice-integrity T10 (flow 6, AC-06): only a draft is deleted, decided on the locked row.
     const { userId } = actor;
@@ -1251,6 +1256,6 @@ export async function deleteInvoice(actor: ActingFreelancer, id: string): Promis
   } catch (error) {
     if (error instanceof InvoiceRefusal) return error.result;
     if (error instanceof InvoiceVanishedError) return fail('NOT_FOUND', 'Invoice not found.');
-    return failed('Error deleting invoice:', error, 'Failed to delete invoice.');
+    return failed('Error deleting invoice:', error, 'Failed to delete invoice.', 'invoices.delete');
   }
 }

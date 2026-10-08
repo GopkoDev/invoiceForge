@@ -610,7 +610,12 @@ The feature runs inside the existing Vercel project in region `fra1` as part of 
 
 **Monitoring:**
 - Sentry spans `invoices.save` (create and update) and `invoices.status-change` — the source for the spec §6 latency target (p95 no more than 10 % slower than the 7 days before release). The spans do not exist yet, so they ship first, as a behaviour-free change released at least 7 days before this feature, to give the pre-release baseline the spec measures against (§11).
-- Counted refusal outcomes per write path: lifecycle refusal, locked-field refusal, `CONFLICT` (changed elsewhere), currency refusal, bounds refusal — the friction signal next to the §7 cancel-and-duplicate KPI.
+- Counted refusal outcomes per write path: lifecycle refusal, locked-field refusal, `CONFLICT` (changed elsewhere), currency refusal, bounds refusal — the friction signal next to the §7 cancel-and-duplicate KPI. The `outcome` attribute (`ok`, `failed` or `refused:<kind>`) is recorded on the invoice write paths only:
+  - create, update and duplicate (`invoices.save`);
+  - status change (`invoices.status-change`);
+  - delete (`invoices.delete`).
+
+  The currency-lock refusals on a bank-account or product save (AC-13, AC-13b) are not part of this signal: they measure friction on those records, not on invoices.
 - Generic save failures (`FAILED`) on invoices and products — already sent to Sentry by `failed()` (`captureException`), so the spec §7 baseline over the 14 days before release exists today; a path tag is added in the same early release as the spans. Source for the §7 "generic save failures" KPI and the §6 "0 generic failures from user input" target.
 - Alert: any unique-constraint violation on the default indexes in production (a write path skipped the parent lock) → notify the owner.
 - Alert: generic invoice or product save failures above the pre-release weekly baseline in a rolling day → notify the owner.
