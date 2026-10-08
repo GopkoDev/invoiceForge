@@ -18,7 +18,8 @@ const p = vi.hoisted(() => ({
     update: vi.fn(),
   },
   customer: { findFirst: vi.fn() },
-  product: { findFirst: vi.fn() },
+  product: { findFirst: vi.fn(), update: vi.fn() },
+  invoiceItem: { groupBy: vi.fn() },
   customPrice: { count: vi.fn(), findMany: vi.fn() },
   invoice: { findFirst: vi.fn() },
   $transaction: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock('@/lib/services/invoices/numbering', () => ({
 }));
 
 import { updateInvoice } from '@/lib/services/invoices/invoices';
+import { updateProduct } from '@/lib/services/products/products';
 import { createBankAccount, updateBankAccount } from '@/lib/services/bank-accounts/bank-accounts';
 import {
   listCustomerCustomPrices,
@@ -203,5 +205,47 @@ describe('owner in the where clause (T22, S-05)', () => {
     expect(sql).toContain('"SenderProfile"');
     expect(sql).toContain('"userId"');
     expect(values).toContain('user-a');
+  });
+
+  it('updateProduct counts usage owner-scoped, inside a transaction under the product row lock (T25, S1/F7)', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ locked: 1 }]);
+    const order: string[] = [];
+    queryRaw.mockImplementation(async () => {
+      order.push('lock');
+      return [{ locked: 1 }];
+    });
+    p.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({ ...p, $queryRaw: queryRaw })
+    );
+    p.product.findFirst.mockImplementation(async () => {
+      order.push('read');
+      return { id: 'p1', currency: 'USD', unit: 'hour', _count: { invoiceItems: 0 } };
+    });
+    p.invoiceItem.groupBy.mockImplementation(async () => {
+      order.push('count');
+      return [];
+    });
+    p.product.update.mockImplementation(async () => {
+      order.push('update');
+      return { id: 'p1' };
+    });
+
+    const result = await updateProduct(actor, 'p1', {
+      name: 'N', description: '', unit: 'hour', price: '12.3', currency: 'EUR', isActive: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(p.$transaction).toHaveBeenCalledTimes(1);
+    const [strings, ...values] = queryRaw.mock.calls[0] as [string[], ...unknown[]];
+    const sql = strings.join('?');
+    expect(sql).toContain('"Product"');
+    expect(sql).toContain('FOR UPDATE');
+    expect(values).toEqual(expect.arrayContaining(['p1', 'user-a']));
+    expect(p.invoiceItem.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { productId: 'p1', product: { userId: 'user-a' } } })
+    );
+    expect(order[0]).toBe('lock');
+    expect(order).toEqual(['lock', 'read', 'count', 'update']);
+    expect(p.product.update.mock.calls[0][0].data.price).toBe(12.3);
   });
 });

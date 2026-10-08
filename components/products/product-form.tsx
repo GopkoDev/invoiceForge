@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  productFormSchema,
+  productFormInputSchema,
   ProductFormValues,
 } from '@/lib/validations/product';
 import { createProduct, updateProduct } from '@/lib/actions/product-actions';
@@ -65,7 +65,8 @@ export function ProductForm({
   const currencyChangeModal = useModal('currencyChangeWarningModal');
 
   const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productFormSchema),
+    // The string-price schema: the form sends the string, the service parses it (T25).
+    resolver: zodResolver(productFormInputSchema),
     defaultValues: defaultValues || {
       name: '',
       description: '',

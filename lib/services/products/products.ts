@@ -81,7 +81,6 @@ export async function createProduct(
       data: {
         ...parsed.data,
         userId: actor.userId,
-        price: parseFloat(parsed.data.price),
       },
     });
     return ok({ id: product.id });
@@ -100,44 +99,52 @@ export async function updateProduct(
     if (!parsed.success) return zodValidationFailure(parsed.error);
     const validatedData = parsed.data;
 
-    const existing = await prisma.product.findFirst({
-      where: { id, userId: actor.userId },
-      include: withCounts,
-    });
-    if (!existing) return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
+    // T25 (review F7): read, count and write in one transaction under the owner's product row lock,
+    // so an invoice line can't land on the product between the usage count and the update.
+    return await prisma.$transaction(async (tx): Promise<ActionResult> => {
+      const locked = await tx.$queryRaw<{ locked: number }[]>`
+        SELECT 1 AS locked FROM "Product" WHERE id = ${id} AND "userId" = ${actor.userId} FOR UPDATE`;
+      if (locked.length === 0) return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
 
-    // invoice-integrity T13 (AC-13b): the currency lock counts invoices in any status, not lines.
-    if (validatedData.currency !== existing.currency) {
-      const usedBy = await prisma.invoiceItem.groupBy({ by: ['invoiceId'], where: { productId: id } });
-      const invoiceCount = usedBy.length;
-      if (invoiceCount > 0) {
-        const message = `The currency of a product used on ${invoiceCount} invoice(s) can't change.`;
-        return fail('CONFLICT', message, {
-          fieldErrors: { currency: [message] },
-          details: { kind: 'HAS_INVOICES', invoiceCount },
+      const existing = await tx.product.findFirst({
+        where: { id, userId: actor.userId },
+        include: withCounts,
+      });
+      if (!existing) return fail('NOT_FOUND', NOT_FOUND_MESSAGE);
+
+      // invoice-integrity T13 (AC-13b): the currency lock counts invoices in any status, not lines.
+      // T25 (review S1): the owner is in the count's own WHERE.
+      if (validatedData.currency !== existing.currency) {
+        const usedBy = await tx.invoiceItem.groupBy({
+          by: ['invoiceId'],
+          where: { productId: id, product: { userId: actor.userId } },
         });
+        const invoiceCount = usedBy.length;
+        if (invoiceCount > 0) {
+          const message = `The currency of a product used on ${invoiceCount} invoice(s) can't change.`;
+          return fail('CONFLICT', message, {
+            fieldErrors: { currency: [message] },
+            details: { kind: 'HAS_INVOICES', invoiceCount },
+          });
+        }
       }
-    }
 
-    const used = existing._count.invoiceItems;
-    if (used > 0) {
-      if (validatedData.unit !== existing.unit) {
+      const used = existing._count.invoiceItems;
+      if (used > 0 && validatedData.unit !== existing.unit) {
         return fail(
           'CONFLICT',
           `Cannot change unit of measure for product used in ${used} invoice(s). Create a new product instead.`,
         );
       }
-    }
 
-    const written = await notFoundOnMiss(
-      prisma.product.update({
-        where: { id, userId: actor.userId },
-        data: { ...validatedData, price: parseFloat(validatedData.price) },
-      }),
-      NOT_FOUND_MESSAGE,
-    );
-    if ('success' in written) return written;
-    return ok();
+      // The price is the number the schema validated (T25, review F5).
+      const written = await notFoundOnMiss(
+        tx.product.update({ where: { id, userId: actor.userId }, data: validatedData }),
+        NOT_FOUND_MESSAGE,
+      );
+      if ('success' in written) return written;
+      return ok();
+    });
   } catch (error) {
     return failed('Error updating product:', error, 'Failed to update product.');
   }

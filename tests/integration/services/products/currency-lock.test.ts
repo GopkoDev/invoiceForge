@@ -98,6 +98,29 @@ describe.runIf(containerRuntimeAvailable)('product currency lock (T13, AC-13b)',
     expect(result).toEqual({ success: true, data: undefined });
   });
 
+  it('stores exactly the validated price on create and update (T25, F5)', async () => {
+    const s = await seed();
+    const created = await svc.createProduct(s.actor, form({ price: '12.3' }));
+    if (!created.success) throw new Error('create failed');
+    expect(Number((await prisma.product.findUniqueOrThrow({ where: { id: created.data.id } })).price)).toBe(12.3);
+
+    expect(await svc.updateProduct(s.actor, created.data.id, form({ price: '0x10' }))).toMatchObject({
+      success: false,
+      fieldErrors: { price: ['Price must be a number.'] },
+    });
+    expect(await svc.updateProduct(s.actor, created.data.id, form({ price: '45.67' }))).toEqual({
+      success: true,
+      data: undefined,
+    });
+    expect(Number((await prisma.product.findUniqueOrThrow({ where: { id: created.data.id } })).price)).toBe(45.67);
+  });
+
+  it("a foreign owner's product is NOT_FOUND on update (T25)", async () => {
+    const s = await seed();
+    const other = await actingFreelancerForTest((await createFreelancer(prisma)).id);
+    expect(await svc.updateProduct(other, s.product.id, form())).toMatchObject({ success: false, code: 'NOT_FOUND' });
+  });
+
   it('a product on no line can change its currency', async () => {
     const s = await seed();
     const result = await svc.updateProduct(s.actor, s.product.id, form({ currency: 'EUR' }));
