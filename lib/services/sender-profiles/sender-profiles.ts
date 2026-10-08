@@ -11,7 +11,7 @@ import {
   failed,
   hasInvoicesConflict,
   isRestrictForeignKeyError,
-  isUniqueConstraintError,
+  isUniqueHitOn,
   zodValidationFailure,
 } from '@/lib/services/_shared/result-helpers';
 import { captureMessage } from '@sentry/nextjs';
@@ -36,10 +36,9 @@ export function defaultConflict(): ActionFailure {
   return fail('CONFLICT', "Couldn't change the default sender profile. Please try again.");
 }
 
-function isDefaultIndexConflict(error: unknown): boolean {
-  if (!isUniqueConstraintError(error)) return false;
-  const meta = JSON.stringify((error as { meta?: unknown }).meta ?? {});
-  return meta.includes(DEFAULT_INDEX) || meta.includes('isDefault');
+/** A P2002 on DEFAULT_INDEX itself, matched by name (see isUniqueHitOn); any other unique hit is not. */
+export function isDefaultIndexConflict(error: unknown): boolean {
+  return isUniqueHitOn(error, DEFAULT_INDEX);
 }
 
 /** Refusal decided inside the locked transaction: rolls it back, then returned as is. */

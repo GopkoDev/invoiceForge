@@ -12,6 +12,7 @@ import { truncateAllTables } from '../../../support/db/truncate';
 import { createFreelancer } from '../../../support/factories/user';
 import { createSenderProfile } from '../../../support/factories/sender-profile';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
+import { commitWhileBlocked } from '../../../support/db/row-lock-race';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -159,6 +160,51 @@ describe.runIf(containerRuntimeAvailable)('single default sender profile (T11, A
       code: 'CONFLICT',
       error: "Couldn't change the default sender profile. Please try again.",
     });
+  });
+
+  // T29 (review 2026-10-08 S3): a real P2002 from SenderProfile_userId_isDefault_key. A side transaction
+  // skips the User lock, moves the default A -> C and stays open; updateSenderProfile(B -> default) takes
+  // the lock, blocks clearing A, resumes after the commit (A no longer default, C unseen) and hits the
+  // index when it sets B.
+  it('T29: a real unique hit on the default index (a write that skipped the lock) is the retryable CONFLICT, not FAILED', async () => {
+    const user = await createFreelancer(prisma);
+    const actor = await actingFreelancerForTest(user.id);
+    const a = await createSenderProfile(prisma, user.id, { isDefault: true });
+    const b = await createSenderProfile(prisma, user.id, { isDefault: false });
+    const c = await createSenderProfile(prisma, user.id, { isDefault: false });
+
+    const result = await commitWhileBlocked(
+      prisma,
+      async (tx) => {
+        await tx.senderProfile.update({ where: { id: a.id }, data: { isDefault: false } });
+        await tx.senderProfile.update({ where: { id: c.id }, data: { isDefault: true } });
+      },
+      () => svc.updateSenderProfile(actor, b.id, formOf(b, { isDefault: true })),
+    );
+
+    expect(result).toEqual(svc.defaultConflict());
+    expect(result).toMatchObject({ success: false, code: 'CONFLICT' });
+    // The failed switch rolled back: the default the side transaction committed stays the only one.
+    expect(await defaults(user.id)).toEqual([c.id]);
+  });
+
+  it('T29: isDefaultIndexConflict reads the index from the real Prisma error, and only for the default index', async () => {
+    const user = await createFreelancer(prisma);
+    const first = await createSenderProfile(prisma, user.id, { isDefault: true });
+    const second = await createSenderProfile(prisma, user.id, { isDefault: false });
+
+    const defaultHit = await prisma.senderProfile
+      .update({ where: { id: second.id }, data: { isDefault: true } })
+      .catch((e: unknown) => e);
+    expect(defaultHit).toMatchObject({ code: 'P2002' });
+    expect(svc.isDefaultIndexConflict(defaultHit)).toBe(true);
+
+    // Another unique index on the same table (invoicePrefix) is a P2002 too, but not the default CONFLICT.
+    const prefixHit = await prisma.senderProfile
+      .update({ where: { id: second.id }, data: { invoicePrefix: first.invoicePrefix } })
+      .catch((e: unknown) => e);
+    expect(prefixHit).toMatchObject({ code: 'P2002' });
+    expect(svc.isDefaultIndexConflict(prefixHit)).toBe(false);
   });
 });
 

@@ -4,7 +4,7 @@ import { prisma } from '@/prisma';
 import { bankAccountFormSchema, type BankAccountFormValues } from '@/lib/validations/bank-account';
 import type { BankAccountWithRelations } from '@/types/sender-profile/types';
 import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
-import { failed, isUniqueConstraintError, zodValidationFailure } from '@/lib/services/_shared/result-helpers';
+import { failed, isUniqueHitOn, zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 import { captureMessage } from '@sentry/nextjs';
 import { notFoundOnMiss } from '@/lib/services/_shared/owner-scope';
 import { ilikeAny, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
@@ -26,10 +26,9 @@ export function defaultAccountConflict(): ActionFailure {
   return fail('CONFLICT', "Couldn't change the default account. Please try again.");
 }
 
-function isDefaultIndexConflict(error: unknown): boolean {
-  if (!isUniqueConstraintError(error)) return false;
-  const meta = JSON.stringify((error as { meta?: unknown }).meta ?? {});
-  return meta.includes(DEFAULT_INDEX) || meta.includes('isDefault');
+/** A P2002 on DEFAULT_INDEX itself, matched by name (see isUniqueHitOn); any other unique hit is not. */
+export function isDefaultIndexConflict(error: unknown): boolean {
+  return isUniqueHitOn(error, DEFAULT_INDEX);
 }
 
 /** Refusal decided inside the locked transaction: rolls it back, then returned as is. */

@@ -26,6 +26,28 @@ export function zodValidationFailure(
   return fail('VALIDATION', message, { fieldErrors });
 }
 
+/**
+ * True when `error` is a P2002 on the unique index `indexName`, read from explicit fields of the
+ * Prisma error (invoice-integrity T29), first match wins:
+ *   1. `meta.target` — the Rust query engine names the constraint here (a string, or a list).
+ *   2. `meta.driverAdapterError.cause.constraint.index` — Prisma 7 driver adapters; @prisma/adapter-pg
+ *      copies Postgres' constraint name into it.
+ * A constraint that only lists columns (`constraint.fields`) does not identify a partial index, so it
+ * never matches; neither does the name appearing anywhere else in the error.
+ */
+export function isUniqueHitOn(error: unknown, indexName: string): boolean {
+  if (!isUniqueConstraintError(error)) return false;
+  const meta = (error as { meta?: unknown }).meta;
+  if (typeof meta !== 'object' || meta === null) return false;
+
+  const target = (meta as { target?: unknown }).target;
+  if (target === indexName || (Array.isArray(target) && target.includes(indexName))) return true;
+
+  const adapterError = (meta as { driverAdapterError?: { cause?: { constraint?: unknown } } }).driverAdapterError;
+  const constraint = adapterError?.cause?.constraint;
+  return typeof constraint === 'object' && constraint !== null && (constraint as { index?: unknown }).index === indexName;
+}
+
 /** True for Prisma's unique-constraint violation (P2002). */
 export function isUniqueConstraintError(error: unknown): boolean {
   return (

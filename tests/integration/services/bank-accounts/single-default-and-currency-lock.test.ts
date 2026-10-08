@@ -14,6 +14,7 @@ import { createBankAccount } from '../../../support/factories/bank-account';
 import { createCustomer } from '../../../support/factories/customer';
 import { createInvoice } from '../../../support/factories/invoice';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
+import { commitWhileBlocked } from '../../../support/db/row-lock-race';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -183,6 +184,55 @@ describe.runIf(containerRuntimeAvailable)('bank accounts: single default and cur
       code: 'CONFLICT',
       error: "Couldn't change the default account. Please try again.",
     });
+  });
+
+  // T29 (review 2026-10-08 S3): a real P2002 from BankAccount_senderProfileId_isDefault_key. A side
+  // transaction skips the SenderProfile lock, moves the default A -> C and stays open;
+  // updateBankAccount(B -> default) takes the lock, blocks clearing A, resumes after the commit
+  // (A no longer default, C unseen) and hits the index when it sets B.
+  it('T29: a real unique hit on the default index (a write that skipped the lock) is the retryable CONFLICT, not FAILED', async () => {
+    const s = await seed();
+    const a = await createBankAccount(prisma, s.profile.id, { isDefault: true });
+    const b = await createBankAccount(prisma, s.profile.id, { isDefault: false });
+    const c = await createBankAccount(prisma, s.profile.id, { isDefault: false });
+
+    const result = await commitWhileBlocked(
+      prisma,
+      async (tx) => {
+        await tx.bankAccount.update({ where: { id: a.id }, data: { isDefault: false } });
+        await tx.bankAccount.update({ where: { id: c.id }, data: { isDefault: true } });
+      },
+      () => svc.updateBankAccount(s.actor, b.id, formOf(b, { isDefault: true })),
+    );
+
+    expect(result).toEqual(svc.defaultAccountConflict());
+    expect(result).toMatchObject({ success: false, code: 'CONFLICT' });
+    // The failed switch rolled back: the default the side transaction committed stays the only one.
+    const defaults = await prisma.bankAccount.findMany({
+      where: { senderProfileId: s.profile.id, isDefault: true },
+      select: { id: true },
+    });
+    expect(defaults.map((r) => r.id)).toEqual([c.id]);
+  });
+
+  it('T29: isDefaultIndexConflict reads the index from the real Prisma error, and only for the default index', async () => {
+    const s = await seed();
+    await createBankAccount(prisma, s.profile.id, { isDefault: true });
+    const second = await createBankAccount(prisma, s.profile.id, { isDefault: false });
+
+    const defaultHit = await prisma.bankAccount
+      .update({ where: { id: second.id }, data: { isDefault: true } })
+      .catch((e: unknown) => e);
+    expect(defaultHit).toMatchObject({ code: 'P2002' });
+    expect(svc.isDefaultIndexConflict(defaultHit)).toBe(true);
+
+    // A P2002 on another unique index (SenderProfile.invoicePrefix) is not the default CONFLICT.
+    const other = await createSenderProfile(prisma, s.user.id, { isDefault: false });
+    const prefixHit = await prisma.senderProfile
+      .update({ where: { id: other.id }, data: { invoicePrefix: s.profile.invoicePrefix } })
+      .catch((e: unknown) => e);
+    expect(prefixHit).toMatchObject({ code: 'P2002' });
+    expect(svc.isDefaultIndexConflict(prefixHit)).toBe(false);
   });
 });
 
