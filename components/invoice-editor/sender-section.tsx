@@ -218,8 +218,9 @@ export function SenderSection() {
           <Popover open={openBankAccount} onOpenChange={setOpenBankAccount}>
             <PopoverTrigger
               disabled={isBankAccountDisabled}
+              aria-invalid={!!fieldErrors?.bankAccountId}
               className={cn(
-                'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs',
+                'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-invalid:border-destructive mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs',
                 isBankAccountDisabled && 'cursor-not-allowed opacity-50'
               )}
             >

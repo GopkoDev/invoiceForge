@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle } from 'lucide-react';
 import { InvoiceEditorData } from '@/types/invoice/types';
@@ -12,6 +12,7 @@ import { InvoiceEditorForm } from './invoice-editor-form';
 import { EditorModeAlert } from './edit-sented-invoice-alert';
 import { InvoiceEditorResizePanels } from './invoice-editor-resize-panels';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { LoadError } from '@/components/layout/content-area/load-error';
 import { useInvoiceReload } from '@/hooks/use-invoice-reload';
 
@@ -59,6 +60,22 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
   const reloadFailed = useReloadFailed();
   const reload = useInvoiceReload();
 
+  // SCR-05 `reloading`: the stale Alert's Reload shows a Spinner and is disabled while the reload is
+  // in flight, so a double click reloads once. The ref closes the gap before the state re-renders.
+  const [reloading, setReloading] = useState(false);
+  const reloadingRef = useRef(false);
+  const handleReload = async () => {
+    if (reloadingRef.current) return;
+    reloadingRef.current = true;
+    setReloading(true);
+    try {
+      await reload();
+    } finally {
+      reloadingRef.current = false;
+      setReloading(false);
+    }
+  };
+
   const { initialize, reset } = useInvoiceEditorActions();
   const confirmationModal = useModal('confirmationModal');
 
@@ -83,7 +100,8 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
           <Alert className="mx-4 mb-3 flex items-center justify-between gap-3 lg:mx-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>This invoice was changed elsewhere. Reload it to continue.</AlertDescription>
-            <Button size="sm" variant="outline" onClick={() => void reload()}>
+            <Button size="sm" variant="outline" onClick={() => void handleReload()} disabled={reloading}>
+              {reloading ? <Spinner className="mr-1" /> : null}
               Reload
             </Button>
           </Alert>

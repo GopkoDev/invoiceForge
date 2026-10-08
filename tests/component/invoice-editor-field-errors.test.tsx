@@ -4,7 +4,7 @@
 // and no toast fallback; an ISSUED_INVOICE_LOCKED refusal shows a destructive Alert above the form; a
 // STATUS_NOT_ALLOWED refusal is a toast.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -38,6 +38,16 @@ vi.mock('@/hooks/use-invoice-pdf', () => ({
   }),
 }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
+
+// jsdom has no ResizeObserver / getAnimations / scrollIntoView (cmdk and Base UI). Scaffold-only stubs.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+Element.prototype.getAnimations = () => [];
+Element.prototype.scrollIntoView = () => {};
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
 const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
@@ -101,6 +111,15 @@ function renderEditor(d: InvoiceEditorData) {
 }
 
 const byPlaceholder = (text: string) => screen.getByPlaceholderText(text);
+const triggerOf = (text: RegExp) => screen.getByText(text).closest('button') as HTMLButtonElement;
+/** The element rendered right after the summary row that carries `label` (the row's own FieldError). */
+function belowRow(label: string): Element {
+  let row: HTMLElement | null = screen.getByText(label, { selector: 'span, label' });
+  while (row && row.parentElement && !row.parentElement.classList.contains('space-y-4') && !row.parentElement.classList.contains('space-y-3')) {
+    row = row.parentElement;
+  }
+  return row!.nextElementSibling!;
+}
 
 beforeEach(() => {
   for (const m of [updateInvoiceMock, createInvoiceMock, toastSuccess, toastError]) m.mockReset();
@@ -152,9 +171,26 @@ describe('InvoiceEditor field errors (T17)', () => {
     renderEditor(data('DRAFT'));
     await editNotesAndSave();
 
-    for (const message of Object.values(MSG)) {
-      expect(await screen.findByText(message), message).toBeInTheDocument();
-    }
+    // Each message sits inside its own field's container, not just somewhere on the page.
+    const dueDateField = triggerOf(/March 24th, 2026/).parentElement as HTMLElement;
+    expect(await within(dueDateField).findByText(MSG.dueDate)).toBeInTheDocument();
+    const bankField = triggerOf(/Current Bank \(USD\)/).parentElement as HTMLElement;
+    expect(within(bankField).getByText(MSG.bankAccountId)).toBeInTheDocument();
+    const productField = screen.getByText('Consulting 2025').closest('.min-w-0') as HTMLElement;
+    expect(within(productField).getByText(MSG.productId)).toBeInTheDocument();
+    const lineTotal = screen.getByText('300.00 USD');
+    expect(within(lineTotal).getByText(MSG.lineTotal)).toBeInTheDocument();
+    expect(belowRow('Subtotal')).toHaveTextContent(MSG.subtotal);
+    expect(belowRow('Discount')).toHaveTextContent(MSG.discount);
+    expect(belowRow('Shipping')).toHaveTextContent(MSG.shipping);
+    expect(belowRow('Tax')).toHaveTextContent(MSG.taxAmount);
+    expect(belowRow('Total')).toHaveTextContent(MSG.total);
+    // Each message appears once: nothing is duplicated elsewhere.
+    for (const message of Object.values(MSG)) expect(screen.getAllByText(message), message).toHaveLength(1);
+    // The due date, bank account and line product triggers are marked invalid for assistive tech.
+    expect(triggerOf(/March 24th, 2026/)).toHaveAttribute('aria-invalid', 'true');
+    expect(triggerOf(/Current Bank \(USD\)/)).toHaveAttribute('aria-invalid', 'true');
+    expect((screen.getByText('Consulting 2025').closest('button') as HTMLButtonElement)).toHaveAttribute('aria-invalid', 'true');
     expect(toastError).not.toHaveBeenCalled();
     // Edits are kept.
     expect(byPlaceholder('Additional information for the client...')).toHaveValue('a note edited');
@@ -169,7 +205,9 @@ describe('InvoiceEditor field errors (T17)', () => {
     });
     renderEditor(data('PENDING'));
     await editNotesAndSave();
-    expect(await screen.findByText(MSG.dueDate)).toBeInTheDocument();
+    const dueDateField = triggerOf(/March 24th, 2026/).parentElement as HTMLElement;
+    expect(await within(dueDateField).findByText(MSG.dueDate)).toBeInTheDocument();
+    expect(triggerOf(/March 24th, 2026/)).toHaveAttribute('aria-invalid', 'true');
     expect(toastError).not.toHaveBeenCalled();
   });
 
@@ -187,7 +225,7 @@ describe('InvoiceEditor field errors (T17)', () => {
     renderEditor(data('PENDING'));
     await editNotesAndSave();
     expect(await screen.findByText(LOCKED_ERROR)).toBeInTheDocument();
-    expect(screen.getByText("This field can't change on an issued invoice.")).toBeInTheDocument();
+    expect(belowRow('Discount')).toHaveTextContent("This field can't change on an issued invoice.");
     expect(toastError).toHaveBeenCalledWith("This field can't change on an issued invoice.");
   });
 

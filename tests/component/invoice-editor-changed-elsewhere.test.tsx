@@ -5,7 +5,7 @@
 // invoice in its current status's mode; Close leaves a stale Alert with Reload, and any save re-opens
 // SCR-05.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -197,6 +197,41 @@ describe('InvoiceEditor — loaded version and changed elsewhere (T18)', () => {
       await user.click(screen.getAllByText('Save')[0]);
     });
     expect(await screen.findByText('This invoice changed elsewhere')).toBeInTheDocument();
+  });
+
+  it('the stale Alert Reload shows a spinner and is disabled while reloading; a double click reloads once', async () => {
+    updateInvoiceMock.mockResolvedValue(conflict);
+    let finish!: (value: unknown) => void;
+    editorDataMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderEditor(data('DRAFT'));
+    const user = userEvent.setup();
+    await typeNoteAndSave(user);
+    await screen.findByText('This invoice changed elsewhere');
+    await user.click(footerClose());
+    const staleAlert = (await screen.findByText(STALE)).closest('[role="alert"]') as HTMLElement;
+    const reloadButton = within(staleAlert).getByRole('button', { name: /Reload/ });
+
+    await user.dblClick(reloadButton);
+    expect(within(staleAlert).getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(reloadButton).toBeDisabled();
+    expect(editorDataMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => finish({ success: true, data: data('DRAFT', { version: 4 }) }));
+    await waitFor(() => expect(screen.queryByText(STALE)).not.toBeInTheDocument());
+  });
+
+  it('a failed reload from the stale Alert re-enables the flow: the load error with Try again shows', async () => {
+    updateInvoiceMock.mockResolvedValue(conflict);
+    editorDataMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'Failed to fetch invoice editor data.' });
+    renderEditor(data('DRAFT'));
+    const user = userEvent.setup();
+    await typeNoteAndSave(user);
+    await screen.findByText('This invoice changed elsewhere');
+    await user.click(footerClose());
+    const staleAlert = (await screen.findByText(STALE)).closest('[role="alert"]') as HTMLElement;
+    await user.click(within(staleAlert).getByRole('button', { name: /Reload/ }));
+    expect(await screen.findByText('Try again')).toBeInTheDocument();
+    expect(screen.getByText('Try again').closest('button')).not.toBeDisabled();
   });
 
   it('Reload of an invoice deleted elsewhere refreshes into the not-found page', async () => {

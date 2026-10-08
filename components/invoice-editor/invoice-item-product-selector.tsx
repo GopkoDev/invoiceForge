@@ -31,6 +31,8 @@ interface InvoiceItemProductSelectorProps {
   onProductNameChange: (value: string) => void;
   /** The line is locked (issued or cancelled invoice): shown as saved, not editable. */
   disabled?: boolean;
+  /** The line's product has a field error: marks the trigger invalid for assistive tech. */
+  invalid?: boolean;
 }
 
 export function InvoiceItemProductSelector({
@@ -42,6 +44,7 @@ export function InvoiceItemProductSelector({
   onProductSelect,
   onProductNameChange,
   disabled = false,
+  invalid = false,
 }: InvoiceItemProductSelectorProps) {
   const [productOpen, setProductOpen] = useState(false);
 
@@ -66,7 +69,7 @@ export function InvoiceItemProductSelector({
 
   return (
     <Popover open={productOpen} onOpenChange={setProductOpen}>
-      <PopoverTrigger className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs">
+      <PopoverTrigger aria-invalid={invalid} className="aria-invalid:border-destructive border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs">
         <span className="truncate">{productName || 'Select product...'}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>

@@ -76,6 +76,7 @@ export function InvoiceItemCard({
           onProductSelect={handleProductSelect}
           onProductNameChange={handleProductNameChange}
           disabled={locked}
+          invalid={!!productErrors}
         />
         <FieldError errors={productErrors?.map((message) => ({ message }))} />
       </div>

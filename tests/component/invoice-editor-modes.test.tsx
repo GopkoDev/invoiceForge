@@ -41,6 +41,16 @@ vi.mock('@/hooks/use-invoice-pdf', () => ({
 }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 
+// jsdom has no ResizeObserver / getAnimations / scrollIntoView (cmdk and Base UI). Scaffold-only stubs.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+Element.prototype.getAnimations = () => [];
+Element.prototype.scrollIntoView = () => {};
+
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
 const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
 
@@ -131,6 +141,18 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
     expect(screen.getByText('Old workshop')).toBeInTheDocument();
     expect(screen.queryByText(/Invalid Items/)).not.toBeInTheDocument();
     expect(screen.queryByText(/will be removed when you save/)).not.toBeInTheDocument();
+  });
+
+  it('the add-line picker offers active products only; the inactive "Consulting 2025" is not offered but its existing line stays (AC-15)', async () => {
+    renderEditor(data('DRAFT'));
+    const user = userEvent.setup();
+    await user.click(screen.getByText('From List'));
+    await user.click(await screen.findByText('Select product...'));
+    const picker = await screen.findByRole('listbox');
+    expect(within(picker).getByText('Design')).toBeInTheDocument();
+    expect(within(picker).queryByText('Consulting 2025')).not.toBeInTheDocument();
+    // The saved line keeps showing the retired product.
+    expect(screen.getByText('Consulting 2025')).toBeInTheDocument();
   });
 
   it.each(['PENDING', 'OVERDUE', 'PAID'] as const)(

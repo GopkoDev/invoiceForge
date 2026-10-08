@@ -64,6 +64,7 @@ export function InvoiceItemRow({
           onProductSelect={handleProductSelect}
           onProductNameChange={handleProductNameChange}
           disabled={locked}
+          invalid={!!productErrors}
         />
         <FieldError errors={productErrors?.map((message) => ({ message }))} />
       </div>
