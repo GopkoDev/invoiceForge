@@ -55,11 +55,6 @@ test('AC-04: mark paid shows the payment date, undo to pending clears it', async
 test('AC-06: cancelling asks for confirmation (SCR-04) and, once confirmed, the row shows cancelled', async ({
   browser,
 }, testInfo) => {
-  // KNOWN PRODUCT BUG (reported with T32): the invoices layout mounts only InvoiceModalContainer
-  // (the PDF preview), never the ConfirmationModal that Cancel opens, so the SCR-04 dialog never
-  // appears on the list. test.fail() keeps the suite green and turns red the day it is fixed,
-  // which is the cue to delete this line.
-  test.fail(true, 'SCR-04 cancel confirmation is not mounted on the invoices list');
   test.setTimeout(240_000);
   const f = await openSignedInFreelancer(browser, testInfo, 'ii-us03-cancel', {
     seed: { timeZone: 'UTC' },
