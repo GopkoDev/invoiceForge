@@ -26,16 +26,16 @@
 | T19 | [Show default-checkbox states and currency-lock and price errors in the sender profile, bank account and product forms](./t19-profile-account-product-forms.md) | ui | Dmytro Hopko | M | T11, T12, T13 | done |
 | T20 | [Add the count-only pre-release report script and the release runbook](./t20-pre-release-report-and-runbook.md) | infra | Dmytro Hopko | S | T02 | done |
 | T21 | [Prove every invoice write path enforces the same rules: status matrix, race, version bump, tenancy and read-only Assistant](./t21-write-path-conformance.md) | tests | Dmytro Hopko | M | T07, T08, T09, T10 | done |
-| T22 | [Refresh the issued details in the editor after Save and issue and never offer a picker on an issued invoice](./t22-editor-issued-details-after-issue.md) | ui | Dmytro Hopko | M | — | todo |
-| T23 | [Apply the amount bounds by status and path: shape only on issued saves, every bound on draft saves and on issuing from the list, discount capped at the column limit](./t23-amount-bounds-by-status-and-path.md) | app | Dmytro Hopko | M | T22 | todo |
-| T24 | [Pin the editor's account-driven currency: picking a bank account sets the draft currency and a catalogue line in another currency is refused on its line](./t24-editor-account-currency-pin.md) | ui | Dmytro Hopko | S | — | todo |
-| T25 | [Validate the product price strictly and store the validated value; count product usage owner-scoped inside a transaction under the product row lock](./t25-product-price-and-lock-hardening.md) | app | Dmytro Hopko | S | — | todo |
-| T26 | [Lock the sender profile (and share-lock line products) before the currency checks on every invoice save](./t26-lock-before-currency-checks.md) | app | Dmytro Hopko | M | T23, T25 | todo |
-| T28 | [Record the outcome of every invoice save and status change on its span so refusals are counted per write path](./t28-refusal-outcome-on-spans.md) | app | Dmytro Hopko | S | T26 | todo |
-| T27 | [Build row menus from the stored status and the Freelancer's time zone on the list and the dashboard](./t27-row-menus-from-stored-status.md) | ui | Dmytro Hopko | M | T28 | todo |
-| T29 | [Map a real unique hit on the default index to a retryable CONFLICT and match the index explicitly](./t29-default-index-conflict-mapping.md) | tests | Dmytro Hopko | S | — | todo |
-| T30 | [Link the new editor field errors to their controls, give Reload a busy state, and scope the editor error and inactive-product tests](./t30-editor-a11y-reload-and-scoped-tests.md) | ui | Dmytro Hopko | M | T22, T24 | todo |
-| T31 | [Make the product form's currency copy match the refuse-on-save rule and cover the make-default component row](./t31-forms-copy-and-make-default-tests.md) | ui | Dmytro Hopko | S | — | todo |
-| T32 | [Drive the invoice-integrity flows end to end through the UI](./t32-e2e-through-ui-flows.md) | tests | Dmytro Hopko | L | T22, T23, T27 | todo |
+| T22 | [Refresh the issued details in the editor after Save and issue and never offer a picker on an issued invoice](./t22-editor-issued-details-after-issue.md) | ui | Dmytro Hopko | M | — | done |
+| T23 | [Apply the amount bounds by status and path: shape only on issued saves, every bound on draft saves and on issuing from the list, discount capped at the column limit](./t23-amount-bounds-by-status-and-path.md) | app | Dmytro Hopko | M | T22 | done |
+| T24 | [Pin the editor's account-driven currency: picking a bank account sets the draft currency and a catalogue line in another currency is refused on its line](./t24-editor-account-currency-pin.md) | ui | Dmytro Hopko | S | — | done |
+| T25 | [Validate the product price strictly and store the validated value; count product usage owner-scoped inside a transaction under the product row lock](./t25-product-price-and-lock-hardening.md) | app | Dmytro Hopko | S | — | done |
+| T26 | [Lock the sender profile (and share-lock line products) before the currency checks on every invoice save](./t26-lock-before-currency-checks.md) | app | Dmytro Hopko | M | T23, T25 | done |
+| T28 | [Record the outcome of every invoice save and status change on its span so refusals are counted per write path](./t28-refusal-outcome-on-spans.md) | app | Dmytro Hopko | S | T26 | done |
+| T27 | [Build row menus from the stored status and the Freelancer's time zone on the list and the dashboard](./t27-row-menus-from-stored-status.md) | ui | Dmytro Hopko | M | T28 | done |
+| T29 | [Map a real unique hit on the default index to a retryable CONFLICT and match the index explicitly](./t29-default-index-conflict-mapping.md) | tests | Dmytro Hopko | S | — | done |
+| T30 | [Link the new editor field errors to their controls, give Reload a busy state, and scope the editor error and inactive-product tests](./t30-editor-a11y-reload-and-scoped-tests.md) | ui | Dmytro Hopko | M | T22, T24 | done |
+| T31 | [Make the product form's currency copy match the refuse-on-save rule and cover the make-default component row](./t31-forms-copy-and-make-default-tests.md) | ui | Dmytro Hopko | S | — | done |
+| T32 | [Drive the invoice-integrity flows end to end through the UI](./t32-e2e-through-ui-flows.md) | tests | Dmytro Hopko | L | T22, T23, T27 | done |
 
 **Total:** 32 tasks (T22–T32 are review follow-ups from `_review/review-2026-10-08.md`).
