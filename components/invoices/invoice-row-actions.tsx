@@ -50,6 +50,8 @@ interface InvoiceRowActionsProps {
   invoiceNumber: string;
   /** The row's status as the list shows it (an overdue-by-date pending row reads OVERDUE). */
   status: InvoiceStatus;
+  /** The stored status: the menu's moves come from it, not from the derived one (defaults to `status`). */
+  storedStatus?: InvoiceStatus;
   /** The stored due date: gates overdue → pending (not past due in the Freelancer's zone). */
   dueDate?: Date | string;
   /** The Freelancer's time zone, for "today". */
@@ -66,6 +68,7 @@ export function InvoiceRowActions({
   invoiceId,
   invoiceNumber,
   status,
+  storedStatus,
   dueDate,
   timeZone,
   onDataChange,
@@ -77,7 +80,8 @@ export function InvoiceRowActions({
   // invoice-integrity T15 (SCR-01 status-refused): a refusal names the invoice's current status;
   // the menu is redrawn at it until the refreshed row arrives.
   const [refusedStatus, setRefusedStatus] = useState<{ from: InvoiceStatus; to: InvoiceStatus } | null>(null);
-  const rowStatus = refusedStatus && refusedStatus.from === status ? refusedStatus.to : status;
+  const menuStatus = storedStatus ?? status;
+  const rowStatus = refusedStatus && refusedStatus.from === menuStatus ? refusedStatus.to : menuStatus;
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
   const confirmationModal = useModal('confirmationModal');
 
@@ -193,7 +197,7 @@ export function InvoiceRowActions({
   /** SCR-01 status-refused / delete-refused: redraw the row at the status the server reports. */
   const redrawAfterRefusal = (result: ActionFailure) => {
     const current = refusedAt(result);
-    if (current) setRefusedStatus({ from: status, to: current });
+    if (current) setRefusedStatus({ from: menuStatus, to: current });
     if (result.code === 'VALIDATION') {
       onDataChange?.();
       router.refresh();

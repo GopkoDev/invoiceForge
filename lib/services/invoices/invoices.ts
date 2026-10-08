@@ -294,6 +294,7 @@ export async function listInvoices(
       ...page,
       items: page.items.map((inv) => ({
         ...withDerivedStatus(inv, today),
+        storedStatus: inv.status,
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },

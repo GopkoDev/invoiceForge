@@ -78,6 +78,8 @@ describe.runIf(containerRuntimeAvailable)('dashboard shared overdue rule (T06)',
     expect(r.debtors.map((d) => [d.customerId, d.total, d.count])).toEqual([[s.customer.id, 120.5, 1]]);
     expect(r.expected).toEqual([]);
     expect(r.recent.find((i) => i.id === inv.id)?.status).toBe('OVERDUE');
+    // T27 (F8): the row menu is built from the stored status, which travels beside the derived one.
+    expect(r.recent.find((i) => i.id === inv.id)?.storedStatus).toBe('PENDING');
     const stored = await testClient.invoice.findUniqueOrThrow({ where: { id: inv.id } });
     expect(stored.status).toBe('PENDING');
   });

@@ -85,10 +85,12 @@ export async function SenderAccountsSection({
 
 export async function RecentInvoicesSection({
   currency,
+  timeZone,
 }: {
   currency: Currency;
+  timeZone: string;
 }) {
   const result = await getDashboardRecentInvoices(currency);
   const invoices = unwrapPageResult(result);
-  return <DashboardRecentInvoices invoices={invoices} />;
+  return <DashboardRecentInvoices invoices={invoices} timeZone={timeZone} />;
 }

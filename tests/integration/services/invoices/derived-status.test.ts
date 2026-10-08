@@ -115,6 +115,18 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     expect(await stored(late.id)).toBe('PENDING');
   });
 
+  it('T27 (F8): each list row carries the stored status beside the derived one', async () => {
+    const s = await seed();
+    const late = await s.make({ status: 'PENDING', dueDate: PAST });
+    const hand = await s.make({ status: 'OVERDUE', dueDate: FUTURE });
+    const paid = await s.make({ status: 'PAID', dueDate: PAST });
+    const all = await svc.listInvoices(s.actor, { pageSize: 50 });
+    const row = (id: string) => all.data.items.find((i: any) => i.id === id);
+    expect([row(late.id).status, row(late.id).storedStatus]).toEqual(['OVERDUE', 'PENDING']);
+    expect([row(hand.id).status, row(hand.id).storedStatus]).toEqual(['OVERDUE', 'OVERDUE']);
+    expect([row(paid.id).status, row(paid.id).storedStatus]).toEqual(['PAID', 'PAID']);
+  });
+
   it('customer and sender-profile scoped lists return the derived status', async () => {
     const s = await seed();
     const late = await s.make({ status: 'PENDING', dueDate: PAST });

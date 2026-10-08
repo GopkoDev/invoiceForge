@@ -53,10 +53,17 @@ beforeEach(() => {
   for (const m of [statusMock, deleteMock, toastError, toastSuccess, refreshMock, confirmOpen, confirmClose]) m.mockReset();
 });
 
-async function openMenu(status: Status, dueDate = FUTURE) {
+async function openMenu(status: Status, dueDate = FUTURE, storedStatus?: Status) {
   const user = userEvent.setup();
   render(
-    <InvoiceRowActions invoiceId="inv-1" invoiceNumber="INV-0042" status={status} dueDate={dueDate} timeZone="UTC" />
+    <InvoiceRowActions
+      invoiceId="inv-1"
+      invoiceNumber="INV-0042"
+      status={status}
+      storedStatus={storedStatus}
+      dueDate={dueDate}
+      timeZone="UTC"
+    />
   );
   await user.click(screen.getByRole('button', { name: /actions for/i }));
   await screen.findByText('Duplicate');
@@ -180,5 +187,17 @@ describe('refusals (AC-10 list half)', () => {
     await user.click(screen.getByRole('button', { name: /actions for/i }));
     await screen.findByText('Duplicate');
     expect(offered().sort()).toEqual(['Cancel Invoice', 'Edit', 'Mark as Overdue', 'Mark as Paid']);
+  });
+});
+
+describe('InvoiceRowActions — menu from the stored status (T27, F8, AC-04, AC-05)', () => {
+  it('a stored-PENDING invoice past its due date reads Overdue but offers the stored-pending moves', async () => {
+    await openMenu('OVERDUE', PAST, 'PENDING');
+    expect(offered()).toEqual(['Mark as Paid', 'Mark as Overdue', 'Cancel Invoice', 'Edit']);
+  });
+
+  it('a stored-OVERDUE row with a due date today or later still offers Mark as Pending', async () => {
+    await openMenu('OVERDUE', FUTURE, 'OVERDUE');
+    expect(offered()).toEqual(['Mark as Pending', 'Mark as Paid', 'Cancel Invoice', 'Edit']);
   });
 });

@@ -176,7 +176,7 @@ export default async function DashboardPage({
         key={`invoices-${currencyKey}`}
         fallback={<DashboardRecentInvoicesSkeleton />}
       >
-        <RecentInvoicesSection currency={currency} />
+        <RecentInvoicesSection currency={currency} timeZone={timeZone} />
       </Suspense>
     </>
   );

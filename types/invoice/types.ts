@@ -17,7 +17,10 @@ export type InvoiceWithRelations = Prisma.InvoiceGetPayload<{
 export type InvoiceListItem = {
   id: string;
   invoiceNumber: string;
+  /** The status the badge shows (a past-due pending invoice reads as overdue). */
   status: InvoiceStatus;
+  /** The stored status: the row menu's moves come from it (AC-04, AC-05). */
+  storedStatus: InvoiceStatus;
   issueDate: Date;
   dueDate: Date;
   total: number;
