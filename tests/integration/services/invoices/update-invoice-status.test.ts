@@ -123,6 +123,18 @@ describe.runIf(containerRuntimeAvailable)('updateInvoiceStatus service (T15, AC-
     expect(strip(after)).toEqual(strip(before));
   });
 
+  it('AC-14/AC-25 (T23): issuing a stored draft with a negative rate is refused on the line like the editor, and it stays a draft', async () => {
+    const a = await seedWithInvoice('t23-a@example.com', { status: 'DRAFT', discount: 0 });
+    await prisma.invoiceItem.updateMany({ where: { invoiceId: a.invoice.id }, data: { rate: -3 } });
+    const actor = await actingFreelancerForTest(a.user.id);
+    const before = await snapshot(a.invoice.id);
+    const res = await svc.updateInvoiceStatus(actor, a.invoice.id, 'PENDING');
+    expect(res).toMatchObject({ success: false, code: 'VALIDATION' });
+    expect((res as { fieldErrors?: Record<string, string[]> }).fieldErrors).toHaveProperty(['items.0.price']);
+    expect(await snapshot(a.invoice.id)).toEqual(before);
+    expect(before.status).toBe('DRAFT');
+  });
+
   it("AC-19: B's invoice id is NOT_FOUND (same as a missing id) and B's status/paidAt are unchanged", async () => {
     const a = await seedFor('t15-a@example.com');
     const b = await seedWithInvoice('t15-b@example.com', { status: 'PENDING' });

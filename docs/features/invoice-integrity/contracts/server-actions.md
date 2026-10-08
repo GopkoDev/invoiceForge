@@ -81,6 +81,7 @@ These rows are new or changed. Every other field keeps its rule from `architectu
 | `shipping` | "Shipping can't exceed 99,999,999.99." (✎ wording aligned) | AC-19 |
 | `subtotal` / `taxAmount` / `total` | "The subtotal can't exceed 99,999,999.99." / "The tax amount can't exceed 99,999,999.99." / "The total can't exceed 99,999,999.99." | AC-19 |
 | `discount` | "Discount can't exceed the subtotal plus shipping." (—) | AC-20b |
+| `discount` (above the column limit) | "Discount can't exceed 99,999,999.99." | AC-19, AC-20b |
 | any locked field key (see `updateInvoice`) | "This field can't change on an issued invoice." | AC-08 |
 
 The keys follow the form paths, and a failing save may carry several of them in one `fieldErrors` set. sad.md §6 notes leave open whether currency and bounds errors arrive together; this contract says they do, in a single `VALIDATION`.

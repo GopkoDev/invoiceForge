@@ -278,6 +278,41 @@ describe.runIf(containerRuntimeAvailable)('updateInvoice on an issued invoice (T
     expect((await stored(s.invoice.id)).notes).toBe('legacy note');
   });
 
+  it('AC-14 (T23): a legacy PENDING invoice with a negative tax rate and a zero quantity saves a notes-only edit', async () => {
+    const s = await seed({ taxRate: -5 });
+    await prisma.invoiceItem.updateMany({ where: { invoiceId: s.invoice.id }, data: { quantity: 0, rate: -3 } });
+    await prisma.invoice.update({ where: { id: s.invoice.id }, data: { shipping: -2 } });
+    const before = await stored(s.invoice.id);
+    const res = await svc.updateInvoice(s.actor, s.invoice.id, formFrom(before, { notes: 'still saves' }));
+    expect(res).toMatchObject({ success: true });
+    expect((await stored(s.invoice.id)).notes).toBe('still saves');
+  });
+
+  it('AC-14/AC-19 (T23): a draft save with a negative price or a zero quantity is VALIDATION on the line, nothing stored', async () => {
+    const s = await seed({ status: 'DRAFT' });
+    const before = await stored(s.invoice.id);
+    const form = formFrom(before);
+    const res = await svc.updateInvoice(s.actor, s.invoice.id, {
+      ...form,
+      taxRate: -1,
+      items: form.items.map((item, i) => (i === 0 ? { ...item, price: -3 } : { ...item, quantity: 0 })),
+    });
+    expect(res).toMatchObject({ success: false, code: 'VALIDATION' });
+    expect(res.fieldErrors).toHaveProperty(['items.0.price']);
+    expect(res.fieldErrors).toHaveProperty(['items.1.quantity']);
+    expect(res.fieldErrors).toHaveProperty(['taxRate']);
+    expect(await stored(s.invoice.id)).toEqual(before);
+  });
+
+  it('AC-20b (T23): a draft discount above 99,999,999.99 is a discount field error, never FAILED', async () => {
+    const s = await seed({ status: 'DRAFT' });
+    const before = await stored(s.invoice.id);
+    const res = await svc.updateInvoice(s.actor, s.invoice.id, formFrom(before, { discount: 100_000_000 }));
+    expect(res).toMatchObject({ success: false, code: 'VALIDATION' });
+    expect(res.fieldErrors?.discount).toContain("Discount can't exceed 99,999,999.99.");
+    expect(await stored(s.invoice.id)).toEqual(before);
+  });
+
   it('AC-06: a cancelled invoice refuses even a notes-only save, suggesting a duplicate', async () => {
     const s = await seed({ status: 'CANCELLED' });
     const before = await stored(s.invoice.id);

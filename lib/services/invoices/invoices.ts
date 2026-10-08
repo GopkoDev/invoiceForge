@@ -608,6 +608,23 @@ function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Dat
  */
 export type UpdateInvoiceInput = InvoiceFormInput & { loadedVersion?: number };
 
+/** Several rules can fail on one key (a huge discount breaks its bound and the cap): keep every message. */
+function mergeFieldErrors(...sets: FieldErrors[]): FieldErrors {
+  const merged: FieldErrors = {};
+  for (const set of sets) {
+    for (const [key, messages] of Object.entries(set)) {
+      merged[key] = [...new Set([...(merged[key] ?? []), ...messages])];
+    }
+  }
+  return merged;
+}
+
+/** The per-field amount bounds (types excluded) of a draft's amounts, as field errors. */
+function amountBoundErrors(values: unknown): FieldErrors {
+  const shape = invoiceAmountsSchema.safeParse(values);
+  return shape.success ? {} : zodValidationFailure(shape.error).fieldErrors ?? {};
+}
+
 export async function updateInvoice(actor: ActingFreelancer, id: string, data: UpdateInvoiceInput) {
   return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'update' } }, () =>
     updateInvoiceUnspanned(actor, id, data)
@@ -730,10 +747,11 @@ async function updateInvoiceUnspanned(
       // which is what freezes when the draft is issued (AC-02).
       const draftRules = await checkDraftRules(userId, validatedData, tx);
       if (!draftRules.success) throw new InvoiceRefusal(draftRules);
-      if (hasFieldErrors(draftRules.data.fieldErrors)) {
-        throw new InvoiceRefusal(
-          fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: draftRules.data.fieldErrors })
-        );
+      // The per-field amount bounds belong to the draft branch (T23, AC-14): the update parse is the
+      // shape only, so an issued invoice's locked amounts are never judged.
+      const fieldErrors = mergeFieldErrors(amountBoundErrors(validatedData), draftRules.data.fieldErrors);
+      if (hasFieldErrors(fieldErrors)) {
+        throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors }));
       }
 
       const { senderProfile, customer, bankAccount } = draftRules.data;
@@ -995,7 +1013,8 @@ async function updateInvoiceStatusUnspanned(
         const form = transformInvoiceToFormData(invoice);
         const draftRules = await checkDraftRules(userId, form, tx);
         if (!draftRules.success) throw new InvoiceRefusal(draftRules);
-        const { fieldErrors } = draftRules.data;
+        // Same bounds as the editor's Save and issue (T23, AC-14, AC-25).
+        const fieldErrors = mergeFieldErrors(amountBoundErrors(form), draftRules.data.fieldErrors);
         if (hasFieldErrors(fieldErrors)) {
           const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
           throw new InvoiceRefusal(fail('VALIDATION', reasons, { fieldErrors }));
@@ -1056,8 +1075,7 @@ async function duplicateInvoiceUnspanned(
     const issueDate = dayToUtcDate(today);
     const dueDate = dayToUtcDate(addDaysToDay(today, 30));
 
-    const shape = invoiceAmountsSchema.safeParse(form);
-    const shapeErrors: FieldErrors = shape.success ? {} : zodValidationFailure(shape.error).fieldErrors ?? {};
+    const shapeErrors = amountBoundErrors(form);
     const checked = await checkDraftRules(userId, {
       senderProfileId: originalInvoice.senderProfileId,
       customerId: originalInvoice.customerId,
@@ -1073,7 +1091,7 @@ async function duplicateInvoiceUnspanned(
     if (!checked.success) {
       return checked;
     }
-    const fieldErrors = { ...shapeErrors, ...checked.data.fieldErrors };
+    const fieldErrors = mergeFieldErrors(shapeErrors, checked.data.fieldErrors);
     if (hasFieldErrors(fieldErrors)) {
       const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
       return fail('VALIDATION', `This invoice can't be duplicated. ${reasons}`, { fieldErrors });

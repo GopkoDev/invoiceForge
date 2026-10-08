@@ -21,6 +21,7 @@ const AMOUNT_MESSAGES = {
   taxAmount: "The tax amount can't exceed 99,999,999.99.",
   total: "The total can't exceed 99,999,999.99.",
   discount: "Discount can't exceed the subtotal plus shipping.",
+  discountMax: "Discount can't exceed 99,999,999.99.",
 } as const;
 
 export type FieldErrors = Record<string, string[]>;
@@ -136,45 +137,69 @@ const clientCalendarDaySchema = z
     return z.NEVER;
   });
 
-export const invoiceItemSchema = z.object({
-  id: z.string(),
-  productId: z.string().optional(),
-  productName: z.string().min(1, 'Product name is required'),
-  description: z.string().optional().default(''),
-  unit: z.string().min(1, 'Unit is required'),
-  quantity: z.number({ required_error: 'Quantity must be a number.', invalid_type_error: 'Quantity must be a number.' })
-    .gt(0, 'Quantity must be greater than zero.')
-    .max(MAX_AMOUNT, 'Quantity is too large.')
-    .refine(hasAtMostTwoDecimalPlaces, 'Quantity can have at most 2 decimal places.'),
-  price: z.number({ required_error: 'Price must be a number.', invalid_type_error: 'Price must be a number.' })
-    .min(0, "Price can't be negative.")
-    .max(MAX_AMOUNT, 'Price is too large.')
-    .refine(hasAtMostTwoDecimalPlaces, 'Price can have at most 2 decimal places.'),
-  total: z.number(),
-});
+// The per-field amount bounds (T23, AC-14/AC-19): enforced on a create, on a draft save and when a
+// draft is issued; never on the locked fields of an issued invoice. `bounded: false` keeps the
+// types only.
+function buildItemSchema(bounded: boolean) {
+  const quantityBase = z.number({ required_error: 'Quantity must be a number.', invalid_type_error: 'Quantity must be a number.' });
+  const priceBase = z.number({ required_error: 'Price must be a number.', invalid_type_error: 'Price must be a number.' });
+  return z.object({
+    id: z.string(),
+    productId: z.string().optional(),
+    productName: z.string().min(1, 'Product name is required'),
+    description: z.string().optional().default(''),
+    unit: z.string().min(1, 'Unit is required'),
+    quantity: bounded
+      ? quantityBase
+          .gt(0, 'Quantity must be greater than zero.')
+          .max(MAX_AMOUNT, 'Quantity is too large.')
+          .refine(hasAtMostTwoDecimalPlaces, 'Quantity can have at most 2 decimal places.')
+      : quantityBase,
+    price: bounded
+      ? priceBase
+          .min(0, "Price can't be negative.")
+          .max(MAX_AMOUNT, 'Price is too large.')
+          .refine(hasAtMostTwoDecimalPlaces, 'Price can have at most 2 decimal places.')
+      : priceBase,
+    total: z.number(),
+  });
+}
+
+export const invoiceItemSchema = buildItemSchema(true);
+const looseItemSchema = buildItemSchema(false);
 
 function refineDiscountCap(values: InvoiceAmountRuleValues, ctx: z.RefinementCtx) {
   addFieldErrors(checkDiscountCap(values), ctx);
 }
 
-const taxRateSchema = z.number({ required_error: 'Tax rate must be a number.', invalid_type_error: 'Tax rate must be a number.' })
+const taxRateBase = z.number({ required_error: 'Tax rate must be a number.', invalid_type_error: 'Tax rate must be a number.' });
+const taxRateSchema = taxRateBase
   .min(0, 'Tax rate must be between 0 and 100 %.')
   .max(100, 'Tax rate must be between 0 and 100 %.')
   .refine(hasAtMostTwoDecimalPlaces, 'Tax rate can have at most 2 decimal places.')
   .default(0);
+const looseTaxRateSchema = taxRateBase.default(0);
 
-const discountSchema = z.number({ required_error: 'Discount must be a number.', invalid_type_error: 'Discount must be a number.' })
+const discountBase = z.number({ required_error: 'Discount must be a number.', invalid_type_error: 'Discount must be a number.' });
+const discountSchema = discountBase
   .min(0, "Discount can't be negative.")
+  .max(MAX_AMOUNT, AMOUNT_MESSAGES.discountMax)
   .refine(hasAtMostTwoDecimalPlaces, "Discount can have at most 2 decimal places.")
   .default(0);
+const looseDiscountSchema = discountBase.default(0);
 
-const shippingSchema = z.number({ required_error: 'Shipping must be a number.', invalid_type_error: 'Shipping must be a number.' })
+const shippingBase = z.number({ required_error: 'Shipping must be a number.', invalid_type_error: 'Shipping must be a number.' });
+const shippingSchema = shippingBase
   .min(0, "Shipping can't be negative.")
   .max(MAX_AMOUNT, AMOUNT_MESSAGES.shipping)
   .refine(hasAtMostTwoDecimalPlaces, 'Shipping can have at most 2 decimal places.')
   .default(0);
+const looseShippingSchema = shippingBase.default(0);
 
-function buildInvoiceFormObject(day: typeof calendarDayStringSchema | typeof clientCalendarDaySchema) {
+function buildInvoiceFormObject(
+  day: typeof calendarDayStringSchema | typeof clientCalendarDaySchema,
+  bounded = true
+) {
   return z
   .object({
     // Empty (or whitespace-only) = system-assigned; anything else is manual (AC-06, AC-10).
@@ -193,10 +218,10 @@ function buildInvoiceFormObject(day: typeof calendarDayStringSchema | typeof cli
     currency: z.nativeEnum(Currency),
     poNumber: z.string().optional().default(''),
     paymentTerms: z.string().optional().default(''),
-    items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
-    taxRate: taxRateSchema,
-    discount: discountSchema,
-    shipping: shippingSchema,
+    items: z.array(bounded ? invoiceItemSchema : looseItemSchema).min(1, 'At least one item is required'),
+    taxRate: bounded ? taxRateSchema : looseTaxRateSchema,
+    discount: bounded ? discountSchema : looseDiscountSchema,
+    shipping: bounded ? shippingSchema : looseShippingSchema,
     notes: z.string().optional().default(''),
     terms: z.string().optional().default(''),
     // Update only (AC-17); optional here since this schema is shared by create/update.
@@ -216,11 +241,12 @@ export const invoiceShapeSchema = buildInvoiceFormObject(calendarDayStringSchema
 
 /**
  * updateInvoice's input (AC-10): the editor sends back the version it loaded. Required, an
- * integer ≥ 0; createInvoice ignores it. The shape only: the service runs the business rules on the
- * locked row, and only those AC-14 allows for the row's status (ADR-0003).
+ * integer ≥ 0; createInvoice ignores it. The shape only (types, enums, calendar days): the service
+ * runs the business rules and the per-field amount bounds on the locked row, and only those AC-14
+ * allows for the row's status (ADR-0003, T23).
  */
 const RELOAD_MESSAGE = 'Reload the invoice and try again.';
-export const invoiceUpdateFormSchema = buildInvoiceFormObject(calendarDayStringSchema)
+export const invoiceUpdateFormSchema = buildInvoiceFormObject(calendarDayStringSchema, false)
   .extend({
     loadedVersion: z
       .number({ required_error: RELOAD_MESSAGE, invalid_type_error: RELOAD_MESSAGE })

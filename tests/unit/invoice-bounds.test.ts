@@ -9,7 +9,9 @@ import {
   checkDraftAmountRules,
   checkDueDate,
   clientInvoiceFormSchema,
+  invoiceAmountsSchema,
   invoiceUpdateFormSchema,
+  invoiceShapeSchema,
 } from '@/lib/validations/invoice';
 
 const MSG = {
@@ -172,5 +174,55 @@ describe('invoiceUpdateFormSchema — loadedVersion', () => {
     const result = invoiceUpdateFormSchema.safeParse({ ...input, loadedVersion: 0 });
     expect(result.success).toBe(true);
     expect(result.success && result.data.loadedVersion).toBe(0);
+  });
+});
+
+// T23 (review F2, F6; AC-14, AC-19, AC-20b): the update input is the shape only; the per-field
+// bounds run on a draft; the discount is capped at the column limit.
+describe('T23 amount bounds by status and path', () => {
+  const base = {
+    senderProfileId: 's',
+    bankAccountId: 'b',
+    customerId: 'c',
+    issueDate: '2026-03-10',
+    dueDate: '2026-03-24',
+    currency: 'USD',
+    loadedVersion: 0,
+    items: [{ id: 'i', productName: 'x', unit: 'h', quantity: 1, price: 10, total: 10 }],
+    taxRate: 0,
+    discount: 0,
+    shipping: 0,
+  };
+  const DISCOUNT_MAX = "Discount can't exceed 99,999,999.99.";
+
+  it('the update parse accepts out-of-range amounts (checked later, on a draft only)', () => {
+    const bad = {
+      ...base,
+      taxRate: -5,
+      shipping: -1,
+      items: [{ ...base.items[0], quantity: 0, price: -3 }],
+    };
+    expect(invoiceUpdateFormSchema.safeParse(bad).success).toBe(true);
+  });
+
+  it('the update parse still refuses a wrong type', () => {
+    const res = invoiceUpdateFormSchema.safeParse({ ...base, taxRate: 'abc' });
+    expect(res.success).toBe(false);
+  });
+
+  it('a discount above 99,999,999.99 is a discount field error on the shape and on the amounts schema', () => {
+    for (const schema of [invoiceShapeSchema, invoiceAmountsSchema]) {
+      const res = schema.safeParse({ ...base, discount: 100_000_000 });
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        const msgs = res.error.issues.filter((i) => i.path[0] === 'discount').map((i) => i.message);
+        expect(msgs).toContain(DISCOUNT_MAX);
+      }
+    }
+  });
+
+  it('a discount of exactly 99,999,999.99 passes the field bound', () => {
+    const res = invoiceShapeSchema.safeParse({ ...base, discount: 99_999_999.99, shipping: 99_999_999.99, items: [{ ...base.items[0], price: 99_999_999.99 }] });
+    expect(res.success).toBe(true);
   });
 });
