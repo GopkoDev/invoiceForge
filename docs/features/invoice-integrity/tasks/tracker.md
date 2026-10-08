@@ -43,7 +43,7 @@
 | T36 | [Record the outcome of deleteInvoice on an invoices.delete span and state which write paths the friction signal counts](./t36-delete-outcome-span.md) | app | Dmytro Hopko | S | — | done |
 | T37 | [Bind the Due Date and Bank account labels to their picker triggers and select them by name in the AC-07 e2e test](./t37-label-picker-triggers.md) | ui | Dmytro Hopko | S | — | done |
 | T38 | [Scope the AC-23 not-found comparison to the not-found card](./t38-ac23-e2e-scope.md) | tests | Dmytro Hopko | S | — | done |
-| T39 | [Rename the inner delete function to deleteInvoiceUnspanned to match the other spanned write paths](./t39-delete-unspanned-name.md) | app | Dmytro Hopko | S | — | todo |
+| T39 | [Rename the inner delete function to deleteInvoiceUnspanned to match the other spanned write paths](./t39-delete-unspanned-name.md) | app | Dmytro Hopko | S | — | done |
 | T40 | [Point the Due Date and Bank account picker triggers at their error text with aria-describedby](./t40-picker-error-describedby.md) | ui | Dmytro Hopko | S | — | done |
 
 **Total:** 40 tasks (T22–T32 are review follow-ups from `_review/review-2026-10-08.md`; T33–T38 from `_review/review-2026-10-08-r2.md`; T39–T40 from `_review/review-2026-10-08-r3.md`).

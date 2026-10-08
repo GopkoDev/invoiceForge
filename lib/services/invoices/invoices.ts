@@ -1233,10 +1233,10 @@ async function duplicateInvoiceUnspanned(
 
 export async function deleteInvoice(actor: ActingFreelancer, id: string): Promise<ActionResult> {
   // T36 (review r2 L1, sad §7): a refused delete is counted on its own write path.
-  return inOutcomeSpan({ name: 'invoices.delete' }, () => deleteInvoiceInSpan(actor, id));
+  return inOutcomeSpan({ name: 'invoices.delete' }, () => deleteInvoiceUnspanned(actor, id));
 }
 
-async function deleteInvoiceInSpan(actor: ActingFreelancer, id: string): Promise<ActionResult> {
+async function deleteInvoiceUnspanned(actor: ActingFreelancer, id: string): Promise<ActionResult> {
   try {
     // invoice-integrity T10 (flow 6, AC-06): only a draft is deleted, decided on the locked row.
     const { userId } = actor;
