@@ -31,7 +31,7 @@ test('AC-07: after moving the due date into the future, the list no longer shows
     await openEditor(page, invoiceId);
     await expect(page.getByText('This invoice is issued.')).toBeVisible();
     // The issue date is today, so "In 14 days" lands two weeks ahead.
-    await page.getByRole('button', { name: /^(?!Pick).*,\s*\d{4}$/ }).last().click();
+    await page.getByRole('button', { name: /^Due Date\b/ }).click();
     await page.getByRole('button', { name: 'In 14 days' }).click();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Save', exact: true }).click();

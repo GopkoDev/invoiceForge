@@ -196,6 +196,15 @@ describe('InvoiceEditor field errors (T17)', () => {
     expect(byPlaceholder('Additional information for the client...')).toHaveValue('a note edited');
   });
 
+  // T37 (review r2 L2): each picker is named by its label first, then its value, so a screen
+  // reader announces the field and the e2e tests find it by name.
+  it('the issue date, due date and bank account pickers are named by their labels', () => {
+    renderEditor(data('DRAFT'));
+    expect(screen.getByRole('button', { name: /^Issue Date\b.*March 10th, 2026/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Due Date\b.*March 24th, 2026/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Bank Account\b.*Current Bank \(USD\)/ })).toBeInTheDocument();
+  });
+
   it('an issued due-date refusal shows under the due date (AC-09)', async () => {
     updateInvoiceMock.mockResolvedValue({
       success: false,

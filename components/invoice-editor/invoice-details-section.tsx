@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import {
   Card,
   CardContent,
@@ -42,6 +43,12 @@ const dueDatePresets = [
 ];
 
 export function InvoiceDetailsSection() {
+  // Each date picker is named by its label, then its value (review r2 L2).
+  const fieldId = useId();
+  const issueDateLabelId = `${fieldId}-issue-date-label`;
+  const issueDateTriggerId = `${fieldId}-issue-date`;
+  const dueDateLabelId = `${fieldId}-due-date-label`;
+  const dueDateTriggerId = `${fieldId}-due-date`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
   const fieldErrors = useFieldErrors();
@@ -114,9 +121,11 @@ export function InvoiceDetailsSection() {
 
           {/* Issue Date */}
           <div className="space-y-2">
-            <Label>Issue Date</Label>
+            <Label id={issueDateLabelId}>Issue Date</Label>
             <Popover>
               <PopoverTrigger
+                id={issueDateTriggerId}
+                aria-labelledby={`${issueDateLabelId} ${issueDateTriggerId}`}
                 disabled={locked}
                 className={cn(
                   'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
@@ -142,9 +151,11 @@ export function InvoiceDetailsSection() {
 
           {/* Due Date */}
           <div className="space-y-2">
-            <Label>Due Date</Label>
+            <Label id={dueDateLabelId}>Due Date</Label>
             <Popover>
               <PopoverTrigger
+                id={dueDateTriggerId}
+                aria-labelledby={`${dueDateLabelId} ${dueDateTriggerId}`}
                 disabled={readOnly}
                 aria-invalid={!!fieldErrors?.dueDate}
                 className={cn(

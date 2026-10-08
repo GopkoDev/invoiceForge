@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -48,6 +48,10 @@ import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview'
 export function SenderSection() {
   const [open, setOpen] = useState(false);
   const [openBankAccount, setOpenBankAccount] = useState(false);
+  // The bank account picker is named by its label, then its value (review r2 L2).
+  const fieldId = useId();
+  const bankAccountLabelId = `${fieldId}-bank-account-label`;
+  const bankAccountTriggerId = `${fieldId}-bank-account`;
 
   const senderProfileOptions = useSenderProfileOptions();
   const availableBankAccounts = useAvailableBankAccounts();
@@ -210,13 +214,15 @@ export function SenderSection() {
 
         {/* Bank Account Popover */}
         <div className="space-y-2">
-          <Label className="flex items-center gap-2">
+          <Label id={bankAccountLabelId} className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Bank Account <span className="text-destructive">*</span>
           </Label>
 
           <Popover open={openBankAccount} onOpenChange={setOpenBankAccount}>
             <PopoverTrigger
+              id={bankAccountTriggerId}
+              aria-labelledby={`${bankAccountLabelId} ${bankAccountTriggerId}`}
               disabled={isBankAccountDisabled}
               aria-invalid={!!fieldErrors?.bankAccountId}
               className={cn(
