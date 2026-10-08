@@ -220,7 +220,23 @@ describe.runIf(containerRuntimeAvailable)(
       expect(result.code).toBe('UNAUTHORIZED');
     });
 
-    it('VALIDATION (schema) wins over NOT_FOUND for an invoice that does not exist', async () => {
+    // invoice-integrity T23 (ADR-0003, AC-14, server-actions.md "Where the rules run"): only the
+    // shape is parsed before the lookup; amount bounds run after the row lock, by stored status.
+    it('VALIDATION (shape) wins over NOT_FOUND for an invoice that does not exist', async () => {
+      const owner = await seedOwner();
+
+      const result = await updateInvoice(
+        'does-not-exist',
+        buildForm(owner, 'INV-X', { dueDate: '2026-02-30' })
+      );
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.code).toBe('VALIDATION');
+      expect(result.fieldErrors?.dueDate).toContain('Invalid date');
+    });
+
+    it('NOT_FOUND wins over an amount bound for an invoice that does not exist', async () => {
       const owner = await seedOwner();
 
       const result = await updateInvoice(
@@ -230,8 +246,7 @@ describe.runIf(containerRuntimeAvailable)(
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.code).toBe('VALIDATION');
-      expect(result.fieldErrors?.['items.0.price']).toContain("Price can't be negative.");
+      expect(result.code).toBe('NOT_FOUND');
     });
 
     it('NOT_FOUND when the invoice does not belong to the caller', async () => {
