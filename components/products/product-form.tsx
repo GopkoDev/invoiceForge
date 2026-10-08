@@ -179,12 +179,12 @@ export function ProductForm({
       {isUsedInInvoices && (
         <Alert>
           <LockIcon />
-          <AlertTitle>Currency and Unit Locked</AlertTitle>
+          <AlertTitle>Unit Locked</AlertTitle>
           <AlertDescription>
             This product is used in {invoiceItemsCount} invoice
-            {invoiceItemsCount > 1 ? 's' : ''}. Currency and unit of measure
-            cannot be changed to maintain data consistency. Create a new product
-            if you need different settings.
+            {invoiceItemsCount > 1 ? 's' : ''}. The unit of measure cannot be
+            changed to maintain data consistency. A currency change is refused on
+            save. Create a new product if you need different settings.
           </AlertDescription>
         </Alert>
       )}
@@ -317,9 +317,6 @@ export function ProductForm({
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="product-form-currency">
                     Currency <span className="text-destructive">*</span>
-                    {isUsedInInvoices && (
-                      <LockIcon className="inline ml-1 h-4 w-4 text-muted-foreground" />
-                    )}
                   </FieldLabel>
 
                   <Select
@@ -346,12 +343,6 @@ export function ProductForm({
                   </Select>
 
                   <FieldError errors={[fieldState.error]} />
-                  {isUsedInInvoices && (
-                    <FieldDescription className="text-amber-600 dark:text-amber-500">
-                      Locked: Used in {invoiceItemsCount} invoice
-                      {invoiceItemsCount > 1 ? 's' : ''}
-                    </FieldDescription>
-                  )}
                 </Field>
               )}
             />

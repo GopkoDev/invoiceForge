@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -81,8 +82,18 @@ export function BankAccountModal({
     },
   });
 
+  // AC-17: a double click lands before the disabled button re-renders; one switch in flight at a time.
+  const inFlight = useRef(false);
+
   const onSubmit = async (data: BankAccountFormValues) => {
-    const outcome = await onFormSubmit(data, isEditing);
+    if (inFlight.current) return;
+    inFlight.current = true;
+    let outcome;
+    try {
+      outcome = await onFormSubmit(data, isEditing);
+    } finally {
+      inFlight.current = false;
+    }
     // A refusal keeps the dialog open with every value: a currency used by invoices (HAS_INVOICES)
     // or a refused unset shows under its field, a default race was toasted (SCR-10).
     if (outcome && !outcome.saved) {

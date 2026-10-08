@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import {
   goToSignIn,
@@ -78,7 +79,12 @@ export function SenderProfileForm({
     },
   });
 
+  // AC-17: a double click lands before the disabled button re-renders; one switch in flight at a time.
+  const inFlight = useRef(false);
+
   const onSubmit = async (data: SenderProfileFormValues) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       const result =
         isEditing && defaultValues?.id
@@ -128,6 +134,8 @@ export function SenderProfileForm({
     } catch {
       // AC-21: a rejected call is treated like UNAUTHORIZED.
       goToSignIn();
+    } finally {
+      inFlight.current = false;
     }
   };
 

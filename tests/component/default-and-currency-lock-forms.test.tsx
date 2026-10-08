@@ -4,7 +4,7 @@
 // description, enabled otherwise; a default race is a verbatim toast; a currency lock (HAS_INVOICES)
 // shows a FieldError under currency with the values kept; the product price shows the four messages.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const {
@@ -16,6 +16,7 @@ const {
   updateProductMock,
   toastError,
   toastSuccess,
+  pushMock,
 } = vi.hoisted(() => ({
   createProfileMock: vi.fn(),
   updateProfileMock: vi.fn(),
@@ -25,10 +26,11 @@ const {
   updateProductMock: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  pushMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: pushMock, refresh: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock('sonner', () => ({ toast: { error: toastError, success: toastSuccess, warning: vi.fn() } }));
 vi.mock('@/lib/actions/sender-profile-actions', () => ({
@@ -67,6 +69,7 @@ beforeEach(() => {
     updateProductMock,
     toastError,
     toastSuccess,
+    pushMock,
   ])
     m.mockReset();
 });
@@ -262,5 +265,71 @@ describe('ProductForm — price and currency lock (SCR-12)', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Consulting')).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProductForm — currency copy matches the refuse-on-save rule (AC-13b, SCR-12)', () => {
+  const product = {
+    id: 'pr-1',
+    name: 'Consulting',
+    description: '',
+    unit: 'hours',
+    price: '150.00',
+    currency: 'USD' as const,
+    isActive: true,
+  };
+
+  it('a product used on invoices: only the unit is locked up front, currency is open and refused on save', () => {
+    const { container } = render(<ProductForm defaultValues={product} isEditing invoiceItemsCount={3} />);
+    expect(screen.getByText(/Unit Locked/)).toBeInTheDocument();
+    expect(screen.queryByText(/Currency and Unit Locked/)).not.toBeInTheDocument();
+    expect(screen.getByText(/refused on save/i)).toBeInTheDocument();
+    // exactly one "Locked: Used in" line (the unit's) and one lock icon on a field label (the unit's)
+    expect(screen.getAllByText(/Locked: Used in 3 invoices/)).toHaveLength(1);
+    const currencyLabel = container.querySelector('label[for="product-form-currency"]')!;
+    expect(currencyLabel.querySelector('svg')).toBeNull();
+    const unitLabel = container.querySelector('label[for="product-form-unit"]')!;
+    expect(unitLabel.querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('combobox', { name: /currency/i })).not.toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /unit of measure/i })).toBeDisabled();
+  });
+
+  it('a product not used on invoices has no lock copy at all', () => {
+    render(<ProductForm defaultValues={product} isEditing invoiceItemsCount={0} />);
+    expect(screen.queryByText(/Locked/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Make default — one request, a failed switch keeps the old default (AC-17, SCR-07/08/09)', () => {
+  it('a double click on Save after ticking "Set as default" sends a single switch', async () => {
+    let release!: (v: unknown) => void;
+    updateProfileMock.mockReturnValue(new Promise((r) => (release = r)));
+    render(<SenderProfileForm defaultValues={profileValues(false)} isEditing />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox'));
+    const save = screen.getByRole('button', { name: /save|update/i });
+    await act(async () => {
+      fireEvent.click(save);
+      fireEvent.click(save);
+    });
+    await act(async () => {
+      release({ success: true, data: { id: 'sp-1' } });
+    });
+    expect(updateProfileMock).toHaveBeenCalledTimes(1);
+    expect(updateProfileMock.mock.calls[0][1]).toMatchObject({ isDefault: true });
+  });
+
+  it('a failed switch shows the error, does not leave the form, and sends no second switch', async () => {
+    updateProfileMock.mockResolvedValue({ success: false, code: 'CONFLICT', error: PROFILE.race });
+    render(<SenderProfileForm defaultValues={profileValues(false)} isEditing />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox'));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save|update/i }));
+    });
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(PROFILE.race));
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(updateProfileMock).toHaveBeenCalledTimes(1);
   });
 });
