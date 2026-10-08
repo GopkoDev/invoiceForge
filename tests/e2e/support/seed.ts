@@ -38,6 +38,14 @@ export async function seedWorkspace(
     timeZone?: string | null;
     /** Calendar day the invoice is due; default two weeks from now. */
     dueDay?: CalendarDay;
+    /** Stored status of the seeded invoice; default PENDING. A PAID one gets a payment date. */
+    status?: 'DRAFT' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+    /** Address of the Customer record, copied into the invoice's issued details. */
+    customerAddress?: string;
+    /** Legal name of the sender profile, copied into the invoice's issued details. */
+    senderLegalName?: string;
+    /** IBAN of the bank account, copied into the invoice's issued details. */
+    bankIban?: string;
   } = {}
 ): Promise<SeededWorkspace> {
   const prisma: PrismaClient = createTestPrismaClient(
@@ -55,11 +63,15 @@ export async function seedWorkspace(
       address: '1 Test Street',
       city: 'Testville',
       country: 'Testland',
+      ...(options.senderLegalName ? { legalName: options.senderLegalName } : {}),
     });
-    const bankAccount = await createBankAccount(prisma, senderProfile.id);
+    const bankAccount = await createBankAccount(prisma, senderProfile.id, {
+      ...(options.bankIban ? { iban: options.bankIban } : {}),
+    });
     const customer = await createCustomer(prisma, user.id, {
       image: PIXEL_PNG,
       ...(options.customerName ? { name: options.customerName } : {}),
+      ...(options.customerAddress ? { address: options.customerAddress } : {}),
     });
     const product = await createProduct(prisma, user.id);
     // Written directly (not through the invoice factory): the factory imports app modules marked
@@ -78,10 +90,18 @@ export async function seedWorkspace(
           options.dueDay ??
             utcDateToDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))
         ),
-        status: 'PENDING',
+        status: options.status ?? 'PENDING',
+        paidAt: options.status === 'PAID' ? new Date() : null,
         senderName: senderProfile.name,
+        senderLegalName: senderProfile.legalName,
+        senderAddress: senderProfile.address,
+        senderCity: senderProfile.city,
+        senderCountry: senderProfile.country,
+        senderEmail: senderProfile.email,
         senderLogo: senderProfile.logo,
         customerName: customer.name,
+        customerAddress: customer.address,
+        bankIban: bankAccount.iban,
         bankName: bankAccount.bankName,
         bankAccountNumber: bankAccount.accountNumber,
         accountName: bankAccount.accountName,
@@ -109,6 +129,54 @@ export async function seedWorkspace(
       invoiceId: invoice.id,
       invoiceNumber,
     };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Rewrites the live records behind a seeded invoice, the way a Freelancer edits them elsewhere. */
+export async function changeLiveRecords(
+  workspace: SeededWorkspace,
+  changes: {
+    customerAddress?: string;
+    senderLegalName?: string;
+    senderAddress?: string;
+    bankIban?: string;
+  }
+): Promise<void> {
+  const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+  try {
+    if (changes.customerAddress !== undefined) {
+      await prisma.customer.update({
+        where: { id: workspace.customerId },
+        data: { address: changes.customerAddress },
+      });
+    }
+    if (changes.senderLegalName !== undefined || changes.senderAddress !== undefined) {
+      await prisma.senderProfile.update({
+        where: { id: workspace.senderProfileId },
+        data: {
+          ...(changes.senderLegalName !== undefined ? { legalName: changes.senderLegalName } : {}),
+          ...(changes.senderAddress !== undefined ? { address: changes.senderAddress } : {}),
+        },
+      });
+    }
+    if (changes.bankIban !== undefined) {
+      await prisma.bankAccount.updateMany({
+        where: { senderProfileId: workspace.senderProfileId },
+        data: { iban: changes.bankIban },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** The invoice as stored, for assertions on what a save really wrote. */
+export async function readStoredInvoice(invoiceId: string) {
+  const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+  try {
+    return await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
   } finally {
     await prisma.$disconnect();
   }
