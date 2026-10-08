@@ -155,11 +155,11 @@ The Freelancer has an invoice open in the editor. Meanwhile, in another tab, the
 
 ```mermaid
 flowchart TD
-    F0["SCR-02 Invoice editor, EUR draft"] -->|"choose a bank account or add a catalogue product line, save"| F1{"Invoice, bank account and catalogue product lines share one currency?"}
-    F1 -->|"bank account in USD"| F2["SCR-02 error on the bank account: account in USD, invoice in EUR; nothing stored"]
+    F0["SCR-02 Invoice editor, EUR draft"] -->|"choose a bank account (the invoice takes its currency) or add a catalogue product line, save"| F1{"Invoice, bank account and catalogue product lines share one currency?"}
+    F1 -->|"stored bank account in USD (legacy draft)"| F2["SCR-02 error on the bank account: account in USD, invoice in EUR; nothing stored"]
     F1 -->|"a catalogue line priced in USD"| F3["SCR-02 error naming the line whose product is in another currency; nothing stored"]
     F1 -->|"all match; free-text lines are not checked"| F4["SCR-02 saved"]
-    F2 -->|"pick a EUR account or change the invoice currency, save"| F1
+    F2 -->|"re-pick the bank account (the invoice takes its currency), save"| F1
     F3 -->|"replace or remove the line, save"| F1
     F5["SCR-02 Invoice editor, draft saved before the release with mismatching currencies"] -->|"any save, even notes only"| F1
     F6["SCR-01 Invoice list, such a draft"] -->|"Mark as pending"| F7["SCR-01 refused with the bank account currency explanation; still a draft"]
@@ -170,7 +170,7 @@ flowchart TD
     F14 -->|"restore the currency, edit other fields, save"| F15["SCR-11 Products list, product updated"]
 ```
 
-On a draft, every save checks that the invoice, its bank account and every line with a catalogue product share one currency. A bank account in another currency is refused on the bank account field ("the account is in USD while the invoice is in EUR"). A catalogue line in another currency is refused with the line named. Lines typed as free text are not checked. In both cases nothing is stored, and the Freelancer fixes the choice and saves again. A draft saved before the release with mismatching currencies hits the same check on its next save, even a notes-only one. Issuing it from the list is refused with the same explanation, and it stays a draft. An invoice issued before the release with mismatching currencies is not re-checked: changing its notes or due date saves normally. In the bank account form and the product form, changing the currency of a record that invoices use is refused on the currency field, with the number of invoices that use it. Restoring the currency lets every other change save.
+On a draft, every save checks that the invoice, its bank account and every line with a catalogue product share one currency. In the editor, choosing a bank account sets the invoice's currency to the account's, so the bank account refusal is reached through a draft stored with mismatching currencies or through another path. A bank account in another currency is refused on the bank account field ("the account is in USD while the invoice is in EUR"). A catalogue line in another currency is refused with the line named. Lines typed as free text are not checked. In both cases nothing is stored, and the Freelancer fixes the choice and saves again. A draft saved before the release with mismatching currencies hits the same check on its next save, even a notes-only one. Issuing it from the list is refused with the same explanation, and it stays a draft. An invoice issued before the release with mismatching currencies is not re-checked: changing its notes or due date saves normally. In the bank account form and the product form, changing the currency of a record that invoices use is refused on the currency field, with the number of invoices that use it. Restoring the currency lets every other change save.
 
 ### Flow: US-07 — Retired products do not break old invoices
 

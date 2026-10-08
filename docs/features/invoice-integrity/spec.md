@@ -190,9 +190,11 @@ Decisions taken during the interview, recorded for traceability:
 
 ### AC-11 (US-06) — error
 
-**Given** a Freelancer editing a draft in EUR
-**When** they choose a bank account held in USD and save
-**Then** the system blocks the save and explains on the bank account field that the account is in USD while the invoice is in EUR
+**Given** a draft stored in EUR whose bank account is held in USD (a draft saved before this release, or one written by any path other than the editor's bank account picker)
+**When** it is saved, or moved to pending from any path
+**Then** the system blocks the save and explains on the bank account field that the account is in USD while the invoice is in EUR. In the editor, choosing a bank account sets the draft's currency to that account's currency, so a mismatch a Freelancer creates there shows up on the catalogue lines instead (AC-12)
+<!-- amended-by-review 2026-10-08 (F4): the editor derives the currency from the bank account; the refusal is the server guard for every other path -->
+
 
 ### AC-12 (US-06) — cross-context
 
@@ -314,7 +316,7 @@ Decisions taken during the interview, recorded for traceability:
 |---|---|---|
 | Latency p95, invoice save and status change | no more than 10 % slower than the 7 days before release | save and status-change spans in error tracking, 7-day window after release |
 | PDF fidelity | 100 % of fixture issued invoices produce identical PDF text before and after their sender profile, Customer and bank account are changed. This is text, not byte-for-byte as the brief proposed, because the logo stays current (§3) | automated test over a seeded fixture, run in CI |
-| Status lifecycle coverage | 100 % of the 25 from–to status pairs tested on every write path: of the 20 pairs between different statuses, each outside AC-04 refused; the 5 same-status pairs accepted with status and payment date unchanged; creation in each non-draft status refused (AC-04b) | automated test matrix, run in CI |
+| Status lifecycle coverage | 100 % of the 25 from–to status pairs tested on every write path: of the 20 pairs between different statuses, each outside AC-04 refused; the 5 same-status pairs accepted with status and payment date unchanged, except cancelled → cancelled through the editor, which AC-06 refuses like any editor save of a cancelled invoice; creation in each non-draft status refused (AC-04b) | automated test matrix, run in CI |
 | Concurrent saves | 0 lost status or payment-date changes across 50 runs of an outdated editor save racing a status change | integration test |
 | Default uniqueness | exactly 1 default after 10 parallel "set as default" requests, for sender profiles and for bank accounts | integration test |
 | Generic failures from user input | 0 generic failures for amount, date, price, discount or currency input; each comes back as a field error | automated tests per AC-09, AC-11, AC-12, AC-19, AC-20, AC-20b + error tracking, 30 days after release |
