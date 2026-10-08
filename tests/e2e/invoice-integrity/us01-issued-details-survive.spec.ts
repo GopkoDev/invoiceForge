@@ -3,6 +3,7 @@
 // records change afterwards; a draft follows the records on each save and freezes when issued.
 import { test, expect } from '@playwright/test';
 import { openSignedInFreelancer } from '../support/signed-in';
+import { downloadedPdfText } from '../support/pdf-download-text';
 import {
   changeLiveRecords,
   readStoredInvoice,
@@ -75,13 +76,14 @@ test('AC-01: after the records change, the editor and the PDF still show the old
 
     const download = page.waitForEvent('download');
     await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
-    const file = await (await download).createReadStream();
-    const head: Buffer[] = [];
-    for await (const chunk of file) {
-      head.push(chunk as Buffer);
-      break;
-    }
-    expect(Buffer.concat(head).subarray(0, 5).toString()).toBe('%PDF-');
+    // The downloaded file itself, not the preview: its own renderer must print the issued details.
+    const pdfText = await downloadedPdfText(await download);
+    expect(pdfText).toContain('Old Legal Name LLC');
+    expect(pdfText).toContain('1 Old Road');
+    expect(pdfText).toContain('DE00OLDIBAN0000');
+    expect(pdfText).not.toContain('New Legal Name GmbH');
+    expect(pdfText).not.toContain('9 New Boulevard');
+    expect(pdfText).not.toContain('FR99NEWIBAN9999');
   } finally {
     await f.context.close();
   }
