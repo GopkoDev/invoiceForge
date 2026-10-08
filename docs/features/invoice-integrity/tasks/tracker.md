@@ -42,6 +42,6 @@
 | T35 | [Describe the invoice, sender-profile and product lock order in data-model.md and sad.md flows 3, 4 and 9](./t35-lock-order-in-design-docs.md) | docs | Dmytro Hopko | S | — | done |
 | T36 | [Record the outcome of deleteInvoice on an invoices.delete span and state which write paths the friction signal counts](./t36-delete-outcome-span.md) | app | Dmytro Hopko | S | — | done |
 | T37 | [Bind the Due Date and Bank account labels to their picker triggers and select them by name in the AC-07 e2e test](./t37-label-picker-triggers.md) | ui | Dmytro Hopko | S | — | done |
-| T38 | [Scope the AC-23 not-found comparison to the main region](./t38-ac23-e2e-scope.md) | tests | Dmytro Hopko | S | — | todo |
+| T38 | [Scope the AC-23 not-found comparison to the main region](./t38-ac23-e2e-scope.md) | tests | Dmytro Hopko | S | — | done |
 
 **Total:** 38 tasks (T22–T32 are review follow-ups from `_review/review-2026-10-08.md`; T33–T38 from `_review/review-2026-10-08-r2.md`).

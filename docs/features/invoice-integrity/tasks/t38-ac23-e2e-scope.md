@@ -9,7 +9,7 @@ files_hint: ["tests/e2e/invoice-integrity/us11-foreign-invoice-not-found.spec.ts
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 source: "review-2026-10-08-r2"
 ---
 

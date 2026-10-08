@@ -21,10 +21,16 @@ test('AC-23: a foreign invoice link and a missing invoice link render the identi
     const { page } = a;
     const screen = async (id: string) => {
       await page.goto(`${APP_E2E_URL}${protectedRoutes.invoiceEdit(id)}`);
-      await expect(page.getByText('Invoice Not Found')).toBeVisible();
-      return page.locator('main, body').first().innerText();
+      // Scoped to the not-found card: the editor layout has no <main>, and the page body would
+      // pull in route-announcer and toast text that differs between two navigations.
+      const notFound = page
+        .locator('[data-slot="card"]')
+        .filter({ has: page.getByRole('heading', { name: 'Invoice Not Found' }) });
+      await expect(notFound).toBeVisible();
+      return notFound.innerText();
     };
     const foreignText = await screen(foreign.invoiceId);
+    const foreignPage = await page.locator('body').innerText();
     const missingText = await screen('cl0000000000000000000000x');
 
     expect(foreignText).toBe(missingText);
@@ -33,8 +39,9 @@ test('AC-23: a foreign invoice link and a missing invoice link render the identi
     );
     await expect(page.getByRole('link', { name: 'Back to Invoices' })).toBeVisible();
     // Nothing of the other Freelancer's invoice reaches the page.
-    expect(foreignText).not.toContain(foreign.invoiceNumber);
-    expect(foreignText).not.toContain('Foreign Customer Ltd');
+    // Checked on the whole page of the foreign link, not only the card.
+    expect(foreignPage).not.toContain(foreign.invoiceNumber);
+    expect(foreignPage).not.toContain('Foreign Customer Ltd');
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
   } finally {
     await a.context.close();
