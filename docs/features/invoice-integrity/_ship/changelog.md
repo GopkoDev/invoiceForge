@@ -29,29 +29,29 @@
 - **Another Freelancer's invoice** is answered exactly like one that does not exist.
 - **Assistants still have no write tools.** Personal keys are read-only. The Assistant's invoice answers show the issued Customer name, the same name the PDF prints.
 
-**Why:** an invoice is a legal and financial document. Before this change, last year's paid invoice silently printed today's bank details. A paid invoice could be turned back into a draft and deleted, and currency checks lived only in the browser ([spec](spec.md) §1–§2). These rules are also the prerequisite for letting an Assistant create and edit drafts. The key decisions:
+**Why:** an invoice is a legal and financial document. Before this change, last year's paid invoice silently printed today's bank details. A paid invoice could be turned back into a draft and deleted, and currency checks lived only in the browser ([spec](../spec.md) §1–§2). These rules are also the prerequisite for letting an Assistant create and edit drafts. The key decisions:
 
-- [ADR-0001](adr/0001-freeze-the-existing-snapshot-columns-at-issue-and-print-from-them.md): the existing snapshot columns are frozen at issue and the PDF prints from them.
-- [ADR-0002](adr/0002-decide-every-status-change-in-one-pure-lifecycle-module.md): every status change is decided in one pure lifecycle module.
-- [ADR-0003](adr/0003-compare-locked-fields-in-one-update-path-and-refuse-any-difference.md): locked fields are compared in one update path, and any difference is refused.
-- [ADR-0004](adr/0004-detect-outdated-views-with-an-invoice-version-counter.md): outdated views are detected with an invoice version counter.
-- [ADR-0005](adr/0005-guard-single-defaults-with-partial-unique-indexes-and-a-parent-row-lock.md): single defaults are guarded by partial unique indexes and a parent row lock.
+- [ADR-0001](../adr/0001-freeze-the-existing-snapshot-columns-at-issue-and-print-from-them.md): the existing snapshot columns are frozen at issue and the PDF prints from them.
+- [ADR-0002](../adr/0002-decide-every-status-change-in-one-pure-lifecycle-module.md): every status change is decided in one pure lifecycle module.
+- [ADR-0003](../adr/0003-compare-locked-fields-in-one-update-path-and-refuse-any-difference.md): locked fields are compared in one update path, and any difference is refused.
+- [ADR-0004](../adr/0004-detect-outdated-views-with-an-invoice-version-counter.md): outdated views are detected with an invoice version counter.
+- [ADR-0005](../adr/0005-guard-single-defaults-with-partial-unique-indexes-and-a-parent-row-lock.md): single defaults are guarded by partial unique indexes and a parent row lock.
 
 **How to use:**
 - Nothing changes on the Freelancer's happy path.
 - The editor now opens an issued invoice with only the due date, notes, payment terms and PO number editable, and shows each refusal under its field.
-- Server actions keep their names. Their new refusals (`VALIDATION` with field errors, `CONFLICT` for a changed-elsewhere invoice, not-found for a foreign one) are listed in [server-actions.md](contracts/server-actions.md).
+- Server actions keep their names. Their new refusals (`VALIDATION` with field errors, `CONFLICT` for a changed-elsewhere invoice, not-found for a foreign one) are listed in [server-actions.md](../contracts/server-actions.md).
 
 **Operational notes:**
 
-- **Migrations:** they must run **before** the code deploy, because the new code reads `Invoice.version` and `pnpm build` does not migrate. The steps are in the [release runbook](release.md). Four migrations are added:
+- **Migrations:** they must run **before** the code deploy, because the new code reads `Invoice.version` and `pnpm build` does not migrate. The steps are in the [release runbook](../release.md). Four migrations are added:
   - `20261007100000_add_invoice_version`;
   - `20261007100100_create_invoice_bank_account_id_index` (`CONCURRENTLY`, its own migration);
   - `20261007100200_single_default_sender_profile`;
   - `20261007100300_single_default_bank_account`.
 
   The two single-default migrations each repair duplicate or missing defaults by keeping the earliest-created one, then create a partial unique index, in one transaction. No issued invoice is rewritten.
-- **Release order** ([release.md](release.md)):
+- **Release order** ([release.md](../release.md)):
   0. The `invoices.save` / `invoices.status-change` spans ship **at least 7 days earlier**. They provide the p95 baseline for spec §6.
   1. Run the read-only, count-only report against production: `node --env-file=.env.prod scripts/invoice-integrity-report.ts`. Confirm the host it prints first.
   2. Migrate dev and verify.
@@ -60,7 +60,7 @@
 - **Feature flag / config:** none.
 - **Rollback:**
   1. Deploy the previous build first.
-  2. Run the staged down scripts in [`migrations/`](migrations/) in reverse order (`04` → `01`), by hand; Prisma has no down step.
+  2. Run the staged down scripts in [`migrations/`](../migrations/) in reverse order (`04` → `01`), by hand; Prisma has no down step.
   3. Leave the default repair in place; the previous build works with exactly one default.
 - **After release:**
   - at 7 days, compare the p95 of the save and status-change spans with the baseline;
