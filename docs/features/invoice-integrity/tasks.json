@@ -450,6 +450,235 @@
         "tests/integration/api/mcp-issued-details.test.ts"
       ],
       "file": "docs/features/invoice-integrity/tasks/t21-write-path-conformance.md"
+    },
+    {
+      "id": "T22",
+      "title": "Refresh the issued details in the editor after Save and issue and never offer a picker on an issued invoice",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-08"
+      ],
+      "dod": "A component test shows that after Save and issue the From, To and bank blocks and the editor PDF parties show the details the server froze (not the snapshot the editor opened with), and that a new invoice saved and then issued in the same editor session renders those blocks as text with no sender, Customer or bank picker; SavedInvoice carries the issued details for an issued result and the contract documents it.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "docs/features/invoice-integrity/contracts/server-actions.md",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "components/invoice-editor/sender-section.tsx",
+        "components/invoice-editor/customer-section.tsx",
+        "tests/component/invoice-editor-modes.test.tsx",
+        "tests/integration/services/invoices/update-draft-invoice.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t22-editor-issued-details-after-issue.md"
+    },
+    {
+      "id": "T23",
+      "title": "Apply the amount bounds by status and path: shape only on issued saves, every bound on draft saves and on issuing from the list, discount capped at the column limit",
+      "layer": "app",
+      "deps": [
+        "T22"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-19",
+        "AC-20b",
+        "AC-25"
+      ],
+      "dod": "Integration tests show (1) a legacy PENDING invoice with a negative tax rate or zero quantity saves a notes-only edit, (2) issuing from the list a stored draft with a negative rate is refused with the same field error the editor gives and stays a draft, (3) a discount above 99,999,999.99 comes back as a discount field error, never FAILED; the unit bounds test covers the discount max.",
+      "files_hint": [
+        "lib/validations/invoice.ts",
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/helpers.ts",
+        "tests/unit/invoice-bounds.test.ts",
+        "tests/integration/services/invoices/update-issued-invoice.test.ts",
+        "tests/integration/services/invoices/update-invoice-status.test.ts",
+        "tests/integration/services/invoices/write-path-conformance.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t23-amount-bounds-by-status-and-path.md"
+    },
+    {
+      "id": "T24",
+      "title": "Pin the editor's account-driven currency: picking a bank account sets the draft currency and a catalogue line in another currency is refused on its line",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "A component test drives the real bank-account picker: on a EUR draft, picking a USD account shows USD as the invoice currency, and saving with a EUR catalogue line renders the AC-12 error under that line; a second test loads a legacy draft stored with mismatching currencies and shows the AC-11 bankAccountId error under the bank account select after save.",
+      "files_hint": [
+        "tests/component/invoice-editor-currency.test.tsx",
+        "store/invoice-editor-store/use-invoice-editor-store.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t24-editor-account-currency-pin.md"
+    },
+    {
+      "id": "T25",
+      "title": "Validate the product price strictly and store the validated value; count product usage owner-scoped inside a transaction under the product row lock",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-20",
+        "AC-13b"
+      ],
+      "dod": "Unit tests show \" \", \"0x10\", \"0b11\" and \"1e3\" are refused with the contract price message and that the schema yields the number it validated; an integration test shows the stored price equals the validated value; updateProduct counts usage and updates in one transaction after SELECT … FOR UPDATE on the owner's product, and the usage count query carries the owner in its own WHERE (owner-in-where test covers it).",
+      "files_hint": [
+        "lib/validations/product.ts",
+        "lib/services/products/products.ts",
+        "tests/unit/product-price-schema.test.ts",
+        "tests/integration/services/products/currency-lock.test.ts",
+        "tests/unit/services/owner-in-where.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t25-product-price-and-lock-hardening.md"
+    },
+    {
+      "id": "T26",
+      "title": "Lock the sender profile (and share-lock line products) before the currency checks on every invoice save",
+      "layer": "app",
+      "deps": [
+        "T23",
+        "T25"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-13b"
+      ],
+      "dod": "An integration race test shows that a bank-account currency change committed while createInvoice / duplicateInvoice / a draft updateInvoice is in flight can never leave an invoice whose currency differs from its bank account (repeat ≥20 runs, 0 mismatches), and likewise for a product currency change vs a draft save with that product; createInvoice and duplicateInvoice run checkDraftRules inside their transaction after lockSenderProfileRow; the draft branch of updateInvoice takes the sender profile lock before checkDraftRules on every branch including numberUnchanged.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/helpers.ts",
+        "tests/integration/services/invoices/currency-lock-race.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t26-lock-before-currency-checks.md"
+    },
+    {
+      "id": "T28",
+      "title": "Record the outcome of every invoice save and status change on its span so refusals are counted per write path",
+      "layer": "app",
+      "deps": [
+        "T26"
+      ],
+      "acs": [],
+      "dod": "Unit tests show each invoice save / status-change span carries an outcome attribute: ok, or refused:<kind> for lifecycle, locked-field, changed-elsewhere, currency and bounds refusals (one per kind), with only ids and the kind — no form values.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "tests/unit/services/invoice-save-spans.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t28-refusal-outcome-on-spans.md"
+    },
+    {
+      "id": "T27",
+      "title": "Build row menus from the stored status and the Freelancer's time zone on the list and the dashboard",
+      "layer": "ui",
+      "deps": [
+        "T28"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05"
+      ],
+      "dod": "A component test shows a stored-PENDING invoice past its due date reads Overdue but offers Mark as Overdue, Mark as Paid and Cancel (the stored-pending moves); the list and dashboard row DTOs carry the stored status alongside the derived one; the dashboard passes the Freelancer's time zone to InvoiceRowActions and a test shows \"today\" is resolved in that zone.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/dashboard/dashboard.ts",
+        "types/invoice/types.ts",
+        "components/invoices/invoices-data-table.tsx",
+        "components/dashboard/recent-invoices/dashboard-recent-invoices.tsx",
+        "app/(protected)/dashboard/page.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "tests/component/invoice-row-actions-lifecycle.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t27-row-menus-from-stored-status.md"
+    },
+    {
+      "id": "T29",
+      "title": "Map a real unique hit on the default index to a retryable CONFLICT and match the index explicitly",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-17"
+      ],
+      "dod": "Integration tests provoke a real P2002 on each partial default index (sender profile and bank account) and assert the service returns the retryable CONFLICT, not FAILED; isDefaultIndexConflict matches the index name through an explicit field of the Prisma error (meta.target or the driver adapter constraint), not a JSON.stringify text search.",
+      "files_hint": [
+        "lib/services/sender-profiles/sender-profiles.ts",
+        "lib/services/bank-accounts/bank-accounts.ts",
+        "tests/integration/services/sender-profiles/single-default.test.ts",
+        "tests/integration/services/bank-accounts/single-default-and-currency-lock.test.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t29-default-index-conflict-mapping.md"
+    },
+    {
+      "id": "T30",
+      "title": "Link the new editor field errors to their controls, give Reload a busy state, and scope the editor error and inactive-product tests",
+      "layer": "ui",
+      "deps": [
+        "T22",
+        "T24"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-15",
+        "AC-19"
+      ],
+      "dod": "Component tests show: the due date, bank account and line product triggers get aria-invalid when their field error is present; the stale banner's Reload shows a spinner and is disabled while reloading (a double click triggers one reload); each AC-11/AC-12/AC-19 field error is asserted within its own field container; the inactive \"Consulting 2025\" product is absent from the add-line picker while its existing line stays.",
+      "files_hint": [
+        "components/invoice-editor/invoice-editor.tsx",
+        "components/invoice-editor/invoice-details-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "components/invoice-editor/invoice-item-row.tsx",
+        "components/invoice-editor/invoice-item-card.tsx",
+        "tests/component/invoice-editor-field-errors.test.tsx",
+        "tests/component/invoice-editor-modes.test.tsx",
+        "tests/component/invoice-editor-changed-elsewhere.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t30-editor-a11y-reload-and-scoped-tests.md"
+    },
+    {
+      "id": "T31",
+      "title": "Make the product form's currency copy match the refuse-on-save rule and cover the make-default component row",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-13b",
+        "AC-17"
+      ],
+      "dod": "A component test shows the product form for a product used on invoices no longer claims the currency is locked (no lock icon or \"Locked\" text on currency; the alert says only the unit is locked up front and a currency change is refused on save), and component tests cover the test-plan AC-17 row: a double click on make-default sends one request and a failed switch keeps the previous default marked.",
+      "files_hint": [
+        "components/products/product-form.tsx",
+        "tests/component/default-and-currency-lock-forms.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t31-forms-copy-and-make-default-tests.md"
+    },
+    {
+      "id": "T32",
+      "title": "Drive the invoice-integrity flows end to end through the UI",
+      "layer": "tests",
+      "deps": [
+        "T22",
+        "T23",
+        "T27"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-06",
+        "AC-07",
+        "AC-10",
+        "AC-23"
+      ],
+      "dod": "Playwright specs against the real app server on a throwaway container cover every e2e-through-UI row of test-plan.md for AC-01, AC-02, AC-04, AC-06, AC-07, AC-10 and AC-23 (incl. AC-02: save the draft, Save and issue, then change the Customer — editor and PDF keep the issued details; AC-07: move the due date of an overdue invoice and the list no longer shows it overdue; AC-10: a stale editor save after a status change elsewhere opens the changed-elsewhere dialog; AC-23: a direct link to another Freelancer's invoice renders the not-found screen) and pass via pnpm test:e2e.",
+      "files_hint": [
+        "tests/e2e/invoice-integrity/",
+        "tests/e2e/support/seed.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t32-e2e-through-ui-flows.md"
     }
   ]
 }
