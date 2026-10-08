@@ -414,17 +414,17 @@ async function createInvoiceUnspanned(
       });
     }
 
-    const checked = await checkDraftRules(userId, validatedData);
-    if (!checked.success) {
-      return checked;
-    }
-    if (hasFieldErrors(checked.data.fieldErrors)) {
-      return fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: checked.data.fieldErrors });
-    }
-
-    const { senderProfile, customer, bankAccount } = checked.data;
-
     const invoice = await prisma.$transaction(async (tx) => {
+      // T26 (review F7, ADR-0005): the sender-profile lock first, so an account's currency can't
+      // change between the draft rules and the insert; the rules then run on the locked state.
+      await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
+      const checked = await checkDraftRules(userId, validatedData, tx);
+      if (!checked.success) throw new InvoiceRefusal(checked);
+      if (hasFieldErrors(checked.data.fieldErrors)) {
+        throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: checked.data.fieldErrors }));
+      }
+      const { senderProfile, customer, bankAccount } = checked.data;
+
       const resolved = await resolveManualOrAllocatedNumber(
         tx,
         senderProfile.id,
@@ -511,6 +511,7 @@ async function createInvoiceUnspanned(
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
+    if (error instanceof InvoiceRefusal) return error.result;
     if (error instanceof SenderProfileNotFoundError) {
       return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }
@@ -745,6 +746,9 @@ async function updateInvoiceUnspanned(
       // on the locked row, all failures together: ownership (NOT_FOUND), currencies, amount bounds,
       // discount cap, due date. The issued details are then refreshed from the current records,
       // which is what freezes when the draft is issued (AC-02).
+      // T26 (review F7): the target profile's lock comes before the rules on every branch, the
+      // unchanged-number one included (order: invoice row, profile, products).
+      await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
       const draftRules = await checkDraftRules(userId, validatedData, tx);
       if (!draftRules.success) throw new InvoiceRefusal(draftRules);
       // The per-field amount bounds belong to the draft branch (T23, AC-14): the update parse is the
@@ -1076,27 +1080,6 @@ async function duplicateInvoiceUnspanned(
     const dueDate = dayToUtcDate(addDaysToDay(today, 30));
 
     const shapeErrors = amountBoundErrors(form);
-    const checked = await checkDraftRules(userId, {
-      senderProfileId: originalInvoice.senderProfileId,
-      customerId: originalInvoice.customerId,
-      bankAccountId: originalInvoice.bankAccountId,
-      currency: originalInvoice.currency,
-      items: form.items,
-      taxRate: form.taxRate,
-      discount: form.discount,
-      shipping: form.shipping,
-      issueDate,
-      dueDate,
-    });
-    if (!checked.success) {
-      return checked;
-    }
-    const fieldErrors = mergeFieldErrors(shapeErrors, checked.data.fieldErrors);
-    if (hasFieldErrors(fieldErrors)) {
-      const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
-      return fail('VALIDATION', `This invoice can't be duplicated. ${reasons}`, { fieldErrors });
-    }
-    const { senderProfile, customer, bankAccount } = checked.data;
 
     // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
     // the original's quantity x rate rather than copying its (possibly stale) stored figures.
@@ -1108,6 +1091,35 @@ async function duplicateInvoiceUnspanned(
     });
 
     const newInvoice = await prisma.$transaction(async (tx) => {
+      // T26 (review F7, ADR-0005): the sender-profile lock first, then the draft rules on the
+      // locked state, so a currency change can't commit between the check and the insert.
+      await lockSenderProfileRow(tx, originalInvoice.senderProfileId, userId);
+      const checked = await checkDraftRules(
+        userId,
+        {
+          senderProfileId: originalInvoice.senderProfileId,
+          customerId: originalInvoice.customerId,
+          bankAccountId: originalInvoice.bankAccountId,
+          currency: originalInvoice.currency,
+          items: form.items,
+          taxRate: form.taxRate,
+          discount: form.discount,
+          shipping: form.shipping,
+          issueDate,
+          dueDate,
+        },
+        tx
+      );
+      if (!checked.success) throw new InvoiceRefusal(checked);
+      const fieldErrors = mergeFieldErrors(shapeErrors, checked.data.fieldErrors);
+      if (hasFieldErrors(fieldErrors)) {
+        const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
+        throw new InvoiceRefusal(
+          fail('VALIDATION', `This invoice can't be duplicated. ${reasons}`, { fieldErrors })
+        );
+      }
+      const { senderProfile, customer, bankAccount } = checked.data;
+
       const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
         tx,
         senderProfile.id,
@@ -1162,6 +1174,7 @@ async function duplicateInvoiceUnspanned(
 
     return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
   } catch (error) {
+    if (error instanceof InvoiceRefusal) return error.result;
     if (error instanceof SenderProfileNotFoundError) {
       return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }

@@ -96,7 +96,12 @@ describe('duplicateInvoice — P2002 despite the lock (T39, F-39)', () => {
     findFirstMock.mockResolvedValue(originalInvoice);
     senderProfileFindFirstMock.mockResolvedValue({ id: 'sp-1' });
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-      fn({ invoice: { create: vi.fn().mockRejectedValue({ code: 'P2002' }) } })
+      fn({
+        senderProfile: { findFirst: senderProfileFindFirstMock },
+        customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+        bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+        product: { findMany: vi.fn().mockResolvedValue([]) },
+        invoice: { create: vi.fn().mockRejectedValue({ code: 'P2002' }) } })
     );
   });
 

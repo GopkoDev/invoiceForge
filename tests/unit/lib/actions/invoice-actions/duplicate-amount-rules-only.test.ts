@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const findFirstMock = vi.fn();
 const senderProfileFindFirstMock = vi.fn();
 const transactionMock = vi.fn();
+const invoiceCreateMock = vi.fn();
 
 vi.mock('@/prisma', () => ({
   prisma: {
@@ -84,9 +85,15 @@ const originalInvoice = {
 describe('duplicateInvoice — amount rules only (T41, N-07)', () => {
   beforeEach(() => {
     authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    invoiceCreateMock.mockResolvedValue({ id: 'inv-2', invoiceNumber: 'INV-2026-0002' });
     senderProfileFindFirstMock.mockResolvedValue({ id: 'sp-1' });
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-      fn({ invoice: { create: vi.fn().mockResolvedValue({ id: 'inv-2', invoiceNumber: 'INV-2026-0002' }) } })
+      fn({
+        senderProfile: { findFirst: senderProfileFindFirstMock },
+        customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+        bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+        product: { findMany: vi.fn().mockResolvedValue([]) },
+        invoice: { create: invoiceCreateMock } })
     );
   });
 
@@ -110,7 +117,8 @@ describe('duplicateInvoice — amount rules only (T41, N-07)', () => {
     expect(result.error).toMatch(/^This invoice can't be duplicated\. /);
     expect(result.error).toContain("Price can't be negative.");
     expect(result.error).not.toBe('Please fix the highlighted fields.');
-    expect(transactionMock).not.toHaveBeenCalled();
+    // T26: the rules run inside the transaction now (after the profile lock); a refusal rolls it back.
+    expect(invoiceCreateMock).not.toHaveBeenCalled();
     // T55 S-07: a refusal is an expected outcome, not an incident — nothing goes to Sentry.
     expect(captureExceptionMock).not.toHaveBeenCalled();
     expect(captureMessageMock).not.toHaveBeenCalled();

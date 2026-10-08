@@ -173,14 +173,20 @@ export interface InvoiceCurrencyCheck {
   items: { productId?: string | null }[];
 }
 
-type RelationsClient = Pick<Prisma.TransactionClient, 'senderProfile' | 'customer' | 'bankAccount' | 'product'>;
+type RelationsClient = Pick<
+  Prisma.TransactionClient,
+  'senderProfile' | 'customer' | 'bankAccount' | 'product' | '$queryRaw'
+>;
 
 /**
  * Ownership of the invoice's relations (another Freelancer's record is NOT_FOUND, like a missing
  * one) and, when `currencies` is given (invoice-integrity T06, AC-11, AC-12), the currency
  * invariant as fieldErrors: the bank account's currency, then every catalogue line product's,
  * inactive products included. Free-text lines (no product, or 'custom') are not checked. Pass the
- * transaction client to run it inside a save transaction.
+ * transaction client to run it inside a save transaction: there the catalogue line products are
+ * read `FOR SHARE` (T26, review F7, ADR-0002) so updateProduct's `FOR UPDATE` on the product row
+ * can't switch a currency between this check and the write. The caller has already taken the
+ * sender-profile lock that guards the bank account's currency (order: invoice, profile, products).
  */
 export async function verifyInvoiceRelations(
   userId: string,
@@ -223,6 +229,10 @@ export async function verifyInvoiceRelations(
     }
 
     const productIds = Array.from(new Set(items.map((item) => item.productId).filter(isCatalogueProductId)));
+    if (db !== prisma && productIds.length > 0) {
+      // Sorted by id so two saves share the products in one order.
+      await db.$queryRaw`SELECT id FROM "Product" WHERE id IN (${Prisma.join(productIds)}) AND "userId" = ${userId} ORDER BY id FOR SHARE`;
+    }
     // By id and owner only: an inactive (retired) product is checked too.
     const products =
       productIds.length === 0
