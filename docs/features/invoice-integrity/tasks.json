@@ -766,17 +766,47 @@
     },
     {
       "id": "T38",
-      "title": "Scope the AC-23 not-found comparison to the main region",
+      "title": "Scope the AC-23 not-found comparison to the not-found card",
       "layer": "tests",
       "deps": [],
       "acs": [
         "AC-23"
       ],
-      "dod": "us11-foreign-invoice-not-found.spec.ts compares and searches the text of `main` (the not-found screen), not the whole body. Passes via pnpm test:e2e.",
+      "dod": "us11-foreign-invoice-not-found.spec.ts compares the not-found card (the `[data-slot=\"card\"]` holding the \"Invoice Not Found\" heading; the editor layout has no `<main>`), not the whole body, and still searches the whole page for leaks. Passes via pnpm test:e2e.",
       "files_hint": [
         "tests/e2e/invoice-integrity/us11-foreign-invoice-not-found.spec.ts"
       ],
       "file": "docs/features/invoice-integrity/tasks/t38-ac23-e2e-scope.md"
+    },
+    {
+      "id": "T39",
+      "title": "Rename the inner delete function to deleteInvoiceUnspanned to match the other spanned write paths",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "The inner function behind deleteInvoice is named deleteInvoiceUnspanned like createInvoiceUnspanned, updateInvoiceUnspanned, updateInvoiceStatusUnspanned and duplicateInvoiceUnspanned. No behaviour change; the existing span and delete tests stay green.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t39-delete-unspanned-name.md"
+    },
+    {
+      "id": "T40",
+      "title": "Point the Due Date and Bank account picker triggers at their error text with aria-describedby",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-09"
+      ],
+      "dod": "While a due-date or bank-account error is shown, its FieldError has a useId-based id and the picker trigger's aria-describedby names it, so the accessible description is the error message; with no error the trigger has no aria-describedby. A component test asserts both. Passes via pnpm test.",
+      "files_hint": [
+        "components/invoice-editor/invoice-details-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "tests/component/invoice-editor-field-errors.test.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t40-picker-error-describedby.md"
     }
   ]
 }

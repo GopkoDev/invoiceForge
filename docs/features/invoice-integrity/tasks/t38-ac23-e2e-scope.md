@@ -1,6 +1,6 @@
 ---
 id: "T38"
-title: "Scope the AC-23 not-found comparison to the main region"
+title: "Scope the AC-23 not-found comparison to the not-found card"
 layer: "tests"
 deps: []
 blocks: []
@@ -18,7 +18,7 @@ signature naming where the truth lives; the source always wins. If a slice is in
 ambiguous, or contradicts the code in front of you, open the named file and follow it. Do not
 invent the missing part. -->
 
-# T38 — Scope the AC-23 not-found comparison to the main region
+# T38 — Scope the AC-23 not-found comparison to the not-found card
 
 ## Place in the sequence
 
@@ -44,7 +44,7 @@ Open `spec.md §5` for the verbatim text of: AC-23.
 
 ## Checklist
 
-- [ ] Use `page.getByRole('main')` (check the layout renders a main landmark).
+- [x] The editor layout renders no `<main>` landmark, so the comparison uses the `[data-slot="card"]` that holds the "Invoice Not Found" heading (reworded after review r3 P3).
 
 ## Edge cases
 
@@ -54,6 +54,6 @@ Open `spec.md §5` for the verbatim text of: AC-23.
 
 ## Definition of Done
 
-- [ ] us11-foreign-invoice-not-found.spec.ts compares and searches the text of `main` (the not-found screen), not the whole body. Passes via pnpm test:e2e.
+- [ ] us11-foreign-invoice-not-found.spec.ts compares the not-found card (the `[data-slot="card"]` holding the "Invoice Not Found" heading; the editor layout has no `<main>`), not the whole body, and still searches the whole page for leaks. Passes via pnpm test:e2e.
 - [ ] Any existing test whose expectation changes is listed in the commit body.
 - [ ] lint + vet clean
