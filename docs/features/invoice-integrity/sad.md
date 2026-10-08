@@ -282,14 +282,15 @@ sequenceDiagram
         S-->>UI: refused, a new invoice always starts as a draft and is issued by moving it to pending
         UI-->>U: explanation, nothing stored
     else status draft
-        S->>D: begin, read the sender profile, Customer, bank account and line products of this owner
+        S->>D: begin, lock the sender profile row of this owner, then read the Customer, bank account and line products, the products FOR SHARE in id order
         D-->>S: records, inactive products included
+        Note over S,D: the locks come before the draft rules, so a concurrent currency change on the account or a product waits until this save commits
         alt a referenced record is missing or another Freelancer's
             S-->>UI: not found
         else a draft rule fails, currency, amount bounds, discount cap or due date
             S-->>UI: field errors, the same as in flow 4
         else every draft rule passes
-            S->>D: lock the sender profile row, read its invoice sequence
+            S->>D: read the sender profile's invoice sequence under the lock already held
             S->>S: when no number was typed, take the year from the issue date calendar day, not the server clock
             S->>D: write the draft with the current records as issued details, lines, version 0, advance the sequence, commit
             Note over S,D: persists Invoice (status draft, snapshot columns, number, version), InvoiceItem, SenderProfile invoice sequence
@@ -315,6 +316,7 @@ sequenceDiagram
     UI->>S: update the invoice with the form and loadedVersion
     S->>D: begin, lock the invoice row of this owner
     D-->>S: current row with status, version and stored fields
+    Note over S,D: before the first draft rule (currency), lock the sender profile row, then read the line products FOR SHARE in id order. Lock order on every invoice write: invoice row, sender profile, line products
     alt not found or another Freelancer's invoice
         S-->>UI: not found, the same answer as for a missing invoice
     else status is cancelled
@@ -464,8 +466,9 @@ sequenceDiagram
 
     U->>UI: edits a bank account or a product and saves
     UI->>S: update the record
-    S->>D: begin, read the record of this owner
+    S->>D: begin, lock the row the currency is guarded by, the sender profile row for a bank account or the product row FOR UPDATE for a product, then read the record of this owner
     D-->>S: stored record with its currency
+    Note over S,D: an invoice save holds the sender profile lock or a FOR SHARE lock on its line products while it checks currencies, so the count below cannot miss an invoice being written
     opt the currency changed
         S->>D: count invoices in any status that use the account, or have a line with the product
         D-->>S: N invoices
@@ -634,7 +637,7 @@ The feature runs inside the existing Vercel project in region `fra1` as part of 
 | Error handling | `ActionResult` with typed codes. Lifecycle, locked-field, currency, bounds and date refusals → `VALIDATION` with `fieldErrors` next to the field and the spec's explanation; outdated view → `CONFLICT` (the editor opens SCR-05); unique-constraint hit on a default index → retryable `CONFLICT`. Never a generic `FAILED` for user input. | `types/result.ts`; architecture-hardening ADR-0009 |
 | Status lifecycle | One transition table and `decideStatusChange`, called by every write path under the row lock; the UI imports the same table. | ADR-0002 |
 | Issued details | Written from the current records only while the invoice is a draft; read by the PDF, the editor and the Assistant; logo always current. | ADR-0001 |
-| Concurrency | Row lock `FOR UPDATE` on the invoice in every write transaction; `Invoice.version` bumped by every service write and checked on editor saves; parent-row lock for default changes; numbering keeps its sender-profile row lock. | ADR-0004, ADR-0005; architecture-hardening ADR-0005 |
+| Concurrency | Row lock `FOR UPDATE` on the invoice in every write transaction; `Invoice.version` bumped by every service write and checked on editor saves; parent-row lock for default changes; numbering keeps its sender-profile row lock. Currency checks run under locks taken in one order: invoice row, then sender profile, then line products `FOR SHARE` in id order; `updateBankAccount` counts under the sender-profile lock and `updateProduct` under its own row's `FOR UPDATE`. | ADR-0004, ADR-0005; architecture-hardening ADR-0005 |
 | Validation | Shared zod schemas in `lib/validations` run in the editor and in the service; amounts come from the shared decimal module and are bounded each on its own at 99,999,999.99. | architecture-hardening ADR-0006; here |
 | Money and currency | One currency per invoice, its bank account and its catalogue products; amounts never converted; free-text lines unchecked. | §4; here |
 | Dates and time zone | Issue and due dates are calendar days; the number's year is the issue date's year; "today" for the overdue rule comes from the Freelancer time zone. | mcp-server ADR-0005, ADR-0006, ADR-0009 |

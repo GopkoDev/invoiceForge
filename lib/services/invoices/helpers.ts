@@ -184,8 +184,9 @@ type RelationsClient = Pick<
  * invariant as fieldErrors: the bank account's currency, then every catalogue line product's,
  * inactive products included. Free-text lines (no product, or 'custom') are not checked. Pass the
  * transaction client to run it inside a save transaction: there the catalogue line products are
- * read `FOR SHARE` (T26, review F7, ADR-0002) so updateProduct's `FOR UPDATE` on the product row
- * can't switch a currency between this check and the write. The caller has already taken the
+ * read `FOR SHARE` (T26, review F7; lock order in invoice-integrity data-model.md "Access
+ * patterns") so updateProduct's `FOR UPDATE` on the product row can't switch a currency between
+ * this check and the write. The caller has already taken the
  * sender-profile lock that guards the bank account's currency (order: invoice, profile, products).
  */
 export async function verifyInvoiceRelations(

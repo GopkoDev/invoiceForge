@@ -9,7 +9,7 @@ files_hint: ["docs/features/invoice-integrity/data-model.md", "docs/features/inv
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 source: "review-2026-10-08-r2"
 ---
 

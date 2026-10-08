@@ -100,7 +100,7 @@ erDiagram
 - **`User` (the Freelancer)** owns `SenderProfile`, `Customer` and `Product`. Its row is the lock that serializes default changes among its sender profiles (ADR-0005).
 - **`SenderProfile`** is a child of `User`. It is also the parent of `BankAccount`, and its row is the lock for default changes among its bank accounts (ADR-0005) and for invoice numbering (architecture-hardening ADR-0005).
 - **`Invoice`** is the aggregate root of the invoice document. `InvoiceItem` belongs to it, is deleted with it, and is written only through it. The `Invoice` row lock (`FOR UPDATE OF i`, scoped by the owner through `SenderProfile.userId`) guards every invoice write: the version check, the lifecycle and the locked-field comparison (ADR-0002, 0003, 0004). `Invoice` refers to `SenderProfile`, `Customer` and `BankAccount` with `RESTRICT`, and keeps a copy of their printed data. It does not depend on their current values.
-- **`Customer`** and **`Product`** are separate roots under `User`. The feature reads them only: they are copied into a draft's issued details or a line, and counted for the currency lock (AC-13b).
+- **`Customer`** and **`Product`** are separate roots under `User`. The invoice paths only read them: they are copied into a draft's issued details or a line, and counted for the currency lock (AC-13b). A `Product` row is locked, though: an invoice save reads its line products `FOR SHARE`, and `updateProduct` locks the product `FOR UPDATE` before counting its usage, so the two serialize on the currency (AC-12, AC-13b).
 
 ### `Invoice` (one new column; new write semantics for existing columns)
 
@@ -124,6 +124,14 @@ erDiagram
 
 **Access patterns (SAD §6).**
 - **Lock for write (flows 1, 2, 4, 5, 6):** `SELECT … FROM "Invoice" i JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId" WHERE i."id" = $id AND sp."userId" = $owner FOR UPDATE OF i` → `Invoice_pkey`, then `SenderProfile_pkey`. This already exists at `lib/services/invoices/invoices.ts:597` for `updateInvoice`. `updateInvoiceStatus` and `deleteInvoice` take the same lock. No rows → `NOT_FOUND` (AC-23).
+- **Locks behind the currency checks (flows 3, 4, 5, 9; AC-11, AC-12, AC-13, AC-13b):** always taken in this order, so no two paths wait on each other in a cycle:
+  1. the `Invoice` row, as above (update, status change);
+  2. the `SenderProfile` row, `FOR UPDATE` by id and owner → `SenderProfile_pkey`. It is taken before the draft rules on create, duplicate and every draft update. It guards the bank account's currency, because `updateBankAccount` counts invoices under the same lock;
+  3. the line products, `SELECT … FROM "Product" WHERE "id" IN (…) AND "userId" = $owner ORDER BY "id" FOR SHARE` → `Product_pkey`, inside the save transaction.
+
+  Issuing from the list (`updateInvoiceStatus`, draft → pending) takes 1 and 3 only. The draft already references its bank account, so `updateBankAccount`'s count under the profile lock refuses that account's currency change.
+
+  `updateProduct` locks its own row `FOR UPDATE` (owner in the `WHERE`), then counts usage and writes in the same transaction. The default switch takes `User` → `SenderProfile` (ADR-0005); no invoice transaction takes the `User` lock.
 - **Version check (flows 1, 2, 4):** compare `$loadedVersion` with the locked row's `version` in the service, before any other rule. On success, the `UPDATE … SET "version" = "version" + 1 WHERE "id" = $id` runs in the same transaction. It is safe without a `WHERE "version" = $loaded` guard because the row is locked.
 - **Same-status request (flow 5):** no write and no version bump.
 - **AC-13 currency lock (flow 9):** `SELECT count(*) FROM "Invoice" WHERE "bankAccountId" = $id` (any status) → `Invoice_bankAccountId_idx` ★. It runs only when the submitted currency differs from the stored one.
