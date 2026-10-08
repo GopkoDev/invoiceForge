@@ -381,8 +381,47 @@ export async function resolveManualOrAllocatedNumber(
 }
 
 
+const CURRENCY_FIELD = /^(bankAccountId|items\.\d+\.productId)$/;
+const BOUNDS_FIELD = /^(taxRate|discount|shipping|items\.\d+\.(quantity|price|total))$/;
+
+/**
+ * The outcome recorded on a save / status-change span (review S2, sad §7 Monitoring, §8): `ok`,
+ * `failed`, or `refused:<kind>`. Kinds only — never a message, a field value or an amount.
+ */
+function outcomeOf(result: ActionResult<unknown>): string {
+  if (result.success) return 'ok';
+  if (result.code === 'FAILED') return 'failed';
+  switch (result.details?.kind) {
+    case 'STATUS_NOT_ALLOWED':
+      return 'refused:lifecycle';
+    case 'ISSUED_INVOICE_LOCKED':
+      return 'refused:locked-field';
+    case 'CHANGED_ELSEWHERE':
+      return 'refused:changed-elsewhere';
+    case 'TOTALS_CHANGED':
+      return 'refused:totals-changed';
+  }
+  const fields = Object.keys(result.fieldErrors ?? {});
+  if (fields.some((field) => CURRENCY_FIELD.test(field))) return 'refused:currency';
+  if (fields.some((field) => BOUNDS_FIELD.test(field))) return 'refused:bounds';
+  return `refused:${result.code.toLowerCase().replace('_', '-')}`;
+}
+
+/** Runs a save or status change in its span and records the outcome of whatever it returns. */
+function inOutcomeSpan<T>(
+  options: { name: string; attributes?: Record<string, string> },
+  run: () => Promise<ActionResult<T>>
+): Promise<ActionResult<T>> {
+  return startSpan({ ...options, op: 'function' }, async (span) => {
+    const result = await run();
+    // Optional: older test doubles of startSpan call the callback without a span.
+    span?.setAttribute('outcome', outcomeOf(result));
+    return result;
+  });
+}
+
 export async function createInvoice(actor: ActingFreelancer, data: InvoiceFormInput) {
-  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'create' } }, () =>
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'create' } }, () =>
     createInvoiceUnspanned(actor, data)
   );
 }
@@ -627,7 +666,7 @@ function amountBoundErrors(values: unknown): FieldErrors {
 }
 
 export async function updateInvoice(actor: ActingFreelancer, id: string, data: UpdateInvoiceInput) {
-  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'update' } }, () =>
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'update' } }, () =>
     updateInvoiceUnspanned(actor, id, data)
   );
 }
@@ -966,7 +1005,7 @@ async function updateInvoiceUnspanned(
 // number or legacy-total checks (AC-17 last sentence). The lifecycle and the paid-date rule live
 // once in decideStatusChange (ADR-0002).
 export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
-  return startSpan({ name: 'invoices.status-change', op: 'function' }, () =>
+  return inOutcomeSpan({ name: 'invoices.status-change' }, () =>
     updateInvoiceStatusUnspanned(actor, id, status)
   );
 }
@@ -1048,7 +1087,7 @@ async function updateInvoiceStatusUnspanned(
 // from the original's sender-profile sequence (same allocator and format as createInvoice),
 // insert the copy with recomputed amounts, status DRAFT, paidAt null.
 export async function duplicateInvoice(actor: ActingFreelancer, id: string) {
-  return startSpan({ name: 'invoices.save', op: 'function', attributes: { operation: 'duplicate' } }, () =>
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'duplicate' } }, () =>
     duplicateInvoiceUnspanned(actor, id)
   );
 }
