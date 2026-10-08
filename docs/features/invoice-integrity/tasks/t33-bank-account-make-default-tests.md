@@ -9,7 +9,7 @@ files_hint: ["tests/component/default-and-currency-lock-forms.test.tsx", "compon
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 source: "review-2026-10-08-r2"
 ---
 

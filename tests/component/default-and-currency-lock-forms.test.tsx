@@ -333,3 +333,37 @@ describe('Make default — one request, a failed switch keeps the old default (A
     expect(updateProfileMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Make default on a bank account — one request, a failed switch keeps the dialog open (AC-17, SCR-10)', () => {
+  it('a double click on Update after ticking "Set as default" sends a single switch', async () => {
+    let release!: (v: unknown) => void;
+    updateAccountMock.mockReturnValue(new Promise((r) => (release = r)));
+    renderAccountModal({ isEditing: true, defaultValues: accountValues(false) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox'));
+    const update = screen.getByRole('button', { name: 'Update' });
+    await act(async () => {
+      fireEvent.click(update);
+      fireEvent.click(update);
+    });
+    await act(async () => {
+      release({ success: true, data: { id: 'ba-1' } });
+    });
+    expect(updateAccountMock).toHaveBeenCalledTimes(1);
+    expect(updateAccountMock.mock.calls[0][1]).toMatchObject({ isDefault: true });
+  });
+
+  it('a failed switch shows the error, keeps the dialog open, and sends no second switch', async () => {
+    updateAccountMock.mockResolvedValue({ success: false, code: 'CONFLICT', error: ACCOUNT.race });
+    const close = renderAccountModal({ isEditing: true, defaultValues: accountValues(false) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox'));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Update' }));
+    });
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(ACCOUNT.race));
+    expect(close).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(updateAccountMock).toHaveBeenCalledTimes(1);
+  });
+});
