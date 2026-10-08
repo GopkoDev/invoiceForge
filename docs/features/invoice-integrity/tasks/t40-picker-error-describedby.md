@@ -9,7 +9,7 @@ files_hint: ["components/invoice-editor/invoice-details-section.tsx", "component
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 source: "review-2026-10-08-r3"
 ---
 

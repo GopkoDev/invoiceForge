@@ -43,12 +43,14 @@ const dueDatePresets = [
 ];
 
 export function InvoiceDetailsSection() {
-  // Each date picker is named by its label, then its value (review r2 L2).
+  // Each date picker is named by its label, then its value (review r2 L2), and the due date
+  // picker is described by its error text while it has one (review r3 P2).
   const fieldId = useId();
   const issueDateLabelId = `${fieldId}-issue-date-label`;
   const issueDateTriggerId = `${fieldId}-issue-date`;
   const dueDateLabelId = `${fieldId}-due-date-label`;
   const dueDateTriggerId = `${fieldId}-due-date`;
+  const dueDateErrorId = `${fieldId}-due-date-error`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
   const fieldErrors = useFieldErrors();
@@ -158,6 +160,7 @@ export function InvoiceDetailsSection() {
                 aria-labelledby={`${dueDateLabelId} ${dueDateTriggerId}`}
                 disabled={readOnly}
                 aria-invalid={!!fieldErrors?.dueDate}
+                aria-describedby={fieldErrors?.dueDate ? dueDateErrorId : undefined}
                 className={cn(
                   'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-invalid:border-destructive mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
                   !dueDate && 'text-muted-foreground'
@@ -193,7 +196,10 @@ export function InvoiceDetailsSection() {
                 </div>
               </PopoverContent>
             </Popover>
-            <FieldError errors={fieldErrors?.dueDate?.map((message) => ({ message }))} />
+            <FieldError
+              id={dueDateErrorId}
+              errors={fieldErrors?.dueDate?.map((message) => ({ message }))}
+            />
           </div>
         </div>
 

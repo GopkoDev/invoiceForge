@@ -48,10 +48,12 @@ import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview'
 export function SenderSection() {
   const [open, setOpen] = useState(false);
   const [openBankAccount, setOpenBankAccount] = useState(false);
-  // The bank account picker is named by its label, then its value (review r2 L2).
+  // The bank account picker is named by its label, then its value (review r2 L2), and is
+  // described by its error text while it has one (review r3 P2).
   const fieldId = useId();
   const bankAccountLabelId = `${fieldId}-bank-account-label`;
   const bankAccountTriggerId = `${fieldId}-bank-account`;
+  const bankAccountErrorId = `${fieldId}-bank-account-error`;
 
   const senderProfileOptions = useSenderProfileOptions();
   const availableBankAccounts = useAvailableBankAccounts();
@@ -225,6 +227,7 @@ export function SenderSection() {
               aria-labelledby={`${bankAccountLabelId} ${bankAccountTriggerId}`}
               disabled={isBankAccountDisabled}
               aria-invalid={!!fieldErrors?.bankAccountId}
+              aria-describedby={fieldErrors?.bankAccountId ? bankAccountErrorId : undefined}
               className={cn(
                 'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-invalid:border-destructive mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs',
                 isBankAccountDisabled && 'cursor-not-allowed opacity-50'
@@ -279,7 +282,10 @@ export function SenderSection() {
               </Command>
             </PopoverContent>
           </Popover>
-          <FieldError errors={fieldErrors?.bankAccountId?.map((message) => ({ message }))} />
+          <FieldError
+            id={bankAccountErrorId}
+            errors={fieldErrors?.bankAccountId?.map((message) => ({ message }))}
+          />
         </div>
 
         {/* Selected Bank Preview */}

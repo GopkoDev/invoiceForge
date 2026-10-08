@@ -205,6 +205,27 @@ describe('InvoiceEditor field errors (T17)', () => {
     expect(screen.getByRole('button', { name: /^Bank Account\b.*Current Bank \(USD\)/ })).toBeInTheDocument();
   });
 
+  // T40 (review r3 P2): an invalid picker is described by its error text, so a screen reader
+  // says why when focus returns to it; a valid picker carries no description reference.
+  it('the due date and bank account pickers are described by their error text only while invalid', async () => {
+    renderEditor(data('DRAFT'));
+    const dueDate = () => screen.getByRole('button', { name: /^Due Date\b/ });
+    const bankAccount = () => screen.getByRole('button', { name: /^Bank Account\b/ });
+    expect(dueDate()).not.toHaveAttribute('aria-describedby');
+    expect(bankAccount()).not.toHaveAttribute('aria-describedby');
+
+    updateInvoiceMock.mockResolvedValue({
+      success: false,
+      code: 'VALIDATION',
+      error: 'Please fix the highlighted fields.',
+      fieldErrors: { dueDate: [MSG.dueDate], bankAccountId: [MSG.bankAccountId] },
+    });
+    await editNotesAndSave();
+
+    expect(dueDate()).toHaveAccessibleDescription(MSG.dueDate);
+    expect(bankAccount()).toHaveAccessibleDescription(MSG.bankAccountId);
+  });
+
   it('an issued due-date refusal shows under the due date (AC-09)', async () => {
     updateInvoiceMock.mockResolvedValue({
       success: false,
