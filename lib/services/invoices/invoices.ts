@@ -5,6 +5,7 @@ import { prisma } from '@/prisma';
 import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
 import type {
   InvoiceFilterOptions,
+  InvoiceIssuedDetails,
   InvoiceListItem,
   SerializedInvoice,
 } from '@/types/invoice/types';
@@ -32,6 +33,7 @@ import {
   INVOICE_ITEM_ORDER,
   checkDraftRules,
 } from '@/lib/services/invoices/helpers';
+import { issuedDetailsOf } from '@/lib/services/invoices/editor-data';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
 import { captureMessage, startSpan } from '@sentry/nextjs';
 import {
@@ -324,6 +326,9 @@ export type SavedInvoice = {
   dueDate: string;
   /** Invoice.version after the write (ADR-0004): the editor's next loadedVersion. */
   version: number;
+  /** The issued details the row holds after the write (T22): set whenever the row is not a draft, so the
+   * editor shows what the server froze; null for a draft. */
+  issuedDetails: InvoiceIssuedDetails | null;
 };
 
 const FIX_FIELDS_MESSAGE = 'Please fix the highlighted fields.';
@@ -500,6 +505,7 @@ async function createInvoiceUnspanned(
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
       version: invoice.version,
+      issuedDetails: invoice.status === InvoiceStatus.DRAFT ? null : issuedDetailsOf(invoice),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -889,6 +895,7 @@ async function updateInvoiceUnspanned(
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
       version: invoice.version,
+      issuedDetails: invoice.status === InvoiceStatus.DRAFT ? null : issuedDetailsOf(invoice),
     });
   } catch (error) {
     if (error instanceof InvoiceRefusal) {

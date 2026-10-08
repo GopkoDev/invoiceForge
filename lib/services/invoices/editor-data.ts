@@ -102,7 +102,7 @@ export async function getInvoiceEditorData(
 }
 
 /** The invoice's snapshot columns as the editor's read-only issued blocks (ADR-0001). */
-function issuedDetailsOf(invoice: Invoice): InvoiceIssuedDetails {
+export function issuedDetailsOf(invoice: Invoice): InvoiceIssuedDetails {
   return {
     sender: {
       name: invoice.senderName,

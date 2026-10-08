@@ -62,8 +62,25 @@ export function SenderSection() {
   const isBankAccountDisabled =
     !selectedProfile || availableBankAccounts.length === 0;
 
-  if (locked && issued) {
-    const { sender, bank } = issued;
+  if (locked) {
+    // Never a picker once issued or cancelled; without issued details, the selected records as text.
+    const sender = issued?.sender ?? {
+      name: selectedProfile?.name,
+      legalName: selectedProfile?.legalName,
+      taxId: selectedProfile?.taxId,
+      address: selectedProfile?.address,
+      city: selectedProfile?.city,
+      country: selectedProfile?.country,
+      postalCode: selectedProfile?.postalCode,
+      email: selectedProfile?.email,
+    };
+    const bank = issued?.bank ?? {
+      bankName: selectedBank?.bankName,
+      accountName: selectedBank?.accountName,
+      accountNumber: selectedBank?.accountNumber,
+      iban: selectedBank?.iban,
+      swift: selectedBank?.swift,
+    };
     return (
       <IssuedDetailsCard
         title="From"

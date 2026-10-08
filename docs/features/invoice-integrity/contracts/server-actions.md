@@ -91,6 +91,7 @@ The keys follow the form paths, and a failing save may carry several of them in 
 type SavedInvoice = {
   // … every field from architecture-hardening / mcp-server, unchanged …
   version: number;   // ★ Invoice.version after the write (ADR-0004); the editor's next loadedVersion
+  issuedDetails: IssuedDetails | null; // ★ T22: the details the row holds after the write, same shape the editor loads. Set whenever the saved row is not a draft (a draft just issued by Save and issue returns the details it froze; an issued invoice saved again returns them unchanged); null for a draft
 };
 ```
 

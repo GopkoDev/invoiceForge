@@ -223,6 +223,30 @@ describe.runIf(containerRuntimeAvailable)('updateInvoice on a draft (T09)', () =
     expect((await stored(s.invoice.id)).customerAddress).toBe('2 Corrected Road');
   });
 
+  it('AC-02: SavedInvoice carries the frozen issued details when a draft is issued, null for a draft, unchanged once issued (T22)', async () => {
+    const s = await seed();
+    await prisma.customer.update({ where: { id: s.customer.id }, data: { address: '5 Fresh Road' } });
+    const before = await stored(s.invoice.id);
+
+    const draft = await svc.updateInvoice(s.actor, s.invoice.id, formFrom(before, { notes: 'still draft' }));
+    expect(draft.data.issuedDetails).toBeNull();
+
+    const afterDraft = await stored(s.invoice.id);
+    const issued = await svc.updateInvoice(s.actor, s.invoice.id, formFrom(afterDraft, { status: 'PENDING' }));
+    expect(issued.success).toBe(true);
+    const row = await stored(s.invoice.id);
+    expect(issued.data.issuedDetails.customer.address).toBe('5 Fresh Road');
+    expect(issued.data.issuedDetails).toEqual({
+      sender: expect.objectContaining({ name: row.senderName, legalName: row.senderLegalName }),
+      customer: expect.objectContaining({ name: row.customerName, address: row.customerAddress }),
+      bank: expect.objectContaining({ bankName: row.bankName, accountNumber: row.bankAccountNumber }),
+    });
+
+    await prisma.customer.update({ where: { id: s.customer.id }, data: { address: '6 Later Road' } });
+    const notes = await svc.updateInvoice(s.actor, s.invoice.id, formFrom(row, { notes: 'issued note' }));
+    expect(notes.data.issuedDetails.customer.address).toBe('5 Fresh Road');
+  });
+
   it('Save and issue with a failing rule stays a draft and stores nothing', async () => {
     const s = await seed({ currency: 'EUR' });
     const before = await stored(s.invoice.id);

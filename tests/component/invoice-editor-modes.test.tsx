@@ -201,6 +201,81 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
     expect(screen.getByDisplayValue('INV-2026-0042')).toBeDisabled();
   });
 
+  const FROZEN = {
+    sender: { name: 'Frozen Studio', legalName: 'Frozen Legal Ltd', taxId: null, address: 'Frozen Street 9', city: null, country: null, postalCode: null, phone: null, email: null, website: null },
+    customer: { name: 'Frozen Customer', companyName: null, taxId: null, email: null, phone: null, address: 'Frozen Road 7', city: null, country: null, postalCode: null },
+    bank: { bankName: 'Frozen Bank', accountName: 'Holder', accountNumber: '777', iban: 'UA21 NEW', swift: null },
+  };
+  const issuedResult = (over: Record<string, unknown> = {}) => ({
+    success: true,
+    data: {
+      id: 'inv-1',
+      invoiceNumber: 'INV-2026-0042',
+      subtotal: 1800,
+      taxAmount: 0,
+      total: 1800,
+      status: 'PENDING',
+      derivedOverdue: false,
+      paidAt: null,
+      issueDate: '2026-03-10T00:00:00.000Z',
+      dueDate: '2026-03-24T00:00:00.000Z',
+      version: 4,
+      issuedDetails: FROZEN,
+      ...over,
+    },
+  });
+
+  it('after Save and issue the From, To and bank blocks and the PDF parties show the details the server froze (AC-01, AC-02)', async () => {
+    updateInvoiceMock.mockResolvedValue(issuedResult());
+    renderEditor(data('DRAFT'));
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Save and issue'));
+    expect(await screen.findByText(ISSUED_ALERT)).toBeInTheDocument();
+
+    expect(screen.getByText('Frozen Legal Ltd')).toBeInTheDocument();
+    expect(screen.getByText('Frozen Street 9')).toBeInTheDocument();
+    expect(screen.getByText('Frozen Road 7')).toBeInTheDocument();
+    expect(screen.getByText('Frozen Bank')).toBeInTheDocument();
+    expect(screen.queryByText('Old Legal Name Ltd')).not.toBeInTheDocument();
+    expect(screen.queryByText('Old Road 2')).not.toBeInTheDocument();
+
+    const { renderHook } = await import('@testing-library/react');
+    const { usePdfParties } = await import('@/store/invoice-editor-store/pdf-parties');
+    const { result } = renderHook(() => usePdfParties());
+    expect(result.current.senderProfile?.address).toBe('Frozen Street 9');
+    expect(result.current.customer?.address).toBe('Frozen Road 7');
+    expect(result.current.bankAccount?.bankName).toBe('Frozen Bank');
+  });
+
+  it('a new invoice saved and then issued in the same session shows text blocks, no sender, Customer or bank picker (AC-01, AC-03)', async () => {
+    createInvoiceMock.mockResolvedValue(
+      issuedResult({ status: 'DRAFT', issuedDetails: null, version: 0 })
+    );
+    updateInvoiceMock.mockResolvedValue(issuedResult({ version: 1 }));
+    renderEditor(data(null));
+    useInvoiceEditorStore.getState().updateFields({
+      senderProfileId: 'sp-1',
+      bankAccountId: 'ba-1',
+      customerId: 'cu-1',
+    });
+    await act(async () => {
+      await useInvoiceEditorStore.getState().saveInvoice();
+    });
+    expect(createInvoiceMock).toHaveBeenCalled();
+    expect(screen.getAllByText('Current Customer').length).toBeGreaterThan(0); // still a draft: pickers stay
+    await act(async () => {
+      await useInvoiceEditorStore.getState().saveInvoice({ issue: true });
+    });
+    expect(await screen.findByText(ISSUED_ALERT)).toBeInTheDocument();
+    expect(screen.getByText('Frozen Legal Ltd')).toBeInTheDocument();
+    expect(screen.getByText('Frozen Road 7')).toBeInTheDocument();
+    expect(screen.getByText('Frozen Bank')).toBeInTheDocument();
+    expect(screen.queryByText('Current Customer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Current Studio')).not.toBeInTheDocument();
+    expect(screen.queryByText('Select customer...')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('combobox')).toHaveLength(0);
+  });
+
   it('a failed Save and issue leaves the invoice a draft', async () => {
     updateInvoiceMock.mockResolvedValue({
       success: false,

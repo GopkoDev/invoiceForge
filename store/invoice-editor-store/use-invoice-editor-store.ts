@@ -181,6 +181,8 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       invoiceId: saved.id,
       // The mode follows what the row holds now: a draft issued by Save and issue turns issued.
       storedStatus: saved.status,
+      // What the server froze in this save (null for a draft): the issued blocks and PDF show it.
+      issuedDetails: saved.issuedDetails,
       // The row's version now: the next save's loadedVersion (ADR-0004).
       loadedVersion: saved.version,
       subtotal: saved.subtotal,

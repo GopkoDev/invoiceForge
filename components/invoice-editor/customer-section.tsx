@@ -42,8 +42,18 @@ export function CustomerSection() {
   const { locked } = useEditorLocks();
   const issued = useIssuedDetails();
 
-  if (locked && issued) {
-    const { customer } = issued;
+  if (locked) {
+    // Never a picker once issued or cancelled; without issued details, the selected record as text.
+    const customer = issued?.customer ?? {
+      name: selectedCustomer?.name,
+      companyName: selectedCustomer?.companyName,
+      taxId: selectedCustomer?.taxId,
+      address: selectedCustomer?.address,
+      city: selectedCustomer?.city,
+      country: selectedCustomer?.country,
+      postalCode: selectedCustomer?.postalCode,
+      email: selectedCustomer?.email,
+    };
     return (
       <IssuedDetailsCard
         title="To"
