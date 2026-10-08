@@ -679,6 +679,104 @@
         "tests/e2e/support/seed.ts"
       ],
       "file": "docs/features/invoice-integrity/tasks/t32-e2e-through-ui-flows.md"
+    },
+    {
+      "id": "T33",
+      "title": "Cover the bank account dialog's make-default guard: one switch per double click, a failed switch keeps the dialog open",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-17"
+      ],
+      "dod": "Component tests for BankAccountModal mirror the SenderProfileForm AC-17 pair: a double submit with \"Set as default\" ticked sends exactly one updateBankAccount; a CONFLICT reply keeps the dialog open, toasts the race message and sends no second call. Removing the in-flight guard turns the first test red.",
+      "files_hint": [
+        "tests/component/default-and-currency-lock-forms.test.tsx",
+        "components/modals/sender-profile/bank-account-modal.tsx"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t33-bank-account-make-default-tests.md"
+    },
+    {
+      "id": "T34",
+      "title": "Read the text of the downloaded PDF in the AC-01 end-to-end test",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "The AC-01 Playwright spec extracts the text of the file downloaded through \"Download PDF\" and asserts the old legal name, address and IBAN are in it and the new ones are not; the preview check also asserts the old legal name. Passes via pnpm test:e2e.",
+      "files_hint": [
+        "tests/e2e/invoice-integrity/us01-issued-details-survive.spec.ts",
+        "tests/e2e/support/",
+        "package.json"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t34-ac01-downloaded-pdf-text.md"
+    },
+    {
+      "id": "T35",
+      "title": "Describe the invoice, sender-profile and product lock order in data-model.md and sad.md flows 3, 4 and 9",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-13b"
+      ],
+      "dod": "data-model.md \"Lock for write\" names the sender-profile lock and the line-product FOR SHARE lock in order (invoice row → sender profile → line products by id) and updateProduct's FOR UPDATE; Product is no longer called read-only; sad.md flow 3 takes the profile lock before the draft rules, flow 9 shows the product row lock; the helpers.ts comment cites ADR-0005 and T26 instead of ADR-0002.",
+      "files_hint": [
+        "docs/features/invoice-integrity/data-model.md",
+        "docs/features/invoice-integrity/sad.md",
+        "lib/services/invoices/helpers.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t35-lock-order-in-design-docs.md"
+    },
+    {
+      "id": "T36",
+      "title": "Record the outcome of deleteInvoice on an invoices.delete span and state which write paths the friction signal counts",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "deleteInvoice runs in inOutcomeSpan as `invoices.delete`; a unit test shows a refused delete of an issued invoice records `refused:lifecycle` and a draft delete records `ok`; sad.md §7 names the counted write paths (invoice create, update, duplicate, status change, delete) and states that the bank-account and product currency-lock refusals are not part of the invoice friction signal.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "tests/unit/services/invoice-save-spans.test.ts",
+        "docs/features/invoice-integrity/sad.md"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t36-delete-outcome-span.md"
+    },
+    {
+      "id": "T37",
+      "title": "Bind the Due Date and Bank account labels to their picker triggers and select them by name in the AC-07 e2e test",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-09"
+      ],
+      "dod": "The Due Date and Bank account picker triggers have an accessible name containing the field label (Label htmlFor/id or aria-labelledby); a component test finds each by role and name; the AC-07 e2e opens the due-date picker by its name instead of a date-format regex. Passes via pnpm test and pnpm test:e2e.",
+      "files_hint": [
+        "components/invoice-editor/invoice-details-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "tests/component/",
+        "tests/e2e/invoice-integrity/us04-overdue-due-date.spec.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t37-label-picker-triggers.md"
+    },
+    {
+      "id": "T38",
+      "title": "Scope the AC-23 not-found comparison to the main region",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-23"
+      ],
+      "dod": "us11-foreign-invoice-not-found.spec.ts compares and searches the text of `main` (the not-found screen), not the whole body. Passes via pnpm test:e2e.",
+      "files_hint": [
+        "tests/e2e/invoice-integrity/us11-foreign-invoice-not-found.spec.ts"
+      ],
+      "file": "docs/features/invoice-integrity/tasks/t38-ac23-e2e-scope.md"
     }
   ]
 }

@@ -37,5 +37,11 @@
 | T30 | [Link the new editor field errors to their controls, give Reload a busy state, and scope the editor error and inactive-product tests](./t30-editor-a11y-reload-and-scoped-tests.md) | ui | Dmytro Hopko | M | T22, T24 | done |
 | T31 | [Make the product form's currency copy match the refuse-on-save rule and cover the make-default component row](./t31-forms-copy-and-make-default-tests.md) | ui | Dmytro Hopko | S | — | done |
 | T32 | [Drive the invoice-integrity flows end to end through the UI](./t32-e2e-through-ui-flows.md) | tests | Dmytro Hopko | L | T22, T23, T27 | done |
+| T33 | [Cover the bank account dialog's make-default guard: one switch per double click, a failed switch keeps the dialog open](./t33-bank-account-make-default-tests.md) | tests | Dmytro Hopko | S | — | todo |
+| T34 | [Read the text of the downloaded PDF in the AC-01 end-to-end test](./t34-ac01-downloaded-pdf-text.md) | tests | Dmytro Hopko | S | — | todo |
+| T35 | [Describe the invoice, sender-profile and product lock order in data-model.md and sad.md flows 3, 4 and 9](./t35-lock-order-in-design-docs.md) | docs | Dmytro Hopko | S | — | todo |
+| T36 | [Record the outcome of deleteInvoice on an invoices.delete span and state which write paths the friction signal counts](./t36-delete-outcome-span.md) | app | Dmytro Hopko | S | — | todo |
+| T37 | [Bind the Due Date and Bank account labels to their picker triggers and select them by name in the AC-07 e2e test](./t37-label-picker-triggers.md) | ui | Dmytro Hopko | S | — | todo |
+| T38 | [Scope the AC-23 not-found comparison to the main region](./t38-ac23-e2e-scope.md) | tests | Dmytro Hopko | S | — | todo |
 
-**Total:** 32 tasks (T22–T32 are review follow-ups from `_review/review-2026-10-08.md`).
+**Total:** 38 tasks (T22–T32 are review follow-ups from `_review/review-2026-10-08.md`; T33–T38 from `_review/review-2026-10-08-r2.md`).
