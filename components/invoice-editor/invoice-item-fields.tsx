@@ -1,7 +1,7 @@
 'use client';
 
 import { useId } from 'react';
-import { Input } from '@/components/ui/input';
+import { AmountInput } from './amount-input';
 import { FieldError } from '@/components/ui/field';
 import { Currency, InvoiceFormItem } from '@/types/invoice/types';
 import { formatMoney } from '@/lib/format';
@@ -52,10 +52,9 @@ export function InvoiceItemFields({
     <>
       <div className="space-y-1 md:w-24 md:space-y-0">
         <Label className="md:hidden">Price</Label>
-        <Input
-          type="text"
+        <AmountInput
           value={priceInput.value}
-          onChange={(e) => priceInput.onChange(e.target.value)}
+          onChange={priceInput.onChange}
           className="text-right"
           placeholder="Price"
           disabled={disabled || isPriceDisabled}
@@ -71,10 +70,9 @@ export function InvoiceItemFields({
 
       <div className="space-y-1 md:w-20 md:space-y-0">
         <Label className="md:hidden">Quantity</Label>
-        <Input
-          type="text"
+        <AmountInput
           value={quantityInput.value}
-          onChange={(e) => quantityInput.onChange(e.target.value)}
+          onChange={quantityInput.onChange}
           className="text-right"
           placeholder="Qty"
           disabled={disabled}

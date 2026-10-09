@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { AmountInput } from './amount-input';
 import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { formatMoney } from '@/lib/format';
@@ -91,10 +91,9 @@ export function SummarySection() {
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">−</span>
-              <Input
-                type="text"
+              <AmountInput
                 value={discountInput.value}
-                onChange={(e) => discountInput.onChange(e.target.value)}
+                onChange={discountInput.onChange}
                 className="h-8 w-24 text-right"
                 id={`${fieldId}-discount`}
                 disabled={locked}
@@ -116,10 +115,9 @@ export function SummarySection() {
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">+</span>
-              <Input
-                type="text"
+              <AmountInput
                 value={shippingInput.value}
-                onChange={(e) => shippingInput.onChange(e.target.value)}
+                onChange={shippingInput.onChange}
                 className="h-8 w-24 text-right"
                 id={`${fieldId}-shipping`}
                 disabled={locked}
@@ -152,10 +150,9 @@ export function SummarySection() {
               Tax
             </Label>
             <div className="flex items-center">
-              <Input
-                type="text"
+              <AmountInput
                 value={taxRateInput.value}
-                onChange={(e) => taxRateInput.onChange(e.target.value)}
+                onChange={taxRateInput.onChange}
                 className="h-8 w-16 text-right"
                 id={`${fieldId}-tax-rate`}
                 disabled={locked}
