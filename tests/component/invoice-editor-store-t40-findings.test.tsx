@@ -26,8 +26,9 @@ vi.mock('sonner', () => ({
 }));
 
 const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 let store: ReturnType<typeof createInvoiceEditorStore>;
-const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 function resetStore() {
   store = createInvoiceEditorStore(emptyData);
@@ -137,6 +138,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
       legacy: { storedTotal: '100.00', recomputedTotal: '100.00', sharedNumber: true },
     });
@@ -165,6 +167,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
 
     await store.getState().saveInvoice();
@@ -190,6 +193,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     state.updateFields({ invoiceNumber: 'INV-0001' });
 

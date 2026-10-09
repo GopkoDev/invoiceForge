@@ -33,7 +33,7 @@ import {
   useInvoiceEditor,
   useInvoiceEditorStoreApi,
 } from '@/store/invoice-editor-store/selectors';
-import { renderWithEditorStore } from '../support/render-with-editor-store';
+import { renderWithEditorStore, emptyEditorData } from '../support/render-with-editor-store';
 
 function editorData(tag: 'A' | 'B'): InvoiceEditorData {
   const initialData: InvoiceFormData = {
@@ -104,7 +104,7 @@ describe('createInvoiceEditorStore (ADR-0003)', () => {
   });
 
   it('builds a new-invoice store from data without an invoice: no number, no lines, no invoice id', () => {
-    const store = createInvoiceEditorStore({ ...editorData('A'), initialData: undefined, invoiceId: undefined });
+    const store = createInvoiceEditorStore({ ...editorData('A'), initialData: emptyEditorData().initialData, invoiceId: undefined });
     const s = store.getState();
     expect(s.invoiceId).toBeUndefined();
     expect(s.formData.invoiceNumber).toBe('');
@@ -160,7 +160,7 @@ describe('InvoiceEditorProvider first render (AC-06)', () => {
   it('a new invoice renders its defaults from the first render and they do not change', () => {
     const { Probe, seen } = makeProbe();
     render(
-      <InvoiceEditorProvider initial={{ ...editorData('A'), initialData: undefined, invoiceId: undefined }}>
+      <InvoiceEditorProvider initial={{ ...editorData('A'), initialData: emptyEditorData().initialData, invoiceId: undefined }}>
         <Probe />
       </InvoiceEditorProvider>
     );
@@ -226,7 +226,7 @@ describe('InvoiceEditorProvider isolation (AC-07)', () => {
     );
     act(() => first!.setState({ hasUnsavedChanges: true }));
     rerender(
-      <InvoiceEditorProvider key="fb:new" initial={{ ...editorData('B'), initialData: undefined, invoiceId: undefined }}>
+      <InvoiceEditorProvider key="fb:new" initial={{ ...editorData('B'), initialData: emptyEditorData().initialData, invoiceId: undefined }}>
         <Grab slot="second" />
       </InvoiceEditorProvider>
     );

@@ -41,7 +41,7 @@ export async function getInvoiceEditorData(
     // edit page calls notFound() on it.
     const base = await editorData.getInvoiceEditorData(actor.data);
     if (!base.success) return base;
-    return { success: true, data: { ...base.data, invoiceId } };
+    return { success: true, data: { ...base.data, initialData: undefined, invoiceId } };
   }
   return result;
 }

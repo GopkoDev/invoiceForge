@@ -20,7 +20,6 @@ import {
 import {
   normalizeData,
   recalculateComputedValues,
-  createInitialFormData,
   createNewItem,
     toSavePayload,
   loadedDatesOf,
@@ -30,11 +29,11 @@ import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day
 
 export type InvoiceEditorStoreApi = StoreApi<InvoiceEditorState>;
 
-/** The state an editor starts from: the server's data (or the new-invoice defaults), fully computed. */
+/** The state an editor starts from: the server's data, fully computed. */
 function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
-  const formData = data.initialData
-    ? withLocalDays(data.initialData)
-    : createInitialFormData();
+  // The server always sends the form (an opened invoice, or a new invoice's defaults with its today).
+  if (!data.initialData) throw new Error('The invoice editor needs initialData from the server.');
+  const formData = withLocalDays(data.initialData);
   const normalizedData = normalizeData({
     senderProfiles: data.senderProfiles,
     bankAccounts: data.bankAccounts,

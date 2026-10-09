@@ -15,6 +15,25 @@ export const emptyEditorData = (): InvoiceEditorData => ({
   customers: [],
   products: [],
   customPrices: [],
+  // Fixed days, as the server passes them: the editor never reads the clock for a new invoice.
+  initialData: {
+    invoiceNumber: '',
+    status: 'DRAFT',
+    senderProfileId: '',
+    bankAccountId: '',
+    customerId: '',
+    issueDate: new Date('2026-03-11T00:00:00.000Z'),
+    dueDate: new Date('2026-04-10T00:00:00.000Z'),
+    currency: 'USD',
+    poNumber: '',
+    paymentTerms: '',
+    items: [],
+    taxRate: 0,
+    discount: 0,
+    shipping: 0,
+    notes: '',
+    terms: '',
+  },
 });
 
 export interface RenderWithEditorStoreOptions {

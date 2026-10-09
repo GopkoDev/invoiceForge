@@ -66,6 +66,7 @@ function seedUnsavedInvoice() {
     customers: [],
     products: [],
     customPrices: [],
+    initialData: emptyEditorData().initialData,
   });
   const state = store.getState();
   state.updateFields({

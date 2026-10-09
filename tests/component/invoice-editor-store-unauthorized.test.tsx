@@ -24,8 +24,9 @@ const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...args: unknown[]) => toastError(...args) } }));
 
 const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 let store: ReturnType<typeof createInvoiceEditorStore>;
-const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 describe('invoice editor store — UNAUTHORIZED save routes to sign-in (T39, F-34, AC-21)', () => {
   const assignMock = vi.fn();

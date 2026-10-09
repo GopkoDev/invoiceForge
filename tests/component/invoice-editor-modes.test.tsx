@@ -52,7 +52,7 @@ Element.prototype.getAnimations = () => [];
 Element.prototype.scrollIntoView = () => {};
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
-const { renderWithEditorStore } = await import('../support/render-with-editor-store');
+const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');
 const { withEditorStore } = await import('../support/editor-store-wrapper');
 let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
@@ -99,7 +99,7 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
       { id: 'pr-retired', name: 'Consulting 2025', description: null, unit: 'h', price: 150, currency: 'USD', isActive: false },
     ],
     customPrices: [],
-    initialData,
+    initialData: initialData ?? emptyEditorData().initialData,
     invoiceId: status ? 'inv-1' : undefined,
     version: status ? 3 : undefined,
     issuedDetails: status

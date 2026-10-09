@@ -37,8 +37,9 @@ vi.mock('@/lib/helpers/client-session-redirect', async (orig) => {
 });
 
 const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 let store: ReturnType<typeof createInvoiceEditorStore>;
-const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 const LEGACY_ISSUE = '2026-09-30T21:00:00.000Z';
 const LEGACY_DUE = '2026-10-14T21:00:00.000Z';
@@ -83,7 +84,7 @@ function saved(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
   };
 }
 
-const base = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
+const base = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 describe('invoice editor store - loaded dates (T44)', () => {
   beforeEach(() => {

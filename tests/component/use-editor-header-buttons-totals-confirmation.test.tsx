@@ -90,6 +90,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
     });
     const state = store.getState();

@@ -4,6 +4,7 @@ import { prisma } from '@/prisma';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type {
   InvoiceBankAccount,
+  InvoiceFormData,
   InvoiceCustomPrice,
   InvoiceCustomer,
   InvoiceEditorData,
@@ -14,6 +15,7 @@ import type {
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { isDerivedOverdue, todayIn } from '@/lib/services/_shared/overdue';
 import { failed } from '@/lib/services/_shared/result-helpers';
+import { addDaysToDay, dayToUtcDate } from '@/lib/helpers/calendar-day';
 import {
   bankAccountSelect,
   customPriceSelect,
@@ -89,7 +91,11 @@ export async function getInvoiceEditorData(
       products: transformedProducts,
       customPrices: transformedCustomPrices,
       // The editor gets the stored status (a save echoes it back); the derived badge travels beside it.
-      initialData: existingInvoice ? transformInvoiceToFormData(existingInvoice) : undefined,
+      initialData: existingInvoice
+        ? transformInvoiceToFormData(existingInvoice)
+        : invoiceId
+          ? undefined
+          : newInvoiceDefaults(todayIn(actor.timeZone)),
       derivedOverdue: existingInvoice ? isDerivedOverdue(existingInvoice, todayIn(actor.timeZone)) : undefined,
       invoiceId,
       legacy,
@@ -99,6 +105,28 @@ export async function getInvoiceEditorData(
   } catch (error) {
     return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');
   }
+}
+
+/** A new invoice's defaults: issued `today` (a calendar day in the Freelancer zone), due 30 days later. */
+function newInvoiceDefaults(today: string): InvoiceFormData {
+  return {
+    invoiceNumber: '',
+    status: 'DRAFT',
+    senderProfileId: '',
+    bankAccountId: '',
+    customerId: '',
+    issueDate: dayToUtcDate(today),
+    dueDate: dayToUtcDate(addDaysToDay(today, 30)),
+    currency: 'USD',
+    poNumber: '',
+    paymentTerms: '',
+    items: [],
+    taxRate: 0,
+    discount: 0,
+    shipping: 0,
+    notes: '',
+    terms: '',
+  };
 }
 
 /** The invoice's snapshot columns as the editor's read-only issued blocks (ADR-0001). */

@@ -16,7 +16,7 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
 
 const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
 let store: ReturnType<typeof createInvoiceEditorStore>;
-const { createInitialFormData } = await import('@/store/invoice-editor-store/helpers');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 
 const ORIGINAL_TZ = process.env.TZ;
 const SAVED = { id: 'inv-1', invoiceNumber: 'INV-1', subtotal: 0, taxAmount: 0, total: 0, status: 'DRAFT', paidAt: null, issueDate: '2026-10-01T00:00:00.000Z', dueDate: '2026-10-15T00:00:00.000Z' };
@@ -27,12 +27,13 @@ const emptyData = {
   customers: [],
   products: [],
   customPrices: [],
+  initialData: emptyEditorData().initialData,
 };
 
 /** A saved invoice as the server sends it: its days at UTC midnight. */
 function storedForm(issue: string, due: string): InvoiceFormData {
   return {
-    ...createInitialFormData(),
+    ...emptyEditorData().initialData!,
     issueDate: new Date(`${issue}T00:00:00.000Z`),
     dueDate: new Date(`${due}T00:00:00.000Z`),
   };
@@ -107,18 +108,5 @@ describe('invoice editor store — calendar days (T25)', () => {
     });
     await store.getState().saveInvoice();
     expect(updateInvoiceMock).toHaveBeenCalledWith('inv-1', expect.objectContaining({ issueDate: '2026-10-01', dueDate: '2026-10-15' }));
-  });
-
-  it('the new-invoice defaults are today and 30 calendar days later, as local days', () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    try {
-      process.env.TZ = 'America/Los_Angeles';
-      vi.setSystemTime(new Date('2026-12-15T03:00:00Z')); // 19:00 on 14 Dec in Los Angeles
-      const { issueDate, dueDate } = createInitialFormData();
-      expect([issueDate.getFullYear(), issueDate.getMonth(), issueDate.getDate()]).toEqual([2026, 11, 14]);
-      expect([dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()]).toEqual([2027, 0, 13]);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

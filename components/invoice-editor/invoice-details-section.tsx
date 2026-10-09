@@ -94,12 +94,15 @@ export function InvoiceDetailsSection() {
               placeholder={invoiceNumberHint}
               disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
+              aria-busy={invoiceNumber === '' && invoiceNumberHint === undefined ? true : undefined}
             />
 
             {/* An empty field is the only signal a number is system-proposed (AC-06); the hint
                 is shown only as a placeholder, never merged into the value. */}
             {invoiceNumber === '' && (
-              <FieldDescription>Assigned on save</FieldDescription>
+              <FieldDescription>
+                {invoiceNumberHint === undefined ? 'Loading…' : 'Assigned on save'}
+              </FieldDescription>
             )}
 
             <FieldError

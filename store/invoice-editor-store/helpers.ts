@@ -289,33 +289,6 @@ export function toSavePayload(
   };
 }
 
-function localToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-export function createInitialFormData(): InvoiceFormData {
-  const today = localToday();
-  return {
-    invoiceNumber: '',
-    status: 'DRAFT' as InvoiceStatus,
-    senderProfileId: '',
-    bankAccountId: '',
-    customerId: '',
-    issueDate: today,
-    dueDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30), // +30 calendar days
-    currency: 'USD' as Currency,
-    poNumber: '',
-    paymentTerms: '',
-    items: [],
-    taxRate: 0,
-    discount: 0,
-    shipping: 0,
-    notes: '',
-    terms: '',
-  };
-}
-
 export function createNewItem(): InvoiceFormItem {
   return {
     id: crypto.randomUUID(),

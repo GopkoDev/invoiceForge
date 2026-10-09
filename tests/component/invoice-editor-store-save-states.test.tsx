@@ -25,8 +25,9 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
 
 // Imported after the mock so the store picks up the mocked actions module.
 const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 let store: ReturnType<typeof createInvoiceEditorStore>;
-const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
   return {
@@ -104,6 +105,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
 
     await store.getState().selectSenderProfile('profile-a');
@@ -127,6 +129,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     // The browser's own (possibly different) computed total before saving.
     state.updateFields({
@@ -162,6 +165,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     state.updateFields({ invoiceNumber: 'INV-0001', senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
 
@@ -192,6 +196,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     state.updateFields({
       senderProfileId: 'profile-a',
@@ -263,6 +268,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
       legacy: { storedTotal: '100.00', recomputedTotal: '100.00', sharedNumber: true },
     });
@@ -338,6 +344,7 @@ describe('invoice editor store — save states (T16)', () => {
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
     });
     state.updateFields({ senderProfileId: 'profile-a', bankAccountId: 'bank-a' });

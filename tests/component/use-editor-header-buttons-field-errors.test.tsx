@@ -85,6 +85,7 @@ describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-1
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     const state = store.getState();
     state.updateFields({
