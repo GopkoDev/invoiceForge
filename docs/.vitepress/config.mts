@@ -7,6 +7,7 @@ import { repoLinks } from './repo-links';
 import { escapeHtml } from './escape-html';
 import { openapiFeatures } from '../api/[feature].paths';
 import { featureTimeline } from './features-timeline';
+import { restartOnStructureChange } from './restart-on-structure-change';
 
 const docsDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -72,8 +73,8 @@ function orderFeatures(features: SidebarItem[]) {
   );
 }
 
-// The project description and the changelog open the sidebar; the rest keeps the folder order.
-const FIRST = ['/description', '/changelog'];
+// The project description, the reading guide and the changelog open the sidebar; the rest keeps the folder order.
+const FIRST = ['/description', '/reading-guide', '/changelog'];
 const pinned = (item: SidebarItem) => {
   const i = FIRST.indexOf('/' + (item.link ?? '').replace(/^\//, ''));
   return i === -1 ? FIRST.length : i;
@@ -118,6 +119,13 @@ export default withMermaid(
     },
     mermaid: {},
     vite: {
+      // Rebuilds the sidebar and the OpenAPI pages when docs/ gains, loses or retitles a page.
+      plugins: [
+        restartOnStructureChange({
+          docsDir,
+          configFile: fileURLToPath(import.meta.url),
+        }),
+      ],
       // Mermaid pulls CommonJS deps (dayjs, ...) that the dev server must pre-bundle, or diagrams never render.
       optimizeDeps: {
         include: [
