@@ -1,6 +1,5 @@
-import { pdf } from '@react-pdf/renderer';
 import { toast } from 'sonner';
-import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
+import { InvoicePDFDocument, generatePdfBlob } from '@/lib/pdf/invoice-pdf-kit';
 import { fetchLogoDataUrl } from '@/lib/utils/image-to-base64';
 import { siteConfig } from '@/config/site.config';
 import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
@@ -173,7 +172,7 @@ export async function generateInvoicePdfBlob(
     />
   );
 
-  const blob = await pdf(doc).toBlob();
+  const blob = await generatePdfBlob(doc);
   return { blob, warning: logo.warning };
 }
 
@@ -282,7 +281,7 @@ export async function generatePdfBlobFromFormData(
     />
   );
 
-  const blob = await pdf(doc).toBlob();
+  const blob = await generatePdfBlob(doc);
   return { blob, warning: logo.warning };
 }
 
