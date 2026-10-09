@@ -664,7 +664,6 @@ Each top-3 goal from §1 expanded into scenarios. Targets are quoted from spec �
 | The first PDF of a visit can exceed 3 s on connections slower than the NFR's 10 Mbit/s, since the 1.6 MB toolkit downloads first | Low | The editor warms the module when idle (§4); watch Sentry `pdf.stage` events; ADR-0001 option 2 (server rendering) stays the fallback if the chunk grows | Dmytro Hopko |
 | The failed-fetch classification (offline vs new version) may misjudge a captive portal or a partial outage | Low | Both outcomes keep the page usable and offer a next step; the failure is reported to Sentry with its stage | Dmytro Hopko |
 | `docs/architecture-map.md` reflects `ded1be7` and is stale (it still says there are no tests and predates `lib/services`) | Low | Run `/sdd:survey` after this feature ships | Dmytro Hopko |
-| Spec §8 open question: should the automated accessibility check also cover the customers, products and sender profiles pages | Low | Decide before `sdd:plan-tests`, as the spec sets; default stays the three pages of spec §3 | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
 - Pages outside the editor keep `useIsMobile` and their JavaScript layout switch; only the editor guarantees the phone layout on first display.

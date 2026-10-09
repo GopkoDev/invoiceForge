@@ -1,0 +1,153 @@
+---
+status: Draft
+owner: "Dmytro Hopko"
+reviewers: ["implementing engineer", "Tech Lead", "Security Lead"]
+updated_at: "2026-10-09"
+feature_size: "M"
+---
+
+# Test plan — editor-ux
+
+The editor and the lists around it become solid without changing any business rule. Pages that never print stop loading the PDF toolkit. The editor shows the opened invoice from its first display, a change typed during a save is never lost, and Retry behaves exactly like Save. Every list, the editor, the preview and the PDF show the same calendar day and money format. The editor works with a screen reader and on a phone, and the repository has no dead code and a README that works as written. Every `invoice-integrity` acceptance test keeps passing.
+
+## Levels
+
+| Level | Scope | Strategy (generic — no tool names) |
+|---|---|---|
+| Unit | Pure logic: the PDF toolkit loader (cache once per visit, classify a failed fetch as offline or new version), the store's save command (form revision, every save outcome, Retry), "today" and the due date in the Freelancer time zone, the format module (money, calendar days, moments), the no-store header rule, and repository scans (unused components and packages, one theme switcher, dialog placement, README links). | In-memory, no I/O. The save command runs against a controllable fake server action that the test resolves after injecting edits. An injected clock wherever "today" matters. Time zone and locale are passed explicitly or set per test process. |
+| Integration | The editor's totals against the totals the server stores, and an issued invoice's preview and PDF built from the real read side after its records changed. | A throwaway database container per suite with the repo migrations applied. Never the `.env` database. No mocked datastore. |
+| Contract | <!-- N/A: the feature adds or changes no endpoint, server action result or event (sad.md §4); the existing `ActionResult` shapes stay covered by their own contract tests. --> | — |
+| E2E | Checks that need a production build or a fresh clone rather than a browser flow: the per-page asset list (no PDF toolkit in non-editor pages' initial code) and the README followed word for word. | A production build of the app, or a fresh clone with an empty throwaway database. |
+| Load | <!-- N/A: no numeric NFR calls for a load test — no throughput or concurrency target. The numeric NFRs are covered by browser, editor and build tests (see "NFR validation"). --> | — |
+| Component | Editor and list UI states: the PDF trigger states (preparing, try again, reload), the first render from server data, the invoice-number placeholder, the unsaved-changes warning, the "not saved because issued" warning, the changed-elsewhere and totals-changed dialogs reached by Save and Retry, accessible names and field errors, the shared amount input, the theme switcher and the dialog host. | Render in a component harness with props, a store built from fixture data and stubbed action results. Assert text, accessible names and behaviour, with no full app boot. |
+| Visual-regression | The invoice editor at desktop and phone width (new and existing invoice), before and after the one-tree layout of ADR-0004. | Baselines are captured on `main` before wave 4 starts, in the same environment CI uses. A diff fails the run, and a baseline is updated only on purpose, in its own commit. |
+| E2E-through-UI | The `ux-flows.md` flows US-01 to US-07 driven through the rendered app: PDF on demand and its failures, Save versus Retry for every outcome, first display, sign-out with Back and Forward, the date matrix, device language, the accessibility check, the phone layout and a width change. | A production build against the throwaway database, signed in as a seeded Freelancer. Browser time zone, clock, language, viewport and network are set per test. The AC-07 test runs in both the Chromium and WebKit browser engines. |
+
+## AC coverage
+
+Every §5 acceptance criterion maps to at least one row. The Level column is the owner-confirmed choice (2026-10-09), and `implement` writes each test at that level without re-deciding it. "Flow US-NN" refers to `ux-flows.md`, "Flow N" to sad.md §6, "SCR-NN" to the `ux-flows.md` screen inventory, and "Tnn" to tasks.json.
+
+| AC (spec.md §5) | Test name (intent-based) | Level | Expected outcome |
+|---|---|---|---|
+| AC-01 | PDF toolkit loader fetches the toolkit once per visit | unit | Two loads in a row, and two loads started together, resolve to the same module with one fetch (T1). |
+| AC-01 | PDF trigger shows that the PDF is being prepared, then delivers it | component | A list row's Download, Print and PDF preview, and the editor's Download and Print, show the preparing state and then download, print or show the PDF of that row's invoice (T2). |
+| AC-01 | non-editor signed-in pages ship no PDF toolkit in their initial code | e2e | In the production build's per-page asset list, every signed-in page except the invoice editor carries 0 bytes of the toolkit. The check names any page that does. This is the NFR "PDF toolkit on non-printing pages" test (T3). |
+| AC-01 | list pages open without fetching the toolkit, and the first PDF fetches it once | e2e-through-UI | Opening the dashboard, invoices list, customers, products and sender profiles pages, a Customer's page and a sender profile's page makes no request for the toolkit. The first Download fetches it and downloads the file. A later Print and PDF preview in the same visit make no new request (Flow US-01, A0 → A10; T3). |
+| AC-02 | failed fetch with the app origin unreachable is classified as offline | unit | The outcome is "try again". The failed load is not cached, so the next load fetches again and succeeds (T1). |
+| AC-02 | offline failure shows the try-again message and leaves the page as it was | component | A plain-language "the PDF could not be prepared" message with Try again. Other rows, filters and the rest of the page are unchanged. Try again after a successful load delivers the PDF (T2). |
+| AC-02 | Download with the connection dropped, then Try again once it is back | e2e-through-UI | With the network off, Download shows the try-again message and the page stays usable. With the network back, Try again downloads the PDF (Flow US-01, A4 → A6 → A2; T3). |
+| AC-02b | missing chunk with the app origin reachable is classified as a newer version | unit | The outcome is "reload", not "try again" (T1). |
+| AC-02b | newer-version failure offers a reload instead of try again | component | A plain-language "a newer version is available" message with Reload, and no Try again. The page stays usable (T2). |
+| AC-02b | PDF generation failure shows the try-again message and is reported to the team | component | The same message as AC-02 with Try again. One error report is sent, carrying the PDF stage. Nothing else on the page changes (T2). |
+| AC-02b | Download after a release removed the page's chunk offers a reload | e2e-through-UI | With the toolkit chunk no longer served, Download shows the newer-version message. Reload reopens the page, and Download then produces the PDF (Flow US-01, A4 → A7 → A0; T3). |
+| AC-03 | Save with a quantity changed during the save confirms it and stays unsaved | unit | The save is confirmed, the invoice stays marked unsaved, the totals add up the lines including the new quantity, and the next Save sends the new quantity (Flow 1; T13). |
+| AC-03 | leaving the editor after a change made during a save warns about unsaved changes | component | Leaving the page shows the unsaved-changes warning (Flow US-02, B2 → B4; T13). |
+| AC-04 | totals on screen equal the lines on screen across 50 raced saves | unit | 50 runs, each injecting an edit at a different point of the save. After every state change, the subtotal, tax and total equal the shared totals rule over the lines on screen. 0 changes are lost or wrongly marked saved. This is the NFR "Lost edits during save" and "Totals consistency" test (T13). |
+| AC-04 | save with no edit during it shows the stored totals and marks the invoice saved | unit | The figures the server returned are shown, and the invoice is marked saved (T13). |
+| AC-04 | edit that puts a value back as it was still counts as a change | unit | Changing a quantity from 2 to 3 and back to 2 during a save leaves the invoice marked unsaved (T13). |
+| AC-04 | editor totals agree to the cent with the totals the server stores | integration | For a fixture of lines with discount, tax, shipping and amounts on rounding boundaries, saving through the real server action stores a subtotal, tax and total equal to the editor's figures for the same lines (T13). |
+| AC-05 | refused save with a change made during it keeps every typed change unsaved | unit | For a field-error refusal and a changed-elsewhere refusal, the form equals everything typed, the change made during the save included. The invoice stays unsaved, and no totals from the refused save are applied (Flow 3; T13). |
+| AC-05 | refusal is explained as today with the change still on screen | component | The field error appears under its field, and the changed-elsewhere dialog (SCR-10) opens, each in plain language as today. The change made during the save is still on screen (T13). |
+| AC-05 | refused save stores nothing | integration | The existing `invoice-integrity` refusal tests run unchanged and pass. The stored invoice is identical before and after a refused save. |
+| AC-05b | Save and issue with a line changed during it ends issued with the issued lines | unit | The editor state is issued, the lines are the ones the server issued, and the "not saved because issued" warning is set, naming the quantity change (Flow 3; T13). |
+| AC-05b | "not saved because issued" warning is shown and can be dismissed | component | The warning explains in plain language that the quantity change was not saved. It can be dismissed. The lines are locked, and the due date, notes, payment terms and PO number stay editable and save as usual (T13). |
+| AC-05c | Retry repeats the failed action with the form as it is now | unit | After a failed Save, Retry saves. After a failed Save and issue, Retry issues. A change made after the failure is included in the retried save (Flow 4; T14). |
+| AC-05c | Retry after a failed create lands on the saved invoice's address | e2e-through-UI | After the first save of a new invoice fails and Retry succeeds, the invoice is confirmed as created and the address is its own editing address. Reloading opens it, and the next Save updates it. The Freelancer has exactly one invoice (Flow US-02, B12 → B6; T20). |
+| AC-05d | retried save reaches the changed-elsewhere and totals-changed outcomes | unit | A retried save refused as changed elsewhere, or answered with changed totals, produces the same state as the same answer to Save (Flow 4; T14). |
+| AC-05d | Retry during a save or after moving to another invoice does nothing | unit | No second save is sent, and the state is unchanged (T14). |
+| AC-05d | every save outcome is the same through Save and through Retry | e2e-through-UI | For created, updated, issued, changed elsewhere, totals changed and field error, the outcome reached by Retry has the same address, dialog (SCR-09, SCR-10) and saved state as the outcome reached by Save. This is the NFR "Retry parity" test (Flow US-02, B12 → B8 / B11; T20). |
+| AC-06 | a new invoice's today and due date come from the Freelancer time zone | unit | With the clock 5 minutes either side of midnight, today is the Freelancer time zone's calendar day for UTC−10, UTC and UTC+14. With no time zone saved, it is UTC's day. The due date follows from the payment terms (T12). |
+| AC-06 | editor store built from server data shows the invoice on its first render | component | The first render already shows the existing invoice's number, Customer, lines, dates and totals, or a new invoice's default sender profile, bank account, issue date and due date. There is no blank or default state first (T11). |
+| AC-06 | invoice number field keeps its size and shows loading until the hint arrives | component | Until the hint arrives, the field shows that it is loading at its final size. When the hint arrives, the number appears and nothing else moves (T12). |
+| AC-06 | the editor's server HTML already shows the opened invoice and nothing changes on hydration | e2e-through-UI | For an existing and a new invoice, the server's HTML contains the values above. They are identical once the page is interactive, and no render-mismatch warning is logged (Flow US-03, C0 → C5; T11, T12). |
+| AC-07 | signed-in pages are sent no-store | unit | Responses for signed-in pages carry private, no-store caching. Public pages keep their caching (T15). |
+| AC-07 | editor store starts fresh for another Freelancer or another invoice | component | Mounting the editor for a different Freelancer, or a different invoice, shows none of the previous store's invoice, lines, Customer or totals (T11). |
+| AC-07 | page restored from the back/forward cache is hidden and reloaded | component | When a signed-in page is shown again from the browser's back/forward cache, its content is hidden at once and the page reloads (T15). |
+| AC-07 | no moment shows Freelancer A's invoice after A signs out | e2e-through-UI | In Chromium and in WebKit: A signs out. A Visitor pressing Back or Forward reaches sign-in and never sees A's invoice number. B signs in in the same tab, and Back and Forward never show A's invoice number. B opening the address of A's invoice gets "invoice not found" (SCR-11) (Flow 6; Flow US-03, C7 → C10; T15). |
+| AC-07 | Back and Forward between two invoices never mixes their content | e2e-through-UI | Moving back and forward between invoice X and invoice Y in one visit always shows each invoice's own lines, Customer and totals (Flow US-03, C2 → C6; T11). |
+| AC-08 | calendar days are shown as stored in every time zone | unit | Issue and due dates stored at midnight UTC show the same day with the process in UTC−10, UTC and UTC+14. A legacy value not at midnight shows its UTC day (T7). |
+| AC-08 | custom price creation date is shown in the Freelancer time zone, UTC until saved | unit | A moment shortly before midnight UTC shows the next day for UTC+14, the previous day for UTC−10, and the UTC day with no time zone saved (T7). |
+| AC-08 | every place shows the stored day before and after hydration | e2e-through-UI | With the Freelancer time zone at UTC−10, UTC and UTC+14, the browser in a different zone, and the clock 5 minutes either side of midnight: the invoices list, dashboard recent invoices and expected payments, a Customer's related invoices, the editor, the preview and the PDF show the stored day. 0 render-mismatch warnings and 0 differing dates. This is the NFR "Server/browser date agreement" matrix (Flow US-04, D1 → D8; T19). |
+| AC-09 | money format is the same whatever the device language | unit | US dollars show "$1,234.50" and hryvnia "UAH 1,234.50", with two decimal places, under English, Ukrainian and German locales (T7). |
+| AC-09 | preview and PDF text are identical over the fixture set | component | For the draft, issued, US dollar, hryvnia, discount, tax and multiple-line fixtures, the text extracted from the PDF equals the preview's rendered text. This is the NFR "PDF / preview parity" test (T10). |
+| AC-09 | preview, PDF, editor amounts and Debtors use one format on a Ukrainian or German device | e2e-through-UI | With the browser language set to Ukrainian and then German, the preview, the downloaded PDF, the editor's line amounts and totals, and the dashboard's Debtors show "$1,234.50" and "UAH 1,234.50" (Flow US-05, F3 → F4, F7, F8; T8). |
+| AC-09 | PDF of a draft with unsaved changes prints its last save | e2e-through-UI | After an unsaved quantity change, the downloaded PDF shows the last saved quantity and totals, as `invoice-integrity` AC-02 requires (Flow US-05, F3 → F5). |
+| AC-10 | issued invoice's preview and PDF show its issued details after its records changed | integration | After the sender profile, Customer and bank account change, the preview and the PDF built from the real read side show the issued legal name, address, IBAN and amounts, and they match line by line (T9, T10). |
+| AC-10 | the document's wording lives only in the document model | unit | A scan of the preview and PDF layouts finds no label text of their own. Every label they render comes from the document model, so a wording change reaches both or neither (T9). |
+| AC-11 | every editor field announces its visible label | component | The sender, Customer, invoice details, summary and notes fields each have their visible label as their accessible name (T16). |
+| AC-11 | line fields announce their column and current position | component | A line field without its own visible label announces, for example, "Quantity, line 3". After lines are reordered, added and deleted, every position is still correct (T16). |
+| AC-11 | icon-only buttons and narrow-screen Print and Download keep an announced name | component | Zoom in, zoom out, close preview, duplicate line, delete line, reorder line and more actions each announce their action. Print and Download keep a name at narrow width where their text is hidden (T16). |
+| AC-11 | row actions button names its action and the invoice number | component | In the invoices list and in a Customer's or sender profile's related invoices, the row actions button announces its action and that row's invoice number (T16). |
+| AC-11 | accessibility check finds no serious or critical violation | e2e-through-UI | The editor (new and existing invoice), the invoices list and the dashboard each report 0 serious or critical violations. This is the NFR "Accessibility" test (Flow US-06; T19). |
+| AC-12 | refused field is announced as invalid with its message tied to it | component | After a refused save, the field is marked invalid and its accessible description is its plain-language error message (Flow 9; T16). |
+| AC-12 | editor with a refused save passes the accessibility check | e2e-through-UI | After a save refused for an invalid field, the editor reports 0 serious or critical violations, and the field exposes its error message as its description (Flow US-06, G6; T19). |
+| AC-13 | amount fields offer a decimal keypad and accept only "." | component | A line's price and quantity, and the discount, tax rate and shipping fields, request a decimal keypad. "12.5" is accepted, and "12,5" is not accepted as a decimal (T18). |
+| AC-13 | the editor at 390 px is in its phone layout from the server's first HTML | e2e-through-UI | At 390 px wide, for a new and an existing invoice, the server's HTML is already the phone layout, and the page's structure does not change once it is interactive (Flow US-07, K0 → K4; T17). |
+| AC-13 | phone and desktop editor match their approved baselines | visual-regression | The editor at 390 px and at desktop width, for a new and an existing invoice, matches its baseline. Any difference is reviewed before the baseline is updated (T17). |
+| AC-14 | a width change between the phone and desktop layouts keeps the typed amount and focus | e2e-through-UI | With "12." typed in a line's price and the field focused, switching the viewport between tablet portrait and landscape keeps "12." in the field and the focus on it. No line, change or draft text is lost (Flow US-07, M0 → M1; T17). |
+| AC-15 | README steps work word for word in a fresh clone | e2e | A fresh clone with an empty throwaway database and the example environment settings filled in runs every README setup and test command, and each succeeds (T6). |
+| AC-15 | README links exist and it carries no secret or shared database address | unit | Every file and document the README links to exists. It names the database and settings the Contributor must provide, says which tests need the database and links the testing guide. No secret-looking value or shared database host appears (T6). |
+| AC-16 | every shared UI component is used by the app | unit | Each file in the shared component folder is imported by app code outside that folder (T4). |
+| AC-16 | packages of removed components and the identifier packages are gone | unit | No package is installed only for a removed component. The deprecated identifier type package and the identifier package are absent, and the identifier helpers use the platform (T4). |
+| AC-16 | exactly one theme switcher serves the landing page and the app | unit | One theme switcher exists, and both the landing page and the signed-in layout import it (T4). |
+| AC-16 | every editor dialog is mounted by the editor's dialog host | unit | No editor component renders a dialog of its own. Each editor dialog, the save confirmation included, is mounted by the editor's dialog host (T5). |
+| AC-16 | theme switcher behaves the same in both places | component | On the landing page and in the signed-in app, the switcher shows the same options and changes the theme the same way (T4). |
+| AC-16 | save confirmation opened from the dialog host behaves as before | component | Opening, confirming and cancelling the save confirmation give the same results as before the move (T5). |
+
+## Edge cases / error paths
+
+Every error and authorization AC (AC-02, AC-02b, AC-05, AC-05d, AC-07, AC-12) already has its own dedicated rows above. These boundary and failure cases come from the spec, the SAD and the data model, and are written as their own tests:
+
+- Two Downloads clicked together before the toolkit has loaded → expected: one fetch, and both produce their PDF (unit).
+- Try again clicked while the failed load is still being classified → expected: one new fetch, no second message (unit).
+- Origin reachable but slow, misjudged as offline (a captive portal) → expected: the page stays usable and offers try again, and the failure is reported with its stage (component).
+- Two edits during one save (quantity, then price) → expected: both stay on screen, the invoice stays unsaved, and the totals add up both (unit).
+- A line deleted during a save → expected: the deleted line stays deleted, and the totals exclude it (unit).
+- Notes changed during Save and issue → expected: the invoice is issued, the notes change stays on screen unsaved, and the next Save stores it (unit).
+- Retry clicked twice quickly → expected: one retried save (unit).
+- Retry after the Freelancer moved to another invoice → expected: nothing is sent (unit, the AC-05d row).
+- Totals-changed confirmation reached by Retry and then cancelled → expected: nothing saved, the edits stay on screen unsaved (unit).
+- The invoice-number hint never arrives (its request fails) → expected: the field leaves its loading state for an empty editable field at the same size, and the layout does not move (component).
+- A new invoice opened at 23:58 on the UTC+14 day boundary, with the browser in UTC−10 → expected: today is the UTC+14 day on the server and in the browser (unit + the AC-08 matrix).
+- A legacy issue date stored not at midnight → expected: its UTC day everywhere (unit).
+- Zero amounts and large amounts ("$0.00", "$1,000,000.00") → expected: the fixed format with two decimals (unit).
+- A Visitor opening the editor's address directly after sign-out → expected: taken to sign in, with no invoice data in the response (e2e-through-UI, inside the AC-07 flow).
+- A line moved to the first position with the keyboard → expected: its fields announce "line 1", and the rest shift by one (component).
+- A pasted "1,234.50" in an amount field → expected: not accepted as a decimal value. The field keeps its previous valid value and does not save a wrong amount (component).
+- The real iPhone keypad with a Ukrainian region (sad.md §11 risk) → expected: "." can be typed. This is a one-off manual check at the start of wave 4. If it fails, it goes to the spec owner before the remaining phone work; it is not an automated test.
+
+## Test data
+
+- **Seed strategy:** the repo's existing factories, following the `data-model.md` entity shapes: Freelancer (with a session cookie and a `timeZone` override), SenderProfile, BankAccount, Customer, Product, CustomPrice, and Invoice with items. No new factory and no schema change.
+- **Calendar-day fixtures (AC-08):** invoices with issue and due dates at midnight UTC, owned by Freelancers with the time zone set to UTC−10, unset (UTC) and UTC+14, plus one legacy value not at midnight for an owner with no time zone (`data-model.md` "Test fixtures").
+- **PDF / preview parity set (AC-09, AC-10):** a draft and an issued invoice in US dollars and in hryvnia, with discount, tax and several lines. The issued one has sender, Customer and bank details that differ from its current records.
+- **Save-race fixture (AC-03 to AC-05d):** an invoice built in memory and a controllable fake server action that returns each outcome (saved, created, issued, changed elsewhere, totals changed, field error, failed) when the test releases it. The e2e-through-UI Retry tests make the first save fail by interrupting its request once, and reach changed elsewhere by updating the invoice in the database between opening and saving.
+- **Two Freelancers** for every isolation test (AC-07), so "someone else's invoice" is real data.
+- **Time:** an injected clock for unit tests. A fixed browser clock and a per-context browser time zone for the date matrix.
+- **Visual baselines:** captured on `main` before wave 4, stored with the tests, and updated only in a dedicated commit.
+- **PII guard:** names `Test User`, emails `user-<id>@example.test`, and no real-looking phone, IBAN or tax id.
+- **Integration dependency:** a throwaway database container per suite. **Never** the `.env` database. No mocked datastore.
+- **Cleanup boundary:** per-test truncation of the app tables and a new container per suite. E2E and e2e-through-UI runs use a fresh database per run, and each test seeds its own Freelancers. The README fresh-clone check uses its own empty database and clone directory, both removed after the run.
+
+## NFR validation (load)
+
+<!-- N/A: no numeric NFR calls for a load test — spec.md §6 sets no throughput or concurrency target. -->
+
+The numeric NFRs in spec.md §6 are checked by these tests, not by a load tool:
+
+- **PDF toolkit on non-printing pages: 0 bytes** → the AC-01 build-output row (e2e).
+- **First PDF after page load: ≤ 3 s p95 on a 10 Mbit/s connection, 20 runs** → a dedicated e2e-through-UI test. The network is throttled to 10 Mbit/s, the editor and the invoices list are each opened fresh 20 times, and the time from choosing Download or Print to the file or print dialog is measured. It fails if p95 is above 3 s.
+- **Lost edits during save: 0 over 50 runs** and **Totals consistency: 100 % over the same 50 runs** → the AC-04 race row (unit).
+- **Retry parity: 100 % of 6 outcomes** → the AC-05d Save-versus-Retry row (e2e-through-UI).
+- **Server/browser date agreement: 0 mismatches over UTC−10, UTC and UTC+14, ±5 minutes around midnight** → the AC-08 matrix row (e2e-through-UI).
+- **PDF / preview parity: 100 % identical text over the fixture set** → the AC-09 parity row (component).
+- **Accessibility: 0 serious or critical violations on 4 page states** → the AC-11 and AC-12 check rows (e2e-through-UI).
+- **Layout stability on phones: CLS ≤ 0.1 at p75** → a production metric from real-user monitoring for phone-width editor visits, read 14 days after release. The AC-13 phone-layout row is its pre-release guard.
+- **No regressions: 100 % of existing tests pass** → the full suite in CI, including every `invoice-integrity` acceptance test.
+
+## CI placement
+
+- **On every PR:** unit, component and integration (integration needs the throwaway container), the build-output check for the PDF toolkit, lint, and an e2e job against a production build that runs the AC-08 date matrix and the AC-11 / AC-12 accessibility check.
+- **Before each wave ships, and nightly:** the rest of e2e-through-UI against a production build (PDF on demand and its failures, first-PDF timing, Save versus Retry, first display, AC-07 in Chromium and WebKit, device language, the phone layout and width change), visual-regression, and the README fresh-clone check.
+- **After release:** CLS for phone-width editor visits and render-mismatch errors from error tracking, each over 14 days (spec §7).
+- **Known gap (sad.md §11):** a regression in a pre-wave suite can merge between waves. The pre-wave run on each release candidate is the mitigation.

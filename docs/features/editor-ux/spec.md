@@ -252,4 +252,4 @@ Traceability and scope notes:
 ## 8. Open questions
 
 - [ ] Should currencies that share a symbol (US, Canadian and Australian dollars) show their code on the PDF instead of "$"? Default now: the app's existing money format everywhere, identical on screen and in the PDF. — owner: Dmytro Hopko, due: before `sdd:design`
-- [ ] Should the automated accessibility check also cover the customers, products and sender profiles pages? Default now: only the editor, invoices list and dashboard (§3). — owner: Dmytro Hopko, due: before `sdd:plan-tests`
+- [x] Should the automated accessibility check also cover the customers, products and sender profiles pages? **Resolved 2026-10-09 (plan-tests):** no — the check covers the editor, invoices list and dashboard only, as §3 and §6 set. — owner: Dmytro Hopko
