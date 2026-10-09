@@ -26,6 +26,21 @@ jobs:
       - run: pnpm lint
       - run: pnpm exec tsc --noEmit
       # `next build` (the ADR-0006 server-only guard) runs on every PR as the Vercel preview deploy.
+      # editor-ux T3: the build gate - no route but the invoice editor ships the PDF toolkit up front.
+      # Build-only placeholder settings: nothing connects to them (no DB, mail or Google call).
+      - run: pnpm exec next build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          AUTH_SECRET: ci-build-only-secret
+          AUTH_GOOGLE_ID: ci-build-only
+          AUTH_GOOGLE_SECRET: ci-build-only
+          EMAIL_SERVER_HOST: localhost
+          EMAIL_SERVER_PORT: '25'
+          EMAIL_SERVER_USER: ci
+          EMAIL_SERVER_PASSWORD: ci
+          CRON_SECRET: ci-build-only
+          LIMIT_KEY_SECRET: ci-build-only
+      - run: pnpm check:pdf-chunks
       - run: pnpm test:unit
 
   integration:

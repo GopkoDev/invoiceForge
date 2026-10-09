@@ -7,7 +7,7 @@
 |---|---|---|---|---|---|---|
 | T1 | Move the PDF toolkit into one lazy lib/pdf module with a cached, classifying loader | app | Dmytro Hopko | M | — | done |
 | T2 | Route every PDF trigger through usePdfAction and warm the toolkit in the editor when idle | ui | Dmytro Hopko | M | T1 | done |
-| T3 | Add the build-output PDF chunk check to CI and e2e tests for first PDF, offline and new-version | tests | Dmytro Hopko | M | T2 | todo |
+| T3 | Add the build-output PDF chunk check to CI and e2e tests for first PDF, offline and new-version | tests | Dmytro Hopko | M | T2 | done |
 | T4 | Remove the unused UI components and their packages, drop uuid, and keep one theme switcher | wiring | Dmytro Hopko | M | — | todo |
 | T5 | Mount the editor's confirmation dialog in the invoice-editor modal container | ui | Dmytro Hopko | S | — | todo |
 | T6 | Rewrite the README setup and test steps and verify them in a fresh clone | docs | Dmytro Hopko | S | — | todo |

@@ -18,10 +18,13 @@ export class PdfKitLoadError extends Error {
 
 let cached: Promise<PdfKit> | null = null;
 
-/** Probes the app's own origin: unreachable means offline, reachable means the app was updated. */
+/**
+ * Probes the app's own origin: unreachable means offline, reachable means the app was updated.
+ * A redirect (signed-in visitors leave `/`) is not followed - any answer proves the origin is up.
+ */
 async function classifyFailure(cause: unknown): Promise<PdfKitLoadError> {
   try {
-    await fetch('/', { method: 'HEAD', cache: 'no-store' });
+    await fetch('/', { method: 'HEAD', cache: 'no-store', redirect: 'manual' });
     return new PdfKitLoadError('new-version', { cause });
   } catch {
     return new PdfKitLoadError('offline', { cause });

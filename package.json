@@ -21,6 +21,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "check:pdf-chunks": "node scripts/check-pdf-chunks.ts",
     "report:invoice-integrity": "node --env-file-if-exists=.env scripts/invoice-integrity-report.ts"
   },
   "dependencies": {
