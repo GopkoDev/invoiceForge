@@ -57,7 +57,7 @@ export function DashboardExpectedPayments({
             <p className="text-muted-foreground text-sm font-medium">
               No pending invoices
             </p>
-            <p className="text-muted-foreground/70 text-xs">
+            <p className="text-muted-foreground text-xs">
               All invoices are paid or draft
             </p>
           </div>

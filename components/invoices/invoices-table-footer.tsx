@@ -148,7 +148,7 @@ export function InvoicesTableFooter({
           value={String(pageSize)}
           onValueChange={(value) => value && onPageSizeChange(Number(value))}
         >
-          <SelectTrigger className="h-8 w-16">
+          <SelectTrigger className="h-8 w-16" aria-label="Invoices per page">
             <SelectValue>{pageSize}</SelectValue>
           </SelectTrigger>
           <SelectContent>

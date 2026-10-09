@@ -44,7 +44,7 @@ export function DashboardDebtors({ debtors }: DashboardDebtorsProps) {
             <p className="text-muted-foreground text-sm font-medium">
               No overdue invoices
             </p>
-            <p className="text-muted-foreground/70 text-xs">
+            <p className="text-muted-foreground text-xs">
               All payments are on track
             </p>
           </div>

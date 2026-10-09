@@ -98,7 +98,7 @@ export function InvoicesToolbar({
             onValueChange={(value) => value && onStatusChange(value)}
             disabled={isLoading}
           >
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-36" aria-label="Filter by status">
               <SelectValue>
                 {STATUS_OPTIONS.find((opt) => opt.value === status)?.label ||
                   'All Statuses'}
@@ -123,7 +123,7 @@ export function InvoicesToolbar({
             }
             disabled={isLoading}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40" aria-label="Filter by customer">
               <SelectValue>
                 {customerId
                   ? filterOptions.customers.find((c) => c.id === customerId)
@@ -151,7 +151,7 @@ export function InvoicesToolbar({
             }
             disabled={isLoading}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40" aria-label="Filter by sender">
               <SelectValue>
                 {senderProfileId
                   ? filterOptions.senderProfiles.find(

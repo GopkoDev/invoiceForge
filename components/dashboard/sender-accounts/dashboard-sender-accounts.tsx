@@ -49,7 +49,7 @@ export function DashboardSenderAccounts({
             <p className="text-muted-foreground text-sm font-medium">
               No accounts found
             </p>
-            <p className="text-muted-foreground/70 text-xs">
+            <p className="text-muted-foreground text-xs">
               No invoices for {currency} currency
             </p>
           </div>
