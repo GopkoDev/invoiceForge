@@ -349,22 +349,23 @@ Each top-3 goal from §1 expanded into scenarios. Targets are quoted from spec �
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| On iOS with a region that uses "," as the decimal separator, the `inputMode="decimal"` keypad may offer "," and no ".", so AC-13 ("a decimal point '.' can be typed", "the only decimal separator these fields accept") could not be met as written | Medium | Check on a real iPhone with a Ukrainian region early in wave 4; if "." is missing, take it to the spec owner (accept "," and normalise it, or change the keypad type) before building the remaining phone work | Dmytro Hopko |
+| Moving from the module-level store to a per-mount store (ADR-0003) touches about 20 editor components and the header hook; a missed consumer breaks a save path covered by `invoice-integrity` | Medium | Ship it alone in wave 3; run the full `invoice-integrity` acceptance suite and the new store tests; a lint rule forbids importing the old module-level store | Dmytro Hopko |
+| Replacing the desktop resizable panels with one CSS-only layout (ADR-0004) can change the desktop editor's look or resizing | Medium | Visual-regression snapshots of the desktop and phone editor before and after; keep the drag handle's behaviour | Dmytro Hopko |
+| Back/forward-cache behaviour differs between browsers; the no-store header alone does not stop Safari (ADR-0007) | Medium | The `pageshow` guard covers it; the AC-07 e2e runs in both the Chromium and WebKit Playwright projects | Dmytro Hopko |
+| e2e checks (accessibility, AC-07, first-PDF timing, the date matrix) are not wired into CI yet; they run before each wave ships and nightly (`tests/README.md`) | Medium | Run them on every wave's release candidate; wiring e2e into CI stays a separate follow-up | Dmytro Hopko |
+| KPI baselines are still TBD (render mismatches, phone-width CLS, accessibility violations — spec §7) | Medium | Measure all three before wave 1 starts: Sentry hydration issues and Speed Insights CLS over 14 days, one axe run on the three pages | Dmytro Hopko |
+| The first PDF of a visit can exceed 3 s on connections slower than the NFR's 10 Mbit/s, since the 1.6 MB toolkit downloads first | Low | The editor warms the module when idle; watch Sentry `pdf.stage` events; ADR-0001 option 2 (server rendering) stays the fallback if the chunk grows | Dmytro Hopko |
+| The failed-fetch classification (offline vs new version) may misjudge a captive portal or a partial outage | Low | Both outcomes keep the page usable and offer a next step; the failure is reported to Sentry with its stage | Dmytro Hopko |
+| `docs/architecture-map.md` reflects `ded1be7` and is stale (it still says there are no tests and predates `lib/services`) | Low | Run `/sdd:survey` after this feature ships | Dmytro Hopko |
+| Spec §8 open question: should the automated accessibility check also cover the customers, products and sender profiles pages | Low | Decide before `sdd:plan-tests`, as the spec sets; default stays the three pages of spec §3 | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- Pages outside the editor keep `useIsMobile` and their JavaScript layout switch; only the editor guarantees the phone layout on first display.
+- The accessibility guarantee and its automated check cover the editor, the invoices list and the dashboard only (spec §3); other pages get only the shared component fixes.
+- Vercel Skew Protection stays off; a page opened before a deploy may ask the Freelancer to reload before printing (AC-02b).
 
 ## 12. Glossary
 
