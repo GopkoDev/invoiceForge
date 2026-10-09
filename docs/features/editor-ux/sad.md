@@ -290,21 +290,27 @@ No infrastructure change: the feature ships inside the existing single Vercel de
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
+The repo's conventions are inherited unchanged (results, errors, IDs, auth guards, validation — §2). The rows below are the ones this feature adds or tightens.
 
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Session isolation in the browser | Signed-in page responses carry `Cache-Control: private, no-store` (set in `proxy.ts`); `SessionRestoreGuard` in the signed-in layouts hides and reloads any page restored from the back/forward cache; the editor store is created per mount and keyed by Freelancer and invoice | ADR-0007, ADR-0003 |
+| Display formatting | Money, calendar days and moments only through `lib/format` with the fixed `en-US` locale; calendar days read in UTC, moments in the Freelancer time zone passed from the server; lint forbids `toFixed(` and `toLocale*String(` in `components/` and `app/` | ADR-0006 |
+| "Today" and time zone | Today's calendar day is computed on the server in the Freelancer time zone (UTC until saved) and passed to the page; the browser clock never decides it | §4 inline; mcp-server ADR-0006 |
+| Document wording | Every label of the invoice document lives in `lib/invoice-document`; the preview and the PDF only lay out the model | ADR-0002 |
+| On-demand code | `@react-pdf/renderer` is imported only by `lib/pdf/invoice-pdf-kit.tsx` (lint `no-restricted-imports`); every PDF trigger goes through `use-pdf-action`; fetched from the app's own origin under the existing CSP | ADR-0001 |
+| Error handling (PDF) | A failed fetch is classified as offline (try again) or new version (reload) by probing the app origin; a generation failure is reported to Sentry with `pdf.stage` and shown as "could not prepare, try again"; the page stays usable | ADR-0001 |
+| Error handling (save) | Unchanged server results (`ActionResult` with `CHANGED_ELSEWHERE`, `TOTALS_CHANGED`, field errors, `FAILED`); the store's save command is the only place that turns them into UI state, for Save and Retry alike | ADR-0005; architecture-hardening ADR-0009 |
+| Accessibility | Every editor field uses the shadcn `Field`/`Label` pairing so its visible label is its name; field errors render with an id and the input carries `aria-invalid` + `aria-describedby`; line fields without a visible label get `aria-label` "<Column>, line <n>" from the current index; icon-only buttons get `aria-label`; text hidden on narrow screens keeps an accessible name (`sr-only`); row action buttons name the action and the invoice number | here; `docs/design-system.md` |
+| Responsive layout | One DOM tree per screen; breakpoints rearrange and hide (`hidden`), never a JavaScript width check that changes the structure | ADR-0004 |
+| Amount inputs | One shared `AmountInput` (`inputMode="decimal"`, "." as the only decimal separator) for line price and quantity, discount, tax rate and shipping | here; §11 iOS keypad risk |
+| Dialogs | Every editor dialog, the save confirmation included, goes through `store/use-modal-store.ts` and is mounted by `invoice-editor-modal-container.tsx` | repo convention (§2) |
+| Observability | Sentry for PDF failures and hydration errors; Vercel Speed Insights for CLS; no new tracing | §7 |
+| Logging | Unchanged; no new server logs | — |
+| Authentication / authorization | Unchanged server checks (`proxy.ts` deny-by-default, `requireLiveUser` in the editor layout, owner-scoped services); "invoice not found" for another Freelancer's invoice as today | architecture-hardening ADR-0001, ADR-0002; service-layer ADR-0003 |
+| ID strategy | Unchanged `cuid()` on the server; the editor's client-side line keys use `crypto.randomUUID()` instead of the `uuid` package | §2; repo hygiene |
+| Internationalisation | None — English UI and a fixed `en-US` format | ADR-0006 |
+| Events | N/A — no events or queues | — |
 
 ## 9. Architecture decisions
 
