@@ -13,7 +13,7 @@
 | T6 | Rewrite the README setup and test steps and verify them in a fresh clone | docs | Dmytro Hopko | S | — | done |
 | T7 | Create the lib/format module for money, calendar days and moments with a fixed en-US locale | domain | Dmytro Hopko | S | — | done |
 | T8 | Route every displayed date and amount through lib/format and forbid ad-hoc formatting by lint | ui | Dmytro Hopko | M | T7 | done |
-| T9 | Build the pure invoice document model with its wording in lib/invoice-document | domain | Dmytro Hopko | M | T7 | todo |
+| T9 | Build the pure invoice document model with its wording in lib/invoice-document | domain | Dmytro Hopko | M | T7 | done |
 | T10 | Lay out the HTML preview and the PDF from the document model and add the parity test | ui | Dmytro Hopko | M | T1, T8, T9 | todo |
 | T11 | Turn the editor store into a per-mount factory provided by context and built from server data | app | Dmytro Hopko | L | T5, T8, T10 | todo |
 | T12 | Compute a new invoice's today and due date on the server and reserve the invoice-number field | app | Dmytro Hopko | S | T11 | todo |
