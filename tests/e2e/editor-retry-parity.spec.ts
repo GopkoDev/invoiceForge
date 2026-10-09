@@ -21,6 +21,9 @@ import { protectedRoutes } from '../../config/routes.config';
 
 test.describe.configure({ timeout: 90_000 });
 test.use({ actionTimeout: 15_000 });
+// The outcome dialogs follow a server round trip and load their component on demand (T5); under a
+// full parallel run that takes longer than the 5 s default.
+const DIALOG_TIMEOUT = { timeout: 15_000 };
 
 type Path = 'save' | 'retry';
 type Intent = 'save' | 'save-and-issue';
@@ -115,7 +118,7 @@ const scenarios: Record<string, Scenario> = {
     edit: editNotes,
     elsewhere: (ws) => changeInvoiceElsewhere(ws.invoiceId, { bumpVersion: true }),
     settled: async (page) => {
-      await expect(dialogOf(page)).toContainText('This invoice changed elsewhere');
+      await expect(dialogOf(page)).toContainText('This invoice changed elsewhere', DIALOG_TIMEOUT);
     },
   },
   'totals changed': {
@@ -127,7 +130,7 @@ const scenarios: Record<string, Scenario> = {
     // The stored total disagrees with the stored lines (100): the server asks to confirm.
     elsewhere: (ws) => changeInvoiceElsewhere(ws.invoiceId, { storedTotal: 90 }),
     settled: async (page) => {
-      await expect(dialogOf(page)).toContainText('Confirm the new total');
+      await expect(dialogOf(page)).toContainText('Confirm the new total', DIALOG_TIMEOUT);
     },
   },
   'field error': {
