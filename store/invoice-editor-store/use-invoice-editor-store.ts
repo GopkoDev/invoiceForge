@@ -30,7 +30,6 @@ import {
   withLocalDays,
   editorModeOf,
 } from './helpers';
-import { v4 as uuidv4 } from 'uuid';
 import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
 
 export const useInvoiceEditorStore = create<InvoiceEditorState>()((
@@ -492,7 +491,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       const itemToDuplicate = state.formData.items[itemIndex];
       const duplicatedItem = {
         ...itemToDuplicate,
-        id: uuidv4(),
+        id: crypto.randomUUID(),
       };
 
       const newItems = [...state.formData.items];

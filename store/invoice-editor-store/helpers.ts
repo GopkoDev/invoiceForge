@@ -19,7 +19,6 @@ import {
   RecalculateComputedValuesStateInput,
   LoadedDates,
 } from './types';
-import { v4 as uuidv4 } from 'uuid';
 import {
   computeInvoiceAmounts,
   decimalStringToNumber,
@@ -319,7 +318,7 @@ export function createInitialFormData(): InvoiceFormData {
 
 export function createNewItem(): InvoiceFormItem {
   return {
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     productId: '',
     productName: '',
     description: '',

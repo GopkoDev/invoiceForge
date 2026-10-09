@@ -1,6 +1,6 @@
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { ModeToggle } from '../teheme-toggle';
+import { ModeToggle } from '@/components/theme-toggle';
 
 export function SiteHeader() {
   return (
