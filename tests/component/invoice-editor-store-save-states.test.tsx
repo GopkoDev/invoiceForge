@@ -140,7 +140,7 @@ describe('invoice editor store — save states (T16)', () => {
       ],
     });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const after = store.getState();
     expect(after.formData.invoiceNumber).toBe('INV-0101');
@@ -169,7 +169,7 @@ describe('invoice editor store — save states (T16)', () => {
     });
     state.updateFields({ invoiceNumber: 'INV-0001', senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const after = store.getState();
     expect(after.fieldErrors?.invoiceNumber).toEqual([message]);
@@ -207,7 +207,7 @@ describe('invoice editor store — save states (T16)', () => {
       ],
     });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const after = store.getState();
     expect(after.fieldErrors?.['items.0.price']).toEqual(["Price can't be negative."]);
@@ -316,7 +316,7 @@ describe('invoice editor store — save states (T16)', () => {
     expect(loaded.formData.status).toBe('PENDING');
     expect(loaded.derivedOverdue).toBe(true);
 
-    await loaded.saveInvoice();
+    await loaded.save('save');
 
     expect(updateInvoiceMock).toHaveBeenCalledWith(
       'late-invoice',
@@ -349,7 +349,7 @@ describe('invoice editor store — save states (T16)', () => {
     });
     state.updateFields({ senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const afterConflict = store.getState();
     expect(afterConflict.totalsChanged).toEqual({ oldTotal: '120.00', newTotal: '119.99' });
@@ -358,7 +358,7 @@ describe('invoice editor store — save states (T16)', () => {
 
     await store
       .getState()
-      .saveInvoice({ confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } });
+      .save('save', { confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } });
 
     expect(updateInvoiceMock).toHaveBeenLastCalledWith(
       'legacy-invoice',

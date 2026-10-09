@@ -7,6 +7,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useModal } from '@/store/use-modal-store';
+import type { SaveIntent } from '@/store/invoice-editor-store';
 import { useInvoiceReload } from '@/hooks/use-invoice-reload';
 import {
   useEditorMode,
@@ -27,13 +28,13 @@ export function useEditorHeaderButtons() {
   const isSaving = useIsSaving();
   const invoiceId = useInvoiceId();
   const mode = useEditorMode();
-  const { saveInvoice, clearTotalsChanged, markStale } = useInvoiceEditorActions();
+  const { save, clearTotalsChanged, markStale } = useInvoiceEditorActions();
   const reload = useInvoiceReload();
 
   const isSaved = !hasUnsavedChanges;
   const isSavingOrPending = isSaving;
 
-  // SCR-15: a CONFLICT TOTALS_CHANGED leaves state.totalsChanged set after saveInvoice()
+  // SCR-15: a CONFLICT TOTALS_CHANGED leaves state.totalsChanged set after save()
   // resolves. Opens the shared, T15-extended ConfirmationModal with the old/new totals; confirm
   // resubmits with confirmedTotals and reopens itself if the resubmit comes back with fresh
   // figures (screens.md §SCR-15 "totals-changed-again"); cancel clears the pending state and
@@ -73,7 +74,7 @@ export function useEditorHeaderButtons() {
           return;
         }
 
-        await saveInvoice({ confirmedTotals: current });
+        await save('save', { confirmedTotals: current });
 
         if (editorStore.getState().totalsChanged) {
           openTotalsConfirmationRef.current();
@@ -82,7 +83,7 @@ export function useEditorHeaderButtons() {
         }
       },
     });
-  }, [confirmationModal, saveInvoice, clearTotalsChanged, editorStore]);
+  }, [confirmationModal, save, clearTotalsChanged, editorStore]);
 
   useEffect(() => {
     openTotalsConfirmationRef.current = openTotalsConfirmation;
@@ -111,9 +112,9 @@ export function useEditorHeaderButtons() {
     });
   }, [confirmationModal, markStale, reload, editorStore]);
 
-  const performSave = useCallback(async (options?: { issue?: boolean }) => {
+  const performSave = useCallback(async (intent: SaveIntent = 'save') => {
     const beforeInvoiceId = invoiceId;
-    await saveInvoice(options);
+    await save(intent);
 
     if (editorStore.getState().changedElsewhere) {
       openChangedElsewhere();
@@ -136,12 +137,12 @@ export function useEditorHeaderButtons() {
         }
       }
     }
-  }, [saveInvoice, invoiceId, router, openTotalsConfirmation, openChangedElsewhere, editorStore]);
+  }, [save, invoiceId, router, openTotalsConfirmation, openChangedElsewhere, editorStore]);
 
   // F-03: a flat, client-side re-run of the schema used to short-circuit Save here and open a
   // dialog listing every message, so the server's fieldErrors path (SCR-03 "validation": a
   // FieldError next to each offending field, AC-14/AC-15) was never reached. Amount rules are now
-  // checked only once, server-side, in performSave -> saveInvoice; a VALIDATION/CONFLICT result
+  // checked only once, server-side, in performSave -> save; a VALIDATION/CONFLICT result
   // already lands on the store's fieldErrors (see handleSaveFailure) for the fields to render.
   const handleSave = useCallback(async (): Promise<boolean> => {
     await performSave();
@@ -152,7 +153,7 @@ export function useEditorHeaderButtons() {
 
   // invoice-integrity T16 (SCR-02): Save and issue on a saved draft — the same save, sent as PENDING.
   const handleSaveAndIssue = useCallback(async () => {
-    await performSave({ issue: true });
+    await performSave('save-and-issue');
   }, [performSave]);
 
   const handleExit = useCallback(() => {

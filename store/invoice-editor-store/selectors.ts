@@ -118,6 +118,10 @@ export const useReloadFailed = () => useInvoiceEditor((state) => state.reloadFai
 /** The ISSUED_INVOICE_LOCKED explanation from the last save, shown above the form (SCR-02). */
 export const useLockedRefusal = () => useInvoiceEditor((state) => state.lockedRefusal);
 
+/** The dismissable "not saved because the invoice is now issued" notice (AC-05b). */
+export const useIssuedEditsDroppedNotice = () =>
+  useInvoiceEditor((state) => state.issuedEditsDroppedNotice);
+
 export const useLegacy = () =>
   useInvoiceEditor(useShallow((state) => state.legacy));
 
@@ -168,7 +172,8 @@ export const useInvoiceEditorActions = () =>
       reorderItems: state.reorderItems,
       setIsSaving: state.setIsSaving,
       markAsSaved: state.markAsSaved,
-      saveInvoice: state.saveInvoice,
+      save: state.save,
+      dismissIssuedEditsDroppedNotice: state.dismissIssuedEditsDroppedNotice,
       clearTotalsChanged: state.clearTotalsChanged,
       markStale: state.markStale,
       reloadInvoice: state.reloadInvoice,

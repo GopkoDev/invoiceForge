@@ -64,7 +64,7 @@ describe('invoice editor store — calendar days (T25)', () => {
       process.env.TZ = zone;
       store = createInvoiceEditorStore({ ...emptyData });
       pickDays(new Date(2026, 9, 1), new Date(2026, 9, 15));
-      await store.getState().saveInvoice();
+      await store.getState().save('save');
       expect(createInvoiceMock).toHaveBeenCalledTimes(1);
       const payload = createInvoiceMock.mock.calls[0][0];
       expect(payload.issueDate).toBe('2026-10-01');
@@ -80,7 +80,7 @@ describe('invoice editor store — calendar days (T25)', () => {
       initialData: storedForm('2026-09-01', '2026-09-20'),
     });
     pickDays(new Date(2026, 9, 1), new Date(2026, 9, 15));
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     expect(updateInvoiceMock).toHaveBeenCalledWith('inv-1', expect.objectContaining({ issueDate: '2026-10-01', dueDate: '2026-10-15' }));
   });
 
@@ -106,7 +106,7 @@ describe('invoice editor store — calendar days (T25)', () => {
       invoiceId: 'inv-1',
       initialData: storedForm('2026-10-01', '2026-10-15'),
     });
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     expect(updateInvoiceMock).toHaveBeenCalledWith('inv-1', expect.objectContaining({ issueDate: '2026-10-01', dueDate: '2026-10-15' }));
   });
 });

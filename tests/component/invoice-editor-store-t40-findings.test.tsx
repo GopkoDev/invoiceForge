@@ -145,7 +145,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
     expect(store.getState().legacy?.sharedNumber).toBe(true);
 
     state.updateFields({ senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     expect(store.getState().legacy).toBeNull();
   });
@@ -170,7 +170,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       initialData: emptyEditorData().initialData,
     });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     expect(toastError).toHaveBeenCalledWith(
       expect.stringContaining('Sender profile is required')
@@ -197,7 +197,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
     });
     state.updateFields({ invoiceNumber: 'INV-0001' });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     expect(toastError).not.toHaveBeenCalled();
   });

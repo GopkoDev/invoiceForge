@@ -8,6 +8,7 @@ import { NotesSection } from './notes-section';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { IssuedEditsDroppedNotice } from './invoice-editor-save-status';
 import { useLockedRefusal } from '@/store/invoice-editor-store';
 
 export function InvoiceEditorForm() {
@@ -24,6 +25,7 @@ export function InvoiceEditorForm() {
             <AlertDescription>{lockedRefusal}</AlertDescription>
           </Alert>
         )}
+        <IssuedEditsDroppedNotice />
         <SenderSection />
         <CustomerSection />
         <InvoiceDetailsSection />

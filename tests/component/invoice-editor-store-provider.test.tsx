@@ -124,7 +124,7 @@ describe('createInvoiceEditorStore (ADR-0003)', () => {
     let resolveSave: (v: unknown) => void = () => {};
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolveSave = r)));
     const a = createInvoiceEditorStore(editorData('A'));
-    const pending = a.getState().saveInvoice();
+    const pending = a.getState().save('save');
     const b = createInvoiceEditorStore(editorData('B'));
     const before = JSON.stringify(b.getState().formData);
     resolveSave({ success: true, data: { id: 'inv-A', invoiceNumber: 'INV-A-001', version: 2 } });

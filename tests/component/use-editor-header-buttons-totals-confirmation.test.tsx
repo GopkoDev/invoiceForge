@@ -4,7 +4,7 @@
 // saveInvoice with confirmedTotals; cancelling clears the store's totalsChanged.
 // See docs/features/architecture-hardening/tasks/t16-editor-number-and-save-states.md
 //
-// useEditorHeaderButtons today calls saveInvoice() once inside performSave and never looks at
+// useEditorHeaderButtons today calls save('save') once inside performSave and never looks at
 // state.totalsChanged afterwards, so no confirmationModal is ever opened — this assertion is
 // expected to fail until T16 adds the SCR-15 wiring.
 import { describe, expect, it, beforeEach, vi } from 'vitest';

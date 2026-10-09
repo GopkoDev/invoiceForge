@@ -275,7 +275,7 @@ describe('invoice editor save (R-03)', () => {
     const store = createInvoiceEditorStore(emptyEditorData());
     store.setState({ invoiceId: 'inv-1' });
     updateInvoiceMock.mockRejectedValue(new Error('boom'));
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
     expect(toastError).not.toHaveBeenCalled();
     expect(store.getState().isSaving).toBe(false);

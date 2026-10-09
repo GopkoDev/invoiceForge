@@ -100,7 +100,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockResolvedValue(ok(saved()));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const [id, payload] = updateInvoiceMock.mock.calls[0];
     expect(id).toBe('inv-1');
@@ -116,7 +116,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     createInvoiceMock.mockResolvedValue(ok(saved()));
     store = createInvoiceEditorStore({ ...base });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     const [payload] = createInvoiceMock.mock.calls[0];
     expect(payload).not.toHaveProperty('loadedIssueDate');
@@ -127,12 +127,12 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockResolvedValue(ok(saved()));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     const after = store.getState();
     expect(after.formData.dueDate.getDate()).toBe(15);
     expect(after.formData.issueDate.getDate()).toBe(1);
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     const [, second] = updateInvoiceMock.mock.calls[1];
     expect(second).toMatchObject({
       issueDate: '2026-10-01',
@@ -147,7 +147,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     store.getState().updateField('dueDate', new Date(2026, 9, 20));
     resolve(ok(saved()));
     await saving;
@@ -164,7 +164,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     store.getState().updateField('invoiceNumber', 'INV-0042');
     store.getState().updateField('status', 'PAID');
     resolve(ok(saved({ invoiceNumber: 'INV-0001', status: 'PENDING' })));
@@ -181,7 +181,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     store.getState().initialize(emptyData);
     store.getState().initialize({ ...base });
     resolve(ok(saved({ id: 'inv-A', invoiceNumber: 'INV-A' })));
@@ -198,7 +198,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     store.getState().initialize(emptyData);
     store.getState().initialize({ ...base });
     resolve({ success: false, code: 'VALIDATION', error: 'bad', fieldErrors: { invoiceNumber: ['taken'] } });
@@ -212,7 +212,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     store.getState().initialize(emptyData);
     store.getState().initialize({ ...base });
     resolve({ success: false, code: 'FAILED', error: 'db down' });
@@ -230,10 +230,10 @@ describe('invoice editor store - loaded dates (T44)', () => {
       .mockReturnValueOnce(new Promise((r) => (resolveA = r)))
       .mockReturnValueOnce(new Promise((r) => (resolveB = r)));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    const savingA = store.getState().saveInvoice();
+    const savingA = store.getState().save('save');
     store.getState().initialize(emptyData);
     store.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-2' });
-    const savingB = store.getState().saveInvoice();
+    const savingB = store.getState().save('save');
 
     resolveA(ok(saved({ id: 'inv-1' })));
     await savingA;
@@ -251,7 +251,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
 
     generateInvoiceNumberMock.mockResolvedValue(ok('B-0001'));
 
-    const saving = store.getState().saveInvoice();
+    const saving = store.getState().save('save');
     await store.getState().selectSenderProfile('profile-b');
     resolve(ok(saved({ invoiceNumber: 'A-0005' })));
     await saving;
@@ -300,7 +300,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('the Retry action of a stale session does nothing (M-04b)', async () => {
     updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
     store.getState().initialize(emptyData);
@@ -315,7 +315,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('the Retry action of a live session saves again (N-03)', async () => {
     updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
     retry();
@@ -328,10 +328,10 @@ describe('invoice editor store - loaded dates (T44)', () => {
       .mockResolvedValueOnce({ success: false, code: 'FAILED', error: 'db down' })
       .mockReturnValueOnce(new Promise(() => {}));
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
-    void store.getState().saveInvoice();
+    void store.getState().save('save');
     expect(store.getState().isSaving).toBe(true);
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
 
@@ -353,7 +353,7 @@ describe('invoice editor store - loaded dates (T44)', () => {
       updateInvoiceMock.mockReturnValue(new Promise((a, b) => ((res = a), (rej = b))));
       store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-      const saving = store.getState().saveInvoice();
+      const saving = store.getState().save('save');
       store.getState().initialize(emptyData);
       settle(res, rej);
       await saving;

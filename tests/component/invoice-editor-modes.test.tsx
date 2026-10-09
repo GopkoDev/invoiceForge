@@ -284,12 +284,12 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
       customerId: 'cu-1',
     });
     await act(async () => {
-      await store.getState().saveInvoice();
+      await store.getState().save('save');
     });
     expect(createInvoiceMock).toHaveBeenCalled();
     expect(screen.getAllByText('Current Customer').length).toBeGreaterThan(0); // still a draft: pickers stay
     await act(async () => {
-      await store.getState().saveInvoice({ issue: true });
+      await store.getState().save('save-and-issue');
     });
     expect(await screen.findByText(ISSUED_ALERT)).toBeInTheDocument();
     expect(screen.getByText('Frozen Legal Ltd')).toBeInTheDocument();

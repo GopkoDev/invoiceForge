@@ -26,6 +26,13 @@ export interface TotalsChanged {
   newTotal: string;
 }
 
+/** What a save was started from: Save, or Save and issue (the same save sent with status PENDING). */
+export type SaveIntent = 'save' | 'save-and-issue';
+
+export interface SaveOptions {
+  confirmedTotals?: TotalsChanged;
+}
+
 /** The stored instants the editor was built from, as ISO strings (T44, I-01). */
 export interface LoadedDates {
   issueDate: string;
@@ -81,6 +88,13 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   invoiceId?: string;
   isSaving: boolean;
   hasUnsavedChanges: boolean;
+  /** editor-ux ADR-0005: counts every edit of the form (even one restoring a value), so a save can
+   * tell whether the form changed while it ran. */
+  revision: number;
+  /** The intent of the last save the server failed (FAILED), for Retry; cleared by a save. */
+  lastFailedIntent: SaveIntent | null;
+  /** The dismissable notice that edits made during Save and issue were not saved (AC-05b). */
+  issuedEditsDroppedNotice: string | null;
   /** The stored issue/due instants the editor was built from; a save sends them so the server can
    * tell an untouched legacy date from an edited one (T44, I-01). Null for a new invoice; after a save, the stored instants the row now holds. */
   loadedDates: LoadedDates | null;
@@ -135,8 +149,10 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
 
   setIsSaving: (isSaving: boolean) => void;
   markAsSaved: () => void;
-  /** `issue`: Save and issue — the saved draft is sent with status PENDING (SCR-02). */
-  saveInvoice: (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => Promise<void>;
+  /** The one save command (ADR-0005): reads the form and its revision when called and resolves
+   * every outcome itself. 'save-and-issue' sends the saved draft with status PENDING (SCR-02). */
+  save: (intent: SaveIntent, opts?: SaveOptions) => Promise<void>;
+  dismissIssuedEditsDroppedNotice: () => void;
   clearTotalsChanged: () => void;
   /** SCR-05 closed: the editor turns stale, edits kept. */
   markStale: () => void;

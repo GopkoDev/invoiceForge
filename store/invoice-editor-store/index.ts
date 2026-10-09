@@ -5,6 +5,7 @@ export type {
   GroupedProducts,
   EditorMode,
   TotalsChanged,
+  SaveIntent,
 } from './types';
 
 // Store and selectors
@@ -41,6 +42,7 @@ export {
   useTotalsChanged,
   useLegacy,
   useLockedRefusal,
+  useIssuedEditsDroppedNotice,
   useChangedElsewhere,
   useIsStale,
   useReloadFailed,

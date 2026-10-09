@@ -8,7 +8,7 @@
 // through UNAUTHORIZED to the generic `toast.error(result.error)` branch, leaving the stale
 // session sitting on the editor screen instead of sending it to sign-in.
 //
-// RED (T39 not yet implemented): saveInvoice() never navigates anywhere on UNAUTHORIZED, so
+// RED (T39 not yet implemented): save('save') never navigates anywhere on UNAUTHORIZED, so
 // window.location.assign is never called.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { fail } from '@/types/actions';
@@ -46,7 +46,7 @@ describe('invoice editor store — UNAUTHORIZED save routes to sign-in (T39, F-3
   it('sends the device to the cookie-clearing sign-in route instead of only toasting', async () => {
     updateInvoiceMock.mockResolvedValue(fail('UNAUTHORIZED', 'Not signed in.'));
 
-    await store.getState().saveInvoice();
+    await store.getState().save('save');
 
     expect(assignMock).toHaveBeenCalledWith('/api/auth/clear-session');
   });
