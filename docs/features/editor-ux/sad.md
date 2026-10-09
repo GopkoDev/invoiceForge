@@ -275,6 +275,306 @@ sequenceDiagram
     end
 ```
 
+The flows below were added by `sequences`. They use the generic runtime vocabulary: **user** is the Freelancer, a Visitor or Freelancer B, as each flow names. **ui** is the web app in the browser, with the editor store, its save command, the document model and the format module. **service** is server rendering, the proxy, server actions and the business layer, which also serve the PDF toolkit chunk from the app origin. **data-store** is PostgreSQL. **external-system** is Sentry. No flow adds an entity, a column or an index: the only write is the existing invoice save.
+
+### Flow 3: a refused save or a Save and issue while the Freelancer keeps typing (AC-04, AC-05, AC-05b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a draft open in the editor, the form at revision r
+    U->>UI: clicks Save or Save and issue
+    UI->>UI: save command reads the form now and remembers revision r
+    UI->>S: saves the form with its version and intent
+    U->>UI: changes a line's quantity, revision becomes r plus one
+    alt a field is invalid
+        S-->>UI: refused with field errors, nothing stored
+        UI-->>U: plain-language error on the field, every change on screen, marked unsaved
+    else changed elsewhere
+        S->>D: reads the invoice version
+        D-->>S: a newer version
+        S-->>UI: refused as changed elsewhere, nothing stored
+        UI-->>U: changed-elsewhere dialog, edits stay on screen unless Reload is chosen
+    else totals changed
+        S-->>UI: asks to confirm the recalculated totals
+        UI-->>U: totals confirmation, confirming re-enters the save command
+    else issued by Save and issue
+        S->>D: stores the invoice as issued with its issued details
+        Note over S,D: persists invoice (existing entity, no schema change)
+        D-->>S: stored, new version
+        S-->>UI: issued invoice
+        UI->>UI: replaces the form with the issued invoice, lines locked as issued
+        UI-->>U: dismissable warning that the quantity change was not saved because the invoice is now issued
+    end
+    Note over U,UI: Postcondition: totals on screen add up the lines on screen in every branch, no typed change is dropped silently
+```
+
+### Flow 4: Retry after a failed save (AC-05c, AC-05d)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: a Save or Save and issue failed, the failure message offers Retry
+    U->>UI: edits a field after the failure
+    U->>UI: chooses Retry
+    alt a save is already running or the editor moved to another invoice
+        UI-->>U: nothing happens
+    else Retry accepted
+        UI->>UI: save command repeats the failed intent with the form as it is now
+        UI->>S: saves the current form, a create for a new invoice, an update with its version otherwise
+        alt created
+            S->>D: stores the new invoice
+            Note over S,D: persists invoice (existing entity, no schema change)
+            D-->>S: stored, invoice id
+            S-->>UI: created invoice
+            UI->>UI: replaces the address with the invoice's own editing address
+            UI-->>U: confirmed as created, a reload opens it and the next Save updates it
+        else changed elsewhere
+            S-->>UI: refused as changed elsewhere
+            UI-->>U: the same changed-elsewhere dialog as Save, with Reload
+        else totals changed
+            S-->>UI: asks to confirm the recalculated totals
+            UI-->>U: the same totals confirmation as Save
+        else failed again
+            S-->>UI: failed
+            UI-->>U: failure message with Retry, every change on screen
+        end
+    end
+    Note over U,UI: Postcondition: a retried save never fails silently
+```
+
+### Flow 5: the editor's first display (AC-06)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,S: Precondition: a signed-in Freelancer opens an existing invoice or starts a new one
+    U->>S: opens the editor address
+    alt existing invoice
+        S->>D: reads the invoice, scoped to the Freelancer
+        D-->>S: the invoice with its number, Customer, lines, dates and totals
+    else new invoice
+        S->>D: reads the defaults and the Freelancer time zone
+        D-->>S: default sender profile, bank account, payment terms, time zone or none
+        S->>S: computes today in the Freelancer time zone, UTC if none, and the due date
+    end
+    S->>S: renders the HTML with an editor store built from this data
+    S-->>UI: HTML and the same initial data
+    UI-->>U: first display shows the opened invoice or the defaults
+    UI->>UI: hydrates and creates the store at once from the same data, keyed by Freelancer and invoice
+    UI-->>U: nothing on screen changes when the page becomes interactive
+    opt new invoice
+        UI->>S: asks for the proposed invoice number
+        S->>D: reads the next number for the sender profile
+        D-->>S: next number
+        S-->>UI: proposed number
+        UI-->>U: the number fills its reserved, loading field and the layout does not move
+    end
+    Note over U,UI: Postcondition: no blank or other invoice was shown at any moment
+```
+
+### Flow 6: sign-out, Back and Forward, and a second Freelancer in the same tab (AC-07)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+
+    Note over U,UI: Precondition: Freelancer A had an invoice open in this tab, then signed out
+    Note over UI,S: signed-in pages are sent private and no-store, so the browser keeps no reusable copy
+    U->>UI: a Visitor presses Back or Forward
+    opt the browser restores a page from its back/forward cache
+        UI->>UI: the restore guard hides the page before it shows and reloads it
+    end
+    UI->>S: requests the signed-in page again
+    S-->>UI: no session, redirect to sign in
+    UI-->>U: sign-in page, none of A's data
+    U->>S: Freelancer B signs in in the same tab
+    U->>UI: B opens the editor, or goes Back and Forward
+    UI->>S: requests the page, nothing reused from the browser cache
+    alt the address of A's invoice
+        S->>D: reads the invoice, scoped to B
+        D-->>S: no such invoice for B
+        S-->>UI: invoice not found
+        UI-->>U: the same not-found result as any invoice that isn't B's
+    else B's invoice or a new one
+        S->>D: reads B's data
+        D-->>S: B's invoice or defaults
+        S-->>UI: HTML and initial data for B
+        UI->>UI: creates a fresh editor store keyed by B and the invoice
+        UI-->>U: only B's data
+    end
+    Note over U,UI: Within one visit, each invoice gets its own store, so Back and Forward between two invoices never mixes their lines, Customer or totals
+```
+
+### Flow 7: dates and money, the same on the server and in the browser (AC-08, AC-09)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant D as data-store
+    participant X as external-system
+
+    Note over U,S: Precondition: a Freelancer time zone far from UTC, the browser in another zone, any time of day
+    U->>S: opens a list, the dashboard, related invoices, custom prices or the editor
+    S->>D: reads the invoices and the Freelancer time zone
+    D-->>S: issue and due days stored at midnight UTC, amounts, moments, time zone or none
+    S->>S: formats days read in UTC, moments in the Freelancer time zone or UTC, money in fixed en-US
+    S-->>UI: HTML with the formatted dates and amounts, plus the time zone
+    UI-->>U: first display shows the stored calendar days and money such as $1,234.50 or UAH 1,234.50
+    UI->>UI: hydrates and formats again with the same module, locale and time zone
+    alt the texts match
+        UI-->>U: nothing changes, whatever the browser zone or device language
+    else a text differs
+        UI->>X: reports a render mismatch
+    end
+    Note over U,UI: Postcondition: every place shows the same calendar day and money format before and after the page becomes interactive
+```
+
+### Flow 8: the editor's preview and its PDF from one document model (AC-01, AC-09, AC-10)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+    participant X as external-system
+
+    Note over U,UI: Precondition: the editor is open with its live preview
+    UI->>UI: builds the document model from the form, or from the issued details of an issued invoice
+    UI-->>U: the HTML preview lays out the model from the first display
+    UI->>S: once the page is idle, fetches the PDF toolkit from the app origin
+    alt fetched
+        S-->>UI: toolkit loaded
+    else fetch failed
+        UI->>UI: drops the failure, Download or Print fetches again as in critical flow 2
+    end
+    U->>UI: chooses Download or Print
+    alt draft with unsaved changes
+        UI->>UI: builds the document model from the last save
+    else no unsaved changes, or issued
+        UI->>UI: reuses the preview's document model
+    end
+    UI->>UI: the PDF layout renders the model with the same wording, dates and money
+    alt generated
+        UI-->>U: the file or the print dialog, matching the preview line by line
+    else generation failed
+        UI->>X: reports the failure
+        UI-->>U: could not prepare the PDF, try again
+    end
+    Note over U,UI: Postcondition: a wording change reaches the preview and the PDF together, never only one
+```
+
+### Flow 9: a screen reader through the lines and a refused save (AC-11, AC-12)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+
+    Note over U,UI: Precondition: a Freelancer using a screen reader in the editor
+    U->>UI: moves to a line field
+    UI-->>U: announces its column and position, such as Quantity, line 3
+    U->>UI: reorders, adds or deletes a line
+    UI->>UI: names every line field again from its current index
+    UI-->>U: positions announced correctly for every line
+    U->>UI: clicks Save with an invalid field
+    UI->>S: saves the form
+    S-->>UI: refused with field errors
+    UI->>UI: marks the field invalid and ties the error message to it by its id
+    UI-->>U: announces the field as invalid with its plain-language message
+    Note over U,UI: Visible labels, icon buttons, the hidden Print and Download text and the row actions are static markup, checked by the accessibility suite
+```
+
+### Flow 10: the phone layout and a tablet rotation (AC-13, AC-14)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+
+    Note over U,S: Precondition: a phone 390 px wide
+    U->>S: opens the editor for a new or an existing invoice
+    S-->>UI: one HTML tree for both layouts, no width check decides what renders
+    UI-->>U: CSS breakpoints show the phone layout from the first display
+    U->>UI: taps a price, quantity, discount, tax rate or shipping field
+    UI-->>U: a decimal keypad
+    alt types a decimal point
+        UI-->>U: value accepted
+    else types another separator, such as a comma
+        UI-->>U: not accepted
+    end
+    Note over U,UI: On a tablet, 12. is typed in a focused line field
+    U->>UI: rotates the tablet across the layout breakpoint
+    UI->>UI: CSS restyles the same elements, nothing remounts
+    UI-->>U: the typed text, the focus and every line stay
+```
+
+**Coverage (user stories and acceptance criteria to flows):**
+
+| Item | Shown by |
+|---|---|
+| US-01 | Critical flow 2, Flow 8 |
+| US-02 | Critical flow 1, Flow 3, Flow 4 |
+| US-03 | Flow 5, Flow 6 |
+| US-04 | Flow 7 |
+| US-05 | Flow 8 |
+| US-06 | Flow 9 |
+| US-07 | Flow 10 |
+| US-08 | N/A: the Contributor works with the README and the repository, with no runtime flow in the app (AC-15, AC-16) |
+| AC-01 | Critical flow 2 (no fetch on open, reuse in the visit), Flow 8 (the editor warms the toolkit when idle) |
+| AC-02 | Critical flow 2, branch "connection dropped" |
+| AC-02b | Critical flow 2, branches "app updated since the page opened" and "generation failed" |
+| AC-03 | Critical flow 1, branch "revision moved on" |
+| AC-04 | Critical flow 1 (both branches), Flow 3 postcondition |
+| AC-05 | Flow 3, branches "a field is invalid" and "changed elsewhere" |
+| AC-05b | Flow 3, branch "issued by Save and issue" |
+| AC-05c | Flow 4, branch "created" |
+| AC-05d | Flow 4, branches "changed elsewhere", "totals changed" and "a save is already running or the editor moved to another invoice" |
+| AC-06 | Flow 5 |
+| AC-07 | Flow 6 |
+| AC-08 | Flow 7 |
+| AC-09 | Flow 7 (money format in lists and the editor), Flow 8 (preview and PDF, a draft prints its last save) |
+| AC-10 | Flow 8 (issued details, one model for both layouts) |
+| AC-11 | Flow 9 (line positions after a reorder, add or delete). The static names are markup, checked by the accessibility suite |
+| AC-12 | Flow 9, the refused save |
+| AC-13 | Flow 10, the phone first display and the decimal keypad |
+| AC-14 | Flow 10, the tablet rotation |
+| AC-15 | N/A: not a runtime flow. Proven by following the README in a fresh clone |
+| AC-16 | N/A: not a runtime flow. Proven by the build, lint and the test run, the editor's dialogs behave as today |
+
+**Flagged by `sequences`:**
+- No flow is asynchronous: there is no webhook, queue, scheduled job or third-party callback, so no idempotency key, retry policy or dead-letter step applies. The PDF toolkit fetch is a same-origin request that the Freelancer starts again from the page.
+- No new participant: Sentry is already declared in §3 and §5. Critical flows 1 and 2 keep their container names, and Flows 3 to 10 use the generic vocabulary.
+- No new entity, column or index. The only write is the existing invoice save, and the reads are the existing owner-scoped invoice, defaults, time-zone and next-number reads. `data-model` has no schema change to derive.
+- No decision rises to a new ADR. Each flow realises ADR-0001 to ADR-0007 as accepted.
+
 ## 7. Deployment view
 
 No infrastructure change: the feature ships inside the existing single Vercel deployment (region `fra1`), with no new function, cron, store or environment setting. The PDF toolkit becomes a separate static chunk served from the same origin under the same content-security rules. Releases follow the four waves of spec §1, each a normal deploy; there is no migration. Vercel Skew Protection stays off — a page opened before a deploy that then misses the toolkit chunk shows "a newer version is available, reload" (AC-02b), which the e2e suite exercises against a missing chunk.
