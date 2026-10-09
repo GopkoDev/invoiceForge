@@ -181,3 +181,36 @@ export async function readStoredInvoice(invoiceId: string) {
     await prisma.$disconnect();
   }
 }
+
+/** What the invoice list of one Freelancer holds, read straight from the throwaway database. */
+export async function readInvoicesOf(userId: string) {
+  const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+  try {
+    return await prisma.invoice.findMany({
+      where: { senderProfile: { userId } },
+      orderBy: { createdAt: 'asc' },
+      include: { items: true },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Changes the stored invoice behind the editor's back, the way another tab or device would. */
+export async function changeInvoiceElsewhere(
+  invoiceId: string,
+  change: { bumpVersion?: boolean; storedTotal?: number }
+): Promise<void> {
+  const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+  try {
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        ...(change.bumpVersion ? { version: { increment: 1 } } : {}),
+        ...(change.storedTotal !== undefined ? { total: change.storedTotal } : {}),
+      },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
