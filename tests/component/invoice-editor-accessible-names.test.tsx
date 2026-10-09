@@ -40,7 +40,7 @@ Element.prototype.scrollIntoView = () => {};
 
 const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');
 const { ItemsSection } = await import('@/components/invoice-editor/items-section');
-const { InvoiceItemCard } = await import('@/components/invoice-editor/invoice-item-card');
+const { InvoiceItemRow } = await import('@/components/invoice-editor/invoice-item-row');
 const { SenderSection } = await import('@/components/invoice-editor/sender-section');
 const { CustomerSection } = await import('@/components/invoice-editor/customer-section');
 const { InvoiceDetailsSection } = await import('@/components/invoice-editor/invoice-details-section');
@@ -90,7 +90,7 @@ describe('AC-11 — line fields announce their column and current position', () 
   });
 
   it('names the mobile card fields the same way', () => {
-    renderWithEditorStore(<InvoiceItemCard itemId="it-3" />, { initial: dataWithLines() });
+    renderWithEditorStore(<InvoiceItemRow itemId="it-3" />, { initial: dataWithLines() });
     expect(screen.getByRole('textbox', { name: 'Quantity, line 3' })).toHaveValue('3');
     expect(screen.getByRole('textbox', { name: 'Price, line 3' })).toHaveValue('30');
   });

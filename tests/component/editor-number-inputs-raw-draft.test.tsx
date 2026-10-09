@@ -24,7 +24,7 @@ const { emptyEditorData } = await import('../support/render-with-editor-store');
 const { withEditorStore } = await import('../support/editor-store-wrapper');
 let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 
-function ItemHarness({ itemId, layout }: { itemId: string; layout?: 'desktop' | 'mobile' }) {
+function ItemHarness({ itemId }: { itemId: string }) {
   const { item, currency, handlePriceChange, handleQuantityChange } = useInvoiceItemHandlers({
     itemId,
   });
@@ -35,7 +35,6 @@ function ItemHarness({ itemId, layout }: { itemId: string; layout?: 'desktop' | 
       onPriceChange={handlePriceChange}
       onQuantityChange={handleQuantityChange}
       isPriceDisabled={false}
-      layout={layout}
     />
   );
 }
@@ -83,12 +82,12 @@ describe('InvoiceItemFields number inputs keep the raw draft (N-01)', () => {
     store.getState().addCustomItem();
   });
 
-  it.each(['desktop', 'mobile'] as const)(
+  it.each(['one tree for both layouts'])(
     '%s: price "-5" and quantity "abc" show as typed',
-    async (layout) => {
+    async () => {
       const user = userEvent.setup();
       const itemId = store.getState().formData.items[0].id;
-      render(<ItemHarness itemId={itemId} layout={layout} />, { wrapper: withEditorStore(store) });
+      render(<ItemHarness itemId={itemId} />, { wrapper: withEditorStore(store) });
       const [price, quantity] = screen.getAllByRole('textbox') as HTMLInputElement[];
 
       await user.clear(price);

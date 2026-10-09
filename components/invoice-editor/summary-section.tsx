@@ -77,7 +77,7 @@ export function SummarySection() {
         </div>
         <FieldError errors={fieldErrors?.subtotal?.map((message) => ({ message }))} />
 
-        <Separator className="my-3" />
+        <Separator aria-hidden="true" className="my-3" />
 
         <div className="bg-muted/50 space-y-3 rounded-lg p-3">
           <p className="text-muted-foreground text-xs font-medium">
@@ -134,7 +134,7 @@ export function SummarySection() {
             errors={fieldErrors?.shipping?.map((message) => ({ message }))}
           />
 
-          <Separator className="my-2" />
+          <Separator aria-hidden="true" className="my-2" />
 
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm font-medium">
@@ -176,7 +176,7 @@ export function SummarySection() {
           errors={fieldErrors?.taxRate?.map((message) => ({ message }))}
         />
 
-        <Separator />
+        <Separator aria-hidden="true" />
 
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold">Total</span>

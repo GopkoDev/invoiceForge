@@ -56,22 +56,18 @@ describe('editor money display (AC-09)', () => {
   it.each([
     ['USD', '$1,234.50'],
     ['UAH', 'UAH 1,234.50'],
-  ] as const)('line total in %s reads %s (desktop and mobile)', (currency, expected) => {
-    for (const layout of ['desktop', 'mobile'] as const) {
-      const { unmount } = render(
-        <InvoiceItemFields
-          item={item}
-          currency={currency}
-          onPriceChange={() => {}}
-          onQuantityChange={() => {}}
-          isPriceDisabled={false}
-          layout={layout}
-        />,
-        { wrapper: withEditorStore(store) },
-      );
-      expect(screen.getByText(expected)).toBeInTheDocument();
-      unmount();
-    }
+  ] as const)('line total in %s reads %s', (currency, expected) => {
+    render(
+      <InvoiceItemFields
+        item={item}
+        currency={currency}
+        onPriceChange={() => {}}
+        onQuantityChange={() => {}}
+        isPriceDisabled={false}
+      />,
+      { wrapper: withEditorStore(store) },
+    );
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
 });
 
