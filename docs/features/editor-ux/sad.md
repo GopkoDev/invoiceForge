@@ -273,25 +273,20 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
-
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+No infrastructure change: the feature ships inside the existing single Vercel deployment (region `fra1`), with no new function, cron, store or environment setting. The PDF toolkit becomes a separate static chunk served from the same origin under the same content-security rules. Releases follow the four waves of spec §1, each a normal deploy; there is no migration. Vercel Skew Protection stays off — a page opened before a deploy that then misses the toolkit chunk shows "a newer version is available, reload" (AC-02b), which the e2e suite exercises against a missing chunk.
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- **Layout shift** — Vercel Speed Insights CLS for the editor route at phone width; the spec §6 NFR target (≤ 0.1 at p75) is read 14 days after the wave-4 release.
+- **Render mismatches** — Sentry issues from React hydration errors on the invoices list, dashboard and editor; baseline counted over the 14 days before release, target 0 within 14 days after (spec §7).
+- **PDF failures** — Sentry events from `use-pdf-action` tagged `pdf.stage` = `fetch` / `version` / `generate`, so a rise in "newer version" failures after a deploy is visible separately from generation errors.
+- **Tracing** — none added; the feature makes no new server calls.
 
-**Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
+**Build and CI gates (added):**
+- `scripts/check-pdf-chunks.ts` after `next build`: fails when any route other than the invoice editor lists a chunk containing `@react-pdf/renderer` among its initial chunks (spec §6 "PDF toolkit on non-printing pages").
+- Accessibility e2e (`@axe-core/playwright`) on the editor (new and existing invoice), the invoices list and the dashboard: fails on any serious or critical violation; runs with the e2e suite before each wave ships and nightly, as `tests/README.md` places e2e today.
+- Existing gates unchanged: lint, `tsc`, unit and integration, and every `invoice-integrity` acceptance test (spec §6 "No regressions").
 
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+**Scaling thresholds:** none — the feature removes browser weight and adds no server load. The toolkit chunk (~1.6 MB) is the only size to watch: if it grows past what downloads in 3 s at 10 Mbit/s (spec §6 "First PDF after page load"), revisit ADR-0001 option 2 (server rendering).
 
 ## 8. Crosscutting concepts
 
