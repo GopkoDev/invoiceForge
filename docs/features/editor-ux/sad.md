@@ -314,17 +314,17 @@ The repo's conventions are inherited unchanged (results, errors, IDs, auth guard
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| 0001 | Load the PDF toolkit on demand through one lazy module | Accepted | §4 |
+| 0002 | Render the preview and the PDF from one invoice document model | Accepted | §4 |
+| 0003 | Create one editor store per mounted editor from the server's data | Accepted | §4 |
+| 0004 | Switch the editor's layouts with CSS only, in one DOM tree | Accepted | §4 |
+| 0005 | Route every save and Retry through one store save command | Accepted | §4 |
+| 0006 | Format money and dates in one module with a fixed en-US locale | Accepted | §4 |
+| 0007 | Mark signed-in pages no-store and reload pages restored from the back/forward cache | Accepted | §8 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/editor-ux/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
