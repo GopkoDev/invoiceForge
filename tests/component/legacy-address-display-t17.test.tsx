@@ -94,7 +94,7 @@ beforeEach(() => {
 const { ContactCard } =
   await import('@/components/layout/contacts/contact-card/contact-card');
 const { InvoicePDFDocument } =
-  await import('@/components/invoice-editor/invoice-pdf-document');
+  await import('@/lib/pdf/invoice-pdf-kit');
 const { CustomerInfoSidebar } =
   await import('@/components/customers/customer-info-sidebar');
 const { SenderProfileInfoSidebar } =

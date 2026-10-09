@@ -31,10 +31,7 @@ import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { protectedRoutes } from '@/config/routes.config';
 import { useModal } from '@/store/use-modal-store';
 import { getInvoice } from '@/lib/actions/invoice-actions/invoice-actions';
-import {
-  downloadInvoicePdf,
-  printInvoicePdf,
-} from '@/lib/helpers/invoice-pdf-helpers';
+import { usePdfAction } from '@/hooks/use-pdf-action';
 import { toast } from 'sonner';
 import {
   goToSignIn,
@@ -61,6 +58,7 @@ function formatDate(date: Date | string): string {
 function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const { run: runPdf } = usePdfAction();
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
 
   const handleView = useCallback(async () => {
@@ -92,7 +90,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await downloadInvoicePdf(result.data);
+      const pdf = await runPdf('download', result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
@@ -101,7 +99,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   const handlePrint = useCallback(async () => {
     setIsLoading(true);
@@ -114,7 +112,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await printInvoicePdf(result.data);
+      const pdf = await runPdf('print', result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
@@ -123,7 +121,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>

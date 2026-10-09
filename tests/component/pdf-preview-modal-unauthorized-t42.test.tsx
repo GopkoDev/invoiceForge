@@ -12,8 +12,12 @@ const downloadMock = vi.fn();
 const printMock = vi.fn();
 vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
   prepareInvoiceDataForPdf: () => ({}),
-  downloadInvoicePdf: (...a: unknown[]) => downloadMock(...a),
-  printInvoicePdf: (...a: unknown[]) => printMock(...a),
+}));
+vi.mock('@/hooks/use-pdf-action', () => ({
+  usePdfAction: () => ({
+    run: (action: string, ...a: unknown[]) =>
+      action === 'download' ? downloadMock(...a) : printMock(...a),
+  }),
 }));
 
 vi.mock('@/components/invoice-editor/pdf-preview-panel', () => ({

@@ -8,7 +8,7 @@ import { createElement } from 'react';
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() } }));
 
 import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
-import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
+const { InvoicePDFDocument } = await import('@/lib/pdf/invoice-pdf-kit');
 import type { SerializedInvoice } from '@/types/invoice/types';
 import { pdfTextRuns } from '../../support/pdf-text';
 

@@ -26,10 +26,13 @@ const { downloadPdfFromFormDataMock, printPdfFromFormDataMock } = vi.hoisted(() 
   downloadPdfFromFormDataMock: vi.fn(),
   printPdfFromFormDataMock: vi.fn(),
 }));
-vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
-  downloadPdfFromFormData: downloadPdfFromFormDataMock,
-  printPdfFromFormData: printPdfFromFormDataMock,
+vi.mock('@/hooks/use-pdf-action', () => ({
+  usePdfAction: () => ({
+    runInput: (action: string, ...a: unknown[]) =>
+      action === 'download' ? downloadPdfFromFormDataMock(...a) : printPdfFromFormDataMock(...a),
+  }),
 }));
+vi.mock('@/lib/pdf/load-pdf-kit', () => ({ loadPdfKit: () => Promise.resolve({}) }));
 
 const baseFormData: InvoiceFormData = {
   invoiceNumber: 'INV-0001',

@@ -8,6 +8,18 @@ const createActingFreelancerPath = {
   message: "Use actingFreelancerFromSession / actingFreelancerForRoute from @/lib/helpers/session-actor.",
 };
 
+// ADR-0001 (editor-ux): the PDF toolkit is reached only through the lazy loader in lib/pdf.
+const pdfToolkitPaths = [
+  {
+    name: "@react-pdf/renderer",
+    message: "Import the PDF toolkit only inside lib/pdf; elsewhere use loadPdfKit via hooks/use-pdf-action.",
+  },
+  {
+    name: "@/lib/pdf/invoice-pdf-kit",
+    message: "Do not import the kit statically; use loadPdfKit from @/lib/pdf/load-pdf-kit.",
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -27,6 +39,12 @@ const eslintConfig = defineConfig([
     // actingFreelancerFromSession / actingFreelancerForRoute in lib/helpers/session-actor.ts.
     ignores: ["lib/helpers/session-actor.ts", "tests/support/**"],
     rules: {
+      "no-restricted-imports": ["error", { paths: [createActingFreelancerPath, ...pdfToolkitPaths] }],
+    },
+  },
+  {
+    files: ["lib/pdf/**"],
+    rules: {
       "no-restricted-imports": ["error", { paths: [createActingFreelancerPath] }],
     },
   },
@@ -36,7 +54,7 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
+          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath, ...pdfToolkitPaths],
           patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*", "lib/actions", "lib/actions/*"],
         },
       ],

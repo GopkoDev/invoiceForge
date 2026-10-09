@@ -26,7 +26,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: v
 
 type Invoices = typeof import('@/lib/services/invoices/invoices');
 type PdfHelpers = typeof import('@/lib/helpers/invoice-pdf-helpers');
-type PdfDocument = typeof import('@/components/invoice-editor/invoice-pdf-document');
+type PdfDocument = typeof import('@/lib/pdf/invoice-pdf-kit');
 
 describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)', () => {
   let db: TestDatabase;
@@ -41,7 +41,7 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     testClient = createTestPrismaClient(db.connectionString);
     invoices = await import('@/lib/services/invoices/invoices');
     helpers = await import('@/lib/helpers/invoice-pdf-helpers');
-    pdfDocument = await import('@/components/invoice-editor/invoice-pdf-document');
+    pdfDocument = await import('@/lib/pdf/invoice-pdf-kit');
   }, 60_000);
 
   afterAll(async () => {

@@ -34,10 +34,7 @@ import {
 import { InvoiceStatus } from '@/types/invoice/types';
 import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
-import {
-  downloadInvoicePdf,
-  printInvoicePdf,
-} from '@/lib/helpers/invoice-pdf-helpers';
+import { usePdfAction } from '@/hooks/use-pdf-action';
 import {
   goToSignIn,
   redirectIfUnauthorized,
@@ -82,6 +79,7 @@ export function InvoiceRowActions({
   const [refusedStatus, setRefusedStatus] = useState<{ from: InvoiceStatus; to: InvoiceStatus } | null>(null);
   const menuStatus = storedStatus ?? status;
   const rowStatus = refusedStatus && refusedStatus.from === menuStatus ? refusedStatus.to : menuStatus;
+  const { run: runPdf } = usePdfAction();
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
   const confirmationModal = useModal('confirmationModal');
 
@@ -118,7 +116,7 @@ export function InvoiceRowActions({
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await downloadInvoicePdf(result.data);
+      const pdf = await runPdf('download', result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
@@ -127,7 +125,7 @@ export function InvoiceRowActions({
     } finally {
       setIsLoadingPdf(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   const handlePrint = useCallback(async () => {
     setIsLoadingPdf(true);
@@ -140,7 +138,7 @@ export function InvoiceRowActions({
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await printInvoicePdf(result.data);
+      const pdf = await runPdf('print', result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
@@ -149,7 +147,7 @@ export function InvoiceRowActions({
     } finally {
       setIsLoadingPdf(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   const handleDuplicate = () => {
     startTransition(async () => {

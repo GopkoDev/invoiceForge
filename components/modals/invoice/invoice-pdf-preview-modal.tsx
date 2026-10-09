@@ -12,11 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useModal } from '@/store/use-modal-store';
 import { PDFPreviewPanel } from '@/components/invoice-editor/pdf-preview-panel';
-import {
-  prepareInvoiceDataForPdf,
-  downloadInvoicePdf,
-  printInvoicePdf,
-} from '@/lib/helpers/invoice-pdf-helpers';
+import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
+import { usePdfAction } from '@/hooks/use-pdf-action';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
@@ -28,6 +25,7 @@ export function InvoicePdfPreviewModal() {
   const { isOpen, props, close } = useModal('invoicePdfPreviewModal');
   const invoice = props?.invoice;
 
+  const { run: runPdf } = usePdfAction();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -41,24 +39,24 @@ export function InvoicePdfPreviewModal() {
 
     setIsDownloading(true);
     try {
-      const result = await downloadInvoicePdf(invoice, invoiceData);
+      const result = await runPdf('download', invoice);
       if (result.unauthorized) goToSignIn();
     } finally {
       setIsDownloading(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, runPdf]);
 
   const handlePrint = useCallback(async () => {
     if (!invoice || !invoiceData) return;
 
     setIsPrinting(true);
     try {
-      const result = await printInvoicePdf(invoice, invoiceData);
+      const result = await runPdf('print', invoice);
       if (result.unauthorized) goToSignIn();
     } finally {
       setIsPrinting(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, runPdf]);
 
   if (!isOpen || !invoice || !invoiceData) return null;
 
