@@ -29,9 +29,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Imported after the mocks so both the store and the hook pick up the mocked actions module.
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 const { useModalStore } = await import('@/store/use-modal-store');
 const { useEditorHeaderButtons } = await import('@/hooks/use-editor-header-buttons');
 
@@ -65,7 +66,7 @@ const bankAccount: InvoiceBankAccount = {
 
 describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
     useModalStore.getState().resetAllModals();
     updateInvoiceMock.mockReset();
     createInvoiceMock.mockReset();
@@ -83,8 +84,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       )
     );
 
-    const state = useInvoiceEditorStore.getState();
-    state.initialize({
+    store = createInvoiceEditorStore({
       senderProfiles: [senderProfile],
       bankAccounts: [bankAccount],
       customers: [],
@@ -92,6 +92,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       customPrices: [],
       invoiceId: 'legacy-invoice',
     });
+    const state = store.getState();
     state.updateFields({
       senderProfileId: 'profile-a',
       bankAccountId: 'bank-a',
@@ -110,7 +111,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       ],
     });
 
-    const { result } = renderHook(() => useEditorHeaderButtons());
+    const { result } = renderHook(() => useEditorHeaderButtons(), { wrapper: withEditorStore(store) });
 
     await act(async () => {
       await result.current.SaveButton!.props.onClick();
@@ -140,6 +141,6 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       'legacy-invoice',
       expect.objectContaining({ confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } })
     );
-    expect(useInvoiceEditorStore.getState().totalsChanged).toBeNull();
+    expect(store.getState().totalsChanged).toBeNull();
   });
 });

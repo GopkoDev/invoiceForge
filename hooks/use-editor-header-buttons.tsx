@@ -12,13 +12,14 @@ import {
   useEditorMode,
   useHasUnsavedChanges,
   useInvoiceEditorActions,
-  useInvoiceEditorStore,
+  useInvoiceEditorStoreApi,
   useInvoiceId,
   useIsSaving,
 } from '@/store/invoice-editor-store';
 
 export function useEditorHeaderButtons() {
   const router = useRouter();
+  const editorStore = useInvoiceEditorStoreApi();
   const unsavedChangesModal = useModal('unsavedChangesDialog');
   const confirmationModal = useModal('confirmationModal');
 
@@ -41,7 +42,7 @@ export function useEditorHeaderButtons() {
   const openTotalsConfirmationRef = useRef<() => void>(() => {});
 
   const openTotalsConfirmation = useCallback(() => {
-    const totalsChanged = useInvoiceEditorStore.getState().totalsChanged;
+    const totalsChanged = editorStore.getState().totalsChanged;
     if (!totalsChanged) return;
 
     confirmationModal.open({
@@ -66,7 +67,7 @@ export function useEditorHeaderButtons() {
         confirmationModal.close();
       },
       onConfirm: async () => {
-        const current = useInvoiceEditorStore.getState().totalsChanged;
+        const current = editorStore.getState().totalsChanged;
         if (!current) {
           confirmationModal.close();
           return;
@@ -74,14 +75,14 @@ export function useEditorHeaderButtons() {
 
         await saveInvoice({ confirmedTotals: current });
 
-        if (useInvoiceEditorStore.getState().totalsChanged) {
+        if (editorStore.getState().totalsChanged) {
           openTotalsConfirmationRef.current();
         } else {
           confirmationModal.close();
         }
       },
     });
-  }, [confirmationModal, saveInvoice, clearTotalsChanged]);
+  }, [confirmationModal, saveInvoice, clearTotalsChanged, editorStore]);
 
   useEffect(() => {
     openTotalsConfirmationRef.current = openTotalsConfirmation;
@@ -90,7 +91,7 @@ export function useEditorHeaderButtons() {
   // invoice-integrity T18 (SCR-05): the invoice changed after this editor loaded it. Reload
   // re-initialises from the current invoice; Close (or Esc) leaves the editor stale, edits kept.
   const openChangedElsewhere = useCallback(() => {
-    const error = useInvoiceEditorStore.getState().changedElsewhere;
+    const error = editorStore.getState().changedElsewhere;
     if (!error) return;
     confirmationModal.open({
       open: true,
@@ -108,24 +109,24 @@ export function useEditorHeaderButtons() {
         confirmationModal.close();
       },
     });
-  }, [confirmationModal, markStale, reload]);
+  }, [confirmationModal, markStale, reload, editorStore]);
 
   const performSave = useCallback(async (options?: { issue?: boolean }) => {
     const beforeInvoiceId = invoiceId;
     await saveInvoice(options);
 
-    if (useInvoiceEditorStore.getState().changedElsewhere) {
+    if (editorStore.getState().changedElsewhere) {
       openChangedElsewhere();
       return;
     }
 
-    if (useInvoiceEditorStore.getState().totalsChanged) {
+    if (editorStore.getState().totalsChanged) {
       openTotalsConfirmation();
       return;
     }
 
     if (!beforeInvoiceId) {
-      const newInvoiceId = useInvoiceEditorStore.getState().invoiceId;
+      const newInvoiceId = editorStore.getState().invoiceId;
       if (newInvoiceId) {
         const target = protectedRoutes.invoiceEdit(newInvoiceId);
         if (typeof window !== 'undefined' && window.history?.replaceState) {
@@ -135,7 +136,7 @@ export function useEditorHeaderButtons() {
         }
       }
     }
-  }, [saveInvoice, invoiceId, router, openTotalsConfirmation, openChangedElsewhere]);
+  }, [saveInvoice, invoiceId, router, openTotalsConfirmation, openChangedElsewhere, editorStore]);
 
   // F-03: a flat, client-side re-run of the schema used to short-circuit Save here and open a
   // dialog listing every message, so the server's fieldErrors path (SCR-03 "validation": a
@@ -146,8 +147,8 @@ export function useEditorHeaderButtons() {
     await performSave();
     // A VALIDATION/CONFLICT failure (fieldErrors) or a pending TOTALS_CHANGED confirmation both
     // leave hasUnsavedChanges true — the caller (e.g. handleExit) must not treat those as saved.
-    return !useInvoiceEditorStore.getState().hasUnsavedChanges;
-  }, [performSave]);
+    return !editorStore.getState().hasUnsavedChanges;
+  }, [performSave, editorStore]);
 
   // invoice-integrity T16 (SCR-02): Save and issue on a saved draft — the same save, sent as PENDING.
   const handleSaveAndIssue = useCallback(async () => {

@@ -14,7 +14,10 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: vi.fn(),
 }));
 
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store/use-invoice-editor-store');
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 
 const item: InvoiceFormItem = {
   id: 'i1',
@@ -28,7 +31,7 @@ const item: InvoiceFormItem = {
 };
 
 const setCurrency = (currency: 'USD' | 'UAH') =>
-  useInvoiceEditorStore.setState((s) => ({
+  store.setState((s) => ({
     formData: { ...s.formData, currency },
     invoiceCurrency: currency,
     subtotal: 1234.5,
@@ -38,7 +41,7 @@ const setCurrency = (currency: 'USD' | 'UAH') =>
 
 describe('editor money display (AC-09)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
   });
 
   it.each([
@@ -46,7 +49,7 @@ describe('editor money display (AC-09)', () => {
     ['UAH', 'UAH 1,234.50'],
   ] as const)('summary totals in %s read %s', (currency, expected) => {
     setCurrency(currency);
-    render(<SummarySection />);
+    render(<SummarySection />, { wrapper: withEditorStore(store) });
     expect(screen.getAllByText(expected).length).toBeGreaterThanOrEqual(2);
   });
 
@@ -64,6 +67,7 @@ describe('editor money display (AC-09)', () => {
           isPriceDisabled={false}
           layout={layout}
         />,
+        { wrapper: withEditorStore(store) },
       );
       expect(screen.getByText(expected)).toBeInTheDocument();
       unmount();

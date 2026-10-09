@@ -92,9 +92,8 @@ const { CustomerModalContainer } = await import(
   '@/components/modals/customer/customer-modal-container'
 );
 const { handleBankAccountSubmit } = await import('@/lib/helpers/bank-account-modal-helpers');
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
 const { useModalStore } = await import('@/store/use-modal-store');
 
 const assignMock = vi.fn();
@@ -273,13 +272,13 @@ describe('CustomPriceModal (R-02, R-03)', () => {
 
 describe('invoice editor save (R-03)', () => {
   it('a rejected save routes to sign-in instead of "Error saving invoice"', async () => {
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.setState({ invoiceId: 'inv-1' });
+    const store = createInvoiceEditorStore(emptyEditorData());
+    store.setState({ invoiceId: 'inv-1' });
     updateInvoiceMock.mockRejectedValue(new Error('boom'));
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
     expect(toastError).not.toHaveBeenCalled();
-    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+    expect(store.getState().isSaving).toBe(false);
   });
 });
 
@@ -386,23 +385,24 @@ describe('ProductForm currency-change confirm (R-03)', () => {
 
 describe('selectSenderProfile number lookup (R-03)', () => {
   function seedTwoProfiles() {
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.setState({
-      formData: { ...useInvoiceEditorStore.getState().formData, senderProfileId: 'sp-0' },
+    const store = createInvoiceEditorStore(emptyEditorData());
+    store.setState({
+      formData: { ...store.getState().formData, senderProfileId: 'sp-0' },
     });
+    return store;
   }
 
   it('a rejected generateInvoiceNumber routes to sign-in without an unhandled rejection', async () => {
-    seedTwoProfiles();
+    const store = seedTwoProfiles();
     generateNumberMock.mockRejectedValue(new Error('boom'));
-    await useInvoiceEditorStore.getState().selectSenderProfile('sp-1');
+    await store.getState().selectSenderProfile('sp-1');
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
   });
 
   it('an UNAUTHORIZED generateInvoiceNumber routes to sign-in', async () => {
-    seedTwoProfiles();
+    const store = seedTwoProfiles();
     generateNumberMock.mockResolvedValue(unauthorized());
-    await useInvoiceEditorStore.getState().selectSenderProfile('sp-1');
+    await store.getState().selectSenderProfile('sp-1');
     expect(assignMock).toHaveBeenCalledWith(SIGN_IN);
   });
 });

@@ -9,7 +9,8 @@ export type {
 
 // Store and selectors
 export {
-  useInvoiceEditorStore,
+  useInvoiceEditor,
+  useInvoiceEditorStoreApi,
   // Selectors
   useFormData,
   useInvoiceNumber,
@@ -43,5 +44,5 @@ export {
   useChangedElsewhere,
   useIsStale,
   useReloadFailed,
-} from './use-invoice-editor-store';
+} from './selectors';
 export { usePdfParties } from './pdf-parties';

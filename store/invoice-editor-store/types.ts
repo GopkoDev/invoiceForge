@@ -142,7 +142,6 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   markStale: () => void;
   /** Re-fetches the editor data and re-initialises from the current invoice (SCR-05 Reload). */
   reloadInvoice: () => Promise<'reloaded' | 'not-found' | 'failed'>;
-  reset: () => void;
 }
 
 export interface EntityMaps {

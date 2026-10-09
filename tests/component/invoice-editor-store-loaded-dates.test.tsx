@@ -36,7 +36,9 @@ vi.mock('@/lib/helpers/client-session-redirect', async (orig) => {
   };
 });
 
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store/use-invoice-editor-store');
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+let store: ReturnType<typeof createInvoiceEditorStore>;
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
 
 const LEGACY_ISSUE = '2026-09-30T21:00:00.000Z';
 const LEGACY_DUE = '2026-10-14T21:00:00.000Z';
@@ -85,7 +87,7 @@ const base = { senderProfiles: [], bankAccounts: [], customers: [], products: []
 
 describe('invoice editor store - loaded dates (T44)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyData);
     createInvoiceMock.mockReset();
     updateInvoiceMock.mockReset();
     generateInvoiceNumberMock.mockReset();
@@ -95,9 +97,9 @@ describe('invoice editor store - loaded dates (T44)', () => {
 
   it('an update sends the stored instants the editor was built from next to the submitted days', async () => {
     updateInvoiceMock.mockResolvedValue(ok(saved()));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
 
     const [id, payload] = updateInvoiceMock.mock.calls[0];
     expect(id).toBe('inv-1');
@@ -111,9 +113,9 @@ describe('invoice editor store - loaded dates (T44)', () => {
 
   it('a new invoice sends no loaded dates', async () => {
     createInvoiceMock.mockResolvedValue(ok(saved()));
-    useInvoiceEditorStore.getState().initialize({ ...base });
+    store = createInvoiceEditorStore({ ...base });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
 
     const [payload] = createInvoiceMock.mock.calls[0];
     expect(payload).not.toHaveProperty('loadedIssueDate');
@@ -122,14 +124,14 @@ describe('invoice editor store - loaded dates (T44)', () => {
 
   it('after a save the form shows the stored days and the next save sends the stored instants, not the first snapshot', async () => {
     updateInvoiceMock.mockResolvedValue(ok(saved()));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
-    const after = useInvoiceEditorStore.getState();
+    await store.getState().saveInvoice();
+    const after = store.getState();
     expect(after.formData.dueDate.getDate()).toBe(15);
     expect(after.formData.issueDate.getDate()).toBe(1);
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
     const [, second] = updateInvoiceMock.mock.calls[1];
     expect(second).toMatchObject({
       issueDate: '2026-10-01',
@@ -142,14 +144,14 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('a date picked while the save is in flight survives the response and keeps the form dirty', async () => {
     let resolve!: (value: unknown) => void;
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().updateField('dueDate', new Date(2026, 9, 20));
+    const saving = store.getState().saveInvoice();
+    store.getState().updateField('dueDate', new Date(2026, 9, 20));
     resolve(ok(saved()));
     await saving;
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.dueDate.getDate()).toBe(20);
     // The untouched issue date still takes the stored day.
     expect(after.formData.issueDate.getDate()).toBe(1);
@@ -159,15 +161,15 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('an invoice number or status changed while the save is in flight survives the response and keeps the form dirty (K-02)', async () => {
     let resolve!: (value: unknown) => void;
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().updateField('invoiceNumber', 'INV-0042');
-    useInvoiceEditorStore.getState().updateField('status', 'PAID');
+    const saving = store.getState().saveInvoice();
+    store.getState().updateField('invoiceNumber', 'INV-0042');
+    store.getState().updateField('status', 'PAID');
     resolve(ok(saved({ invoiceNumber: 'INV-0001', status: 'PENDING' })));
     await saving;
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.invoiceNumber).toBe('INV-0042');
     expect(after.formData.status).toBe('PAID');
     expect(after.hasUnsavedChanges).toBe(true);
@@ -176,15 +178,15 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('a save that resolves after reset() and initialize() writes nothing into the new session (K-01)', async () => {
     let resolve!: (value: unknown) => void;
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().initialize({ ...base });
+    const saving = store.getState().saveInvoice();
+    store.getState().initialize(emptyData);
+    store.getState().initialize({ ...base });
     resolve(ok(saved({ id: 'inv-A', invoiceNumber: 'INV-A' })));
     await saving;
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.invoiceId).toBeUndefined();
     expect(after.formData.invoiceNumber).toBe('');
     expect(after.loadedDates).toBeNull();
@@ -193,31 +195,31 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('a failure that arrives after reset() shows no field errors in the new session (K-01)', async () => {
     let resolve!: (value: unknown) => void;
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().initialize({ ...base });
+    const saving = store.getState().saveInvoice();
+    store.getState().initialize(emptyData);
+    store.getState().initialize({ ...base });
     resolve({ success: false, code: 'VALIDATION', error: 'bad', fieldErrors: { invoiceNumber: ['taken'] } });
     await saving;
 
-    expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
+    expect(store.getState().fieldErrors).toBeUndefined();
   });
 
   it('a failure that arrives after reset() still toasts, without Retry and without writing state (M-02)', async () => {
     let resolve!: (value: unknown) => void;
     updateInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().initialize({ ...base });
+    const saving = store.getState().saveInvoice();
+    store.getState().initialize(emptyData);
+    store.getState().initialize({ ...base });
     resolve({ success: false, code: 'FAILED', error: 'db down' });
     await saving;
 
     expect(toastErrorMock).toHaveBeenCalledTimes(1);
     expect(toastErrorMock).toHaveBeenCalledWith('db down');
-    expect(useInvoiceEditorStore.getState().fieldErrors).toBeUndefined();
+    expect(store.getState().fieldErrors).toBeUndefined();
   });
 
   it('a save of A resolving after reset()/initialize()/save of B leaves isSaving true (M-03)', async () => {
@@ -226,34 +228,34 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock
       .mockReturnValueOnce(new Promise((r) => (resolveA = r)))
       .mockReturnValueOnce(new Promise((r) => (resolveB = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    const savingA = useInvoiceEditorStore.getState().saveInvoice();
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-2' });
-    const savingB = useInvoiceEditorStore.getState().saveInvoice();
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    const savingA = store.getState().saveInvoice();
+    store.getState().initialize(emptyData);
+    store.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-2' });
+    const savingB = store.getState().saveInvoice();
 
     resolveA(ok(saved({ id: 'inv-1' })));
     await savingA;
-    expect(useInvoiceEditorStore.getState().isSaving).toBe(true);
+    expect(store.getState().isSaving).toBe(true);
 
     resolveB(ok(saved({ id: 'inv-2' })));
     await savingB;
-    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+    expect(store.getState().isSaving).toBe(false);
   });
 
   it('an empty number stays empty when the sender profile was switched while the save was in flight (L-02)', async () => {
     let resolve!: (value: unknown) => void;
     createInvoiceMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: { ...initialData(), invoiceNumber: '' } });
+    store = createInvoiceEditorStore({ ...base, initialData: { ...initialData(), invoiceNumber: '' } });
 
     generateInvoiceNumberMock.mockResolvedValue(ok('B-0001'));
 
-    const saving = useInvoiceEditorStore.getState().saveInvoice();
-    await useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
+    const saving = store.getState().saveInvoice();
+    await store.getState().selectSenderProfile('profile-b');
     resolve(ok(saved({ invoiceNumber: 'A-0005' })));
     await saving;
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.senderProfileId).toBe('profile-b');
     expect(after.formData.invoiceNumber).toBe('');
     expect(after.invoiceNumberHint).toBe('B-0001');
@@ -263,19 +265,19 @@ describe('invoice editor store - loaded dates (T44)', () => {
   it('a sender hint that resolves after reset() is not written (M-04a)', async () => {
     let resolve!: (value: unknown) => void;
     generateInvoiceNumberMock.mockReturnValue(new Promise((r) => (resolve = r)));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData() });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData() });
 
-    const selecting = useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
-    useInvoiceEditorStore.getState().reset();
+    const selecting = store.getState().selectSenderProfile('profile-b');
+    store.getState().initialize(emptyData);
     // N-01: a new session whose sender is the same one the stale pick chose.
-    useInvoiceEditorStore.getState().initialize({
+    store.getState().initialize({
       ...base,
       initialData: { ...initialData(), senderProfileId: 'profile-b', invoiceNumber: '' },
     });
     resolve(ok('B-0001'));
     await selecting;
 
-    expect(useInvoiceEditorStore.getState().invoiceNumberHint).toBeUndefined();
+    expect(store.getState().invoiceNumberHint).toBeUndefined();
   });
 
   it("an earlier sender's hint that resolves after a later pick is not written (M-04a)", async () => {
@@ -283,36 +285,36 @@ describe('invoice editor store - loaded dates (T44)', () => {
     generateInvoiceNumberMock
       .mockReturnValueOnce(new Promise((r) => (resolveB = r)))
       .mockResolvedValueOnce(ok('C-0001'));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData() });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData() });
 
-    const pickingB = useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
-    await useInvoiceEditorStore.getState().selectSenderProfile('profile-c');
+    const pickingB = store.getState().selectSenderProfile('profile-b');
+    await store.getState().selectSenderProfile('profile-c');
     resolveB(ok('B-0001'));
     await pickingB;
 
-    expect(useInvoiceEditorStore.getState().formData.senderProfileId).toBe('profile-c');
-    expect(useInvoiceEditorStore.getState().invoiceNumberHint).toBe('C-0001');
+    expect(store.getState().formData.senderProfileId).toBe('profile-c');
+    expect(store.getState().invoiceNumberHint).toBe('C-0001');
   });
 
   it('the Retry action of a stale session does nothing (M-04b)', async () => {
     updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await useInvoiceEditorStore.getState().saveInvoice();
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await store.getState().saveInvoice();
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().initialize({ ...base });
+    store.getState().initialize(emptyData);
+    store.getState().initialize({ ...base });
     retry();
 
     expect(updateInvoiceMock).toHaveBeenCalledTimes(1);
     expect(createInvoiceMock).not.toHaveBeenCalled();
-    expect(useInvoiceEditorStore.getState().isSaving).toBe(false);
+    expect(store.getState().isSaving).toBe(false);
   });
 
   it('the Retry action of a live session saves again (N-03)', async () => {
     updateInvoiceMock.mockResolvedValue({ success: false, code: 'FAILED', error: 'db down' });
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await useInvoiceEditorStore.getState().saveInvoice();
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await store.getState().saveInvoice();
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
     retry();
@@ -324,12 +326,12 @@ describe('invoice editor store - loaded dates (T44)', () => {
     updateInvoiceMock
       .mockResolvedValueOnce({ success: false, code: 'FAILED', error: 'db down' })
       .mockReturnValueOnce(new Promise(() => {}));
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
-    await useInvoiceEditorStore.getState().saveInvoice();
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    await store.getState().saveInvoice();
     const retry = toastErrorMock.mock.calls[0][1].action.onClick as () => void;
 
-    void useInvoiceEditorStore.getState().saveInvoice();
-    expect(useInvoiceEditorStore.getState().isSaving).toBe(true);
+    void store.getState().saveInvoice();
+    expect(store.getState().isSaving).toBe(true);
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
 
     retry();
@@ -348,10 +350,10 @@ describe('invoice editor store - loaded dates (T44)', () => {
       let res!: (v: unknown) => void;
       let rej!: (e: unknown) => void;
       updateInvoiceMock.mockReturnValue(new Promise((a, b) => ((res = a), (rej = b))));
-      useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+      store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-      const saving = useInvoiceEditorStore.getState().saveInvoice();
-      useInvoiceEditorStore.getState().reset();
+      const saving = store.getState().saveInvoice();
+      store.getState().initialize(emptyData);
       settle(res, rej);
       await saving;
 
@@ -360,10 +362,10 @@ describe('invoice editor store - loaded dates (T44)', () => {
   });
 
   it('reset forgets the loaded dates', () => {
-    useInvoiceEditorStore.getState().initialize({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 
-    useInvoiceEditorStore.getState().reset();
+    store.getState().initialize(emptyData);
 
-    expect(useInvoiceEditorStore.getState().loadedDates).toBeNull();
+    expect(store.getState().loadedDates).toBeNull();
   });
 });

@@ -25,12 +25,12 @@ vi.mock('sonner', () => ({
   },
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+let store: ReturnType<typeof createInvoiceEditorStore>;
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [] };
 
 function resetStore() {
-  useInvoiceEditorStore.getState().reset();
+  store = createInvoiceEditorStore(emptyData);
 }
 
 const senderProfileA = {
@@ -78,7 +78,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
     // reselect, the assertion below fails cleanly on the call count instead of crashing on an
     // unresolved mock return.
     generateInvoiceNumberMock.mockResolvedValue(ok('SHOULD-NOT-BE-FETCHED'));
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
@@ -106,10 +106,10 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       },
     });
 
-    await useInvoiceEditorStore.getState().selectSenderProfile('profile-a');
+    await store.getState().selectSenderProfile('profile-a');
 
     expect(generateInvoiceNumberMock).not.toHaveBeenCalled();
-    expect(useInvoiceEditorStore.getState().formData.invoiceNumber).toBe('A-0007');
+    expect(store.getState().formData.invoiceNumber).toBe('A-0007');
   });
 
   // F-46 (AC-17): the legacy shared-number Alert is computed from the invoice as it was
@@ -130,7 +130,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
@@ -140,12 +140,12 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       invoiceId: 'legacy-invoice',
       legacy: { storedTotal: '100.00', recomputedTotal: '100.00', sharedNumber: true },
     });
-    expect(useInvoiceEditorStore.getState().legacy?.sharedNumber).toBe(true);
+    expect(store.getState().legacy?.sharedNumber).toBe(true);
 
     state.updateFields({ senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
 
-    expect(useInvoiceEditorStore.getState().legacy).toBeNull();
+    expect(store.getState().legacy).toBeNull();
   });
 
   // F-41 (AC-14/AC-15): a field error that has no field to render next to (e.g. an id field the
@@ -158,7 +158,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
@@ -167,7 +167,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       customPrices: [],
     });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
 
     expect(toastError).toHaveBeenCalledWith(
       expect.stringContaining('Sender profile is required')
@@ -183,7 +183,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
       fail('CONFLICT', message, { fieldErrors: { invoiceNumber: [message] } })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
@@ -193,7 +193,7 @@ describe('invoice editor store — T40 findings F-41/F-42/F-46', () => {
     });
     state.updateFields({ invoiceNumber: 'INV-0001' });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().saveInvoice();
 
     expect(toastError).not.toHaveBeenCalled();
   });

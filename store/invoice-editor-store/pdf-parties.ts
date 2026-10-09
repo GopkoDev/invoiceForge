@@ -13,7 +13,7 @@ import {
   useSelectedBankAccount,
   useSelectedCustomer,
   useSelectedSenderProfile,
-} from './use-invoice-editor-store';
+} from './selectors';
 
 export interface PdfParties {
   senderProfile: InvoiceSenderProfile | undefined;

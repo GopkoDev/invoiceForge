@@ -28,9 +28,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 const { useModalStore } = await import('@/store/use-modal-store');
 const { useEditorHeaderButtons } = await import('@/hooks/use-editor-header-buttons');
 
@@ -64,7 +65,7 @@ const bankAccount: InvoiceBankAccount = {
 
 describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-14/AC-15)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
     useModalStore.getState().resetAllModals();
     updateInvoiceMock.mockReset();
     createInvoiceMock.mockReset();
@@ -78,14 +79,14 @@ describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-1
       })
     );
 
-    const state = useInvoiceEditorStore.getState();
-    state.initialize({
+    store = createInvoiceEditorStore({
       senderProfiles: [senderProfile],
       bankAccounts: [bankAccount],
       customers: [],
       products: [],
       customPrices: [],
     });
+    const state = store.getState();
     state.updateFields({
       senderProfileId: 'profile-a',
       bankAccountId: 'bank-a',
@@ -104,7 +105,7 @@ describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-1
       ],
     });
 
-    const { result } = renderHook(() => useEditorHeaderButtons());
+    const { result } = renderHook(() => useEditorHeaderButtons(), { wrapper: withEditorStore(store) });
 
     // Fired without awaiting completion: today's buggy handleSave opens a modal and its returned
     // promise only resolves once that dialog is closed by a user click, which this test never
@@ -118,7 +119,7 @@ describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-1
     });
 
     expect(createInvoiceMock).toHaveBeenCalledTimes(1);
-    expect(useInvoiceEditorStore.getState().fieldErrors).toEqual({
+    expect(store.getState().fieldErrors).toEqual({
       'items.0.price': ["Price can't be negative."],
     });
     expect(useModalStore.getState().modals.validationErrorDialog?.open).toBeFalsy();

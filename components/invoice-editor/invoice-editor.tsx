@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { InvoiceEditorData } from '@/types/invoice/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoiceEditorHeader } from './invoice-editor-header';
 import { PDFPreviewPanel } from './pdf-preview-panel';
@@ -18,7 +17,6 @@ import type { InvoiceDocumentSource } from '@/lib/invoice-document';
 import {
   useFormData,
   useEditorMode,
-  useInvoiceEditorActions,
   useLegacy,
   usePdfParties,
   useIsStale,
@@ -32,11 +30,7 @@ import {
 const LEGACY_SHARED_NUMBER_MESSAGE =
   'This invoice number is also used by another invoice. Change it to a free one to save.';
 
-interface InvoiceEditorProps {
-  data: InvoiceEditorData;
-}
-
-export function InvoiceEditor({ data }: InvoiceEditorProps) {
+export function InvoiceEditor() {
   // The preview renders the form as it stands, every line included (invoice-integrity AC-15);
   // once issued, its parties are the issued details (SCR-03 decision 4).
   const pdfFormData = useFormData();
@@ -66,17 +60,6 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
       setReloading(false);
     }
   };
-
-  const { initialize, reset } = useInvoiceEditorActions();
-
-  useEffect(() => {
-    initialize(data);
-
-    return () => {
-      reset();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="bg-background flex h-screen flex-col">

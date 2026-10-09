@@ -12,7 +12,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InvoiceEditor } from '@/components/invoice-editor/invoice-editor';
 import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
-import type { InvoiceEditorData } from '@/types/invoice/types';
 
 vi.mock('@/components/invoice-editor/invoice-editor-header', () => ({
   InvoiceEditorHeader: () => null,
@@ -64,14 +63,6 @@ vi.mock('@/store/use-modal-store', () => ({
   }),
 }));
 
-const data: InvoiceEditorData = {
-  senderProfiles: [],
-  bankAccounts: [],
-  customers: [],
-  products: [],
-  customPrices: [],
-};
-
 // editor-ux T5 (AC-16): the dialog is mounted by InvoiceEditorModalContainer, not InvoiceEditor.
 describe('ConfirmationModal mounting + onClose wiring (T40 F-47, editor-ux T5 AC-16)', () => {
   it('InvoiceEditorModalContainer renders the confirmation dialog', async () => {
@@ -91,7 +82,7 @@ describe('ConfirmationModal mounting + onClose wiring (T40 F-47, editor-ux T5 AC
   });
 
   it('InvoiceEditor itself no longer renders the confirmation dialog', async () => {
-    render(<InvoiceEditor data={data} />);
+    render(<InvoiceEditor />);
     // allow the lazy dynamic() import to resolve if it were still mounted
     await new Promise((r) => setTimeout(r, 200));
 

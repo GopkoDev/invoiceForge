@@ -3,7 +3,7 @@
 // currency from the chosen bank account; a catalogue line in another currency is refused on its line,
 // and a legacy draft stored with mismatching currencies is refused on the bank account field.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -49,7 +49,8 @@ Element.prototype.getAnimations = () => [];
 Element.prototype.scrollIntoView = () => {};
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
+const { renderWithEditorStore } = await import('../support/render-with-editor-store');
+let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 function data(bankAccountId: string, currency: 'EUR' | 'USD'): InvoiceEditorData {
   const initialData: InvoiceFormData = {
@@ -102,7 +103,6 @@ async function save(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   for (const m of [updateInvoiceMock, createInvoiceMock, toastError]) m.mockReset();
-  useInvoiceEditorStore.getState().reset();
 });
 
 describe('InvoiceEditor account-driven currency (T24)', () => {
@@ -115,14 +115,14 @@ describe('InvoiceEditor account-driven currency (T24)', () => {
       fieldErrors: { 'items.0.productId': [lineMessage] },
     });
     const user = userEvent.setup();
-    render(<InvoiceEditor data={data('ba-eur', 'EUR')} />);
+    store = renderWithEditorStore(<InvoiceEditor />, { initial: data('ba-eur', 'EUR') }).store;
     expect(currencyInput().value).toBe('EUR');
 
     await user.click(screen.getByText('Euro Bank (EUR)'));
     await user.click(await screen.findByText('Dollar Bank (USD)', { selector: 'span' }));
 
     expect(currencyInput().value).toBe('USD');
-    expect(useInvoiceEditorStore.getState().formData.currency).toBe('USD');
+    expect(store.getState().formData.currency).toBe('USD');
 
     await save(user);
 
@@ -141,9 +141,9 @@ describe('InvoiceEditor account-driven currency (T24)', () => {
       fieldErrors: { bankAccountId: [accountMessage] },
     });
     const user = userEvent.setup();
-    render(<InvoiceEditor data={data('ba-usd', 'EUR')} />);
+    store = renderWithEditorStore(<InvoiceEditor />, { initial: data('ba-usd', 'EUR') }).store;
     // Loaded as stored: the editor does not silently rewrite the legacy currency.
-    expect(useInvoiceEditorStore.getState().formData.currency).toBe('EUR');
+    expect(store.getState().formData.currency).toBe('EUR');
     expect(screen.getByText('Dollar Bank (USD)')).toBeInTheDocument();
 
     // Save is only live once something changed; edit a neutral field, not the account or currency.
