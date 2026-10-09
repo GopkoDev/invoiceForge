@@ -133,50 +133,74 @@ Each tactical decision in later sections should trace to one of these seeds. Tac
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
-
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+The feature keeps the repo's layering — RSC pages and the proxy at the edge, server actions over the `lib/services` business layer, Prisma/PostgreSQL underneath — and changes none of the server layers. All its building blocks live in the browser-facing part of the web app and in pure modules both sides import. Three small shared modules are added under `lib/` (the lazy PDF entry, the document model, the format module), the editor store becomes a factory with a provider, and the editor's dialogs move into its existing modal container. Pure modules stay framework-free so the server render, the browser and vitest run the same code (the pattern of architecture-hardening ADR-0006).
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+lib/
+├── format/                      NEW  formatMoney, formatDay, formatMoment — fixed en-US (ADR-0006)
+├── invoice-document/            NEW  buildInvoiceDocument(source) + the document's wording (ADR-0002)
+├── pdf/                         NEW  the only importer of @react-pdf/renderer (ADR-0001)
+│   ├── invoice-pdf-kit.tsx           lazy entry: react-pdf document + generate / download / print
+│   └── load-pdf-kit.ts               cached import() + failure classification (offline / new version)
+└── helpers/
+    ├── invoice-calculations.ts       unchanged — totals rule shared with the services (arch-hardening ADR-0006)
+    ├── calendar-day.ts               unchanged — calendar-day storage rules (mcp-server ADR-0009)
+    └── invoice-pdf-helpers.tsx       REMOVED — moved into lib/pdf/
+hooks/
+├── use-pdf-action.ts            NEW  preparing / try again / reload states for every PDF trigger
+├── use-invoice-pdf.tsx               rewritten over use-pdf-action
+└── use-editor-header-buttons.tsx     thinned — calls the store's save command (ADR-0005)
+store/invoice-editor-store/
+├── create-invoice-editor-store.ts    the old module-level store, as a factory (ADR-0003)
+├── invoice-editor-provider.tsx  NEW  creates the store once per mount, keyed by Freelancer + invoice
+├── save-command.ts              NEW  save(intent): revision tag + every outcome (ADR-0005)
+└── selectors.ts                      useFormData, useSummary, … read the store from context
+components/
+├── invoice-editor/                   one DOM tree for both layouts (ADR-0004); HTML preview over the document model
+├── invoices/ , dashboard/ , modals/  PDF triggers call use-pdf-action; dates and money via lib/format
+├── modals/invoice-editor/            invoice-editor-modal-container hosts every editor dialog, the save confirmation included
+├── session-restore-guard.tsx    NEW  pageshow guard in the signed-in layouts (ADR-0007)
+├── theme-toggle.tsx                  the one theme switcher (replaces both teheme-toggle copies)
+└── ui/                               15 unused primitives + toggle removed
+proxy.ts                              adds Cache-Control: private, no-store on signed-in pages (ADR-0007)
+app/(invoice-editor)/invoices/new     passes today and the due date in the Freelancer time zone
+scripts/check-pdf-chunks.ts      NEW  CI build-output check: no toolkit in non-editor routes' initial chunks
+tests/e2e/                            + accessibility checks (@axe-core/playwright, test-only)
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title editor-ux - Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer", "Edits, saves and prints invoices")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "Invoice Forge") {
+        Container(web, "Web app in the browser", "React 19 client components, zustand", "Dashboard, lists, editor with a per-mount store, document model, format module, on-demand PDF")
+        Container(pdfkit, "PDF toolkit chunk", "@react-pdf/renderer, lazy JS chunk", "Fetched from the app origin on the first Download, Print or preview of a visit")
+        Container(rsc, "Server rendering and proxy", "Next.js 16 RSC pages, proxy.ts", "Renders pages with the invoice and today's date, sets no-store on signed-in pages")
+        Container(actions, "Server actions and business layer", "Next.js server actions, lib/services", "Unchanged: createInvoice, updateInvoice and their refusals")
+        ContainerDb(db, "PostgreSQL", "Prisma 7", "Unchanged: invoices, users with their time zone")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    System_Ext(sentry, "Sentry", "Error tracking")
+    System_Ext(speed, "Vercel Speed Insights", "Real-user web vitals")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, rsc, "Opens pages", "HTTPS")
+    Rel(rsc, web, "Sends HTML and initial data, then hydrates")
+    Rel(freelancer, web, "Edits, saves, retries, downloads", "browser")
+    Rel(web, pdfkit, "Imports on demand", "dynamic import, same origin")
+    Rel(web, actions, "Saves invoices", "server action")
+    Rel(rsc, actions, "Loads editor and list data")
+    Rel(actions, db, "Reads and writes", "Prisma")
+    Rel(web, sentry, "Reports PDF failures and render mismatches", "HTTPS")
+    Rel(web, speed, "Reports layout shift", "HTTPS")
 ```
+
+The web app in the browser is the feature's one surface (`web-frontend`). The PDF toolkit chunk is drawn apart because it now ships separately and is fetched only on demand. Server rendering, server actions and the database are existing containers, shown because the editor's first display and its saves cross them; their contracts do not change.
 
 ## 6. Runtime view
 
