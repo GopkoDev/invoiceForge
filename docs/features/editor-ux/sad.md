@@ -328,29 +328,24 @@ ADR files live under `docs/features/editor-ux/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each top-3 goal from §1 expanded into scenarios. Targets are quoted from spec §6 NFR.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Editor truthfulness** (ADR-0003, ADR-0005)
+- **When:** a line is changed while a Save or Save and issue is running, in each of 50 runs, and every Save and Save-and-issue outcome (created, updated, issued, changed elsewhere, totals changed, field error) is also reached through Retry.
+- **Then:** 0 changes lost or marked saved by mistake across 50 runs of an edit raced against a save; 100 % of sampled moments show subtotal, tax and total equal to the lines on screen, across the 50 race runs; 100 % of Save and Save-and-issue outcomes produce the same address, dialog and saved state when reached through Retry.
+- **How verify:** vitest tests on the store's save command with a controllable fake server action (resolve after an injected edit; sample totals after every state change against `computeInvoiceAmounts` of the visible lines), plus one Playwright e2e per outcome that reaches it once by Save and once by Retry and compares address, dialog and unsaved flag.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2. Document consistency** (ADR-0002, ADR-0006)
+- **When:** the invoices list, dashboard, related invoices and editor are rendered with the Freelancer time zone set to UTC−10, UTC and UTC+14 and the browser in a different zone, 5 minutes either side of midnight; and the preview and PDF are produced for the fixture set (draft, issued, USD, UAH, discount, tax, multiple lines).
+- **Then:** 0 render-mismatch warnings and 0 differing dates on the invoices list, dashboard, related invoices and editor; 100 % identical text between preview and PDF over the fixture set.
+- **How verify:** a Playwright matrix in CI (`timezoneId` per browser context, a fixed clock via `page.clock`, the account's time zone seeded per run) that fails on any hydration console error and compares each page's dates with the stored days; a vitest parity test that builds the document model per fixture, renders the PDF, extracts its text and compares it with the preview's rendered text.
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Page weight, stability and access** (ADR-0001, ADR-0004, ADR-0007)
+- **When:** a signed-in page other than the invoice editor loads; a Freelancer chooses Download or Print after page load; the editor, invoices list and dashboard are scanned; phone-width visitors use the editor after release.
+- **Then:** 0 bytes of the PDF toolkit in the code every signed-in page except the invoice editor loads before any interaction; ≤ 3 s p95 from choosing Download or Print to the file or print dialog, on a 10 Mbit/s connection; 0 serious or critical violations reported by an automated accessibility checker on the editor (new and existing invoice), the invoices list and the dashboard; cumulative layout shift ≤ 0.1 at p75 on the editor for phone-width visits.
+- **How verify:** `scripts/check-pdf-chunks.ts` against the per-page asset list after `next build` in CI; a Playwright test with network throttling to 10 Mbit/s, 20 runs, timing from the click to the download or print event; `@axe-core/playwright` on the four page states, failing on serious or critical; Vercel Speed Insights CLS for the editor at phone width, read 14 days after release.
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**No regressions (all goals).** 100 % of existing automated tests pass, including every `invoice-integrity` acceptance test — the CI run on every wave, plus the e2e suite before each wave ships. The AC-07 isolation is proven by a Playwright test in the Chromium and WebKit projects: A signs out, a Visitor goes Back, B signs in and goes Back and Forward, and no frame shows A's invoice number.
 
 ## 11. Risks and technical debt
 
