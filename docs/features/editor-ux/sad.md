@@ -204,31 +204,72 @@ The web app in the browser is the feature's one surface (`web-frontend`). The PD
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+Two seed flows, one per feature risk; the `sequences` stage adds the rest (every §5 AC, including first display, sign-out and Back, dates, screen-reader and phone flows). Participants are the §5 containers; the editor store and the save command live inside the web app in the browser.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: a Save with an edit made while it runs, and a Retry (ADR-0003, ADR-0005)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor Freelancer
+    participant Web as Web app in the browser
+    participant Store as Editor store save command
+    participant Actions as Server actions and business layer
+    participant DB as PostgreSQL
+    Freelancer->>Web: clicks Save
+    Web->>Store: save with intent save
+    Store->>Store: reads the form now and remembers revision r
+    Store->>Actions: saves the form with its version
+    Freelancer->>Web: changes a line's quantity
+    Web->>Store: edit, revision becomes r plus one
+    Actions->>DB: stores the invoice and its totals
+    DB-->>Actions: stored, new version
+    Actions-->>Store: saved invoice
+    alt revision is still r
+        Store-->>Web: stored totals, marked saved
+    else revision moved on
+        Store->>Store: keeps the form, recomputes totals from the lines on screen
+        Store-->>Web: save confirmed, still unsaved
+    end
+    Note over Freelancer,Store: a failed save offers Retry
+    Freelancer->>Web: chooses Retry
+    Web->>Store: save with the intent that failed
+    Store->>Actions: saves the form as it is now
+    Actions-->>Store: created, changed elsewhere, totals changed or saved
+    Store-->>Web: same address change, dialog or saved state as Save
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: a PDF on demand from a list (ADR-0001)**
+
+```mermaid
+sequenceDiagram
+    actor Freelancer
+    participant Web as Web app in the browser
+    participant Kit as PDF toolkit chunk
+    participant Sentry
+    Freelancer->>Web: chooses Download on an invoice row
+    Web-->>Freelancer: the PDF is being prepared
+    alt toolkit already loaded in this visit
+        Web->>Web: reuses the loaded toolkit
+    else first PDF of the visit
+        Web->>Kit: imports the toolkit from the app origin
+        alt fetched
+            Kit-->>Web: toolkit ready
+        else connection dropped
+            Kit-->>Web: fetch failed, origin unreachable
+            Web-->>Freelancer: could not prepare the PDF, try again
+        else app updated since the page opened
+            Kit-->>Web: chunk missing, origin reachable
+            Web-->>Freelancer: a newer version is available, reload
+        end
+    end
+    Web->>Web: builds the document model and generates the PDF
+    alt generated
+        Web-->>Freelancer: file downloaded
+    else generation failed
+        Web->>Sentry: reports the failure
+        Web-->>Freelancer: could not prepare the PDF, try again
+    end
+```
 
 ## 7. Deployment view
 
