@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { InvoiceEditorData } from '@/types/invoice/types';
 import type { InvoiceEditorInitData } from './types';
 import { createInvoiceEditorStore } from './create-invoice-editor-store';
@@ -19,5 +19,9 @@ export function InvoiceEditorProvider({
   children: ReactNode;
 }) {
   const [store] = useState(() => createInvoiceEditorStore(initial));
+  // Leaving the editor disposes its store, so a Retry or a create finishing later cannot act on
+  // another page. The cleanup is all there is to arm: dispose() only invalidates what started
+  // before it, so StrictMode's mount, cleanup, mount leaves the store working for new saves.
+  useEffect(() => () => store.getState().dispose(), [store]);
   return <InvoiceEditorStoreContext.Provider value={store}>{children}</InvoiceEditorStoreContext.Provider>;
 }

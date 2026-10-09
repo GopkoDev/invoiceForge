@@ -170,8 +170,6 @@ export const useInvoiceEditorActions = () =>
       deleteItem: state.deleteItem,
       duplicateItem: state.duplicateItem,
       reorderItems: state.reorderItems,
-      setIsSaving: state.setIsSaving,
-      markAsSaved: state.markAsSaved,
       save: state.save,
       dismissIssuedEditsDroppedNotice: state.dismissIssuedEditsDroppedNotice,
       clearTotalsChanged: state.clearTotalsChanged,

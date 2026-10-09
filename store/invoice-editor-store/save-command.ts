@@ -47,11 +47,13 @@ const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
 interface Api {
   get: () => InvoiceEditorState;
   set: (partial: Partial<InvoiceEditorState>) => void;
-  /** Changes on every initialize(); a result for an older session is dropped. */
+  /** Changes on every initialize() and dispose(); a result for an older session is dropped. */
   sessionToken: () => number;
+  /** The Retry failure message: shown with this id, so the store can dismiss it when disposed. */
+  failureToast: { id: string; shown: boolean };
 }
 
-export function createSaveCommand({ get, set, sessionToken }: Api) {
+export function createSaveCommand({ get, set, sessionToken, failureToast }: Api) {
   function handleSaveFailure(
     result: ActionFailure,
     intent: SaveIntent,
@@ -61,8 +63,8 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
     // signed-out state is global, so this runs before the session check.
     if (redirectIfUnauthorized(result)) return;
 
-    // A save that failed after the editor was reset still tells the user it was not stored, but
-    // writes no state and offers no Retry (the form it would resubmit is gone).
+    // A save that failed after the editor was re-initialized or left still tells the user it was not
+    // stored, but writes no state and offers no Retry (the form it would resubmit is gone).
     if (token !== sessionToken()) {
       toast.error(result.error || 'Error saving invoice.');
       return;
@@ -103,12 +105,13 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
     }
 
     if (result.code === 'FAILED') {
-      set({ lastFailedIntent: intent });
+      failureToast.shown = true;
       toast.error(result.error || 'Error saving invoice.', {
+        id: failureToast.id,
         action: {
           label: 'Retry',
           onClick: () => {
-            // A Retry clicked after a reset would save another invoice's form; one clicked while a
+            // A Retry clicked after the editor was re-initialized or left would save another form; one clicked while a
             // save is running would be a second save (a duplicate create). Retry repeats the intent
             // with the form as it is now; confirmed totals are not carried over (AC-05c/05d: a
             // changed total is asked about again, as Save does).
@@ -197,7 +200,6 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
       loadedVersion: saved.version,
       fieldErrors: undefined,
       totalsChanged: null,
-      lastFailedIntent: null,
       hasUnsavedChanges: untouched ? false : droppedByIssue ? allowedEdited : true,
       issuedEditsDroppedNotice:
         droppedByIssue && lockedEdited ? ISSUED_EDITS_DROPPED_NOTICE : state.issuedEditsDroppedNotice,
@@ -246,8 +248,13 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
         if (result.success) {
           applySavedInvoice(result.data, submitted, revision, token);
           // The invoice now has its own editing address: a reload opens it and the next save updates
-          // it. The native history API keeps Next's router in sync without remounting the page.
-          if (token === sessionToken() && typeof window !== 'undefined') {
+          // it. The native history API keeps Next's router in sync without remounting the page. Only
+          // while this editor is still the page shown: after leaving, the address is not ours.
+          if (
+            token === sessionToken() &&
+            typeof window !== 'undefined' &&
+            window.location.pathname === protectedRoutes.invoicesNew
+          ) {
             window.history.replaceState(null, '', protectedRoutes.invoiceEdit(result.data.id));
           }
           toast.success('Invoice created');
@@ -259,7 +266,8 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
       // architecture-hardening AC-21: a rejected save is treated like UNAUTHORIZED.
       goToSignIn();
     } finally {
-      // A reset or re-initialize already cleared isSaving for the session that owns the store now.
+      // A re-initialize already cleared isSaving for the session that owns the store now; a
+      // disposed store has no screen left to show it.
       if (token === sessionToken()) set({ isSaving: false });
     }
   }

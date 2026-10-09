@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
 type ToastOpts = { action?: { label: string; onClick: () => void } };
 const toastError = vi.fn<(m: string, o?: ToastOpts) => void>();
 vi.mock('sonner', () => ({
-  toast: { error: (m: string, o?: ToastOpts) => toastError(m, o), success: vi.fn() },
+  toast: { error: (m: string, o?: ToastOpts) => toastError(m, o), success: vi.fn(), dismiss: vi.fn() },
 }));
 
 const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');

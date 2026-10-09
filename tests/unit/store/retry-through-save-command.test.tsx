@@ -16,16 +16,23 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: (...args: unknown[]) => updateInvoiceMock(...args),
 }));
 
-type ToastOpts = { action?: { label: string; onClick: () => void } };
+type ToastOpts = { id?: string | number; action?: { label: string; onClick: () => void } };
 const toastError = vi.fn<(msg: string, opts?: ToastOpts) => void>();
+const toastDismiss = vi.fn<(id?: string | number) => void>();
 vi.mock('sonner', () => ({
-  toast: { error: (m: string, o?: ToastOpts) => toastError(m, o), success: vi.fn() },
+  toast: {
+    error: (m: string, o?: ToastOpts) => toastError(m, o),
+    success: vi.fn(),
+    dismiss: (id?: string | number) => toastDismiss(id),
+  },
 }));
 
 const { createInvoiceEditorStore } = await import(
   '@/store/invoice-editor-store/create-invoice-editor-store'
 );
-const { emptyEditorData } = await import('../../support/render-with-editor-store');
+const { emptyEditorData, renderWithEditorStore } = await import(
+  '../../support/render-with-editor-store'
+);
 
 type Store = ReturnType<typeof createInvoiceEditorStore>;
 type Cmd = { save: (i: 'save' | 'save-and-issue') => Promise<void> };
@@ -60,15 +67,18 @@ const FAILED = () => fail('FAILED', 'Could not reach the server.');
 function newStore(): Store {
   return createInvoiceEditorStore(emptyEditorData());
 }
+function existingData(): InvoiceEditorData {
+  return { ...emptyEditorData(), invoiceId: 'inv-1', version: 3 } as InvoiceEditorData;
+}
 function existingStore(): Store {
-  const base = emptyEditorData();
-  return createInvoiceEditorStore({ ...base, invoiceId: 'inv-1', version: 3 } as InvoiceEditorData);
+  return createInvoiceEditorStore(existingData());
 }
 
 beforeEach(() => {
   createInvoiceMock.mockReset();
   updateInvoiceMock.mockReset();
   toastError.mockReset();
+  toastDismiss.mockReset();
   window.history.replaceState(null, '', '/invoices/new');
 });
 
@@ -191,15 +201,16 @@ describe('Retry reaches the same outcome as Save (AC-05d)', () => {
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
   });
 
-  it('Retry after the editor moved to another invoice sends nothing', async () => {
-    const store = existingStore();
+  it('Retry after the editor was left (provider unmounted) sends nothing', async () => {
+    const { store, unmount } = renderWithEditorStore(<div />, { initial: existingData() });
     updateInvoiceMock.mockResolvedValueOnce(FAILED());
     await save(store);
-    store.getState().initialize({ ...emptyEditorData(), invoiceId: 'inv-2', version: 1 } as never);
+    expect(updateInvoiceMock).toHaveBeenCalledTimes(1);
+    unmount();
     pressRetry();
     expect(updateInvoiceMock).toHaveBeenCalledTimes(1);
+    expect(createInvoiceMock).not.toHaveBeenCalled();
   });
-
   it('pressing Retry twice quickly sends one retried save', async () => {
     const store = existingStore();
     updateInvoiceMock.mockResolvedValueOnce(FAILED());
@@ -208,5 +219,50 @@ describe('Retry reaches the same outcome as Save (AC-05d)', () => {
     pressRetry();
     pressRetry();
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Leaving the editor disposes its store (review D1/S6; AC-05c, AC-05d, AC-07)', () => {
+  it('a create that resolves after the editor was left does not change the browser address', async () => {
+    const { store, unmount } = renderWithEditorStore(<div />);
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    let release!: (v: unknown) => void;
+    createInvoiceMock.mockReturnValueOnce(new Promise((r) => (release = r)));
+    const running = save(store);
+    unmount();
+    release(ok(savedResult()));
+    await running;
+    expect(createInvoiceMock).toHaveBeenCalledTimes(1);
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/invoices/new');
+    replaceState.mockRestore();
+  });
+
+  it('a create that resolves while the editor is shown but the page address already moved leaves the address alone', async () => {
+    const { store } = renderWithEditorStore(<div />);
+    let release!: (v: unknown) => void;
+    createInvoiceMock.mockReturnValueOnce(new Promise((r) => (release = r)));
+    const running = save(store);
+    window.history.pushState(null, '', '/dashboard');
+    release(ok(savedResult()));
+    await running;
+    expect(window.location.pathname).toBe('/dashboard');
+  });
+
+  it('dismisses the failure message, by the id it was shown with, when the editor is left', async () => {
+    const { store, unmount } = renderWithEditorStore(<div />);
+    createInvoiceMock.mockResolvedValueOnce(FAILED());
+    await save(store);
+    const shown = toastError.mock.calls.find(([, o]) => o?.action?.label === 'Retry');
+    expect(shown?.[1]?.id).toBeDefined();
+    unmount();
+    expect(toastDismiss).toHaveBeenCalledWith(shown![1]!.id);
+  });
+
+  it('the store exposes no way around the save command', () => {
+    const state = newStore().getState() as unknown as Record<string, unknown>;
+    expect(Object.keys(state)).not.toContain('setIsSaving');
+    expect(Object.keys(state)).not.toContain('markAsSaved');
+    expect(Object.keys(state)).not.toContain('lastFailedIntent');
   });
 });

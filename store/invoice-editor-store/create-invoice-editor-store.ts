@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from 'sonner';
 import { createStore, type StoreApi } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
 import { InvoiceFormData, InvoiceEditorData } from '@/types/invoice/types';
@@ -45,7 +46,6 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
     isSaving: false,
     hasUnsavedChanges: false,
     revision: 0,
-    lastFailedIntent: null,
     issuedEditsDroppedNotice: null,
     invoiceNumberHint: undefined,
     fieldErrors: undefined,
@@ -69,16 +69,24 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
  * One editor store per mounted editor (ADR-0003), filled synchronously from the server's data so the
  * first render already shows the opened invoice.
  */
+let storeCount = 0;
+
 export function createInvoiceEditorStore(
   initial: InvoiceEditorInitData | InvoiceEditorData
 ): InvoiceEditorStoreApi {
   return createStore<InvoiceEditorState>()((set, get) => {
-    // Changes on every initialize(). A save captures it when it starts and drops its
+    // Changes on every initialize() and dispose(). A save captures it when it starts and drops its
     // result when it no longer matches, so a slow response for invoice A can never write A's id,
     // number or dates into the editor the Freelancer has since opened for something else.
     let sessionToken = 0;
+    const failureToast = { id: `invoice-save-failed-${++storeCount}`, shown: false };
 
-    const { save } = createSaveCommand({ get, set, sessionToken: () => sessionToken });
+    const { save } = createSaveCommand({
+      get,
+      set,
+      sessionToken: () => sessionToken,
+      failureToast,
+    });
 
     return {
       ...buildInitialState(initial),
@@ -89,6 +97,14 @@ export function createInvoiceEditorStore(
       initialize: (data: InvoiceEditorInitData) => {
         sessionToken += 1;
         set(buildInitialState(data));
+      },
+
+      // The editor was left: every in-flight save or Retry from before now fails the token check,
+      // and the failure message offering Retry goes away with the page.
+      dispose: () => {
+        sessionToken += 1;
+        if (failureToast.shown) toast.dismiss(failureToast.id);
+        failureToast.shown = false;
       },
 
       updateField: <K extends keyof InvoiceFormData>(
@@ -178,7 +194,7 @@ export function createInvoiceEditorStore(
         try {
           const result = await generateInvoiceNumber(id);
           if (redirectIfUnauthorized(result)) return;
-          // A later pick, reset or re-initialize owns the hint now.
+          // A later pick, re-initialize or leaving the editor owns the hint now.
           if (result.success && token === sessionToken && get().formData.senderProfileId === id) {
             set({ invoiceNumberHint: result.data });
           }
@@ -346,15 +362,6 @@ export function createInvoiceEditorStore(
           hasUnsavedChanges: true,
           revision: state.revision + 1,
         });
-      },
-
-      // UI state actions
-      setIsSaving: (isSaving) => {
-        set({ isSaving });
-      },
-
-      markAsSaved: () => {
-        set({ hasUnsavedChanges: false });
       },
 
       save,

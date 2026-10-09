@@ -5,7 +5,6 @@
 // The API these tests pin (not yet in production code):
 //   state.revision: number                               - +1 on every form-mutating action
 //   state.save(intent: 'save' | 'save-and-issue', opts?: { confirmedTotals?: TotalsChanged }): Promise<void>
-//   state.lastFailedIntent: 'save' | 'save-and-issue' | null   - set by a FAILED outcome, for Retry (T14)
 //   state.issuedEditsDroppedNotice: string | null        - the dismissable "not saved because issued" notice
 //   state.dismissIssuedEditsDroppedNotice(): void
 // Dialog state keeps using the existing `changedElsewhere` (SCR-10) and `totalsChanged` (SCR-09).
@@ -38,7 +37,6 @@ type SaveState = {
     intent: 'save' | 'save-and-issue',
     opts?: { confirmedTotals?: { oldTotal: string; newTotal: string } }
   ) => Promise<void>;
-  lastFailedIntent: 'save' | 'save-and-issue' | null;
   issuedEditsDroppedNotice: string | null;
   dismissIssuedEditsDroppedNotice: () => void;
 };
@@ -255,11 +253,10 @@ describe('save command - refusals (AC-05)', () => {
     expect(store.getState().hasUnsavedChanges).toBe(false);
   });
 
-  it('FAILED records the intent that failed (for Retry) and leaves the form unsaved and idle', async () => {
+  it('FAILED leaves the form unsaved and idle', async () => {
     store.getState().updateItem('a', { quantity: 4 });
     updateInvoiceMock.mockResolvedValueOnce(fail('FAILED', 'Error saving invoice.'));
     await cmd(store).save('save-and-issue');
-    expect(cmd(store).lastFailedIntent).toBe('save-and-issue');
     expect(store.getState().isSaving).toBe(false);
     expect(store.getState().hasUnsavedChanges).toBe(true);
     // the issue intent sent status PENDING while the form stays a draft

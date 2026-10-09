@@ -91,8 +91,6 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** editor-ux ADR-0005: counts every edit of the form (even one restoring a value), so a save can
    * tell whether the form changed while it ran. */
   revision: number;
-  /** The intent of the last save the server failed (FAILED), for Retry; cleared by a save. */
-  lastFailedIntent: SaveIntent | null;
   /** The dismissable notice that edits made during Save and issue were not saved (AC-05b). */
   issuedEditsDroppedNotice: string | null;
   /** The stored issue/due instants the editor was built from; a save sends them so the server can
@@ -130,6 +128,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   reloadFailed: boolean;
 
   initialize: (data: InvoiceEditorInitData) => void;
+  /** The editor was left: drops every in-flight save and Retry and dismisses the failure message. */
+  dispose: () => void;
   updateField: <K extends keyof InvoiceFormData>(
     key: K,
     value: InvoiceFormData[K]
@@ -147,8 +147,6 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   duplicateItem: (id: string) => void;
   reorderItems: (oldIndex: number, newIndex: number) => void;
 
-  setIsSaving: (isSaving: boolean) => void;
-  markAsSaved: () => void;
   /** The one save command (ADR-0005): reads the form and its revision when called and resolves
    * every outcome itself. 'save-and-issue' sends the saved draft with status PENDING (SCR-02). */
   save: (intent: SaveIntent, opts?: SaveOptions) => Promise<void>;
