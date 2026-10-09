@@ -3,6 +3,7 @@
 import { Input } from '@/components/ui/input';
 import { FieldError } from '@/components/ui/field';
 import { Currency, InvoiceFormItem } from '@/types/invoice/types';
+import { formatMoney } from '@/lib/format';
 import { Label } from '../ui/label';
 import { useNumberDraft } from '@/hooks/use-number-draft';
 import { useFieldErrors, useInvoiceItems } from '@/store/invoice-editor-store';
@@ -27,7 +28,7 @@ export function InvoiceItemFields({
   disabled = false,
   layout = 'desktop',
 }: InvoiceItemFieldsProps) {
-  const total = `${item.total.toFixed(2)} ${currency}`;
+  const total = formatMoney(item.total, currency);
   const priceInput = useNumberDraft(item.price, onPriceChange);
   const quantityInput = useNumberDraft(item.quantity, onQuantityChange);
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
+import { formatPercent } from '@/lib/format';
 import { SenderAccountMetrics } from '@/types/dashboard';
 import { useState } from 'react';
 
@@ -108,7 +109,7 @@ export function DashboardSenderAccounts({
                         {formatCurrency(totalAmount, currency)}
                       </div>
                       <div className="text-muted-foreground text-xs">
-                        {receivedPercentage.toFixed(0)}% received
+                        {formatPercent(receivedPercentage)} received
                       </div>
                       {allFutureAmount > 0 && (
                         <div className="text-muted-foreground text-xs">
@@ -176,7 +177,7 @@ export function DashboardSenderAccounts({
                             </div>
                           </div>
                           <span className="text-muted-foreground shrink-0 font-medium">
-                            {accountReceivedPercentage.toFixed(0)}%
+                            {formatPercent(accountReceivedPercentage)}
                           </span>
                         </div>
 

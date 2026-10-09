@@ -20,6 +20,11 @@ const pdfToolkitPaths = [
   },
 ];
 
+const actingFreelancerCastRestriction = {
+  selector: "TSAsExpression[typeAnnotation.typeName.name='ActingFreelancer']",
+  message: "Only lib/services/_shared/acting-freelancer.ts may cast to ActingFreelancer.",
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -71,9 +76,27 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-syntax": [
         "error",
+        actingFreelancerCastRestriction,
+      ],
+    },
+  },
+  {
+    // ADR-0006 (T8): display formatting goes only through lib/format. components/ui holds third-party
+    // primitives (chart, calendar). Composed with the ActingFreelancer cast rule above, which this
+    // block would otherwise replace.
+    files: ["components/**", "app/**"],
+    ignores: [
+      "components/ui/**",
+      // T10 moves the preview document onto lib/format; remove this entry then.
+      "components/invoice-editor/pdf-preview-document.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        actingFreelancerCastRestriction,
         {
-          selector: "TSAsExpression[typeAnnotation.typeName.name='ActingFreelancer']",
-          message: "Only lib/services/_shared/acting-freelancer.ts may cast to ActingFreelancer.",
+          selector: "CallExpression[callee.property.name=/^(toFixed|toLocale\\w*String)$/]",
+          message: "Format amounts, days and moments through @/lib/format (formatMoney, formatDay, formatMoment).",
         },
       ],
     },

@@ -1,6 +1,7 @@
 import { CustomerWithRelations } from '@/types/customer/types';
 import { ContactsDetailsSidebarContent } from '@/components/layout/contacts';
 import { formatFullAddress } from '@/lib/helpers';
+import { formatMoment } from '@/lib/format';
 import { isWebAddress } from '@/lib/validations/web-address';
 
 interface CustomerInfoSidebarProps {
@@ -22,7 +23,7 @@ export function CustomerInfoSidebar({ customer }: CustomerInfoSidebarProps) {
     customer.country,
   ]);
 
-  const memberSince = new Date(customer.createdAt).toLocaleDateString('en-US', {
+  const memberSince = formatMoment(customer.createdAt, null, {
     year: 'numeric',
     month: 'short',
   });

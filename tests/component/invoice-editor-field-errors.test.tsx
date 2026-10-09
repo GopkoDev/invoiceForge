@@ -178,7 +178,7 @@ describe('InvoiceEditor field errors (T17)', () => {
     expect(within(bankField).getByText(MSG.bankAccountId)).toBeInTheDocument();
     const productField = screen.getByText('Consulting 2025').closest('.min-w-0') as HTMLElement;
     expect(within(productField).getByText(MSG.productId)).toBeInTheDocument();
-    const lineTotal = screen.getByText('300.00 USD');
+    const lineTotal = screen.getByText('$300.00');
     expect(within(lineTotal).getByText(MSG.lineTotal)).toBeInTheDocument();
     expect(belowRow('Subtotal')).toHaveTextContent(MSG.subtotal);
     expect(belowRow('Discount')).toHaveTextContent(MSG.discount);

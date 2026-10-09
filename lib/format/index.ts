@@ -28,3 +28,13 @@ export function formatMoment(
 ): string {
   return new Intl.DateTimeFormat(LOCALE, { ...style, timeZone: timeZone ?? 'UTC' }).format(new Date(instant));
 }
+
+/** A plain number with grouping and two decimals, no currency (e.g. a total across mixed currencies). */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+/** A percentage rounded to a whole number (e.g. `42%`). */
+export function formatPercent(value: number): string {
+  return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(value)}%`;
+}

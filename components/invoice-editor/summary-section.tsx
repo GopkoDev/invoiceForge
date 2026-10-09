@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
+import { formatMoney } from '@/lib/format';
 import { Calculator } from 'lucide-react';
 import { parseDecimalDraft, useNumberDraft } from '@/hooks/use-number-draft';
 import {
@@ -69,7 +70,7 @@ export function SummarySection() {
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="font-medium">
-            {subtotal.toFixed(2)} {currency}
+            {formatMoney(subtotal, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.subtotal?.map((message) => ({ message }))} />
@@ -128,7 +129,7 @@ export function SummarySection() {
               Taxable Amount
             </span>
             <span className="font-medium">
-              {taxableAmount.toFixed(2)} {currency}
+              {formatMoney(taxableAmount, currency)}
             </span>
           </div>
         </div>
@@ -150,7 +151,7 @@ export function SummarySection() {
           </div>
 
           <span className="font-medium">
-            {taxAmount.toFixed(2)} {currency}
+            {formatMoney(taxAmount, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.taxAmount?.map((message) => ({ message }))} />
@@ -163,7 +164,7 @@ export function SummarySection() {
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold">Total</span>
           <span className="text-xl font-bold">
-            {total.toFixed(2)} {currency}
+            {formatMoney(total, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.total?.map((message) => ({ message }))} />
