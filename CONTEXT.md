@@ -1,6 +1,6 @@
 ---
 status: Living
-updated_at: "2026-10-07"
+updated_at: "2026-10-09"
 ---
 
 # Domain Context — Invoice Forge
@@ -16,6 +16,7 @@ lives in spec.md.
 
 - Assistant — a program (an in-app AI chat or an external MCP client) that reads and changes data on behalf of exactly one Freelancer who authorized it, without a browser session, and sees only that Freelancer's data. NOT Freelancer (an Assistant never signs in itself and owns nothing) and NOT Visitor (an Assistant always acts for a known Freelancer).
 - Cancelled invoice — an invoice the Freelancer withdrew after issuing it; it is no longer owed, keeps its invoice number, stays listed and printable, and can never change again. NOT a deleted invoice (only drafts can be deleted) and NOT a draft (it was issued once).
+- Contributor — a developer who clones the repository to run, test or change the app, following its README and tests. NOT Freelancer (a Contributor works on the code, not on their own invoices in the app) and NOT Visitor (a Contributor is defined by working on the repository, not by reaching the running app).
 - Custom price — a price a Freelancer agrees with one Customer for one product, pre-filled into that customer's invoice lines instead of the product's standard price. NOT the price on an invoice line (the Freelancer can still change the line; the custom price stays as agreed).
 - Customer — a party a Freelancer bills, kept in the Freelancer's customer list; each invoice keeps a copy of the customer's details as they were when it was issued. NOT Freelancer (a Customer never signs in) and NOT the copy on an invoice (editing a Customer does not rewrite past invoices).
 - Dashboard period — the date range a Freelancer's dashboard figures cover: a named preset (such as the current month or all time) or a custom from–to range of at most 5 years. NOT an invoice's issue or due dates (the period selects which invoices are counted; it never changes them).
