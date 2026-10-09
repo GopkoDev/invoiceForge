@@ -26,11 +26,11 @@ Money is formatted three ways: `formatCurrency` (`lib/helpers/format-helpers.ts`
 ## Considered options
 
 1. **One format module with a fixed `en-US` locale** — `formatMoney(amount, currency)`, `formatDay(storedDay, style)` (read in UTC) and `formatMoment(instant, freelancerTimeZone, style)`, used by every surface on the server and in the browser.
-2. **A locale saved on the Freelancer's account** — formats follow the Freelancer's choice; needs a new account field, a setting and a migration (against spec §6.1 and §3), and makes the Customer's PDF depend on who printed it, contradicting AC-09's fixed examples.
+2. **Fix the call sites with the existing helpers** — no new module and no lint rule: switch each `toFixed(2)` and `toLocaleDateString()` site to the existing `formatCurrency` and `formatStoredDay`; the smallest diff, but nothing stops the next display site from drifting again, and there is no helper for moments in the Freelancer time zone (a custom price's creation date).
 
 ## Decision outcome
 
-**Chosen:** Option 1. The module lives under `lib/format/`, is pure and framework-free, and is the only place that calls `Intl.NumberFormat`/`toLocaleDateString` for display. Money keeps the format `formatCurrency` already produces, so the lists do not change. Calendar days (issue and due dates) are read by their UTC day (mcp-server ADR-0009) and never shifted; moments (a custom price's creation) are shown in the Freelancer time zone, passed from the server (UTC until one is saved). `formatCurrency` and `formatStoredDay` become re-exports or are replaced; a lint rule forbids `toFixed(` and `toLocale*String(` in `components/` and `app/`.
+**Chosen:** Option 1. Option 2 would fix today's sites but leave the rule unenforced and AC-08's moments without a home; one module plus a lint rule keeps the guarantee as new screens appear. The module lives under `lib/format/`, is pure and framework-free, and is the only place that calls `Intl.NumberFormat`/`toLocaleDateString` for display. Money keeps the format `formatCurrency` already produces, so the lists do not change. Calendar days (issue and due dates) are read by their UTC day (mcp-server ADR-0009) and never shifted; moments (a custom price's creation) are shown in the Freelancer time zone, passed from the server (UTC until one is saved). `formatCurrency` and `formatStoredDay` become re-exports or are replaced; a lint rule forbids `toFixed(` and `toLocale*String(` in `components/` and `app/`.
 
 ## Consequences
 

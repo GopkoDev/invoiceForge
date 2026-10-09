@@ -22,13 +22,12 @@ ticket: "editor-ux"
 - AC-13: the phone layout from the first display, without drawing the desktop layout first.
 - AC-14: rotating a tablet keeps the typed text and the focus.
 - Spec §6 NFR "Layout stability on phones": cumulative layout shift ≤ 0.1 at p75 on the editor for phone-width visits.
-- AC-06: the invoice itself from the first display (rules out holding the first paint).
+- AC-06: the invoice itself from the first display.
 
 ## Considered options
 
 1. **CSS-only layouts in one DOM tree** — the same elements serve both layouts; Tailwind breakpoints decide arrangement and visibility; no JavaScript width check decides what renders.
 2. **Server-side device guess** — choose the layout from the User-Agent or Client Hints; Safari sends no Client Hints and tablets guess wrong, and rotation still swaps trees, so AC-14 needs extra focus and draft preservation.
-3. **Hold the first paint until the width is known** — render a skeleton first; no desktop flash, but the first display is not the invoice (AC-06) and rotation still swaps trees.
 
 ## Decision outcome
 
