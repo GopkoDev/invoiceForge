@@ -18,7 +18,7 @@
 | T11 | Turn the editor store into a per-mount factory provided by context and built from server data | app | Dmytro Hopko | L | T5, T8, T10 | done |
 | T12 | Compute a new invoice's today and due date on the server and reserve the invoice-number field | app | Dmytro Hopko | S | T11 | done |
 | T13 | Add the store save command with a form revision and resolve every save outcome in it | app | Dmytro Hopko | L | T11 | done |
-| T14 | Route Retry, the created-address change and the save dialogs through the save command | app | Dmytro Hopko | M | T13 | todo |
+| T14 | Route Retry, the created-address change and the save dialogs through the save command | app | Dmytro Hopko | M | T13 | done |
 | T15 | Send signed-in pages no-store, reload back/forward-cache restores, and prove AC-07 in Chromium and WebKit | wiring | Dmytro Hopko | M | T11 | todo |
 | T16 | Give every editor field, line field, icon button and row action an announced name and tie errors to fields | ui | Dmytro Hopko | M | T11 | todo |
 | T17 | Render the editor's phone and desktop layouts from one DOM tree switched by CSS only | ui | Dmytro Hopko | M | T11 | todo |

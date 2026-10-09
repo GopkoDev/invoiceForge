@@ -3,6 +3,7 @@
 import { toast } from 'sonner';
 import type { InvoiceFormData } from '@/types/invoice/types';
 import type { ActionFailure } from '@/types/actions';
+import { protectedRoutes } from '@/config/routes.config';
 import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import {
   createInvoice,
@@ -54,7 +55,6 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
   function handleSaveFailure(
     result: ActionFailure,
     intent: SaveIntent,
-    opts: SaveOptions | undefined,
     token: number
   ): void {
     // architecture-hardening AC-21: a stale session's save sends the device to sign-in. The
@@ -74,8 +74,10 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
     }
 
     if (result.details?.kind === 'TOTALS_CHANGED') {
+      // The refused save stored nothing: the form stays unsaved until the totals are confirmed.
       set({
         totalsChanged: { oldTotal: result.details.oldTotal, newTotal: result.details.newTotal },
+        hasUnsavedChanges: true,
       });
       return;
     }
@@ -107,8 +109,10 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
           label: 'Retry',
           onClick: () => {
             // A Retry clicked after a reset would save another invoice's form; one clicked while a
-            // save is running would be a second save (a duplicate create).
-            if (token === sessionToken() && !get().isSaving) void get().save(intent, opts);
+            // save is running would be a second save (a duplicate create). Retry repeats the intent
+            // with the form as it is now; confirmed totals are not carried over (AC-05c/05d: a
+            // changed total is asked about again, as Save does).
+            if (token === sessionToken() && !get().isSaving) void get().save(intent);
           },
         },
       });
@@ -235,15 +239,20 @@ export function createSaveCommand({ get, set, sessionToken }: Api) {
           applySavedInvoice(result.data, submitted, revision, token);
           toast.success(intent === 'save-and-issue' ? 'Invoice issued' : 'Invoice updated');
         } else {
-          handleSaveFailure(result, intent, opts, token);
+          handleSaveFailure(result, intent, token);
         }
       } else {
         const result = await createInvoice(payload);
         if (result.success) {
           applySavedInvoice(result.data, submitted, revision, token);
+          // The invoice now has its own editing address: a reload opens it and the next save updates
+          // it. The native history API keeps Next's router in sync without remounting the page.
+          if (token === sessionToken() && typeof window !== 'undefined') {
+            window.history.replaceState(null, '', protectedRoutes.invoiceEdit(result.data.id));
+          }
           toast.success('Invoice created');
         } else {
-          handleSaveFailure(result, intent, opts, token);
+          handleSaveFailure(result, intent, token);
         }
       }
     } catch {

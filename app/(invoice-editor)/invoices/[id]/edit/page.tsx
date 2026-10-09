@@ -1,4 +1,5 @@
 import { InvoiceEditor } from '@/components/invoice-editor';
+import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 import { getInvoiceEditorData } from '@/lib/actions/invoice-actions/invoice-actions';
 import { notFound } from 'next/navigation';
 import { unwrapPageResult } from '@/components/layout/content-area';
@@ -33,6 +34,7 @@ export default async function EditInvoicePage({
   return (
     <InvoiceEditorProvider key={`${userId}:${id}`} initial={data}>
       <InvoiceEditor />
+      <InvoiceEditorModalContainer />
     </InvoiceEditorProvider>
   );
 }

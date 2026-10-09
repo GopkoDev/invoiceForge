@@ -1,4 +1,3 @@
-import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
 
@@ -15,7 +14,6 @@ export default async function InvoiceEditorLayout({
     <>
       <div className="bg-background min-h-screen">{children}</div>
       <TimeZoneCookie />
-      <InvoiceEditorModalContainer />
     </>
   );
 }

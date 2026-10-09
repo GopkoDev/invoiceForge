@@ -43,7 +43,16 @@ vi.mock('@/store/invoice-editor-store', () => ({
   useIsStale: () => false,
   useReloadFailed: () => false,
   useLegacy: () => null,
-  useInvoiceEditorActions: () => ({ initialize: initializeMock, reset: resetMock }),
+  useInvoiceEditorActions: () => ({
+    initialize: initializeMock,
+    reset: resetMock,
+    save: vi.fn(),
+    clearTotalsChanged: vi.fn(),
+    markStale: vi.fn(),
+  }),
+  // editor-ux T14: the container also hosts the changed-elsewhere / totals dialogs from store state.
+  useTotalsChanged: () => null,
+  useChangedElsewhere: () => null,
 }));
 
 const closeMock = vi.fn();

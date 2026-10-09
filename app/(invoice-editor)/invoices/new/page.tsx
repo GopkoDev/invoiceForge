@@ -1,4 +1,5 @@
 import { InvoiceEditor } from '@/components/invoice-editor';
+import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 import { getInvoiceEditorData } from '@/lib/actions/invoice-actions/invoice-actions';
 import { unwrapPageResult } from '@/components/layout/content-area';
 import { InvoiceEditorProvider } from '@/store/invoice-editor-store/invoice-editor-provider';
@@ -18,6 +19,7 @@ export default async function NewInvoicePage() {
   return (
     <InvoiceEditorProvider key={`${userId}:new`} initial={data}>
       <InvoiceEditor />
+      <InvoiceEditorModalContainer />
     </InvoiceEditorProvider>
   );
 }
