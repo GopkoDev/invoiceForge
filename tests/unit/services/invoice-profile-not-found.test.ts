@@ -4,7 +4,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureException: vi.fn(), captureMessage: vi.fn() }));
 
 const p = vi.hoisted(() => ({
   invoice: { findFirst: vi.fn() },
@@ -15,6 +18,11 @@ vi.mock('@/prisma', () => ({ prisma: p }));
 
 vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
+  // invoice-integrity T07: create/duplicate run every draft rule through checkDraftRules.
+  checkDraftRules: vi.fn().mockResolvedValue({
+    success: true,
+    data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' }, fieldErrors: {} },
+  }),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },
@@ -50,6 +58,9 @@ const existing = {
   invoiceNumberKey: 'old-1',
   status: 'DRAFT',
   paidAt: null,
+  version: 0,
+  issueDate: new Date('2026-01-01T00:00:00.000Z'),
+  dueDate: new Date('2026-01-31T00:00:00.000Z'),
   total: zero,
   discount: zero,
   shipping: zero,
@@ -67,6 +78,7 @@ const form = {
   dueDate: '2026-01-31',
   currency: 'USD',
   items: [{ id: 'i-1', productName: 'W', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+  loadedVersion: 0, // invoice-integrity T08: updateInvoice requires the loaded version
 } as never;
 
 const NOT_FOUND = { success: false, code: 'NOT_FOUND', error: 'Sender profile not found.' };
@@ -78,7 +90,7 @@ beforeEach(async () => {
   p.invoice.findFirst.mockResolvedValue(existing);
   p.senderProfile.findFirst.mockResolvedValue({ id: 'sp-1' });
   p.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-    fn({ $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]), invoiceItem: { deleteMany: vi.fn() }, invoice: { create: vi.fn(), update: vi.fn() } })
+    fn({ $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]), invoiceItem: { deleteMany: vi.fn() }, invoice: { create: vi.fn(), update: vi.fn(), findFirst: p.invoice.findFirst } })
   );
 });
 

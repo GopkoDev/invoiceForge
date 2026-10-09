@@ -19,6 +19,8 @@ const ALLOW_LIST: Readonly<Record<string, string>> = {
   'components/dashboard/recent-invoices/dashboard-recent-invoices.tsx':
     'orders the already-derived recent rows by status',
   'types/invoice/types.ts': 'the status label/variant table for the badge',
+  'lib/helpers/invoice-status.ts':
+    'the stored-status lifecycle table (ADR-0002); its OVERDUE is the hand-marked stored status, never the derived one',
 };
 
 const OVERDUE_LITERAL = /\bOVERDUE\b/;

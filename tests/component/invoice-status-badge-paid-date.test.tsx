@@ -74,6 +74,7 @@ const baseInvoice: InvoiceListItem = {
   id: 'inv-1',
   invoiceNumber: 'INV-0042',
   status: 'PAID',
+  storedStatus: 'PAID',
   issueDate: new Date('2026-09-01'),
   dueDate: new Date('2026-09-15'),
   total: 119.99,

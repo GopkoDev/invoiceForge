@@ -43,7 +43,7 @@ function formatDate(date: Date): string {
   });
 }
 
-function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
+function createColumns(timeZone: string, onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
   return [
     {
       accessorKey: 'invoiceNumber',
@@ -107,6 +107,9 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
           invoiceId={row.original.id}
           invoiceNumber={row.original.invoiceNumber}
           status={row.original.status}
+          storedStatus={row.original.storedStatus}
+          dueDate={row.original.dueDate}
+          timeZone={timeZone}
           onDataChange={onDataChange}
         />
       ),
@@ -116,10 +119,13 @@ function createColumns(onDataChange?: () => void): ColumnDef<RecentInvoice>[] {
 
 interface DashboardRecentInvoicesProps {
   invoices: RecentInvoice[];
+  /** The Freelancer's time zone, for "today" in the row menus. */
+  timeZone: string;
 }
 
 export function DashboardRecentInvoices({
   invoices,
+  timeZone,
 }: DashboardRecentInvoicesProps) {
   const router = useRouter();
 
@@ -134,8 +140,8 @@ export function DashboardRecentInvoices({
   }, [router]);
 
   const columns = useMemo(
-    () => createColumns(handleDataChange),
-    [handleDataChange]
+    () => createColumns(timeZone, handleDataChange),
+    [timeZone, handleDataChange]
   );
 
   const table = useReactTable({

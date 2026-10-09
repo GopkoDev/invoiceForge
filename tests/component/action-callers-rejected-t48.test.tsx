@@ -105,6 +105,7 @@ const invoice: InvoiceListItem = {
   id: 'inv-1',
   invoiceNumber: 'INV-0001',
   status: 'DRAFT',
+  storedStatus: 'DRAFT',
   issueDate: new Date('2026-01-01'),
   dueDate: new Date('2026-01-31'),
   total: 100,

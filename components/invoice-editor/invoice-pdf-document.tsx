@@ -230,6 +230,9 @@ export function InvoicePDFDocument({
             {senderProfile && (
               <>
                 <Text style={styles.textBold}>{senderProfile.name}</Text>
+                {senderProfile.legalName && senderProfile.legalName !== senderProfile.name && (
+                  <Text style={styles.textMuted}>{senderProfile.legalName}</Text>
+                )}
                 {senderProfile.address && (
                   <Text style={styles.textMuted}>{senderProfile.address}</Text>
                 )}
@@ -368,6 +371,10 @@ export function InvoicePDFDocument({
               <Text style={styles.sectionTitle}>Payment Information</Text>
               <Text>{bankAccount.bankName}</Text>
               <Text>{bankAccount.accountName}</Text>
+              {/* invoice-integrity AC-03: the account number always; IBAN/SWIFT only when present. */}
+              {bankAccount.accountNumber && (
+                <Text>Account number: {bankAccount.accountNumber}</Text>
+              )}
               {bankAccount.iban && <Text>IBAN: {bankAccount.iban}</Text>}
               {bankAccount.swift && <Text>SWIFT: {bankAccount.swift}</Text>}
             </View>

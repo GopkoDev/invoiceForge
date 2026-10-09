@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  productFormSchema,
+  productFormInputSchema,
   ProductFormValues,
 } from '@/lib/validations/product';
 import { createProduct, updateProduct } from '@/lib/actions/product-actions';
@@ -65,7 +65,8 @@ export function ProductForm({
   const currencyChangeModal = useModal('currencyChangeWarningModal');
 
   const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productFormSchema),
+    // The string-price schema: the form sends the string, the service parses it (T25).
+    resolver: zodResolver(productFormInputSchema),
     defaultValues: defaultValues || {
       name: '',
       description: '',
@@ -84,6 +85,14 @@ export function ProductForm({
 
       if (!result.success) {
         if (redirectIfUnauthorized(result)) return;
+        // invoice-integrity T19 (SCR-12): a currency used on invoices (HAS_INVOICES) or a price
+        // refusal lands under its field with every value kept; anything else is a toast.
+        if (result.fieldErrors) {
+          for (const [name, messages] of Object.entries(result.fieldErrors)) {
+            if (messages[0]) form.setError(name as keyof ProductFormValues, { message: messages[0] });
+          }
+          return;
+        }
         toast.error(result.error || 'Failed to update product');
         return;
       }
@@ -171,12 +180,12 @@ export function ProductForm({
       {isUsedInInvoices && (
         <Alert>
           <LockIcon />
-          <AlertTitle>Currency and Unit Locked</AlertTitle>
+          <AlertTitle>Unit Locked</AlertTitle>
           <AlertDescription>
             This product is used in {invoiceItemsCount} invoice
-            {invoiceItemsCount > 1 ? 's' : ''}. Currency and unit of measure
-            cannot be changed to maintain data consistency. Create a new product
-            if you need different settings.
+            {invoiceItemsCount > 1 ? 's' : ''}. The unit of measure cannot be
+            changed to maintain data consistency. A currency change is refused on
+            save. Create a new product if you need different settings.
           </AlertDescription>
         </Alert>
       )}
@@ -292,10 +301,8 @@ export function ProductForm({
                     type="text"
                     aria-invalid={fieldState.invalid}
                     placeholder="100.00"
-                    onChange={(e) => {
-                      const sanitized = e.target.value.replace(/[^\d.]/g, '');
-                      field.onChange(sanitized);
-                    }}
+                    // invoice-integrity T19 (AC-20): the price is kept as typed; the shared rule explains
+                    // a malformed one under the field instead of silently correcting it (F-04).
                   />
 
                   <FieldError errors={[fieldState.error]} />
@@ -311,15 +318,14 @@ export function ProductForm({
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="product-form-currency">
                     Currency <span className="text-destructive">*</span>
-                    {isUsedInInvoices && (
-                      <LockIcon className="inline ml-1 h-4 w-4 text-muted-foreground" />
-                    )}
                   </FieldLabel>
 
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
-                    disabled={form.formState.isSubmitting || isUsedInInvoices}
+                    // Not locked up front: the server refuses a currency used on invoices on save and
+                    // the refusal shows under this field (SCR-12, AC-13b).
+                    disabled={form.formState.isSubmitting}
                   >
                     <SelectTrigger
                       id="product-form-currency"
@@ -338,12 +344,6 @@ export function ProductForm({
                   </Select>
 
                   <FieldError errors={[fieldState.error]} />
-                  {isUsedInInvoices && (
-                    <FieldDescription className="text-amber-600 dark:text-amber-500">
-                      Locked: Used in {invoiceItemsCount} invoice
-                      {invoiceItemsCount > 1 ? 's' : ''}
-                    </FieldDescription>
-                  )}
                 </Field>
               )}
             />

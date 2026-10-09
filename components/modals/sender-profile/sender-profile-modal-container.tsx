@@ -58,6 +58,7 @@ export function SenderProfileModalContainer() {
           onFormSubmit={bankAccountModal.props.onFormSubmit}
           defaultValues={bankAccountModal.props.defaultValues}
           isEditing={bankAccountModal.props.isEditing}
+          isFirst={bankAccountModal.props.isFirst}
         />
       )}
 

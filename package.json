@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "report:invoice-integrity": "node --env-file-if-exists=.env scripts/invoice-integrity-report.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -93,6 +94,7 @@
     "shadcn": "^3.6.2",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "unpdf": "^1.8.1",
     "vite-tsconfig-paths": "^6.1.1",
     "vitepress": "^1.6.4",
     "vitepress-openapi": "^0.2.5",

@@ -15,6 +15,7 @@ import {
   generateInvoiceNumber,
   createInvoice,
   updateInvoice,
+  getInvoiceEditorData,
   SavedInvoice,
 } from '@/lib/actions/invoice-actions/invoice-actions';
 import {
@@ -27,6 +28,7 @@ import {
   toSavePayload,
   loadedDatesOf,
   withLocalDays,
+  editorModeOf,
 } from './helpers';
 import { v4 as uuidv4 } from 'uuid';
 import { localDateToDay, storedDayToLocalDate } from '@/lib/helpers/calendar-day';
@@ -47,10 +49,21 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
   // key outside this set (e.g. senderProfileId/bankAccountId/customerId, or an item field the
   // editor never shows an input for) has nowhere on screen to appear, so it must not be dropped
   // silently — it gets toasted as a fallback instead.
-  const RENDERED_FIELD_ERROR_KEYS = new Set(['invoiceNumber', 'discount', 'shipping', 'taxRate']);
+  // invoice-integrity T17: every draft-rule key has a rendered field (SCR-02 draft — validation).
+  const RENDERED_FIELD_ERROR_KEYS = new Set([
+    'invoiceNumber',
+    'discount',
+    'shipping',
+    'taxRate',
+    'bankAccountId',
+    'dueDate',
+    'subtotal',
+    'taxAmount',
+    'total',
+  ]);
   function isRenderedFieldErrorKey(key: string): boolean {
     if (RENDERED_FIELD_ERROR_KEYS.has(key)) return true;
-    return /^items\.\d+\.(price|quantity)$/.test(key);
+    return /^items\.\d+\.(price|quantity|productId|total)$/.test(key);
   }
 
   // Turns a failed save into the right UI state (architecture-hardening AC-08, AC-14, AC-15,
@@ -76,6 +89,12 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       return;
     }
 
+    // invoice-integrity T18 (AC-10): the invoice changed since this editor loaded it → SCR-05.
+    if (result.details?.kind === 'CHANGED_ELSEWHERE') {
+      set({ changedElsewhere: result.error });
+      return;
+    }
+
     if (result.details?.kind === 'TOTALS_CHANGED') {
       set({
         totalsChanged: {
@@ -84,6 +103,17 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         },
       });
       return;
+    }
+
+    // invoice-integrity T17 (SCR-02 refused): a lifecycle refusal is a toast with the error verbatim.
+    if (result.details?.kind === 'STATUS_NOT_ALLOWED') {
+      toast.error(result.error);
+      return;
+    }
+
+    // SCR-02 issued — locked-field refusal: the explanation goes in an Alert above the form.
+    if (result.details?.kind === 'ISSUED_INVOICE_LOCKED') {
+      set({ lockedRefusal: result.error });
     }
 
     if (result.fieldErrors) {
@@ -149,6 +179,12 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       },
       derivedOverdue: saved.derivedOverdue,
       invoiceId: saved.id,
+      // The mode follows what the row holds now: a draft issued by Save and issue turns issued.
+      storedStatus: saved.status,
+      // What the server froze in this save (null for a draft): the issued blocks and PDF show it.
+      issuedDetails: saved.issuedDetails,
+      // The row's version now: the next save's loadedVersion (ADR-0004).
+      loadedVersion: saved.version,
       subtotal: saved.subtotal,
       taxAmount: saved.taxAmount,
       total: saved.total,
@@ -180,6 +216,13 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
     totalsChanged: null,
     legacy: null,
     derivedOverdue: false,
+    storedStatus: null,
+    issuedDetails: null,
+    lockedRefusal: null,
+    loadedVersion: null,
+    changedElsewhere: null,
+    stale: false,
+    reloadFailed: false,
     ...createEmptyNormalizedData(),
     ...createEmptyComputedValues(),
 
@@ -215,6 +258,13 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         totalsChanged: null,
         legacy: data.legacy ?? null,
         derivedOverdue: data.derivedOverdue ?? false,
+        storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
+        issuedDetails: data.issuedDetails ?? null,
+        lockedRefusal: null,
+        loadedVersion: data.invoiceId && data.initialData ? (data.version ?? null) : null,
+        changedElsewhere: null,
+        stale: false,
+        reloadFailed: false,
         ...normalizedData,
       };
 
@@ -481,15 +531,24 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({ hasUnsavedChanges: false });
     },
 
-    saveInvoice: async (options?: { confirmedTotals?: TotalsChanged }) => {
+    saveInvoice: async (options?: { confirmedTotals?: TotalsChanged; issue?: boolean }) => {
       const state = get();
       const token = sessionToken;
-      set({ isSaving: true, fieldErrors: undefined, totalsChanged: null });
+      set({
+        isSaving: true,
+        fieldErrors: undefined,
+        totalsChanged: null,
+        lockedRefusal: null,
+        changedElsewhere: null,
+      });
 
+      // Save and issue (SCR-02): the same save, sent with status PENDING; the form keeps DRAFT
+      // until the server confirms, so a refused issue leaves a draft.
       const payload = toSavePayload(
-        state.formData,
+        options?.issue ? { ...state.formData, status: 'PENDING' } : state.formData,
         options?.confirmedTotals,
-        state.loadedDates
+        state.loadedDates,
+        state.loadedVersion
       );
       const retry = () => {
         // A Retry clicked after the editor was reset would save another invoice's form;
@@ -503,7 +562,7 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
           const result = await updateInvoice(state.invoiceId, payload);
           if (result.success) {
             applySavedInvoice(result.data, state.formData, token);
-            toast.success('Invoice updated');
+            toast.success(options?.issue ? 'Invoice issued' : 'Invoice updated');
           } else {
             handleSaveFailure(result, retry, token);
           }
@@ -531,6 +590,29 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
       set({ totalsChanged: null });
     },
 
+    markStale: () => {
+      set({ changedElsewhere: null, stale: true });
+    },
+
+    reloadInvoice: async () => {
+      const { invoiceId } = get();
+      try {
+        const result = await getInvoiceEditorData(invoiceId);
+        if (!result.success) {
+          if (redirectIfUnauthorized(result)) return 'failed';
+          set({ reloadFailed: true, changedElsewhere: null });
+          return 'failed';
+        }
+        // A missing or foreign invoice comes back without initialData (the edit page's not-found).
+        if (!result.data.initialData) return 'not-found';
+        get().initialize(result.data);
+        return 'reloaded';
+      } catch {
+        goToSignIn();
+        return 'failed';
+      }
+    },
+
     reset: () => {
       sessionToken += 1;
       const formData = createInitialFormData();
@@ -550,6 +632,13 @@ export const useInvoiceEditorStore = create<InvoiceEditorState>()((
         totalsChanged: null,
         legacy: null,
         derivedOverdue: false,
+        storedStatus: null,
+        issuedDetails: null,
+        lockedRefusal: null,
+        loadedVersion: null,
+        changedElsewhere: null,
+        stale: false,
+        reloadFailed: false,
         ...createEmptyNormalizedData(),
         ...createEmptyComputedValues(),
       });
@@ -608,17 +697,31 @@ export const useInvoiceItem = (itemId: string) =>
     (state) => state.formData.items.find((i) => i.id === itemId)!
   );
 
-export const useInvalidItems = () =>
-  useInvoiceEditorStore(useShallow((state) => state.invalidItems));
-
 export const useHasUnsavedChanges = () =>
   useInvoiceEditorStore((state) => state.hasUnsavedChanges);
 
 export const useIsSaving = () =>
   useInvoiceEditorStore((state) => state.isSaving);
 
-export const useIsEditingSentInvoice = () =>
-  useInvoiceEditorStore((state) => state.isEditingSentInvoice);
+/** invoice-integrity T16: new / draft / issued / cancelled, from the stored status (SCR-02). */
+export const useEditorMode = () =>
+  useInvoiceEditorStore((state) => editorModeOf(state.invoiceId, state.storedStatus));
+
+/**
+ * What the mode locks (SCR-02): `locked` — everything but the due date, notes, payment terms and PO
+ * number (issued and cancelled); `readOnly` — every field (cancelled).
+ */
+export const useEditorLocks = () =>
+  useInvoiceEditorStore(
+    useShallow((state) => {
+      const mode = editorModeOf(state.invoiceId, state.storedStatus);
+      return { locked: mode === 'issued' || mode === 'cancelled', readOnly: mode === 'cancelled' };
+    })
+  );
+
+/** The issued details shown as text once the invoice is issued (ADR-0001). */
+export const useIssuedDetails = () =>
+  useInvoiceEditorStore(useShallow((state) => state.issuedDetails));
 
 export const useInvoiceId = () =>
   useInvoiceEditorStore((state) => state.invoiceId);
@@ -631,6 +734,14 @@ export const useFieldErrors = () =>
 
 export const useTotalsChanged = () =>
   useInvoiceEditorStore(useShallow((state) => state.totalsChanged));
+
+/** invoice-integrity T18: the CHANGED_ELSEWHERE error, the stale flag and a failed reload. */
+export const useChangedElsewhere = () => useInvoiceEditorStore((state) => state.changedElsewhere);
+export const useIsStale = () => useInvoiceEditorStore((state) => state.stale);
+export const useReloadFailed = () => useInvoiceEditorStore((state) => state.reloadFailed);
+
+/** The ISSUED_INVOICE_LOCKED explanation from the last save, shown above the form (SCR-02). */
+export const useLockedRefusal = () => useInvoiceEditorStore((state) => state.lockedRefusal);
 
 export const useLegacy = () =>
   useInvoiceEditorStore(useShallow((state) => state.legacy));
@@ -652,6 +763,7 @@ export const useNotesAndTerms = () =>
     useShallow((state) => ({
       notes: state.formData.notes,
       terms: state.formData.terms,
+      paymentTerms: state.formData.paymentTerms,
     }))
   );
 
@@ -683,6 +795,8 @@ export const useInvoiceEditorActions = () =>
       markAsSaved: state.markAsSaved,
       saveInvoice: state.saveInvoice,
       clearTotalsChanged: state.clearTotalsChanged,
+      markStale: state.markStale,
+      reloadInvoice: state.reloadInvoice,
       reset: state.reset,
     }))
   );

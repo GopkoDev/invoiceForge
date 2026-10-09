@@ -190,6 +190,7 @@ export async function getRecentInvoices(
       return ok(
         rows.map((r): RecentInvoice => ({
           ...r,
+          storedStatus: r.status as InvoiceStatus,
           // The shared rule: a past-due pending invoice shows as overdue; the stored status is untouched.
           status: derivedStatus({ status: r.status as InvoiceStatus, dueDate: r.dueDate }, today).toUpperCase() as RecentInvoice['status'],
           currency: r.currency as Currency,

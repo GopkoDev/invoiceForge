@@ -155,5 +155,56 @@ describe.runIf(containerRuntimeAvailable)(
       expect(foreignResult.data.initialData).toBeUndefined();
       expect(randomResult.data.initialData).toBeUndefined();
     });
+
+    // invoice-integrity T21 (spec.md §5 AC-23): every invoice write path answers another Freelancer's
+    // invoice exactly as a missing one, and B's invoice stays byte-identical.
+    it('AC-23: update, status change (cancel included), delete and duplicate of B\'s invoice are the same NOT_FOUND as a random id', async () => {
+      const actions = (await import('@/lib/actions/invoice-actions/invoice-actions')) as unknown as {
+        updateInvoice: (id: string, data: unknown) => Promise<unknown>;
+        updateInvoiceStatus: (id: string, status: string) => Promise<unknown>;
+        deleteInvoice: (id: string) => Promise<unknown>;
+        duplicateInvoice: (id: string) => Promise<unknown>;
+      };
+      const owner = await createFreelancer(prisma, { email: 'ac23-owner@example.com' });
+      const stranger = await createFreelancer(prisma, { email: 'ac23-stranger@example.com' });
+      const strangerProfile = await createSenderProfile(prisma, stranger.id);
+      const foreign = await seedInvoiceRow(prisma, {
+        senderProfile: strangerProfile,
+        customer: await createCustomer(prisma, stranger.id),
+        bankAccount: await createBankAccount(prisma, strangerProfile.id),
+        overrides: { status: 'PENDING' },
+      });
+      const before = JSON.stringify(await prisma.invoice.findUniqueOrThrow({ where: { id: foreign.id }, include: { items: true } }));
+      authMock.mockResolvedValue({ user: { id: owner.id } });
+
+      const save = {
+        invoiceNumber: foreign.invoiceNumber,
+        status: 'PENDING',
+        senderProfileId: foreign.senderProfileId,
+        bankAccountId: foreign.bankAccountId,
+        customerId: foreign.customerId,
+        issueDate: foreign.issueDate.toISOString().slice(0, 10),
+        dueDate: foreign.dueDate.toISOString().slice(0, 10),
+        currency: foreign.currency,
+        items: [{ id: 'i', productName: 'Test Item', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+        notes: 'not yours',
+        loadedVersion: foreign.version,
+      };
+      const calls: Array<[string, (id: string) => Promise<unknown>]> = [
+        ['updateInvoice', (id) => actions.updateInvoice(id, save)],
+        ['updateInvoiceStatus PAID', (id) => actions.updateInvoiceStatus(id, 'PAID')],
+        ['updateInvoiceStatus CANCELLED', (id) => actions.updateInvoiceStatus(id, 'CANCELLED')],
+        ['deleteInvoice', (id) => actions.deleteInvoice(id)],
+        ['duplicateInvoice', (id) => actions.duplicateInvoice(id)],
+      ];
+      for (const [name, call] of calls) {
+        const foreignResult = await call(foreign.id);
+        const randomResult = await call(RANDOM_ID);
+        expect(foreignResult, name).toEqual({ success: false, code: 'NOT_FOUND', error: 'Invoice not found.' });
+        expect(foreignResult, name).toEqual(randomResult);
+      }
+      expect(JSON.stringify(await prisma.invoice.findUniqueOrThrow({ where: { id: foreign.id }, include: { items: true } }))).toBe(before);
+      expect(await prisma.invoice.count()).toBe(1);
+    });
   }
 );

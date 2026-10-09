@@ -25,6 +25,10 @@ vi.mock('@/prisma', () => ({
   prisma: {
     invoice: { findFirst: findFirstMock },
     senderProfile: { findFirst: senderProfileFindFirstMock },
+    // invoice-integrity T07: the duplicate runs the draft rules (relations + currencies).
+    customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+    bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+    product: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: transactionMock,
   },
 }));
@@ -36,7 +40,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () => null, seedTimeZoneIfEmpty: async () => false }));
 
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
 
 // duplicateInvoice always auto-allocates (never a manual number), so this test skips the real
 // row-locked allocator entirely and drives the P2002-despite-the-lock path directly.
@@ -89,7 +96,12 @@ describe('duplicateInvoice — P2002 despite the lock (T39, F-39)', () => {
     findFirstMock.mockResolvedValue(originalInvoice);
     senderProfileFindFirstMock.mockResolvedValue({ id: 'sp-1' });
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-      fn({ invoice: { create: vi.fn().mockRejectedValue({ code: 'P2002' }) } })
+      fn({
+        senderProfile: { findFirst: senderProfileFindFirstMock },
+        customer: { findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }) },
+        bankAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'bank-1', currency: 'USD' }) },
+        product: { findMany: vi.fn().mockResolvedValue([]) },
+        invoice: { create: vi.fn().mockRejectedValue({ code: 'P2002' }) } })
     );
   });
 

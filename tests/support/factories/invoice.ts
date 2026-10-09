@@ -74,6 +74,7 @@ export async function createInvoice(
       dueDate: overrides.dueDate ?? utcDay(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
       paymentTerms: overrides.paymentTerms,
       status: (overrides.status ?? 'DRAFT') as InvoiceStatus,
+      version: overrides.version ?? 0,
 
       senderName: overrides.senderName ?? senderProfile.name,
       senderLegalName: overrides.senderLegalName ?? senderProfile.legalName,

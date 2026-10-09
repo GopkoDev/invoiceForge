@@ -46,6 +46,7 @@ import { isContainerRuntimeAvailable } from '../../support/db/docker-availabilit
 import { startTestDatabase, type TestDatabase } from '../../support/db/container';
 import { createTestPrismaClient } from '../../support/db/client';
 import { truncateAllTables } from '../../support/db/truncate';
+import { withLoadedVersion } from '../../support/loaded-version';
 import { createFreelancer } from '../../support/factories/user';
 import { createSenderProfile } from '../../support/factories/sender-profile';
 import { createCustomer } from '../../support/factories/customer';
@@ -69,7 +70,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
 // --- Sentry: invoice-actions.ts imports captureMessage at module load; stub so no real DSN/init
 // is required. --------------------------------------------------------------------------------
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: vi.fn() }));
 
 type SavedInvoice = {
   id: string;
@@ -131,6 +135,10 @@ describe.runIf(containerRuntimeAvailable)(
       ({ updateInvoice, getInvoice } = (await import(
         '@/lib/actions/invoice-actions/invoice-actions'
       )) as unknown as { updateInvoice: UpdateInvoice; getInvoice: GetInvoice });
+      // invoice-integrity T08: saves carry the row's current version, as a freshly opened editor would.
+      const rawUpdate = updateInvoice;
+      updateInvoice = (async (id: string, data: object) =>
+        rawUpdate(id, (await withLoadedVersion(prisma, id, data)) as never)) as UpdateInvoice;
       ({ formatInvoiceNumber, normalizeInvoiceNumber } = (await import(
         '@/lib/services/invoices/numbering'
       )) as unknown as {
@@ -212,7 +220,23 @@ describe.runIf(containerRuntimeAvailable)(
       expect(result.code).toBe('UNAUTHORIZED');
     });
 
-    it('VALIDATION (schema) wins over NOT_FOUND for an invoice that does not exist', async () => {
+    // invoice-integrity T23 (ADR-0003, AC-14, server-actions.md "Where the rules run"): only the
+    // shape is parsed before the lookup; amount bounds run after the row lock, by stored status.
+    it('VALIDATION (shape) wins over NOT_FOUND for an invoice that does not exist', async () => {
+      const owner = await seedOwner();
+
+      const result = await updateInvoice(
+        'does-not-exist',
+        buildForm(owner, 'INV-X', { dueDate: '2026-02-30' })
+      );
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.code).toBe('VALIDATION');
+      expect(result.fieldErrors?.dueDate).toContain('Invalid date');
+    });
+
+    it('NOT_FOUND wins over an amount bound for an invoice that does not exist', async () => {
       const owner = await seedOwner();
 
       const result = await updateInvoice(
@@ -222,8 +246,7 @@ describe.runIf(containerRuntimeAvailable)(
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.code).toBe('VALIDATION');
-      expect(result.fieldErrors?.['items.0.price']).toContain("Price can't be negative.");
+      expect(result.code).toBe('NOT_FOUND');
     });
 
     it('NOT_FOUND when the invoice does not belong to the caller', async () => {
@@ -475,6 +498,9 @@ describe.runIf(containerRuntimeAvailable)(
         senderProfile: owner.senderProfile,
         customer: owner.customer,
         bankAccount: owner.bankAccount,
+        // invoice-integrity T08: the line the editor form sends, so the issued invoice's locked fields
+        // are unchanged and only the status moves (AC-08).
+        items: [{ name: 'Widget', quantity: 1, rate: 100, amount: 100 }],
         overrides: {
           invoiceNumber: 'PAY-0001',
           invoiceNumberKey: normalizeInvoiceNumber('PAY-0001'),
@@ -506,6 +532,9 @@ describe.runIf(containerRuntimeAvailable)(
         senderProfile: owner.senderProfile,
         customer: owner.customer,
         bankAccount: owner.bankAccount,
+        // invoice-integrity T08: the line the editor form sends, so the issued invoice's locked fields
+        // are unchanged and only the status moves (AC-08).
+        items: [{ name: 'Widget', quantity: 1, rate: 100, amount: 100 }],
         overrides: {
           invoiceNumber: 'PAY-0002',
           invoiceNumberKey: normalizeInvoiceNumber('PAY-0002'),
@@ -525,6 +554,54 @@ describe.runIf(containerRuntimeAvailable)(
 
       const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
       expect(stored.paidAt?.toISOString()).toBe(originalPaidAt.toISOString());
+    });
+
+    // --- invoice-integrity T08 (AC-10, AC-23) ----------------------------------------------------
+    it('T08 AC-10: two editors open the same draft; after the first notes-only save, the second is CHANGED_ELSEWHERE and stores nothing', async () => {
+      const owner = await seedOwner();
+      const invoice = await seedInvoiceRow(prisma, {
+        senderProfile: owner.senderProfile,
+        customer: owner.customer,
+        bankAccount: owner.bankAccount,
+        items: [{ name: 'Widget', quantity: 1, rate: 100, amount: 100 }],
+        overrides: { invoiceNumber: 'RACE-0001', invoiceNumberKey: normalizeInvoiceNumber('RACE-0001') },
+      });
+      const opened = (await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).version;
+
+      const first = await updateInvoice(
+        invoice.id,
+        buildForm(owner, 'RACE-0001', { notes: 'first tab', loadedVersion: opened })
+      );
+      expect(first.success).toBe(true);
+      const afterFirst = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+      expect(afterFirst.version).toBe(opened + 1);
+
+      const second = await updateInvoice(
+        invoice.id,
+        buildForm(owner, 'RACE-0001', { notes: 'second tab', loadedVersion: opened })
+      );
+      expect(second).toEqual({
+        success: false,
+        code: 'CONFLICT',
+        error: 'This invoice was changed elsewhere after you opened it. Reload it to see the latest version.',
+        details: { kind: 'CHANGED_ELSEWHERE', currentVersion: opened + 1 },
+      });
+      expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toEqual(afterFirst);
+    });
+
+    it("T08 AC-23: another Freelancer's invoice is NOT_FOUND, exactly like a missing one", async () => {
+      const owner = await seedOwner();
+      const other = await createFreelancer(prisma);
+      const otherProfile = await createSenderProfile(prisma, other.id);
+      const foreign = await seedInvoiceRow(prisma, {
+        senderProfile: otherProfile,
+        customer: await createCustomer(prisma, other.id),
+        bankAccount: await createBankAccount(prisma, otherProfile.id),
+      });
+      const foreignResult = await updateInvoice(foreign.id, buildForm(owner, 'X-1', { loadedVersion: 0 }));
+      const missingResult = await updateInvoice('no-such-invoice', buildForm(owner, 'X-1', { loadedVersion: 0 }));
+      expect(foreignResult).toEqual({ success: false, code: 'NOT_FOUND', error: 'Invoice not found.' });
+      expect(missingResult).toEqual(foreignResult);
     });
 
     // --- amounts recomputed and stored, never the browser's -------------------------------------

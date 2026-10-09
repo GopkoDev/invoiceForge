@@ -111,7 +111,7 @@ describe('useEditorHeaderButtons — Save reaches server fieldErrors (F-03, AC-1
     // does. Flushing one microtask tick is enough to observe whether the save actually reached
     // the server.
     act(() => {
-      void result.current.SaveButton.props.onClick();
+      void result.current.SaveButton!.props.onClick();
     });
     await act(async () => {
       await Promise.resolve();

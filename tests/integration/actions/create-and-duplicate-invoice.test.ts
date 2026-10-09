@@ -68,7 +68,10 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 // Sentry.captureMessage('invoice_number_conflict', ...). Mocked so the test can observe the call
 // without a real DSN/init. ------------------------------------------------------------------------
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args) }));
 
 type SavedInvoice = {
   id: string;
@@ -488,7 +491,9 @@ describe.runIf(containerRuntimeAvailable)(
     // quantity/rate but never validated them, so a legacy invoice whose stored rate is negative
     // (broke the rules before this feature existed) produced a new, equally invalid copy instead
     // of being blocked.
-    it('F-05: duplicating a legacy invoice with a rule-breaking amount is refused as FAILED with a plain-list message (T41 N-07), and nothing is saved', async () => {
+    // invoice-integrity T07: a failing duplicate is now VALIDATION (contracts/server-actions.md
+    // §duplicateInvoice), never FAILED, with the reasons in the message and the fieldErrors.
+    it('F-05: duplicating a legacy invoice with a rule-breaking amount is refused as VALIDATION with a plain-list message (T41 N-07), and nothing is saved', async () => {
       const owner = await seedOwner();
       const original = await seedInvoiceRow(prisma, {
         senderProfile: owner.senderProfile,
@@ -504,12 +509,140 @@ describe.runIf(containerRuntimeAvailable)(
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.code).toBe('FAILED');
-      expect(result.fieldErrors).toBeUndefined();
-      expect(result.error).toContain("Price can't be negative.");
+      expect(result.code).toBe('VALIDATION');
+      // The lines add up to -5, so the discount cap (a create rule) fails too.
+      expect(result.error).toBe(
+        "This invoice can't be duplicated. Price can't be negative. Discount can't exceed the subtotal plus shipping."
+      );
+      expect(result.fieldErrors).toEqual({
+        'items.0.price': ["Price can't be negative."],
+        discount: ["Discount can't exceed the subtotal plus shipping."],
+      });
 
       const after = await prisma.invoice.count({ where: { senderProfileId: owner.senderProfile.id } });
       expect(after).toBe(before);
+    });
+
+    // ---- invoice-integrity T07 (spec.md §5 AC-04b, AC-06, AC-21, AC-22) ----------------------
+    const STATUS_MESSAGE =
+      'A new invoice always starts as a draft. Save it, then issue it by moving it to pending.';
+
+    it.each(['PENDING', 'PAID', 'OVERDUE', 'CANCELLED'])(
+      'T07 AC-04b: createInvoice refuses status %s with the draft message and stores nothing',
+      async (status) => {
+        const owner = await seedOwner();
+        const result = await createInvoice(buildForm(owner, { status }));
+
+        expect(result).toEqual({
+          success: false,
+          code: 'VALIDATION',
+          error: STATUS_MESSAGE,
+          fieldErrors: { status: [STATUS_MESSAGE] },
+          details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'DRAFT', suggestion: null },
+        });
+        expect(await prisma.invoice.count()).toBe(0);
+        const profile = await prisma.senderProfile.findUniqueOrThrow({ where: { id: owner.senderProfile.id } });
+        expect(profile.invoiceCounter).toBe(owner.senderProfile.invoiceCounter);
+      }
+    );
+
+    it('T07: a created draft stores and returns version 0', async () => {
+      const owner = await seedOwner();
+      const result = await createInvoice(buildForm(owner));
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect((result.data as SavedInvoice & { version: number }).version).toBe(0);
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: result.data.id } })).version).toBe(0);
+    });
+
+    it('T07: createInvoice runs every draft rule together (currency + due date) as VALIDATION', async () => {
+      const owner = await seedOwner();
+      const result = await createInvoice(
+        buildForm(owner, { currency: 'EUR', issueDate: '2026-03-10', dueDate: '2026-03-05' })
+      );
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.code).toBe('VALIDATION');
+      expect(result.fieldErrors).toEqual({
+        bankAccountId: ['This account is in USD while the invoice is in EUR.'],
+        dueDate: ["The due date can't be before the issue date (10 Mar 2026)."],
+      });
+      expect(await prisma.invoice.count()).toBe(0);
+    });
+
+    it('T07 AC-21: on 2 Jan 2027, issue date 28 Dec 2026 → INV-2026-0042; the next, dated 2027 → INV-2027-0043', async () => {
+      const owner = await seedOwner();
+      await prisma.senderProfile.update({
+        where: { id: owner.senderProfile.id },
+        data: { invoicePrefix: 'INV', invoiceCounter: 41 },
+      });
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2027-01-02T10:00:00Z'));
+      try {
+        const first = await createInvoice(buildForm(owner, { issueDate: '2026-12-28', dueDate: '2027-01-11' }));
+        const second = await createInvoice(buildForm(owner, { issueDate: '2027-01-05', dueDate: '2027-01-19' }));
+        expect(first.success && first.data.invoiceNumber).toBe('INV-2026-0042');
+        expect(second.success && second.data.invoiceNumber).toBe('INV-2027-0043');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('T07 AC-22: Kyiv 00:30 on 1 Jan 2027 (UTC still 2026), issue date 1 Jan 2027 → the number carries 2027', async () => {
+      const owner = await seedOwner();
+      await prisma.user.update({ where: { id: owner.freelancer.id }, data: { timeZone: 'Europe/Kyiv' } });
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-12-31T22:30:00Z'));
+      try {
+        const result = await createInvoice(buildForm(owner, { issueDate: '2027-01-01', dueDate: '2027-01-15' }));
+        expect(result.success && result.data.invoiceNumber).toMatch(/-2027-\d{4}$/);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('T07 AC-06: a cancelled invoice duplicates into a draft with version 0 and the current issued details', async () => {
+      const owner = await seedOwner();
+      const source = await seedInvoiceRow(prisma, {
+        senderProfile: owner.senderProfile,
+        customer: owner.customer,
+        bankAccount: owner.bankAccount,
+        overrides: { status: 'CANCELLED', version: 3, senderName: 'Old name', customerName: 'Old customer' },
+      });
+      await prisma.senderProfile.update({ where: { id: owner.senderProfile.id }, data: { name: 'Current name' } });
+      await prisma.customer.update({ where: { id: owner.customer.id }, data: { name: 'Current customer' } });
+
+      const result = await duplicateInvoice(source.id);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const copy = await prisma.invoice.findUniqueOrThrow({ where: { id: result.data.id } });
+      expect(copy).toMatchObject({
+        status: 'DRAFT',
+        paidAt: null,
+        version: 0,
+        senderName: 'Current name',
+        customerName: 'Current customer',
+      });
+    });
+
+    it('T07: a duplicate whose bank account is now in another currency is VALIDATION and stores nothing', async () => {
+      const owner = await seedOwner();
+      const source = await seedInvoiceRow(prisma, {
+        senderProfile: owner.senderProfile,
+        customer: owner.customer,
+        bankAccount: owner.bankAccount,
+        overrides: { currency: 'EUR' },
+      });
+      const before = await prisma.invoice.count();
+
+      const result = await duplicateInvoice(source.id);
+      expect(result).toEqual({
+        success: false,
+        code: 'VALIDATION',
+        error: "This invoice can't be duplicated. This account is in USD while the invoice is in EUR.",
+        fieldErrors: { bankAccountId: ['This account is in USD while the invoice is in EUR.'] },
+      });
+      expect(await prisma.invoice.count()).toBe(before);
     });
 
     it('duplicateInvoice NOT_FOUND: an invoice belonging to another user is treated as missing', async () => {

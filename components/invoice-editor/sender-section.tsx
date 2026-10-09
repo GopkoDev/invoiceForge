@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -37,12 +37,23 @@ import {
   useSelectedSenderProfile,
   useSelectedBankAccount,
   useInvoiceEditorActions,
+  useEditorLocks,
+  useIssuedDetails,
+  useFieldErrors,
 } from '@/store/invoice-editor-store';
+import { FieldError } from '@/components/ui/field';
+import { IssuedDetailsCard } from './issued-details-card';
 import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview';
 
 export function SenderSection() {
   const [open, setOpen] = useState(false);
   const [openBankAccount, setOpenBankAccount] = useState(false);
+  // The bank account picker is named by its label, then its value (review r2 L2), and is
+  // described by its error text while it has one (review r3 P2).
+  const fieldId = useId();
+  const bankAccountLabelId = `${fieldId}-bank-account-label`;
+  const bankAccountTriggerId = `${fieldId}-bank-account`;
+  const bankAccountErrorId = `${fieldId}-bank-account-error`;
 
   const senderProfileOptions = useSenderProfileOptions();
   const availableBankAccounts = useAvailableBankAccounts();
@@ -50,9 +61,57 @@ export function SenderSection() {
   const selectedBank = useSelectedBankAccount();
 
   const { selectSenderProfile, selectBankAccount } = useInvoiceEditorActions();
+  const { locked } = useEditorLocks();
+  const issued = useIssuedDetails();
+  const fieldErrors = useFieldErrors();
 
   const isBankAccountDisabled =
     !selectedProfile || availableBankAccounts.length === 0;
+
+  if (locked) {
+    // Never a picker once issued or cancelled; without issued details, the selected records as text.
+    const sender = issued?.sender ?? {
+      name: selectedProfile?.name,
+      legalName: selectedProfile?.legalName,
+      taxId: selectedProfile?.taxId,
+      address: selectedProfile?.address,
+      city: selectedProfile?.city,
+      country: selectedProfile?.country,
+      postalCode: selectedProfile?.postalCode,
+      email: selectedProfile?.email,
+    };
+    const bank = issued?.bank ?? {
+      bankName: selectedBank?.bankName,
+      accountName: selectedBank?.accountName,
+      accountNumber: selectedBank?.accountNumber,
+      iban: selectedBank?.iban,
+      swift: selectedBank?.swift,
+    };
+    return (
+      <IssuedDetailsCard
+        title="From"
+        icon={<Building2 className="h-4 w-4" />}
+        lines={[
+          sender.name,
+          sender.legalName,
+          sender.address,
+          [sender.postalCode, sender.city, sender.country].filter(Boolean).join(', '),
+          sender.email,
+          sender.taxId && `Tax ID: ${sender.taxId}`,
+        ]}
+        extra={{
+          label: 'Bank account',
+          lines: [
+            bank.bankName,
+            bank.accountName,
+            bank.accountNumber && `Account number: ${bank.accountNumber}`,
+            bank.iban && `IBAN: ${bank.iban}`,
+            bank.swift && `SWIFT: ${bank.swift}`,
+          ],
+        }}
+      />
+    );
+  }
 
   return (
     <Card>
@@ -157,16 +216,20 @@ export function SenderSection() {
 
         {/* Bank Account Popover */}
         <div className="space-y-2">
-          <Label className="flex items-center gap-2">
+          <Label id={bankAccountLabelId} className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Bank Account <span className="text-destructive">*</span>
           </Label>
 
           <Popover open={openBankAccount} onOpenChange={setOpenBankAccount}>
             <PopoverTrigger
+              id={bankAccountTriggerId}
+              aria-labelledby={`${bankAccountLabelId} ${bankAccountTriggerId}`}
               disabled={isBankAccountDisabled}
+              aria-invalid={!!fieldErrors?.bankAccountId}
+              aria-describedby={fieldErrors?.bankAccountId ? bankAccountErrorId : undefined}
               className={cn(
-                'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs',
+                'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-invalid:border-destructive mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs',
                 isBankAccountDisabled && 'cursor-not-allowed opacity-50'
               )}
             >
@@ -219,6 +282,10 @@ export function SenderSection() {
               </Command>
             </PopoverContent>
           </Popover>
+          <FieldError
+            id={bankAccountErrorId}
+            errors={fieldErrors?.bankAccountId?.map((message) => ({ message }))}
+          />
         </div>
 
         {/* Selected Bank Preview */}

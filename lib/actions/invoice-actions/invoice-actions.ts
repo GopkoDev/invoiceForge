@@ -62,7 +62,7 @@ export async function createInvoice(
 // page refresh on success.
 export async function updateInvoice(
   id: string,
-  data: InvoiceFormInput
+  data: InvoiceFormInput & { loadedVersion?: number }
 ): Promise<ActionResult<SavedInvoice>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;

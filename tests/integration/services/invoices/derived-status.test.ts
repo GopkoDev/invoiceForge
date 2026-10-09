@@ -7,6 +7,7 @@ import { isContainerRuntimeAvailable } from '../../../support/db/docker-availabi
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
+import { withLoadedVersion } from '../../../support/loaded-version';
 import { createFreelancer } from '../../../support/factories/user';
 import { createCustomer } from '../../../support/factories/customer';
 import { createSenderProfile } from '../../../support/factories/sender-profile';
@@ -33,7 +34,6 @@ type Saver = { updateInvoice: (a: unknown, id: string, data: unknown) => Promise
 
 const PAST = new Date('2020-01-10T00:00:00.000Z');
 const FUTURE = new Date('2999-01-10T00:00:00.000Z');
-const D6 = 'This invoice is overdue because its due date has passed. You can still mark it paid.';
 
 describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)', () => {
   let db: TestDatabase;
@@ -49,7 +49,12 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     prisma = createTestPrismaClient(db.connectionString);
     svc = (await import('@/lib/services/invoices/invoices')) as unknown as Svc;
     editor = (await import('@/lib/services/invoices/editor-data')) as unknown as Editor;
-    saver = svc as unknown as Saver;
+    // invoice-integrity T08: saves carry the row's current version, as a freshly opened editor would.
+    const raw = svc as unknown as Saver;
+    saver = {
+      updateInvoice: async (a, id, data) =>
+        raw.updateInvoice(a, id, await withLoadedVersion(prisma, id, data as object)),
+    };
   }, 60_000);
 
   afterAll(async () => {
@@ -108,6 +113,18 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     expect(ids(searched)).toEqual([late.id]);
 
     expect(await stored(late.id)).toBe('PENDING');
+  });
+
+  it('T27 (F8): each list row carries the stored status beside the derived one', async () => {
+    const s = await seed();
+    const late = await s.make({ status: 'PENDING', dueDate: PAST });
+    const hand = await s.make({ status: 'OVERDUE', dueDate: FUTURE });
+    const paid = await s.make({ status: 'PAID', dueDate: PAST });
+    const all = await svc.listInvoices(s.actor, { pageSize: 50 });
+    const row = (id: string) => all.data.items.find((i: any) => i.id === id);
+    expect([row(late.id).status, row(late.id).storedStatus]).toEqual(['OVERDUE', 'PENDING']);
+    expect([row(hand.id).status, row(hand.id).storedStatus]).toEqual(['OVERDUE', 'OVERDUE']);
+    expect([row(paid.id).status, row(paid.id).storedStatus]).toEqual(['PAID', 'PAID']);
   });
 
   it('customer and sender-profile scoped lists return the derived status', async () => {
@@ -190,12 +207,15 @@ describe.runIf(containerRuntimeAvailable)('derived invoice status (T07, AC-24)',
     expect(await stored(hand.id)).toBe('OVERDUE');
   });
 
-  it('updateInvoiceStatus refuses OVERDUE and PENDING on a date-overdue invoice, PAID still works', async () => {
+  // invoice-integrity T10 (ADR-0002): OVERDUE on a date-overdue invoice is the status it already has
+  // (the derived overdue is never stored) and PENDING is a same-status request: both are accepted
+  // without a write (was refused: "This invoice is overdue because its due date has passed…"). PAID still works.
+  it('updateInvoiceStatus accepts OVERDUE and PENDING on a date-overdue invoice without storing anything, PAID still works', async () => {
     const s = await seed();
     const late = await s.make({ status: 'PENDING', dueDate: PAST });
     for (const next of ['OVERDUE', 'PENDING']) {
       const res = await svc.updateInvoiceStatus(s.actor, late.id, next);
-      expect(res).toMatchObject({ success: false, code: 'VALIDATION', error: D6 });
+      expect(res).toMatchObject({ success: true, data: { status: 'PENDING' } });
       expect(await stored(late.id)).toBe('PENDING');
     }
     const paid = await svc.updateInvoiceStatus(s.actor, late.id, 'PAID');

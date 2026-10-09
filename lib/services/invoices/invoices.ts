@@ -2,9 +2,10 @@ import 'server-only';
 import { z } from 'zod';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/prisma';
-import { fail, ok, type ActionResult } from '@/types/result';
+import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
 import type {
   InvoiceFilterOptions,
+  InvoiceIssuedDetails,
   InvoiceListItem,
   SerializedInvoice,
 } from '@/types/invoice/types';
@@ -29,21 +30,34 @@ import {
   computeInvoiceLegacyInfo,
   serializeDecimal,
   serializeInvoice,
-  verifyInvoiceRelations,
-  verifyItemProductsOwnership,
+  INVOICE_ITEM_ORDER,
+  checkDraftRules,
 } from '@/lib/services/invoices/helpers';
+import { issuedDetailsOf } from '@/lib/services/invoices/editor-data';
 import { invoiceListSelect } from '@/lib/services/invoices/select-queries';
-import { captureMessage } from '@sentry/nextjs';
-import { invoiceAmountsSchema, invoiceFormSchema, type InvoiceFormInput } from '@/lib/validations/invoice';
+import { captureMessage, startSpan } from '@sentry/nextjs';
+import {
+  invoiceAmountsSchema,
+  invoiceShapeSchema,
+  invoiceUpdateFormSchema,
+  checkDueDate,
+  type FieldErrors,
+  type InvoiceFormInput,
+} from '@/lib/validations/invoice';
 import {
   isDerivedOverdue,
-  refusesManualStatus,
   statusFilterWhere,
   statusToStoreOnSave,
   todayIn,
   withDerivedStatus,
 } from '@/lib/services/_shared/overdue';
-import { applyStatusChange } from '@/lib/helpers/invoice-status';
+import {
+  STATUS_MESSAGES,
+  decideCreateStatus,
+  decideDelete,
+  decideStatusChange,
+} from '@/lib/helpers/invoice-status';
+import { ISSUED_INVOICE_LOCKED_MESSAGE, compareLockedFields } from '@/lib/helpers/invoice-locked-fields';
 import { computeInvoiceAmounts } from '@/lib/helpers/invoice-calculations';
 import {
   allocateInvoiceNumber,
@@ -68,7 +82,7 @@ export async function getInvoice(
     const invoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId: actor.userId } },
       include: {
-        items: true,
+        items: { orderBy: INVOICE_ITEM_ORDER },
         senderProfile: true,
         customer: true,
         bankAccount: true,
@@ -105,7 +119,13 @@ export async function peekNextInvoiceNumber(
     });
     if (!profile) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
 
-    const invoiceNumber = await peekNextNumber(senderProfileId, actor.userId);
+    // invoice-integrity T07: the hint has no issue date yet, so its year is today's calendar day in
+    // the Freelancer time zone; the number assigned on save may carry another year (AC-21).
+    const invoiceNumber = await peekNextNumber(
+      senderProfileId,
+      actor.userId,
+      dayToUtcDate(todayIn(actor.timeZone))
+    );
     if (invoiceNumber === null) return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     return ok(invoiceNumber);
   } catch (error) {
@@ -274,6 +294,7 @@ export async function listInvoices(
       ...page,
       items: page.items.map((inv) => ({
         ...withDerivedStatus(inv, today),
+        storedStatus: inv.status,
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },
@@ -304,7 +325,18 @@ export type SavedInvoice = {
    * so a second save compares against what is stored, not the pre-save snapshot (T44 review, I-01). */
   issueDate: string;
   dueDate: string;
+  /** Invoice.version after the write (ADR-0004): the editor's next loadedVersion. */
+  version: number;
+  /** The issued details the row holds after the write (T22): set whenever the row is not a draft, so the
+   * editor shows what the server froze; null for a draft. */
+  issuedDetails: InvoiceIssuedDetails | null;
 };
+
+const FIX_FIELDS_MESSAGE = 'Please fix the highlighted fields.';
+
+function hasFieldErrors(fieldErrors: FieldErrors): boolean {
+  return Object.keys(fieldErrors).length > 0;
+}
 
 const INVOICE_NUMBER_CONFLICT_MESSAGE =
   'This invoice number is already used in this sender profile.';
@@ -328,10 +360,11 @@ export async function resolveManualOrAllocatedNumber(
   senderProfileId: string,
   userId: string,
   invoiceNumber: string,
-  excludeInvoiceId?: string
+  excludeInvoiceId: string | undefined,
+  issueDate: Date
 ): Promise<{ invoiceNumber: string; invoiceNumberKey: string; wasAllocated: boolean }> {
   if (invoiceNumber === '') {
-    const allocated = await allocateInvoiceNumber(tx, senderProfileId, userId);
+    const allocated = await allocateInvoiceNumber(tx, senderProfileId, userId, issueDate);
     return { ...allocated, wasAllocated: true };
   }
 
@@ -349,7 +382,52 @@ export async function resolveManualOrAllocatedNumber(
 }
 
 
-export async function createInvoice(
+const CURRENCY_FIELD = /^(bankAccountId|items\.\d+\.productId)$/;
+const BOUNDS_FIELD = /^(taxRate|discount|shipping|items\.\d+\.(quantity|price|total))$/;
+
+/**
+ * The outcome recorded on a save / status-change span (review S2, sad §7 Monitoring, §8): `ok`,
+ * `failed`, or `refused:<kind>`. Kinds only — never a message, a field value or an amount.
+ */
+function outcomeOf(result: ActionResult<unknown>): string {
+  if (result.success) return 'ok';
+  if (result.code === 'FAILED') return 'failed';
+  switch (result.details?.kind) {
+    case 'STATUS_NOT_ALLOWED':
+      return 'refused:lifecycle';
+    case 'ISSUED_INVOICE_LOCKED':
+      return 'refused:locked-field';
+    case 'CHANGED_ELSEWHERE':
+      return 'refused:changed-elsewhere';
+    case 'TOTALS_CHANGED':
+      return 'refused:totals-changed';
+  }
+  const fields = Object.keys(result.fieldErrors ?? {});
+  if (fields.some((field) => CURRENCY_FIELD.test(field))) return 'refused:currency';
+  if (fields.some((field) => BOUNDS_FIELD.test(field))) return 'refused:bounds';
+  return `refused:${result.code.toLowerCase().replace('_', '-')}`;
+}
+
+/** Runs a save or status change in its span and records the outcome of whatever it returns. */
+function inOutcomeSpan<T>(
+  options: { name: string; attributes?: Record<string, string> },
+  run: () => Promise<ActionResult<T>>
+): Promise<ActionResult<T>> {
+  return startSpan({ ...options, op: 'function' }, async (span) => {
+    const result = await run();
+    // Optional: older test doubles of startSpan call the callback without a span.
+    span?.setAttribute('outcome', outcomeOf(result));
+    return result;
+  });
+}
+
+export async function createInvoice(actor: ActingFreelancer, data: InvoiceFormInput) {
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'create' } }, () =>
+    createInvoiceUnspanned(actor, data)
+  );
+}
+
+async function createInvoiceUnspanned(
   actor: ActingFreelancer,
   data: InvoiceFormInput
 ): Promise<ActionResult<SavedInvoice>> {
@@ -360,40 +438,40 @@ export async function createInvoice(
 
   try {
     const { userId } = actor;
-    const parsed = invoiceFormSchema.safeParse(data);
+    // invoice-integrity T07 — contracts/server-actions.md §createInvoice, first failure wins:
+    // shape → status (AC-04b) → ownership (NOT_FOUND) → every draft rule together → number.
+    const parsed = invoiceShapeSchema.safeParse(data);
     if (!parsed.success) {
       return zodValidationFailure(parsed.error);
     }
     const validatedData = parsed.data;
 
-    // Verify ownership and get snapshot data
-    const relationsResult = await verifyInvoiceRelations(
-      userId,
-      validatedData.senderProfileId,
-      validatedData.customerId,
-      validatedData.bankAccountId
-    );
-    if (!relationsResult.success) {
-      return relationsResult;
+    const createStatus = decideCreateStatus(validatedData.status);
+    if (createStatus.kind === 'refused') {
+      return fail('VALIDATION', createStatus.message, {
+        fieldErrors: { status: [createStatus.message] },
+        details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'DRAFT', suggestion: null },
+      });
     }
-
-    // F-48: every item's productId, if any, must belong to this same Freelancer.
-    const productOwnershipResult = await verifyItemProductsOwnership(
-      userId,
-      validatedData.items
-    );
-    if (!productOwnershipResult.success) {
-      return productOwnershipResult;
-    }
-
-    const { senderProfile, customer, bankAccount } = relationsResult.data;
 
     const invoice = await prisma.$transaction(async (tx) => {
+      // T26 (review F7, ADR-0005): the sender-profile lock first, so an account's currency can't
+      // change between the draft rules and the insert; the rules then run on the locked state.
+      await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
+      const checked = await checkDraftRules(userId, validatedData, tx);
+      if (!checked.success) throw new InvoiceRefusal(checked);
+      if (hasFieldErrors(checked.data.fieldErrors)) {
+        throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: checked.data.fieldErrors }));
+      }
+      const { senderProfile, customer, bankAccount } = checked.data;
+
       const resolved = await resolveManualOrAllocatedNumber(
         tx,
         senderProfile.id,
         userId,
-        validatedData.invoiceNumber
+        validatedData.invoiceNumber,
+        undefined,
+        validatedData.issueDate
       );
       const { invoiceNumber, invoiceNumberKey } = resolved;
       wasAllocated = resolved.wasAllocated;
@@ -411,11 +489,6 @@ export async function createInvoice(
         taxRate: validatedData.taxRate,
       });
 
-      const { status, paidAt } = applyStatusChange(
-        { status: 'DRAFT', paidAt: null },
-        validatedData.status
-      );
-
       return tx.invoice.create({
         data: {
           invoiceNumber,
@@ -426,8 +499,9 @@ export async function createInvoice(
           issueDate: validatedData.issueDate,
           dueDate: validatedData.dueDate,
           paymentTerms: validatedData.paymentTerms,
-          status,
-          paidAt,
+          status: 'DRAFT',
+          paidAt: null,
+          version: 0,
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
@@ -470,11 +544,14 @@ export async function createInvoice(
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
+      version: invoice.version,
+      issuedDetails: invoice.status === InvoiceStatus.DRAFT ? null : issuedDetailsOf(invoice),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
+    if (error instanceof InvoiceRefusal) return error.result;
     if (error instanceof SenderProfileNotFoundError) {
       return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }
@@ -493,7 +570,7 @@ export async function createInvoice(
       }
       return invoiceNumberConflict();
     }
-    return failed('Error creating invoice:', error, 'Failed to create invoice.');
+    return failed('Error creating invoice:', error, 'Failed to create invoice.', 'invoices.create');
   }
 }
 
@@ -504,6 +581,34 @@ const LEGACY_SHARED_NUMBER_MESSAGE =
  * invoice's own key is NULL or shared, and the submitted number is unchanged. */
 class InvoiceLegacySharedNumberError extends Error {}
 class InvoiceVanishedError extends Error {}
+
+/** A refusal decided inside a save transaction: rolls the transaction back, then returned as is. */
+class InvoiceRefusal extends Error {
+  constructor(public readonly result: ActionFailure) {
+    super(result.code);
+  }
+}
+
+/**
+ * Locks the invoice row of this owner (`FOR UPDATE OF i`, the owner in the lock's own WHERE) and
+ * reads it with its lines under the lock. Another Freelancer's invoice locks nothing and is treated
+ * exactly like a missing one (InvoiceVanishedError → NOT_FOUND, AC-23).
+ */
+async function lockInvoiceRow(tx: Prisma.TransactionClient, id: string, userId: string) {
+  const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT i.id FROM "Invoice" i
+    JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
+    WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
+  if (!locked) throw new InvoiceVanishedError();
+  const invoice = await tx.invoice.findFirst({
+    where: { id, senderProfile: { userId } },
+    include: { items: { orderBy: INVOICE_ITEM_ORDER } },
+  });
+  if (!invoice) throw new InvoiceVanishedError();
+  return invoice;
+}
+
+const CHANGED_ELSEWHERE_MESSAGE =
+  'This invoice was changed elsewhere after you opened it. Reload it to see the latest version.';
 
 /** Thrown inside updateInvoice's transaction for AC-17's totals case (step 5): the stored total
  * disagrees with a recompute of the invoice's own stored lines, and confirmedTotals doesn't (yet)
@@ -517,11 +622,11 @@ class InvoiceTotalsChangedError extends Error {
   }
 }
 
-// Update an existing invoice (Flows 2, 6 move, 7 legacy, 8 status from the editor). The checks
-// run in the order fixed by contracts/server-actions.md §updateInvoice, verbatim: UNAUTHORIZED ->
-// VALIDATION (schema) -> NOT_FOUND (invoice, or new relations not owned) -> the move/manual number
-// rules (AC-11) -> the legacy shared-number check (AC-17) -> the legacy totals confirmation
-// (AC-17) -> applyStatusChange (AC-18, AC-19), all inside one transaction.
+// Update an existing invoice (flows 1, 2 and 4). The checks run in the order fixed by
+// contracts/server-actions.md §updateInvoice (invoice-integrity): shape -> on the locked row
+// NOT_FOUND -> CHANGED_ELSEWHERE -> cancelled -> the lifecycle -> issued: locked fields and the due
+// date / draft: every draft rule, then the move/manual number rules (AC-11), the legacy
+// shared-number check and totals confirmation (AC-17).
 /**
  * T40 (r2 H-01): an unedited date keeps its stored value. A legacy instant (not a UTC midnight) whose
  * UTC day equals the submitted day is what the editor showed untouched, so rewriting it to a midnight
@@ -537,10 +642,40 @@ function keepUnchangedLegacyDay(read: Date, submitted: Date, current: Date): Dat
   return submitted;
 }
 
-export async function updateInvoice(
+/**
+ * updateInvoice's input. `loadedVersion` is required at runtime (the shape parse refuses a missing
+ * one, AC-10); the type keeps it optional because the editor builds create and update payloads with
+ * one function, and a new invoice has no version yet.
+ */
+export type UpdateInvoiceInput = InvoiceFormInput & { loadedVersion?: number };
+
+/** Several rules can fail on one key (a huge discount breaks its bound and the cap): keep every message. */
+function mergeFieldErrors(...sets: FieldErrors[]): FieldErrors {
+  const merged: FieldErrors = {};
+  for (const set of sets) {
+    for (const [key, messages] of Object.entries(set)) {
+      merged[key] = [...new Set([...(merged[key] ?? []), ...messages])];
+    }
+  }
+  return merged;
+}
+
+/** The per-field amount bounds (types excluded) of a draft's amounts, as field errors. */
+function amountBoundErrors(values: unknown): FieldErrors {
+  const shape = invoiceAmountsSchema.safeParse(values);
+  return shape.success ? {} : zodValidationFailure(shape.error).fieldErrors ?? {};
+}
+
+export async function updateInvoice(actor: ActingFreelancer, id: string, data: UpdateInvoiceInput) {
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'update' } }, () =>
+    updateInvoiceUnspanned(actor, id, data)
+  );
+}
+
+async function updateInvoiceUnspanned(
   actor: ActingFreelancer,
   id: string,
-  data: InvoiceFormInput
+  data: UpdateInvoiceInput
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -549,53 +684,122 @@ export async function updateInvoice(
 
   try {
     const { userId } = actor;
-    const parsed = invoiceFormSchema.safeParse(data);
+    // invoice-integrity T08 (contracts/server-actions.md §updateInvoice): the shape only before the
+    // transaction; every rule runs on the locked row, in contract order, first failure wins.
+    const parsed = invoiceUpdateFormSchema.safeParse(data);
     if (!parsed.success) {
       return zodValidationFailure(parsed.error);
     }
     const validatedData = parsed.data;
 
-    // Verify invoice exists and belongs to the caller
-    const existingInvoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId } },
-      include: { items: true },
-    });
-    if (!existingInvoice) {
-      return fail('NOT_FOUND', 'Invoice not found.');
-    }
-
-    // Verify ownership and get snapshot data for the (possibly new) relations
-    const relationsResult = await verifyInvoiceRelations(
-      userId,
-      validatedData.senderProfileId,
-      validatedData.customerId,
-      validatedData.bankAccountId
-    );
-    if (!relationsResult.success) {
-      return relationsResult;
-    }
-
-    // F-48: every item's productId, if any, must belong to this same Freelancer.
-    const productOwnershipResult = await verifyItemProductsOwnership(
-      userId,
-      validatedData.items
-    );
-    if (!productOwnershipResult.success) {
-      return productOwnershipResult;
-    }
-
-    const { senderProfile, customer, bankAccount } = relationsResult.data;
-    const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
-
     const invoice = await prisma.$transaction(async (tx) => {
-      // Lock the row and re-read the dates: lazy normalisation may have rewritten them since
-      // `existingInvoice` was read (T40 review), and the save must not write the stale instants back.
-      const [currentDates] = await tx.$queryRaw<
-        { issueDate: Date; dueDate: Date }[]
-      >`SELECT i."issueDate", i."dueDate" FROM "Invoice" i
-        JOIN "SenderProfile" sp ON sp.id = i."senderProfileId"
-        WHERE i.id = ${id} AND sp."userId" = ${userId} FOR UPDATE OF i`;
-      if (!currentDates) throw new InvoiceVanishedError();
+      // Step 2: lock the row of this owner, then read it (and its lines) under the lock.
+      const existingInvoice = await lockInvoiceRow(tx, id, userId);
+
+      // Step 3 (AC-10, ADR-0004): an outdated view is refused before any other rule.
+      if (validatedData.loadedVersion !== existingInvoice.version) {
+        throw new InvoiceRefusal(
+          fail('CONFLICT', CHANGED_ELSEWHERE_MESSAGE, {
+            details: { kind: 'CHANGED_ELSEWHERE', currentVersion: existingInvoice.version },
+          })
+        );
+      }
+
+      // Step 4 (AC-06): a cancelled invoice is final.
+      if (existingInvoice.status === 'CANCELLED') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', STATUS_MESSAGES.cancelled, {
+            details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'CANCELLED', suggestion: 'DUPLICATE' },
+          })
+        );
+      }
+
+      // Step 5 (ADR-0002): a status change goes through the lifecycle. The overdue status of a
+      // derived-overdue invoice is never stored (AC-24), so echoing it is the same status.
+      const today = todayIn(actor.timeZone);
+      const decision = decideStatusChange(
+        existingInvoice,
+        statusToStoreOnSave(existingInvoice, validatedData.status, today),
+        { now: new Date(), today }
+      );
+      if (decision.kind === 'refused') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', decision.message, {
+            fieldErrors: { status: [decision.message] },
+            details: {
+              kind: 'STATUS_NOT_ALLOWED',
+              currentStatus: existingInvoice.status,
+              suggestion: decision.suggestion,
+            },
+          })
+        );
+      }
+      const { status, paidAt } =
+        decision.kind === 'change'
+          ? decision
+          : { status: existingInvoice.status, paidAt: existingInvoice.paidAt };
+
+      // Step 6 (ADR-0003, AC-08, AC-09, AC-14): an issued invoice changes only its four editable
+      // fields; the issued details, number, relations, amounts and lines stay as they are.
+      if (existingInvoice.status !== 'DRAFT') {
+        // An unedited legacy issue date is unchanged (T40/T44): compare the date the save would keep.
+        const issueDate = keepUnchangedLegacyDay(
+          validatedData.loadedIssueDate ? new Date(validatedData.loadedIssueDate) : existingInvoice.issueDate,
+          validatedData.issueDate,
+          existingInvoice.issueDate
+        );
+        const lockedChanges = compareLockedFields(existingInvoice, { ...validatedData, issueDate });
+        if (Object.keys(lockedChanges).length > 0) {
+          throw new InvoiceRefusal(
+            fail('VALIDATION', ISSUED_INVOICE_LOCKED_MESSAGE, {
+              fieldErrors: lockedChanges,
+              details: { kind: 'ISSUED_INVOICE_LOCKED' },
+            })
+          );
+        }
+        const dueDate = keepUnchangedLegacyDay(
+          validatedData.loadedDueDate ? new Date(validatedData.loadedDueDate) : existingInvoice.dueDate,
+          validatedData.dueDate,
+          existingInvoice.dueDate
+        );
+        if (utcDateToDay(dueDate) !== utcDateToDay(existingInvoice.dueDate)) {
+          const dueDateErrors = checkDueDate(existingInvoice.issueDate, dueDate);
+          if (hasFieldErrors(dueDateErrors)) {
+            throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors: dueDateErrors }));
+          }
+        }
+        return tx.invoice.update({
+          where: { id, senderProfile: { userId } },
+          data: {
+            dueDate,
+            notes: validatedData.notes,
+            paymentTerms: validatedData.paymentTerms,
+            poNumber: validatedData.poNumber,
+            status,
+            paidAt,
+            version: { increment: 1 },
+          },
+        });
+      }
+
+      // Step 7 (T09, flow 4): a draft, including one being issued from the editor. Every draft rule
+      // on the locked row, all failures together: ownership (NOT_FOUND), currencies, amount bounds,
+      // discount cap, due date. The issued details are then refreshed from the current records,
+      // which is what freezes when the draft is issued (AC-02).
+      // T26 (review F7): the target profile's lock comes before the rules on every branch, the
+      // unchanged-number one included (order: invoice row, profile, products).
+      await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
+      const draftRules = await checkDraftRules(userId, validatedData, tx);
+      if (!draftRules.success) throw new InvoiceRefusal(draftRules);
+      // The per-field amount bounds belong to the draft branch (T23, AC-14): the update parse is the
+      // shape only, so an issued invoice's locked amounts are never judged.
+      const fieldErrors = mergeFieldErrors(amountBoundErrors(validatedData), draftRules.data.fieldErrors);
+      if (hasFieldErrors(fieldErrors)) {
+        throw new InvoiceRefusal(fail('VALIDATION', FIX_FIELDS_MESSAGE, { fieldErrors }));
+      }
+
+      const { senderProfile, customer, bankAccount } = draftRules.data;
+      const moved = validatedData.senderProfileId !== existingInvoice.senderProfileId;
 
       // Step 2/3 (AC-11) + Step 4 (AC-17), folded into one "is the number unchanged" branch: a
       // move clears the number field and always applies the manual/allocate rules under B; an
@@ -631,7 +835,8 @@ export async function updateInvoice(
           validatedData.senderProfileId,
           userId,
           validatedData.invoiceNumber,
-          existingInvoice.id
+          existingInvoice.id,
+          validatedData.issueDate
         );
       }
       const { invoiceNumber, invoiceNumberKey } = resolvedNumber;
@@ -677,12 +882,6 @@ export async function updateInvoice(
         }
       }
 
-      // Step 6 (AC-18, AC-19): the one status/paid-date transition function.
-      const { status, paidAt } = applyStatusChange(
-        { status: existingInvoice.status, paidAt: existingInvoice.paidAt },
-        statusToStoreOnSave(existingInvoice, validatedData.status, todayIn(actor.timeZone))
-      );
-
       await tx.invoiceItem.deleteMany({
         where: { invoiceId: id, invoice: { senderProfile: { userId } } },
       });
@@ -695,23 +894,26 @@ export async function updateInvoice(
           senderProfileId: validatedData.senderProfileId,
           customerId: validatedData.customerId,
           bankAccountId: validatedData.bankAccountId,
+          // The read instant: the editor's loaded one, else the locked row's; the row's value under
+          // the lock is what an unedited date keeps (T40, I-01).
           issueDate: keepUnchangedLegacyDay(
             validatedData.loadedIssueDate
               ? new Date(validatedData.loadedIssueDate)
               : existingInvoice.issueDate,
             validatedData.issueDate,
-            currentDates.issueDate
+            existingInvoice.issueDate
           ),
           dueDate: keepUnchangedLegacyDay(
             validatedData.loadedDueDate
               ? new Date(validatedData.loadedDueDate)
               : existingInvoice.dueDate,
             validatedData.dueDate,
-            currentDates.dueDate
+            existingInvoice.dueDate
           ),
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,
+          version: { increment: 1 },
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
@@ -754,8 +956,13 @@ export async function updateInvoice(
       paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
       issueDate: invoice.issueDate.toISOString(),
       dueDate: invoice.dueDate.toISOString(),
+      version: invoice.version,
+      issuedDetails: invoice.status === InvoiceStatus.DRAFT ? null : issuedDetailsOf(invoice),
     });
   } catch (error) {
+    if (error instanceof InvoiceRefusal) {
+      return error.result;
+    }
     if (error instanceof z.ZodError) {
       return zodValidationFailure(error);
     }
@@ -791,14 +998,20 @@ export async function updateInvoice(
       }
       return invoiceNumberConflict();
     }
-    return failed('Error updating invoice:', error, 'Failed to update invoice.');
+    return failed('Error updating invoice:', error, 'Failed to update invoice.', 'invoices.update');
   }
 }
 
-// Update invoice status (Flow 8, list branch). Touches only status/paidAt: never runs the
-// amount, number or legacy checks (AC-17 last sentence). The status/paid-date rule itself lives
-// once in applyStatusChange (sad.md §8).
-export async function updateInvoiceStatus(
+// Update invoice status (the list, flow 5). Touches only status/paidAt/version: never runs the
+// number or legacy-total checks (AC-17 last sentence). The lifecycle and the paid-date rule live
+// once in decideStatusChange (ADR-0002).
+export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
+  return inOutcomeSpan({ name: 'invoices.status-change' }, () =>
+    updateInvoiceStatusUnspanned(actor, id, status)
+  );
+}
+
+async function updateInvoiceStatusUnspanned(
   actor: ActingFreelancer,
   id: string,
   status: string
@@ -814,38 +1027,59 @@ export async function updateInvoiceStatus(
       });
     }
 
+    // invoice-integrity T10 (flow 5, ADR-0002): no version check; one transaction on the locked
+    // row, decided against its current status. Issued details are never written here.
     const { userId } = actor;
     const outcome = await prisma.$transaction(async (tx) => {
-      const invoice = await tx.invoice.findFirst({
-        where: { id, senderProfile: { userId } },
-        select: { status: true, paidAt: true, dueDate: true },
-      });
-      if (!invoice) return null;
-
-      if (refusesManualStatus(invoice, parsedStatus.data, todayIn(actor.timeZone))) {
-        return 'REFUSED' as const;
+      const invoice = await lockInvoiceRow(tx, id, userId);
+      const today = todayIn(actor.timeZone);
+      // The overdue status of a derived-overdue invoice is never stored (mcp-server ADR-0005):
+      // asking for it is asking for the status it already has.
+      const target = statusToStoreOnSave(invoice, parsedStatus.data, today);
+      const decision = decideStatusChange(invoice, target, { now: new Date(), today });
+      if (decision.kind === 'unchanged') {
+        return { status: invoice.status, paidAt: invoice.paidAt };
       }
-      const next = applyStatusChange(invoice, parsedStatus.data);
-      const written = await tx.invoice.updateMany({
+      if (decision.kind === 'refused') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', decision.message, {
+            details: {
+              kind: 'STATUS_NOT_ALLOWED',
+              currentStatus: invoice.status,
+              suggestion: decision.suggestion,
+            },
+          })
+        );
+      }
+
+      // Issuing from the list runs every draft rule over the stored draft (AC-14, AC-25).
+      if (invoice.status === 'DRAFT') {
+        const form = transformInvoiceToFormData(invoice);
+        const draftRules = await checkDraftRules(userId, form, tx);
+        if (!draftRules.success) throw new InvoiceRefusal(draftRules);
+        // Same bounds as the editor's Save and issue (T23, AC-14, AC-25).
+        const fieldErrors = mergeFieldErrors(amountBoundErrors(form), draftRules.data.fieldErrors);
+        if (hasFieldErrors(fieldErrors)) {
+          const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
+          throw new InvoiceRefusal(fail('VALIDATION', reasons, { fieldErrors }));
+        }
+      }
+
+      return tx.invoice.update({
         where: { id, senderProfile: { userId } },
-        data: { status: next.status, paidAt: next.paidAt },
+        data: { status: decision.status, paidAt: decision.paidAt, version: { increment: 1 } },
+        select: { status: true, paidAt: true },
       });
-      return written.count === 0 ? null : next;
     });
-    if (!outcome) return fail('NOT_FOUND', 'Invoice not found.');
-    if (outcome === 'REFUSED') {
-      return fail(
-        'VALIDATION',
-        'This invoice is overdue because its due date has passed. You can still mark it paid.'
-      );
-    }
 
     return ok({
       status: outcome.status,
       paidAt: outcome.paidAt ? outcome.paidAt.toISOString() : null,
     });
   } catch (error) {
-    return failed('Error updating invoice status:', error, 'Failed to update invoice status.');
+    if (error instanceof InvoiceRefusal) return error.result;
+    if (error instanceof InvoiceVanishedError) return fail('NOT_FOUND', 'Invoice not found.');
+    return failed('Error updating invoice status:', error, 'Failed to update invoice status.', 'invoices.status-change');
   }
 }
 
@@ -853,7 +1087,13 @@ export async function updateInvoiceStatus(
 // Duplicate an existing invoice (Flow 6, duplicate branch, AC-12). In one transaction: allocate
 // from the original's sender-profile sequence (same allocator and format as createInvoice),
 // insert the copy with recomputed amounts, status DRAFT, paidAt null.
-export async function duplicateInvoice(
+export async function duplicateInvoice(actor: ActingFreelancer, id: string) {
+  return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'duplicate' } }, () =>
+    duplicateInvoiceUnspanned(actor, id)
+  );
+}
+
+async function duplicateInvoiceUnspanned(
   actor: ActingFreelancer,
   id: string
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
@@ -863,54 +1103,71 @@ export async function duplicateInvoice(
 
     const originalInvoice = await prisma.invoice.findFirst({
       where: { id, senderProfile: { userId } },
-      include: { items: true },
+      include: { items: { orderBy: INVOICE_ITEM_ORDER } },
     });
 
     if (!originalInvoice) {
       return fail('NOT_FOUND', 'Invoice not found.');
     }
 
-    const senderProfile = await prisma.senderProfile.findFirst({
-      where: { id: originalInvoice.senderProfileId, userId },
-      select: { id: true },
-    });
+    // invoice-integrity T07 (contracts/server-actions.md §duplicateInvoice): a source in any status,
+    // CANCELLED included, becomes a new draft that goes through the create rules. The source may be
+    // a legacy row that breaks them (a negative rate, a currency that no longer matches): the amount
+    // shape (F-05/N-07) and every draft rule are checked, and a failure is VALIDATION with the
+    // reasons as a plain list — user input, never FAILED, never reported to Sentry.
+    const form = transformInvoiceToFormData(originalInvoice);
+    const issueDate = dayToUtcDate(today);
+    const dueDate = dayToUtcDate(addDaysToDay(today, 30));
 
-    if (!senderProfile) {
-      return fail('NOT_FOUND', 'Sender profile not found.');
-    }
-
-    // F-05/N-07: the source invoice may be a legacy row whose amounts already break the rules
-    // (e.g. a negative rate) — check only the amount rules before recomputing, instead of blindly
-    // copying a rule-breaking source. Other form rules (names, units, relations) don't concern a
-    // copy, and the contract has no VALIDATION for this action: refuse with FAILED and a plain
-    // list message the row toast shows as is.
-    const parsed = invoiceAmountsSchema.safeParse(transformInvoiceToFormData(originalInvoice));
-    if (!parsed.success) {
-      const reasons = [...new Set(parsed.error.issues.map((issue) => issue.message))].join(' ');
-      return fail('FAILED', `This invoice can't be duplicated. ${reasons}`);
-    }
-    const validatedData = parsed.data;
+    const shapeErrors = amountBoundErrors(form);
 
     // Stored amounts come only from the shared exact-decimal module (ADR-0006), recomputed from
     // the original's quantity x rate rather than copying its (possibly stale) stored figures.
     const amounts = computeInvoiceAmounts({
-      items: validatedData.items.map((item) => ({
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      discount: validatedData.discount,
-      shipping: validatedData.shipping,
-      taxRate: validatedData.taxRate,
+      items: form.items.map((item) => ({ quantity: item.quantity, price: item.price })),
+      discount: form.discount,
+      shipping: form.shipping,
+      taxRate: form.taxRate,
     });
 
     const newInvoice = await prisma.$transaction(async (tx) => {
+      // T26 (review F7, ADR-0005): the sender-profile lock first, then the draft rules on the
+      // locked state, so a currency change can't commit between the check and the insert.
+      await lockSenderProfileRow(tx, originalInvoice.senderProfileId, userId);
+      const checked = await checkDraftRules(
+        userId,
+        {
+          senderProfileId: originalInvoice.senderProfileId,
+          customerId: originalInvoice.customerId,
+          bankAccountId: originalInvoice.bankAccountId,
+          currency: originalInvoice.currency,
+          items: form.items,
+          taxRate: form.taxRate,
+          discount: form.discount,
+          shipping: form.shipping,
+          issueDate,
+          dueDate,
+        },
+        tx
+      );
+      if (!checked.success) throw new InvoiceRefusal(checked);
+      const fieldErrors = mergeFieldErrors(shapeErrors, checked.data.fieldErrors);
+      if (hasFieldErrors(fieldErrors)) {
+        const reasons = [...new Set(Object.values(fieldErrors).flat())].join(' ');
+        throw new InvoiceRefusal(
+          fail('VALIDATION', `This invoice can't be duplicated. ${reasons}`, { fieldErrors })
+        );
+      }
+      const { senderProfile, customer, bankAccount } = checked.data;
+
       const { invoiceNumber, invoiceNumberKey } = await allocateInvoiceNumber(
         tx,
         senderProfile.id,
-        userId
+        userId,
+        issueDate
       );
 
-      const created = await tx.invoice.create({
+      return tx.invoice.create({
         data: {
           invoiceNumber,
           invoiceNumberKey,
@@ -918,37 +1175,18 @@ export async function duplicateInvoice(
           customerId: originalInvoice.customerId,
           bankAccountId: originalInvoice.bankAccountId,
           // Calendar days (T25): today in the owner's zone and 30 days after it, each at T00:00:00Z.
-          issueDate: dayToUtcDate(today),
-          dueDate: dayToUtcDate(addDaysToDay(today, 30)),
+          issueDate,
+          dueDate,
           paymentTerms: originalInvoice.paymentTerms,
           status: 'DRAFT',
+          paidAt: null,
+          version: 0,
           currency: originalInvoice.currency,
           poNumber: null,
-          senderName: originalInvoice.senderName,
-          senderLegalName: originalInvoice.senderLegalName,
-          senderTaxId: originalInvoice.senderTaxId,
-          senderAddress: originalInvoice.senderAddress,
-          senderCity: originalInvoice.senderCity,
-          senderCountry: originalInvoice.senderCountry,
-          senderPostalCode: originalInvoice.senderPostalCode,
-          senderPhone: originalInvoice.senderPhone,
-          senderEmail: originalInvoice.senderEmail,
-          senderWebsite: originalInvoice.senderWebsite,
-          senderLogo: originalInvoice.senderLogo,
-          customerName: originalInvoice.customerName,
-          customerCompanyName: originalInvoice.customerCompanyName,
-          customerTaxId: originalInvoice.customerTaxId,
-          customerEmail: originalInvoice.customerEmail,
-          customerPhone: originalInvoice.customerPhone,
-          customerAddress: originalInvoice.customerAddress,
-          customerCity: originalInvoice.customerCity,
-          customerCountry: originalInvoice.customerCountry,
-          customerPostalCode: originalInvoice.customerPostalCode,
-          bankName: originalInvoice.bankName,
-          bankAccountNumber: originalInvoice.bankAccountNumber,
-          bankIban: originalInvoice.bankIban,
-          bankSwift: originalInvoice.bankSwift,
-          accountName: originalInvoice.accountName,
+          // A duplicate is a new draft: its issued details are the current records' (ADR-0001).
+          ...buildSenderSnapshot(senderProfile),
+          ...buildCustomerSnapshot(customer),
+          ...buildBankAccountSnapshot(bankAccount),
           subtotal: amounts.subtotal,
           taxRate: originalInvoice.taxRate,
           taxAmount: amounts.taxAmount,
@@ -972,12 +1210,11 @@ export async function duplicateInvoice(
           },
         },
       });
-
-      return created;
     });
 
     return ok({ id: newInvoice.id, invoiceNumber: newInvoice.invoiceNumber });
   } catch (error) {
+    if (error instanceof InvoiceRefusal) return error.result;
     if (error instanceof SenderProfileNotFoundError) {
       return fail('NOT_FOUND', PROFILE_NOT_FOUND);
     }
@@ -990,28 +1227,35 @@ export async function duplicateInvoice(
       captureMessage('invoice_number_conflict', { extra: { id } });
       return fail('FAILED', 'Failed to duplicate invoice.');
     }
-    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.');
+    return failed('Error duplicating invoice:', error, 'Failed to duplicate invoice.', 'invoices.duplicate');
   }
 }
 
 export async function deleteInvoice(actor: ActingFreelancer, id: string): Promise<ActionResult> {
-  try {
-    const { userId } = actor;
-    const invoice = await prisma.invoice.findFirst({
-      where: { id, senderProfile: { userId } },
-      select: { status: true },
-    });
-    if (!invoice) return fail('NOT_FOUND', 'Invoice not found.');
-    if (invoice.status !== 'DRAFT') {
-      return fail('CONFLICT', 'Only draft invoices can be deleted. Consider cancelling instead.');
-    }
+  // T36 (review r2 L1, sad §7): a refused delete is counted on its own write path.
+  return inOutcomeSpan({ name: 'invoices.delete' }, () => deleteInvoiceUnspanned(actor, id));
+}
 
-    const deleted = await prisma.invoice.deleteMany({
-      where: { id, status: 'DRAFT', senderProfile: { userId } },
+async function deleteInvoiceUnspanned(actor: ActingFreelancer, id: string): Promise<ActionResult> {
+  try {
+    // invoice-integrity T10 (flow 6, AC-06): only a draft is deleted, decided on the locked row.
+    const { userId } = actor;
+    await prisma.$transaction(async (tx) => {
+      const invoice = await lockInvoiceRow(tx, id, userId);
+      const decision = decideDelete(invoice.status);
+      if (decision.kind === 'refused') {
+        throw new InvoiceRefusal(
+          fail('VALIDATION', decision.message, {
+            details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: invoice.status, suggestion: null },
+          })
+        );
+      }
+      await tx.invoice.deleteMany({ where: { id, status: 'DRAFT', senderProfile: { userId } } });
     });
-    if (deleted.count === 0) return fail('NOT_FOUND', 'Invoice not found.');
     return ok();
   } catch (error) {
-    return failed('Error deleting invoice:', error, 'Failed to delete invoice.');
+    if (error instanceof InvoiceRefusal) return error.result;
+    if (error instanceof InvoiceVanishedError) return fail('NOT_FOUND', 'Invoice not found.');
+    return failed('Error deleting invoice:', error, 'Failed to delete invoice.', 'invoices.delete');
   }
 }

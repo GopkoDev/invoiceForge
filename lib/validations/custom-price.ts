@@ -4,9 +4,9 @@ import { optionalString } from '@/lib/helpers/zod-helpers';
 // F-06 (contracts/server-actions.md §createCustomPrice: "price: number; > 0, ≤ 99 999 999.99,
 // 2 dp"): shared with lib/validations/invoice.ts's own bound so both schemas agree on what "2
 // decimal places" means; checked on the string form, never by re-doing the arithmetic in floats.
-const MAX_AMOUNT = 99_999_999.99;
+export const MAX_AMOUNT = 99_999_999.99;
 
-function hasAtMostTwoDecimalPlaces(value: number): boolean {
+export function hasAtMostTwoDecimalPlaces(value: number): boolean {
   if (!Number.isFinite(value)) return true; // let the number check report NaN/Infinity
   const str = Math.abs(value).toString();
   if (/e/i.test(str)) {

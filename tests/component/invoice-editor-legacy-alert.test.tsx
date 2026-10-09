@@ -21,7 +21,7 @@ vi.mock('@/components/invoice-editor/invoice-editor-form', () => ({
   InvoiceEditorForm: () => null,
 }));
 vi.mock('@/components/invoice-editor/edit-sented-invoice-alert', () => ({
-  EditSentedInvoiceAlert: () => null,
+  EditorModeAlert: () => null,
 }));
 vi.mock('@/components/invoice-editor/invoice-editor-resize-panels', () => ({
   InvoiceEditorResizePanels: () => null,
@@ -30,14 +30,16 @@ vi.mock('@/components/invoice-editor/invoice-editor-resize-panels', () => ({
 const initializeMock = vi.fn();
 const resetMock = vi.fn();
 
+vi.mock('@/hooks/use-invoice-reload', () => ({ useInvoiceReload: () => vi.fn() }));
 vi.mock('@/store/invoice-editor-store', () => ({
   useFormData: () => ({ items: [] }),
-  useSelectedSenderProfile: () => undefined,
-  useSelectedCustomer: () => undefined,
-  useSelectedBankAccount: () => undefined,
+  // invoice-integrity T16: the preview's parties and the mode replace the invalid-items filter.
+  usePdfParties: () => ({ senderProfile: undefined, customer: undefined, bankAccount: undefined }),
   useSummary: () => ({ subtotal: 0, taxAmount: 0, total: 0 }),
-  useIsEditingSentInvoice: () => false,
-  useInvalidItems: () => [],
+  useEditorMode: () => 'new',
+  // invoice-integrity T18: the stale / reload-failed states.
+  useIsStale: () => false,
+  useReloadFailed: () => false,
   useLegacy: () => ({
     storedTotal: '100.00',
     recomputedTotal: '100.00',

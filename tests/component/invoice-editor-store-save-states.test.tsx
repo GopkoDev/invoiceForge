@@ -30,6 +30,7 @@ function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
   return {
     id: 'inv-1',
     invoiceNumber: 'INV-0099',
+    version: 0,
     subtotal: 100,
     taxAmount: 10,
     total: 110,
@@ -38,6 +39,7 @@ function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
     paidAt: null,
     issueDate: '2026-10-01T00:00:00.000Z',
     dueDate: '2026-10-15T00:00:00.000Z',
+    issuedDetails: null,
     ...overrides,
   };
 }

@@ -8,9 +8,23 @@ import type {
   SenderProfile,
   Customer,
   BankAccount,
+  Currency,
 } from '@prisma/client';
 import { ActionResult, ok, fail } from '@/types/result';
 import { isInvoiceKeyTaken } from './numbering';
+import {
+  checkDraftAmountRules,
+  checkDueDate,
+  type FieldErrors,
+  type InvoiceAmountRuleValues,
+} from '@/lib/validations/invoice';
+
+/**
+ * The order an invoice's lines print and compare in (invoice-integrity T14): creation order. There
+ * is no position column; the lines of one save share a createdAt (one transaction), and their cuid
+ * ids sort in creation order. Without it Postgres may return them reordered after any row update.
+ */
+export const INVOICE_ITEM_ORDER = [{ createdAt: 'asc' }, { id: 'asc' }] satisfies Prisma.InvoiceItemOrderByWithRelationInput[];
 
 export function serializeDecimal<T extends number>(
   value: Prisma.Decimal | number
@@ -153,26 +167,51 @@ export function transformInvoiceToFormData(
   };
 }
 
+/** The draft currency rule's input (AC-11, AC-12): the invoice's currency and its lines. */
+export interface InvoiceCurrencyCheck {
+  currency: Currency;
+  items: { productId?: string | null }[];
+}
+
+type RelationsClient = Pick<
+  Prisma.TransactionClient,
+  'senderProfile' | 'customer' | 'bankAccount' | 'product' | '$queryRaw'
+>;
+
+/**
+ * Ownership of the invoice's relations (another Freelancer's record is NOT_FOUND, like a missing
+ * one) and, when `currencies` is given (invoice-integrity T06, AC-11, AC-12), the currency
+ * invariant as fieldErrors: the bank account's currency, then every catalogue line product's,
+ * inactive products included. Free-text lines (no product, or 'custom') are not checked. Pass the
+ * transaction client to run it inside a save transaction: there the catalogue line products are
+ * read `FOR SHARE` (T26, review F7; lock order in invoice-integrity data-model.md "Access
+ * patterns") so updateProduct's `FOR UPDATE` on the product row can't switch a currency between
+ * this check and the write. The caller has already taken the
+ * sender-profile lock that guards the bank account's currency (order: invoice, profile, products).
+ */
 export async function verifyInvoiceRelations(
   userId: string,
   senderProfileId: string,
   customerId: string,
-  bankAccountId: string
+  bankAccountId: string,
+  currencies?: InvoiceCurrencyCheck,
+  db: RelationsClient = prisma
 ): Promise<
   ActionResult<{
     senderProfile: SenderProfile;
     customer: Customer;
     bankAccount: BankAccount;
+    fieldErrors: Record<string, string[]>;
   }>
 > {
   const [senderProfile, customer, bankAccount] = await Promise.all([
-    prisma.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
-    prisma.customer.findFirst({ where: { id: customerId, userId } }),
+    db.senderProfile.findFirst({ where: { id: senderProfileId, userId } }),
+    db.customer.findFirst({ where: { id: customerId, userId } }),
     // F-43: tied to the SPECIFIC sender profile the invoice is being saved under, not just to
     // any profile the same user owns — otherwise an invoice could carry senderProfileId A with
     // a bank account that actually belongs to the same user's profile B, which later makes
     // deleteSenderProfile's invoice count for B miss it entirely.
-    prisma.bankAccount.findFirst({
+    db.bankAccount.findFirst({
       where: { id: bankAccountId, senderProfileId, senderProfile: { userId } },
     }),
   ]);
@@ -181,37 +220,92 @@ export async function verifyInvoiceRelations(
   if (!customer) return fail('NOT_FOUND', 'Customer not found.');
   if (!bankAccount) return fail('NOT_FOUND', 'Bank account not found.');
 
-  return ok({ senderProfile, customer, bankAccount });
+  const fieldErrors: Record<string, string[]> = {};
+  if (currencies) {
+    const { currency, items } = currencies;
+    if (bankAccount.currency !== currency) {
+      fieldErrors.bankAccountId = [
+        `This account is in ${bankAccount.currency} while the invoice is in ${currency}.`,
+      ];
+    }
+
+    const productIds = Array.from(new Set(items.map((item) => item.productId).filter(isCatalogueProductId)));
+    if (db !== prisma && productIds.length > 0) {
+      // Sorted by id so two saves share the products in one order.
+      await db.$queryRaw`SELECT id FROM "Product" WHERE id IN (${Prisma.join(productIds)}) AND "userId" = ${userId} ORDER BY id FOR SHARE`;
+    }
+    // By id and owner only: an inactive (retired) product is checked too.
+    const products =
+      productIds.length === 0
+        ? []
+        : await db.product.findMany({
+            where: { id: { in: productIds }, userId },
+            select: { id: true, name: true, currency: true },
+          });
+    if (products.length !== productIds.length) return fail('NOT_FOUND', 'Product not found.');
+
+    const byId = new Map(products.map((product) => [product.id, product]));
+    items.forEach((item, i) => {
+      const product = isCatalogueProductId(item.productId) ? byId.get(item.productId) : undefined;
+      if (product && product.currency !== currency) {
+        fieldErrors[`items.${i}.productId`] = [
+          `“${product.name}” is priced in ${product.currency} while the invoice is in ${currency}.`,
+        ];
+      }
+    });
+  }
+
+  return ok({ senderProfile, customer, bankAccount, fieldErrors });
+}
+
+function isCatalogueProductId(id: string | null | undefined): id is string {
+  return Boolean(id) && id !== 'custom';
+}
+
+/** The values the draft rules read (invoice-integrity, flows 3, 4 and 5). */
+export interface DraftRuleValues extends InvoiceAmountRuleValues, InvoiceCurrencyCheck {
+  items: { productId?: string | null; quantity: number; price: number }[];
+  senderProfileId: string;
+  customerId: string;
+  bankAccountId: string;
+  issueDate: Date;
+  dueDate: Date;
 }
 
 /**
- * F-48: item.productId was stored with no ownership check at all, so a request could carry
- * another Freelancer's product id — which that product's real owner then couldn't have its
- * currency/unit changed or be deleted (the "used in N invoice(s)" conflict would count an
- * invoice that isn't theirs). Checked against every non-empty, non-'custom' productId at once.
+ * Every draft rule, in the flow-4 order, all failures returned together (contracts §Shared input):
+ * ownership first (NOT_FOUND, identical for missing and foreign), then the bank-account and line
+ * product currencies, the amount bounds and discount cap, and the due date. Runs on a create, a
+ * duplicate, a draft save and a draft being issued; pass the transaction client to run it under the
+ * row lock.
  */
-export async function verifyItemProductsOwnership(
+export async function checkDraftRules(
   userId: string,
-  items: { productId?: string }[]
-): Promise<ActionResult<void>> {
-  const productIds = Array.from(
-    new Set(
-      items
-        .map((item) => item.productId)
-        .filter((id): id is string => Boolean(id) && id !== 'custom')
-    )
+  values: DraftRuleValues,
+  db: RelationsClient = prisma
+): Promise<
+  ActionResult<{
+    senderProfile: SenderProfile;
+    customer: Customer;
+    bankAccount: BankAccount;
+    fieldErrors: FieldErrors;
+  }>
+> {
+  const relations = await verifyInvoiceRelations(
+    userId,
+    values.senderProfileId,
+    values.customerId,
+    values.bankAccountId,
+    { currency: values.currency, items: values.items },
+    db
   );
-
-  if (productIds.length === 0) return ok();
-
-  const owned = await prisma.product.findMany({
-    where: { id: { in: productIds }, userId },
-    select: { id: true },
+  if (!relations.success) return relations;
+  return ok({
+    ...relations.data,
+    fieldErrors: {
+      ...relations.data.fieldErrors,
+      ...checkDraftAmountRules(values),
+      ...checkDueDate(values.issueDate, values.dueDate),
+    },
   });
-
-  if (owned.length !== productIds.length) {
-    return fail('NOT_FOUND', 'Product not found.');
-  }
-
-  return ok();
 }

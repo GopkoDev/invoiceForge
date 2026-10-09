@@ -8,6 +8,97 @@ import { dayToUtcDate, isCalendarDay, utcDateToDay } from '@/lib/helpers/calenda
 // "Field-error messages", both verbatim).
 const MAX_AMOUNT = 99_999_999.99;
 
+// invoice-integrity T05 (spec.md §5 AC-09, AC-19, AC-20b; contracts/server-actions.md §Field-error
+// messages). The business rules as plain functions returning fieldErrors, so the service runs them
+// inside its save transaction (on a draft: all of them; on an issued invoice: only the due date) and
+// the editor's client schema runs the very same ones.
+const MAX_CENTS = BigInt(9_999_999_999);
+
+const AMOUNT_MESSAGES = {
+  line: "The line amount can't exceed 99,999,999.99.",
+  shipping: "Shipping can't exceed 99,999,999.99.",
+  subtotal: "The subtotal can't exceed 99,999,999.99.",
+  taxAmount: "The tax amount can't exceed 99,999,999.99.",
+  total: "The total can't exceed 99,999,999.99.",
+  discount: "Discount can't exceed the subtotal plus shipping.",
+  discountMax: "Discount can't exceed 99,999,999.99.",
+} as const;
+
+export type FieldErrors = Record<string, string[]>;
+
+export interface InvoiceAmountRuleValues {
+  items: { quantity: number; price: number }[];
+  taxRate: number;
+  discount: number;
+  shipping: number;
+}
+
+/** True when a 2-dp decimal string from the shared module is above 99,999,999.99 (exact, no floats). */
+function overCap(amount: string): boolean {
+  if (!/^-?\d+\.\d{2}$/.test(amount)) return false; // 'NaN' — the type checks report it
+  return BigInt(amount.replace('.', '')) > MAX_CENTS;
+}
+
+function amountsOf(values: InvoiceAmountRuleValues) {
+  return computeInvoiceAmounts({
+    items: values.items.map((item) => ({ quantity: item.quantity, price: item.price })),
+    discount: values.discount,
+    shipping: values.shipping,
+    taxRate: values.taxRate,
+  });
+}
+
+/** AC-19: every computed amount on its own — each line, shipping, subtotal, tax amount, total. */
+export function checkAmountBounds(values: InvoiceAmountRuleValues): FieldErrors {
+  const amounts = amountsOf(values);
+  const errors: FieldErrors = {};
+  amounts.items.forEach((item, i) => {
+    if (overCap(item.amount)) errors[`items.${i}.total`] = [AMOUNT_MESSAGES.line];
+  });
+  if (values.shipping > MAX_AMOUNT) errors.shipping = [AMOUNT_MESSAGES.shipping];
+  if (overCap(amounts.subtotal)) errors.subtotal = [AMOUNT_MESSAGES.subtotal];
+  if (overCap(amounts.taxAmount)) errors.taxAmount = [AMOUNT_MESSAGES.taxAmount];
+  if (overCap(amounts.total)) errors.total = [AMOUNT_MESSAGES.total];
+  return errors;
+}
+
+/**
+ * AC-20b: discount ≤ lines + shipping (equal allowed). The shared decimal module with taxRate
+ * pinned to 0 turns it into "is subtotal - discount + shipping negative?" — no float math.
+ */
+export function checkDiscountCap(values: InvoiceAmountRuleValues): FieldErrors {
+  const { total } = amountsOf({ ...values, taxRate: 0 });
+  return values.discount >= 0 && total.startsWith('-') ? { discount: [AMOUNT_MESSAGES.discount] } : {};
+}
+
+/** The amount rules of a draft, every failing key together. */
+export function checkDraftAmountRules(values: InvoiceAmountRuleValues): FieldErrors {
+  return { ...checkAmountBounds(values), ...checkDiscountCap(values) };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A stored calendar day in the app's display format, e.g. "10 Mar 2026". */
+function displayDay(date: Date): string {
+  const [y, m, d] = utcDateToDay(date).split('-').map(Number);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+/** AC-09: the due date can't be before the issue date (same day allowed); both are calendar days. */
+export function checkDueDate(issueDate: Date, dueDate: Date): FieldErrors {
+  return utcDateToDay(dueDate) < utcDateToDay(issueDate)
+    ? { dueDate: [`The due date can't be before the issue date (${displayDay(issueDate)}).`] }
+    : {};
+}
+
+function addFieldErrors(errors: FieldErrors, ctx: z.RefinementCtx) {
+  for (const [key, messages] of Object.entries(errors)) {
+    for (const message of messages) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: key.split('.').map((part) => (/^\d+$/.test(part) ? Number(part) : part)), message });
+    }
+  }
+}
+
 // F-02: quantity/price/taxRate/discount/shipping map to DECIMAL(_,2) columns, so a value with
 // more than 2 decimal places gets rounded differently by the DB than by the shared decimal
 // module used to compute the stored total — flagging a brand-new invoice as legacy on its next
@@ -46,65 +137,69 @@ const clientCalendarDaySchema = z
     return z.NEVER;
   });
 
-export const invoiceItemSchema = z.object({
-  id: z.string(),
-  productId: z.string().optional(),
-  productName: z.string().min(1, 'Product name is required'),
-  description: z.string().optional().default(''),
-  unit: z.string().min(1, 'Unit is required'),
-  quantity: z.number({ required_error: 'Quantity must be a number.', invalid_type_error: 'Quantity must be a number.' })
-    .gt(0, 'Quantity must be greater than zero.')
-    .max(MAX_AMOUNT, 'Quantity is too large.')
-    .refine(hasAtMostTwoDecimalPlaces, 'Quantity can have at most 2 decimal places.'),
-  price: z.number({ required_error: 'Price must be a number.', invalid_type_error: 'Price must be a number.' })
-    .min(0, "Price can't be negative.")
-    .max(MAX_AMOUNT, 'Price is too large.')
-    .refine(hasAtMostTwoDecimalPlaces, 'Price can have at most 2 decimal places.'),
-  total: z.number(),
-});
-
-function refineDiscountCap(
-  values: { items: { quantity: number; price: number }[]; discount: number; shipping: number },
-  ctx: z.RefinementCtx
-) {
-  // Discount must not exceed subtotal + shipping (AC-15). Reusing T10's exact-decimal module
-  // with taxRate pinned to 0 turns the check into "is (subtotal - discount + shipping)
-  // negative?" — computeInvoiceAmounts's `total` field, formatted by the same module that
-  // stores amounts, so no float math is done here.
-  const amounts = computeInvoiceAmounts({
-    items: values.items.map((item) => ({ quantity: item.quantity, price: item.price })),
-    discount: values.discount,
-    shipping: values.shipping,
-    taxRate: 0,
+// The per-field amount bounds (T23, AC-14/AC-19): enforced on a create, on a draft save and when a
+// draft is issued; never on the locked fields of an issued invoice. `bounded: false` keeps the
+// types only.
+function buildItemSchema(bounded: boolean) {
+  const quantityBase = z.number({ required_error: 'Quantity must be a number.', invalid_type_error: 'Quantity must be a number.' });
+  const priceBase = z.number({ required_error: 'Price must be a number.', invalid_type_error: 'Price must be a number.' });
+  return z.object({
+    id: z.string(),
+    productId: z.string().optional(),
+    productName: z.string().min(1, 'Product name is required'),
+    description: z.string().optional().default(''),
+    unit: z.string().min(1, 'Unit is required'),
+    quantity: bounded
+      ? quantityBase
+          .gt(0, 'Quantity must be greater than zero.')
+          .max(MAX_AMOUNT, 'Quantity is too large.')
+          .refine(hasAtMostTwoDecimalPlaces, 'Quantity can have at most 2 decimal places.')
+      : quantityBase,
+    price: bounded
+      ? priceBase
+          .min(0, "Price can't be negative.")
+          .max(MAX_AMOUNT, 'Price is too large.')
+          .refine(hasAtMostTwoDecimalPlaces, 'Price can have at most 2 decimal places.')
+      : priceBase,
+    total: z.number(),
   });
-
-  if (values.discount >= 0 && amounts.total.startsWith('-')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['discount'],
-      message: "Discount can't exceed the subtotal plus shipping.",
-    });
-  }
 }
 
-const taxRateSchema = z.number({ required_error: 'Tax rate must be a number.', invalid_type_error: 'Tax rate must be a number.' })
+export const invoiceItemSchema = buildItemSchema(true);
+const looseItemSchema = buildItemSchema(false);
+
+function refineDiscountCap(values: InvoiceAmountRuleValues, ctx: z.RefinementCtx) {
+  addFieldErrors(checkDiscountCap(values), ctx);
+}
+
+const taxRateBase = z.number({ required_error: 'Tax rate must be a number.', invalid_type_error: 'Tax rate must be a number.' });
+const taxRateSchema = taxRateBase
   .min(0, 'Tax rate must be between 0 and 100 %.')
   .max(100, 'Tax rate must be between 0 and 100 %.')
   .refine(hasAtMostTwoDecimalPlaces, 'Tax rate can have at most 2 decimal places.')
   .default(0);
+const looseTaxRateSchema = taxRateBase.default(0);
 
-const discountSchema = z.number({ required_error: 'Discount must be a number.', invalid_type_error: 'Discount must be a number.' })
+const discountBase = z.number({ required_error: 'Discount must be a number.', invalid_type_error: 'Discount must be a number.' });
+const discountSchema = discountBase
   .min(0, "Discount can't be negative.")
+  .max(MAX_AMOUNT, AMOUNT_MESSAGES.discountMax)
   .refine(hasAtMostTwoDecimalPlaces, "Discount can have at most 2 decimal places.")
   .default(0);
+const looseDiscountSchema = discountBase.default(0);
 
-const shippingSchema = z.number({ required_error: 'Shipping must be a number.', invalid_type_error: 'Shipping must be a number.' })
+const shippingBase = z.number({ required_error: 'Shipping must be a number.', invalid_type_error: 'Shipping must be a number.' });
+const shippingSchema = shippingBase
   .min(0, "Shipping can't be negative.")
-  .max(MAX_AMOUNT, "Shipping can't exceed the maximum amount.")
+  .max(MAX_AMOUNT, AMOUNT_MESSAGES.shipping)
   .refine(hasAtMostTwoDecimalPlaces, 'Shipping can have at most 2 decimal places.')
   .default(0);
+const looseShippingSchema = shippingBase.default(0);
 
-function buildInvoiceFormSchema(day: typeof calendarDayStringSchema | typeof clientCalendarDaySchema) {
+function buildInvoiceFormObject(
+  day: typeof calendarDayStringSchema | typeof clientCalendarDaySchema,
+  bounded = true
+) {
   return z
   .object({
     // Empty (or whitespace-only) = system-assigned; anything else is manual (AC-06, AC-10).
@@ -123,23 +218,49 @@ function buildInvoiceFormSchema(day: typeof calendarDayStringSchema | typeof cli
     currency: z.nativeEnum(Currency),
     poNumber: z.string().optional().default(''),
     paymentTerms: z.string().optional().default(''),
-    items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
-    taxRate: taxRateSchema,
-    discount: discountSchema,
-    shipping: shippingSchema,
+    items: z.array(bounded ? invoiceItemSchema : looseItemSchema).min(1, 'At least one item is required'),
+    taxRate: bounded ? taxRateSchema : looseTaxRateSchema,
+    discount: bounded ? discountSchema : looseDiscountSchema,
+    shipping: bounded ? shippingSchema : looseShippingSchema,
     notes: z.string().optional().default(''),
     terms: z.string().optional().default(''),
     // Update only (AC-17); optional here since this schema is shared by create/update.
     confirmedTotals: z
       .object({ oldTotal: z.string(), newTotal: z.string() })
       .optional(),
-  })
-  .superRefine(refineDiscountCap);
+  });
 }
 
-export const invoiceFormSchema = buildInvoiceFormSchema(calendarDayStringSchema);
-/** Client-only (editor validation of local Dates); never used by the server. */
-export const clientInvoiceFormSchema = buildInvoiceFormSchema(clientCalendarDaySchema);
+export const invoiceFormSchema = buildInvoiceFormObject(calendarDayStringSchema).superRefine(refineDiscountCap);
+
+/**
+ * The shape only (types, enums, calendar days, per-field bounds), without the business rules: the
+ * create path runs those as plain functions after the status and ownership checks (contract order).
+ */
+export const invoiceShapeSchema = buildInvoiceFormObject(calendarDayStringSchema);
+
+/**
+ * updateInvoice's input (AC-10): the editor sends back the version it loaded. Required, an
+ * integer ≥ 0; createInvoice ignores it. The shape only (types, enums, calendar days): the service
+ * runs the business rules and the per-field amount bounds on the locked row, and only those AC-14
+ * allows for the row's status (ADR-0003, T23).
+ */
+const RELOAD_MESSAGE = 'Reload the invoice and try again.';
+export const invoiceUpdateFormSchema = buildInvoiceFormObject(calendarDayStringSchema, false)
+  .extend({
+    loadedVersion: z
+      .number({ required_error: RELOAD_MESSAGE, invalid_type_error: RELOAD_MESSAGE })
+      .int(RELOAD_MESSAGE)
+      .min(0, RELOAD_MESSAGE),
+  });
+
+/** Client-only (editor validation of local Dates); never used by the server. Runs every draft rule. */
+export const clientInvoiceFormSchema = buildInvoiceFormObject(clientCalendarDaySchema).superRefine(
+  (values, ctx) => {
+    addFieldErrors(checkDraftAmountRules(values), ctx);
+    addFieldErrors(checkDueDate(values.issueDate, values.dueDate), ctx);
+  }
+);
 
 // N-07: duplicateInvoice checks only the amount rules (quantity, price, tax, discount, shipping and
 // the discount cap) — name/unit/relations of a legacy source have nothing to do with a copy.
@@ -155,4 +276,6 @@ export const invoiceAmountsSchema = z
 export type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
 /** What a caller sends: the days are `yyyy-MM-dd`, parsed into `InvoiceFormValues`. */
 export type InvoiceFormInput = z.input<typeof invoiceFormSchema>;
+export type InvoiceUpdateFormValues = z.infer<typeof invoiceUpdateFormSchema>;
+export type InvoiceUpdateFormInput = z.input<typeof invoiceUpdateFormSchema>;
 export type InvoiceItemFormValues = z.infer<typeof invoiceItemSchema>;
