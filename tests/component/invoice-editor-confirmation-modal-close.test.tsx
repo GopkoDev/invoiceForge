@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InvoiceEditor } from '@/components/invoice-editor/invoice-editor';
+import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 import type { InvoiceEditorData } from '@/types/invoice/types';
 
 vi.mock('@/components/invoice-editor/invoice-editor-header', () => ({
@@ -51,8 +52,8 @@ const dialogOnClose = vi.fn();
 const onConfirmMock = vi.fn();
 
 vi.mock('@/store/use-modal-store', () => ({
-  useModal: () => ({
-    isOpen: true,
+  useModal: (name: string) => ({
+    isOpen: name === 'confirmationModal',
     props: {
       title: 'Confirm the new total',
       description: 'This invoice was saved before totals were recalculated.',
@@ -71,13 +72,29 @@ const data: InvoiceEditorData = {
   customPrices: [],
 };
 
-describe('InvoiceEditor — ConfirmationModal onClose wiring (T40, F-47)', () => {
-  it('calls the dialog props.onClose (not just confirmationModal.close) when Cancel is clicked', async () => {
+// editor-ux T5 (AC-16): the dialog is mounted by InvoiceEditorModalContainer, not InvoiceEditor.
+describe('ConfirmationModal mounting + onClose wiring (T40 F-47, editor-ux T5 AC-16)', () => {
+  it('InvoiceEditorModalContainer renders the confirmation dialog', async () => {
+    render(<InvoiceEditorModalContainer />);
+
+    expect(await screen.findByText('Confirm the new total')).toBeTruthy();
+  });
+
+  it('calls the dialog props.onClose (not just confirmationModal.close) when Cancel is clicked in the container', async () => {
     const user = userEvent.setup();
-    render(<InvoiceEditor data={data} />);
+    dialogOnClose.mockClear();
+    render(<InvoiceEditorModalContainer />);
 
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     expect(dialogOnClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('InvoiceEditor itself no longer renders the confirmation dialog', async () => {
+    render(<InvoiceEditor data={data} />);
+    // allow the lazy dynamic() import to resolve if it were still mounted
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(screen.queryByText('Confirm the new total')).toBeNull();
   });
 });

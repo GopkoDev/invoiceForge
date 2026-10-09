@@ -46,6 +46,10 @@ vi.mock('@/hooks/use-invoice-pdf', () => ({
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
+// T5: the totals dialog is mounted by the route layout's modal container, as in app/(invoice-editor)/layout.tsx.
+const { InvoiceEditorModalContainer } = await import(
+  '@/components/modals/invoice-editor/invoice-editor-modal-container'
+);
 const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
 
 
@@ -103,7 +107,12 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
 }
 
 function renderEditor(d: InvoiceEditorData) {
-  return render(<InvoiceEditor data={d} />);
+  return render(
+    <>
+      <InvoiceEditor data={d} />
+      <InvoiceEditorModalContainer />
+    </>
+  );
 }
 
 const byPlaceholder = (text: string) => screen.getByPlaceholderText(text);
