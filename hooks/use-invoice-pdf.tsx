@@ -1,9 +1,10 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
-import { useFormData, useSummary, useHasUnsavedChanges, usePdfParties } from '@/store/invoice-editor-store';
+import { useFormData, useHasUnsavedChanges, usePdfParties } from '@/store/invoice-editor-store';
+import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { usePdfAction, type PdfAction } from '@/hooks/use-pdf-action';
 import { loadPdfKit } from '@/lib/pdf/load-pdf-kit';
 
@@ -11,8 +12,18 @@ export function useInvoicePdf() {
   // The form as it stands, every line included (lines are never dropped, invoice-integrity AC-15).
   const pdfFormData = useFormData();
   const { senderProfile, customer, bankAccount } = usePdfParties();
-  const { subtotal, taxAmount, total } = useSummary();
   const hasUnsavedChanges = useHasUnsavedChanges();
+  // Download and Print are disabled while there are unsaved changes, so whenever they run the form
+  // equals the last save and the PDF's model is the preview's (invoice-integrity AC-02).
+  const document = useMemo(
+    () =>
+      buildInvoiceDocument({
+        kind: 'draft',
+        form: pdfFormData,
+        parties: { senderProfile, customer, bankAccount },
+      }),
+    [pdfFormData, senderProfile, customer, bankAccount]
+  );
   const { runInput } = usePdfAction();
 
   // The editor's preview is HTML, so the toolkit is only warmed once the page is idle; a failed
@@ -30,18 +41,10 @@ export function useInvoicePdf() {
   const runAction = useCallback(
     async (action: PdfAction) => {
       if (hasUnsavedChanges) return;
-      const result = await runInput(action, {
-        formData: pdfFormData,
-        senderProfile,
-        customer,
-        bankAccount,
-        subtotal,
-        taxAmount,
-        total,
-      });
+      const result = await runInput(action, { document, senderProfile });
       if (result.unauthorized) goToSignIn();
     },
-    [pdfFormData, senderProfile, customer, bankAccount, subtotal, taxAmount, total, hasUnsavedChanges, runInput]
+    [document, senderProfile, hasUnsavedChanges, runInput]
   );
 
   const handleDownloadPdf = useCallback(() => runAction('download'), [runAction]);

@@ -85,11 +85,7 @@ const eslintConfig = defineConfig([
     // primitives (chart, calendar). Composed with the ActingFreelancer cast rule above, which this
     // block would otherwise replace.
     files: ["components/**", "app/**"],
-    ignores: [
-      "components/ui/**",
-      // T10 moves the preview document onto lib/format; remove this entry then.
-      "components/invoice-editor/pdf-preview-document.tsx",
-    ],
+    ignores: ["components/ui/**"],
     rules: {
       "no-restricted-syntax": [
         "error",

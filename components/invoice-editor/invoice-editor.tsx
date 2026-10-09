@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { InvoiceEditorData } from '@/types/invoice/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { LoadError } from '@/components/layout/content-area/load-error';
 import { useInvoiceReload } from '@/hooks/use-invoice-reload';
+import type { InvoiceDocumentSource } from '@/lib/invoice-document';
 
 import {
   useFormData,
-  useSummary,
   useEditorMode,
   useInvoiceEditorActions,
   useLegacy,
@@ -41,7 +41,10 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
   // once issued, its parties are the issued details (SCR-03 decision 4).
   const pdfFormData = useFormData();
   const { senderProfile, customer, bankAccount } = usePdfParties();
-  const { subtotal, taxAmount, total } = useSummary();
+  const previewSource = useMemo<InvoiceDocumentSource>(
+    () => ({ kind: 'draft', form: pdfFormData, parties: { senderProfile, customer, bankAccount } }),
+    [pdfFormData, senderProfile, customer, bankAccount]
+  );
   const mode = useEditorMode();
   const legacy = useLegacy();
   const stale = useIsStale();
@@ -120,15 +123,7 @@ export function InvoiceEditor({ data }: InvoiceEditorProps) {
       <InvoiceEditorResizePanels
         FormComponent={<InvoiceEditorForm />}
         PDFPreviewComponent={
-          <PDFPreviewPanel
-            formData={pdfFormData}
-            senderProfile={senderProfile}
-            customer={customer}
-            bankAccount={bankAccount}
-            subtotal={subtotal}
-            taxAmount={taxAmount}
-            total={total}
-          />
+          <PDFPreviewPanel source={previewSource} senderProfile={senderProfile} />
         }
       />
     </div>

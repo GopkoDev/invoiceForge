@@ -12,11 +12,12 @@ export type { InvoiceDocument, InvoiceDocumentSource, InvoiceDocumentParties } f
 const present = (v: string | null | undefined): v is string => Boolean(v);
 
 function partyLines(
-  p: { name: string; address: string | null; city: string | null; country: string | null; email: string | null; taxId: string | null } | null | undefined,
+  p: { name: string; legalName?: string | null; address: string | null; city: string | null; country: string | null; email: string | null; taxId: string | null } | null | undefined,
 ): string[] {
   if (!p) return [];
   const place = [p.city, p.country].filter(present).join(', ');
-  return [p.name, p.address, place, p.email, p.taxId ? `${WORDING.taxId} ${p.taxId}` : null].filter(present);
+  const legal = p.legalName && p.legalName !== p.name ? p.legalName : null;
+  return [p.name, legal, p.address, place, p.email, p.taxId ? `${WORDING.taxId} ${p.taxId}` : null].filter(present);
 }
 
 export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocument {

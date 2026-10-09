@@ -345,3 +345,25 @@ describe('buildInvoiceDocument - issued invoice (AC-10)', () => {
     expect(doc.total.value).toBe('$1,352.45');
   });
 });
+
+describe('buildInvoiceDocument - sender legal name (T10)', () => {
+  const legal = 'Acme Studio LLC';
+
+  it('prints the legal name right after the name when it differs, for a draft', () => {
+    const doc = buildInvoiceDocument({ kind: 'draft', form: makeForm(), parties: { ...parties, senderProfile: { ...sender, legalName: legal } } });
+    expect(doc.from.lines.slice(0, 3)).toEqual(['Acme Studio', legal, '1 Main St']);
+  });
+
+  it('prints the issued snapshot legal name, not the current profile one', () => {
+    const invoice = { ...makeIssued(makeForm({ status: 'PENDING' })), senderLegalName: legal } as SerializedInvoice;
+    const doc = buildInvoiceDocument({ kind: 'issued', invoice });
+    expect(doc.from.lines.slice(0, 2)).toEqual(['Acme Studio', legal]);
+  });
+
+  it('omits the legal name when unset or equal to the name', () => {
+    for (const legalName of [null, 'Acme Studio']) {
+      const doc = buildInvoiceDocument({ kind: 'draft', form: makeForm(), parties: { ...parties, senderProfile: { ...sender, legalName } } });
+      expect(doc.from.lines).toEqual(['Acme Studio', '1 Main St', 'Kyiv, Ukraine', 'hi@acme.test', 'Tax ID: TX-1']);
+    }
+  });
+});

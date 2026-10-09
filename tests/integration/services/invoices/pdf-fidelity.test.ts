@@ -16,6 +16,7 @@ import { createCustomer } from '../../../support/factories/customer';
 import { createProduct } from '../../../support/factories/product';
 import { createInvoice } from '../../../support/factories/invoice';
 import { pdfTextRuns } from '../../../support/pdf-text';
+import { buildInvoiceDocument } from '@/lib/invoice-document';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -25,13 +26,11 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {}, unstable_cache: (fn: ()
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() } }));
 
 type Invoices = typeof import('@/lib/services/invoices/invoices');
-type PdfHelpers = typeof import('@/lib/helpers/invoice-pdf-helpers');
 type PdfDocument = typeof import('@/lib/pdf/invoice-pdf-kit');
 
 describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)', () => {
   let db: TestDatabase;
   let invoices: Invoices;
-  let helpers: PdfHelpers;
   let pdfDocument: PdfDocument;
 
   beforeAll(async () => {
@@ -40,7 +39,6 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     vi.resetModules();
     testClient = createTestPrismaClient(db.connectionString);
     invoices = await import('@/lib/services/invoices/invoices');
-    helpers = await import('@/lib/helpers/invoice-pdf-helpers');
     pdfDocument = await import('@/lib/pdf/invoice-pdf-kit');
   }, 60_000);
 
@@ -57,16 +55,9 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     const result = await invoices.getInvoice(actor, id);
     if (!result.success) throw new Error(result.error);
     const inv = result.data;
-    const data = helpers.prepareInvoiceDataForPdf(inv);
     return pdfTextRuns(
       createElement(pdfDocument.InvoicePDFDocument, {
-        formData: data.formData,
-        senderProfile: data.senderProfile ?? undefined,
-        customer: data.customer ?? undefined,
-        bankAccount: data.bankAccount ?? undefined,
-        subtotal: inv.subtotal,
-        taxAmount: inv.taxAmount,
-        total: inv.total,
+        document: buildInvoiceDocument({ kind: 'issued', invoice: inv }),
       })
     );
   }
@@ -150,7 +141,7 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     expect(identical).toBe(fixtures.length);
     // The deleted product's line still prints, as free text, with an unchanged total (AC-16).
     expect(await printedText(actor, fixtures[0].id)).toEqual(
-      expect.arrayContaining(['Retired service', 'Audit', '100.00 USD', '125.00 USD'])
+      expect.arrayContaining(['Retired service', 'Audit', '$100.00', '$125.00'])
     );
   });
 });

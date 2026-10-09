@@ -7,20 +7,11 @@ import {
   View,
   StyleSheet,
   Image,
-  Link,
   Font,
   pdf,
 } from '@react-pdf/renderer';
 import type { ReactElement } from 'react';
-import {
-  InvoiceFormData,
-  InvoiceSenderProfile,
-  InvoiceCustomer,
-  InvoiceBankAccount,
-} from '@/types/invoice/types';
-import { siteConfig } from '@/config/site.config';
-import { format } from 'date-fns';
-import { enUS } from 'date-fns/locale';
+import type { InvoiceDocument } from '@/lib/invoice-document';
 import { PDF_FONTS, PDF_COLORS } from '@/config/pdf-config';
 
 Font.register({
@@ -146,15 +137,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 4,
   },
-  watermark: {
-    position: 'absolute',
-    bottom: 10,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 8,
-    color: '#9ca3af',
-  },
   pageNumber: {
     position: 'absolute',
     bottom: 10,
@@ -162,33 +144,15 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#9ca3af',
   },
-  watermarkLink: {
-    color: '#6b7280',
-    textDecoration: 'none',
-  },
 });
 
 interface InvoicePDFDocumentProps {
-  formData: InvoiceFormData;
-  senderProfile?: InvoiceSenderProfile;
-  customer?: InvoiceCustomer;
-  bankAccount?: InvoiceBankAccount;
-  subtotal: number;
-  taxAmount: number;
-  total: number;
+  document: InvoiceDocument;
   logoBase64?: string | null;
 }
 
-export function InvoicePDFDocument({
-  formData,
-  senderProfile,
-  customer,
-  bankAccount,
-  subtotal,
-  taxAmount,
-  total,
-  logoBase64,
-}: InvoicePDFDocumentProps) {
+// ADR-0002: lays out the InvoiceDocument model only; wording, days and amounts come from the model.
+export function InvoicePDFDocument({ document, logoBase64 }: InvoicePDFDocumentProps) {
   const logoSrc = logoBase64 || null;
 
   return (
@@ -203,19 +167,17 @@ export function InvoicePDFDocument({
             )}
 
             <View>
-              <Text style={styles.title}>INVOICE</Text>
-              <Text style={styles.invoiceNumber}>{formData.invoiceNumber}</Text>
+              <Text style={styles.title}>{document.title}</Text>
+              <Text style={styles.invoiceNumber}>{document.invoiceNumber}</Text>
             </View>
           </View>
 
           <View style={{ textAlign: 'right' }}>
-            <Text>
-              Date: {format(formData.issueDate, 'dd.MM.yyyy', { locale: enUS })}
-            </Text>
-            <Text>
-              Due: {format(formData.dueDate, 'dd.MM.yyyy', { locale: enUS })}
-            </Text>
-            {formData.poNumber && <Text>PO: {formData.poNumber}</Text>}
+            {document.meta.map((row) => (
+              <Text key={row.label}>
+                {row.label} {row.value}
+              </Text>
+            ))}
           </View>
         </View>
 
@@ -228,157 +190,80 @@ export function InvoicePDFDocument({
           fixed
         >
           <View style={styles.addressBlock}>
-            <Text style={styles.sectionTitle}>From</Text>
-            {senderProfile && (
-              <>
-                <Text style={styles.textBold}>{senderProfile.name}</Text>
-                {senderProfile.legalName && senderProfile.legalName !== senderProfile.name && (
-                  <Text style={styles.textMuted}>{senderProfile.legalName}</Text>
-                )}
-                {senderProfile.address && (
-                  <Text style={styles.textMuted}>{senderProfile.address}</Text>
-                )}
-                {(senderProfile.city || senderProfile.country) && (
-                  <Text style={styles.textMuted}>
-                    {[senderProfile.city, senderProfile.country]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </Text>
-                )}
-                {senderProfile.email && (
-                  <Text style={styles.textMuted}>{senderProfile.email}</Text>
-                )}
-                {senderProfile.taxId && (
-                  <Text style={styles.textMuted}>
-                    Tax ID: {senderProfile.taxId}
-                  </Text>
-                )}
-              </>
-            )}
+            <Text style={styles.sectionTitle}>{document.from.title}</Text>
+            {document.from.lines.map((line, index) => (
+              <Text key={index} style={index === 0 ? styles.textBold : styles.textMuted}>
+                {line}
+              </Text>
+            ))}
           </View>
           <View style={[styles.addressBlock, { textAlign: 'right' }]}>
-            <Text style={styles.sectionTitle}>To</Text>
-            {customer && (
-              <>
-                <Text style={styles.textBold}>{customer.name}</Text>
-                {customer.address && (
-                  <Text style={styles.textMuted}>{customer.address}</Text>
-                )}
-                {(customer.city || customer.country) && (
-                  <Text style={styles.textMuted}>
-                    {[customer.city, customer.country]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </Text>
-                )}
-                {customer.email && (
-                  <Text style={styles.textMuted}>{customer.email}</Text>
-                )}
-                {customer.taxId && (
-                  <Text style={styles.textMuted}>Tax ID: {customer.taxId}</Text>
-                )}
-              </>
-            )}
+            <Text style={styles.sectionTitle}>{document.to.title}</Text>
+            {document.to.lines.map((line, index) => (
+              <Text key={index} style={index === 0 ? styles.textBold : styles.textMuted}>
+                {line}
+              </Text>
+            ))}
           </View>
         </View>
 
         {/* Table Header - fixed on every page */}
         <View style={styles.tableHeader} fixed>
-          <Text style={styles.colProduct}>Product / Service</Text>
-          <Text style={styles.colPrice}>Price</Text>
-          <Text style={styles.colQty}>Qty</Text>
-          <Text style={styles.colTotal}>Amount</Text>
+          <Text style={styles.colProduct}>{document.columns.product}</Text>
+          <Text style={styles.colPrice}>{document.columns.price}</Text>
+          <Text style={styles.colQty}>{document.columns.quantity}</Text>
+          <Text style={styles.colTotal}>{document.columns.amount}</Text>
         </View>
 
         {/* Items - will wrap automatically */}
         <View style={styles.table}>
-          {formData.items.map((item, index) => (
+          {document.lines.map((line, index) => (
             <View key={index} style={styles.tableRow} wrap={false}>
               <View style={styles.colProduct}>
-                <Text>{item.productName || 'Untitled'}</Text>
-                {item.description && item.productId !== 'custom' && (
-                  <Text style={styles.textMuted}>{item.description}</Text>
-                )}
+                <Text>{line.name}</Text>
+                {line.description && <Text style={styles.textMuted}>{line.description}</Text>}
               </View>
-              <Text style={styles.colPrice}>
-                {item.price.toFixed(2)} {formData.currency}
-              </Text>
-              <Text style={styles.colQty}>
-                {item.quantity}
-                {item.productId !== 'custom' && ` ${item.unit}`}
-              </Text>
-              <Text style={styles.colTotal}>
-                {item.total.toFixed(2)} {formData.currency}
-              </Text>
+              <Text style={styles.colPrice}>{line.price}</Text>
+              <Text style={styles.colQty}>{line.quantity}</Text>
+              <Text style={styles.colTotal}>{line.amount}</Text>
             </View>
           ))}
         </View>
 
         {/* Summary */}
         <View style={styles.summary} wrap={false}>
-          <View style={styles.summaryRow}>
-            <Text>Subtotal:</Text>
-            <Text>
-              {subtotal.toFixed(2)} {formData.currency}
-            </Text>
-          </View>
-          {formData.discount > 0 && (
-            <View style={styles.summaryRow}>
-              <Text>Discount:</Text>
-              <Text>
-                -{formData.discount.toFixed(2)} {formData.currency}
-              </Text>
+          {document.summary.map((row) => (
+            <View key={row.label} style={styles.summaryRow}>
+              <Text>{row.label}</Text>
+              <Text>{row.value}</Text>
             </View>
-          )}
-          {formData.shipping > 0 && (
-            <View style={styles.summaryRow}>
-              <Text>Shipping:</Text>
-              <Text>
-                +{formData.shipping.toFixed(2)} {formData.currency}
-              </Text>
-            </View>
-          )}
-          {formData.taxRate > 0 && (
-            <View style={styles.summaryRow}>
-              <Text>Tax ({formData.taxRate}%):</Text>
-              <Text>
-                {taxAmount.toFixed(2)} {formData.currency}
-              </Text>
-            </View>
-          )}
+          ))}
           <View style={styles.summaryTotal}>
-            <Text>TOTAL:</Text>
-            <Text>
-              {total.toFixed(2)} {formData.currency}
-            </Text>
+            <Text>{document.total.label}</Text>
+            <Text>{document.total.value}</Text>
           </View>
         </View>
 
         {/* Footer Content */}
         <View style={styles.footer} wrap={false}>
-          {formData.notes && (
+          {document.notes && (
             <View style={styles.notes}>
-              <Text style={styles.sectionTitle}>Notes</Text>
-              <Text style={styles.textMuted}>{formData.notes}</Text>
+              <Text style={styles.sectionTitle}>{document.notes.title}</Text>
+              <Text style={styles.textMuted}>{document.notes.text}</Text>
             </View>
           )}
-          {formData.terms && (
+          {document.terms && (
             <View style={styles.notes}>
-              <Text style={styles.sectionTitle}>Payment Terms</Text>
-              <Text style={styles.textMuted}>{formData.terms}</Text>
+              <Text style={styles.sectionTitle}>{document.terms.title}</Text>
+              <Text style={styles.textMuted}>{document.terms.text}</Text>
             </View>
           )}
-          {bankAccount && (
+          {document.bank && (
             <View style={styles.bankInfo}>
-              <Text style={styles.sectionTitle}>Payment Information</Text>
-              <Text>{bankAccount.bankName}</Text>
-              <Text>{bankAccount.accountName}</Text>
-              {/* invoice-integrity AC-03: the account number always; IBAN/SWIFT only when present. */}
-              {bankAccount.accountNumber && (
-                <Text>Account number: {bankAccount.accountNumber}</Text>
-              )}
-              {bankAccount.iban && <Text>IBAN: {bankAccount.iban}</Text>}
-              {bankAccount.swift && <Text>SWIFT: {bankAccount.swift}</Text>}
+              <Text style={styles.sectionTitle}>{document.bank.title}</Text>
+              {document.bank.lines.map((line, index) => (
+                <Text key={index}>{line}</Text>
+              ))}
             </View>
           )}
         </View>
@@ -391,21 +276,6 @@ export function InvoicePDFDocument({
           }
           fixed
         />
-
-        {/* Watermark */}
-        {siteConfig.branding.website && (
-          <View style={styles.watermark} fixed>
-            <Text>
-              Created with{' '}
-              <Link
-                src={siteConfig.branding.website}
-                style={styles.watermarkLink}
-              >
-                {siteConfig.branding.website}
-              </Link>
-            </Text>
-          </View>
-        )}
       </Page>
     </Document>
   );

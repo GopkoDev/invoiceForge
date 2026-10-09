@@ -45,8 +45,4 @@ describe('ad-hoc display formatting lint (T8)', () => {
     expect(await lint('lib/format/probe.ts', toFixedCode)).toHaveLength(0);
     expect(await lint('lib/format/probe.ts', dateCode)).toHaveLength(0);
   });
-
-  it('temporarily ignores the preview document (left to T10)', async () => {
-    expect(await lint('components/invoice-editor/pdf-preview-document.tsx', toFixedCode)).toHaveLength(0);
-  });
 });

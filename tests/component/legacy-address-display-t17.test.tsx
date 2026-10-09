@@ -95,6 +95,7 @@ const { ContactCard } =
   await import('@/components/layout/contacts/contact-card/contact-card');
 const { InvoicePDFDocument } =
   await import('@/lib/pdf/invoice-pdf-kit');
+const { buildInvoiceDocument } = await import('@/lib/invoice-document');
 const { CustomerInfoSidebar } =
   await import('@/components/customers/customer-info-sidebar');
 const { SenderProfileInfoSidebar } =
@@ -145,18 +146,22 @@ describe('InvoicePDFDocument legacy logo (T17, AC-21)', () => {
   it('renders no Image for a stored data: logo', () => {
     const { container } = render(
       <InvoicePDFDocument
-        formData={
-          {
-            invoiceNumber: 'INV-1',
-            issueDate: new Date('2026-01-01'),
-            dueDate: new Date('2026-01-31'),
-            items: [],
-          } as never
+        document={
+          buildInvoiceDocument({
+            kind: 'draft',
+            form: {
+              invoiceNumber: 'INV-1',
+              issueDate: new Date('2026-01-01'),
+              dueDate: new Date('2026-01-31'),
+              currency: 'USD',
+              discount: 0,
+              shipping: 0,
+              taxRate: 0,
+              items: [],
+            } as never,
+            parties: {},
+          })
         }
-        senderProfile={{ logo: 'data:image/png;base64,AAAA' } as never}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
         logoBase64={null}
       />
     );

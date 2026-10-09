@@ -50,6 +50,8 @@ const baseFormData: InvoiceFormData = {
   terms: '',
 };
 
+const sourceFor = (form: InvoiceFormData) => ({ kind: 'draft' as const, form, parties: {} });
+
 function senderProfile(overrides: Partial<InvoiceSenderProfile> = {}): InvoiceSenderProfile {
   return {
     id: 'profile-1',
@@ -77,11 +79,8 @@ describe('PDFPreviewPanel logo warning (AC-01, AC-03, SCR-04)', () => {
   it('does not request a logo and shows no warning when the sender profile has none set (no-logo-set)', async () => {
     render(
       <PDFPreviewPanel
-        formData={baseFormData}
+        source={sourceFor(baseFormData)}
         senderProfile={senderProfile({ logo: null })}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
 
@@ -96,11 +95,8 @@ describe('PDFPreviewPanel logo warning (AC-01, AC-03, SCR-04)', () => {
 
     render(
       <PDFPreviewPanel
-        formData={baseFormData}
+        source={sourceFor(baseFormData)}
         senderProfile={senderProfile()}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
 
@@ -116,11 +112,8 @@ describe('PDFPreviewPanel logo warning (AC-01, AC-03, SCR-04)', () => {
 
     render(
       <PDFPreviewPanel
-        formData={baseFormData}
+        source={sourceFor(baseFormData)}
         senderProfile={senderProfile()}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
 
@@ -135,11 +128,8 @@ describe('PDFPreviewPanel logo warning (AC-01, AC-03, SCR-04)', () => {
 
     render(
       <PDFPreviewPanel
-        formData={baseFormData}
+        source={sourceFor(baseFormData)}
         senderProfile={senderProfile()}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
 
@@ -154,22 +144,16 @@ describe('PDFPreviewPanel logo warning (AC-01, AC-03, SCR-04)', () => {
 
     const { rerender } = render(
       <PDFPreviewPanel
-        formData={baseFormData}
+        source={sourceFor(baseFormData)}
         senderProfile={senderProfile()}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
     await waitFor(() => expect(fetchLogoDataUrlMock).toHaveBeenCalledTimes(1));
 
     rerender(
       <PDFPreviewPanel
-        formData={{ ...baseFormData, notes: 'changed' }}
+        source={sourceFor({ ...baseFormData, notes: 'changed' })}
         senderProfile={senderProfile()}
-        subtotal={0}
-        taxAmount={0}
-        total={0}
       />
     );
 

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useModal } from '@/store/use-modal-store';
 import { PDFPreviewPanel } from '@/components/invoice-editor/pdf-preview-panel';
 import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
+import type { InvoiceDocumentSource } from '@/lib/invoice-document';
 import { usePdfAction } from '@/hooks/use-pdf-action';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { SerializedInvoice } from '@/types/invoice/types';
@@ -31,6 +32,11 @@ export function InvoicePdfPreviewModal() {
 
   const invoiceData = useMemo(
     () => (invoice ? prepareInvoiceDataForPdf(invoice) : null),
+    [invoice]
+  );
+
+  const previewSource = useMemo<InvoiceDocumentSource | null>(
+    () => (invoice ? { kind: 'issued', invoice } : null),
     [invoice]
   );
 
@@ -109,15 +115,12 @@ export function InvoicePdfPreviewModal() {
 
         {/* PDF Preview */}
         <div className="min-h-0 flex-1">
-          <PDFPreviewPanel
-            formData={invoiceData.formData}
-            senderProfile={invoiceData.senderProfile ?? undefined}
-            customer={invoiceData.customer ?? undefined}
-            bankAccount={invoiceData.bankAccount ?? undefined}
-            subtotal={invoice.subtotal}
-            taxAmount={invoice.taxAmount}
-            total={invoice.total}
-          />
+          {previewSource && (
+            <PDFPreviewPanel
+              source={previewSource}
+              senderProfile={invoiceData?.senderProfile ?? undefined}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

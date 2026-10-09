@@ -9,13 +9,8 @@ import {
   resolveLogoForPdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
 import { siteConfig } from '@/config/site.config';
-import type {
-  InvoiceBankAccount,
-  InvoiceCustomer,
-  InvoiceFormData,
-  InvoiceSenderProfile,
-  SerializedInvoice,
-} from '@/types/invoice/types';
+import { buildInvoiceDocument, type InvoiceDocument } from '@/lib/invoice-document';
+import type { InvoiceSenderProfile, SerializedInvoice } from '@/types/invoice/types';
 
 export type PdfAction = 'download' | 'print' | 'preview';
 
@@ -25,15 +20,10 @@ export interface PdfActionResult {
   unauthorized?: boolean;
 }
 
-/** What the PDF document is built from: an invoice's issued details, or the editor's form. */
+/** What the PDF is printed from: the document model, plus the sender profile only for its logo. */
 export interface PdfInput {
-  formData: InvoiceFormData;
+  document: InvoiceDocument;
   senderProfile?: InvoiceSenderProfile;
-  customer?: InvoiceCustomer;
-  bankAccount?: InvoiceBankAccount;
-  subtotal: number;
-  taxAmount: number;
-  total: number;
 }
 
 const COULD_NOT_PREPARE = 'The PDF could not be prepared.';
@@ -45,13 +35,7 @@ async function execute(action: PdfAction, input: PdfInput): Promise<PdfActionRes
   if (logo.unauthorized) return { success: false, unauthorized: true };
 
   const doc = createElement(kit.InvoicePdfDocument, {
-    formData: input.formData,
-    senderProfile: input.senderProfile,
-    customer: input.customer,
-    bankAccount: input.bankAccount,
-    subtotal: input.subtotal,
-    taxAmount: input.taxAmount,
-    total: input.total,
+    document: input.document,
     logoBase64: logo.logoBase64,
   });
   const blob = await kit.generatePdfBlob(doc);
@@ -60,7 +44,7 @@ async function execute(action: PdfAction, input: PdfInput): Promise<PdfActionRes
   if (action === 'download') {
     kit.downloadPdf(
       blob,
-      `${input.formData.invoiceNumber || 'invoice'}(${siteConfig.branding.domain}).pdf`
+      `${input.document.invoiceNumber || 'invoice'}(${siteConfig.branding.domain}).pdf`
     );
     toast.success('PDF downloaded');
     return { success: true };
@@ -109,13 +93,8 @@ export function usePdfAction() {
     (action: PdfAction, invoice: SerializedInvoice) => {
       const data = prepareInvoiceDataForPdf(invoice);
       return runInput(action, {
-        formData: data.formData,
+        document: buildInvoiceDocument({ kind: 'issued', invoice }),
         senderProfile: data.senderProfile ?? undefined,
-        customer: data.customer ?? undefined,
-        bankAccount: data.bankAccount ?? undefined,
-        subtotal: invoice.subtotal,
-        taxAmount: invoice.taxAmount,
-        total: invoice.total,
       });
     },
     [runInput]
