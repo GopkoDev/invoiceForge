@@ -369,13 +369,22 @@ Each top-3 goal from §1 expanded into scenarios. Targets are quoted from spec �
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
-
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Freelancer | A signed-in account holder who owns sender profiles, customers, products and invoices and sees only their own data (CONTEXT.md) |
+| Customer | A party a Freelancer bills; receives the PDF and never signs in (CONTEXT.md) |
+| Visitor | Anyone reaching the app without a signed-in session — here, whoever holds a tab after a sign-out (CONTEXT.md) |
+| Contributor | A developer who clones the repository to run, test or change the app, following its README and tests (CONTEXT.md) |
+| Freelancer time zone | The time zone saved on the Freelancer's account that decides "today" and how moments are shown; UTC until saved (CONTEXT.md) |
+| Draft invoice / Issued invoice | An invoice still being prepared and fully editable / an invoice that left draft and was not cancelled, whose lines are locked (CONTEXT.md) |
+| Issued details | The copy of sender profile, Customer and bank account details an issued invoice keeps and prints (CONTEXT.md) |
+| Calendar day | An invoice's issue or due date: a day with no time and no zone, stored at `T00:00:00Z` and shown as stored (mcp-server ADR-0009) |
+| Moment | A point in time, such as a custom price's creation, shown as a day in the Freelancer time zone |
+| PDF toolkit | The library that builds the invoice PDF in the browser (`@react-pdf/renderer`), now fetched only on demand (ADR-0001) |
+| Document model | The one description of what an invoice document says — labels, parties, lines, formatted dates and amounts — that both the preview and the PDF lay out (ADR-0002) |
+| Save command | The editor store's single entry for Save, Save and issue, Retry and confirming totals, which resolves every save outcome (ADR-0005) |
+| Form revision | A counter the editor increments on every edit; a save compares it with the revision it started from to tell whether the Freelancer changed something meanwhile |
+| First display | What the page shows before the Freelancer interacts with it — the server's HTML and the browser's first render, which must agree (AC-06, AC-13) |
+| Back/forward cache | The browser's in-memory copy of a recently left page, restored by Back or Forward without asking the server (ADR-0007) |
+
+New terms not yet in `CONTEXT.md`: *first display* and *document model* are used across the spec and this SAD — candidates for `/sdd:glossary editor-ux`.
