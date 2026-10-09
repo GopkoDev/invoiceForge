@@ -50,3 +50,7 @@ next-env.d.ts
 .claude/*.local.md
 .claude/settings.local.json
 .worktrees/
+
+# vitepress docs site
+/docs/.vitepress/cache
+/docs/.vitepress/dist
