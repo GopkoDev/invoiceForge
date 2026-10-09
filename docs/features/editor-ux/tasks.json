@@ -1,0 +1,438 @@
+{
+  "slug": "editor-ux",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Move the PDF toolkit into one lazy lib/pdf module with a cached, classifying loader",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-02b"
+      ],
+      "dod": "loadPdfKit() imports lib/pdf/invoice-pdf-kit once per visit and classifies a failed import as offline or new-version; unit tests for the cache and both classifications pass.",
+      "files_hint": [
+        "lib/pdf/",
+        "lib/helpers/invoice-pdf-helpers.tsx",
+        "components/invoice-editor/invoice-pdf-document.tsx",
+        "tests/unit/lib/pdf/"
+      ],
+      "file": "docs/features/editor-ux/tasks/T1-pdf-kit-lazy-module.md"
+    },
+    {
+      "id": "T2",
+      "title": "Route every PDF trigger through usePdfAction and warm the toolkit in the editor when idle",
+      "layer": "ui",
+      "deps": [
+        "T1"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-02b"
+      ],
+      "dod": "Every PDF trigger calls usePdfAction, which shows preparing / try again / reload states and reports generation failures to Sentry with pdf.stage; no file outside lib/pdf statically imports the toolkit (lint no-restricted-imports); component tests cover each state.",
+      "files_hint": [
+        "hooks/use-pdf-action.ts",
+        "hooks/use-invoice-pdf.tsx",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "components/dashboard/recent-invoices/",
+        "components/modals/invoice/invoice-pdf-preview-modal.tsx",
+        "components/invoice-editor/invoice-editor-header.tsx",
+        "eslint.config.mjs",
+        "tests/component/use-pdf-action.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T2-use-pdf-action-triggers.md"
+    },
+    {
+      "id": "T3",
+      "title": "Add the build-output PDF chunk check to CI and e2e tests for first PDF, offline and new-version",
+      "layer": "tests",
+      "deps": [
+        "T2"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-02b"
+      ],
+      "dod": "scripts/check-pdf-chunks.ts fails the CI build when a non-editor route's initial chunks contain @react-pdf/renderer and passes on this branch; the PDF e2e (no fetch on open, reuse, 20-run p95 ≤ 3 s at 10 Mbit/s, offline, missing chunk) passes.",
+      "files_hint": [
+        "scripts/check-pdf-chunks.ts",
+        ".github/workflows/test.yml",
+        "package.json",
+        "tests/e2e/pdf-on-demand.spec.ts",
+        "playwright.config.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T3-pdf-chunk-check-and-pdf-e2e.md"
+    },
+    {
+      "id": "T4",
+      "title": "Remove the unused UI components and their packages, drop uuid, and keep one theme switcher",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [
+        "AC-16"
+      ],
+      "dod": "components/ui holds no unused component, package.json drops the packages only they used plus uuid and @types/uuid, one components/theme-toggle.tsx serves the landing page and the app, and build, lint and every test pass.",
+      "files_hint": [
+        "components/ui/",
+        "package.json",
+        "pnpm-lock.yaml",
+        "components/teheme-toggle.tsx",
+        "components/layout/teheme-toggle.tsx",
+        "components/theme-toggle.tsx",
+        "components/landing/landing-nav.tsx",
+        "components/layout/site-header.tsx",
+        "store/invoice-editor-store/helpers.ts",
+        "store/invoice-editor-store/use-invoice-editor-store.ts",
+        "lib/helpers/prisma-error-scrub.ts",
+        "tests/unit/repository-hygiene.test.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T4-remove-unused-ui-and-one-theme-toggle.md"
+    },
+    {
+      "id": "T5",
+      "title": "Mount the editor's confirmation dialog in the invoice-editor modal container",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-16"
+      ],
+      "dod": "The editor's ConfirmationModal is rendered only by InvoiceEditorModalContainer, the F-47 onClose behaviour is kept, and the existing confirmation-modal component tests pass.",
+      "files_hint": [
+        "components/invoice-editor/invoice-editor.tsx",
+        "components/modals/invoice-editor/invoice-editor-modal-container.tsx",
+        "tests/component/invoice-editor-confirmation-modal-close.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T5-editor-confirmation-in-modal-container.md"
+    },
+    {
+      "id": "T6",
+      "title": "Rewrite the README setup and test steps and verify them in a fresh clone",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "Following README.md word for word in a fresh clone against an empty PostgreSQL database completes every command, every linked file exists, and no secret or shared database address appears.",
+      "files_hint": [
+        "README.md",
+        ".env.example"
+      ],
+      "file": "docs/features/editor-ux/tasks/T6-readme-works-as-written.md"
+    },
+    {
+      "id": "T7",
+      "title": "Create the lib/format module for money, calendar days and moments with a fixed en-US locale",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-08",
+        "AC-09"
+      ],
+      "dod": "formatMoney, formatDay and formatMoment are pure, use en-US regardless of the runtime locale and zone, and unit tests pin $1,234.50, UAH 1,234.50, the stored UTC day and a moment in UTC−10/UTC+14.",
+      "files_hint": [
+        "lib/format/",
+        "lib/helpers/format-helpers.ts",
+        "lib/helpers/calendar-day.ts",
+        "tests/unit/lib/format/"
+      ],
+      "file": "docs/features/editor-ux/tasks/T7-format-module.md"
+    },
+    {
+      "id": "T8",
+      "title": "Route every displayed date and amount through lib/format and forbid ad-hoc formatting by lint",
+      "layer": "ui",
+      "deps": [
+        "T7"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-09"
+      ],
+      "dod": "Every list, dashboard, related-invoices, custom-price and editor display of a date or amount uses lib/format, lint rejects toFixed( and toLocale*String( in components/ and app/, and component tests show the stored day and $1,234.50 under a foreign TZ and locale.",
+      "files_hint": [
+        "components/invoices/",
+        "components/dashboard/",
+        "components/customers/customer-info-sidebar.tsx",
+        "components/products/product-custom-prices.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "app/(protected)/",
+        "eslint.config.mjs"
+      ],
+      "file": "docs/features/editor-ux/tasks/T8-format-call-sites-and-lint.md"
+    },
+    {
+      "id": "T9",
+      "title": "Build the pure invoice document model with its wording in lib/invoice-document",
+      "layer": "domain",
+      "deps": [
+        "T7"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-10"
+      ],
+      "dod": "buildInvoiceDocument(source) returns every label, party, line, formatted date and amount for a draft form and for an issued invoice's issued details, and unit tests over the fixture set (draft, issued, USD, UAH, discount, tax, multiple lines) pass.",
+      "files_hint": [
+        "lib/invoice-document/",
+        "store/invoice-editor-store/pdf-parties.ts",
+        "tests/unit/lib/invoice-document/"
+      ],
+      "file": "docs/features/editor-ux/tasks/T9-invoice-document-model.md"
+    },
+    {
+      "id": "T10",
+      "title": "Lay out the HTML preview and the PDF from the document model and add the parity test",
+      "layer": "ui",
+      "deps": [
+        "T1",
+        "T8",
+        "T9"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-10"
+      ],
+      "dod": "The HTML preview and the react-pdf document render only InvoiceDocument fields, a draft with unsaved changes prints its last save, and the parity test shows 100 % identical text between preview and PDF over the fixture set.",
+      "files_hint": [
+        "components/invoice-editor/pdf-preview-document.tsx",
+        "components/invoice-editor/pdf-preview-panel.tsx",
+        "lib/pdf/invoice-pdf-kit.tsx",
+        "hooks/use-pdf-action.ts",
+        "eslint.config.mjs",
+        "tests/unit/invoice-document-parity.test.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T10-preview-and-pdf-over-document-model.md"
+    },
+    {
+      "id": "T11",
+      "title": "Turn the editor store into a per-mount factory provided by context and built from server data",
+      "layer": "app",
+      "deps": [
+        "T5",
+        "T8",
+        "T10"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "Each editor mount gets its own store created synchronously from the RSC data and keyed by Freelancer and invoice, the initialize-in-effect and reset-on-unmount are gone, a lint rule forbids the old module-level store, and the existing invoice-integrity and editor component tests plus a new first-render test pass.",
+      "files_hint": [
+        "store/invoice-editor-store/",
+        "components/invoice-editor/",
+        "hooks/use-editor-header-buttons.tsx",
+        "hooks/use-invoice-item-handlers.ts",
+        "hooks/use-invoice-reload.ts",
+        "hooks/use-unsaved-changes-guard.ts",
+        "hooks/use-number-draft.ts",
+        "app/(invoice-editor)/",
+        "eslint.config.mjs",
+        "tests/component/invoice-editor-store-provider.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T11-editor-store-per-mount.md"
+    },
+    {
+      "id": "T12",
+      "title": "Compute a new invoice's today and due date on the server and reserve the invoice-number field",
+      "layer": "app",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-08"
+      ],
+      "dod": "The new-invoice page passes today in the Freelancer time zone (UTC until saved) and the payment-terms due date as initial data, the browser clock is never consulted, and the number field shows a size-reserved loading state; component tests pin both.",
+      "files_hint": [
+        "app/(invoice-editor)/invoices/new/",
+        "lib/helpers/time-zone.ts",
+        "lib/helpers/calendar-day.ts",
+        "components/invoice-editor/invoice-details-section.tsx",
+        "tests/component/invoice-details-section-number-states.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T12-new-invoice-today-from-server.md"
+    },
+    {
+      "id": "T13",
+      "title": "Add the store save command with a form revision and resolve every save outcome in it",
+      "layer": "app",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-05b"
+      ],
+      "dod": "save(intent) reads the form when called, tags it with the form revision and resolves saved, saved-with-edits (totals recomputed from the lines on screen), issued-with-edits (dismissable notice), field errors and changed-elsewhere/totals-changed state; the 50-run race test shows 0 lost edits and totals always equal to the visible lines.",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "store/invoice-editor-store/create-invoice-editor-store.ts",
+        "store/invoice-editor-store/types.ts",
+        "hooks/use-editor-header-buttons.tsx",
+        "components/invoice-editor/invoice-editor-save-status.tsx",
+        "tests/component/invoice-editor-store-save-states.test.tsx",
+        "tests/unit/store/save-command-race.test.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T13-save-command-revision-outcomes.md"
+    },
+    {
+      "id": "T14",
+      "title": "Route Retry, the created-address change and the save dialogs through the save command",
+      "layer": "app",
+      "deps": [
+        "T13"
+      ],
+      "acs": [
+        "AC-05c",
+        "AC-05d"
+      ],
+      "dod": "Retry calls save(lastFailedIntent) with the current form; a created invoice replaces the address with its edit URL from inside the command; changed-elsewhere and totals-changed open SCR-10/SCR-09 from store state for Save and Retry alike; Retry while saving or after a store swap is a no-op; component tests per outcome pass.",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "store/invoice-editor-store/create-invoice-editor-store.ts",
+        "hooks/use-editor-header-buttons.tsx",
+        "components/modals/invoice-editor/invoice-editor-modal-container.tsx",
+        "tests/component/invoice-editor-retry-parity.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T14-retry-through-save-command.md"
+    },
+    {
+      "id": "T15",
+      "title": "Send signed-in pages no-store, reload back/forward-cache restores, and prove AC-07 in Chromium and WebKit",
+      "layer": "wiring",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-07"
+      ],
+      "dod": "Signed-in page responses carry Cache-Control: private, no-store, SessionRestoreGuard hides and reloads a persisted pageshow before paint, security-headers.test.ts covers the header, and the AC-07 e2e passes in the chromium and webkit projects.",
+      "files_hint": [
+        "proxy.ts",
+        "components/session-restore-guard.tsx",
+        "app/(protected)/layout.tsx",
+        "app/(invoice-editor)/layout.tsx",
+        "tests/unit/security-headers.test.ts",
+        "tests/unit/proxy.test.ts",
+        "playwright.config.ts",
+        "tests/e2e/session-isolation.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T15-session-isolation-no-store-and-guard.md"
+    },
+    {
+      "id": "T16",
+      "title": "Give every editor field, line field, icon button and row action an announced name and tie errors to fields",
+      "layer": "ui",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "Every editor field has its visible label as its name, line fields announce «{column}, line {n}» from the current index, icon-only buttons and the hidden Print/Download text have names, row actions name the action and the invoice number, and refused fields carry aria-invalid + aria-describedby; component tests assert the names.",
+      "files_hint": [
+        "components/invoice-editor/",
+        "components/invoices/invoice-row-actions.tsx",
+        "components/invoices/related-invoices-list.tsx",
+        "components/dashboard/recent-invoices/",
+        "tests/component/invoice-editor-accessible-names.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T16-editor-accessible-names.md"
+    },
+    {
+      "id": "T17",
+      "title": "Render the editor's phone and desktop layouts from one DOM tree switched by CSS only",
+      "layer": "ui",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-14"
+      ],
+      "dod": "The editor no longer uses useIsMobile to choose what renders, the server HTML at 390 px shows the phone layout, and an e2e test proves a focused line field with «12.» keeps its text and focus across a breakpoint resize; desktop/phone visual snapshots are recorded.",
+      "files_hint": [
+        "components/invoice-editor/invoice-editor.tsx",
+        "components/invoice-editor/invoice-editor-resize-panels.tsx",
+        "components/invoice-editor/invoice-editor-form.tsx",
+        "components/invoice-editor/items-section.tsx",
+        "components/invoice-editor/invoice-editor-selected-preview.tsx",
+        "tests/e2e/editor-layout.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/tasks/T17-editor-css-only-layout.md"
+    },
+    {
+      "id": "T18",
+      "title": "Add the shared AmountInput with a decimal keypad and use it for line, discount, tax and shipping fields",
+      "layer": "ui",
+      "deps": [
+        "T8",
+        "T11"
+      ],
+      "acs": [
+        "AC-13"
+      ],
+      "dod": "AmountInput (inputMode=decimal, '.' the only accepted decimal separator) is used for line price and quantity, discount, tax rate and shipping, is registered in docs/design-system.md, and component tests show «12.5» accepted and «12,5» rejected.",
+      "files_hint": [
+        "components/invoice-editor/amount-input.tsx",
+        "components/invoice-editor/invoice-item-fields.tsx",
+        "components/invoice-editor/summary-section.tsx",
+        "hooks/use-number-draft.ts",
+        "docs/design-system.md",
+        "tests/component/amount-input.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/tasks/T18-amount-input-decimal.md"
+    },
+    {
+      "id": "T19",
+      "title": "Add the CI e2e job with the server/browser date matrix and the accessibility suite",
+      "layer": "tests",
+      "deps": [
+        "T8",
+        "T12",
+        "T16"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-11"
+      ],
+      "dod": "A CI e2e job builds the app for production against throwaway PostgreSQL and runs the date matrix (zones UTC−10/UTC/UTC+14, browser in another zone, ±5 min around midnight, 0 hydration errors, stored days everywhere) and the axe suite (0 serious/critical on editor new/existing, invoices list, dashboard); both pass.",
+      "files_hint": [
+        ".github/workflows/test.yml",
+        "playwright.config.ts",
+        "package.json",
+        "tests/e2e/date-matrix.spec.ts",
+        "tests/e2e/accessibility.spec.ts",
+        "tests/e2e/support/"
+      ],
+      "file": "docs/features/editor-ux/tasks/T19-ci-e2e-date-matrix-and-axe.md"
+    },
+    {
+      "id": "T20",
+      "title": "Add e2e tests that reach every save outcome by Save and by Retry and compare the results",
+      "layer": "tests",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-05c",
+        "AC-05d"
+      ],
+      "dod": "For created, updated, issued, changed elsewhere, totals changed and field error, the e2e reaches the outcome once by Save and once by Retry (after a forced failure) and asserts the same address, dialog and unsaved flag.",
+      "files_hint": [
+        "tests/e2e/editor-retry-parity.spec.ts",
+        "tests/e2e/support/"
+      ],
+      "file": "docs/features/editor-ux/tasks/T20-retry-parity-e2e.md"
+    }
+  ]
+}
