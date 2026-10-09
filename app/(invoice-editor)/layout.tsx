@@ -1,3 +1,4 @@
+import { SessionRestoreGuard } from '@/components/session-restore-guard';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
 
@@ -13,6 +14,7 @@ export default async function InvoiceEditorLayout({
   return (
     <>
       <div className="bg-background min-h-screen">{children}</div>
+      <SessionRestoreGuard />
       <TimeZoneCookie />
     </>
   );

@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import {
   APP_E2E_PORT,
   APP_E2E_URL,
@@ -22,6 +22,20 @@ export default defineConfig({
     baseURL: BASE_URL_OVERRIDE ?? `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
   },
+  // AC-07 (T15): the session-isolation proof runs in Chromium and WebKit (Safari's back/forward
+  // cache behaves differently from Chromium's).
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // WebKit runs only the session-isolation proof, not the whole suite.
+      name: 'webkit',
+      testMatch: '**/session-isolation.spec.ts',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
   webServer: BASE_URL_OVERRIDE
     ? []
     : [

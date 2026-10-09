@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SiteHeader } from '@/components/layout/site-header';
+import { SessionRestoreGuard } from '@/components/session-restore-guard';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';
 import { siteConfig } from '@/config/site.config';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
@@ -29,6 +30,7 @@ export default async function PrivateLayout({
   return (
     <>
       {/* T22 (ADR-0010): tz-cookie client island carries the browser time zone to the server. */}
+      <SessionRestoreGuard />
       <TimeZoneCookie />
       <SidebarProvider
         defaultOpen={siteConfig.sidebar.defaultOpen}

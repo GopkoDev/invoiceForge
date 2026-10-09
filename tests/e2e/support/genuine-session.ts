@@ -78,7 +78,7 @@ export async function signInWithSignInLink(
 
   await page.goto(`${APP_E2E_URL}${options.from ?? '/login'}`);
   if (options.from) await page.waitForURL('**/login**');
-  await page.getByRole('checkbox').click();
+  await page.locator('[data-slot="checkbox"]').click();
   await page.locator('#login-email').fill(email);
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL('**/verify-request**');
@@ -89,4 +89,7 @@ export async function signInWithSignInLink(
     page,
     'the Sign-in link must land on a private page'
   ).not.toHaveURL(/\/(login|error|verify-request)/);
+  // The landing page finishes loading (and any redirect behind it settles) before the caller
+  // navigates on.
+  await page.waitForLoadState('networkidle');
 }

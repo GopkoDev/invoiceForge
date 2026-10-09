@@ -16,13 +16,25 @@ const { auth } = NextAuth(authConfig);
 
 // A verified request passes on with the requested path on a request header,
 // always overwriting a caller-supplied value, for requireLiveUser()'s "Try again" target.
+// AC-07 / ADR-0007: a signed-in page is never kept in the browser's cache. Page responses only;
+// route handlers (/api/*) keep their own headers.
+function markPrivatePage(res: NextResponse, pathname: string): NextResponse {
+  if (!pathname.startsWith('/api/')) {
+    res.headers.set('Cache-Control', 'private, no-store');
+  }
+  return res;
+}
+
 function nextWithRequestPath(req: NextRequest): NextResponse {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set(
     REQUEST_PATH_HEADER,
     `${req.nextUrl.pathname}${req.nextUrl.search}`
   );
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return markPrivatePage(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    req.nextUrl.pathname
+  );
 }
 
 const authProxy = auth(async function proxy(req) {

@@ -112,3 +112,16 @@ describe('security headers (AC-20)', () => {
     expect(vercel.buildCommand).toBe('pnpm build');
   });
 });
+
+// AC-07 / ADR-0007: no-store is set per signed-in page by proxy.ts, never site-wide here, so
+// public pages keep their caching.
+describe('next.config headers (AC-07, public pages keep caching)', () => {
+  it('carries no Cache-Control entry', async () => {
+    vi.resetModules();
+    const { buildSecurityHeaders } = await import('@/next.config');
+    const keys = buildSecurityHeaders(undefined, false).map((h) =>
+      h.key.toLowerCase()
+    );
+    expect(keys).not.toContain('cache-control');
+  });
+});

@@ -342,3 +342,32 @@ describe('proxy matcher (sad.md §11, api is no longer excluded)', () => {
     expect(pattern.test('/_next/imagex')).toBe(true);
   });
 });
+
+// AC-07 / ADR-0007: signed-in page responses are never stored by the browser's cache; route
+// handlers keep their own headers and public pages keep their caching.
+describe('proxy Cache-Control (AC-07, signed-in pages are no-store)', () => {
+  const signedIn = { user: { id: 'u1' } };
+
+  it.each(['/dashboard', '/invoices', '/invoices/abc/edit', '/settings'])(
+    'sends "private, no-store" on the signed-in page %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    }
+  );
+
+  it('leaves a signed-in route handler (/api/*) without the page header', async () => {
+    const res = await callProxy(
+      buildRequest('/api/user/export', { token: signedIn })
+    );
+    expect(res.headers.get('Cache-Control')).toBeNull();
+  });
+
+  it.each(['/', '/login', '/robots.txt'])(
+    'leaves the public page %s without the header for a Visitor',
+    async (path) => {
+      const res = await callProxy(buildRequest(path));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+});
