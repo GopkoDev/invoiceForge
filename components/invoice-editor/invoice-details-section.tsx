@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import {
   useInvoiceNumber,
   useInvoiceNumberHint,
+  useInvoiceHintStatus,
   useFieldErrors,
   useInvoiceDates,
   useInvoiceCurrency,
@@ -57,6 +58,7 @@ export function InvoiceDetailsSection() {
   const poNumberId = `${fieldId}-po-number`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
+  const hintLoading = useInvoiceHintStatus() === 'loading';
   const fieldErrors = useFieldErrors();
   const { issueDate, dueDate } = useInvoiceDates();
   const currency = useInvoiceCurrency();
@@ -100,14 +102,14 @@ export function InvoiceDetailsSection() {
               disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
               aria-describedby={fieldErrors?.invoiceNumber ? invoiceNumberErrorId : undefined}
-              aria-busy={invoiceNumber === '' && invoiceNumberHint === undefined ? true : undefined}
+              aria-busy={invoiceNumber === '' && hintLoading ? true : undefined}
             />
 
             {/* An empty field is the only signal a number is system-proposed (AC-06); the hint
                 is shown only as a placeholder, never merged into the value. */}
             {invoiceNumber === '' && (
               <FieldDescription>
-                {invoiceNumberHint === undefined ? 'Loading…' : 'Assigned on save'}
+                {hintLoading ? 'Loading…' : 'Assigned on save'}
               </FieldDescription>
             )}
 

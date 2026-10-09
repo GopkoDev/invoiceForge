@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { createStore, type StoreApi } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
 import { InvoiceFormData, InvoiceEditorData } from '@/types/invoice/types';
-import { InvoiceEditorState, InvoiceEditorInitData, SaveIntent } from './types';
+import { InvoiceEditorState, InvoiceEditorInitData, SaveIntent, HintStatus } from './types';
 import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import {
   generateInvoiceNumber,
@@ -48,6 +48,11 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
     revision: 0,
     issuedEditsDroppedNotice: null,
     invoiceNumberHint: undefined,
+    // A new invoice that already has a sender shows the loading state in the first HTML; the request
+    // itself starts on mount (requestNumberHint).
+    hintStatus: (!data.invoiceId && data.initialData.invoiceNumber === '' && data.initialData.senderProfileId !== ''
+      ? 'loading'
+      : 'idle') as HintStatus,
     fieldErrors: undefined,
     totalsChanged: null,
     totalsChangedIntent: 'save' as SaveIntent,
@@ -80,6 +85,8 @@ export function createInvoiceEditorStore(
     // result when it no longer matches, so a slow response for invoice A can never write A's id,
     // number or dates into the editor the Freelancer has since opened for something else.
     let sessionToken = 0;
+    // The mount request runs once per store (StrictMode mounts twice); initialize() re-arms it.
+    let hintRequested = false;
     const failureToast = { id: `invoice-save-failed-${++storeCount}`, shown: false };
 
     const { save } = createSaveCommand({
@@ -97,6 +104,7 @@ export function createInvoiceEditorStore(
       // ============================================================
       initialize: (data: InvoiceEditorInitData) => {
         sessionToken += 1;
+        hintRequested = false;
         set(buildInitialState(data));
       },
 
@@ -106,6 +114,28 @@ export function createInvoiceEditorStore(
         sessionToken += 1;
         if (failureToast.shown) toast.dismiss(failureToast.id);
         failureToast.shown = false;
+      },
+
+      // Asks for the proposed number of a new invoice that opened with a sender profile. Whatever the
+      // outcome, the loading state ends: a hint, or "Assigned on save".
+      requestNumberHint: async () => {
+        const { hintStatus, formData } = get();
+        if (hintRequested || hintStatus !== 'loading') return;
+        hintRequested = true;
+        const id = formData.senderProfileId;
+        const settle = (patch: Partial<InvoiceEditorState>) => {
+          // A later sender pick owns the hint now.
+          const current = get();
+          if (current.formData.senderProfileId === id && current.hintStatus === 'loading') set(patch);
+        };
+        try {
+          const result = await generateInvoiceNumber(id);
+          if (redirectIfUnauthorized(result)) return;
+          if (result.success) settle({ invoiceNumberHint: result.data, hintStatus: 'ready' });
+          else settle({ hintStatus: 'failed' });
+        } catch {
+          settle({ hintStatus: 'failed' });
+        }
       },
 
       updateField: <K extends keyof InvoiceFormData>(
@@ -188,6 +218,7 @@ export function createInvoiceEditorStore(
           hasUnsavedChanges: true,
           revision: state.revision + 1,
           invoiceNumberHint: undefined,
+          hintStatus: 'loading',
           ...computedValues,
         });
 
@@ -197,9 +228,12 @@ export function createInvoiceEditorStore(
           if (redirectIfUnauthorized(result)) return;
           // A later pick, re-initialize or leaving the editor owns the hint now.
           if (result.success && token === sessionToken && get().formData.senderProfileId === id) {
-            set({ invoiceNumberHint: result.data });
+            set({ invoiceNumberHint: result.data, hintStatus: 'ready' });
+          } else if (token === sessionToken && get().formData.senderProfileId === id) {
+            set({ hintStatus: 'failed' });
           }
         } catch {
+          if (token === sessionToken) set({ hintStatus: 'failed' });
           // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
           goToSignIn();
         }

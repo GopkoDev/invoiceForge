@@ -100,6 +100,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** The hint from `generateInvoiceNumber`, shown only as a placeholder — never merged into
    * `formData.invoiceNumber` (AC-06, AC-11). */
   invoiceNumberHint?: string;
+  /** Where the hint request stands; only 'loading' shows the loading state (AC-06). */
+  hintStatus: HintStatus;
   /** VALIDATION / CONFLICT `fieldErrors` from the last save attempt, keyed by form path
    * (AC-08, AC-14, AC-15). */
   fieldErrors?: Record<string, string[]>;
@@ -129,6 +131,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** The last reload failed: the load error shows (SCR-17). */
   reloadFailed: boolean;
 
+  /** Requests the hint once for a new invoice that opened with a sender profile. */
+  requestNumberHint: () => Promise<void>;
   initialize: (data: InvoiceEditorInitData) => void;
   /** The editor was left: drops every in-flight save and Retry and dismisses the failure message. */
   dispose: () => void;
@@ -192,3 +196,5 @@ export interface RecalculateComputedValuesStateInput extends NormalizedData {
   customPrices: InvoiceCustomPrice[];
   invoiceId?: string;
 }
+
+export type HintStatus = 'idle' | 'loading' | 'ready' | 'failed';

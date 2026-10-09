@@ -23,5 +23,9 @@ export function InvoiceEditorProvider({
   // another page. The cleanup is all there is to arm: dispose() only invalidates what started
   // before it, so StrictMode's mount, cleanup, mount leaves the store working for new saves.
   useEffect(() => () => store.getState().dispose(), [store]);
+  // A new invoice that opened with a sender asks for its number hint once; the store ignores repeats.
+  useEffect(() => {
+    void store.getState().requestNumberHint();
+  }, [store]);
   return <InvoiceEditorStoreContext.Provider value={store}>{children}</InvoiceEditorStoreContext.Provider>;
 }

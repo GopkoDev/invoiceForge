@@ -104,6 +104,9 @@ export const useInvoiceId = () =>
 export const useInvoiceNumberHint = () =>
   useInvoiceEditor((state) => state.invoiceNumberHint);
 
+export const useInvoiceHintStatus = () =>
+  useInvoiceEditor((state) => state.hintStatus);
+
 export const useFieldErrors = () =>
   useInvoiceEditor(useShallow((state) => state.fieldErrors));
 
@@ -159,6 +162,7 @@ export const useInvoiceEditorActions = () =>
   useInvoiceEditor(
     useShallow((state) => ({
       initialize: state.initialize,
+      requestNumberHint: state.requestNumberHint,
       updateField: state.updateField,
       updateFields: state.updateFields,
       selectSenderProfile: state.selectSenderProfile,

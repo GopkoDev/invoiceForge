@@ -4,7 +4,7 @@
 // the server passed, even when the browser clock is on another day, and the store module no longer
 // offers a clock-based default form.
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor, act } from '@testing-library/react';
 import type { InvoiceEditorData } from '@/types/invoice/types';
 
 vi.mock('next/navigation', () => ({
@@ -18,6 +18,7 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   getInvoiceEditorData: vi.fn(),
 }));
 
+import { generateInvoiceNumber } from '@/lib/actions/invoice-actions/invoice-actions';
 import { InvoiceDetailsSection } from '@/components/invoice-editor/invoice-details-section';
 import * as storeHelpers from '@/store/invoice-editor-store/helpers';
 import { createInvoiceEditorStore } from '@/store/invoice-editor-store/create-invoice-editor-store';
@@ -70,5 +71,67 @@ describe('new invoice defaults come from the server (T12)', () => {
 
   it('has no clock-based default form left in the store helpers', () => {
     expect('createInitialFormData' in storeHelpers).toBe(false);
+  });
+});
+
+// editor-ux T22 (AC-06; review 2026-10-10 T-h(a)): the number hint is requested on mount for a new
+// invoice that already has a sender profile, and the loading state always ends.
+function withSender(): InvoiceEditorData {
+  const base = newInvoiceData();
+  return {
+    ...base,
+    senderProfiles: [
+      { id: 'sp-1', name: 'Studio', legalName: null, address: null, city: null, country: null, postalCode: null, email: null, phone: null, taxId: null, logo: null, invoicePrefix: 'INV', invoiceCounter: 1 },
+    ],
+    bankAccounts: [
+      { id: 'ba-1', senderProfileId: 'sp-1', bankName: 'Bank', accountName: 'Holder', accountNumber: '111', iban: null, swift: null, currency: 'EUR', isDefault: true },
+    ],
+    initialData: { ...base.initialData!, senderProfileId: 'sp-1', bankAccountId: 'ba-1', currency: 'EUR' },
+  };
+}
+const numberInput = () => screen.getAllByRole('textbox')[0];
+const gen = vi.mocked(generateInvoiceNumber);
+
+describe('number hint on a new invoice (T22)', () => {
+  it('requests the hint exactly once on mount and shows Loading until it arrives', async () => {
+    gen.mockReset();
+    let resolve!: (v: unknown) => void;
+    gen.mockReturnValue(new Promise((r) => { resolve = r; }) as never);
+    renderWithEditorStore(<InvoiceDetailsSection />, { initial: withSender() });
+    await waitFor(() => expect(gen).toHaveBeenCalledTimes(1));
+    expect(gen).toHaveBeenCalledWith('sp-1');
+    expect(numberInput()).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    await act(async () => resolve({ success: true, data: 'INV-0042' }));
+    expect(numberInput()).toHaveAttribute('placeholder', 'INV-0042');
+    expect(numberInput()).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+    expect(gen).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['rejects', () => Promise.reject(new Error('boom'))],
+    ['returns a non-success result', () => Promise.resolve({ success: false, error: 'nope', code: 'INTERNAL' })],
+  ])('leaves the loading state when the request %s', async (_n, impl) => {
+    gen.mockReset();
+    gen.mockImplementation(impl as never);
+    renderWithEditorStore(<InvoiceDetailsSection />, { initial: withSender() });
+    await waitFor(() => expect(gen).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+    expect(numberInput()).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Assigned on save')).toBeInTheDocument();
+  });
+
+  it('does not show Loading forever after the number of an existing invoice is cleared', async () => {
+    gen.mockReset();
+    const base = withSender();
+    const existing: InvoiceEditorData = {
+      ...base, invoiceId: 'inv-1', version: 1, issuedDetails: null,
+      initialData: { ...base.initialData!, invoiceNumber: 'INV-0001' },
+    };
+    const { store } = renderWithEditorStore(<InvoiceDetailsSection />, { initial: existing, storeKey: 'test:inv-1' });
+    act(() => store.getState().updateField('invoiceNumber', ''));
+    await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+    expect(numberInput()).not.toHaveAttribute('aria-busy', 'true');
   });
 });

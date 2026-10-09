@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({ hint: undefined as string | undefined }));
 vi.mock('@/store/invoice-editor-store', () => ({
   useInvoiceNumber: () => '',
   useInvoiceNumberHint: () => state.hint,
+  useInvoiceHintStatus: () => (state.hint === undefined ? 'loading' : 'ready'),
   useFieldErrors: () => undefined,
   useInvoiceDates: () => ({ issueDate: new Date('2026-03-11T00:00:00'), dueDate: new Date('2026-04-10T00:00:00') }),
   useInvoiceCurrency: () => 'USD',

@@ -26,7 +26,7 @@
 | T19 | Add the CI e2e job with the server/browser date matrix and the accessibility suite | tests | Dmytro Hopko | M | T8, T12, T16 | done |
 | T20 | Add e2e tests that reach every save outcome by Save and by Retry and compare the results | tests | Dmytro Hopko | S | T14 | done |
 | T21 | Dispose the editor store on unmount so Retry and an in-flight create cannot act on another page, and remove the unused save-bypassing actions | app | Dmytro Hopko | — | — | done |
-| T22 | Open a new invoice with the default sender profile, its default bank account and currency, and request the invoice-number hint on mount | app | Dmytro Hopko | — | — | todo |
+| T22 | Open a new invoice with the default sender profile, its default bank account and currency, and request the invoice-number hint on mount | app | Dmytro Hopko | — | — | done |
 | T23 | Print an issued invoice with its stored line amounts and totals in the preview and the PDF | domain | Dmytro Hopko | — | — | todo |
 | T24 | Keep the failed intent through the changed-totals confirmation so Save and issue stays Save and issue | app | Dmytro Hopko | — | T21 | done |
 | T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | — | todo |

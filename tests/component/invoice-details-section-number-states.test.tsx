@@ -16,6 +16,7 @@ const updateFieldMock = vi.fn();
 vi.mock('@/store/invoice-editor-store', () => ({
   useInvoiceNumber: () => '',
   useInvoiceNumberHint: () => 'INV-2026-0042',
+  useInvoiceHintStatus: () => 'ready',
   useFieldErrors: () => ({
     invoiceNumber: ['This invoice number is already used in this sender profile.'],
   }),

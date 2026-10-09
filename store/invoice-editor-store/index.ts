@@ -38,6 +38,7 @@ export {
   usePoNumber,
   useInvoiceItem,
   useInvoiceNumberHint,
+  useInvoiceHintStatus,
   useFieldErrors,
   useTotalsChanged,
   useLegacy,
