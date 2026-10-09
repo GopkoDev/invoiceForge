@@ -173,6 +173,7 @@ export const useInvoiceEditorActions = () =>
       save: state.save,
       dismissIssuedEditsDroppedNotice: state.dismissIssuedEditsDroppedNotice,
       clearTotalsChanged: state.clearTotalsChanged,
+      confirmTotalsChanged: state.confirmTotalsChanged,
       markStale: state.markStale,
       reloadInvoice: state.reloadInvoice,
     }))

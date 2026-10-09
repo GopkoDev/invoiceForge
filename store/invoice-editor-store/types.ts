@@ -106,6 +106,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   /** Set by a CONFLICT `details.kind === 'TOTALS_CHANGED'` so the header can open the SCR-15
    * confirmation dialog (AC-17). */
   totalsChanged: TotalsChanged | null;
+  /** The intent of the save the server refused with TOTALS_CHANGED: Confirm repeats it. */
+  totalsChangedIntent: SaveIntent;
   /** `legacy` flags from `getInvoiceEditorData`, carried in on `initialize` (AC-17). */
   legacy: InvoiceLegacyInfo | null;
   /** The invoice is stored PENDING but past its due date: the header badge reads Overdue while
@@ -152,6 +154,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   save: (intent: SaveIntent, opts?: SaveOptions) => Promise<void>;
   dismissIssuedEditsDroppedNotice: () => void;
   clearTotalsChanged: () => void;
+  /** Confirm the shown totals: repeats the refused save (Save or Save and issue) with them. */
+  confirmTotalsChanged: () => Promise<void>;
   /** SCR-05 closed: the editor turns stale, edits kept. */
   markStale: () => void;
   /** Re-fetches the editor data and re-initialises from the current invoice (SCR-05 Reload). */

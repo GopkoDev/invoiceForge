@@ -133,6 +133,17 @@ const scenarios: Record<string, Scenario> = {
       await expect(dialogOf(page)).toContainText('Confirm the new total', DIALOG_TIMEOUT);
     },
   },
+  'totals changed on issue': {
+    label: 'totals changed on issue',
+    seed: 'DRAFT',
+    intent: 'save-and-issue',
+    open: openExisting,
+    edit: editNotes,
+    elsewhere: (ws) => changeInvoiceElsewhere(ws.invoiceId, { storedTotal: 90 }),
+    settled: async (page) => {
+      await expect(dialogOf(page)).toContainText('Confirm the new total', DIALOG_TIMEOUT);
+    },
+  },
   'field error': {
     label: 'field error',
     seed: 'DRAFT',
@@ -269,6 +280,17 @@ for (const scenario of Object.values(scenarios)) {
         await dialog.getByRole('button', { name: 'Confirm and save' }).click();
         await expect(toastOf(byRetry.page, 'Invoice updated')).toBeVisible();
         expect((await readInvoicesOf(byRetry.ws.userId))[0].notes).toBe('Edited before saving');
+      }
+      if (scenario.label === 'totals changed on issue') {
+        const dialog = dialogOf(byRetry.page);
+        const [row] = await readInvoicesOf(byRetry.ws.userId);
+        expect(row.status).toBe('DRAFT');
+        // Confirming keeps the refused intent: the invoice ends issued, not saved as a draft.
+        await dialog.getByRole('button', { name: 'Confirm and save' }).click();
+        await expect(toastOf(byRetry.page, 'Invoice issued')).toBeVisible();
+        const [issued] = await readInvoicesOf(byRetry.ws.userId);
+        expect(issued.status).toBe('PENDING');
+        expect(issued.notes).toBe('Edited before saving');
       }
       if (scenario.label === 'field error') {
         const [row] = await readInvoicesOf(byRetry.ws.userId);

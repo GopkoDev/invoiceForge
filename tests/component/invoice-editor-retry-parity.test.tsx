@@ -36,11 +36,11 @@ type Cmd = { save: (i: 'save' | 'save-and-issue', o?: unknown) => Promise<void> 
 const existing = () =>
   ({ ...emptyEditorData(), invoiceId: 'inv-1', version: 3 }) as InvoiceEditorData;
 
-async function failThenRetry(retriedAnswer: unknown) {
+async function failThenRetry(retriedAnswer: unknown, intent: 'save' | 'save-and-issue' = 'save') {
   const view = renderWithEditorStore(<InvoiceEditorModalContainer />, { initial: existing() });
   updateInvoiceMock.mockResolvedValueOnce(fail('FAILED', 'Could not reach the server.'));
   await act(async () => {
-    await (view.store.getState() as unknown as Cmd).save('save');
+    await (view.store.getState() as unknown as Cmd).save(intent);
   });
   updateInvoiceMock.mockResolvedValueOnce(retriedAnswer);
   const call = [...toastError.mock.calls].reverse().find(([, o]) => o?.action?.label === 'Retry')!;
@@ -99,5 +99,69 @@ describe('dialog host, reached by Retry (AC-05d)', () => {
     expect(updateInvoiceMock.mock.calls.length).toBe(calls);
     expect(view.store.getState().totalsChanged).toBeNull();
     expect(view.store.getState().hasUnsavedChanges).toBe(true);
+  });
+});
+
+// editor-ux T24 (RED, review D4): "Confirm and save" keeps the intent the refused save had.
+const TOTALS_CHANGED = () =>
+  fail('CONFLICT', 'Total changes.', {
+    details: { kind: 'TOTALS_CHANGED', oldTotal: '10.00', newTotal: '11.00' },
+  } as never);
+const savedAs = (status: 'DRAFT' | 'PENDING') =>
+  ok({ id: 'inv-1', version: 4, status, subtotal: 0, taxAmount: 0, total: 0,
+    invoiceNumber: 'INV-1', derivedOverdue: false, paidAt: null, issuedDetails: null,
+    issueDate: '2026-03-11T00:00:00.000Z', dueDate: '2026-04-10T00:00:00.000Z' });
+
+describe('totals confirmation keeps the intent of the refused save (AC-05c, AC-05d)', () => {
+  it('Save and issue answered with changed totals: Confirm and save issues the invoice', async () => {
+    const view = renderWithEditorStore(<InvoiceEditorModalContainer />, { initial: existing() });
+    updateInvoiceMock.mockResolvedValueOnce(TOTALS_CHANGED());
+    await act(async () => {
+      await (view.store.getState() as unknown as Cmd).save('save-and-issue');
+    });
+    await screen.findByText('Confirm the new total');
+    updateInvoiceMock.mockResolvedValueOnce(savedAs('PENDING'));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm and save' }));
+    await waitFor(() => expect(updateInvoiceMock).toHaveBeenCalledTimes(2));
+    expect(updateInvoiceMock).toHaveBeenLastCalledWith(
+      'inv-1',
+      expect.objectContaining({
+        status: 'PENDING',
+        confirmedTotals: { oldTotal: '10.00', newTotal: '11.00' },
+      })
+    );
+    await waitFor(() => expect(view.store.getState().storedStatus).toBe('PENDING'));
+  });
+
+  it('a failed Save and issue, retried and answered with changed totals: Confirm and save issues the invoice', async () => {
+    const view = await failThenRetry(TOTALS_CHANGED(), 'save-and-issue');
+    await screen.findByText('Confirm the new total');
+    updateInvoiceMock.mockResolvedValueOnce(savedAs('PENDING'));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm and save' }));
+    await waitFor(() => expect(updateInvoiceMock).toHaveBeenCalledTimes(3));
+    expect(updateInvoiceMock).toHaveBeenLastCalledWith(
+      'inv-1',
+      expect.objectContaining({
+        status: 'PENDING',
+        confirmedTotals: { oldTotal: '10.00', newTotal: '11.00' },
+      })
+    );
+    await waitFor(() => expect(view.store.getState().storedStatus).toBe('PENDING'));
+  });
+
+  it('a plain Save answered with changed totals still saves as a draft on Confirm and save', async () => {
+    const view = renderWithEditorStore(<InvoiceEditorModalContainer />, { initial: existing() });
+    updateInvoiceMock.mockResolvedValueOnce(TOTALS_CHANGED());
+    await act(async () => {
+      await (view.store.getState() as unknown as Cmd).save('save');
+    });
+    await screen.findByText('Confirm the new total');
+    updateInvoiceMock.mockResolvedValueOnce(savedAs('DRAFT'));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm and save' }));
+    await waitFor(() => expect(updateInvoiceMock).toHaveBeenCalledTimes(2));
+    const sent = updateInvoiceMock.mock.calls[1][1] as { status: string; confirmedTotals: unknown };
+    expect(sent.status).not.toBe('PENDING');
+    expect(sent.confirmedTotals).toEqual({ oldTotal: '10.00', newTotal: '11.00' });
+    await waitFor(() => expect(view.store.getState().storedStatus).toBe('DRAFT'));
   });
 });

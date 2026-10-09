@@ -28,7 +28,7 @@ export function InvoiceEditorModalContainer() {
   const confirmationModal = useModal('confirmationModal');
   const totalsChanged = useTotalsChanged();
   const changedElsewhere = useChangedElsewhere();
-  const { save, clearTotalsChanged, markStale } = useInvoiceEditorActions();
+  const { confirmTotalsChanged, clearTotalsChanged, markStale } = useInvoiceEditorActions();
   const reload = useInvoiceReload();
 
   return (
@@ -73,7 +73,7 @@ export function InvoiceEditorModalContainer() {
           confirmText="Confirm and save"
           onClose={clearTotalsChanged}
           onConfirm={async () => {
-            await save('save', { confirmedTotals: totalsChanged });
+            await confirmTotalsChanged();
           }}
         />
       )}

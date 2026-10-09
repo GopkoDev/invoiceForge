@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { createStore, type StoreApi } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
 import { InvoiceFormData, InvoiceEditorData } from '@/types/invoice/types';
-import { InvoiceEditorState, InvoiceEditorInitData } from './types';
+import { InvoiceEditorState, InvoiceEditorInitData, SaveIntent } from './types';
 import { goToSignIn, redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import {
   generateInvoiceNumber,
@@ -50,6 +50,7 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
     invoiceNumberHint: undefined,
     fieldErrors: undefined,
     totalsChanged: null,
+    totalsChangedIntent: 'save' as SaveIntent,
     legacy: data.legacy ?? null,
     derivedOverdue: data.derivedOverdue ?? false,
     storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
@@ -368,6 +369,11 @@ export function createInvoiceEditorStore(
 
       dismissIssuedEditsDroppedNotice: () => {
         set({ issuedEditsDroppedNotice: null });
+      },
+
+      confirmTotalsChanged: async () => {
+        const { totalsChanged, totalsChangedIntent } = get();
+        if (totalsChanged) await save(totalsChangedIntent, { confirmedTotals: totalsChanged });
       },
 
       clearTotalsChanged: () => {

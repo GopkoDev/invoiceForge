@@ -79,6 +79,7 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
       // The refused save stored nothing: the form stays unsaved until the totals are confirmed.
       set({
         totalsChanged: { oldTotal: result.details.oldTotal, newTotal: result.details.newTotal },
+        totalsChangedIntent: intent,
         hasUnsavedChanges: true,
       });
       return;
