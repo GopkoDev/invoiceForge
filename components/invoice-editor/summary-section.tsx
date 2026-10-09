@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import {
   Card,
   CardContent,
@@ -23,6 +24,7 @@ import {
 } from '@/store/invoice-editor-store';
 
 export function SummarySection() {
+  const fieldId = useId();
   const currency = useInvoiceCurrency();
   const { updateField } = useInvoiceEditorActions();
   const { subtotal, taxRate, taxAmount, discount, shipping, total } =
@@ -83,7 +85,9 @@ export function SummarySection() {
           </p>
 
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground">Discount</Label>
+            <Label htmlFor={`${fieldId}-discount`} className="text-muted-foreground">
+              Discount
+            </Label>
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">−</span>
@@ -92,18 +96,23 @@ export function SummarySection() {
                 value={discountInput.value}
                 onChange={(e) => discountInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
+                id={`${fieldId}-discount`}
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.discount}
+                aria-describedby={fieldErrors?.discount ? `${fieldId}-discount-error` : undefined}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
           <FieldError
+            id={`${fieldId}-discount-error`}
             errors={fieldErrors?.discount?.map((message) => ({ message }))}
           />
 
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground">Shipping</Label>
+            <Label htmlFor={`${fieldId}-shipping`} className="text-muted-foreground">
+              Shipping
+            </Label>
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">+</span>
@@ -112,13 +121,16 @@ export function SummarySection() {
                 value={shippingInput.value}
                 onChange={(e) => shippingInput.onChange(e.target.value)}
                 className="h-8 w-24 text-right"
+                id={`${fieldId}-shipping`}
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.shipping}
+                aria-describedby={fieldErrors?.shipping ? `${fieldId}-shipping-error` : undefined}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
           <FieldError
+            id={`${fieldId}-shipping-error`}
             errors={fieldErrors?.shipping?.map((message) => ({ message }))}
           />
 
@@ -136,15 +148,19 @@ export function SummarySection() {
 
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Tax</span>
+            <Label htmlFor={`${fieldId}-tax-rate`} className="text-muted-foreground">
+              Tax
+            </Label>
             <div className="flex items-center">
               <Input
                 type="text"
                 value={taxRateInput.value}
                 onChange={(e) => taxRateInput.onChange(e.target.value)}
                 className="h-8 w-16 text-right"
+                id={`${fieldId}-tax-rate`}
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.taxRate}
+                aria-describedby={fieldErrors?.taxRate ? `${fieldId}-tax-rate-error` : undefined}
               />
               <span className="text-muted-foreground ml-1">%</span>
             </div>
@@ -156,6 +172,7 @@ export function SummarySection() {
         </div>
         <FieldError errors={fieldErrors?.taxAmount?.map((message) => ({ message }))} />
         <FieldError
+          id={`${fieldId}-tax-rate-error`}
           errors={fieldErrors?.taxRate?.map((message) => ({ message }))}
         />
 

@@ -51,6 +51,7 @@ export function InvoiceItemCard({
           <button
             {...dragHandleProps?.attributes}
             {...dragHandleProps?.listeners}
+            aria-label={`Reorder line ${itemIndex + 1}`}
             className="hover:bg-muted cursor-grab touch-none rounded p-1 active:cursor-grabbing"
           >
             <GripVertical className="text-muted-foreground h-4 w-4" />
@@ -61,6 +62,7 @@ export function InvoiceItemCard({
           <InvoiceItemActions
             onDuplicate={handleDuplicate}
             onDelete={handleDelete}
+            lineNumber={itemIndex + 1}
           />
         )}
       </div>

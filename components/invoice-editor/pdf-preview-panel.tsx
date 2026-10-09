@@ -158,6 +158,7 @@ export function PDFPreviewPanel({ source, senderProfile }: PDFPreviewPanelProps)
             variant="outline"
             size="icon"
             onClick={handleZoomOut}
+            aria-label="Zoom out"
             disabled={zoom !== 'fit' && zoom <= MIN_ZOOM}
           >
             <ZoomOut className="h-4 w-4" />
@@ -171,6 +172,7 @@ export function PDFPreviewPanel({ source, senderProfile }: PDFPreviewPanelProps)
             variant="outline"
             size="icon"
             onClick={handleZoomIn}
+            aria-label="Zoom in"
             disabled={zoom !== 'fit' && zoom >= MAX_ZOOM}
           >
             <ZoomIn className="h-4 w-4" />

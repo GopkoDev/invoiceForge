@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldError } from '@/components/ui/field';
 import { Currency, InvoiceFormItem } from '@/types/invoice/types';
@@ -28,6 +29,7 @@ export function InvoiceItemFields({
   disabled = false,
   layout = 'desktop',
 }: InvoiceItemFieldsProps) {
+  const fieldId = useId();
   const total = formatMoney(item.total, currency);
   const priceInput = useNumberDraft(item.price, onPriceChange);
   const quantityInput = useNumberDraft(item.quantity, onQuantityChange);
@@ -40,6 +42,11 @@ export function InvoiceItemFields({
   const priceErrors = fieldErrors?.[`items.${itemIndex}.price`];
   const quantityErrors = fieldErrors?.[`items.${itemIndex}.quantity`];
   const totalErrors = fieldErrors?.[`items.${itemIndex}.total`];
+  // Line fields announce their column and current position, e.g. "Quantity, line 3".
+  const priceErrorId = `${fieldId}-price-error`;
+  const quantityErrorId = `${fieldId}-quantity-error`;
+  const priceName = `Price, line ${itemIndex + 1}`;
+  const quantityName = `Quantity, line ${itemIndex + 1}`;
 
   if (layout === 'mobile') {
     return (
@@ -53,9 +60,12 @@ export function InvoiceItemFields({
               onChange={(e) => priceInput.onChange(e.target.value)}
               className="text-right"
               disabled={disabled || isPriceDisabled}
+              aria-label={priceName}
               aria-invalid={!!priceErrors}
+              aria-describedby={priceErrors ? priceErrorId : undefined}
             />
             <FieldError
+              id={priceErrorId}
               errors={priceErrors?.map((message) => ({ message }))}
             />
           </div>
@@ -67,9 +77,12 @@ export function InvoiceItemFields({
               onChange={(e) => quantityInput.onChange(e.target.value)}
               className="text-right"
               disabled={disabled}
-              aria-invalid={!!quantityErrors}
+          aria-label={quantityName}
+          aria-invalid={!!quantityErrors}
+          aria-describedby={quantityErrors ? quantityErrorId : undefined}
             />
             <FieldError
+              id={quantityErrorId}
               errors={quantityErrors?.map((message) => ({ message }))}
             />
           </div>
@@ -94,9 +107,14 @@ export function InvoiceItemFields({
           className="text-right"
           placeholder="Price"
           disabled={disabled || isPriceDisabled}
+          aria-label={priceName}
           aria-invalid={!!priceErrors}
+          aria-describedby={priceErrors ? priceErrorId : undefined}
         />
-        <FieldError errors={priceErrors?.map((message) => ({ message }))} />
+        <FieldError
+          id={priceErrorId}
+          errors={priceErrors?.map((message) => ({ message }))}
+        />
       </div>
 
       <div className="w-20">
@@ -107,9 +125,12 @@ export function InvoiceItemFields({
           className="text-right"
           placeholder="Qty"
           disabled={disabled}
-              aria-invalid={!!quantityErrors}
+          aria-label={quantityName}
+          aria-invalid={!!quantityErrors}
+          aria-describedby={quantityErrors ? quantityErrorId : undefined}
         />
         <FieldError
+          id={quantityErrorId}
           errors={quantityErrors?.map((message) => ({ message }))}
         />
       </div>

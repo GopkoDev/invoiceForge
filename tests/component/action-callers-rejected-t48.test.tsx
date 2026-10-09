@@ -191,7 +191,7 @@ describe('RelatedInvoicesList rejections (R-03)', () => {
     getInvoiceMock.mockRejectedValue(new Error('boom'));
     const user = userEvent.setup();
     render(<RelatedInvoicesList invoices={[invoice]} entityType="customer" entityId="c-1" />);
-    await user.click(screen.getAllByRole('button', { name: '' })[0]);
+    await user.click(screen.getAllByRole('button', { name: /^Actions for invoice/ })[0]);
     await user.click(await screen.findByText('Download'));
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
   });
@@ -552,7 +552,7 @@ describe('View and Print in related invoices (AC-21)', () => {
   async function pick(label: string) {
     const user = userEvent.setup();
     render(<RelatedInvoicesList invoices={[invoice]} entityType="customer" entityId="c-1" />);
-    await user.click(screen.getAllByRole('button', { name: '' })[0]);
+    await user.click(screen.getAllByRole('button', { name: /^Actions for invoice/ })[0]);
     await user.click(await screen.findByText(label));
   }
 

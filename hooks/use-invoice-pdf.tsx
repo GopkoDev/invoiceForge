@@ -58,7 +58,7 @@ export function useInvoicePdf() {
       disabled={hasUnsavedChanges}
     >
       <Download className="h-4 w-4" />
-      Download PDF
+      <span className="sr-only sm:not-sr-only">Download PDF</span>
     </Button>
   );
 
@@ -77,7 +77,7 @@ export function useInvoicePdf() {
       disabled={hasUnsavedChanges}
     >
       <Printer className="h-4 w-4" />
-      Print
+      <span className="sr-only sm:not-sr-only">Print</span>
     </Button>
   );
 

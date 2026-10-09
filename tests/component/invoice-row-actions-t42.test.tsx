@@ -154,7 +154,7 @@ describe('RelatedInvoicesList (T42)', () => {
         entityId="cust-1"
       />
     );
-    await user.click(screen.getAllByRole('button', { name: '' })[0]);
+    await user.click(screen.getAllByRole('button', { name: /^Actions for invoice/ })[0]);
     await user.click(await screen.findByText(label));
   }
 

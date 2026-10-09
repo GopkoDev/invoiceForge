@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import {
   Card,
   CardContent,
@@ -18,6 +19,7 @@ import {
 } from '@/store/invoice-editor-store';
 
 export function NotesSection() {
+  const fieldId = useId();
   const { notes, terms, paymentTerms } = useNotesAndTerms();
   const { updateField } = useInvoiceEditorActions();
   // invoice-integrity T16 (SCR-02): notes and payment terms stay editable on an issued invoice; the
@@ -39,8 +41,9 @@ export function NotesSection() {
 
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>Notes</Label>
+          <Label htmlFor={`${fieldId}-notes`}>Notes</Label>
           <Textarea
+            id={`${fieldId}-notes`}
             value={notes}
             onChange={(e) => updateField('notes', e.target.value)}
             placeholder="Additional information for the client..."
@@ -50,8 +53,9 @@ export function NotesSection() {
         </div>
 
         <div className="space-y-2">
-          <Label>Payment Terms</Label>
+          <Label htmlFor={`${fieldId}-payment-terms`}>Payment Terms</Label>
           <Input
+            id={`${fieldId}-payment-terms`}
             value={paymentTerms}
             onChange={(e) => updateField('paymentTerms', e.target.value)}
             placeholder="e.g. Net 14"
@@ -60,8 +64,9 @@ export function NotesSection() {
         </div>
 
         <div className="space-y-2">
-          <Label>Terms</Label>
+          <Label htmlFor={`${fieldId}-terms`}>Terms</Label>
           <Textarea
+            id={`${fieldId}-terms`}
             value={terms}
             onChange={(e) => updateField('terms', e.target.value)}
             placeholder="Payment terms and conditions..."

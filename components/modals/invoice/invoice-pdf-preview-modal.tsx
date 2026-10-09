@@ -90,7 +90,7 @@ export function InvoicePdfPreviewModal() {
                 ) : (
                   <Printer className="size-4" />
                 )}
-                <span className="hidden sm:inline">Print</span>
+                <span className="sr-only sm:not-sr-only">Print</span>
               </Button>
               <Button
                 variant="outline"
@@ -104,10 +104,11 @@ export function InvoicePdfPreviewModal() {
                 ) : (
                   <Download className="size-4" />
                 )}
-                <span className="hidden sm:inline">Download</span>
+                <span className="sr-only sm:not-sr-only">Download</span>
               </Button>
               <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
                 <X className="size-4" />
+                <span className="sr-only">Close preview</span>
               </DialogClose>
             </div>
           </div>

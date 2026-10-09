@@ -51,6 +51,10 @@ export function InvoiceDetailsSection() {
   const dueDateLabelId = `${fieldId}-due-date-label`;
   const dueDateTriggerId = `${fieldId}-due-date`;
   const dueDateErrorId = `${fieldId}-due-date-error`;
+  const invoiceNumberId = `${fieldId}-invoice-number`;
+  const invoiceNumberErrorId = `${fieldId}-invoice-number-error`;
+  const currencyId = `${fieldId}-currency`;
+  const poNumberId = `${fieldId}-po-number`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
   const fieldErrors = useFieldErrors();
@@ -84,16 +88,18 @@ export function InvoiceDetailsSection() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Invoice Number */}
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor={invoiceNumberId}>
               Invoice Number <span className="text-destructive">*</span>
             </Label>
 
             <Input
+              id={invoiceNumberId}
               value={invoiceNumber}
               onChange={(e) => updateField('invoiceNumber', e.target.value)}
               placeholder={invoiceNumberHint}
               disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
+              aria-describedby={fieldErrors?.invoiceNumber ? invoiceNumberErrorId : undefined}
               aria-busy={invoiceNumber === '' && invoiceNumberHint === undefined ? true : undefined}
             />
 
@@ -106,14 +112,16 @@ export function InvoiceDetailsSection() {
             )}
 
             <FieldError
+              id={invoiceNumberErrorId}
               errors={fieldErrors?.invoiceNumber?.map((message) => ({ message }))}
             />
           </div>
 
           {/* Currency (read-only, derived from bank account) */}
           <div className="space-y-2">
-            <Label>Currency</Label>
+            <Label htmlFor={currencyId}>Currency</Label>
             <Input
+              id={currencyId}
               value={currency}
               readOnly
               disabled
@@ -208,8 +216,9 @@ export function InvoiceDetailsSection() {
 
         {/* PO Number */}
         <div className="space-y-2">
-          <Label>PO Number (optional)</Label>
+          <Label htmlFor={poNumberId}>PO Number (optional)</Label>
           <Input
+            id={poNumberId}
             value={poNumber}
             onChange={(e) => updateField('poNumber', e.target.value)}
             placeholder="Customer purchase order number"

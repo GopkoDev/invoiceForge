@@ -55,7 +55,13 @@ function formatDate(date: Date | string): string {
   });
 }
 
-function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
+function InvoiceItemActions({
+  invoiceId,
+  invoiceNumber,
+}: {
+  invoiceId: string;
+  invoiceNumber: string;
+}) {
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { run: runPdf } = usePdfAction();
@@ -133,6 +139,7 @@ function InvoiceItemActions({ invoiceId }: { invoiceId: string }) {
             ) : (
               <MoreHorizontal className="size-4" />
             )}
+            <span className="sr-only">Actions for invoice {invoiceNumber}</span>
           </Button>
         }
       />
@@ -235,7 +242,12 @@ export function RelatedInvoicesList({
                 },
               ]}
               detailsLayout="horizontal"
-              actions={<InvoiceItemActions invoiceId={invoice.id} />}
+              actions={(
+                <InvoiceItemActions
+                  invoiceId={invoice.id}
+                  invoiceNumber={invoice.invoiceNumber}
+                />
+              )}
             />
           </div>
         ))}
