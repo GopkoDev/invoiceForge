@@ -12,12 +12,20 @@ vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () =>
 
 const captureMessageMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+
   captureMessage: (...a: unknown[]) => captureMessageMock(...a),
   captureException: vi.fn(),
 }));
 
 vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
+  // invoice-integrity T07: create/duplicate run every draft rule through checkDraftRules.
+  checkDraftRules: vi.fn().mockResolvedValue({
+    success: true,
+    data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' }, fieldErrors: {} },
+  }),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },
@@ -94,6 +102,7 @@ describe('invoice_number_conflict payload (T49 R-11)', () => {
       dueDate: new Date('2026-01-31T00:00:00.000Z'),
       status: 'DRAFT',
       paidAt: null,
+      version: 0,
       total: zero,
       discount: zero,
       shipping: zero,
@@ -104,7 +113,8 @@ describe('invoice_number_conflict payload (T49 R-11)', () => {
       fn({
         $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]),
         invoiceItem: { deleteMany: vi.fn() },
-        invoice: { update: vi.fn().mockRejectedValue({ code: 'P2002' }) },
+        // invoice-integrity T08: updateInvoice reads the row under its lock.
+        invoice: { findFirst: prisma.invoice.findFirst, update: vi.fn().mockRejectedValue({ code: 'P2002' }) },
       })
     );
     const { updateInvoice } = await import('@/lib/actions/invoice-actions/invoice-actions');
@@ -119,6 +129,7 @@ describe('invoice_number_conflict payload (T49 R-11)', () => {
       dueDate: '2026-01-31',
       currency: 'USD',
       notes: 'SECRET-NOTE-XYZ',
+      loadedVersion: 0,
       items: [
         {
           id: 'i-1',

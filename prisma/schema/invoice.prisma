@@ -42,6 +42,7 @@ model SenderProfile {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
+    @@unique([userId], map: "SenderProfile_userId_isDefault_key", where: { isDefault: true }) // at most one default per Freelancer (ADR-0005)
     @@index([userId])
     @@index([invoicePrefix])
 }
@@ -64,6 +65,7 @@ model BankAccount {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
+    @@unique([senderProfileId], map: "BankAccount_senderProfileId_isDefault_key", where: { isDefault: true }) // at most one default per sender profile (ADR-0005)
     @@index([senderProfileId])
     @@index([currency])
 }
@@ -151,7 +153,8 @@ model Invoice {
     dueDate      DateTime
     paymentTerms String? // e.g., "Net 30", "Due on receipt"
 
-    status InvoiceStatus @default(DRAFT)
+    status  InvoiceStatus @default(DRAFT)
+    version Int           @default(0) // ADR-0004: bumped by every service write; compared on the locked row
 
     // Snapshot: Sender (From) data at invoice creation time
     senderName       String
@@ -214,6 +217,7 @@ model Invoice {
     @@unique([senderProfileId, invoiceNumberKey])
     @@index([senderProfileId])
     @@index([customerId])
+    @@index([bankAccountId])
     @@index([status])
     @@index([issueDate])
     @@index([dueDate])

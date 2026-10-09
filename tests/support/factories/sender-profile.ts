@@ -17,7 +17,8 @@ export async function createSenderProfile(
       // invoicePrefix is @unique across every SenderProfile (test-plan.md §Test data).
       invoicePrefix: overrides.invoicePrefix ?? uniqueInvoicePrefix(),
       invoiceCounter: overrides.invoiceCounter ?? 0,
-      isDefault: overrides.isDefault ?? true,
+      // At most one default per Freelancer (partial unique index, ADR-0005): the first profile is.
+      isDefault: overrides.isDefault ?? (await prisma.senderProfile.count({ where: { userId } })) === 0,
       legalName: overrides.legalName,
       taxId: overrides.taxId,
       address: overrides.address,

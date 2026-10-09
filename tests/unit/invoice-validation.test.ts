@@ -62,7 +62,13 @@ describe('invoiceFormSchema (AC-14, amount bounds)', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts the max boundary for quantity, price and shipping', () => {
+  // invoice-integrity T05 (AC-19): each computed amount is now bounded on its own, so the field maxima
+  // are checked one at a time (MAX x MAX on one line would exceed the line-amount cap).
+  it.each([
+    ['quantity', { quantity: MAX_AMOUNT, price: 1 }, 0],
+    ['price', { quantity: 1, price: MAX_AMOUNT }, 0],
+    ['shipping', { quantity: 1, price: 0 }, MAX_AMOUNT],
+  ] as const)('accepts the max boundary for %s', (_field, line, shipping) => {
     const result = invoiceFormSchema.safeParse(
       baseInvoice({
         items: [
@@ -71,12 +77,11 @@ describe('invoiceFormSchema (AC-14, amount bounds)', () => {
             productName: 'Widget',
             description: '',
             unit: 'pcs',
-            quantity: MAX_AMOUNT,
-            price: MAX_AMOUNT,
+            ...line,
             total: 0,
           },
         ],
-        shipping: MAX_AMOUNT,
+        shipping,
       })
     );
     expect(result.success).toBe(true);

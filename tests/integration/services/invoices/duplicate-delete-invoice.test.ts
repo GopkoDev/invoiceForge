@@ -18,7 +18,10 @@ import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
 
 type Result = {
   success: boolean;
@@ -105,12 +108,13 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await snapshot(a.invoice.id)).toEqual(before);
   });
 
-  it("AC-24: a legacy rule-breaking source is FAILED \"This invoice can't be duplicated.\", nothing created, no Sentry call", async () => {
+  // invoice-integrity T07: a failing duplicate is VALIDATION (was FAILED), contracts §duplicateInvoice.
+  it("AC-24: a legacy rule-breaking source is VALIDATION \"This invoice can't be duplicated.\", nothing created, no Sentry call", async () => {
     const a = await seedWithInvoice('t16-a@example.com', {}, -5);
     const actor = await actingFreelancerForTest(a.user.id);
     const res = await svc.duplicateInvoice(actor, a.invoice.id);
     expect(res.success).toBe(false);
-    expect(res.code).toBe('FAILED');
+    expect(res.code).toBe('VALIDATION');
     expect(res.error).toContain("This invoice can't be duplicated.");
     expect(await prisma.invoice.count()).toBe(1);
     expect(await counter(a.senderProfile.id)).toBe(4);
@@ -126,15 +130,18 @@ describe.runIf(containerRuntimeAvailable)('duplicate/delete invoice service (T16
     expect(await prisma.invoiceItem.count()).toBe(0);
   });
 
-  it('delete of a PENDING invoice is CONFLICT and the invoice stays unchanged', async () => {
+  // invoice-integrity T10 (contracts §deleteInvoice): a non-draft is VALIDATION (was CONFLICT).
+  it('delete of a PENDING invoice is VALIDATION and the invoice stays unchanged', async () => {
     const a = await seedWithInvoice('t16-a@example.com', { status: 'PENDING' });
     const actor = await actingFreelancerForTest(a.user.id);
     const before = await snapshot(a.invoice.id);
     const res = await svc.deleteInvoice(actor, a.invoice.id);
     expect(res).toMatchObject({
       success: false,
-      code: 'CONFLICT',
-      error: 'Only draft invoices can be deleted. Consider cancelling instead.',
+      code: 'VALIDATION',
+      error:
+        'Only drafts can be deleted. An issued invoice can be cancelled instead; a cancelled invoice is final and stays listed.',
+      details: { kind: 'STATUS_NOT_ALLOWED', currentStatus: 'PENDING', suggestion: null },
     });
     expect(await snapshot(a.invoice.id)).toEqual(before);
   });

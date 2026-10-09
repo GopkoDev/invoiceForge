@@ -117,8 +117,22 @@ describe.runIf(containerRuntimeAvailable)('updateInvoiceStatus service (T15, AC-
     expect(res.success).toBe(true);
     const after = await snapshot(a.invoice.id);
     expect(Number(after.total)).toBe(120.5);
-    const strip = (r: typeof after) => ({ ...r, status: null, paidAt: null, updatedAt: null });
+    // invoice-integrity T10: an allowed move also bumps version (ADR-0004).
+    const strip = (r: typeof after) => ({ ...r, status: null, paidAt: null, updatedAt: null, version: null });
+    expect(after.version).toBe(before.version + 1);
     expect(strip(after)).toEqual(strip(before));
+  });
+
+  it('AC-14/AC-25 (T23): issuing a stored draft with a negative rate is refused on the line like the editor, and it stays a draft', async () => {
+    const a = await seedWithInvoice('t23-a@example.com', { status: 'DRAFT', discount: 0 });
+    await prisma.invoiceItem.updateMany({ where: { invoiceId: a.invoice.id }, data: { rate: -3 } });
+    const actor = await actingFreelancerForTest(a.user.id);
+    const before = await snapshot(a.invoice.id);
+    const res = await svc.updateInvoiceStatus(actor, a.invoice.id, 'PENDING');
+    expect(res).toMatchObject({ success: false, code: 'VALIDATION' });
+    expect((res as { fieldErrors?: Record<string, string[]> }).fieldErrors).toHaveProperty(['items.0.price']);
+    expect(await snapshot(a.invoice.id)).toEqual(before);
+    expect(before.status).toBe('DRAFT');
   });
 
   it("AC-19: B's invoice id is NOT_FOUND (same as a missing id) and B's status/paidAt are unchanged", async () => {

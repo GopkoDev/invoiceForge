@@ -17,13 +17,19 @@ import { BankAccountFormValues } from '@/lib/validations/bank-account';
  * @param accountId - The ID of the account to edit (if editing)
  * @param onSuccess - Callback function on success
  */
+/** What the bank account dialog does next: close on a save, or stay open with field errors. */
+export interface BankAccountSubmitOutcome {
+  saved: boolean;
+  fieldErrors?: Record<string, string[]>;
+}
+
 export async function handleBankAccountSubmit(
   senderProfileId: string,
   data: BankAccountFormValues,
   isEditing: boolean,
   accountId?: string,
   onSuccess?: () => void
-) {
+): Promise<BankAccountSubmitOutcome> {
   try {
     const result =
       isEditing && accountId
@@ -31,9 +37,12 @@ export async function handleBankAccountSubmit(
         : await createBankAccount(senderProfileId, data);
 
     if (!result.success) {
-      if (redirectIfUnauthorized(result)) return;
+      if (redirectIfUnauthorized(result)) return { saved: false };
+      // invoice-integrity T19 (SCR-10): a currency lock (HAS_INVOICES) or a refused unset lands under
+      // its field and keeps the dialog open; anything else (e.g. a default race) is a toast.
+      if (result.fieldErrors) return { saved: false, fieldErrors: result.fieldErrors };
       toast.error(result.error || 'Failed to save bank account');
-      return;
+      return { saved: false };
     }
 
     toast.success(
@@ -45,8 +54,10 @@ export async function handleBankAccountSubmit(
     if (onSuccess) {
       onSuccess();
     }
+    return { saved: true };
   } catch {
     // AC-21: a rejected call is treated like UNAUTHORIZED.
     goToSignIn();
+    return { saved: false };
   }
 }

@@ -25,14 +25,19 @@ export function SenderProfileBankAccountsList({
     <ContactsDetailsContentCard
       title="Bank Accounts"
       description="Payment accounts for this profile"
-      headerAction={<AddBankAccountButton senderProfileId={senderProfileId} />}
+      headerAction={
+        <AddBankAccountButton
+          senderProfileId={senderProfileId}
+          isFirstAccount={bankAccounts.length === 0}
+        />
+      }
       emptyState={{
         icon: Landmark,
         title: 'No Bank Accounts',
         description:
           'Add at least one bank account to start issuing invoices. You can have multiple accounts in different currencies.',
         actionButton: (
-          <AddBankAccountButton senderProfileId={senderProfileId}>
+          <AddBankAccountButton senderProfileId={senderProfileId} isFirstAccount>
             Add Bank Account
           </AddBankAccountButton>
         ),

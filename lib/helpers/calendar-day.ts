@@ -61,3 +61,11 @@ export function addDaysToDay(day: CalendarDay, days: number): CalendarDay {
 export function utcDayRange(from: CalendarDay, to: CalendarDay): [Date, Date] {
   return [dayToUtcDate(from), dayToUtcDate(addDaysToDay(to, 1))];
 }
+
+/**
+ * Today's calendar day in `timeZone` (the Freelancer's zone; the browser's when not given), for
+ * client components. Same cut as the server's todayIn: the zone's own Y/M/D, no hour arithmetic.
+ */
+export function todayInZone(timeZone?: string, now: Date = new Date()): CalendarDay {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}

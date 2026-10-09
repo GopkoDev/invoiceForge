@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import {
   goToSignIn,
@@ -40,13 +41,24 @@ import { protectedRoutes } from '@/config/routes.config';
 interface SenderProfileFormProps {
   defaultValues?: SenderProfileFormValues & { id?: string };
   isEditing?: boolean;
+  /** The Freelancer has no sender profile yet: this one becomes the default (AC-17b). */
+  isFirst?: boolean;
 }
+
+// invoice-integrity T19 (SCR-09): the default can only be replaced by making another profile the
+// default, so the checkbox is fixed for a first or the current default profile.
+const FIRST_DEFAULT_TEXT = 'Your first sender profile is the default.';
+const CURRENT_DEFAULT_TEXT =
+  'This is your default sender profile. To change it, make another profile the default.';
 
 export function SenderProfileForm({
   defaultValues,
   isEditing = false,
+  isFirst = false,
 }: SenderProfileFormProps) {
   const router = useRouter();
+  const isFirstProfile = !isEditing && isFirst;
+  const isCurrentDefault = isEditing && !!defaultValues?.isDefault;
 
   const form = useForm<SenderProfileFormValues>({
     resolver: zodResolver(senderProfileFormSchema),
@@ -63,11 +75,16 @@ export function SenderProfileForm({
       website: '',
       logo: '',
       invoicePrefix: '',
-      isDefault: false,
+      isDefault: isFirstProfile,
     },
   });
 
+  // AC-17: a double click lands before the disabled button re-renders; one switch in flight at a time.
+  const inFlight = useRef(false);
+
   const onSubmit = async (data: SenderProfileFormValues) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       const result =
         isEditing && defaultValues?.id
@@ -117,6 +134,8 @@ export function SenderProfileForm({
     } catch {
       // AC-21: a rejected call is treated like UNAUTHORIZED.
       goToSignIn();
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -228,21 +247,30 @@ export function SenderProfileForm({
           <Controller
             name="isDefault"
             control={form.control}
-            render={({ field }) => (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="sender-form-is-default"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="sender-form-is-default"
+                    checked={isFirstProfile || isCurrentDefault || field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={isFirstProfile || isCurrentDefault}
+                  />
 
-                <Label
-                  htmlFor="sender-form-is-default"
-                  className="text-sm font-normal cursor-pointer"
-                >
-                  Set as default sender profile
-                </Label>
-              </div>
+                  <Label
+                    htmlFor="sender-form-is-default"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Set as default sender profile
+                  </Label>
+                </div>
+                {(isFirstProfile || isCurrentDefault) && (
+                  <FieldDescription>
+                    {isFirstProfile ? FIRST_DEFAULT_TEXT : CURRENT_DEFAULT_TEXT}
+                  </FieldDescription>
+                )}
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
         </CardContent>

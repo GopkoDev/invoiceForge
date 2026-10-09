@@ -52,7 +52,7 @@ export function BankAccountsList({
 
   const bankAccountModalOnFormSubmit = (accountId?: string) => {
     return async (data: BankAccountFormValues, isEditing: boolean) => {
-      await handleBankAccountSubmit(
+      return handleBankAccountSubmit(
         senderProfileId,
         data,
         isEditing,
@@ -130,6 +130,7 @@ export function BankAccountsList({
       onFormSubmit: bankAccountModalOnFormSubmit(),
       defaultValues: undefined,
       isEditing: false,
+      isFirst: bankAccounts.length === 0,
     });
   };
 

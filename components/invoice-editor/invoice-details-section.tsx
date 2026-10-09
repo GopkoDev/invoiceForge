@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import {
   Card,
   CardContent,
@@ -30,6 +31,7 @@ import {
   useInvoiceDates,
   useInvoiceCurrency,
   usePoNumber,
+  useEditorLocks,
   useInvoiceEditorActions,
 } from '@/store/invoice-editor-store';
 
@@ -41,6 +43,14 @@ const dueDatePresets = [
 ];
 
 export function InvoiceDetailsSection() {
+  // Each date picker is named by its label, then its value (review r2 L2), and the due date
+  // picker is described by its error text while it has one (review r3 P2).
+  const fieldId = useId();
+  const issueDateLabelId = `${fieldId}-issue-date-label`;
+  const issueDateTriggerId = `${fieldId}-issue-date`;
+  const dueDateLabelId = `${fieldId}-due-date-label`;
+  const dueDateTriggerId = `${fieldId}-due-date`;
+  const dueDateErrorId = `${fieldId}-due-date-error`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
   const fieldErrors = useFieldErrors();
@@ -49,6 +59,8 @@ export function InvoiceDetailsSection() {
   const poNumber = usePoNumber();
 
   const { updateField } = useInvoiceEditorActions();
+  // invoice-integrity T16 (SCR-02): issued → only the due date and PO number here; cancelled → none.
+  const { locked, readOnly } = useEditorLocks();
 
   const applyDueDatePreset = (days: number) => {
     const newDueDate = new Date(issueDate);
@@ -80,6 +92,7 @@ export function InvoiceDetailsSection() {
               value={invoiceNumber}
               onChange={(e) => updateField('invoiceNumber', e.target.value)}
               placeholder={invoiceNumberHint}
+              disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
             />
 
@@ -110,9 +123,12 @@ export function InvoiceDetailsSection() {
 
           {/* Issue Date */}
           <div className="space-y-2">
-            <Label>Issue Date</Label>
+            <Label id={issueDateLabelId}>Issue Date</Label>
             <Popover>
               <PopoverTrigger
+                id={issueDateTriggerId}
+                aria-labelledby={`${issueDateLabelId} ${issueDateTriggerId}`}
+                disabled={locked}
                 className={cn(
                   'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
                   !issueDate && 'text-muted-foreground'
@@ -137,11 +153,16 @@ export function InvoiceDetailsSection() {
 
           {/* Due Date */}
           <div className="space-y-2">
-            <Label>Due Date</Label>
+            <Label id={dueDateLabelId}>Due Date</Label>
             <Popover>
               <PopoverTrigger
+                id={dueDateTriggerId}
+                aria-labelledby={`${dueDateLabelId} ${dueDateTriggerId}`}
+                disabled={readOnly}
+                aria-invalid={!!fieldErrors?.dueDate}
+                aria-describedby={fieldErrors?.dueDate ? dueDateErrorId : undefined}
                 className={cn(
-                  'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
+                  'border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-invalid:border-destructive mb-0 inline-flex h-9 w-full items-center justify-start gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs',
                   !dueDate && 'text-muted-foreground'
                 )}
               >
@@ -175,6 +196,10 @@ export function InvoiceDetailsSection() {
                 </div>
               </PopoverContent>
             </Popover>
+            <FieldError
+              id={dueDateErrorId}
+              errors={fieldErrors?.dueDate?.map((message) => ({ message }))}
+            />
           </div>
         </div>
 
@@ -185,6 +210,7 @@ export function InvoiceDetailsSection() {
             value={poNumber}
             onChange={(e) => updateField('poNumber', e.target.value)}
             placeholder="Customer purchase order number"
+            disabled={readOnly}
           />
         </div>
       </CardContent>

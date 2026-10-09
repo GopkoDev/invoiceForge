@@ -22,12 +22,20 @@ vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () =>
 
 const captureMessageMock = vi.fn();
 vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+
   captureMessage: (...args: unknown[]) => captureMessageMock(...args),
   captureException: vi.fn(),
 }));
 
 vi.mock('@/lib/services/invoices/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/invoices/helpers')>()),
+  // invoice-integrity T07: create/duplicate run every draft rule through checkDraftRules.
+  checkDraftRules: vi.fn().mockResolvedValue({
+    success: true,
+    data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' }, fieldErrors: {} },
+  }),
   verifyInvoiceRelations: vi.fn().mockResolvedValue({
     success: true,
     data: { senderProfile: { id: 'sp-1' }, customer: { id: 'c-1' }, bankAccount: { id: 'b-1' } },
@@ -62,6 +70,7 @@ function form(invoiceNumber: string) {
     dueDate: '2026-01-31',
     currency: 'USD',
     items: [{ id: 'i-1', productName: 'W', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+    loadedVersion: 0, // invoice-integrity T08: updateInvoice requires the loaded version
   } as never;
 }
 
@@ -75,6 +84,7 @@ const existing = {
   dueDate: new Date('2026-01-31T00:00:00.000Z'),
   status: 'DRAFT',
   paidAt: null,
+  version: 0,
   total: zero,
   discount: zero,
   shipping: zero,
@@ -87,7 +97,8 @@ function txRejecting(model: 'create' | 'update') {
     fn({
       $queryRaw: vi.fn().mockResolvedValue([{ issueDate: new Date('2026-01-01T00:00:00.000Z'), dueDate: new Date('2026-01-31T00:00:00.000Z') }]),
       invoiceItem: { deleteMany: vi.fn() },
-      invoice: { [model]: vi.fn().mockRejectedValue({ code: 'P2002' }) },
+      // invoice-integrity T08: updateInvoice reads the row under its lock.
+      invoice: { findFirst: invoiceFindFirstMock, [model]: vi.fn().mockRejectedValue({ code: 'P2002' }) },
     })
   );
 }

@@ -3,7 +3,7 @@ export type {
   SenderProfileOption,
   ProductOption,
   GroupedProducts,
-  InvalidItem,
+  EditorMode,
   TotalsChanged,
 } from './types';
 
@@ -23,13 +23,14 @@ export {
   useCustomers,
   useGroupedProducts,
   useInvoiceItems,
-  useInvalidItems,
   useSummary,
   useNotesAndTerms,
   useInvoiceDates,
   useHasUnsavedChanges,
   useIsSaving,
-  useIsEditingSentInvoice,
+  useEditorMode,
+  useEditorLocks,
+  useIssuedDetails,
   useInvoiceId,
   useInvoiceEditorActions,
   usePoNumber,
@@ -38,4 +39,9 @@ export {
   useFieldErrors,
   useTotalsChanged,
   useLegacy,
+  useLockedRefusal,
+  useChangedElsewhere,
+  useIsStale,
+  useReloadFailed,
 } from './use-invoice-editor-store';
+export { usePdfParties } from './pdf-parties';

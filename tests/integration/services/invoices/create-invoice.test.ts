@@ -17,7 +17,10 @@ import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 const captureMessageMock = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
+vi.mock('@sentry/nextjs', () => ({
+  // invoice-integrity T01: invoice saves run inside a span; pass the callback straight through.
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureMessage: (...a: unknown[]) => captureMessageMock(...a) }));
 
 type Result = {
   success: boolean;
@@ -140,13 +143,14 @@ describe.runIf(containerRuntimeAvailable)('createInvoice service (T14, AC-15, AC
     expect(captureMessageMock).not.toHaveBeenCalled();
   });
 
-  it('status PAID sets paidAt', async () => {
+  // invoice-integrity T07 (AC-04b): a new invoice always starts as a draft; PAID on create is
+  // refused (was: stored as PAID with paidAt).
+  it('status PAID is refused as VALIDATION and nothing is stored', async () => {
     const a = await seedFor('t14-a@example.com');
     const actor = await actingFreelancerForTest(a.user.id);
     const res = await svc.createInvoice(actor, form(a, { status: 'PAID' }));
-    expect(res.success).toBe(true);
-    expect(res.data.status).toBe('PAID');
-    expect(typeof res.data.paidAt).toBe('string');
+    expect(res).toMatchObject({ success: false, code: 'VALIDATION', fieldErrors: { status: [expect.any(String)] } });
+    expect(await prisma.invoice.count()).toBe(0);
   });
 
   it('invalid input is VALIDATION and nothing is stored', async () => {

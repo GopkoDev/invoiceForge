@@ -25,8 +25,14 @@ export function InvoiceEditorHeader() {
   const hasUnsavedChanges = useHasUnsavedChanges();
   const invoiceId = useInvoiceId();
 
-  const { HomeButton, HomeMobileButton, SaveButton, SaveMobileButton } =
-    useEditorHeaderButtons();
+  const {
+    HomeButton,
+    HomeMobileButton,
+    SaveButton,
+    SaveMobileButton,
+    SaveAndIssueButton,
+    SaveAndIssueMobileItem,
+  } = useEditorHeaderButtons();
   const {
     DownloadButton,
     DownloadMobileButton,
@@ -66,6 +72,7 @@ export function InvoiceEditorHeader() {
         {/* Right side - Actions */}
         <div className="hidden items-center gap-2 md:flex">
           {SaveButton}
+          {SaveAndIssueButton}
           {DownloadButton}
           {PrintButton}
         </div>
@@ -80,6 +87,7 @@ export function InvoiceEditorHeader() {
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end">
+              {SaveAndIssueMobileItem}
               {DownloadMobileButton}
               {PrintMobileButton}
               {HomeMobileButton}

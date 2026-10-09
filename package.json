@@ -17,7 +17,8 @@
     "test": "vitest run -c vitest.config.ts",
     "test:unit": "vitest run -c vitest.config.ts",
     "test:integration": "vitest run -c vitest.integration.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "report:invoice-integrity": "node --env-file-if-exists=.env scripts/invoice-integrity-report.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -89,6 +90,7 @@
     "shadcn": "^3.6.2",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "unpdf": "^1.8.1",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.2"
   },

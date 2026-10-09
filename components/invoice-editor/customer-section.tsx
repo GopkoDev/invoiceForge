@@ -28,7 +28,10 @@ import {
   useCustomers,
   useSelectedCustomer,
   useInvoiceEditorActions,
+  useEditorLocks,
+  useIssuedDetails,
 } from '@/store/invoice-editor-store';
+import { IssuedDetailsCard } from './issued-details-card';
 import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview';
 
 export function CustomerSection() {
@@ -36,6 +39,36 @@ export function CustomerSection() {
   const customers = useCustomers();
   const selectedCustomer = useSelectedCustomer();
   const { selectCustomer } = useInvoiceEditorActions();
+  const { locked } = useEditorLocks();
+  const issued = useIssuedDetails();
+
+  if (locked) {
+    // Never a picker once issued or cancelled; without issued details, the selected record as text.
+    const customer = issued?.customer ?? {
+      name: selectedCustomer?.name,
+      companyName: selectedCustomer?.companyName,
+      taxId: selectedCustomer?.taxId,
+      address: selectedCustomer?.address,
+      city: selectedCustomer?.city,
+      country: selectedCustomer?.country,
+      postalCode: selectedCustomer?.postalCode,
+      email: selectedCustomer?.email,
+    };
+    return (
+      <IssuedDetailsCard
+        title="To"
+        icon={<Users className="h-4 w-4" />}
+        lines={[
+          customer.name,
+          customer.companyName,
+          customer.address,
+          [customer.postalCode, customer.city, customer.country].filter(Boolean).join(', '),
+          customer.email,
+          customer.taxId && `Tax ID: ${customer.taxId}`,
+        ]}
+      />
+    );
+  }
 
   return (
     <Card>

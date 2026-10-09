@@ -8,6 +8,7 @@ import { isContainerRuntimeAvailable } from '../../../support/db/docker-availabi
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
+import { withLoadedVersion } from '../../../support/loaded-version';
 import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 import { addInvoice, seedFreelancer } from '../dashboard/harness';
 import { storedDayToLocalDate } from '@/lib/helpers/calendar-day';
@@ -49,7 +50,12 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     process.env.DATABASE_URL = db.connectionString;
     vi.resetModules();
     testClient = createTestPrismaClient(db.connectionString);
-    svc = await import('@/lib/services/invoices/invoices');
+    const raw = await import('@/lib/services/invoices/invoices');
+    // invoice-integrity T08: saves carry the row's current version, as a freshly opened editor would.
+    svc = {
+      ...raw,
+      updateInvoice: async (a, id, data) => raw.updateInvoice(a, id, await withLoadedVersion(testClient, id, data)),
+    };
     find = await import('@/lib/services/invoices/find-by-reference');
     search = await import('@/lib/services/invoices/assistant-search');
     reads = await import('@/lib/services/dashboard/assistant-reads');
@@ -75,10 +81,16 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
   }
 
   /** What the editor sends: its form holds local Dates, which it turns into days on save. */
-  function editorForm(s: Awaited<ReturnType<typeof seedFreelancer>>, issueDate: Date, dueDate: Date) {
+  // invoice-integrity T07 (AC-04b): createInvoice only takes DRAFT, so creates pass 'DRAFT'.
+  function editorForm(
+    s: Awaited<ReturnType<typeof seedFreelancer>>,
+    issueDate: Date,
+    dueDate: Date,
+    status: 'DRAFT' | 'PENDING' = 'PENDING'
+  ) {
     return helpers.toSavePayload({
       invoiceNumber: '',
-      status: 'PENDING',
+      status,
       senderProfileId: s.profileId,
       bankAccountId: s.bank.USD.id,
       customerId: s.customer.id,
@@ -87,7 +99,9 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
       currency: 'USD',
       poNumber: '',
       paymentTerms: '',
-      items: [{ id: 'item-0', productId: '', productName: 'Widget', description: '', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
+      // invoice-integrity T08: the line the harness's addInvoice stores ('Work', 1 x 100), so a notes-only save
+      // of an issued invoice changes no locked field (AC-08).
+      items: [{ id: 'item-0', productId: '', productName: 'Work', description: '', unit: 'pcs', quantity: 1, price: 100, total: 100 }],
       taxRate: 0,
       discount: 0,
       shipping: 0,
@@ -104,7 +118,8 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     const picked = new Date(2026, 9, 15); // the Calendar's value: Kyiv local midnight = 2026-10-14T21:00Z
     expect(picked.toISOString()).toBe('2026-10-14T21:00:00.000Z');
 
-    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), picked)));
+    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), picked, 'DRAFT')));
+    await testClient.invoice.update({ where: { id: created.id }, data: { status: 'PENDING' } }); // issued (fixture)
     const stored = await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } });
     expect(stored.issueDate.toISOString()).toBe('2026-10-01T00:00:00.000Z');
     expect(stored.dueDate.toISOString()).toBe('2026-10-15T00:00:00.000Z');
@@ -124,7 +139,7 @@ describe.runIf(containerRuntimeAvailable)('calendar-day storage and comparison (
     clock('2026-10-15T09:00:00Z');
     const s = await seedFreelancer(testClient, ['USD']);
     const actor = await actingFreelancerForTest(s.userId, KYIV);
-    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), new Date(2026, 9, 20))));
+    const created = data(await svc.createInvoice(actor, editorForm(s, new Date(2026, 9, 1), new Date(2026, 9, 20), 'DRAFT')));
 
     data(await svc.updateInvoice(actor, created.id, { ...editorForm(s, new Date(2026, 9, 2), new Date(2026, 9, 15)), invoiceNumber: (await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } })).invoiceNumber }));
     const stored = await testClient.invoice.findUniqueOrThrow({ where: { id: created.id } });

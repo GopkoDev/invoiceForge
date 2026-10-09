@@ -52,11 +52,9 @@ const baseFormData: InvoiceFormData = {
 
 vi.mock('@/store/invoice-editor-store', () => ({
   useFormData: () => baseFormData,
-  useSelectedSenderProfile: () => undefined,
-  useSelectedCustomer: () => undefined,
-  useSelectedBankAccount: () => undefined,
+  // invoice-integrity T16: the PDF's parties come from usePdfParties (issued details once issued).
+  usePdfParties: () => ({ senderProfile: undefined, customer: undefined, bankAccount: undefined }),
   useSummary: () => ({ subtotal: 0, taxAmount: 0, total: 0 }),
-  useInvalidItems: () => [],
   useHasUnsavedChanges: () => false,
 }));
 

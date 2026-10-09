@@ -158,7 +158,12 @@ describe.runIf(containerRuntimeAvailable)('sender-profiles service — request-f
     const p = await createSenderProfile(prisma, a.id, { invoicePrefix: 'UPD' });
     const actor = await actingFreelancerForTest(a.id);
 
-    const result = await svc.updateSenderProfile(actor, p.id, formValues({ name: 'Renamed', invoicePrefix: 'UPD' }));
+    // invoice-integrity T11 (AC-17b): p is the only, hence default, profile; the form keeps it default.
+    const result = await svc.updateSenderProfile(
+      actor,
+      p.id,
+      formValues({ name: 'Renamed', invoicePrefix: 'UPD', isDefault: true })
+    );
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.name).toBe('Renamed');

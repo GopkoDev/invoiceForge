@@ -1,5 +1,6 @@
 import { ContentAreaHeader } from '@/components/layout/content-area';
 import { SenderProfileForm } from '@/components/sender-profiles/sender-profile-form';
+import { getSenderProfiles } from '@/lib/actions/sender-profile-actions';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -7,7 +8,11 @@ export const metadata: Metadata = {
   description: 'Create a new company or business profile',
 };
 
-export default function NewSenderProfilePage() {
+export default async function NewSenderProfilePage() {
+  // invoice-integrity T19 (SCR-09, AC-17b): the Freelancer's first profile is the default.
+  const profiles = await getSenderProfiles();
+  const isFirst = profiles.success && profiles.data.length === 0;
+
   return (
     <>
       <ContentAreaHeader
@@ -15,7 +20,7 @@ export default function NewSenderProfilePage() {
         description="Create a new company or business profile"
       />
 
-      <SenderProfileForm />
+      <SenderProfileForm isFirst={isFirst} />
     </>
   );
 }

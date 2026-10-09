@@ -13,6 +13,8 @@ interface AddBankAccountButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   children?: React.ReactNode;
   onSuccess?: () => void;
+  /** The profile has no account yet: the new one becomes its default (SCR-10). */
+  isFirstAccount?: boolean;
 }
 
 export function AddBankAccountButton({
@@ -21,6 +23,7 @@ export function AddBankAccountButton({
   size = 'sm',
   children,
   onSuccess,
+  isFirstAccount = false,
 }: AddBankAccountButtonProps) {
   const router = useRouter();
   const bankAccountModal = useModal('bankAccountModal');
@@ -30,8 +33,9 @@ export function AddBankAccountButton({
       open: true,
       close: bankAccountModal.close,
       senderProfileId,
+      isFirst: isFirstAccount,
       onFormSubmit: async (data: BankAccountFormValues) => {
-        await handleBankAccountSubmit(
+        return handleBankAccountSubmit(
           senderProfileId,
           data,
           false,
