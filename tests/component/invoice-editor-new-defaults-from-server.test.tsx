@@ -5,6 +5,7 @@
 // offers a clock-based default form.
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { screen, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { InvoiceEditorData } from '@/types/invoice/types';
 
 vi.mock('next/navigation', () => ({
@@ -120,6 +121,38 @@ describe('number hint on a new invoice (T22)', () => {
     await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
     expect(numberInput()).not.toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText('Assigned on save')).toBeInTheDocument();
+  });
+
+  // editor-ux T76 (test-plan.md edge case "the invoice-number hint never arrives"): a failed hint
+  // swaps "Loading…" for "Assigned on save" in the same slot, keeps the field's box, and leaves the
+  // field empty and editable.
+  it.each([
+    ['rejects', (settle: { reject: (e: Error) => void }) => settle.reject(new Error('boom'))],
+    ['returns a non-success result', (settle: { resolve: (v: unknown) => void }) =>
+      settle.resolve({ success: false, error: 'nope', code: 'FAILED' })],
+  ])('keeps the field box and description slot, and the field editable, when the request %s', async (_n, finish) => {
+    gen.mockReset();
+    const settle = {} as { resolve: (v: unknown) => void; reject: (e: Error) => void };
+    gen.mockReturnValue(new Promise((resolve, reject) => Object.assign(settle, { resolve, reject })) as never);
+    renderWithEditorStore(<InvoiceDetailsSection />, { initial: withSender() });
+    await waitFor(() => expect(gen).toHaveBeenCalledTimes(1));
+    const inputClass = numberInput().className;
+    const loadingSlot = screen.getByText('Loading…');
+    const [slotTag, slotClass, slotParent] = [loadingSlot.tagName, loadingSlot.className, loadingSlot.parentElement];
+
+    await act(async () => finish(settle as never));
+
+    const failedSlot = screen.getByText('Assigned on save');
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(numberInput()).not.toHaveAttribute('aria-busy');
+    expect(numberInput().className).toBe(inputClass);
+    expect(failedSlot.tagName).toBe(slotTag);
+    expect(failedSlot.className).toBe(slotClass);
+    expect(failedSlot.parentElement).toBe(slotParent);
+    expect(numberInput()).toHaveValue('');
+    expect(numberInput()).toBeEnabled();
+    await userEvent.type(numberInput(), 'INV-7');
+    expect(numberInput()).toHaveValue('INV-7');
   });
 
   it('does not show Loading forever after the number of an existing invoice is cleared', async () => {
