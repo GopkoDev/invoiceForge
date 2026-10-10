@@ -64,7 +64,17 @@ describe('cookie banner (T66)', () => {
   it('mentions the time-zone cookie as well as the session cookie', async () => {
     localStorage.removeItem('cookie-consent');
     render(<CookieBanner />);
-    const text = (await screen.findByText(/session cookie/i)).textContent ?? '';
+    const text = (await screen.findByText(/signed in/i)).textContent ?? '';
     expect(text).toMatch(/time zone/i);
+  });
+
+  // A taller banner covers the Save button of the settings form (mcp-time-zone e2e).
+  it('is no longer than the session-only wording it replaced', async () => {
+    localStorage.removeItem('cookie-consent');
+    render(<CookieBanner />);
+    const text = (await screen.findByText(/signed in/i)).textContent ?? '';
+    expect(text.length).toBeLessThanOrEqual(
+      'We use strictly necessary session cookies to manage your authentication. By using Invoice Forge, you agree to our use of these cookies as outlined in our Privacy Policy.'.length
+    );
   });
 });
