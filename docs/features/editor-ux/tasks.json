@@ -1417,6 +1417,76 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r6.md",
       "source": "review-2026-10-10-r6"
+    },
+    {
+      "id": "T68",
+      "title": "Add the 'line added' case to the AC-11 line-position test",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Review r7 G2. invoice-editor-accessible-names.test.tsx duplicates (or adds) a line and asserts that the new line's fields are announced with its own position (e.g. 'Quantity, line 2' holds the copy) and that the line that was line 2 is now announced as line 3. The case fails if the names are derived from anything other than the current index.",
+      "files_hint": [
+        "tests/component/invoice-editor-accessible-names.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r7.md",
+      "source": "review-2026-10-10-r7"
+    },
+    {
+      "id": "T69",
+      "title": "Remove the remaining 'nothing new sent', 'no contract change' and 'no service change' claims from the SAD and the data model",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-10"
+      ],
+      "dod": "Review r7 G3. sad.md:44 quotes the current spec §6.1 wording (the tz cookie is the one new value sent), sad.md:46 and :136 say the feature changes the editor read service (lib/services/invoices/editor-data.ts: storedAmounts, today/due date) without changing the layering, the tail of sad.md:113 says 'no schema change; one additive result field recorded in server-actions.md and data-model.md' instead of 'no contract change', and data-model.md:11 no longer says the spec 'stores or sends nothing new'. A grep of spec/sad/data-model/test-plan for 'sent anywhere new', 'no contract change', 'changes no service' and 'sends nothing new' finds nothing that contradicts spec §6.1 or sad §4.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md",
+        "docs/features/editor-ux/data-model.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r7.md",
+      "source": "review-2026-10-10-r7"
+    },
+    {
+      "id": "T70",
+      "title": "Drop the authjs.state cookie the app never sets from the privacy page, and remove the unused import in the cookie banner",
+      "layer": "ui",
+      "deps": [],
+      "acs": [],
+      "dod": "Review r7 S3 + S4. privacy-content.tsx no longer lists authjs.state (Google sign-in sets only authjs.pkce.code_verifier because no redirect proxy is configured), or qualifies it as set only when a sign-in redirect proxy is configured; privacy-tz-cookie-t61.test.tsx matches. The unused `X` import is removed from components/layout/cookie-banner.tsx; pnpm lint shows no warning in a file this feature touched.",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "tests/component/privacy-tz-cookie-t61.test.tsx",
+        "components/layout/cookie-banner.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r7.md",
+      "source": "review-2026-10-10-r7"
+    },
+    {
+      "id": "T71",
+      "title": "Rebuild the owner-review layout images at the final HEAD for all four baselines, and log plain pnpm test:e2e there",
+      "layer": "infra",
+      "deps": [
+        "T68",
+        "T69",
+        "T70"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-15"
+      ],
+      "dod": "Review r7 G1 (O2 evidence). After T68-T70, _audit/T58-layout-baselines/ is rebuilt with build.mjs against the final HEAD so every *.new.png is byte-identical to the baseline in tests/e2e/editor-layout.spec.ts-snapshots/, and editor-existing-invoice-phone-chromium-linux has old/new/diff images too; README (the 'new =' revision and the existing-invoice-phone line), percentages.txt, the Owner review section of _audit/T53-linux-e2e-2026-10-10.log and test-plan.md:23 name all four baselines at that HEAD. If any change after T67 alters a baseline, it is re-captured on purpose in its own commit first. A plain CI=1 pnpm test:e2e on Linux on Node 22 at the final HEAD is logged green under _audit/. The owner verdict (O2) itself stays the owner's.",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/T58-layout-baselines/",
+        "docs/features/editor-ux/_audit/T53-linux-e2e-2026-10-10.log",
+        "docs/features/editor-ux/test-plan.md",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r7.md",
+      "source": "review-2026-10-10-r7"
     }
   ]
 }

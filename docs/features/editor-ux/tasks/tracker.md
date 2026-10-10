@@ -74,5 +74,9 @@
 | T65 | Record the tz cookie and the saved-zone check in the spec and SAD, record storedAmounts in the contracts, and close the currency-symbol question | docs | Dmytro Hopko | — | — | done |
 | T66 | Make the privacy page and the cookie banner list the cookies the app really sets | ui | Dmytro Hopko | — | — | done |
 | T67 | Stop the losing cookie poll leaking a rejection in the first-navigation e2e, close its context in a finally, and log plain pnpm test:e2e at the final HEAD | tests | Dmytro Hopko | — | T64, T65, T66 | done |
+| T68 | Add the 'line added' case to the AC-11 line-position test | tests | Dmytro Hopko | — | — | todo |
+| T69 | Remove the remaining 'nothing new sent', 'no contract change' and 'no service change' claims from the SAD and the data model | docs | Dmytro Hopko | — | — | todo |
+| T70 | Drop the authjs.state cookie the app never sets from the privacy page, and remove the unused import in the cookie banner | ui | Dmytro Hopko | — | — | todo |
+| T71 | Rebuild the owner-review layout images at the final HEAD for all four baselines, and log plain pnpm test:e2e there | infra | Dmytro Hopko | — | T68, T69, T70 | todo |
 
-**Total:** 68 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6).
+**Total:** 72 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7).
