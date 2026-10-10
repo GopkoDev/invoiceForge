@@ -528,7 +528,7 @@ sequenceDiagram
     alt types a decimal point
         UI-->>U: value accepted
     else types another separator, such as a comma
-        UI-->>U: not accepted
+        UI-->>U: not entered, the field says to use a decimal point
     end
     Note over U,UI: On a tablet, 12. is typed in a focused line field
     U->>UI: rotates the tablet across the layout breakpoint

@@ -180,11 +180,11 @@ flowchart TD
     K0["Phone-width screen, 390 px"] -->|"open the editor for a new or existing invoice"| K1["SCR-06 phone layout from the first display, no desktop layout drawn first"]
     K1 -->|"tap a line's price or quantity, or the discount, tax rate or shipping field"| K2["Numeric keypad that can type a decimal point"]
     K2 -->|"type an amount with a decimal point"| K3["SCR-06 value accepted"]
-    K2 -->|"type another decimal separator, such as a comma"| K4["SCR-06 not accepted: the decimal point is the only decimal separator"]
+    K2 -->|"type another decimal separator, such as a comma"| K4["SCR-06 not accepted: the comma is not entered and the field says to use a decimal point"]
     M0["Tablet, SCR-06 with an unfinished amount such as 12. in a focused line field"] -->|"rotate the tablet, the editor switches between phone and desktop layouts"| M1["SCR-06 the typed text and the focus stay where they were, no line, change or draft text lost"]
 ```
 
-On a phone-width screen (390 px), the editor opens in its phone layout from the first display for a new or existing invoice, without first drawing the desktop layout. Tapping a line's price or quantity, or the summary's discount, tax rate or shipping field, opens a numeric keypad on which a decimal point can be typed. The decimal point is the only decimal separator these fields accept. Another separator, such as a comma, is not accepted. On a tablet, a Freelancer who has typed an unfinished amount like "12." in a focused line field can rotate the device so the editor switches between its phone and desktop layouts. The typed text and the focus stay where they were, and no line, change or draft text is lost.
+On a phone-width screen (390 px), the editor opens in its phone layout from the first display for a new or existing invoice, without first drawing the desktop layout. Tapping a line's price or quantity, or the summary's discount, tax rate or shipping field, opens a numeric keypad on which a decimal point can be typed. The decimal point is the only decimal separator these fields accept. Another separator, such as a comma, is not accepted: it is not entered, and the field says, also to a screen reader, to use a decimal point. On a tablet, a Freelancer who has typed an unfinished amount like "12." in a focused line field can rotate the device so the editor switches between its phone and desktop layouts. The typed text and the focus stay where they were, and no line, change or draft text is lost.
 
 ## AC coverage
 

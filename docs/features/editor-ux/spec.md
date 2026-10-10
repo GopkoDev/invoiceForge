@@ -198,7 +198,9 @@ Traceability and scope notes:
 
 **Given** a Freelancer on a phone-width screen (390 px wide)
 **When** they open the editor for a new or an existing invoice and tap a line's price or quantity, or the summary's discount, tax rate or shipping field
-**Then** the editor appears in its phone layout from the first display, without first drawing the desktop layout. Those fields open a numeric keypad on which a decimal point "." can be typed. The decimal point "." is the only decimal separator these fields accept
+**Then** the editor appears in its phone layout from the first display, without first drawing the desktop layout. Those fields open a numeric keypad on which a decimal point "." can be typed. The decimal point "." is the only decimal separator these fields accept. A comma typed or pasted into one of them is not entered, and the field says next to itself, also to a screen reader, that a decimal point "." is the separator to use
+
+<!-- changed 2026-10-10 by review-2026-10-10-r2 N3: the owner chose to reject every comma and to tell the Freelancer, so a dropped comma can't silently turn "12,5" into 125. -->
 
 ### AC-14 (US-07) — happy path
 

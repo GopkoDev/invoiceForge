@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 type AmountInputProps = Omit<
@@ -11,30 +12,52 @@ type AmountInputProps = Omit<
   onChange: (raw: string) => void;
 };
 
-// editor-ux AC-13: money and quantity fields use "." as the decimal separator. A single "," typed or
-// pasted after digits, with no "." in the value yet, is read as the decimal point ("12,5" -> "12.5").
-// Any other comma (a thousands separator like "1,234.50", more than one comma, or a comma after a
-// ".") rejects the whole change and the field keeps its previous value.
-function normalizeComma(next: string): string | null {
-  if (!next.includes(',')) return next;
-  if (next.includes('.')) return null;
-  if (next.split(',').length !== 2) return null;
-  if (!/\d,/.test(next)) return null;
-  return next.replace(',', '.');
-}
+// editor-ux AC-13: money and quantity fields use "." as the only decimal separator. Any change that
+// contains a comma (typed or pasted) is rejected whole: the field keeps its previous value and
+// onChange never receives a ",". A rejected comma shows a hint next to the field, announced politely
+// to a screen reader and tied to the input with aria-describedby; it clears when the field loses focus.
+export function AmountInput({
+  value,
+  onChange,
+  onBlur,
+  'aria-describedby': describedBy,
+  ...props
+}: AmountInputProps) {
+  const hintId = React.useId();
+  const [commaRejected, setCommaRejected] = React.useState(false);
+  const describedByIds = [describedBy, commaRejected ? hintId : undefined]
+    .filter(Boolean)
+    .join(' ');
 
-export function AmountInput({ value, onChange, ...props }: AmountInputProps) {
   return (
-    <Input
-      {...props}
-      type="text"
-      inputMode="decimal"
-      data-slot="amount-input"
-      value={value}
-      onChange={(e) => {
-        const next = normalizeComma(e.target.value);
-        if (next !== null) onChange(next);
-      }}
-    />
+    <>
+      <Input
+        {...props}
+        type="text"
+        inputMode="decimal"
+        data-slot="amount-input"
+        aria-describedby={describedByIds || undefined}
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next.includes(',')) {
+            setCommaRejected(true);
+            return;
+          }
+          onChange(next);
+        }}
+        onBlur={(e) => {
+          setCommaRejected(false);
+          onBlur?.(e);
+        }}
+      />
+      <div aria-live="polite" className="contents">
+        {commaRejected ? (
+          <FieldDescription id={hintId} className="text-xs">
+            Use a decimal point (.) as the separator.
+          </FieldDescription>
+        ) : null}
+      </div>
+    </>
   );
 }

@@ -45,7 +45,7 @@
 | T37 | Scan for editor components rendering their own dialog, test the theme switcher in both places, and drop the removed Drawer from the map | tests | Dmytro Hopko | — | — | done |
 | T38 | Keep the editor and its edits through the first Save after a create | app | Dmytro Hopko | — | — | done |
 | T39 | Print an issued invoice opened in the editor with its stored amounts in the preview and in Download/Print | ui | Dmytro Hopko | — | — | done |
-| T40 | Reject every comma in AmountInput, as AC-13 is written | ui | Dmytro Hopko | — | — | todo |
+| T40 | Reject every comma in AmountInput, as AC-13 is written | ui | Dmytro Hopko | — | — | done |
 | T41 | Show that the PDF is being prepared on the row menu and the editor buttons | ui | Dmytro Hopko | — | — | todo |
 | T42 | Make the PDF on-demand tests able to fail | tests | Dmytro Hopko | — | T41 | todo |
 | T43 | Prove AC-06 hydration and AC-07 isolation through the client router | tests | Dmytro Hopko | — | T38 | todo |
