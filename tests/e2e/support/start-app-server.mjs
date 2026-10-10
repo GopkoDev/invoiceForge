@@ -176,6 +176,14 @@ async function startRealApp() {
 
 const dockerAvailable = await isDockerAvailable();
 if (!dockerAvailable) {
+  // Same rule as containerRuntimeDecision in tests/support/db/docker-availability.ts (the TS twin):
+  // unavailable + CI -> fail; unavailable + not CI -> skip (placeholder).
+  if (process.env.CI) {
+    console.error(
+      '[e2e app server] no container runtime available in CI: refusing to start a placeholder'
+    );
+    process.exit(1);
+  }
   startPlaceholderServer();
 } else {
   await startRealApp();

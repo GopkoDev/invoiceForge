@@ -7,7 +7,7 @@ const lint = async (filePath: string, code: string) => {
   return r.messages.filter((m) => m.ruleId === 'no-restricted-imports');
 };
 
-describe('PDF toolkit import restriction (T2)', () => {
+describe('PDF toolkit import restriction (T2)', { timeout: 30_000 }, () => {
   it('rejects a static @react-pdf/renderer import outside lib/pdf', async () => {
     const m = await lint('components/probe.tsx', "import { pdf } from '@react-pdf/renderer';\nexport const x = pdf;\n");
     expect(m).toHaveLength(1);

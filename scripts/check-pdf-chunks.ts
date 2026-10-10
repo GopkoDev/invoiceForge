@@ -67,7 +67,20 @@ function toRoutePath(key: string, appPathRoutes: Record<string, string>): string
   return stripped === '' ? '/' : stripped;
 }
 
-function run(distDir: string): number {
+function readStaticChunks(distDir: string): string[] {
+  const dir = path.join(distDir, 'static', 'chunks');
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith('.js'))
+    .map((e) => fs.readFileSync(path.join(dir, e.name), 'utf8'));
+}
+
+function chunkPath(distDir: string, chunk: string): string {
+  return path.join(distDir, chunk.replace(/^\/_next\//, ''));
+}
+
+export function runPdfChunkCheck(distDir: string): number {
   const appDir = path.join(distDir, 'server', 'app');
   const routesFile = path.join(distDir, 'app-path-routes-manifest.json');
   const manifests = findManifests(appDir);
@@ -84,9 +97,24 @@ function run(distDir: string): number {
     routeChunks[toRoutePath(route, appPathRoutes)] = files;
     for (const chunk of files) {
       if (chunk in chunkContents) continue;
-      const onDisk = path.join(distDir, chunk.replace(/^\/_next\//, ''));
+      const onDisk = chunkPath(distDir, chunk);
       chunkContents[chunk] = fs.existsSync(onDisk) ? fs.readFileSync(onDisk, 'utf8') : '';
     }
+  }
+  const missing = Object.keys(chunkContents).filter((c) => !fs.existsSync(chunkPath(distDir, c)));
+  if (missing.length > 0) {
+    console.error('check-pdf-chunks: chunks listed in a manifest are missing on disk:');
+    for (const c of missing) console.error(`  ${c}`);
+    return 1;
+  }
+  // The toolkit is lazy-loaded, so it lives outside every route's initial chunks: scan the whole
+  // static chunk directory, not just the manifest-listed files.
+  const allBodies = [...Object.values(chunkContents), ...readStaticChunks(distDir)];
+  if (!allBodies.some((b) => PDF_TOOLKIT_MARKERS.some((m) => b.includes(m)))) {
+    console.error(
+      'check-pdf-chunks: positive control: no chunk contains the PDF toolkit (markers are stale or the build is wrong)'
+    );
+    return 1;
   }
   const { offenders } = analyzePdfChunks({ routeChunks, chunkContents });
   if (offenders.length > 0) {
@@ -99,5 +127,5 @@ function run(distDir: string): number {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(run(path.resolve('.next')));
+  process.exit(runPdfChunkCheck(path.resolve('.next')));
 }

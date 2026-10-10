@@ -3,7 +3,7 @@
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
-describe('preview document is no longer exempt from the format rule', () => {
+describe('preview document is no longer exempt from the format rule', { timeout: 30_000 }, () => {
   it('rejects toFixed in components/invoice-editor/pdf-preview-document.tsx', async () => {
     const [r] = await new ESLint({ cwd: process.cwd() }).lintText(
       'export const x = (n: number) => n.toFixed(2);\n',

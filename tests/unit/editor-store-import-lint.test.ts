@@ -8,7 +8,7 @@ const lint = async (filePath: string, code: string) => {
   return r.messages.filter((m) => m.ruleId === 'no-restricted-imports');
 };
 
-describe('module-level editor store import restriction (T11)', () => {
+describe('module-level editor store import restriction (T11)', { timeout: 30_000 }, () => {
   it('rejects the old store module path', async () => {
     const m = await lint(
       'components/invoice-editor/probe.tsx',

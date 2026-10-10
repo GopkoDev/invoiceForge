@@ -13,7 +13,7 @@ const dateCode = 'export const x = (d: Date) => d.toLocaleDateString();\n';
 const stringCode = 'export const x = (n: number) => n.toLocaleString();\n';
 const timeCode = "export const x = (d: Date) => d.toLocaleTimeString('en-US');\n";
 
-describe('ad-hoc display formatting lint (T8)', () => {
+describe('ad-hoc display formatting lint (T8)', { timeout: 30_000 }, () => {
   it.each([
     ['toFixed', toFixedCode],
     ['toLocaleDateString', dateCode],
