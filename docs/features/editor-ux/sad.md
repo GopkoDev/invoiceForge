@@ -15,7 +15,7 @@ target_surfaces: [web-frontend]  # filled in §4 — subset of: backend-service 
 
 ## 1. Introduction and goals
 
-**Intent.** Make the invoice editor and the lists around it solid before the app is shown publicly, without changing a single business rule (spec §1, §2). Pages that never print stop loading the PDF toolkit, and Download, Print and the PDF preview fetch it on demand. The editor always tells the truth: it shows the opened invoice from the first display, its totals add up the lines on screen, a change typed during a save is never lost or wrongly marked saved, and Retry behaves exactly like Save. Every list, the editor, the preview and the PDF show the same calendar day and the same money format, whatever the Freelancer time zone, the browser's zone or the device language. The editor works with a screen reader and opens in its phone layout on a phone. The repository loses its unused components and packages, keeps one theme switcher and gets a README that works as written. Everything `invoice-integrity` decided about saves, refusals and issued invoices stays as it is (spec §3). The people served are the Freelancer who uses the editor every day, the Customer who reads the PDF, and the Contributor who clones the repository.
+**Intent.** Make the invoice editor and the lists around it solid before the app is shown publicly, without changing a single business rule (spec §1, §2). Pages that never print stop loading the PDF toolkit, and only Download and Print fetch it on demand; the invoice preview is HTML built from the same document model and never fetches it. The editor always tells the truth: it shows the opened invoice from the first display, its totals add up the lines on screen, a change typed during a save is never lost or wrongly marked saved, and Retry behaves exactly like Save. Every list, the editor, the preview and the PDF show the same calendar day and the same money format, whatever the Freelancer time zone, the browser's zone or the device language. The editor works with a screen reader and opens in its phone layout on a phone. The repository loses its unused components and packages, keeps one theme switcher and gets a README that works as written. Everything `invoice-integrity` decided about saves, refusals and issued invoices stays as it is (spec §3). The people served are the Freelancer who uses the editor every day, the Customer who reads the PDF, and the Contributor who clones the repository.
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
@@ -184,7 +184,7 @@ C4Container
 
     Container_Boundary(app, "Invoice Forge") {
         Container(web, "Web app in the browser", "React 19 client components, zustand", "Dashboard, lists, editor with a per-mount store, document model, format module, on-demand PDF")
-        Container(pdfkit, "PDF toolkit chunk", "@react-pdf/renderer, lazy JS chunk", "Fetched from the app origin on the first Download, Print or preview of a visit")
+        Container(pdfkit, "PDF toolkit chunk", "@react-pdf/renderer, lazy JS chunk", "Fetched from the app origin on the first Download or Print of a visit")
         Container(rsc, "Server rendering and proxy", "Next.js 16 RSC pages, proxy.ts", "Renders pages with the invoice and today's date, sets no-store on signed-in pages")
         Container(actions, "Server actions and business layer", "Next.js server actions, lib/services", "Unchanged: createInvoice, updateInvoice and their refusals")
         ContainerDb(db, "PostgreSQL", "Prisma 7", "Unchanged: invoices, users with their time zone")
