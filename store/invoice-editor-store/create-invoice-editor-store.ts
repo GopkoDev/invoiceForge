@@ -78,6 +78,22 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
  */
 let storeCount = 0;
 
+// A request cut off by leaving the page rejects too; that is the Freelancer's own navigation, not a
+// dead session. Watches `pagehide` for the lifetime of one request.
+function watchPageUnload() {
+  let unloading = false;
+  const onHide = () => {
+    unloading = true;
+  };
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', onHide);
+  return {
+    isUnloading: () => unloading,
+    stop: () => {
+      if (typeof window !== 'undefined') window.removeEventListener('pagehide', onHide);
+    },
+  };
+}
+
 export function createInvoiceEditorStore(
   initial: InvoiceEditorInitData | InvoiceEditorData
 ): InvoiceEditorStoreApi {
@@ -127,6 +143,8 @@ export function createInvoiceEditorStore(
         if (hintRequested || hintStatus !== 'loading') return;
         hintRequested = true;
         const id = formData.senderProfileId;
+        const token = sessionToken;
+        const unload = watchPageUnload();
         const settle = (patch: Partial<InvoiceEditorState>) => {
           // A later sender pick owns the hint now.
           const current = get();
@@ -139,8 +157,11 @@ export function createInvoiceEditorStore(
           else settle({ hintStatus: 'failed' });
         } catch {
           settle({ hintStatus: 'failed' });
-          // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
-          goToSignIn();
+          // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED, unless the
+          // editor was left (disposed / re-initialized) or the page is unloading (T45b).
+          if (token === sessionToken && !unload.isUnloading()) goToSignIn();
+        } finally {
+          unload.stop();
         }
       },
 
@@ -229,6 +250,7 @@ export function createInvoiceEditorStore(
         });
 
         const token = sessionToken;
+        const unload = watchPageUnload();
         try {
           const result = await generateInvoiceNumber(id);
           if (redirectIfUnauthorized(result)) return;
@@ -240,8 +262,11 @@ export function createInvoiceEditorStore(
           }
         } catch {
           if (token === sessionToken) set({ hintStatus: 'failed' });
-          // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
-          goToSignIn();
+          // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED, unless the
+          // editor was left (disposed / re-initialized) or the page is unloading (T45b).
+          if (token === sessionToken && !unload.isUnloading()) goToSignIn();
+        } finally {
+          unload.stop();
         }
       },
 

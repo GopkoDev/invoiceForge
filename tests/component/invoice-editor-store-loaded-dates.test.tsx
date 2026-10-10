@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // T44 (r3 I-01) — the editor remembers the stored issue/due instants it was built from and sends
 // them with an update, then replaces them with the stored dates the save returns.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
@@ -374,6 +375,64 @@ describe('invoice editor store - loaded dates (T44)', () => {
     await store.getState().requestNumberHint();
 
     expect(goToSignInMock).toHaveBeenCalledTimes(1);
+  });
+
+  // T45b: a rejection caused by leaving the page is not a dead session; it must not override the
+  // user's own navigation. A genuine rejection while the editor is shown still signs out (AC-21).
+  describe('T45b: a rejected hint request that leaves the editor does not go to sign-in', () => {
+    const starts: Array<[string, () => Promise<void>, () => ReturnType<typeof createInvoiceEditorStore>]> = [
+      [
+        'requestNumberHint',
+        () => store.getState().requestNumberHint(),
+        () =>
+          createInvoiceEditorStore({ ...base, initialData: { ...initialData(), invoiceNumber: '' } }),
+      ],
+      [
+        'selectSenderProfile',
+        () => store.getState().selectSenderProfile('profile-b'),
+        () => createInvoiceEditorStore({ ...base, initialData: initialData() }),
+      ],
+    ];
+
+    for (const [name, start, make] of starts) {
+      it(`${name}: rejection after dispose() does not call goToSignIn`, async () => {
+        let rej!: (e: unknown) => void;
+        generateInvoiceNumberMock.mockReturnValue(new Promise((_a, b) => (rej = b)));
+        store = make();
+
+        const pending = start();
+        store.getState().dispose();
+        rej(new Error('aborted'));
+        await pending;
+
+        expect(goToSignInMock).not.toHaveBeenCalled();
+      });
+
+      it(`${name}: rejection after pagehide does not call goToSignIn`, async () => {
+        let rej!: (e: unknown) => void;
+        generateInvoiceNumberMock.mockReturnValue(new Promise((_a, b) => (rej = b)));
+        store = make();
+
+        const pending = start();
+        window.dispatchEvent(new Event('pagehide'));
+        rej(new Error('aborted'));
+        await pending;
+
+        expect(goToSignInMock).not.toHaveBeenCalled();
+      });
+
+      it(`${name}: a rejection while the editor is shown still calls goToSignIn once`, async () => {
+        let rej!: (e: unknown) => void;
+        generateInvoiceNumberMock.mockReturnValue(new Promise((_a, b) => (rej = b)));
+        store = make();
+
+        const pending = start();
+        rej(new Error('boom'));
+        await pending;
+
+        expect(goToSignInMock).toHaveBeenCalledTimes(1);
+      });
+    }
   });
 
   // T45 (review r2): dispose() while a save is in flight must not leave isSaving stuck for a reused store.

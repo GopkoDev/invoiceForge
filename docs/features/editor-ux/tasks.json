@@ -998,6 +998,25 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
       "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T45b",
+      "title": "Don't send the device to sign-in when the number-hint request was cut off by leaving the page",
+      "layer": "app",
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "Found during T43: requestNumberHint's catch (T45) calls goToSignIn() for any rejection, so leaving the editor while the hint is in flight (client navigation, or a full page load that aborts the action) sends the tab to the clear-session route and overrides the user's own navigation. A rejection after the store was disposed (sessionToken moved) or while the page is unloading (pagehide) does not call goToSignIn; a genuine rejection while the editor is shown still does (AC-21). Same guard for selectSenderProfile. Unit tests cover all three cases.",
+      "files_hint": [
+        "store/invoice-editor-store/create-invoice-editor-store.ts",
+        "lib/helpers/client-session-redirect.ts",
+        "tests/component/invoice-editor-store-loaded-dates.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
     }
   ]
 }
