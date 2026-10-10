@@ -30,7 +30,7 @@
 | T23 | Print an issued invoice with its stored line amounts and totals in the preview and the PDF | domain | Dmytro Hopko | — | — | done |
 | T24 | Keep the failed intent through the changed-totals confirmation so Save and issue stays Save and issue | app | Dmytro Hopko | — | T21 | done |
 | T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | — | done |
-| T26 | Name the phone more-actions button and the line product fields, tie the product error to its field, and run axe at phone width and after a refused save | ui | Dmytro Hopko | — | — | todo |
+| T26 | Name the phone more-actions button and the line product fields, tie the product error to its field, and run axe at phone width and after a refused save | ui | Dmytro Hopko | — | — | done |
 | T27 | Show "Customer since" in the Freelancer time zone | ui | Dmytro Hopko | — | — | todo |
 | T28 | Make every PDF action fail safely, show its preparing state, resist double clicks and popup blockers, and test the real triggers | ui | Dmytro Hopko | — | — | todo |
 | T29 | Reword AC-01 and AC-02b for the HTML preview and remove the dead preview PDF action | docs | Dmytro Hopko | — | T28 | todo |

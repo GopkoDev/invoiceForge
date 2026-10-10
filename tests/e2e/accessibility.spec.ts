@@ -41,39 +41,85 @@ async function expectNoSeriousViolations(
     .toEqual([]);
 }
 
+const VIEWPORTS = [
+  { name: 'desktop', width: 1280, height: 800 },
+  { name: 'phone', width: 390, height: 844 },
+] as const;
+
 test.describe('AC-11: no serious or critical accessibility violations', () => {
-  test('the editor, new and existing invoice', async ({
+  for (const vp of VIEWPORTS) {
+    test(`the editor, new and existing invoice at ${vp.name} ${vp.width}x${vp.height}`, async ({
+      browser,
+    }, testInfo) => {
+      const f = await openSignedInFreelancer(
+        browser,
+        testInfo,
+        `eux-t26-axe-ed-${vp.name}`,
+        {
+          seed: { timeZone: 'UTC', status: 'DRAFT' },
+          context: { viewport: { width: vp.width, height: vp.height } },
+        }
+      );
+      try {
+        const { page, workspace } = f;
+        await page.goto(`${APP_E2E_URL}${protectedRoutes.invoicesNew}`);
+        await expect(
+          page.getByRole('textbox', { name: /^Invoice Number/ })
+        ).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await expectNoSeriousViolations(
+          page,
+          testInfo,
+          `new invoice editor (${vp.name})`
+        );
+
+        await openEditor(page, workspace.invoiceId);
+        await expect(
+          page.getByRole('textbox', { name: 'Quantity, line 1' })
+        ).toBeVisible();
+        await expectNoSeriousViolations(
+          page,
+          testInfo,
+          `existing invoice editor (${vp.name})`
+        );
+      } finally {
+        await f.context.close();
+      }
+    });
+  }
+
+  test('the editor with a refused save, at desktop and phone width', async ({
     browser,
   }, testInfo) => {
-    const f = await openSignedInFreelancer(
-      browser,
-      testInfo,
-      'eux-t19-axe-ed',
-      {
-        seed: { timeZone: 'UTC', status: 'DRAFT' },
-        context: { viewport: { width: 1280, height: 800 } },
-      }
-    );
-    try {
-      const { page, workspace } = f;
-      await page.goto(`${APP_E2E_URL}${protectedRoutes.invoicesNew}`);
-      await expect(
-        page.getByRole('textbox', { name: /^Invoice Number/ })
-      ).toBeVisible();
-      await page.waitForLoadState('networkidle');
-      await expectNoSeriousViolations(page, testInfo, 'new invoice editor');
-
-      await openEditor(page, workspace.invoiceId);
-      await expect(
-        page.getByRole('textbox', { name: 'Quantity, line 1' })
-      ).toBeVisible();
-      await expectNoSeriousViolations(
-        page,
+    for (const vp of VIEWPORTS) {
+      const f = await openSignedInFreelancer(
+        browser,
         testInfo,
-        'existing invoice editor'
+        `eux-t26-axe-refused-${vp.name}`,
+        {
+          seed: { timeZone: 'UTC', status: 'DRAFT' },
+          context: { viewport: { width: vp.width, height: vp.height } },
+        }
       );
-    } finally {
-      await f.context.close();
+      try {
+        const { page, workspace } = f;
+        await openEditor(page, workspace.invoiceId);
+        const quantity = page.getByRole('textbox', {
+          name: 'Quantity, line 1',
+        });
+        await quantity.fill('0');
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        const message = 'Quantity must be greater than zero.';
+        await expect(page.getByText(message)).toBeVisible();
+        await expect(quantity).toHaveAccessibleDescription(message);
+        await expectNoSeriousViolations(
+          page,
+          testInfo,
+          `refused save (${vp.name})`
+        );
+      } finally {
+        await f.context.close();
+      }
     }
   });
 

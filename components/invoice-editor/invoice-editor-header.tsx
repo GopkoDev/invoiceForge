@@ -82,7 +82,7 @@ export function InvoiceEditorHeader() {
           {SaveMobileButton}
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md">
+            <DropdownMenuTrigger aria-label="More actions" className="hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md">
               <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
 

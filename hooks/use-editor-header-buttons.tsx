@@ -119,6 +119,7 @@ export function useEditorHeaderButtons() {
     <Button
       variant="outline"
       size="icon"
+      aria-label={isSavingOrPending ? 'Saving...' : 'Save'}
       onClick={handleSave}
       disabled={isSavingOrPending || isSaved}
     >

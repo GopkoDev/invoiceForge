@@ -33,6 +33,12 @@ interface InvoiceItemProductSelectorProps {
   disabled?: boolean;
   /** The line's product has a field error: marks the trigger invalid for assistive tech. */
   invalid?: boolean;
+  /** 1-based line number, used to name the product control for assistive tech. */
+  lineNumber: number;
+  /** id for the custom-name input, so the phone label can point at it. */
+  fieldId?: string;
+  /** id of the product FieldError; the trigger is described by it while invalid. */
+  errorId?: string;
 }
 
 export function InvoiceItemProductSelector({
@@ -45,6 +51,9 @@ export function InvoiceItemProductSelector({
   onProductNameChange,
   disabled = false,
   invalid = false,
+  lineNumber,
+  fieldId,
+  errorId,
 }: InvoiceItemProductSelectorProps) {
   const [productOpen, setProductOpen] = useState(false);
 
@@ -58,6 +67,10 @@ export function InvoiceItemProductSelector({
   if (isCustomItem) {
     return (
       <Input
+        id={fieldId}
+        aria-label={`Product, line ${lineNumber}`}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
         type="text"
         value={productName}
         onChange={(e) => onProductNameChange(e.target.value)}
@@ -69,7 +82,7 @@ export function InvoiceItemProductSelector({
 
   return (
     <Popover open={productOpen} onOpenChange={setProductOpen}>
-      <PopoverTrigger aria-invalid={invalid} className="aria-invalid:border-destructive border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs">
+      <PopoverTrigger aria-label={`Product, line ${lineNumber}`} aria-invalid={invalid} aria-describedby={invalid ? errorId : undefined} className="aria-invalid:border-destructive border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-left text-sm font-normal shadow-xs">
         <span className="truncate">{productName || 'Select product...'}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>

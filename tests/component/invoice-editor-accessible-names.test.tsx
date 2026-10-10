@@ -52,6 +52,7 @@ const { DashboardRecentInvoices } = await import(
   '@/components/dashboard/recent-invoices/dashboard-recent-invoices'
 );
 const { RelatedInvoicesList } = await import('@/components/invoices/related-invoices-list');
+const { InvoiceEditorHeader } = await import('@/components/invoice-editor/invoice-editor-header');
 const { InvoiceRowActions } = await import('@/components/invoices/invoice-row-actions');
 
 const line = (n: number): InvoiceFormItem => ({
@@ -258,3 +259,59 @@ describe('AC-12 — a refused field is invalid and described by its message', ()
   });
 });
 
+
+// editor-ux T26 (AC-11, AC-12; review D6, T-b) — the phone more-actions trigger and the line product
+// controls announce a name, and a refused product is described by its message.
+describe('AC-11 — T26: more actions and the line product controls have an announced name', () => {
+  it('names the phone more-actions trigger "More actions"', () => {
+    renderWithEditorStore(<InvoiceEditorHeader />);
+    expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
+  });
+
+  it('names the product picker "Product, line {n}" for each line', () => {
+    const base = dataWithLines(2);
+    const initial = {
+      ...base,
+      initialData: {
+        ...base.initialData!,
+        items: base.initialData!.items.map((i) => ({ ...i, productId: '', productName: '' })),
+      },
+    };
+    renderWithEditorStore(<ItemsSection />, { initial });
+    expect(screen.getByRole('button', { name: 'Product, line 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Product, line 2' })).toBeInTheDocument();
+  });
+
+  it('names the custom-name input "Product, line {n}" and links the phone label to it', () => {
+    const base = dataWithLines(2);
+    const initial = {
+      ...base,
+      initialData: {
+        ...base.initialData!,
+        items: base.initialData!.items.map((i) => ({ ...i, productId: 'custom' })),
+      },
+    };
+    renderWithEditorStore(<ItemsSection />, { initial });
+    expect(screen.getByRole('textbox', { name: 'Product, line 1' })).toHaveValue('Item 1');
+    expect(screen.getByRole('textbox', { name: 'Product, line 2' })).toHaveValue('Item 2');
+    expect(screen.getAllByLabelText('Product Name').length).toBeGreaterThan(0);
+  });
+
+  it('describes the line-1 product trigger by a refused items.0.productId message', () => {
+    const base = dataWithLines(2);
+    const initial = {
+      ...base,
+      initialData: {
+        ...base.initialData!,
+        items: base.initialData!.items.map((i) => ({ ...i, productId: '', productName: '' })),
+      },
+    };
+    const { store } = renderWithEditorStore(<ItemsSection />, { initial });
+    act(() =>
+      store.setState({ fieldErrors: { 'items.0.productId': ['This product is priced in another currency.'] } })
+    );
+    const trigger = screen.getByRole('button', { name: 'Product, line 1' });
+    expect(trigger).toBeInvalid();
+    expect(trigger).toHaveAccessibleDescription('This product is priced in another currency.');
+  });
+});
