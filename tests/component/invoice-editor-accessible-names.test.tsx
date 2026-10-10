@@ -5,6 +5,7 @@
 // and the invoice number, and a refused field is invalid with its message as its description.
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormItem } from '@/types/invoice/types';
 
@@ -105,6 +106,36 @@ describe('AC-11 — line fields announce their column and current position', () 
     act(() => store.getState().addItem()); // a fifth, empty line at the end
     expect(screen.getByRole('textbox', { name: 'Quantity, line 5' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Quantity, line 4' })).toHaveValue('3');
+  });
+
+  // T74 (review r8 H3; test-plan.md edge case): the reorder a screen-reader user makes, through the
+  // drag handle and dnd-kit's KeyboardSensor, not the store. jsdom lays nothing out, so each line's
+  // box is stubbed from its current DOM position (one 80 px row per line).
+  it('keeps n correct after a line is moved to the top with the keyboard', async () => {
+    const { container } = renderWithEditorStore(<ItemsSection />, { initial: dataWithLines() });
+    const lineBoxes = () =>
+      Array.from(container.querySelectorAll('button[aria-label^="Reorder line"]'), (h) => h.parentElement!.parentElement!);
+    const realRect = Element.prototype.getBoundingClientRect;
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const i = lineBoxes().indexOf(this as HTMLElement);
+      if (i < 0) return realRect.call(this);
+      return { x: 0, y: i * 80, top: i * 80, left: 0, right: 600, bottom: i * 80 + 80, width: 600, height: 80, toJSON() {} };
+    });
+    const user = userEvent.setup();
+
+    try {
+      screen.getByRole('button', { name: 'Reorder line 3' }).focus();
+      await user.keyboard('[Space]');
+      await user.keyboard('[ArrowUp]');
+      await user.keyboard('[ArrowUp]');
+      await user.keyboard('[Space]');
+
+      expect(screen.getByRole('textbox', { name: 'Quantity, line 1' })).toHaveValue('3');
+      expect(screen.getByRole('textbox', { name: 'Quantity, line 2' })).toHaveValue('1');
+      expect(screen.getByRole('textbox', { name: 'Quantity, line 3' })).toHaveValue('2');
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('names the mobile card fields the same way', () => {

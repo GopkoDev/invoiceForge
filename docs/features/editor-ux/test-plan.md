@@ -114,7 +114,7 @@ Every error and authorization AC (AC-02, AC-02b, AC-05, AC-05d, AC-07, AC-12) al
 - A legacy issue date stored not at midnight → expected: its UTC day everywhere (unit).
 - Zero amounts and large amounts ("$0.00", "$1,000,000.00") → expected: the fixed format with two decimals (unit).
 - A Visitor opening the editor's address directly after sign-out → expected: taken to sign in, with no invoice data in the response (e2e-through-UI, inside the AC-07 flow).
-- A line moved to the first position with the keyboard → expected: its fields announce "line 1", and the rest shift by one (component).
+- A line moved to the first position with the keyboard → expected: its fields announce "line 1", and the rest shift by one (component: `invoice-editor-accessible-names.test.tsx` "keeps n correct after a line is moved to the top with the keyboard", T74 — Space, ArrowUp, ArrowUp, Space on the line's drag handle through dnd-kit's KeyboardSensor).
 - A pasted "1,234.50" in an amount field → expected: not accepted as a decimal value. The field keeps its previous valid value and does not save a wrong amount (component).
 - The real iPhone keypad with a Ukrainian region (sad.md §11 risk) → expected: "." can be typed. This is a one-off manual check at the start of wave 4. If it fails, it goes to the spec owner before the remaining phone work; it is not an automated test.
 
