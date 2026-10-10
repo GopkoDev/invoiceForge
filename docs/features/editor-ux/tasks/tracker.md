@@ -78,7 +78,7 @@
 | T69 | Remove the remaining 'nothing new sent', 'no contract change' and 'no service change' claims from the SAD and the data model | docs | Dmytro Hopko | — | — | done |
 | T70 | Drop the authjs.state cookie the app never sets from the privacy page, and remove the unused import in the cookie banner | ui | Dmytro Hopko | — | — | done |
 | T71 | Rebuild the owner-review layout images at the final HEAD for all four baselines, and log plain pnpm test:e2e there | infra | Dmytro Hopko | — | T68, T69, T70 | done |
-| T72 | Record the new-invoice initialData pre-fill and the private layouts' saved-zone read in the SAD, data model and contract | docs | Dmytro Hopko | — | — | todo |
+| T72 | Record the new-invoice initialData pre-fill and the private layouts' saved-zone read in the SAD, data model and contract | docs | Dmytro Hopko | — | — | done |
 | T73 | Make the layout-baseline owner-review notes and the existing-invoice phone diff show the scrollbar thumb, and drop the 'under 1 point' claim | infra | Dmytro Hopko | — | T72, T74 | todo |
 | T74 | Test that a line moved to the first position with the keyboard announces 'line 1' | tests | Dmytro Hopko | — | — | todo |
 

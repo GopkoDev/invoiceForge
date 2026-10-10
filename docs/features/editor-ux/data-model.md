@@ -8,7 +8,7 @@ feature_size: "M"
 
 # Data model — editor-ux
 
-> **Mode:** brownfield, **no schema change**. The spec adds no field and stores nothing new (spec §6.1 "Personal data touched: none new"); the one value sent anywhere new is the browser's time-zone name in the functional `tz` cookie; this feature adds no column for it (the existing architecture-hardening ADR-0010 session factory may save it on the account only while no zone is saved there, as before). The one result change is additive: `getInvoiceEditorData` also returns `storedAmounts` (see below). The SAD rules out any schema or migration (SAD §2, §4 "adds no endpoint, server action, business function, schema or migration", §6 "No flow adds an entity, a column or an index", §7 "there is no migration"). This document therefore stages **zero** migrations. It records the existing entities the feature reads, the one write it keeps (the existing invoice save), and which existing index serves each read drawn in SAD §6.
+> **Mode:** brownfield, **no schema change**. The spec adds no field and stores nothing new (spec §6.1 "Personal data touched: none new"); the one value sent anywhere new is the browser's time-zone name in the functional `tz` cookie; this feature adds no column for it (the existing architecture-hardening ADR-0010 session factory may save it on the account only while no zone is saved there, as before). The result changes are additive: `getInvoiceEditorData` also returns `storedAmounts` (see below), and for a new invoice it returns a filled `initialData` instead of none — today and the due date (+30 days) in the Freelancer time zone, the default sender profile, its default bank account and that account's currency — read from the existing `SenderProfile` / `BankAccount` rows (AC-06). The SAD rules out any schema or migration (SAD §2, §4 "adds no endpoint, server action, business function, schema or migration", §6 "No flow adds an entity, a column or an index", §7 "there is no migration"). This document therefore stages **zero** migrations. It records the existing entities the feature reads, the one write it keeps (the existing invoice save), and which existing index serves each read drawn in SAD §6.
 > **Conventions (derived, not imposed):** `prisma migrate` with the split schema `prisma/schema/{base,auth,invoice}.prisma` (architecture-map §Migrations). Quoted PascalCase tables, camelCase columns, `TEXT` ids from `cuid()`, `DECIMAL(10,2)` money, `TIMESTAMP(3)` timestamps, Prisma index names (`<Model>_<cols>_idx` / `_key`). No `CHECK` constraints or triggers. This feature touches none of them.
 
 ## ER diagram
@@ -91,7 +91,7 @@ erDiagram
 | `id` | TEXT | PK, `cuid()` | owner path root |
 | `timeZone` | TEXT | NULL | the Freelancer time zone (mcp-server ADR-0006); `NULL` means UTC until saved. It decides "today" for a new invoice (AC-06) and how moments such as a custom price's creation date are shown (AC-08). It never shifts an issue or due date |
 
-**Access patterns:** read by id with the session's user id (SAD §6 Flows 5 and 7) → `User_pkey`.
+**Access patterns:** read by id with the session's user id (SAD §6 Flows 5 and 7) → `User_pkey`. The private layouts read `timeZone` by id on every render to decide whether the `tz` cookie write must refresh the page (SAD §6 Flow 6, `getSavedTimeZone`) → `User_pkey`.
 
 ### `SenderProfile` / `BankAccount` (unchanged)
 
