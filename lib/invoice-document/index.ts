@@ -23,6 +23,7 @@ function partyLines(
 export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocument {
   let form;
   let parties: InvoiceDocumentParties;
+  const stored = source.kind === 'issued' ? source.invoice : null;
   if (source.kind === 'issued') {
     const data = prepareInvoiceDataForPdf(source.invoice);
     form = data.formData;
@@ -36,12 +37,21 @@ export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocu
   const money = (value: number | string) => formatMoney(Number(value), currency);
   const day = (d: Date) => formatDay(dayToUtcDate(localDateToDay(d)));
 
-  const amounts = computeInvoiceAmounts({
-    items: form.items.map((i) => ({ quantity: i.quantity, price: i.price })),
-    discount: form.discount,
-    shipping: form.shipping,
-    taxRate: form.taxRate,
-  });
+  // An issued invoice prints the amounts stored when it was issued (what the list and the Customer
+  // already have); only a draft is recomputed from its lines.
+  const amounts = stored
+    ? {
+        items: stored.items.map((i) => ({ amount: i.amount })),
+        subtotal: stored.subtotal,
+        taxAmount: stored.taxAmount,
+        total: stored.total,
+      }
+    : computeInvoiceAmounts({
+        items: form.items.map((i) => ({ quantity: i.quantity, price: i.price })),
+        discount: form.discount,
+        shipping: form.shipping,
+        taxRate: form.taxRate,
+      });
 
   const meta = [
     { label: WORDING.date, value: day(form.issueDate) },
@@ -65,7 +75,7 @@ export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocu
     ...(form.discount > 0 ? [{ label: WORDING.discount, value: `-${money(form.discount)}` }] : []),
     ...(form.shipping > 0 ? [{ label: WORDING.shipping, value: `+${money(form.shipping)}` }] : []),
     ...(form.taxRate > 0
-      ? [{ label: WORDING.tax(form.taxRate), value: money(decimalStringToNumber(amounts.taxAmount)) }]
+      ? [{ label: WORDING.tax(form.taxRate), value: money(decimalStringToNumber(String(amounts.taxAmount))) }]
       : []),
   ];
 

@@ -42,6 +42,7 @@ The editor's live preview (`components/invoice-editor/pdf-preview-document.tsx`,
 **Negative**
 - Two layouts still exist; spacing and typography can differ slightly (the spec requires identical text, not identical pixels).
 - One more module and a migration of both layouts onto it.
+- An issued invoice prints its stored line amounts, subtotal, tax and total; only a draft is recomputed from its lines (review 2026-10-10 D3).
 
 **Neutral**
 - A future server-rendered PDF (ADR-0001 option 2) would reuse the same model.

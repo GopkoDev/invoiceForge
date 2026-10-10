@@ -23,6 +23,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { formatMoney } from '@/lib/format';
+import { computeInvoiceAmounts, decimalStringToNumber } from '@/lib/helpers/invoice-calculations';
 import type {
   InvoiceBankAccount,
   InvoiceCustomer,
@@ -105,6 +106,15 @@ function makeForm(overrides: Partial<InvoiceFormData> = {}): InvoiceFormData {
 
 const parties = { senderProfile: sender, customer, bankAccount: bank };
 
+// Amounts as stored when the invoice was issued (the document prints these, never a recompute).
+function storedAmounts(form: InvoiceFormData) {
+  const a = computeInvoiceAmounts({
+    items: form.items.map((i) => ({ quantity: i.quantity, price: i.price })),
+    discount: form.discount, shipping: form.shipping, taxRate: form.taxRate,
+  });
+  return { subtotal: a.subtotal, taxAmount: decimalStringToNumber(a.taxAmount), total: a.total };
+}
+
 function makeIssued(form: InvoiceFormData, changedAfterIssue = false): SerializedInvoice {
   const utc = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const now = new Date(0);
@@ -166,6 +176,7 @@ function makeIssued(form: InvoiceFormData, changedAfterIssue = false): Serialize
       createdAt: now,
       updatedAt: now,
     })),
+    ...storedAmounts(form),
     createdAt: now,
     updatedAt: now,
   };

@@ -17,6 +17,7 @@ import { createProduct } from '../../../support/factories/product';
 import { createInvoice } from '../../../support/factories/invoice';
 import { pdfTextRuns } from '../../../support/pdf-text';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
+import { formatMoney } from '@/lib/format';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -143,6 +144,46 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     expect(await printedText(actor, fixtures[0].id)).toEqual(
       expect.arrayContaining(['Retired service', 'Audit', '$100.00', '$125.00'])
     );
+  });
+
+  // editor-ux T23 (AC-10; review 2026-10-10 D3): a legacy issued invoice prints its stored amounts.
+  it('an issued invoice whose stored total differs from a recompute prints the stored total, as the list shows', async () => {
+    const user = await createFreelancer(testClient);
+    const actor = await actingFreelancerForTest(user.id, 'UTC');
+    const profile = await createSenderProfile(testClient, user.id, { name: 'Studio' });
+    const customer = await createCustomer(testClient, user.id, { name: 'Acme' });
+    const bank = await createBankAccount(testClient, profile.id, { currency: 'USD' });
+    const inv = await createInvoice(testClient, {
+      senderProfile: profile,
+      customer,
+      bankAccount: bank,
+      items: [{ name: 'Legacy line', quantity: 2, rate: 617.25, amount: 1000 }],
+      overrides: {
+        invoiceNumber: 'LEG-1',
+        status: 'PENDING',
+        currency: 'USD',
+        subtotal: 1000,
+        taxRate: 10,
+        taxAmount: 77,
+        total: 1077,
+      },
+    });
+
+    const read = await invoices.getInvoice(actor, inv.id);
+    if (!read.success) throw new Error(read.error);
+    const doc = buildInvoiceDocument({ kind: 'issued', invoice: read.data });
+
+    const listed = await invoices.listInvoices(actor, {});
+    if (!listed.success) throw new Error(listed.error);
+    const row = listed.data.items.find((i) => i.id === inv.id)!;
+    const listTotal = formatMoney(Number(row.total), 'USD');
+
+    expect(listTotal).toBe(formatMoney(1077, 'USD'));
+    expect(doc.total.value).toBe(listTotal);
+    expect(doc.lines[0].amount).toBe(formatMoney(1000, 'USD'));
+    const text = pdfTextRuns(createElement(pdfDocument.InvoicePDFDocument, { document: doc })).join(' ');
+    expect(text).toContain(listTotal);
+    expect(text).not.toContain(formatMoney(1357.95, 'USD'));
   });
 });
 

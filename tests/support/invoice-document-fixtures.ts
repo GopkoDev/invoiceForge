@@ -1,5 +1,6 @@
 // Fixture set for the preview/PDF parity tests (editor-ux T10; spec.md §6 "PDF / preview parity").
 import { buildInvoiceDocument, type InvoiceDocument } from '@/lib/invoice-document';
+import { computeInvoiceAmounts, decimalStringToNumber } from '@/lib/helpers/invoice-calculations';
 import type {
   InvoiceBankAccount,
   InvoiceCustomer,
@@ -31,6 +32,15 @@ export function makeForm(over: Partial<InvoiceFormData> = {}): InvoiceFormData {
   };
 }
 
+// Amounts as stored when the invoice was issued (the document prints these, never a recompute).
+function storedAmounts(form: InvoiceFormData) {
+  const a = computeInvoiceAmounts({
+    items: form.items.map((i) => ({ quantity: i.quantity, price: i.price })),
+    discount: form.discount, shipping: form.shipping, taxRate: form.taxRate,
+  });
+  return { subtotal: a.subtotal, taxAmount: decimalStringToNumber(a.taxAmount), total: a.total };
+}
+
 export function makeIssued(form: InvoiceFormData, changedAfterIssue = false): SerializedInvoice {
   const utc = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const now = new Date(0);
@@ -53,6 +63,7 @@ export function makeIssued(form: InvoiceFormData, changedAfterIssue = false): Se
       id: i.id, invoiceId: 'inv1', productId: i.productId, name: i.productName, description: i.description, unit: i.unit,
       quantity: i.quantity, rate: i.price, amount: i.total, createdAt: now, updatedAt: now,
     })),
+    ...storedAmounts(form),
     createdAt: now, updatedAt: now,
   } as unknown as SerializedInvoice;
 }
