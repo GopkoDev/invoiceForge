@@ -312,42 +312,170 @@ describe('save command - issued with edits (AC-05b)', () => {
   });
 });
 
-describe('race: an edit injected at a random point of the save (50 runs)', () => {
-  // small deterministic PRNG so a failure reproduces
+describe('save command - edits during the save (T36)', () => {
+  it('two edits in one save: both stay on screen and unsaved, and the next Save sends both', async () => {
+    const resolve = deferredUpdate();
+    const pending = cmd(store).save('save');
+    store.getState().updateItem('a', { quantity: 5 });
+    store.getState().updateField('notes', 'Second edit');
+    resolve(ok(saved(editorData().initialData!.items)));
+    await pending;
+
+    const st = store.getState();
+    expect(st.formData.items.find((i) => i.id === 'a')?.quantity).toBe(5);
+    expect(st.formData.notes).toBe('Second edit');
+    expect(st.hasUnsavedChanges).toBe(true);
+    expectTotalsMatchVisibleLines(store);
+
+    updateInvoiceMock.mockResolvedValueOnce(ok(saved([line('a', 5), line('b', 1, 7.5)], { version: 5 })));
+    await cmd(store).save('save');
+    const [, payload] = updateInvoiceMock.mock.calls[1];
+    expect(payload.items.find((i: InvoiceFormItem) => i.id === 'a').quantity).toBe(5);
+    expect(payload.notes).toBe('Second edit');
+    expect(payload.loadedVersion).toBe(4);
+    expect(store.getState().hasUnsavedChanges).toBe(false);
+  });
+
+  it('a line deleted during the save stays deleted, totals add up the remaining lines, the next Save sends it', async () => {
+    const resolve = deferredUpdate();
+    const pending = cmd(store).save('save');
+    store.getState().deleteItem('b');
+    resolve(ok(saved(editorData().initialData!.items, { total: 555.55 })));
+    await pending;
+
+    const st = store.getState();
+    expect(st.formData.items.map((i) => i.id)).toEqual(['a']);
+    expect(st.hasUnsavedChanges).toBe(true);
+    expect(st.total).not.toBe(555.55);
+    expectTotalsMatchVisibleLines(store);
+
+    updateInvoiceMock.mockResolvedValueOnce(ok(saved([line('a', 2)], { version: 5 })));
+    await cmd(store).save('save');
+    expect(updateInvoiceMock.mock.calls[1][1].items.map((i: InvoiceFormItem) => i.id)).toEqual(['a']);
+    expect(store.getState().hasUnsavedChanges).toBe(false);
+  });
+
+  it('notes changed during Save and issue are kept, no notice, and the next Save stores them', async () => {
+    const issuedItems = editorData().initialData!.items;
+    const resolve = deferredUpdate();
+    const pending = cmd(store).save('save-and-issue');
+    store.getState().updateField('notes', 'Paid by card, thanks');
+    resolve(ok(saved(issuedItems, { status: 'PENDING', version: 4 })));
+    await pending;
+
+    let st = store.getState();
+    expect(st.storedStatus).toBe('PENDING');
+    expect(st.formData.notes).toBe('Paid by card, thanks');
+    expect(st.hasUnsavedChanges).toBe(true);
+    expect(cmd(store).issuedEditsDroppedNotice).toBeNull(); // notes are allowed on an issued invoice
+
+    updateInvoiceMock.mockResolvedValueOnce(ok(saved(issuedItems, { status: 'PENDING', version: 5 })));
+    await cmd(store).save('save');
+    const [, payload] = updateInvoiceMock.mock.calls[1];
+    expect(payload.notes).toBe('Paid by card, thanks');
+    expect(payload.status).toBe('PENDING');
+    expect(payload.loadedVersion).toBe(4);
+    st = store.getState();
+    expect(st.hasUnsavedChanges).toBe(false);
+    expect(st.formData.notes).toBe('Paid by card, thanks');
+  });
+});
+
+describe('race: edits injected at random points of the save (50 runs, seeded)', () => {
+  // Small deterministic PRNG (LCG) so a failure reproduces: rerun with SAVE_RACE_SEED=<seed>.
   function rng(seed: number) {
-    let s = seed;
+    let s = seed >>> 0;
     return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
   }
+  const SEED = Number(process.env.SAVE_RACE_SEED ?? Math.floor(Math.random() * 2 ** 31));
+  const RUNS = 50;
+  const MAX_TICKS = 6;
 
-  it('loses 0 edits, never marks them saved, and keeps totals equal to the visible lines', async () => {
-    const rand = rng(20261009);
-    for (let run = 0; run < 50; run++) {
-      updateInvoiceMock.mockReset();
-      const s = createInvoiceEditorStore(editorData());
-      const unsub = s.subscribe(() => expectTotalsMatchVisibleLines(s)); // after every state change
-      const edits = [
-        () => s.getState().updateItem('a', { quantity: 3 + run }),
-        () => s.getState().updateItem('b', { price: 1 + run }),
-        () => s.getState().updateField('discount', run % 7),
-        () => s.getState().updateField('taxRate', run % 20),
-        () => s.getState().addItem(),
-      ];
-      const edit = edits[Math.floor(rand() * edits.length)];
-      const resolve = deferredUpdate();
-      const pending = cmd(s).save('save');
-      edit();
-      const typed = s.getState().formData;
-      resolve(ok(saved(editorData().initialData!.items, { total: 777.77 })));
-      await pending;
-      unsub();
+  /** Lets `n` microtask turns pass, so the save advances by a random amount around the edit. */
+  async function ticks(n: number) {
+    for (let i = 0; i < n; i++) await Promise.resolve();
+  }
 
-      const st = s.getState();
-      expect(st.formData.items).toEqual(typed.items);
-      expect(st.formData.discount).toBe(typed.discount);
-      expect(st.formData.taxRate).toBe(typed.taxRate);
-      expect(st.hasUnsavedChanges).toBe(true);
-      expect(st.total).not.toBe(777.77);
-      expectTotalsMatchVisibleLines(s);
+  it('loses 0 edits, never marks them saved, and the totals shown always match what they claim', async () => {
+    const rand = rng(SEED);
+    const int = (n: number) => Math.floor(rand() * n);
+    for (let run = 0; run < RUNS; run++) {
+      const plan: string[] = [];
+      try {
+        updateInvoiceMock.mockReset();
+        const s = createInvoiceEditorStore(editorData());
+        const STORED_TOTAL = 777.77; // deliberately not what the lines add up to
+        // After every state change: a clean form may show the stored figures; an edited one must
+        // show what its visible lines add up to. Recorded, not thrown, so the save is never aborted.
+        const violations: string[] = [];
+        const unsub = s.subscribe((st) => {
+          if (!st.hasUnsavedChanges) return;
+          const a = visibleAmounts(s);
+          const expected = [Number(a.subtotal), Number(a.taxAmount), Number(a.total)];
+          const got = [st.subtotal, st.taxAmount, st.total];
+          if (JSON.stringify(got) !== JSON.stringify(expected)) {
+            violations.push(`edited form shows ${got} but its lines add up to ${expected}`);
+          }
+        });
+        const edits: Array<[string, () => void]> = [
+          ['qty a', () => s.getState().updateItem('a', { quantity: 3 + run })],
+          ['price b', () => s.getState().updateItem('b', { price: 1 + run })],
+          ['discount', () => s.getState().updateField('discount', run % 7)],
+          ['taxRate', () => s.getState().updateField('taxRate', run % 20)],
+          ['notes', () => s.getState().updateField('notes', `note ${run}`)],
+          ['add line', () => s.getState().addItem()],
+          ['delete b', () => s.getState().deleteItem('b')],
+        ];
+        const editCount = 1 + int(2); // one or two edits in this save
+        const resolveAt = int(editCount + 1); // how many of the edits land before resolve()
+
+        const resolve = deferredUpdate();
+        const pending = cmd(s).save('save');
+        for (let e = 0; e <= editCount; e++) {
+          if (e === resolveAt) {
+            const before = int(MAX_TICKS);
+            await ticks(before);
+            plan.push(`ticks ${before}`, 'resolve');
+            resolve(ok(saved(editorData().initialData!.items, { total: STORED_TOTAL })));
+          }
+          if (e === editCount) break;
+          const n = int(MAX_TICKS);
+          await ticks(n);
+          const [name, edit] = edits[int(edits.length)];
+          plan.push(`ticks ${n}`, name);
+          edit();
+        }
+        const typed = s.getState().formData;
+        const after = int(MAX_TICKS);
+        await ticks(after);
+        plan.push(`ticks ${after}`);
+        await pending;
+        unsub();
+
+        const st = s.getState();
+        expect(violations).toEqual([]);
+        expect(st.formData.items).toEqual(typed.items);
+        expect(st.formData.discount).toBe(typed.discount);
+        expect(st.formData.taxRate).toBe(typed.taxRate);
+        expect(st.formData.notes).toBe(typed.notes);
+        expect(st.hasUnsavedChanges).toBe(true);
+        expect(st.isSaving).toBe(false);
+        expect(st.loadedVersion).toBe(4);
+        expectTotalsMatchVisibleLines(s);
+
+        // The next Save sends every edit.
+        updateInvoiceMock.mockResolvedValueOnce(ok(saved(typed.items, { version: 5 })));
+        await cmd(s).save('save');
+        const payload = updateInvoiceMock.mock.calls[1][1];
+        expect(payload.items).toEqual(typed.items);
+        expect([payload.discount, payload.taxRate, payload.notes]).toEqual([typed.discount, typed.taxRate, typed.notes]);
+        expect(payload.loadedVersion).toBe(4);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `save race failed - reproduce with SAVE_RACE_SEED=${SEED} (run ${run}: ${plan.join(' -> ')})\n${message}`
+        );
+      }
     }
   });
 });

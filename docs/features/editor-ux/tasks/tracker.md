@@ -41,7 +41,7 @@
 | T33b | Prove AC-07 on a restored (bfcache) page: no-store and the restore guard keep A's invoice off screen | tests | Dmytro Hopko | — | T33 | done |
 | T34 | Extend the date matrix to the preview, the PDF and a new invoice's today, with hard-coded expectations | tests | Dmytro Hopko | — | T22, T27 | done |
 | T35 | Prove money formatting independent of device language on the screens, and test parity against a really rendered PDF | tests | Dmytro Hopko | — | T23 | done |
-| T36 | Add the save-flow UI and integration tests the plan names, and randomise when the mid-save edit happens | tests | Dmytro Hopko | — | T21, T24 | todo |
+| T36 | Add the save-flow UI and integration tests the plan names, and randomise when the mid-save edit happens | tests | Dmytro Hopko | — | T21, T24 | done |
 | T37 | Scan for editor components rendering their own dialog, test the theme switcher in both places, and drop the removed Drawer from the map | tests | Dmytro Hopko | — | — | done |
 
 **Total:** 37 tasks (T21–T37 are follow-ups from review 2026-10-10).
