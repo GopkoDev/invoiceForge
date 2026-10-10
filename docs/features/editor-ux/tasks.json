@@ -1595,6 +1595,57 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r9.md",
       "source": "review-2026-10-11-r9"
+    },
+    {
+      "id": "T78",
+      "title": "Name the editor pages' session-actor lookup in the SAD's list of server-side changes",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "Review r10 N1. sad.md:136 lists every server-side change, and now includes the editor pages' own actingFreelancerFromSession lookup that keys the store (app/(invoice-editor)/invoices/new/page.tsx:14, [id]/edit/page.tsx:25; Flow 5, ADR-0003), so §4 agrees with the 'two server-side reads' in sad.md:591. No other claim in sad.md becomes inaccurate.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r10.md",
+      "source": "review-2026-10-11-r10"
+    },
+    {
+      "id": "T79",
+      "title": "Assert that a rejected invoice-number hint request goes to sign-in, and separate it from the non-success case in the test plan",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "Review r10 N2. tests/component/invoice-editor-new-defaults-from-server.test.tsx mocks @/lib/helpers/client-session-redirect, so no real window.location.assign runs and no redirectingToSignIn state leaks between tests. In both the older :113-124 it.each and the T76 :129-156 it.each, the 'rejects' case asserts goToSignIn was called exactly once (architecture-hardening AC-21; create-invoice-editor-store.ts:169-173), and the non-success case asserts it was not called. Test names no longer present a rejection as ending only in an editable field. test-plan.md:112 says a non-success result leaves an empty, editable field at the same size, and a rejected request also sends the Freelancer to sign-in (AC-21). No production code changes.",
+      "files_hint": [
+        "tests/component/invoice-editor-new-defaults-from-server.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r10.md",
+      "source": "review-2026-10-11-r10"
+    },
+    {
+      "id": "T80",
+      "title": "Word the 'not saved because issued' notice by what was dropped (the lines and other locked details), and assert that wording",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-05b"
+      ],
+      "dod": "Review r10 N3. ISSUED_EDITS_DROPPED_NOTICE (store/invoice-editor-store/save-command.ts:23) says in plain language that the changes to the lines (and any other locked details) were not saved because the invoice is now issued, and no longer says 'Your latest changes' in a way that implies due date, notes, payment terms or PO number edits were dropped; spec AC-05b. tests/unit/store/save-command-race.test.ts asserts the new wording names the line change, and tests/component/invoice-editor-save-flow-t36.test.tsx:66 and tests/e2e/editor-first-save-after-create.spec.ts:202 match the new text. test-plan.md:53 matches what the test asserts. Re-run the affected e2e spec and check no layout baseline shows this notice (re-capture and owner-review any that does).",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "tests/unit/store/save-command-race.test.ts",
+        "tests/component/invoice-editor-save-flow-t36.test.tsx",
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r10.md",
+      "source": "review-2026-10-11-r10"
     }
   ]
 }
