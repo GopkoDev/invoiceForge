@@ -295,13 +295,17 @@ test("AC-07: with the back/forward cache on, B pressing Back to A's editor never
   await skipWithoutContainerRuntime(testInfo);
   await expectBfcacheLive(browser);
 
-  const { editorCacheControl } = await backToAsEditor(
+  const { w, editorPathA, editorCacheControl } = await backToAsEditor(
     browser,
     testInfo,
     'bf-a'
   );
   // ADR-0007's first layer: the signed-in page is never kept.
   expect(editorCacheControl).toContain('no-store');
+  expect(
+    w.shows,
+    `A's editor was restored from the cache although it is no-store (${w.notRestored.join(' | ')})`
+  ).not.toContainEqual({ path: editorPathA, persisted: true });
 });
 
 test("AC-07: when A's editor IS restored from the cache (no-store ignored), the restore guard keeps A's invoice off screen", async ({
