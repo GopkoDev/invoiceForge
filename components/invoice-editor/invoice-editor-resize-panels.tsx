@@ -55,6 +55,7 @@ export function InvoiceEditorResizePanels({
         </SheetTrigger>
         <SheetContent
           side="bottom"
+          closeLabel="Close preview"
           className="h-[90dvh] max-h-[90vh] gap-0 overflow-hidden p-0 md:hidden"
         >
           <SheetHeader className="sr-only p-0">

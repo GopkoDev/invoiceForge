@@ -70,7 +70,7 @@
 | T61 | Name the tz cookie on the privacy page | ui | Dmytro Hopko | — | T60 | done |
 | T62 | Restore focus on the picker buttons after the create hand-over, and make the t44 second-adopter check observable | app | Dmytro Hopko | — | — | done |
 | T63 | Close the last e2e rejection leak, fix the T53 log and the test plan, and log plain pnpm test:e2e at the final HEAD | tests | Dmytro Hopko | — | T59, T60, T61, T62 | done |
-| T64 | Give the phone 'View PDF' sheet's close button an announced 'Close preview' name, and test it | ui | Dmytro Hopko | — | — | todo |
+| T64 | Give the phone 'View PDF' sheet's close button an announced 'Close preview' name, and test it | ui | Dmytro Hopko | — | — | done |
 | T65 | Record the tz cookie and the saved-zone check in the spec and SAD, record storedAmounts in the contracts, and close the currency-symbol question | docs | Dmytro Hopko | — | — | todo |
 | T66 | Make the privacy page and the cookie banner list the cookies the app really sets | ui | Dmytro Hopko | — | — | todo |
 | T67 | Stop the losing cookie poll leaking a rejection in the first-navigation e2e, close its context in a finally, and log plain pnpm test:e2e at the final HEAD | tests | Dmytro Hopko | — | T64, T65, T66 | todo |

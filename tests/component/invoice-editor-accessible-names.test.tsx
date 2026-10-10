@@ -4,7 +4,7 @@
 // icon-only buttons and the narrow-screen Print/Download keep a name, row actions name the action
 // and the invoice number, and a refused field is invalid with its message as its description.
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormItem } from '@/types/invoice/types';
 
@@ -47,6 +47,9 @@ const { InvoiceDetailsSection } = await import('@/components/invoice-editor/invo
 const { SummarySection } = await import('@/components/invoice-editor/summary-section');
 const { NotesSection } = await import('@/components/invoice-editor/notes-section');
 const { PDFPreviewPanel } = await import('@/components/invoice-editor/pdf-preview-panel');
+const { InvoiceEditorResizePanels } = await import(
+  '@/components/invoice-editor/invoice-editor-resize-panels'
+);
 const { useInvoicePdf } = await import('@/hooks/use-invoice-pdf');
 const { DashboardRecentInvoices } = await import(
   '@/components/dashboard/recent-invoices/dashboard-recent-invoices'
@@ -114,6 +117,19 @@ describe('AC-11 — icon-only buttons have an announced name', () => {
     );
     expect(screen.getByRole('button', { name: /zoom in/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /zoom out/i })).toBeInTheDocument();
+  });
+
+  // T64 (review r6 F1): on a phone the preview opens in the "View PDF" sheet; its icon-only
+  // close button announces what it closes, not a bare "Close".
+  it('names close preview on the phone preview sheet', async () => {
+    render(
+      <InvoiceEditorResizePanels FormComponent={<p>form</p>} PDFPreviewComponent={<p>preview</p>} />
+    );
+    await act(async () => {
+      screen.getByRole('button', { name: /view pdf/i }).click();
+    });
+    const sheet = await screen.findByRole('dialog', { name: /pdf preview/i });
+    expect(within(sheet).getByRole('button', { name: /^close preview$/i })).toBeInTheDocument();
   });
 
   it('keeps the names Print and Download when their text is hidden on narrow screens', () => {
