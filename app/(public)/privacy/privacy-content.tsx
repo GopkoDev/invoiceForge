@@ -218,10 +218,6 @@ export function PrivacyPolicyContent() {
                     </code>
                     , and for Google sign-in{' '}
                     <code className="bg-muted rounded px-1 py-0.5">
-                      authjs.state
-                    </code>{' '}
-                    and{' '}
-                    <code className="bg-muted rounded px-1 py-0.5">
                       authjs.pkce.code_verifier
                     </code>{' '}
                     (with a <code className="bg-muted rounded px-1 py-0.5">__Host-</code>{' '}

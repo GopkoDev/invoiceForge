@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { legalRoutes } from '@/config/routes.config';
-import { X } from 'lucide-react';
 
 const COOKIE_CONSENT_KEY = 'cookie-consent';
 

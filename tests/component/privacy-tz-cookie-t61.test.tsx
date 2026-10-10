@@ -55,8 +55,10 @@ describe('privacy page — cookies section (T61)', () => {
     const section = within(cookieSection());
     expect(section.getByText('sidebar_state', { selector: 'code' })).toBeInTheDocument();
     expect(section.getByText('authjs.csrf-token', { selector: 'code' })).toBeInTheDocument();
-    expect(section.getByText('authjs.state', { selector: 'code' })).toBeInTheDocument();
     expect(section.getByText('authjs.pkce.code_verifier', { selector: 'code' })).toBeInTheDocument();
+    // T70 (review r7 S3): Google sign-in sets only the PKCE cookie; Auth.js adds authjs.state only
+    // when a redirect proxy is configured, and this app configures none.
+    expect(cookieSection().textContent).not.toMatch(/authjs\.state/);
   });
 });
 
