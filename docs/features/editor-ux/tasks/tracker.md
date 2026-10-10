@@ -54,7 +54,7 @@
 | T45b | Don't send the device to sign-in when the number-hint request was cut off by leaving the page | app | Dmytro Hopko | — | T45 | done |
 | T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | done |
 | T47 | Bring the SAD and the architecture map in line with the shipped code | docs | Dmytro Hopko | — | — | done |
-| T48 | Show and announce that the PDF is being prepared on the phone editor, from a live region outside the buttons | ui | Dmytro Hopko | — | — | todo |
+| T48 | Show and announce that the PDF is being prepared on the phone editor, from a live region outside the buttons | ui | Dmytro Hopko | — | — | done |
 | T49 | Make the hand-over to the edit page after a create keep focus, scroll and in-flight edits, without Next internals | app | Dmytro Hopko | — | — | todo |
 | T50 | Make the toolkit-fetch tracker in the PDF on-demand e2e wait for its own handlers | tests | Dmytro Hopko | — | — | todo |
 | T51 | Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD | docs | Dmytro Hopko | — | T49 | todo |

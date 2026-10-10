@@ -82,7 +82,6 @@ export function useInvoicePdf() {
         <Download className="h-4 w-4" />
       )}
       <span className="sr-only sm:not-sr-only">Download PDF</span>
-      <PdfPreparingStatus busy={busy('download')} />
     </Button>
   );
 
@@ -115,7 +114,6 @@ export function useInvoicePdf() {
         <Printer className="h-4 w-4" />
       )}
       <span className="sr-only sm:not-sr-only">Print</span>
-      <PdfPreparingStatus busy={busy('print')} />
     </Button>
   );
 
@@ -134,7 +132,12 @@ export function useInvoicePdf() {
     </DropdownMenuItem>
   );
 
+  // One region for the whole editor: the phone menu closes on select, so the status cannot live in an item.
+  const PdfStatus = <PdfPreparingStatus busy={preparing} />;
+
   return {
+    pdfBusy: preparing,
+    PdfStatus,
     DownloadButton,
     DownloadMobileButton,
     PrintButton,

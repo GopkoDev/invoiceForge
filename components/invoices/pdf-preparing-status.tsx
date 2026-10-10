@@ -1,11 +1,14 @@
 import { Loader2 } from 'lucide-react';
 
-/** The screen-reader announcement for a PDF being prepared; renders nothing when it is not. */
+/**
+ * The screen-reader announcement for a PDF being prepared. The region is always mounted and only its
+ * text changes (a region mounted together with its text is often not announced); place it outside any
+ * button or menu item, whose children are presentational.
+ */
 export function PdfPreparingStatus({ busy }: { busy: boolean }) {
-  if (!busy) return null;
   return (
-    <span role="status" className="sr-only">
-      Preparing PDF…
+    <span role="status" aria-live="polite" className="sr-only">
+      {busy ? 'Preparing PDF…' : ''}
     </span>
   );
 }

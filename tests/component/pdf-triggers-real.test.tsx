@@ -272,7 +272,7 @@ describe('T41 the preparing state is visible and announced, then gone', () => {
     await act(async () => release(kit));
     await vi.waitFor(() => expect(kit.downloadPdf).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(trigger).not.toHaveAttribute('aria-busy', 'true'));
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(preparing()).toBeEmptyDOMElement();
     expect(container.querySelector('.animate-spin')).toBeNull();
   });
 
@@ -288,7 +288,7 @@ describe('T41 the preparing state is visible and announced, then gone', () => {
     expect(container.querySelector('.animate-spin')).not.toBeNull();
     await act(async () => release(kit));
     await vi.waitFor(() => expect(btn).not.toHaveAttribute('aria-busy', 'true'));
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(preparing()).toBeEmptyDOMElement();
   });
 
   it('editor header: Print is busy and announced while preparing, then restored', async () => {
@@ -302,7 +302,7 @@ describe('T41 the preparing state is visible and announced, then gone', () => {
     expect(preparing()).toHaveTextContent(/preparing/i);
     await act(async () => release(kit));
     await vi.waitFor(() => expect(btn).not.toHaveAttribute('aria-busy', 'true'));
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(preparing()).toBeEmptyDOMElement();
   });
 
   it('related invoices list: Download marks the trigger busy and announces "Preparing", then clears', async () => {
@@ -324,6 +324,61 @@ describe('T41 the preparing state is visible and announced, then gone', () => {
     expect(preparing()).toHaveTextContent(/preparing/i);
     await act(async () => release(kit));
     await vi.waitFor(() => expect(trigger).not.toHaveAttribute('aria-busy', 'true'));
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(preparing()).toBeEmptyDOMElement();
+  });
+});
+
+// editor-ux T48 (review-2026-10-10-r3 R1; AC-01): ONE always-mounted polite status region per trigger
+// surface, outside every button and menu item, whose text alone changes; and below md the "More actions"
+// trigger itself shows the busy state, because the menu closes on select.
+describe('T48 the preparing state on the phone editor and the always-mounted status region', () => {
+  const region = () => screen.getByRole('status');
+
+  it('desktop: the status region is mounted before preparing, outside every button, and not desktop-only', async () => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    renderWithEditorStore(<InvoiceEditorHeader />);
+    const status = region();
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status).toBeEmptyDOMElement();
+    for (const b of screen.getAllByRole('button')) expect(b).not.toContainElement(status);
+    expect(status.closest('.hidden')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
+    await vi.waitFor(() => expect(region()).toHaveTextContent(/preparing/i));
+    expect(region()).toBe(status);
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(status).toBeEmptyDOMElement());
+  });
+
+  it.each([
+    ['Download PDF', () => kit.downloadPdf],
+    ['Print', () => kit.printPdf],
+  ])('phone: %s chosen from "More actions" marks that trigger busy and sets the status text', async (name, done) => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn(), location: { href: '' } } as never);
+    const { container } = renderWithEditorStore(<InvoiceEditorHeader />);
+    const more = screen.getByRole('button', { name: 'More actions' });
+    expect(more).not.toHaveAttribute('aria-busy', 'true');
+    const user = userEvent.setup();
+    await user.click(more);
+    await user.click(await screen.findByRole('menuitem', { name }));
+    await vi.waitFor(() => expect(more).toHaveAttribute('aria-busy', 'true'));
+    expect(region()).toHaveTextContent(/preparing/i);
+    expect(more.querySelector('.animate-spin')).not.toBeNull();
+    expect(region().closest('.hidden')).toBeNull();
+    expect(more).not.toContainElement(region());
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(done()).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(more).not.toHaveAttribute('aria-busy', 'true'));
+    expect(region()).toBeEmptyDOMElement();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('row actions: the region exists before preparing and is not inside the trigger', () => {
+    renderRow();
+    const status = region();
+    expect(status).toBeEmptyDOMElement();
+    expect(screen.getByRole('button', { name: /actions for/i })).not.toContainElement(status);
   });
 });
