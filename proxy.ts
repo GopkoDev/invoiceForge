@@ -16,10 +16,13 @@ const { auth } = NextAuth(authConfig);
 
 // A verified request passes on with the requested path on a request header,
 // always overwriting a caller-supplied value, for requireLiveUser()'s "Try again" target.
-// AC-07 / ADR-0007: a signed-in page is never kept in the browser's cache. Page responses only;
-// route handlers (/api/*) keep their own headers.
+// AC-07 / ADR-0007: a signed-in page is never kept in the browser's cache. Page documents and their
+// RSC requests only: route handlers (/api/*) keep their own headers, and static files (fonts, logo,
+// icons — any path ending in a file extension) stay cacheable (review 2026-10-10 S1).
+const FILE_PATH = /\/[^/]+\.[a-z0-9]+$/i;
+
 function markPrivatePage(res: NextResponse, pathname: string): NextResponse {
-  if (!pathname.startsWith('/api/')) {
+  if (!pathname.startsWith('/api/') && !FILE_PATH.test(pathname)) {
     res.headers.set('Cache-Control', 'private, no-store');
   }
   return res;

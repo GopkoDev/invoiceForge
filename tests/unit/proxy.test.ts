@@ -356,6 +356,40 @@ describe('proxy Cache-Control (AC-07, signed-in pages are no-store)', () => {
     }
   );
 
+  it.each([
+    '/invoices?_rsc=abc12',
+    '/invoices/abc/edit?_rsc=1x9z',
+  ])('sends "private, no-store" on the signed-in RSC request %s', async (path) => {
+    const res = await callProxy(
+      buildRequest(path, { token: signedIn, headers: { RSC: '1' } })
+    );
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  it('sends "private, no-store" on a signed-in RSC request identified only by the RSC header', async () => {
+    const res = await callProxy(
+      buildRequest('/invoices', { token: signedIn, headers: { RSC: '1' } })
+    );
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  // Public static files keep their own caching for a signed-in user (fonts feed the PDF).
+  it.each([
+    '/fonts/roboto/Roboto-Regular.ttf',
+    '/fonts/roboto/Roboto-Bold.ttf',
+    '/invoice-forge-logo.svg',
+    '/web-app-manifest-192x192.png',
+    '/web-app-manifest-512x512.png',
+    '/favicon.ico',
+    '/some/other/file.woff2',
+  ])(
+    'does not send no-store on the signed-in static file %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+
   it('leaves a signed-in route handler (/api/*) without the page header', async () => {
     const res = await callProxy(
       buildRequest('/api/user/export', { token: signedIn })
