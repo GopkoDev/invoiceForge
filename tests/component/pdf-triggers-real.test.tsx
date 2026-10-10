@@ -172,7 +172,36 @@ describe('T28 row actions menu: a PDF failure is told, reported and never mistak
       );
       expect(offered).toBe(true);
     });
-    if (create.mock.calls.length) expect(revoke).toHaveBeenCalledWith('blob:print-1');
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  it('S7: a successful Print navigates the opened window to the blob and revokes that URL once it has loaded', async () => {
+    const real = await vi.importActual<typeof import('@/lib/pdf/invoice-pdf-kit')>(
+      '@/lib/pdf/invoice-pdf-kit'
+    );
+    loadPdfKit.mockResolvedValue(real);
+    const create = vi.fn(() => 'blob:print-ok');
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
+    const listeners: Record<string, () => void> = {};
+    const printWindow = {
+      location: { href: '' },
+      addEventListener: vi.fn((type: string, cb: () => void) => (listeners[type] = cb)),
+      focus: vi.fn(),
+      print: vi.fn(),
+      close: vi.fn(),
+    };
+    vi.spyOn(window, 'open').mockReturnValue(printWindow as never);
+    renderRow();
+    await rowAction(userEvent.setup(), 'Print');
+    await vi.waitFor(() => expect(printWindow.location.href).toBe('blob:print-ok'));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(listeners.load).toBeTypeOf('function');
+    // Not revoked before the window has loaded the PDF.
+    expect(revoke).not.toHaveBeenCalled();
+    act(() => listeners.load());
+    expect(printWindow.print).toHaveBeenCalledTimes(1);
+    expect(revoke).toHaveBeenCalledWith('blob:print-ok');
   });
 });
 

@@ -25,6 +25,12 @@ function trackToolkitChunks(page: Page): string[] {
   return urls;
 }
 
+/** Lets every response handler already queued (each reads its body) run to completion. */
+async function settleResponseHandlers(page: Page) {
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
+  await page.waitForLoadState('networkidle');
+}
+
 test('AC-01: pages open without the toolkit; the first Download fetches it, later actions reuse it', async ({
   browser,
 }, testInfo) => {
@@ -66,6 +72,28 @@ test('AC-01: pages open without the toolkit; the first Download fetches it, late
   }
 });
 
+test('AC-01: opening the invoice preview first fetches no toolkit chunk, and shows the invoice', async ({
+  browser,
+}, testInfo) => {
+  const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-preview-first');
+  try {
+    const { page, workspace } = f;
+    const fetched = trackToolkitChunks(page);
+    await openInvoiceList(page);
+    await page.waitForLoadState('networkidle');
+
+    await chooseRowAction(page, workspace.invoiceNumber, 'View Document');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(workspace.invoiceNumber);
+    await page.waitForLoadState('networkidle');
+    await settleResponseHandlers(page);
+    expect(fetched, 'the preview alone never fetches the PDF toolkit').toEqual([]);
+  } finally {
+    await f.context.close();
+  }
+});
+
 test('AC-01: after the first Download, a later Print and the preview fetch no new toolkit chunk', async ({
   browser,
 }, testInfo) => {
@@ -82,14 +110,35 @@ test('AC-01: after the first Download, a later Print and the preview fetch no ne
     const afterFirst = fetched.length;
     expect(afterFirst).toBeGreaterThan(0);
 
+    // Headless Chromium turns a navigation to a PDF blob into an aborted load, so the popup URL
+    // cannot show the print finished; the PDF blob handed to the print window can.
+    await page.evaluate(() => {
+      const w = window as unknown as { __pdfBlobs: string[] };
+      w.__pdfBlobs = [];
+      const create = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = (obj: Blob | MediaSource) => {
+        const url = create(obj);
+        if (obj instanceof Blob && obj.type === 'application/pdf') w.__pdfBlobs.push(url);
+        return url;
+      };
+    });
     const popup = page.waitForEvent('popup');
     await chooseRowAction(page, workspace.invoiceNumber, 'Print');
     await popup;
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __pdfBlobs: string[] }).__pdfBlobs.length), {
+        timeout: 30_000,
+        message: 'the print generated its PDF and handed it to the print window',
+      })
+      .toBe(1);
+    await page.waitForLoadState('networkidle');
+    await settleResponseHandlers(page);
     expect(fetched.length, 'a later Print does not fetch the toolkit again').toBe(afterFirst);
 
     await chooseRowAction(page, workspace.invoiceNumber, 'View Document');
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.waitForLoadState('networkidle');
+    await settleResponseHandlers(page);
     expect(fetched.length, 'the preview does not fetch the toolkit again').toBe(afterFirst);
   } finally {
     await f.context.close();
