@@ -102,7 +102,7 @@ Every error and authorization AC (AC-02, AC-02b, AC-05, AC-05d, AC-07, AC-12) al
 
 - Two Downloads clicked together before the toolkit has loaded → expected: one fetch, and both produce their PDF (unit).
 - Try again clicked while the failed load is still being classified → expected: one new fetch, no second message (unit).
-- Origin reachable but slow, misjudged as offline (a captive portal) → expected: the page stays usable and offers try again, and the failure is reported with its stage (component).
+- A captive portal answers the origin probe → expected: there is no portal detection, so the failure is classified as a newer version: Reload is offered, the failure is reported with `pdf.stage=version`, and the page stays usable (component: `pdf-kit-load-edge.test.tsx` "a captive portal answering the probe is classified as a newer version…").
 - Two edits during one save (quantity, then price) → expected: both stay on screen, the invoice stays unsaved, and the totals add up both (unit).
 - A line deleted during a save → expected: the deleted line stays deleted, and the totals exclude it (unit).
 - Notes changed during Save and issue → expected: the invoice is issued, the notes change stays on screen unsaved, and the next Save stores it (unit).

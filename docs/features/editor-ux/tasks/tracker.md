@@ -83,6 +83,6 @@
 | T74 | Test that a line moved to the first position with the keyboard announces 'line 1' | tests | Dmytro Hopko | — | — | done |
 | T75 | Correct the SAD's new-server-call, logging and Flow 5 default wording, and the T53 log's percentage note | docs | Dmytro Hopko | — | — | done |
 | T76 | Test that a failed invoice-number hint leaves the loading state for 'Assigned on save' at the same size | tests | Dmytro Hopko | — | — | done |
-| T77 | Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload | tests | Dmytro Hopko | — | — | todo |
+| T77 | Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload | tests | Dmytro Hopko | — | — | done |
 
 **Total:** 79 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9).

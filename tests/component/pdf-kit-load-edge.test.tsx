@@ -90,7 +90,7 @@ describe('T28 toolkit failure classification', () => {
     );
   });
 
-  it('a captive portal answering the probe is reported with its stage version (T45), and the page stays usable with a next step offered', async () => {
+  it('a captive portal answering the probe is classified as a newer version: Reload is offered, it is reported with stage version (T45), and the page stays usable', async () => {
     vi.stubGlobal('requestIdleCallback', undefined);
     vi.stubGlobal('cancelIdleCallback', undefined);
     vi.stubGlobal(
@@ -106,10 +106,10 @@ describe('T28 toolkit failure classification', () => {
     renderWithEditorStore(<InvoiceEditorHeader />);
     fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
     await vi.waitFor(() => expect(h.toast.error).toHaveBeenCalled());
-    // test-plan / sad §11 define no portal detection: the plan is a usable page, a next step
-    // (Try again or Reload) and a Sentry report carrying its stage.
+    // There is no portal detection (sad §11): any answer to the probe means the origin is up, so the
+    // failure is classified as a newer version (lib/pdf/load-pdf-kit.ts) and Reload is offered.
     const [, options] = h.toast.error.mock.calls[0];
-    expect(options.action.label).toMatch(/try again|reload/i);
+    expect(options.action.label).toBe('Reload');
     expect(h.captureException).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ tags: expect.objectContaining({ 'pdf.stage': 'version' }) })
