@@ -1244,6 +1244,105 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
       "source": "review-2026-10-10-r4"
+    },
+    {
+      "id": "T59",
+      "title": "Make the 'no rebuild during the Save' e2e wait for a server-rendered marker of the revalidated tree",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-05b"
+      ],
+      "dod": "Review r5 Q1 (r4 P3 leftover). treeCommitted in editor-first-save-after-create.spec.ts no longer relies on waitForLoadState('networkidle'), which resolves at once after the document's first idle. The edit page renders a marker the revalidated tree changes (e.g. data-version={invoice.version} on a server-rendered element), and the test waits for its new value before reading nodeKept(). The networkidle calls and the false comment are removed. The check fails if the editor is remounted when the revalidated tree commits.",
+      "files_hint": [
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "app/(invoice-editor)/invoices/[id]/edit/page.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
+      "source": "review-2026-10-10-r5"
+    },
+    {
+      "id": "T60",
+      "title": "Refresh after writing the time-zone cookie only while the account has no saved zone",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "Review r5 Q2 (r4 P5 leftover). The private layouts ((protected), (invoice-editor)) look up on the server whether the signed-in account has a saved zone, and mount TimeZoneCookie with refresh only when it has none; otherwise refresh={false}. The cookie is still written in both cases. The session-actor seed path (lib/helpers/session-actor.ts, ADR-0006) is unchanged. A component or integration test pins both branches; first-navigation-after-sign-in.spec.ts stays green, and a case with an expired or different tz cookie for an account with a saved zone causes no refresh. The ADR-0010 amendment is updated to say the refresh runs only for an account with no saved zone.",
+      "files_hint": [
+        "app/(protected)/layout.tsx",
+        "app/(invoice-editor)/layout.tsx",
+        "components/time-zone-cookie.tsx",
+        "lib/services/profile/profile.ts",
+        "tests/component/time-zone-cookie.test.tsx",
+        "docs/features/architecture-hardening/adr/0010-carry-the-browser-time-zone-to-the-server-in-a-cookie.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
+      "source": "review-2026-10-10-r5"
+    },
+    {
+      "id": "T61",
+      "title": "Name the tz cookie on the privacy page",
+      "layer": "ui",
+      "deps": [
+        "T60"
+      ],
+      "acs": [],
+      "dod": "Review r5 Q3. The privacy page's cookies section no longer says only one session cookie is used. It names the functional tz cookie: what it holds (the browser's time zone), why (dates in the Freelancer's zone), its 1-year lifetime, and that it is set on the sign-in pages and the signed-in app. The ADR-0010 amendment notes the privacy text. Any test that snapshots the privacy text is updated, not weakened.",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "docs/features/architecture-hardening/adr/0010-carry-the-browser-time-zone-to-the-server-in-a-cookie.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
+      "source": "review-2026-10-10-r5"
+    },
+    {
+      "id": "T62",
+      "title": "Restore focus on the picker buttons after the create hand-over, and make the t44 second-adopter check observable",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-07"
+      ],
+      "dod": "Review r5 Q4(d)(e). The Customer, Sender profile, Bank account, Issue date and Due date trigger buttons carry a stable data-field (customerId, senderProfileId, bankAccountId, issueDate, dueDate), so captureFocus finds them again on the edit page; a t44 component test focuses a real picker trigger across the hand-over and asserts focus returns to it. In invoice-editor-strict-mode-handoff-t44.test.tsx, the assertion after other.unmount() (now :299) checks something observable on the first adopter, e.g. a save on oldStore succeeds and isSaving returns to false.",
+      "files_hint": [
+        "components/invoice-editor/customer-section.tsx",
+        "components/invoice-editor/sender-section.tsx",
+        "components/invoice-editor/invoice-details-section.tsx",
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
+      "source": "review-2026-10-10-r5"
+    },
+    {
+      "id": "T63",
+      "title": "Close the last e2e rejection leak, fix the T53 log and the test plan, and log plain pnpm test:e2e at the final HEAD",
+      "layer": "tests",
+      "deps": [
+        "T59",
+        "T60",
+        "T61",
+        "T62"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-08",
+        "AC-13",
+        "AC-15"
+      ],
+      "dod": "Review r5 Q4(a)(b)(c). session-isolation-bfcache.spec.ts gets a no-op catch on editorDoc right after it is created. The T53 log :202-203 points at _audit/T58-layout-baselines/ and says the diff images are rebuilt with build.mjs. test-plan.md lists first-navigation-after-sign-in.spec.ts and the Notes and picker hand-over checks against the ACs they claim. A plain CI=1 pnpm test:e2e on Linux on Node 22 at the final HEAD (after T59-T62) is logged green under _audit/.",
+      "files_hint": [
+        "tests/e2e/session-isolation-bfcache.spec.ts",
+        "docs/features/editor-ux/_audit/T53-linux-e2e-2026-10-10.log",
+        "docs/features/editor-ux/test-plan.md",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
+      "source": "review-2026-10-10-r5"
     }
   ]
 }
