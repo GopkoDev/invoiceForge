@@ -214,6 +214,7 @@ Flow 3. It works for a source in **any** status, `CANCELLED` included (AC-06). T
 ### `getInvoiceEditorData(invoiceId?: string)` / `getInvoice(id)` ✎ (read side, flow 7)
 
 - `initialData` gains `version: number` ★, which the editor sends back as `loadedVersion`.
+- `storedAmounts` ★ (added by editor-ux, ADR-0002, AC-10): the subtotal, tax and total stored on the invoice, so an issued invoice's preview and PDF print them instead of recalculating from its lines. Absent for a new invoice. Additive.
 - `products` ✎: active products **plus every product referenced by the invoice's lines, active or not**, each with its `isActive`. The editor offers only `isActive` products for new lines and never removes a line automatically (AC-15).
 - `SerializedInvoice` already carries every `Invoice` column. The issued details (`sender*`, `customer*`, `bank*`, `accountName`) are what the editor's read-only blocks and the PDF print (AC-01–AC-03). Only the logo comes from the related `senderProfile.logo` (spec §3). After `version` is promoted, it appears in `SerializedInvoice` through the Prisma payload, with no type edit.
 - **PDF data (internal, `lib/helpers/invoice-pdf-helpers.tsx`) ✎:** the sender, Customer and bank blocks are built from the snapshot columns, not from `invoice.senderProfile`, `invoice.customer` or `invoice.bankAccount`. The bank block prints `bankName`, `accountName` and `bankAccountNumber`, plus `bankIban` and `bankSwift` when they are not empty (AC-03). A line whose product was deleted prints as free text (AC-16).

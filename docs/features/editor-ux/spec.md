@@ -240,7 +240,7 @@ Traceability and scope notes:
 ## 6.1 Security / privacy
 
 - **Data classification:** Confidential. The editor and lists show invoices with Customers' names, addresses and bank details.
-- **Personal data touched:** none new. No field is added, stored or sent anywhere new; only how existing data is loaded and displayed changes.
+- **Personal data touched:** none new. No field is added or stored; only how existing data is loaded and displayed changes. One value is sent anywhere new: the browser's time-zone name, in the functional `tz` cookie, which the sign-in pages now write for every Visitor, including one who never finishes signing in. The private layouts refresh after writing it only while the account has no saved zone (architecture-hardening ADR-0010, amendments of 2026-10-10). The privacy page names the cookie.
 - **AuthZ/AuthN impact:** no new roles, credentials or capabilities, and no server-side check changes. The editor must keep each Freelancer's invoice inside their own session in the browser: nothing from one signed-in visit may show in another (AC-07).
 - **Abuse cases:**
   - **Data left behind between sessions on a shared browser:** a later Freelancer in the same tab never sees an earlier one's invoice, even briefly (AC-07).
@@ -259,6 +259,6 @@ Traceability and scope notes:
 
 ## 8. Open questions
 
-- [ ] Should currencies that share a symbol (US, Canadian and Australian dollars) show their code on the PDF instead of "$"? Default now: the app's existing money format everywhere, identical on screen and in the PDF. — owner: Dmytro Hopko, due: before `sdd:design`
+- [x] Should currencies that share a symbol (US, Canadian and Australian dollars) show their code on the PDF instead of "$"? Default now: the app's existing money format everywhere, identical on screen and in the PDF. **Resolved 2026-10-10 (review r6 F4):** no change is needed. The format module already tells them apart: `formatMoney` uses `Intl.NumberFormat('en-US', { style: 'currency' })` (`lib/format/index.ts:9-16`), which prints "CA$" and "A$", and only USD prints a bare "$". The screen and the PDF share it (AC-09). — owner: Dmytro Hopko
 - [x] Should the automated accessibility check also cover the customers, products and sender profiles pages? **Resolved 2026-10-09 (plan-tests):** no — the check covers the editor, invoices list and dashboard only, as §3 and §6 set. — owner: Dmytro Hopko
 - [x] The Linux e2e proof for AC-15 (`_audit/T53-linux-e2e-2026-10-10.log`) ran on Node 24, while `package.json` engines and `.nvmrc` say Node 22. Deferred by review 2026-10-10-r4: re-run once on Node 22, or record the first green nightly (which uses `.nvmrc`) as the AC-15 evidence. **Resolved 2026-10-10 (T58):** `_audit/T58-linux-e2e-2026-10-10.log` ran plain `CI=1 pnpm test:e2e` twice on Node 22.23.3, green. — owner: Dmytro Hopko

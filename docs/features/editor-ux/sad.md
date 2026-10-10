@@ -110,7 +110,7 @@ C4Context
 
 ## 4. Solution strategy
 
-**Target surfaces:** `web-frontend` only — the dashboard, the lists, the editor, the PDF preview dialog and the PDF itself, all inside the existing Next.js app. The feature adds no endpoint, server action, business function, schema or migration (spec §6.1 "no field is added, stored or sent anywhere new"). Its server-side work stays inside the web app container: RSC pages hand the editor richer initial data (today's date in the Freelancer time zone) and signed-in pages get response headers (§8). Inline, not an ADR: the gate scores 0 of 3 — a single surface, reversible, and no real alternative once no contract changes. Downstream: `data-model` and `api` have nothing to derive (no schema or contract change).
+**Target surfaces:** `web-frontend` only — the dashboard, the lists, the editor, the PDF preview dialog and the PDF itself, all inside the existing Next.js app. The feature adds no endpoint, server action, business function, schema or migration (spec §6.1 "no field is added or stored"). One server action result changes, additively: `getInvoiceEditorData` also returns `storedAmounts`, the subtotal, tax and total stored on the invoice, so an issued invoice's preview and PDF print them (ADR-0002, AC-10; recorded in invoice-integrity `contracts/server-actions.md`). Its server-side work stays inside the web app container: RSC pages hand the editor richer initial data (today's date in the Freelancer time zone) and signed-in pages get response headers (§8). Inline, not an ADR: the gate scores 0 of 3 — a single surface, reversible, and no real alternative once no contract changes. Downstream: `data-model` and `api` have nothing to derive (no schema or contract change).
 
 **Top strategic choices (the seeds for ADRs):**
 
@@ -407,7 +407,12 @@ sequenceDiagram
     UI->>S: requests the signed-in page again
     S-->>UI: no session, redirect to sign in
     UI-->>U: sign-in page, none of A's data
+    Note over UI: the sign-in page writes the tz cookie (the browser's time zone), with no refresh (architecture-hardening ADR-0010, amendment T57)
     U->>S: Freelancer B signs in in the same tab
+    S->>D: the private layout reads whether B's account has a saved zone
+    opt no saved zone, and the tz cookie is missing or stale
+        UI->>UI: writes the tz cookie and refreshes once, which seeds B's zone (ADR-0010, amendment T60)
+    end
     U->>UI: B opens the editor, or goes Back and Forward
     UI->>S: requests the page, nothing reused from the browser cache
     alt the address of A's invoice
