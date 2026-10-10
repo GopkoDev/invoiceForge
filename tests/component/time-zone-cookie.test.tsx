@@ -110,3 +110,52 @@ describe('TimeZoneCookie (component, AC-27)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+// T57 (review r4 P5; spec.md §5 AC-07, AC-08): the sign-in pages write the cookie WITHOUT a
+// router.refresh(), so the zone is already current when the Sign-in link lands on a private page and
+// the private layout has nothing to refresh. A refresh there could be cancelled by the Freelancer's
+// first navigation (WebKit), and Next.js answered that with a full load of /dashboard.
+describe('TimeZoneCookie refresh={false} (T57, sign-in pages)', () => {
+  beforeEach(() => {
+    refresh.mockReset();
+    clearDocumentCookies();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    clearDocumentCookies();
+  });
+
+  it('writes the missing tz cookie and never calls router.refresh()', () => {
+    stubBrowserTimeZone('Europe/Kyiv');
+    const setterSpy = vi.spyOn(document, 'cookie', 'set');
+
+    render(<TimeZoneCookie refresh={false} />);
+
+    expect(setterSpy).toHaveBeenCalledWith(
+      'tz=Europe/Kyiv; path=/; max-age=31536000; SameSite=Lax',
+    );
+    expect(readCookie('tz')).toBe('Europe/Kyiv');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('updates a stale tz cookie and never calls router.refresh()', () => {
+    stubBrowserTimeZone('Europe/Kyiv');
+    document.cookie = 'tz=UTC; path=/; max-age=31536000; SameSite=Lax';
+
+    render(<TimeZoneCookie refresh={false} />);
+
+    expect(readCookie('tz')).toBe('Europe/Kyiv');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('after a sign-in page wrote the cookie, the private TimeZoneCookie does not refresh', () => {
+    stubBrowserTimeZone('Europe/Kyiv');
+
+    const signInPage = render(<TimeZoneCookie refresh={false} />);
+    signInPage.unmount();
+    render(<TimeZoneCookie />);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});

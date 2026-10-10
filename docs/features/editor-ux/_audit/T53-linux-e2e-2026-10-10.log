@@ -33,7 +33,7 @@ us03-status-lifecycle passed in this run (it failed in T46 run 1; its cause is b
    fetch was sent. WebKit cancels the in-flight fetch when the new navigation starts; the trace has the page's own console line
    "Failed to fetch RSC payload for http://127.0.0.1:4311/dashboard. Falling back to browser navigation. TypeError: Load failed", 0.27 s after the goto began, and
    Next.js answers a failed RSC fetch with a full navigation to that URL (next/dist/client/components/router-reducer/fetch-server-response.js), which interrupts the goto.
-   Not a product bug: a person never navigates in the same tick as the first hydration. Fix: tests/e2e/support/genuine-session.ts now, when the browser's zone is not yet in
+   [Corrected by T57 (review r4 P5): it IS a product bug; the window lasts a network round trip, not one tick, and a Freelancer's first navigation could be lost. T57 fixes it in the product and removes this harness wait.] Fix: tests/e2e/support/genuine-session.ts now, when the browser's zone is not yet in
    the `tz` cookie, waits for that router.refresh() request (an RSC request that is neither a prefetch nor a server action) to finish, or, if it fails, for the full load
    Next.js does instead. Chromium kept the fetch alive, which is why only WebKit showed it.
 2. session-isolation-bfcache 292/311 "the back/forward cache is not live in this run (/privacy: IgnoreEventAndEvict | NetworkRequestRedirected)".

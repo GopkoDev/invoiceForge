@@ -45,6 +45,11 @@ The invoice list and the dashboard are server-rendered, and the server doesn't k
 **Neutral**
 - Promoting it to an account setting later would be additive, but it is a new capability outside this feature.
 
+**Amendment (2026-10-10, editor-ux T57, review r4 P5)**
+- The sign-in pages (the `(auth)` layout: /login, /verify-request, the sign-in error page) also write the `tz` cookie, without a refresh. They render nothing that depends on the zone.
+- Why: on the first sign-in the private layout wrote the cookie and called `router.refresh()`. In WebKit, a navigation started during that round trip cancelled the refresh fetch. Next.js then did a full load of the landing page, and the Freelancer's navigation was lost. Now the cookie is already current when the Sign-in link lands, so the private layout does not refresh, and the first private request seeds the account zone (mcp-server ADR-0006) from the right value.
+- The private layouts still write the cookie and refresh once when it is missing or stale. This covers a Sign-in link opened in a different browser, and a changed device zone. In that rarer case the race can still happen. How the server reads the cookie is unchanged.
+
 ## Links
 
 - Spec: [[../spec.md]] AC-25, AC-27

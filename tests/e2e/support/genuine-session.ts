@@ -6,7 +6,7 @@
 //   - Preview run (BASE_URL set): the link arrives in a real mailbox; paste it into the file named
 //     by E2E_SIGNIN_LINK_FILE while the helper waits (see ship-notes.md).
 import fs from 'node:fs';
-import { expect, type Page, type Request } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { APP_E2E_URL, readE2eRuntime } from './app-server';
 
 const LINK_WAIT_MS = 120_000;
@@ -72,6 +72,33 @@ export async function signInWithSignInLink(
   email: string,
   options: { from?: string } = {}
 ): Promise<void> {
+  const link = await requestSignInLink(page, email, options);
+  // T57 (review r4 P5): the sign-in pages wrote the browser zone into the `tz` cookie, so the
+  // private page the link lands on has no time-zone refresh for the caller's next navigation to
+  // cancel (T53 used to wait that refresh out here).
+  expect(
+    await zoneCookieIsCurrent(page),
+    'the sign-in pages must have written the browser zone into the tz cookie'
+  ).toBe(true);
+  await page.goto(link);
+  await expect(
+    page,
+    'the Sign-in link must land on a private page'
+  ).not.toHaveURL(/\/(login|error|verify-request)/);
+  // The landing page finishes loading (and any redirect behind it settles) before the caller
+  // navigates on.
+  await page.waitForLoadState('networkidle');
+}
+
+/**
+ * Drives /login like a Freelancer (gate, address, Continue), waits on /verify-request, and returns
+ * the mailed Sign-in link without opening it.
+ */
+export async function requestSignInLink(
+  page: Page,
+  email: string,
+  options: { from?: string } = {}
+): Promise<string> {
   if (process.env.E2E_SIGNIN_LINK_FILE)
     fs.rmSync(process.env.E2E_SIGNIN_LINK_FILE, { force: true });
   const requestedAt = Date.now();
@@ -83,82 +110,14 @@ export async function signInWithSignInLink(
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL('**/verify-request**');
 
-  const link = await waitForLink(email, requestedAt);
-  const zoneRefresh = (await zoneCookieIsCurrent(page))
-    ? Promise.resolve()
-    : zoneRefreshSettled(page);
-  // T56 (review r4 P4): if the goto below throws, nobody awaits this; its timer must not reject
-  // unhandled into a later test. The original promise is still awaited at the end.
-  zoneRefresh.catch(() => {});
-  await page.goto(link);
-  await expect(
-    page,
-    'the Sign-in link must land on a private page'
-  ).not.toHaveURL(/\/(login|error|verify-request)/);
-  // The landing page finishes loading (and any redirect behind it settles) before the caller
-  // navigates on.
-  await page.waitForLoadState('networkidle');
-  // T53 (review r3 R3): network idle can come before the landing page has hydrated on a busy
-  // machine. The private layout's TimeZoneCookie then writes the `tz` cookie and calls
-  // router.refresh() just as the caller's next page.goto starts. WebKit cancels that refresh
-  // fetch ("Load failed"), and Next.js answers a failed RSC fetch with a full navigation to the
-  // landing page, which interrupts the caller's goto ("interrupted by another navigation to
-  // /dashboard"). So the sign-in is done only once that refresh has come back.
-  await zoneRefresh;
+  return waitForLink(email, requestedAt);
 }
 
-/** The browser's zone is already in the `tz` cookie, so the landing page will not refresh. */
+/** The browser's zone is already in the `tz` cookie, so the private landing page will not refresh. */
 async function zoneCookieIsCurrent(page: Page): Promise<boolean> {
   const browserZone = await page.evaluate(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const cookies = await page.context().cookies(APP_E2E_URL);
   return cookies.some((c) => c.name === 'tz' && c.value === browserZone);
-}
-
-const ZONE_REFRESH_WAIT_MS = 60_000;
-
-/** A router.refresh() fetch: an RSC request that is neither a prefetch nor a server action. */
-function isRouterRefresh(request: Request): boolean {
-  const headers = request.headers();
-  return (
-    headers['rsc'] === '1' &&
-    !headers['next-router-prefetch'] &&
-    !headers['next-action']
-  );
-}
-
-/**
- * Resolves once the landing page's time-zone refresh (components/time-zone-cookie.tsx) has
- * finished. If the fetch fails, Next.js loads the page again in full; that load is waited for.
- */
-function zoneRefreshSettled(page: Page): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      stop();
-      reject(
-        new Error(
-          `the landing page's time-zone refresh did not finish within ${ZONE_REFRESH_WAIT_MS / 1000}s`
-        )
-      );
-    }, ZONE_REFRESH_WAIT_MS);
-    const finished = (request: Request) => {
-      if (!isRouterRefresh(request)) return;
-      stop();
-      resolve();
-    };
-    const failed = (request: Request) => {
-      if (!isRouterRefresh(request)) return;
-      stop();
-      page.waitForEvent('load').then(() => resolve(), reject);
-    };
-    function stop() {
-      clearTimeout(timer);
-      page.off('requestfinished', finished);
-      page.off('requestfailed', failed);
-    }
-    page.on('requestfinished', finished);
-    page.on('requestfailed', failed);
-    page.once('close', stop);
-  });
 }

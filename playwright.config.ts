@@ -37,9 +37,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
-      // WebKit runs only the session-isolation proof, not the whole suite.
+      // WebKit runs only the session-isolation proof and the first-navigation-after-sign-in proof
+      // (T57: WebKit is the browser that cancelled the sign-in time-zone refresh), not the whole suite.
       name: 'webkit',
-      testMatch: '**/session-isolation.spec.ts',
+      testMatch: ['**/session-isolation.spec.ts', '**/first-navigation-after-sign-in.spec.ts'],
       use: { ...devices['Desktop Safari'] },
     },
   ],

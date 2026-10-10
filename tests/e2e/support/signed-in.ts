@@ -30,7 +30,7 @@ export interface SignedInFreelancer {
  * untouched). A redirect is followed here and the browser's address is set to where it ended
  * (WebKit does not route a redirect's target itself).
  */
-async function allowPlainHttpOnWebKit(
+export async function allowPlainHttpOnWebKit(
   browser: Browser,
   context: BrowserContext
 ): Promise<void> {
