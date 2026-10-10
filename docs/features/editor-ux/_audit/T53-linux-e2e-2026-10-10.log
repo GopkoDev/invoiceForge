@@ -219,8 +219,9 @@ No change is in the editor layout itself: every difference comes from the pre-fi
 == Owner review: pending ==
 T67 (2a5df97) re-took all four baselines again because the cookie banner's text changed (T66): only the banner line differs, plus a scrollbar thumb on the
 existing-invoice phone image; see _audit/T67-linux-e2e-2026-10-10.log. T71 (review r7) rebuilt the review images against bd2278c, so every *.new.png is
-byte-identical to the baseline CI compares, and added images for the existing-invoice phone baseline (d40c9aa -> HEAD: the banner text only).
-The owner must look at the old/new/diff images of these four files (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
+byte-identical to the baseline CI compares, and added images for the existing-invoice phone baseline (d40c9aa -> HEAD: the cookie banner, rows 737-843, and the vanished overlay scrollbar thumb
+at x 382-388, rows 62-278; nothing else). T73 (review r8) added an exact-diff image per baseline, red wherever any byte differs, because the 0.2-threshold diff hides the thumb.
+The owner must look at the old/new/diff/exact-diff images of these four files (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-desktop-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-phone-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-desktop-chromium-linux.png

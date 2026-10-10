@@ -1,4 +1,4 @@
-// Rebuilds the old / new / diff PNGs of the four layout baselines (see README.md).
+// Rebuilds the old / new / diff / exact-diff PNGs of the four layout baselines (see README.md).
 // Usage (repo root): node docs/features/editor-ux/_audit/T58-layout-baselines/build.mjs [oldRev=d40c9aa] [newRev=HEAD]
 // Needs only what is already in node_modules: the pngjs that ships inside playwright-core.
 import { execFileSync } from 'node:child_process';
@@ -47,24 +47,32 @@ for (const n of names) {
   const o = PNG.sync.read(oBuf), w = PNG.sync.read(nBuf);
   const W = Math.max(o.width, w.width), H = Math.max(o.height, w.height);
   const diff = new PNG({ width: W, height: H });
-  let bad = 0;
+  const exact = new PNG({ width: W, height: H });
+  let bad = 0, exactBad = 0;
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const p = (y * W + x) * 4;
       const inO = x < o.width && y < o.height, inN = x < w.width && y < w.height;
-      let differs;
-      if (inO && inN) differs = delta(o.data, (y * o.width + x) * 4, w.data, (y * w.width + x) * 4) > maxDelta;
-      else differs = true;
+      let differs, differsExact;
+      if (inO && inN) {
+        const oi = (y * o.width + x) * 4, ni = (y * w.width + x) * 4;
+        differs = delta(o.data, oi, w.data, ni) > maxDelta;
+        differsExact = [0, 1, 2, 3].some((k) => o.data[oi + k] !== w.data[ni + k]);
+      } else differs = differsExact = true;
+      const g = inN ? Math.round(255 - (255 - w.data[(y * w.width + x) * 4 + 1]) * 0.25) : 255;
+      if (differsExact) {
+        exactBad++;
+        exact.data.set([255, 0, 0, 255], p);
+      } else exact.data.set([g, g, g, 255], p);
       if (differs) {
         bad++;
         diff.data.set([255, 0, 0, 255], p);
-      } else {
-        const g = inN ? Math.round(255 - (255 - w.data[(y * w.width + x) * 4 + 1]) * 0.25) : 255;
-        diff.data.set([g, g, g, 255], p);
-      }
+      } else diff.data.set([g, g, g, 255], p);
     }
   writeFileSync(join(here, `${n}.diff.png`), PNG.sync.write(diff));
-  const line = `${n}: old ${o.width}x${o.height}, new ${w.width}x${w.height}, ${((bad / (W * H)) * 100).toFixed(2)}% of pixels differ (${bad} of ${W * H})`;
+  writeFileSync(join(here, `${n}.exact-diff.png`), PNG.sync.write(exact));
+  const pct = (k) => ((k / (W * H)) * 100).toFixed(2);
+  const line = `${n}: old ${o.width}x${o.height}, new ${w.width}x${w.height}, ${pct(bad)}% of pixels differ at threshold 0.2 (${bad} of ${W * H}), ${pct(exactBad)}% exactly (${exactBad})`;
   console.log(line);
   out.push(line);
 }
