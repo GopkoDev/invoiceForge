@@ -41,6 +41,26 @@ async function markQuantityNode(page: Page): Promise<void> {
 const nodeKept = (page: Page) =>
   quantity(page).evaluate((el) => (el as unknown as { __sameNode?: boolean }).__sameNode === true);
 
+/**
+ * T56 (review r4 P3): the positive signal that a Save's revalidated tree has been applied. The
+ * server action answer carries the refreshed route tree (updateInvoice revalidates the edit path),
+ * and React commits it in a transition after the toast shows. So: the network is idle (no refresh
+ * fetch in flight), then two animation frames and a task have passed inside the page, so any commit
+ * the answer started has painted. Only after this is "the node was not rebuilt" worth reading.
+ */
+async function treeCommitted(page: Page): Promise<void> {
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => setTimeout(resolve, 0))
+        )
+      )
+  );
+  await page.waitForLoadState('networkidle');
+}
+
 /** Waits until the edit page's editor has replaced the new-invoice editor's DOM (marked before). */
 async function waitForEditPageEditor(page: Page): Promise<string> {
   await page.waitForURL(/\/invoices\/[^/]+\/edit$/, UI);
@@ -140,6 +160,7 @@ for (const way of ['save', 'retry'] as const) {
 
       await expect(quantity(page)).toHaveValue('7');
       await expect(page.getByText('Unsaved', { exact: true })).toBeVisible();
+      await treeCommitted(page);
       expect(await nodeKept(page)).toBe(true);
       expect(new URL(page.url()).pathname).toBe(protectedRoutes.invoiceEdit(id));
 
@@ -182,6 +203,7 @@ for (const way of ['save', 'retry'] as const) {
       await expect(
         page.getByText('Your latest changes were not saved because the invoice is now issued.')
       ).toBeVisible();
+      await treeCommitted(page);
       expect(await nodeKept(page)).toBe(true);
     } finally {
       await f.context.close();

@@ -172,6 +172,7 @@ function afterHydrationRequestsEnded(page: Page): Promise<void> {
       page.off('requestfinished', finished);
       page.off('requestfailed', failed);
     }
+    page.once('close', stop);
     page.on('framenavigated', navigated);
     page.on('request', started);
     page.on('requestfinished', finished);
@@ -232,6 +233,7 @@ async function expectBfcacheLive(browser: Browser): Promise<void> {
     const page = await context.newPage();
     const w = await watch(context, page, []);
     const privacySettled = afterHydrationRequestsEnded(page);
+    privacySettled.catch(() => {}); // T56 (r4 P4): no unhandled rejection if a step before the await throws
     await page.goto(`${APP_E2E_URL}${legalRoutes.privacy}`);
     await privacySettled;
     expect(
@@ -302,6 +304,7 @@ async function backToAsEditor(
     const w = await watch(context, page, [number, CUSTOMER_A]);
 
     const editorSettled = afterHydrationRequestsEnded(page);
+    editorSettled.catch(() => {}); // T56 (r4 P4): no unhandled rejection if a step before the await throws
     const editorDoc = page.waitForResponse(
       (r) =>
         r.request().resourceType() === 'document' && r.url().includes('/edit')

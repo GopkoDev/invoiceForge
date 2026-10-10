@@ -87,6 +87,9 @@ export async function signInWithSignInLink(
   const zoneRefresh = (await zoneCookieIsCurrent(page))
     ? Promise.resolve()
     : zoneRefreshSettled(page);
+  // T56 (review r4 P4): if the goto below throws, nobody awaits this; its timer must not reject
+  // unhandled into a later test. The original promise is still awaited at the end.
+  zoneRefresh.catch(() => {});
   await page.goto(link);
   await expect(
     page,
@@ -156,5 +159,6 @@ function zoneRefreshSettled(page: Page): Promise<void> {
     }
     page.on('requestfinished', finished);
     page.on('requestfailed', failed);
+    page.once('close', stop);
   });
 }
