@@ -1,6 +1,8 @@
 # End-to-end tests
 
 Run them with `pnpm test:e2e` (a production build against a throwaway Postgres container; Docker is required).
+With `CI` set (`CI=1 pnpm test:e2e`, which is what the nightly workflow runs) `playwright.config.ts` uses two workers;
+without it Playwright's default (half the CPUs) applies.
 
 ## Layout baselines
 

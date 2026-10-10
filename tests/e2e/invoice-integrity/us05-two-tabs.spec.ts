@@ -9,6 +9,7 @@ import {
   notesField,
   openEditor,
   openInvoiceList,
+  untilServerActionDone,
 } from '../support/invoice-ui';
 
 test.describe.configure({ timeout: 240_000 });
@@ -31,7 +32,9 @@ test('AC-10: a stale editor save opens the changed-elsewhere dialog and stores n
     // Tab 2: the list marks it paid.
     const listTab = await context.newPage();
     await openInvoiceList(listTab);
-    await chooseRowAction(listTab, invoiceNumber, 'Mark as Paid');
+    await untilServerActionDone(listTab, () =>
+      chooseRowAction(listTab, invoiceNumber, 'Mark as Paid')
+    );
     await expect(listRow(listTab, invoiceNumber)).toContainText('Paid');
     await listTab.close();
 

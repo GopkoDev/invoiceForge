@@ -20,6 +20,10 @@ export default defineConfig({
   snapshotPathTemplate: `{testDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}-${SNAPSHOT_PLATFORM}{ext}`,
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
+  // T53 (review r3 R3): on CI (and with CI=1, as the README runs it) two workers, so the plain
+  // `pnpm test:e2e` is the command that passes and every machine runs the same load. Local runs
+  // keep Playwright's default (half the CPUs). This is a guard; the races it once hid are fixed.
+  workers: process.env.CI ? 2 : undefined,
   reporter: [['list']],
   use: {
     baseURL: BASE_URL_OVERRIDE ?? `http://127.0.0.1:${PORT}`,

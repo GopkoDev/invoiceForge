@@ -14,7 +14,9 @@ import {
   expect,
   type Browser,
   type BrowserContext,
+  type Frame,
   type Page,
+  type Request,
   type TestInfo,
 } from '@playwright/test';
 import { openSignedInFreelancer } from './support/signed-in';
@@ -105,6 +107,78 @@ async function watch(
   return w;
 }
 
+// The root layout's Vercel Analytics and Speed Insights each load a script once the page has
+// hydrated. Locally the proxy redirects both to sign-in, so they end in a redirect or an error.
+const ANALYTICS_SCRIPTS = [
+  '/_vercel/insights/script.js',
+  '/_vercel/speed-insights/script.js',
+];
+const AFTER_HYDRATION_WAIT_MS = 60_000;
+
+function firstHop(request: Request): Request {
+  let hop = request;
+  for (let from = hop.redirectedFrom(); from; from = hop.redirectedFrom())
+    hop = from;
+  return hop;
+}
+
+/**
+ * T53 (review r3 R3): resolves once the next document in `page` has hydrated and its
+ * after-hydration requests (the two analytics scripts) have ended. Call it before the navigation.
+ * A page left before that is evicted from the cache: a request still in flight is redirected
+ * while the page is cached ("NetworkRequestRedirected"), or the page still runs hydration work
+ * ("IgnoreEventAndEvict"). On a busy machine `load` comes a second or more before either.
+ */
+function afterHydrationRequestsEnded(page: Page): Promise<void> {
+  const open = new Set(ANALYTICS_SCRIPTS);
+  // Only the requests of the document the coming navigation commits, not of the one it leaves.
+  let committed = false;
+  const ours = new WeakSet<Request>();
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      stop();
+      reject(
+        new Error(
+          `the page never finished loading ${[...open].join(', ')} within ${AFTER_HYDRATION_WAIT_MS / 1000}s`
+        )
+      );
+    }, AFTER_HYDRATION_WAIT_MS);
+    const navigated = (frame: Frame) => {
+      if (frame === page.mainFrame()) committed = true;
+    };
+    const started = (request: Request) => {
+      if (committed && !request.redirectedFrom()) ours.add(request);
+    };
+    const ended = (request: Request, redirected: boolean) => {
+      if (redirected) return; // the next hop is still on its way
+      const first = firstHop(request);
+      if (!ours.has(first)) return;
+      open.delete(new URL(first.url()).pathname);
+      if (open.size > 0) return;
+      stop();
+      resolve();
+    };
+    const finished = (request: Request) => {
+      void request.response().then((response) => {
+        const status = response?.status() ?? 0;
+        ended(request, status >= 300 && status < 400);
+      }, reject);
+    };
+    const failed = (request: Request) => ended(request, false);
+    function stop() {
+      clearTimeout(timer);
+      page.off('framenavigated', navigated);
+      page.off('request', started);
+      page.off('requestfinished', finished);
+      page.off('requestfailed', failed);
+    }
+    page.on('framenavigated', navigated);
+    page.on('request', started);
+    page.on('requestfinished', finished);
+    page.on('requestfailed', failed);
+  });
+}
+
 /** Lets a painted frame of the current document be checked (and its report delivered). */
 async function settleFrames(page: Page): Promise<void> {
   await page.evaluate(
@@ -157,7 +231,9 @@ async function expectBfcacheLive(browser: Browser): Promise<void> {
   try {
     const page = await context.newPage();
     const w = await watch(context, page, []);
+    const privacySettled = afterHydrationRequestsEnded(page);
     await page.goto(`${APP_E2E_URL}${legalRoutes.privacy}`);
+    await privacySettled;
     expect(
       (await page.request.head(page.url())).headers()['cache-control'] ?? '',
       'the control page must be cacheable'
@@ -225,6 +301,7 @@ async function backToAsEditor(
     const number = a.workspace.invoiceNumber;
     const w = await watch(context, page, [number, CUSTOMER_A]);
 
+    const editorSettled = afterHydrationRequestsEnded(page);
     const editorDoc = page.waitForResponse(
       (r) =>
         r.request().resourceType() === 'document' && r.url().includes('/edit')
@@ -236,6 +313,7 @@ async function backToAsEditor(
     const editorPathA = new URL(page.url()).pathname;
     // A response still streaming into a cached page evicts it (NetworkExceedsBufferLimit); A
     // leaves an editor that has finished loading, so whether it is kept depends on the headers.
+    await editorSettled;
     await page.waitForLoadState('networkidle');
     await settleFrames(page);
 

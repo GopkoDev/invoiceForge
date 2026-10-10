@@ -10,6 +10,7 @@ import {
   openEditor,
   openInvoiceList,
   rowMenuItem,
+  untilServerActionDone,
 } from '../support/invoice-ui';
 
 test.describe.configure({ timeout: 240_000 });
@@ -28,7 +29,9 @@ test('AC-04: mark paid shows the payment date, undo to pending clears it', async
     const row = listRow(page, invoiceNumber);
     await expect(row).toContainText('Pending');
 
-    await chooseRowAction(page, invoiceNumber, 'Mark as Paid');
+    await untilServerActionDone(page, () =>
+      chooseRowAction(page, invoiceNumber, 'Mark as Paid')
+    );
     await expect(row).toContainText('Paid');
     await expect(row).not.toContainText('Pending');
     // The badge carries the payment date.
@@ -40,7 +43,9 @@ test('AC-04: mark paid shows the payment date, undo to pending clears it', async
     // A paid row offers the undo to pending, never a move back to draft.
     await (await rowMenuItem(page, invoiceNumber, /Mark as Pending/)).waitFor();
     await expect(page.getByRole('menuitem', { name: /draft/i })).toHaveCount(0);
-    await page.getByRole('menuitem', { name: /Mark as Pending/ }).click();
+    await untilServerActionDone(page, () =>
+      page.getByRole('menuitem', { name: /Mark as Pending/ }).click()
+    );
 
     await expect(row).toContainText('Pending');
     await expect(row).not.toContainText('Paid');
@@ -76,7 +81,9 @@ test('AC-06: cancelling asks for confirmation (SCR-04) and, once confirmed, the 
     expect((await readStoredInvoice(invoiceId)).status).toBe('PENDING');
 
     await chooseRowAction(page, invoiceNumber, 'Cancel Invoice');
-    await page.getByRole('dialog').getByRole('button', { name: 'Cancel invoice' }).click();
+    await untilServerActionDone(page, () =>
+      page.getByRole('dialog').getByRole('button', { name: 'Cancel invoice' }).click()
+    );
     await expect(row).toContainText('Cancelled');
     expect((await readStoredInvoice(invoiceId)).status).toBe('CANCELLED');
   } finally {
@@ -116,7 +123,7 @@ test('AC-06: a cancelled invoice is read-only, its row offers four actions, and 
 
     // Duplicate: a new draft, fully editable; the cancelled source stays cancelled.
     await openInvoiceList(page);
-    await chooseRowAction(page, invoiceNumber, 'Duplicate');
+    await untilServerActionDone(page, () => chooseRowAction(page, invoiceNumber, 'Duplicate'));
     await expect(page.getByText(/Duplicated as /)).toBeVisible();
     const draftRow = page.getByRole('row').filter({ hasText: 'Draft' });
     await expect(draftRow).toHaveCount(1);
