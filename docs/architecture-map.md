@@ -98,7 +98,7 @@ C4Container
 - **Design tokens:** OKLch CSS variables in `:root` (`app/globals.css:51`) and `.dark` (`app/globals.css:86`), mapped into Tailwind via `@theme inline` (`app/globals.css:7`); radius, sidebar and chart tokens included.
 - **Styling approach:** Tailwind CSS 4 + `tw-animate-css`, class merging via `cn()` (clsx + tailwind-merge) — `lib/utils.ts`; prettier-plugin-tailwindcss sorts classes.
 - **Theming:** `next-themes` via `components/theme-provider.tsx`, mounted at `app/layout.tsx:109`.
-- **Shared primitives:** Button, Card, Input, Field, InputGroup, Select, Combobox, Command, Dialog, AlertDialog, Drawer, Sheet, Popover, Tabs, Table, Pagination, Calendar, Chart, Sidebar, Skeleton, Empty, Spinner, Sonner (toasts), … — `components/ui/`.
+- **Shared primitives:** Button, Card, Input, Field, InputGroup, Select, Combobox, Command, Dialog, AlertDialog, Sheet, Popover, Tabs, Table, Pagination, Calendar, Chart, Sidebar, Skeleton, Empty, Spinner, Sonner (toasts), … — `components/ui/`.
 - **State / data-fetching:** server data via RSC + server actions (no client cache lib); client state in zustand — `store/use-modal-store.ts:18` (typed modal registry), `store/invoice-editor-store/use-invoice-editor-store.ts`.
 - **Forms / tables / PDF:** react-hook-form + zod (`components/customers/customer-form.tsx:51`); TanStack Table (`components/invoices/invoices-data-table.tsx:190`); PDF built client-side with `pdf(doc).toBlob()` (`lib/helpers/invoice-pdf-helpers.tsx:133`).
 - **Load error state:** `LoadError` (`components/layout/content-area/load-error.tsx`) is the plain-language "couldn't load your data" state every segment `error.tsx` renders.

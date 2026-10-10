@@ -8,13 +8,13 @@
 // RED (F-47 not yet fixed): components/invoice-editor/invoice-editor.tsx passes
 // `onClose={confirmationModal.close}` directly instead of `confirmationModal.props.onClose`.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InvoiceEditor } from '@/components/invoice-editor/invoice-editor';
 import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 
 vi.mock('@/components/invoice-editor/invoice-editor-header', () => ({
-  InvoiceEditorHeader: () => null,
+  InvoiceEditorHeader: () => <div data-testid="editor-header" />,
 }));
 vi.mock('@/components/invoice-editor/pdf-preview-panel', () => ({
   PDFPreviewPanel: () => null,
@@ -92,8 +92,11 @@ describe('ConfirmationModal mounting + onClose wiring (T40 F-47, editor-ux T5 AC
 
   it('InvoiceEditor itself no longer renders the confirmation dialog', async () => {
     render(<InvoiceEditor />);
-    // allow the lazy dynamic() import to resolve if it were still mounted
-    await new Promise((r) => setTimeout(r, 200));
+    // Positive signal first: the editor has rendered its header, so the absence below is not
+    // read before anything rendered.
+    await waitFor(() => expect(screen.getByTestId('editor-header')).toBeTruthy());
+    // Settle every pending lazy dynamic() import deterministically instead of a fixed sleep.
+    await vi.dynamicImportSettled();
 
     expect(screen.queryByText('Confirm the new total')).toBeNull();
   });

@@ -218,6 +218,8 @@ Traceability and scope notes:
 **When** they look for UI components, packages and the theme switcher
 **Then** every UI component in the shared component folder is used by the app, no package is installed only for a removed component, the deprecated identifier type package is removed, and the identifier helpers rely on the platform rather than a separate package. There is exactly one theme switcher; the landing page and the signed-in app both use it and it behaves the same in both. Every dialog in the invoice editor, the save confirmation included, is placed with the editor's other dialogs, as dialogs are in every other part of the app, and still behaves as before. The app builds, and lint and every automated test pass
 
+<!-- clarified 2026-10-10 by review-2026-10-10 T37 (owner: Dmytro Hopko): the phone "View PDF" sheet is the narrow-screen form of the preview panel (ADR-0004), part of the layout, not an editor dialog. -->
+
 ## 6. Non-functional requirements
 
 | Aspect | Target | Measurement |
