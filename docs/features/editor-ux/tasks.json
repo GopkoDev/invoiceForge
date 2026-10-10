@@ -699,7 +699,7 @@
       "acs": [
         "AC-07"
       ],
-      "dod": "Review 2026-10-10 T-e (bfcache part) fixed. An e2e runs Chromium with the back/forward cache enabled (Playwright's default --disable-back-forward-cache removed) and first asserts a control: a page without no-store IS restored from bfcache (pageshow persisted=true), so the run is not vacuous. Then A's editor, sign-out, B signs in, Back to A's editor: no frame shows A's invoice data. Removing Cache-Control no-store in proxy.ts together with disabling SessionRestoreGuard turns the test red; each alone is recorded.",
+      "dod": "Review 2026-10-10 T-e (bfcache part) fixed. An e2e runs full Chromium (channel 'chromium') with the back/forward cache enabled and first asserts a control: a page without no-store IS restored from bfcache (pageshow persisted=true), so the run is not vacuous. Test 1 (app as served): A's editor, sign-out, B signs in, Back to A's editor: the editor carries no-store, is not restored, and no frame shows A's invoice data. Test 2 (guard alone): with Cache-Control stripped in the browser, A's editor is restored and SessionRestoreGuard keeps A's data off screen; disabling the guard turns it red. Removing proxy.ts no-store alone stays green because Next.js also sends no-store on the dynamic editor page (recorded).",
       "files_hint": [
         "tests/e2e/session-isolation-bfcache.spec.ts",
         "playwright.config.ts"
