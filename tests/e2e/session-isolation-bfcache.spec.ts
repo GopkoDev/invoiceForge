@@ -309,6 +309,7 @@ async function backToAsEditor(
       (r) =>
         r.request().resourceType() === 'document' && r.url().includes('/edit')
     );
+    editorDoc.catch(() => {}); // T63 (r5 Q4a): same, if openEditor throws and the context closes
     await openEditor(page, a.workspace.invoiceId);
     const editorCacheControl =
       (await editorDoc).headers()['cache-control'] ?? '';
