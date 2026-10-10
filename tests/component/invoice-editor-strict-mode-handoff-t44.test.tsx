@@ -5,18 +5,24 @@
 //  - the live store of a just-created invoice is handed to the edit page's provider only for the same
 //    Freelancer and the same invoice; an offer nobody takes is disposed and never adopted later; the
 //    provider that adopted it disposes it when it unmounts.
+// editor-ux T49 (review r3 R2, F2): the swap to the edit page goes through useRouter().replace with
+// { scroll: false }, decided by "this editor started as new and its store now has an id" (not by the
+// address); a store adopted under StrictMode keeps the save in flight; the focused field and its
+// caret come back on the edit page's editor.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useInvoiceEditor } from '@/store/invoice-editor-store/selectors';
+import { StrictMode, useEffect } from 'react';
 import type { InvoiceEditorData, InvoiceBankAccount, InvoiceCustomer, InvoiceFormData } from '@/types/invoice/types';
 
-const { updateInvoiceMock, createInvoiceMock } = vi.hoisted(() => ({
+const { updateInvoiceMock, createInvoiceMock, replaceMock } = vi.hoisted(() => ({
   updateInvoiceMock: vi.fn(),
   createInvoiceMock: vi.fn(),
+  replaceMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: replaceMock }),
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), dismiss: vi.fn() } }));
 vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
@@ -71,6 +77,7 @@ const hold = () => {
 beforeEach(() => {
   updateInvoiceMock.mockReset();
   createInvoiceMock.mockReset();
+  replaceMock.mockReset();
   window.history.replaceState(null, '', '/');
 });
 
@@ -184,5 +191,114 @@ describe('T38 hand-over of a created invoice\'s live store', () => {
     render(provider('edit-later', 'owner-1', editPageData(), later));
     expect(later.current).not.toBe(oldStore);
     expect(later.current!.getState().formData.notes).toBe('');
+  });
+});
+
+describe('T49 the swap to the edit page after a create', () => {
+  function Notes() {
+    const notes = useInvoiceEditor((s) => s.formData.notes);
+    const api = useInvoiceEditorStoreApi();
+    return (
+      <input
+        aria-label="Notes"
+        value={notes}
+        onChange={(e) => api.getState().updateFields({ notes: e.target.value })}
+      />
+    );
+  }
+  const Capture = ({ storeRef }: { storeRef: { current: StoreApi | null } }) => {
+    const store = useInvoiceEditorStoreApi();
+    useEffect(() => {
+      storeRef.current = store;
+    }, [storeRef, store]);
+    return null;
+  };
+  const page = (key: string, initial: InvoiceEditorData, api: { current: StoreApi | null }, strict = false) => {
+    const tree = (
+      <InvoiceEditorProvider key={key} ownerId="owner-t49" initial={initial}>
+        <Capture storeRef={api} />
+        <Notes />
+      </InvoiceEditorProvider>
+    );
+    return strict ? <StrictMode>{tree}</StrictMode> : tree;
+  };
+
+  it('asks the router to replace the address with the edit page, keeping the scroll, wherever the address already is', async () => {
+    // The address is not /invoices/new: the decision rests on the editor having started as new and
+    // its store now holding an id, not on the order of history.replaceState and the store update.
+    window.history.replaceState(null, '', '/somewhere-else');
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    render(page('new', newInvoiceData(), api));
+    await act(async () => {
+      await api.current!.getState().save('save');
+    });
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
+    expect(replaceMock).toHaveBeenCalledWith('/invoices/inv-new/edit', { scroll: false });
+  });
+
+  it('never moves an editor that opened an existing invoice', async () => {
+    updateInvoiceMock.mockResolvedValue({ ...saved, data: { ...saved.data, version: 2 } });
+    const api: { current: StoreApi | null } = { current: null };
+    render(page('edit', editPageData(), api));
+    await act(async () => {
+      await api.current!.getState().save('save');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it('under StrictMode, the adopted store keeps the save in flight: its result lands and isSaving ends false', async () => {
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    const view = render(page('new', newInvoiceData(), api, true));
+    const oldStore = api.current!;
+    await act(async () => {
+      await oldStore.getState().save('save');
+    });
+    act(() => oldStore.getState().updateFields({ notes: 'typed after the create' }));
+    const inFlight = hold();
+    updateInvoiceMock.mockReturnValueOnce(inFlight.promise);
+    act(() => {
+      void oldStore.getState().save('save');
+    });
+    await waitFor(() => expect(oldStore.getState().isSaving).toBe(true));
+
+    view.rerender(page('edit', editPageData(), api, true));
+    expect(api.current).toBe(oldStore);
+
+    await act(async () => {
+      inFlight.resolve({ ...saved, data: { ...saved.data, version: 2 } });
+      await inFlight.promise;
+    });
+    await waitFor(() => expect(oldStore.getState().isSaving).toBe(false));
+    // The update's answer reached the store: the row's version moved on.
+    expect(oldStore.getState().loadedVersion).toBe(2);
+    expect(oldStore.getState().formData.notes).toBe('typed after the create');
+    view.unmount();
+  });
+
+  it('puts the focus and the caret back on the same field of the edit page', async () => {
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    const view = render(page('new', newInvoiceData(), api));
+    await act(async () => {
+      await api.current!.getState().save('save');
+    });
+    act(() => api.current!.getState().updateFields({ notes: 'abcdef' }));
+    const before = view.getByLabelText('Notes') as HTMLInputElement;
+    before.focus();
+    before.setSelectionRange(2, 4);
+
+    view.rerender(page('edit', editPageData(), api));
+
+    const after = view.getByLabelText('Notes') as HTMLInputElement;
+    expect(after).not.toBe(before);
+    expect(after.value).toBe('abcdef');
+    expect(document.activeElement).toBe(after);
+    expect([after.selectionStart, after.selectionEnd]).toEqual([2, 4]);
+    view.unmount();
   });
 });

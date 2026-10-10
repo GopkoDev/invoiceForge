@@ -102,6 +102,8 @@ export function createInvoiceEditorStore(
     // result when it no longer matches, so a slow response for invoice A can never write A's id,
     // number or dates into the editor the Freelancer has since opened for something else.
     let sessionToken = 0;
+    // What the last dispose() changed, for resume(); any later initialize() or dispose() forgets it.
+    let undoDispose: { token: number; isSaving: boolean } | null = null;
     // The mount request runs once per store (StrictMode mounts twice); initialize() re-arms it.
     let hintRequested = false;
     const failureToast = { id: `invoice-save-failed-${++storeCount}`, shown: false };
@@ -121,6 +123,7 @@ export function createInvoiceEditorStore(
       // ============================================================
       initialize: (data: InvoiceEditorInitData) => {
         sessionToken += 1;
+        undoDispose = null;
         hintRequested = false;
         set(buildInitialState(data));
       },
@@ -128,12 +131,20 @@ export function createInvoiceEditorStore(
       // The editor was left: every in-flight save or Retry from before now fails the token check,
       // and the failure message offering Retry goes away with the page.
       dispose: () => {
+        undoDispose = { token: sessionToken, isSaving: get().isSaving };
         sessionToken += 1;
         // A save still in flight no longer clears this itself (its token is stale): a reused store
         // must not stay stuck on isSaving.
         set({ isSaving: false });
         if (failureToast.shown) toast.dismiss(failureToast.id);
         failureToast.shown = false;
+      },
+
+      resume: () => {
+        if (!undoDispose || sessionToken !== undoDispose.token + 1) return;
+        sessionToken = undoDispose.token;
+        set({ isSaving: undoDispose.isSaving });
+        undoDispose = null;
       },
 
       // Asks for the proposed number of a new invoice that opened with a sender profile. Whatever the

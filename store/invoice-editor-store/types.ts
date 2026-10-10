@@ -138,6 +138,11 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   initialize: (data: InvoiceEditorInitData) => void;
   /** The editor was left: drops every in-flight save and Retry and dismisses the failure message. */
   dispose: () => void;
+  /**
+   * Undoes the last dispose() when nothing re-initialized or disposed the store since: the same
+   * provider shows it again (StrictMode's mount, cleanup, mount), so work it started is its own again.
+   */
+  resume: () => void;
   updateField: <K extends keyof InvoiceFormData>(
     key: K,
     value: InvoiceFormData[K]

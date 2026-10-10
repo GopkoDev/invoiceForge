@@ -249,9 +249,10 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
         const result = await createInvoice(payload);
         if (result.success) {
           applySavedInvoice(result.data, submitted, revision, token);
-          // The invoice now has its own editing address: a reload opens it and the next save updates
-          // it. The native history API keeps Next's router in sync without remounting the page. Only
-          // while this editor is still the page shown: after leaving, the address is not ours.
+          // The invoice now has its own editing address, at once: a reload opens it and the next save
+          // updates it. This only rewrites the address; the provider moves Next's router to the edit
+          // page (router.replace), which mounts the edit page's editor on this same live store (T38,
+          // T49). Only while this editor is still the page shown: after leaving, the address is not ours.
           if (
             token === sessionToken() &&
             typeof window !== 'undefined' &&

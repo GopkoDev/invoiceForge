@@ -16,6 +16,11 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: (...args: unknown[]) => updateInvoiceMock(...args),
 }));
 
+// The provider reads Next's router (T49); these tests render it outside an app router.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+}));
+
 type ToastOpts = { id?: string | number; action?: { label: string; onClick: () => void } };
 const toastError = vi.fn<(msg: string, opts?: ToastOpts) => void>();
 const toastDismiss = vi.fn<(id?: string | number) => void>();
