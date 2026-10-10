@@ -116,6 +116,8 @@ const UNAUTHORIZED_BODY = {
 // CRON_SECRET bearer: without it, 401 and nothing purged (ADR-0007).
 const PUBLIC_REFUSALS: Record<string, number> = {
   [PURGE_LIMITS_CRON_PATH]: 401,
+  // The Assistant connection is public to the proxy (Bearer key only) and answers POST only: a plain GET is 405.
+  '/api/mcp': 405,
 };
 
 const PUBLIC_REDIRECTS: Record<string, string> = {

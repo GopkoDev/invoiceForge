@@ -36,7 +36,7 @@
 | T29 | Reword AC-01 and AC-02b for the HTML preview and remove the dead preview PDF action | docs | Dmytro Hopko | — | T28 | done |
 | T30 | Limit Cache-Control no-store to signed-in document and RSC responses | wiring | Dmytro Hopko | — | — | done |
 | T31 | Make the CI e2e job fail instead of skipping without Docker, add a nightly full e2e run, and harden the PDF chunk gate | tests | Dmytro Hopko | — | — | done |
-| T32 | Capture Linux layout baselines from main, cover a new invoice, and re-verify the README on a fresh clone including e2e | tests | Dmytro Hopko | — | T22 | todo |
+| T32 | Capture Linux layout baselines from main, cover a new invoice, and re-verify the README on a fresh clone including e2e | tests | Dmytro Hopko | — | T22 | done |
 | T33 | Prove AC-07 by navigating back to the earlier Freelancer's invoice, between two invoices, and by direct address after sign-out | tests | Dmytro Hopko | — | T30 | todo |
 | T34 | Extend the date matrix to the preview, the PDF and a new invoice's today, with hard-coded expectations | tests | Dmytro Hopko | — | T22, T27 | todo |
 | T35 | Prove money formatting independent of device language on the screens, and test parity against a really rendered PDF | tests | Dmytro Hopko | — | T23 | todo |

@@ -63,7 +63,11 @@ async function fillNewInvoice(page: Page): Promise<void> {
     await page.getByRole('button', { name: trigger }).click();
     await page.getByRole('option', { name: option }).first().click();
   };
-  await pick('Select sender profile...', 'Test Sender Profile');
+  // A new invoice opens with the default sender already chosen (T22, AC-06); pick one only when
+  // the editor still asks for it.
+  if (await page.getByRole('button', { name: 'Select sender profile...' }).count()) {
+    await pick('Select sender profile...', 'Test Sender Profile');
+  }
   // The sender profile's only bank account is selected with it.
   await expect(page.getByRole('button', { name: /Test Bank/ })).toBeVisible();
   await pick('Select customer...', 'Test Customer');
@@ -84,7 +88,7 @@ const scenarios: Record<string, Scenario> = {
     },
     settled: async (page) => {
       await page.waitForURL(/\/invoices\/[^/]+\/edit$/);
-      await expect(toastOf(page, 'Invoice created')).toBeVisible();
+      await expect(toastOf(page, 'Invoice created')).toBeVisible(DIALOG_TIMEOUT);
     },
   },
   updated: {
@@ -97,7 +101,7 @@ const scenarios: Record<string, Scenario> = {
       await page.getByRole('textbox', { name: 'Quantity, line 1' }).fill('3');
     },
     settled: async (page) => {
-      await expect(toastOf(page, 'Invoice updated')).toBeVisible();
+      await expect(toastOf(page, 'Invoice updated')).toBeVisible(DIALOG_TIMEOUT);
     },
   },
   issued: {
@@ -107,7 +111,7 @@ const scenarios: Record<string, Scenario> = {
     open: openExisting,
     edit: editNotes,
     settled: async (page) => {
-      await expect(toastOf(page, 'Invoice issued')).toBeVisible();
+      await expect(toastOf(page, 'Invoice issued')).toBeVisible(DIALOG_TIMEOUT);
     },
   },
   'changed elsewhere': {

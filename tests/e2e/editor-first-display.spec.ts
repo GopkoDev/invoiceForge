@@ -20,6 +20,9 @@ async function snapshot(page: Page) {
     // appears with JavaScript; neither is part of the editor's first display.
     body: (await page.locator('body').innerText())
       .replace(/\s+/g, ' ')
+      // The seeded logo is a data: URL, which the browser-side logo fetch refuses with a notice
+      // above the preview; like the percentage it appears only with JavaScript.
+      .replace(/ The logo [^.]*\. The PDF was made without it\./, '')
       .replace(/ \d+% (?=INVOICE )/, ' ')
       .replace(/ We use strictly necessary session cookies.*$/, ''),
   };

@@ -54,6 +54,8 @@ These need a database:
 - `pnpm test:integration` - needs PostgreSQL. It starts its own throwaway PostgreSQL container, so Docker must be running (the tests skip cleanly if Docker is absent). It never uses the database in your `.env`.
 - `pnpm test:e2e` - browser tests (Playwright; run `pnpm exec playwright install` once). The tests that need a database start their own throwaway PostgreSQL container too, so they need Docker; the rest run without a database.
 
+The two layout screenshot tests in `pnpm test:e2e` compare against Linux baselines, so they skip on macOS and Windows (see [tests/e2e/README.md](./tests/e2e/README.md)).
+
 See the [testing guide](./tests/README.md) for the layout and how to write tests.
 
 ## 🛠️ Tech Stack
