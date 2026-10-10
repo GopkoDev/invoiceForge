@@ -37,6 +37,8 @@ const { useInvoiceEditorStoreApi } = await import('@/store/invoice-editor-store/
 const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');
 const { NotesSection } = await import('@/components/invoice-editor/notes-section');
 const { InvoiceDetailsSection } = await import('@/components/invoice-editor/invoice-details-section');
+const { CustomerSection } = await import('@/components/invoice-editor/customer-section');
+const { SenderSection } = await import('@/components/invoice-editor/sender-section');
 type StoreApi = Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 const sender = { id: 'sp-1', name: 'Studio', legalName: null, address: null, city: null, country: null, postalCode: null, email: null, phone: null, taxId: null, logo: null, invoicePrefix: 'INV', invoiceCounter: 1 };
@@ -291,12 +293,30 @@ describe('T49 the swap to the edit page after a create', () => {
     view.rerender(page('edit', editPageData(), api));
     expect(api.current).toBe(oldStore); // adopted: the entry is claimed, the adopter is live
 
+    // A Save on the adopter is in flight while a second editor for the same invoice mounts and
+    // unmounts. dispose() would make that Save drop its answer, so the answer landing proves the
+    // second provider neither took nor disposed the claimed store.
+    const answer = hold();
+    updateInvoiceMock.mockReturnValue(answer.promise);
+    act(() => oldStore.getState().updateFields({ notes: 'saved while a second editor came and went' }));
+    let inFlight!: Promise<unknown>;
+    act(() => {
+      inFlight = oldStore.getState().save('save');
+    });
+    expect(oldStore.getState().isSaving).toBe(true);
+
     const second: { current: StoreApi | null } = { current: null };
     const other = render(page('edit-second', editPageData(), second));
     expect(second.current).not.toBe(oldStore);
     other.unmount();
-    // The first adopter's store was not disposed by the second one's mount or unmount.
+
+    await act(async () => {
+      answer.resolve({ ...saved, data: { ...saved.data, version: 2 } });
+      await inFlight;
+    });
     expect(api.current).toBe(oldStore);
+    expect(oldStore.getState().isSaving).toBe(false);
+    expect(oldStore.getState().hasUnsavedChanges).toBe(false);
     view.unmount();
   });
 
@@ -399,6 +419,36 @@ describe('T49 the swap to the edit page after a create', () => {
       expect(after.id).not.toBe(idBefore);
       expect(document.activeElement).toBe(after);
       expect([after.selectionStart, after.selectionEnd]).toEqual([...caret]);
+      view.unmount();
+    }
+  });
+
+  // editor-ux T62 (review r5 Q4d): the picker buttons are named only through aria-labelledby to
+  // useId() ids; a stable data-field lets the focus come back to the same picker on the edit page.
+  it('puts the focus back on the real Customer, Sender profile, Bank account and date pickers', async () => {
+    const real = (key: string, initial: InvoiceEditorData, api: { current: StoreApi | null }) => (
+      <InvoiceEditorProvider key={key} ownerId="owner-t62" initial={initial}>
+        <Capture storeRef={api} />
+        <SenderSection />
+        <CustomerSection />
+        <InvoiceDetailsSection />
+      </InvoiceEditorProvider>
+    );
+    createInvoiceMock.mockResolvedValue(saved);
+    for (const name of [/^Customer/, /^Sender Profile/, /^Bank Account/, /^Issue Date/, /^Due Date/]) {
+      const api: { current: StoreApi | null } = { current: null };
+      const view = render(real('new', newInvoiceData(), api));
+      await act(async () => {
+        await api.current!.getState().save('save');
+      });
+      const before = view.getByRole('button', { name }) as HTMLButtonElement;
+      before.focus();
+      expect(document.activeElement).toBe(before);
+
+      view.rerender(real('edit', editPageData(), api));
+      const after = view.getByRole('button', { name });
+      expect(after).not.toBe(before);
+      expect(document.activeElement, String(name)).toBe(after);
       view.unmount();
     }
   });

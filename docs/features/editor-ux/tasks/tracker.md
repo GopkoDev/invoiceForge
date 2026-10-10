@@ -68,7 +68,7 @@
 | T59 | Make the 'no rebuild during the Save' e2e wait for a server-rendered marker of the revalidated tree | tests | Dmytro Hopko | — | — | done |
 | T60 | Refresh after writing the time-zone cookie only while the account has no saved zone | app | Dmytro Hopko | — | — | done |
 | T61 | Name the tz cookie on the privacy page | ui | Dmytro Hopko | — | T60 | done |
-| T62 | Restore focus on the picker buttons after the create hand-over, and make the t44 second-adopter check observable | app | Dmytro Hopko | — | — | todo |
+| T62 | Restore focus on the picker buttons after the create hand-over, and make the t44 second-adopter check observable | app | Dmytro Hopko | — | — | done |
 | T63 | Close the last e2e rejection leak, fix the T53 log and the test plan, and log plain pnpm test:e2e at the final HEAD | tests | Dmytro Hopko | — | T59, T60, T61, T62 | todo |
 
 **Total:** 64 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5).

@@ -141,6 +141,7 @@ export function InvoiceDetailsSection() {
             <Popover>
               <PopoverTrigger
                 id={issueDateTriggerId}
+                data-field="issueDate"
                 aria-labelledby={`${issueDateLabelId} ${issueDateTriggerId}`}
                 disabled={locked}
                 className={cn(
@@ -171,6 +172,7 @@ export function InvoiceDetailsSection() {
             <Popover>
               <PopoverTrigger
                 id={dueDateTriggerId}
+                data-field="dueDate"
                 aria-labelledby={`${dueDateLabelId} ${dueDateTriggerId}`}
                 disabled={readOnly}
                 aria-invalid={!!fieldErrors?.dueDate}

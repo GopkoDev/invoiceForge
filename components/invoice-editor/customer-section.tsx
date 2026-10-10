@@ -93,6 +93,7 @@ export function CustomerSection() {
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger
               id={triggerId}
+              data-field="customerId"
               aria-labelledby={`${labelId} ${triggerId}`}
               className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs"
             >

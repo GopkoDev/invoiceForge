@@ -137,6 +137,7 @@ export function SenderSection() {
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger
               id={profileTriggerId}
+              data-field="senderProfileId"
               aria-labelledby={`${profileLabelId} ${profileTriggerId}`}
               className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs"
             >
@@ -230,6 +231,7 @@ export function SenderSection() {
           <Popover open={openBankAccount} onOpenChange={setOpenBankAccount}>
             <PopoverTrigger
               id={bankAccountTriggerId}
+              data-field="bankAccountId"
               aria-labelledby={`${bankAccountLabelId} ${bankAccountTriggerId}`}
               disabled={isBankAccountDisabled}
               aria-invalid={!!fieldErrors?.bankAccountId}
