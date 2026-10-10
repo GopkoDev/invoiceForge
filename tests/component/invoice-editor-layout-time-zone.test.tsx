@@ -5,8 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
 
 vi.mock('@/prisma', () => ({ prisma: {} }));
-vi.mock('@/lib/helpers/route-auth', () => ({ requireLiveUser: async () => ({}) }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }));
+vi.mock('@/lib/helpers/route-auth', () => ({ requireLiveUser: async () => ({ userId: 'user-1' }) }));
+vi.mock('@/lib/services/profile/profile', () => ({ getSavedTimeZone: async () => null }));
+vi.mock('next/navigation', async (importOriginal) => ({
+  // Keep the real unstable_rethrow: the layout's saved-zone lookup (T60) uses it.
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: () => {} }),
+}));
 
 import InvoiceEditorLayout from '@/app/(invoice-editor)/layout';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';

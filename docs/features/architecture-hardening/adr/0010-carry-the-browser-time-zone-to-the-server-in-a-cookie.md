@@ -50,6 +50,11 @@ The invoice list and the dashboard are server-rendered, and the server doesn't k
 - Why: on the first sign-in the private layout wrote the cookie and called `router.refresh()`. In WebKit, a navigation started during that round trip cancelled the refresh fetch. Next.js then did a full load of the landing page, and the Freelancer's navigation was lost. Now the cookie is already current when the Sign-in link lands, so the private layout does not refresh, and the first private request seeds the account zone (mcp-server ADR-0006) from the right value.
 - The private layouts still write the cookie and refresh once when it is missing or stale. This covers a Sign-in link opened in a different browser, and a changed device zone. In that rarer case the race can still happen. How the server reads the cookie is unchanged.
 
+**Amendment (2026-10-10, editor-ux T60, review r5 Q2)**
+- The private layouts still write the cookie when it is missing or stale, but they refresh only while the signed-in account has no saved zone. They look that up on the server (`zoneCookieNeedsRefresh` in `lib/helpers/time-zone.ts`); a failed lookup refreshes, as before.
+- Why: since mcp-server ADR-0006 the server reads the cookie only as the first-visit seed of the account zone, so for an account with a saved zone a refresh changes nothing on the server and only gives the Freelancer's first navigation something to race. A Sign-in link opened in another browser, an expired cookie and a changed device zone no longer refresh for a returning Freelancer.
+- What remains: the very first visit of an account with no saved zone, from a browser that never showed the sign-in pages, still refreshes once.
+
 ## Links
 
 - Spec: [[../spec.md]] AC-25, AC-27

@@ -11,9 +11,10 @@ import { useRouter } from 'next/navigation';
 // T57 (review r4 P5): the sign-in pages ((auth) layout) mount it with refresh={false}, so the zone
 // is already in the cookie when the Sign-in link lands on a private page and the private layout
 // has nothing to refresh. A refresh there could be cancelled by the Freelancer's first navigation
-// (WebKit), and Next.js answered that failed fetch with a full load of the landing page. The
-// private layouts keep the default (refresh) as the fallback for a missing or stale cookie, e.g.
-// a Sign-in link opened in a different browser.
+// (WebKit), and Next.js answered that failed fetch with a full load of the landing page.
+//
+// T60 (review r5 Q2): the private layouts pass refresh only while the account has no saved zone, the
+// one case where the server reads the cookie (the first-visit seed, ADR-0006).
 
 const TZ_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
