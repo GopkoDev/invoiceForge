@@ -1,0 +1,32 @@
+T63 Linux e2e run at the final HEAD (review r5 Q4, after T59-T62), 2026-10-10
+HEAD: 57957f1 (feature/editor-ux), clean working tree when the repo copy was taken; this log is added afterwards (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop, engine 29.8.1); @playwright/test 1.63.0
+Node used for the runs: v22.23.3 (nodejs.org linux-arm64 tarball, checked against SHASUMS256.txt, unpacked to /opt/node22 and put first on PATH; the image's own Node is not used).
+  Inside the repo's engines (>=22.18 <23). pnpm 10.25.0 via corepack.
+Docker CLI: static 27.3.1 aarch64 from download.docker.com (sha256 4da6a6c7502b7ab561675a5ff5ac192d9b49d76d0b8847cf17ade246122279f4; the nightly pins the x86_64 file's hash, so it does not apply here).
+How (the T53/T58 harness): repo copied (no node_modules/.git/.env/.env.*/test-results/.next) into the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`, then plain `CI=1 pnpm test:e2e`
+  (CI=1 in the container's environment, no --workers flag, so the config's 2 workers). Docker socket mounted from the host, TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+  (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only). The app server and its throwaway Postgres container come from playwright.config.ts's webServer.
+  .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases. Both runs in the same container and install.
+
+== Run 1: CI=1 pnpm test:e2e ==
+Running 116 tests using 2 workers
+  1 skipped   (pdf-on-demand.spec.ts first PDF timing p95: needs E2E_TIMING=1)
+  115 passed (8.8m)
+0 failed, 0 flaky, exit code 0. Total wall 527s (MEASURED, `date +%s` stamps on the output lines).
+
+== Run 2 (stability rerun, same container) ==
+Running 116 tests using 2 workers
+  1 skipped   (same test)
+  115 passed (8.1m)
+0 failed, 0 flaky, exit code 0. Total wall 486s (MEASURED).
+
+New or changed since T58 (all passed in both runs):
+- editor-first-save-after-create.spec.ts: the four "first Save / Save and issue after a create" tests now read "the node was kept" only after the edit page's
+  server-rendered version marker moves past the version before the Save (T59).
+- first-navigation-after-sign-in.spec.ts:86 "a returning Freelancer who opens the Sign-in link in another browser gets no time-zone refresh", chromium and webkit (T60).
+  Before T60 it failed in both: chromium saw the landing page's refresh, webkit's navigation was "interrupted by another navigation to /dashboard" (macOS run, same spec).
+- The test count is 116, up from 114 in T58: the new spec test runs in chromium and webkit.
+Noise, not failures: the app server prints "Error: aborted ... code: 'ECONNRESET'" lines during route-sweep.spec.ts (a POST the test aborts on purpose), as in T58.
+
+Result: both runs 115 passed, 1 skipped, 0 failed, 0 flaky, exit 0 at HEAD 57957f1, Node v22.23.3.
