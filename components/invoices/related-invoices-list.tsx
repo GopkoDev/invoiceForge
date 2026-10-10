@@ -33,6 +33,7 @@ import { useModal } from '@/store/use-modal-store';
 import { getInvoice } from '@/lib/actions/invoice-actions/invoice-actions';
 import { openPrintWindow, usePdfAction } from '@/hooks/use-pdf-action';
 import { toast } from 'sonner';
+import { PdfPreparingStatus } from '@/components/invoices/pdf-preparing-status';
 import {
   goToSignIn,
   redirectIfUnauthorized,
@@ -136,10 +137,12 @@ function InvoiceItemActions({
   const isBusy = isLoading || preparing;
 
   return (
+    <>
+    <PdfPreparingStatus busy={isBusy} />
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" disabled={isBusy}>
+          <Button variant="ghost" size="icon-sm" disabled={isBusy} aria-busy={isBusy || undefined}>
             {isBusy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
@@ -164,6 +167,7 @@ function InvoiceItemActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }
 

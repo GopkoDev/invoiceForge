@@ -41,6 +41,7 @@ import {
 } from '@/lib/helpers/client-session-redirect';
 import { allowedTargets } from '@/lib/helpers/invoice-status';
 import { todayInZone } from '@/lib/helpers/calendar-day';
+import { PdfPreparingSpinner, PdfPreparingStatus } from '@/components/invoices/pdf-preparing-status';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
@@ -274,12 +275,16 @@ export function InvoiceRowActions({
     canMarkAsPending || canMarkAsPaid || canMarkAsOverdue || canCancel;
   const isDisabled = isPending || isLoadingPdf || preparing;
 
+  const pdfBusy = isLoadingPdf || preparing;
+
   return (
+    <>
+    <PdfPreparingStatus busy={pdfBusy} />
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" disabled={isDisabled}>
-            <MoreHorizontal className="size-4" />
+          <Button variant="ghost" size="icon-sm" disabled={isDisabled} aria-busy={pdfBusy || undefined}>
+            {pdfBusy ? <PdfPreparingSpinner /> : <MoreHorizontal className="size-4" />}
             <span className="sr-only">Actions for {invoiceNumber}</span>
           </Button>
         }
@@ -362,5 +367,6 @@ export function InvoiceRowActions({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }

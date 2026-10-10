@@ -74,6 +74,7 @@ Element.prototype.scrollIntoView = () => {};
 
 const { renderWithEditorStore } = await import('../support/render-with-editor-store');
 const { InvoiceRowActions } = await import('@/components/invoices/invoice-row-actions');
+const { RelatedInvoicesList } = await import('@/components/invoices/related-invoices-list');
 const { InvoiceEditorHeader } = await import('@/components/invoice-editor/invoice-editor-header');
 const { PdfKitLoadError } = await import('@/lib/pdf/load-pdf-kit');
 
@@ -222,5 +223,78 @@ describe('T28 editor header Download / Print', () => {
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(toast.error.mock.calls[0][0]).toMatch(/could not be prepared/i);
     expect(captureException).toHaveBeenCalled();
+  });
+});
+
+// editor-ux T41 (review-2026-10-10 r2 N4; AC-01): while a PDF is being prepared the trigger SHOWS and
+// ANNOUNCES it - aria-busy plus a status a screen reader reads - not only a disabled button.
+describe('T41 the preparing state is visible and announced, then gone', () => {
+  const preparing = () => screen.getByRole('status');
+
+  it('row actions (list / dashboard): Download PDF marks the trigger busy and announces "Preparing"', async () => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    const { container } = renderRow();
+    await rowAction(userEvent.setup(), 'Download PDF');
+    const trigger = screen.getByRole('button', { name: /actions for/i });
+    await vi.waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'true'));
+    expect(preparing()).toHaveTextContent(/preparing/i);
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(kit.downloadPdf).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(trigger).not.toHaveAttribute('aria-busy', 'true'));
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('editor header: Download is busy and announced while preparing, then restored', async () => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    const { container } = renderWithEditorStore(<InvoiceEditorHeader />);
+    const btn = screen.getByRole('button', { name: /download pdf/i });
+    expect(btn).not.toHaveAttribute('aria-busy', 'true');
+    fireEvent.click(btn);
+    await vi.waitFor(() => expect(btn).toHaveAttribute('aria-busy', 'true'));
+    expect(preparing()).toHaveTextContent(/preparing/i);
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(btn).not.toHaveAttribute('aria-busy', 'true'));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('editor header: Print is busy and announced while preparing, then restored', async () => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn(), location: { href: '' } } as never);
+    renderWithEditorStore(<InvoiceEditorHeader />);
+    const btn = screen.getByRole('button', { name: /print/i });
+    fireEvent.click(btn);
+    await vi.waitFor(() => expect(btn).toHaveAttribute('aria-busy', 'true'));
+    expect(preparing()).toHaveTextContent(/preparing/i);
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(btn).not.toHaveAttribute('aria-busy', 'true'));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('related invoices list: Download marks the trigger busy and announces "Preparing", then clears', async () => {
+    let release!: (k: typeof kit) => void;
+    loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    const listed = { ...invoice, status: 'PENDING', issueDate: '2026-09-01', dueDate: '2026-10-01', customer: { name: 'Acme' } };
+    render(
+      <RelatedInvoicesList
+        invoices={[listed] as never}
+        entityType="customer"
+        entityId="c1"
+      />
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /actions for invoice/i }));
+    await user.click(await screen.findByText('Download'));
+    const trigger = screen.getByRole('button', { name: /actions for invoice/i });
+    await vi.waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'true'));
+    expect(preparing()).toHaveTextContent(/preparing/i);
+    await act(async () => release(kit));
+    await vi.waitFor(() => expect(trigger).not.toHaveAttribute('aria-busy', 'true'));
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

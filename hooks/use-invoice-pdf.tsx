@@ -1,13 +1,20 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
-import { useHasUnsavedChanges, useInvoiceEditorStoreApi } from '@/store/invoice-editor-store';
+import {
+  useHasUnsavedChanges,
+  useInvoiceEditorStoreApi,
+} from '@/store/invoice-editor-store';
 import { pdfPartiesOfState } from '@/store/invoice-editor-store/pdf-parties';
 import { storedAmountsToPrint } from '@/store/invoice-editor-store/helpers';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { usePdfAction, type PdfAction } from '@/hooks/use-pdf-action';
+import {
+  PdfPreparingSpinner,
+  PdfPreparingStatus,
+} from '@/components/invoices/pdf-preparing-status';
 import { loadPdfKit } from '@/lib/pdf/load-pdf-kit';
 
 export function useInvoicePdf() {
@@ -15,6 +22,8 @@ export function useInvoicePdf() {
   const hasUnsavedChanges = useHasUnsavedChanges();
   const { runInput, preparing } = usePdfAction();
   const disabled = hasUnsavedChanges || preparing;
+  const [active, setActive] = useState<PdfAction | null>(null);
+  const busy = (action: PdfAction) => preparing && active === action;
 
   // The editor's preview is HTML, so the toolkit is only warmed once the page is idle; a failed
   // warm-up is silent (Download/Print fetch it again).
@@ -32,13 +41,19 @@ export function useInvoicePdf() {
     async (action: PdfAction) => {
       const state = store.getState();
       if (state.hasUnsavedChanges) return;
+      setActive(action);
       // Download and Print are disabled while there are unsaved changes, so whenever they run the form
       // equals the last save and the PDF's model is the preview's (invoice-integrity AC-02). The model
       // is built here, once per click, not on every keystroke.
       const result = await runInput(action, () => {
         const parties = pdfPartiesOfState(state);
         return {
-          document: buildInvoiceDocument({ kind: 'draft', form: state.formData, parties, storedAmounts: storedAmountsToPrint(state) }),
+          document: buildInvoiceDocument({
+            kind: 'draft',
+            form: state.formData,
+            parties,
+            storedAmounts: storedAmountsToPrint(state),
+          }),
           senderProfile: parties.senderProfile,
         };
       });
@@ -47,7 +62,10 @@ export function useInvoicePdf() {
     [store, runInput]
   );
 
-  const handleDownloadPdf = useCallback(() => runAction('download'), [runAction]);
+  const handleDownloadPdf = useCallback(
+    () => runAction('download'),
+    [runAction]
+  );
   const handlePrint = useCallback(() => runAction('print'), [runAction]);
 
   const DownloadButton = (
@@ -56,15 +74,29 @@ export function useInvoicePdf() {
       size="sm"
       onClick={handleDownloadPdf}
       disabled={disabled}
+      aria-busy={busy('download') || undefined}
     >
-      <Download className="h-4 w-4" />
+      {busy('download') ? (
+        <PdfPreparingSpinner />
+      ) : (
+        <Download className="h-4 w-4" />
+      )}
       <span className="sr-only sm:not-sr-only">Download PDF</span>
+      <PdfPreparingStatus busy={busy('download')} />
     </Button>
   );
 
   const DownloadMobileButton = (
-    <DropdownMenuItem onClick={handleDownloadPdf} disabled={disabled}>
-      <Download className="mr-2 h-4 w-4" />
+    <DropdownMenuItem
+      onClick={handleDownloadPdf}
+      disabled={disabled}
+      aria-busy={busy('download') || undefined}
+    >
+      {busy('download') ? (
+        <PdfPreparingSpinner />
+      ) : (
+        <Download className="mr-2 h-4 w-4" />
+      )}
       Download PDF
     </DropdownMenuItem>
   );
@@ -75,15 +107,29 @@ export function useInvoicePdf() {
       size="sm"
       onClick={handlePrint}
       disabled={disabled}
+      aria-busy={busy('print') || undefined}
     >
-      <Printer className="h-4 w-4" />
+      {busy('print') ? (
+        <PdfPreparingSpinner />
+      ) : (
+        <Printer className="h-4 w-4" />
+      )}
       <span className="sr-only sm:not-sr-only">Print</span>
+      <PdfPreparingStatus busy={busy('print')} />
     </Button>
   );
 
   const PrintMobileButton = (
-    <DropdownMenuItem onClick={handlePrint} disabled={disabled}>
-      <Printer className="mr-2 h-4 w-4" />
+    <DropdownMenuItem
+      onClick={handlePrint}
+      disabled={disabled}
+      aria-busy={busy('print') || undefined}
+    >
+      {busy('print') ? (
+        <PdfPreparingSpinner />
+      ) : (
+        <Printer className="mr-2 h-4 w-4" />
+      )}
       Print
     </DropdownMenuItem>
   );

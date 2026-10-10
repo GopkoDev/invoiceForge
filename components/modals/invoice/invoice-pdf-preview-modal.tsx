@@ -15,6 +15,7 @@ import { PDFPreviewPanel } from '@/components/invoice-editor/pdf-preview-panel';
 import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
 import type { InvoiceDocumentSource } from '@/lib/invoice-document';
 import { usePdfAction } from '@/hooks/use-pdf-action';
+import { PdfPreparingStatus } from '@/components/invoices/pdf-preparing-status';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
@@ -83,6 +84,7 @@ export function InvoicePdfPreviewModal() {
                 size="sm"
                 onClick={handlePrint}
                 disabled={isPrinting}
+                aria-busy={isPrinting || undefined}
                 className="gap-1 sm:gap-2"
               >
                 {isPrinting ? (
@@ -97,6 +99,7 @@ export function InvoicePdfPreviewModal() {
                 size="sm"
                 onClick={handleDownload}
                 disabled={isDownloading}
+                aria-busy={isDownloading || undefined}
                 className="gap-1 sm:gap-2"
               >
                 {isDownloading ? (
@@ -106,6 +109,7 @@ export function InvoicePdfPreviewModal() {
                 )}
                 <span className="sr-only sm:not-sr-only">Download</span>
               </Button>
+              <PdfPreparingStatus busy={isPrinting || isDownloading} />
               <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
                 <X className="size-4" />
                 <span className="sr-only">Close preview</span>
