@@ -31,7 +31,7 @@ import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { protectedRoutes } from '@/config/routes.config';
 import { useModal } from '@/store/use-modal-store';
 import { getInvoice } from '@/lib/actions/invoice-actions/invoice-actions';
-import { usePdfAction } from '@/hooks/use-pdf-action';
+import { openPrintWindow, usePdfAction } from '@/hooks/use-pdf-action';
 import { toast } from 'sonner';
 import {
   goToSignIn,
@@ -64,7 +64,7 @@ function InvoiceItemActions({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const { run: runPdf } = usePdfAction();
+  const { run: runPdf, preparing } = usePdfAction();
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
 
   const handleView = useCallback(async () => {
@@ -108,20 +108,24 @@ function InvoiceItemActions({
   }, [invoiceId, runPdf]);
 
   const handlePrint = useCallback(async () => {
+    // Opened here, before any await: a popup blocker only allows a window opened by the click itself.
+    const printWindow = openPrintWindow();
     setIsLoading(true);
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
       if (!result.success) {
         // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        printWindow?.close();
         if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await runPdf('print', result.data);
+      const pdf = await runPdf('print', result.data, { printWindow });
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
+      printWindow?.close();
       // AC-21: a rejected call is treated like UNAUTHORIZED.
       goToSignIn();
     } finally {
@@ -129,12 +133,14 @@ function InvoiceItemActions({
     }
   }, [invoiceId, runPdf]);
 
+  const isBusy = isLoading || preparing;
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" disabled={isLoading}>
-            {isLoading ? (
+          <Button variant="ghost" size="icon-sm" disabled={isBusy}>
+            {isBusy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <MoreHorizontal className="size-4" />
@@ -144,15 +150,15 @@ function InvoiceItemActions({
         }
       />
       <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onClick={handleView} disabled={isLoading}>
+        <DropdownMenuItem onClick={handleView} disabled={isBusy}>
           <Eye className="size-4" />
           View
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDownload} disabled={isLoading}>
+        <DropdownMenuItem onClick={handleDownload} disabled={isBusy}>
           <Download className="size-4" />
           Download
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handlePrint} disabled={isLoading}>
+        <DropdownMenuItem onClick={handlePrint} disabled={isBusy}>
           <Printer className="size-4" />
           Print
         </DropdownMenuItem>

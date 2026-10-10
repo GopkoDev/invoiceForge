@@ -34,7 +34,7 @@ import {
 import { InvoiceStatus } from '@/types/invoice/types';
 import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
-import { usePdfAction } from '@/hooks/use-pdf-action';
+import { openPrintWindow, usePdfAction } from '@/hooks/use-pdf-action';
 import {
   goToSignIn,
   redirectIfUnauthorized,
@@ -79,7 +79,7 @@ export function InvoiceRowActions({
   const [refusedStatus, setRefusedStatus] = useState<{ from: InvoiceStatus; to: InvoiceStatus } | null>(null);
   const menuStatus = storedStatus ?? status;
   const rowStatus = refusedStatus && refusedStatus.from === menuStatus ? refusedStatus.to : menuStatus;
-  const { run: runPdf } = usePdfAction();
+  const { run: runPdf, preparing } = usePdfAction();
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
   const confirmationModal = useModal('confirmationModal');
 
@@ -128,20 +128,24 @@ export function InvoiceRowActions({
   }, [invoiceId, runPdf]);
 
   const handlePrint = useCallback(async () => {
+    // Opened here, before any await: a popup blocker only allows a window opened by the click itself.
+    const printWindow = openPrintWindow();
     setIsLoadingPdf(true);
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
       if (!result.success) {
         // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        printWindow?.close();
         if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await runPdf('print', result.data);
+      const pdf = await runPdf('print', result.data, { printWindow });
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
+      printWindow?.close();
       // AC-21: a rejected call is treated like UNAUTHORIZED.
       goToSignIn();
     } finally {
@@ -268,7 +272,7 @@ export function InvoiceRowActions({
 
   const isShowSeparator =
     canMarkAsPending || canMarkAsPaid || canMarkAsOverdue || canCancel;
-  const isDisabled = isPending || isLoadingPdf;
+  const isDisabled = isPending || isLoadingPdf || preparing;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>

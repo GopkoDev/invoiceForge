@@ -32,7 +32,7 @@
 | T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | — | done |
 | T26 | Name the phone more-actions button and the line product fields, tie the product error to its field, and run axe at phone width and after a refused save | ui | Dmytro Hopko | — | — | done |
 | T27 | Show "Customer since" in the Freelancer time zone | ui | Dmytro Hopko | — | — | done |
-| T28 | Make every PDF action fail safely, show its preparing state, resist double clicks and popup blockers, and test the real triggers | ui | Dmytro Hopko | — | — | todo |
+| T28 | Make every PDF action fail safely, show its preparing state, resist double clicks and popup blockers, and test the real triggers | ui | Dmytro Hopko | — | — | done |
 | T29 | Reword AC-01 and AC-02b for the HTML preview and remove the dead preview PDF action | docs | Dmytro Hopko | — | T28 | todo |
 | T30 | Limit Cache-Control no-store to signed-in document and RSC responses | wiring | Dmytro Hopko | — | — | todo |
 | T31 | Make the CI e2e job fail instead of skipping without Docker, add a nightly full e2e run, and harden the PDF chunk gate | tests | Dmytro Hopko | — | — | todo |

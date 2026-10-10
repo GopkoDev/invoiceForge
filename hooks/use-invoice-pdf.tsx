@@ -1,30 +1,19 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
-import { useFormData, useHasUnsavedChanges, usePdfParties } from '@/store/invoice-editor-store';
+import { useHasUnsavedChanges, useInvoiceEditorStoreApi } from '@/store/invoice-editor-store';
+import { pdfPartiesOfState } from '@/store/invoice-editor-store/pdf-parties';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { usePdfAction, type PdfAction } from '@/hooks/use-pdf-action';
 import { loadPdfKit } from '@/lib/pdf/load-pdf-kit';
 
 export function useInvoicePdf() {
-  // The form as it stands, every line included (lines are never dropped, invoice-integrity AC-15).
-  const pdfFormData = useFormData();
-  const { senderProfile, customer, bankAccount } = usePdfParties();
+  const store = useInvoiceEditorStoreApi();
   const hasUnsavedChanges = useHasUnsavedChanges();
-  // Download and Print are disabled while there are unsaved changes, so whenever they run the form
-  // equals the last save and the PDF's model is the preview's (invoice-integrity AC-02).
-  const document = useMemo(
-    () =>
-      buildInvoiceDocument({
-        kind: 'draft',
-        form: pdfFormData,
-        parties: { senderProfile, customer, bankAccount },
-      }),
-    [pdfFormData, senderProfile, customer, bankAccount]
-  );
-  const { runInput } = usePdfAction();
+  const { runInput, preparing } = usePdfAction();
+  const disabled = hasUnsavedChanges || preparing;
 
   // The editor's preview is HTML, so the toolkit is only warmed once the page is idle; a failed
   // warm-up is silent (Download/Print fetch it again).
@@ -40,11 +29,21 @@ export function useInvoicePdf() {
 
   const runAction = useCallback(
     async (action: PdfAction) => {
-      if (hasUnsavedChanges) return;
-      const result = await runInput(action, { document, senderProfile });
+      const state = store.getState();
+      if (state.hasUnsavedChanges) return;
+      // Download and Print are disabled while there are unsaved changes, so whenever they run the form
+      // equals the last save and the PDF's model is the preview's (invoice-integrity AC-02). The model
+      // is built here, once per click, not on every keystroke.
+      const result = await runInput(action, () => {
+        const parties = pdfPartiesOfState(state);
+        return {
+          document: buildInvoiceDocument({ kind: 'draft', form: state.formData, parties }),
+          senderProfile: parties.senderProfile,
+        };
+      });
       if (result.unauthorized) goToSignIn();
     },
-    [document, senderProfile, hasUnsavedChanges, runInput]
+    [store, runInput]
   );
 
   const handleDownloadPdf = useCallback(() => runAction('download'), [runAction]);
@@ -55,7 +54,7 @@ export function useInvoicePdf() {
       variant="outline"
       size="sm"
       onClick={handleDownloadPdf}
-      disabled={hasUnsavedChanges}
+      disabled={disabled}
     >
       <Download className="h-4 w-4" />
       <span className="sr-only sm:not-sr-only">Download PDF</span>
@@ -63,7 +62,7 @@ export function useInvoicePdf() {
   );
 
   const DownloadMobileButton = (
-    <DropdownMenuItem onClick={handleDownloadPdf} disabled={hasUnsavedChanges}>
+    <DropdownMenuItem onClick={handleDownloadPdf} disabled={disabled}>
       <Download className="mr-2 h-4 w-4" />
       Download PDF
     </DropdownMenuItem>
@@ -74,7 +73,7 @@ export function useInvoicePdf() {
       variant="outline"
       size="sm"
       onClick={handlePrint}
-      disabled={hasUnsavedChanges}
+      disabled={disabled}
     >
       <Printer className="h-4 w-4" />
       <span className="sr-only sm:not-sr-only">Print</span>
@@ -82,7 +81,7 @@ export function useInvoicePdf() {
   );
 
   const PrintMobileButton = (
-    <DropdownMenuItem onClick={handlePrint} disabled={hasUnsavedChanges}>
+    <DropdownMenuItem onClick={handlePrint} disabled={disabled}>
       <Printer className="mr-2 h-4 w-4" />
       Print
     </DropdownMenuItem>

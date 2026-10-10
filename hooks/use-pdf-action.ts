@@ -8,6 +8,7 @@ import {
   prepareInvoiceDataForPdf,
   resolveLogoForPdf,
 } from '@/lib/helpers/invoice-pdf-helpers';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import { siteConfig } from '@/config/site.config';
 import { buildInvoiceDocument, type InvoiceDocument } from '@/lib/invoice-document';
 import type { InvoiceSenderProfile, SerializedInvoice } from '@/types/invoice/types';
@@ -26,10 +27,32 @@ export interface PdfInput {
   senderProfile?: InvoiceSenderProfile;
 }
 
+/** A PdfInput, or a thunk that builds it: built inside runInput's try so a model error is handled. */
+export type PdfInputSource = PdfInput | (() => PdfInput);
+
+export interface PdfRunOptions {
+  /**
+   * The print window, opened synchronously in the click (a popup blocker only allows that). Left out,
+   * runInput opens it itself before its first await; a caller that awaits before running opens it
+   * first and passes it here, null when the browser blocked it.
+   */
+  printWindow?: Window | null;
+}
+
 const COULD_NOT_PREPARE = 'The PDF could not be prepared.';
 const NEWER_VERSION = 'A newer version of the app is available.';
+const PRINT_BLOCKED = 'Your browser blocked the print window.';
 
-async function execute(action: PdfAction, input: PdfInput): Promise<PdfActionResult> {
+/** Opens the (blank) print window. Call it synchronously from the click handler. */
+export function openPrintWindow(): Window | null {
+  return window.open('', '_blank') ?? null;
+}
+
+async function execute(
+  action: PdfAction,
+  input: PdfInput,
+  printWindow: Window | null
+): Promise<PdfActionResult> {
   const kit = await loadPdfKit();
   const logo = await resolveLogoForPdf(input.senderProfile);
   if (logo.unauthorized) return { success: false, unauthorized: true };
@@ -50,7 +73,8 @@ async function execute(action: PdfAction, input: PdfInput): Promise<PdfActionRes
     return { success: true };
   }
   if (action === 'print') {
-    kit.printPdf(blob);
+    // printWindow is set here: a blocked window never reaches execute.
+    kit.printPdf(blob, printWindow as Window);
     return { success: true };
   }
   return { success: true, blob };
@@ -65,20 +89,47 @@ export function usePdfAction() {
 
   const runInput = useCallback(async function runInput(
     action: PdfAction,
-    input: PdfInput
+    source: PdfInputSource,
+    options?: PdfRunOptions
   ): Promise<PdfActionResult> {
+    // Before the first await, so it still counts as the click's own window.open.
+    const printWindow =
+      action !== 'print' ? null : options && 'printWindow' in options ? options.printWindow ?? null : openPrintWindow();
+    // Built once, even across Try again.
+    let built: PdfInput | undefined;
+    const getInput = () => (built ??= typeof source === 'function' ? source() : source);
+
+    const again = (next: PdfAction) =>
+      void runInput(next, getInput).then((result) => {
+        if (result.unauthorized) goToSignIn();
+      });
+
     setPending((n) => n + 1);
     try {
-      return await execute(action, input);
-    } catch (error) {
-      const retry = { label: 'Try again', onClick: () => void runInput(action, input) };
-      if (error instanceof PdfKitLoadError && error.kind === 'new-version') {
-        Sentry.captureException(error, { tags: { 'pdf.stage': 'version' } });
-        toast.error(NEWER_VERSION, {
-          action: { label: 'Reload', onClick: () => window.location.reload() },
+      if (action === 'print' && !printWindow) {
+        toast.error(PRINT_BLOCKED, {
+          action: { label: 'Download PDF', onClick: () => again('download') },
         });
-      } else if (error instanceof PdfKitLoadError) {
-        toast.error(COULD_NOT_PREPARE, { action: retry });
+        return { success: false };
+      }
+      const result = await execute(action, getInput(), printWindow);
+      if (!result.success) printWindow?.close();
+      return result;
+    } catch (error) {
+      printWindow?.close();
+      const retry = {
+        label: 'Try again',
+        onClick: () => again(action),
+      };
+      if (error instanceof PdfKitLoadError) {
+        Sentry.captureException(error, { tags: { 'pdf.stage': 'fetch' } });
+        if (error.kind === 'new-version') {
+          toast.error(NEWER_VERSION, {
+            action: { label: 'Reload', onClick: () => window.location.reload() },
+          });
+        } else {
+          toast.error(COULD_NOT_PREPARE, { action: retry });
+        }
       } else {
         Sentry.captureException(error, { tags: { 'pdf.stage': 'generate' } });
         toast.error(COULD_NOT_PREPARE, { action: retry });
@@ -90,13 +141,18 @@ export function usePdfAction() {
   }, []);
 
   const run = useCallback(
-    (action: PdfAction, invoice: SerializedInvoice) => {
-      const data = prepareInvoiceDataForPdf(invoice);
-      return runInput(action, {
-        document: buildInvoiceDocument({ kind: 'issued', invoice }),
-        senderProfile: data.senderProfile ?? undefined,
-      });
-    },
+    (action: PdfAction, invoice: SerializedInvoice, options?: PdfRunOptions) =>
+      runInput(
+        action,
+        () => {
+          const data = prepareInvoiceDataForPdf(invoice);
+          return {
+            document: buildInvoiceDocument({ kind: 'issued', invoice }),
+            senderProfile: data.senderProfile ?? undefined,
+          };
+        },
+        options
+      ),
     [runInput]
   );
 

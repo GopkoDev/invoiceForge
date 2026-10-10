@@ -300,15 +300,24 @@ export function downloadPdf(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Opens a PDF blob in a new window and prints it once loaded. */
-export function printPdf(blob: Blob): void {
+/**
+ * Prints a PDF blob in the window that was opened synchronously in the click (a popup blocker
+ * would stop a window opened after the awaits). The object URL is always revoked: once the window
+ * has loaded, or after a minute at the latest.
+ */
+export function printPdf(blob: Blob, printWindow: Window): void {
   const url = URL.createObjectURL(blob);
-  const printWindow = window.open(url);
-  if (printWindow) {
+  const revoke = () => URL.revokeObjectURL(url);
+  try {
+    printWindow.location.href = url;
     printWindow.addEventListener('load', () => {
       printWindow.focus();
       printWindow.print();
-      URL.revokeObjectURL(url);
+      revoke();
     });
+    setTimeout(revoke, 60_000);
+  } catch (error) {
+    revoke();
+    throw error;
   }
 }

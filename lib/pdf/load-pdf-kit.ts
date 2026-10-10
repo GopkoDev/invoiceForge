@@ -33,10 +33,16 @@ async function classifyFailure(cause: unknown): Promise<PdfKitLoadError> {
 
 export function loadPdfKit(): Promise<PdfKit> {
   if (!cached) {
-    cached = import('./invoice-pdf-kit').catch(async (cause: unknown) => {
-      cached = null;
-      throw await classifyFailure(cause);
+    // The failed promise stays cached until its classification is done, so a load started meanwhile
+    // (a click during the idle warm-up's probe) shares the one probe and the one answer.
+    const attempt: Promise<PdfKit> = import('./invoice-pdf-kit').catch(async (cause: unknown) => {
+      try {
+        throw await classifyFailure(cause);
+      } finally {
+        if (cached === attempt) cached = null;
+      }
     });
+    cached = attempt;
   }
   return cached;
 }

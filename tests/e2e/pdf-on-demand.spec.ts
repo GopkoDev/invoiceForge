@@ -66,6 +66,36 @@ test('AC-01: pages open without the toolkit; the first Download fetches it, late
   }
 });
 
+test('AC-01: after the first Download, a later Print and the preview fetch no new toolkit chunk', async ({
+  browser,
+}, testInfo) => {
+  const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-reuse');
+  try {
+    const { page, workspace } = f;
+    const fetched = trackToolkitChunks(page);
+    await openInvoiceList(page);
+    await page.waitForLoadState('networkidle');
+
+    const download = page.waitForEvent('download');
+    await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
+    await download;
+    const afterFirst = fetched.length;
+    expect(afterFirst).toBeGreaterThan(0);
+
+    const popup = page.waitForEvent('popup');
+    await chooseRowAction(page, workspace.invoiceNumber, 'Print');
+    await popup;
+    expect(fetched.length, 'a later Print does not fetch the toolkit again').toBe(afterFirst);
+
+    await chooseRowAction(page, workspace.invoiceNumber, 'View Document');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(fetched.length, 'the preview does not fetch the toolkit again').toBe(afterFirst);
+  } finally {
+    await f.context.close();
+  }
+});
+
 test('AC-02: with the connection dropped Download offers to try again, and trying again works', async ({
   browser,
 }, testInfo) => {

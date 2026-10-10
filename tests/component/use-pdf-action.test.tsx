@@ -72,6 +72,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   loadPdfKit.mockResolvedValue(kit);
   kit.generatePdfBlob.mockResolvedValue(blob);
+  // The print window is opened in the click (T28); a stub window stands in for it.
+  vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn() } as unknown as Window);
 });
 
 describe('usePdfAction (T2)', () => {
@@ -92,7 +94,7 @@ describe('usePdfAction (T2)', () => {
   it('AC-01: Print hands the generated PDF to the print path', async () => {
     render(<Harness />);
     await userEvent.setup().click(screen.getByText('Print'));
-    await vi.waitFor(() => expect(kit.printPdf).toHaveBeenCalledWith(blob));
+    await vi.waitFor(() => expect(kit.printPdf).toHaveBeenCalledWith(blob, expect.anything()));
     expect(kit.downloadPdf).not.toHaveBeenCalled();
   });
 
@@ -130,7 +132,10 @@ describe('usePdfAction (T2)', () => {
     expect(options.action.label).toMatch(/try again/i);
     expect(screen.getByTestId('state').textContent).toBe('idle');
     expect(kit.downloadPdf).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tags: { 'pdf.stage': 'fetch' } })
+    );
 
     await act(async () => options.action.onClick());
     await vi.waitFor(() => expect(kit.downloadPdf).toHaveBeenCalledWith(blob, expect.any(String)));
