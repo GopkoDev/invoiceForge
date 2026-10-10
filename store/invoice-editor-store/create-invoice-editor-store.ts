@@ -113,6 +113,9 @@ export function createInvoiceEditorStore(
       // and the failure message offering Retry goes away with the page.
       dispose: () => {
         sessionToken += 1;
+        // A save still in flight no longer clears this itself (its token is stale): a reused store
+        // must not stay stuck on isSaving.
+        set({ isSaving: false });
         if (failureToast.shown) toast.dismiss(failureToast.id);
         failureToast.shown = false;
       },
@@ -136,6 +139,8 @@ export function createInvoiceEditorStore(
           else settle({ hintStatus: 'failed' });
         } catch {
           settle({ hintStatus: 'failed' });
+          // architecture-hardening AC-21: a rejected call is treated like UNAUTHORIZED.
+          goToSignIn();
         }
       },
 

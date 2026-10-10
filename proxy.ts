@@ -8,6 +8,7 @@ import {
   routes,
   protectedRoutes,
   isPublicPath,
+  isStaticAssetPath,
   isRefusedAnonymousMutation,
   REQUEST_PATH_HEADER,
 } from './config/routes.config';
@@ -22,7 +23,7 @@ const { auth } = NextAuth(authConfig);
 const FILE_PATH = /\/[^/]+\.[a-z0-9]+$/i;
 
 function markPrivatePage(res: NextResponse, pathname: string): NextResponse {
-  if (!pathname.startsWith('/api/') && !FILE_PATH.test(pathname)) {
+  if (!pathname.startsWith('/api/') && !FILE_PATH.test(pathname) && !isStaticAssetPath(pathname)) {
     res.headers.set('Cache-Control', 'private, no-store');
   }
   return res;

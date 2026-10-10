@@ -60,7 +60,7 @@ describe('T28 toolkit failure classification', () => {
     expect(h.toast.error).toHaveBeenCalledTimes(1);
     expect(h.captureException).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ tags: expect.objectContaining({ 'pdf.stage': 'fetch' }) })
+      expect.objectContaining({ tags: expect.objectContaining({ 'pdf.stage': 'version' }) })
     );
   });
 
@@ -78,7 +78,7 @@ describe('T28 toolkit failure classification', () => {
     );
   });
 
-  it('a captive portal answering the probe is reported with its stage fetch, and the page stays usable with a next step offered', async () => {
+  it('a captive portal answering the probe is reported with its stage version (T45), and the page stays usable with a next step offered', async () => {
     vi.stubGlobal('requestIdleCallback', undefined);
     vi.stubGlobal('cancelIdleCallback', undefined);
     vi.stubGlobal(
@@ -100,7 +100,7 @@ describe('T28 toolkit failure classification', () => {
     expect(options.action.label).toMatch(/try again|reload/i);
     expect(h.captureException).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ tags: expect.objectContaining({ 'pdf.stage': 'fetch' }) })
+      expect.objectContaining({ tags: expect.objectContaining({ 'pdf.stage': 'version' }) })
     );
     expect(screen.getByRole('button', { name: /download pdf/i })).toBeEnabled();
   });

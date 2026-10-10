@@ -362,6 +362,39 @@ describe('invoice editor store - loaded dates (T44)', () => {
     }
   });
 
+  // T45 (review r2): a rejected number-hint call is treated like UNAUTHORIZED, as selectSenderProfile does.
+  it('T45: a rejected number-hint request sends the device to sign-in', async () => {
+    generateInvoiceNumberMock.mockRejectedValue(new Error('boom'));
+    store = createInvoiceEditorStore({
+      ...base,
+      initialData: { ...initialData(), invoiceNumber: '' },
+    });
+    expect(store.getState().hintStatus).toBe('loading');
+
+    await store.getState().requestNumberHint();
+
+    expect(goToSignInMock).toHaveBeenCalledTimes(1);
+  });
+
+  // T45 (review r2): dispose() while a save is in flight must not leave isSaving stuck for a reused store.
+  it('T45: a save in flight when the store is disposed ends with isSaving false, and the store can save again', async () => {
+    let res!: (v: unknown) => void;
+    updateInvoiceMock.mockReturnValueOnce(new Promise((a) => (res = a)));
+    store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
+
+    const saving = store.getState().save('save');
+    expect(store.getState().isSaving).toBe(true);
+    store.getState().dispose();
+    res(ok(saved()));
+    await saving;
+
+    expect(store.getState().isSaving).toBe(false);
+
+    updateInvoiceMock.mockResolvedValue(ok(saved()));
+    await store.getState().save('save');
+    expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
+  });
+
   it('reset forgets the loaded dates', () => {
     store = createInvoiceEditorStore({ ...base, initialData: initialData(), invoiceId: 'inv-1' });
 

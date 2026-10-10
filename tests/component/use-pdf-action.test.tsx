@@ -139,6 +139,28 @@ describe('usePdfAction (T2)', () => {
     expect(message).not.toMatch(/try again/i);
   });
 
+  it('T45 / sad §585: a new-version failure is reported with pdf.stage=version', async () => {
+    loadPdfKit.mockRejectedValueOnce(new PdfKitLoadError('new-version'));
+    render(<Harness />);
+    await userEvent.setup().click(screen.getByText('Download'));
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledTimes(1));
+    expect(captureException).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tags: { 'pdf.stage': 'version' } })
+    );
+  });
+
+  it('T45 / sad §585: a generate failure is reported with pdf.stage=generate', async () => {
+    kit.generatePdfBlob.mockRejectedValueOnce(new Error('render failed'));
+    render(<Harness />);
+    await userEvent.setup().click(screen.getByText('Download'));
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledTimes(1));
+    expect(captureException).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tags: { 'pdf.stage': 'generate' } })
+    );
+  });
+
   it('AC-02b: reload action reloads the page', async () => {
     const reload = vi.fn();
     vi.stubGlobal('location', { ...window.location, reload });

@@ -390,6 +390,23 @@ describe('proxy Cache-Control (AC-07, signed-in pages are no-store)', () => {
     }
   );
 
+  // T45 (review r2): generated image routes are assets, not pages.
+  it.each(['/opengraph-image', '/twitter-image', '/icon/abc'])(
+    'does not send no-store on the signed-in generated asset %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+
+  it.each(['/privacy', '/terms'])(
+    'keeps no-store on the signed-in legal page %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    }
+  );
+
   it('leaves a signed-in route handler (/api/*) without the page header', async () => {
     const res = await callProxy(
       buildRequest('/api/user/export', { token: signedIn })

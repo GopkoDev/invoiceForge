@@ -50,7 +50,7 @@
 | T42 | Make the PDF on-demand tests able to fail | tests | Dmytro Hopko | — | T41 | todo |
 | T43 | Prove AC-06 hydration and AC-07 isolation through the client router | tests | Dmytro Hopko | — | T38 | todo |
 | T44 | Close the remaining save-flow, date and hygiene test gaps | tests | Dmytro Hopko | — | T38 | todo |
-| T45 | Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose | app | Dmytro Hopko | — | — | todo |
+| T45 | Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose | app | Dmytro Hopko | — | — | done |
 | T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | todo |
 | T47 | Bring the SAD and the architecture map in line with the shipped code | docs | Dmytro Hopko | — | — | todo |
 

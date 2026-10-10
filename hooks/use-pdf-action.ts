@@ -118,7 +118,9 @@ export function usePdfAction() {
         onClick: () => again(action),
       };
       if (error instanceof PdfKitLoadError) {
-        Sentry.captureException(error, { tags: { 'pdf.stage': 'fetch' } });
+        Sentry.captureException(error, {
+          tags: { 'pdf.stage': error.kind === 'new-version' ? 'version' : 'fetch' },
+        });
         if (error.kind === 'new-version') {
           toast.error(NEWER_VERSION, {
             action: { label: 'Reload', onClick: () => window.location.reload() },
