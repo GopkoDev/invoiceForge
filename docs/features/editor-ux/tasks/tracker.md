@@ -81,7 +81,7 @@
 | T72 | Record the new-invoice initialData pre-fill and the private layouts' saved-zone read in the SAD, data model and contract | docs | Dmytro Hopko | — | — | done |
 | T73 | Make the layout-baseline owner-review notes and the existing-invoice phone diff show the scrollbar thumb, and drop the 'under 1 point' claim | infra | Dmytro Hopko | — | T72, T74 | done |
 | T74 | Test that a line moved to the first position with the keyboard announces 'line 1' | tests | Dmytro Hopko | — | — | done |
-| T75 | Correct the SAD's new-server-call, logging and Flow 5 default wording, and the T53 log's percentage note | docs | Dmytro Hopko | — | — | todo |
+| T75 | Correct the SAD's new-server-call, logging and Flow 5 default wording, and the T53 log's percentage note | docs | Dmytro Hopko | — | — | done |
 | T76 | Test that a failed invoice-number hint leaves the loading state for 'Assigned on save' at the same size | tests | Dmytro Hopko | — | — | todo |
 | T77 | Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload | tests | Dmytro Hopko | — | — | todo |
 

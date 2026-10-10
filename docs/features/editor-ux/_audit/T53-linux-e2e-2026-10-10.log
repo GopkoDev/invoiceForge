@@ -201,7 +201,7 @@ not native x86_64 hardware; the nightly on ubuntu-latest is the native check.
 The baselines did not exist at 72cf58b (`git show 72cf58b:tests/e2e/editor-layout.spec.ts-snapshots/...` is empty). They were first recorded from main's app (72cf58b) in d40c9aa
 ("masked Linux baselines from main", tests/e2e/README.md), so d40c9aa is the "old" image. "New" is HEAD (re-taken in fc03e39). Old, new and diff images are in the repo under
 _audit/T58-layout-baselines/<name>.{old,new,diff}.png (T58). The old and new images are the committed baselines; the diff images (red = differing pixels) are rebuilt from git with
-_audit/T58-layout-baselines/build.mjs, not taken from Playwright's comparator, so their percentages (percentages.txt) can differ slightly from the ones below.
+_audit/T58-layout-baselines/build.mjs, not taken from Playwright's comparator. Their percentages (percentages.txt) also include the later T66 banner text and T67 re-capture, so they run higher than the ones below, by up to 2.09 points (new-invoice phone: 11.09% there, 9% here; see the T58 README).
 - editor-new-invoice-desktop-chromium-linux.png: 35% of pixels differ.
   Editor column: the new invoice now opens with the default sender profile and bank account filled in (T22), so "Test Sender Profile" and "Test Bank (USD)" are chosen
   and their detail cards show; everything below moves down about 220 px. Preview column: it was fully masked; now only the preview's header and sender/bill-to blocks are masked,

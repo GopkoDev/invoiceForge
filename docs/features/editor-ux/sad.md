@@ -124,7 +124,7 @@ C4Context
 
 **Tactical choices recorded inline (gate below 2 of 3):**
 
-- **"Today" comes from the server.** The new-invoice page computes today's calendar day in the Freelancer time zone (UTC until one is saved, mcp-server ADR-0006) and passes it, with the due date that follows from the payment terms, in the editor's initial data. The browser clock and the time-zone cookie of architecture-hardening ADR-0010 do not decide it — the glossary does (spec §1).
+- **"Today" comes from the server.** The new-invoice page computes today's calendar day in the Freelancer time zone (UTC until one is saved, mcp-server ADR-0006) and passes it, with the due date 30 days later, in the editor's initial data. The browser clock and the time-zone cookie of architecture-hardening ADR-0010 do not decide it — the glossary does (spec §1).
 - **Edits during a save are detected by a form revision counter**, not by comparing values: every edit increments it, and a save remembers the revision it started from. AC-04 counts an edit that puts a value back as a change, which a value comparison would miss.
 - **The proposed invoice number stays asynchronous.** Its field reserves its final size and shows a loading state until the hint arrives, so the layout does not move (AC-06).
 - **Spec §8 open question "currencies sharing a symbol" (due before design) — closed with the spec's default.** The `Currency` enum is UAH, USD, EUR, GBP and PLN; only USD uses "$", so no two currencies share a symbol today. The app's existing money format stays, identical on screen and in the PDF. Revisit if a second dollar currency is added.
@@ -370,7 +370,7 @@ sequenceDiagram
         D-->>S: the invoice with its number, Customer, lines, dates and totals
     else new invoice
         S->>D: reads the defaults and the Freelancer time zone
-        D-->>S: default sender profile, bank account, payment terms, time zone or none
+        D-->>S: default sender profile, its default bank account, time zone or none
         S->>S: computes today in the Freelancer time zone, UTC if none, and the due date
     end
     S->>S: renders the HTML with an editor store built from this data
@@ -588,7 +588,7 @@ No infrastructure change: the feature ships inside the existing single Vercel de
 - **Layout shift** — Vercel Speed Insights CLS for the editor route at phone width; the spec §6 NFR target (≤ 0.1 at p75) is read 14 days after the wave-4 release.
 - **Render mismatches** — Sentry issues from React hydration errors on the invoices list, dashboard and editor; baseline counted over the 14 days before release, target 0 within 14 days after (spec §7).
 - **PDF failures** — Sentry events from `use-pdf-action` tagged `pdf.stage` = `fetch` / `version` / `generate`, so a rise in "newer version" failures after a deploy is visible separately from generation errors.
-- **Tracing** — none added. The one new server-side call is the private layouts' saved-zone read (Flow 6), a primary-key lookup (`User_pkey`) inside the existing render; a failed lookup is logged and falls back to refreshing, as before (ADR-0010 amendment).
+- **Tracing** — none added. The feature adds two server-side reads, both primary-key lookups (`User_pkey`) inside the existing render: the private layouts' saved-zone read (Flow 6), where a failed lookup is logged and falls back to refreshing, as before (ADR-0010 amendment); and the editor pages' own session-actor lookup (`actingFreelancerFromSession` in `app/(invoice-editor)/invoices/new/page.tsx` and `[id]/edit/page.tsx`), which keys the editor store to the Freelancer (Flow 5, ADR-0003). It runs alongside `getInvoiceEditorData`, which resolves the actor again, and like it reads the saved zone and may seed an empty one.
 
 **Build and CI gates (added):**
 - `scripts/check-pdf-chunks.ts` after `next build`: fails when any route other than the invoice editor lists a chunk containing `@react-pdf/renderer` among its initial chunks (spec §6 "PDF toolkit on non-printing pages").
@@ -615,7 +615,7 @@ The repo's conventions are inherited unchanged (results, errors, IDs, auth guard
 | Amount inputs | One shared `AmountInput` (`inputMode="decimal"`, "." as the only decimal separator) for line price and quantity, discount, tax rate and shipping | here; §11 iOS keypad risk |
 | Dialogs | Every editor dialog, the save confirmation included, goes through `store/use-modal-store.ts` and is mounted by `invoice-editor-modal-container.tsx` | repo convention (§2) |
 | Observability | Sentry for PDF failures and hydration errors; Vercel Speed Insights for CLS; no new tracing | §7 |
-| Logging | Unchanged; no new server logs | — |
+| Logging | One new server log: a failed saved-zone lookup in `zoneCookieNeedsRefresh` (`lib/helpers/time-zone.ts`), with the error redacted; otherwise unchanged | ADR-0010 amendment (T60), Flow 6 |
 | Authentication / authorization | Unchanged server checks (`proxy.ts` deny-by-default, `requireLiveUser` in the editor layout, owner-scoped services); "invoice not found" for another Freelancer's invoice as today | architecture-hardening ADR-0001, ADR-0002; service-layer ADR-0003 |
 | ID strategy | Unchanged `cuid()` on the server; the editor's client-side line keys use `crypto.randomUUID()` instead of the `uuid` package | §2; repo hygiene |
 | Internationalisation | None — English UI and a fixed `en-US` format | ADR-0006 |
