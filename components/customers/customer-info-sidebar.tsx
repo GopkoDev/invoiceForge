@@ -6,9 +6,13 @@ import { isWebAddress } from '@/lib/validations/web-address';
 
 interface CustomerInfoSidebarProps {
   customer: CustomerWithRelations;
+  timeZone?: string | null;
 }
 
-export function CustomerInfoSidebar({ customer }: CustomerInfoSidebarProps) {
+export function CustomerInfoSidebar({
+  customer,
+  timeZone,
+}: CustomerInfoSidebarProps) {
   const initials = customer.name
     .split(' ')
     .map((n) => n[0])
@@ -23,7 +27,7 @@ export function CustomerInfoSidebar({ customer }: CustomerInfoSidebarProps) {
     customer.country,
   ]);
 
-  const memberSince = formatMoment(customer.createdAt, null, {
+  const memberSince = formatMoment(customer.createdAt, timeZone ?? null, {
     year: 'numeric',
     month: 'short',
   });
