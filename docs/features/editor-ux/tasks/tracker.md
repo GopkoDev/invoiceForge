@@ -60,5 +60,10 @@
 | T51 | Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD | docs | Dmytro Hopko | — | T49 | done |
 | T52 | Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment | wiring | Dmytro Hopko | — | — | done |
 | T53 | Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines | infra | Dmytro Hopko | — | T48, T49, T50, T51, T52 | review |
+| T54 | Restore focus after the create hand-over on every editor field, not only fields with an aria-label | app | Dmytro Hopko | — | — | todo |
+| T55 | Guard the create hand-over: move only from the new or the edit address, and adopt an entry only once | app | Dmytro Hopko | — | T54 | todo |
+| T56 | Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections | tests | Dmytro Hopko | — | — | todo |
+| T57 | Stop the time-zone cookie refresh from cancelling the Freelancer's first navigation after sign-in | app | Dmytro Hopko | — | — | todo |
+| T58 | Keep the layout-baseline images under _audit, point the test plan at the current e2e log, and log plain pnpm test:e2e at the final HEAD | docs | Dmytro Hopko | — | T54, T55, T56, T57 | todo |
 
-**Total:** 54 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3).
+**Total:** 59 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4).

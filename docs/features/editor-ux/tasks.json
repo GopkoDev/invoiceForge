@@ -1145,6 +1145,105 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
       "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T54",
+      "title": "Restore focus after the create hand-over on every editor field, not only fields with an aria-label",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-05b"
+      ],
+      "dod": "Review r4 P1. captureFocus/restoreFocus match the focused field on a key that is stable across a client mount (e.g. a data-field form-path attribute or name/aria-label on every editor field), never on a useId()-derived id. Invoice number, PO number, Notes, Payment terms, Terms, Discount, Shipping and Tax rate keep focus and caret across the swap. The component test renders the real NotesSection (or the invoice-number field) instead of a stand-in input, and fails on the old code. One e2e types into Notes across the swap and asserts the full typed text.",
+      "files_hint": [
+        "store/invoice-editor-store/invoice-editor-provider.tsx",
+        "components/invoice-editor/",
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx",
+        "tests/e2e/editor-first-save-after-create.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
+      "source": "review-2026-10-10-r4"
+    },
+    {
+      "id": "T55",
+      "title": "Guard the create hand-over: move only from the new or the edit address, and adopt an entry only once",
+      "layer": "app",
+      "deps": [
+        "T54"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-07"
+      ],
+      "dod": "Review r4 P2. router.replace to the edit page runs only when location.pathname is invoicesNew or invoiceEdit(id), so Back pressed during a create is not overridden; the check does not depend on the order of set() and history.replaceState. The useState initializer adopts only an entry with !claimed, as ADR-0003's amendment says. Tests assert no move from an unrelated address and no second adoption of a claimed entry; the t44 test no longer requires a move 'wherever the address is'.",
+      "files_hint": [
+        "store/invoice-editor-store/invoice-editor-provider.tsx",
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx",
+        "docs/features/editor-ux/adr/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
+      "source": "review-2026-10-10-r4"
+    },
+    {
+      "id": "T56",
+      "title": "Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-05b",
+        "AC-07"
+      ],
+      "dod": "Review r4 P3 and P4. editor-first-save-after-create.spec.ts reads nodeKept only after a positive signal that the action's revalidated tree has committed (e.g. a server-rendered marker that changes, or networkidle plus two animation frames); the check fails when the editor is remounted after the toast. zoneRefreshSettled and afterHydrationRequestsEnded in genuine-session.ts get a no-op catch at creation and clear their timers when the page closes; no unhandled rejection can land in a later test.",
+      "files_hint": [
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "tests/e2e/support/genuine-session.ts",
+        "tests/e2e/session-isolation-bfcache.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
+      "source": "review-2026-10-10-r4"
+    },
+    {
+      "id": "T57",
+      "title": "Stop the time-zone cookie refresh from cancelling the Freelancer's first navigation after sign-in",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-08",
+        "AC-07"
+      ],
+      "dod": "Review r4 P5. The first-sign-in tz cookie no longer causes a router.refresh() that a client navigation can cancel (WebKit full reload of /dashboard). Either the cookie is set server-side (proxy or sign-in callback) or the refresh is skipped once a client navigation has started. A test reproduces the lost navigation on the old code. The harness workaround in genuine-session.ts is removed or justified, and the T53 audit wording 'not a product bug' is corrected.",
+      "files_hint": [
+        "components/time-zone-cookie.tsx",
+        "proxy.ts",
+        "tests/e2e/support/genuine-session.ts",
+        "docs/features/editor-ux/_audit/T53-linux-e2e-2026-10-10.log"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
+      "source": "review-2026-10-10-r4"
+    },
+    {
+      "id": "T58",
+      "title": "Keep the layout-baseline images under _audit, point the test plan at the current e2e log, and log plain pnpm test:e2e at the final HEAD",
+      "layer": "docs",
+      "deps": [
+        "T54",
+        "T55",
+        "T56",
+        "T57"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-15"
+      ],
+      "dod": "Review r4 P6 and P7. The old/new/diff PNGs for the three re-captured layout baselines (or a one-line command that rebuilds them from git) are under docs/features/editor-ux/_audit/, referenced from the T53 log, so the owner review can be repeated. test-plan.md:23 points at the current Linux e2e log and says the baseline review is pending until recorded. A plain CI=1 pnpm test:e2e on Linux at the final HEAD (after T54-T57) is logged green under _audit/.",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r4.md",
+      "source": "review-2026-10-10-r4"
     }
   ]
 }
