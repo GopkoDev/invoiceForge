@@ -1343,6 +1343,80 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r5.md",
       "source": "review-2026-10-10-r5"
+    },
+    {
+      "id": "T64",
+      "title": "Give the phone 'View PDF' sheet's close button an announced 'Close preview' name, and test it",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Review r6 F1. The close button of the phone 'View PDF' sheet (invoice-editor-resize-panels.tsx, sheet.tsx sr-only 'Close') announces 'Close preview' in the editor without changing other sheets' close buttons. A case in invoice-editor-accessible-names.test.tsx opens 'View PDF' and asserts getByRole('button', { name: /close preview/i }); it fails on the old code. test-plan.md:81 row names the test.",
+      "files_hint": [
+        "components/invoice-editor/invoice-editor-resize-panels.tsx",
+        "components/ui/sheet.tsx",
+        "tests/component/invoice-editor-accessible-names.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r6.md",
+      "source": "review-2026-10-10-r6"
+    },
+    {
+      "id": "T65",
+      "title": "Record the tz cookie and the saved-zone check in the spec and SAD, record storedAmounts in the contracts, and close the currency-symbol question",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-09",
+        "AC-10"
+      ],
+      "dod": "Review r6 F2-F4. spec §6.1 says the sign-in pages write the functional tz cookie (browser time zone) for Visitors, linking the ADR-0010 amendments of 2026-10-10. sad.md Flow 6 shows (note or opt branch) the sign-in pages writing tz and the private layouts checking the saved zone to decide on refresh. sad.md §4 and data-model.md:112 note the additive InvoiceEditorData.storedAmounts in getInvoiceEditorData's result; docs/features/invoice-integrity/contracts/server-actions.md getInvoiceEditorData section lists it. spec §8 currency-symbol question is marked resolved with the formatMoney evidence (lib/format/index.ts:9-16: CA$, A$, only USD prints '$').",
+      "files_hint": [
+        "docs/features/editor-ux/spec.md",
+        "docs/features/editor-ux/sad.md",
+        "docs/features/editor-ux/data-model.md",
+        "docs/features/invoice-integrity/contracts/server-actions.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r6.md",
+      "source": "review-2026-10-10-r6"
+    },
+    {
+      "id": "T66",
+      "title": "Make the privacy page and the cookie banner list the cookies the app really sets",
+      "layer": "ui",
+      "deps": [],
+      "acs": [],
+      "dod": "Review r6 S1. privacy-content.tsx drops the fixed 'two first-party cookies' count or lists every cookie: the Auth.js session cookie under its real name (authjs.session-token / __Secure-authjs.session-token, per lib/helpers/session-cookies.ts), the Auth.js sign-in helper cookies, tz and sidebar_state. cookie-banner.tsx mentions the functional time-zone cookie alongside the session cookie. privacy-tz-cookie-t61.test.tsx asserts the real session cookie name, sidebar_state and the banner wording.",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "components/layout/cookie-banner.tsx",
+        "tests/component/privacy-tz-cookie-t61.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r6.md",
+      "source": "review-2026-10-10-r6"
+    },
+    {
+      "id": "T67",
+      "title": "Stop the losing cookie poll leaking a rejection in the first-navigation e2e, close its context in a finally, and log plain pnpm test:e2e at the final HEAD",
+      "layer": "tests",
+      "deps": [
+        "T64",
+        "T65",
+        "T66"
+      ],
+      "acs": [
+        "AC-07",
+        "AC-15"
+      ],
+      "dod": "Review r6 S2. In first-navigation-after-sign-in.spec.ts the expect.poll raced against 'sent' is kept in a variable with a no-op catch, and the test body is wrapped in try { ... } finally { await context.close(); } (both tests if both share the shape). A plain CI=1 pnpm test:e2e on Linux on Node 22 at the final HEAD (after T64-T66) is logged green under _audit/.",
+      "files_hint": [
+        "tests/e2e/first-navigation-after-sign-in.spec.ts",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r6.md",
+      "source": "review-2026-10-10-r6"
     }
   ]
 }
