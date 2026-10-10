@@ -1,0 +1,31 @@
+T71 Linux e2e run at the final HEAD (review r7, after T68-T70), 2026-10-10
+HEAD: bd2278c (feature/editor-ux), exported with `git archive bd2278c` (clean tree); this log and the T71 doc changes are added afterwards (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop, engine 29.8.1); @playwright/test 1.63.0
+Node used for the runs: v22.23.3 (the same nodejs.org linux-arm64 tarball as T67, checked against SHASUMS256.txt, copied to /opt/node22, first on PATH;
+  the image's own Node is not used). Inside the repo's engines (>=22.18 <23). pnpm 10.25.0 via corepack.
+Docker CLI: static 27.3.1 aarch64 from download.docker.com (the T67 download).
+How (the T53/T58/T63/T67 harness): repo copy in the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`, then plain `CI=1 pnpm test:e2e`
+  (no --workers flag, so the config's 2 workers). Docker socket mounted from the host, TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+  (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only). The app server and its throwaway Postgres come from
+  playwright.config.ts's webServer. .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases.
+  The host was kept awake with `caffeinate -i` for the whole run.
+
+== Layout baselines ==
+Not re-taken: T68-T70 do not change the editor screens (T70 only removes an unused import from the cookie banner and one cookie name from the privacy page).
+The four baselines are unchanged since 2a5df97 and editor-layout.spec.ts:190 matched them in both runs below.
+The owner-review images in _audit/T58-layout-baselines/ were rebuilt with `build.mjs d40c9aa bd2278c`; each *.new.png is byte-identical (cmp) to the
+baseline in tests/e2e/editor-layout.spec.ts-snapshots/, and the existing-invoice phone baseline now has its own old/new/diff images.
+
+== Run 1: CI=1 pnpm test:e2e ==
+Running 116 tests using 2 workers
+  1 skipped   (pdf-on-demand.spec.ts:279 first PDF timing p95: needs E2E_TIMING=1)
+  115 passed (7.1m)
+0 failed, 0 flaky, exit code 0. Total wall 426s (MEASURED, `date +%s` stamps).
+
+== Run 2 (stability rerun, same container) ==
+Running 116 tests using 2 workers
+  1 skipped   (same test)
+  115 passed (6.9m)
+0 failed, 0 flaky, exit code 0. Total wall 413s (MEASURED).
+
+Result: both runs 115 passed, 1 skipped, 0 failed, 0 flaky, exit 0 at HEAD bd2278c, Node v22.23.3.

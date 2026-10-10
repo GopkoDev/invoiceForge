@@ -217,10 +217,13 @@ _audit/T58-layout-baselines/build.mjs, not taken from Playwright's comparator, s
 No change is in the editor layout itself: every difference comes from the pre-filled sender/bank of T22 or from the narrower preview mask of T46.
 
 == Owner review: pending ==
-The owner must look at the old/new/diff images of the three files above (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
+T67 (2a5df97) re-took all four baselines again because the cookie banner's text changed (T66): only the banner line differs, plus a scrollbar thumb on the
+existing-invoice phone image; see _audit/T67-linux-e2e-2026-10-10.log. T71 (review r7) rebuilt the review images against bd2278c, so every *.new.png is
+byte-identical to the baseline CI compares, and added images for the existing-invoice phone baseline (d40c9aa -> HEAD: the banner text only).
+The owner must look at the old/new/diff images of these four files (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-desktop-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-phone-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-desktop-chromium-linux.png
-T67 (2a5df97) re-took all four baselines again because the cookie banner's text changed (T66): only the banner line differs, plus a scrollbar thumb on the
-existing-invoice phone image; see _audit/T67-linux-e2e-2026-10-10.log. The verdict covers the baselines as they are at HEAD.
+  tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-phone-chromium-linux.png
+The verdict covers these four baselines as they are at HEAD (unchanged since 2a5df97).
 The description above is the implementer's, not a review. To record the review, replace this section's "pending" with the owner's name, date and verdict.

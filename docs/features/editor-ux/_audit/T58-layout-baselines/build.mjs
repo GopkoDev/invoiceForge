@@ -1,5 +1,5 @@
-// Rebuilds the old / new / diff PNGs of the layout baselines re-captured in T46 (see README.md).
-// Usage (repo root): node docs/features/editor-ux/_audit/T58-layout-baselines/build.mjs [oldRev=d40c9aa] [newRev=1050f70]
+// Rebuilds the old / new / diff PNGs of the four layout baselines (see README.md).
+// Usage (repo root): node docs/features/editor-ux/_audit/T58-layout-baselines/build.mjs [oldRev=d40c9aa] [newRev=HEAD]
 // Needs only what is already in node_modules: the pngjs that ships inside playwright-core.
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -9,12 +9,13 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..', '..', '..', '..');
-const [oldRev = 'd40c9aa', newRev = '1050f70'] = process.argv.slice(2);
+const [oldRev = 'd40c9aa', newRev = 'HEAD'] = process.argv.slice(2);
 const dir = 'tests/e2e/editor-layout.spec.ts-snapshots';
 const names = [
   'editor-new-invoice-desktop-chromium-linux',
   'editor-new-invoice-phone-chromium-linux',
   'editor-existing-invoice-desktop-chromium-linux',
+  'editor-existing-invoice-phone-chromium-linux',
 ];
 const pnpmDir = join(root, 'node_modules/.pnpm');
 const pc = readdirSync(pnpmDir).find((d) => d.startsWith('playwright-core@'));
