@@ -3,6 +3,7 @@ import {
   APP_E2E_PORT,
   APP_E2E_URL,
   BASE_URL_OVERRIDE,
+  SNAPSHOT_PLATFORM,
 } from './tests/e2e/support/app-server';
 
 const PORT = 4310;
@@ -15,6 +16,8 @@ const APP_PORT = APP_E2E_PORT;
 // as their origin. Local runs stay the default.
 export default defineConfig({
   testDir: './tests/e2e',
+  // Baselines are named by the OS that drew them; see SNAPSHOT_PLATFORM.
+  snapshotPathTemplate: `{testDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}-${SNAPSHOT_PLATFORM}{ext}`,
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
   reporter: [['list']],

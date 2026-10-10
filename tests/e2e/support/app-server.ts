@@ -11,6 +11,13 @@ import path from 'node:path';
 export const APP_E2E_PORT = 4311;
 export const BASE_URL_OVERRIDE =
   process.env.BASE_URL?.replace(/\/+$/, '') || undefined;
+/**
+ * Screenshot baselines are named by the operating system that drew them. The authoritative ones
+ * are `-linux` (CI's image); tests/e2e/README.md ("Layout baselines") captures them from macOS by
+ * driving a Linux browser in the Playwright image, and sets PW_SNAPSHOT_PLATFORM=linux to say so.
+ */
+export const SNAPSHOT_PLATFORM =
+  process.env.PW_SNAPSHOT_PLATFORM || process.platform;
 export const APP_E2E_URL =
   BASE_URL_OVERRIDE ?? `http://127.0.0.1:${APP_E2E_PORT}`;
 
