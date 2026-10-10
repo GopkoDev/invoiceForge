@@ -1646,6 +1646,73 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r10.md",
       "source": "review-2026-10-11-r10"
+    },
+    {
+      "id": "T81",
+      "title": "Show the notice's 'kept for you to save' sentence only when an allowed field was edited",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-05b"
+      ],
+      "dod": "Review r11 F2. When a save is dropped because the invoice is now issued, the notice always says the lines and other locked details were not saved. It adds the sentence about due date, notes, payment terms and PO number edits being kept for you to save only when one of those fields was edited (allowedEdited, store/invoice-editor-store/save-command.ts:206-207). A quantity-only change shows the first sentence alone and the editor shows Saved. tests/unit/store/save-command-race.test.ts covers both cases (quantity only; quantity plus an allowed field). tests/component/invoice-editor-save-flow-t36.test.tsx pins both exact strings. tests/e2e/editor-first-save-after-create.spec.ts:202 still matches. test-plan.md:53 describes both variants.",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "tests/unit/store/save-command-race.test.ts",
+        "tests/component/invoice-editor-save-flow-t36.test.tsx",
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r11.md",
+      "source": "review-2026-10-11-r11"
+    },
+    {
+      "id": "T82",
+      "title": "Make the first-PDF timing rows in the test plan and SAD say what the test measures",
+      "layer": "docs",
+      "deps": [],
+      "acs": [],
+      "dod": "Review r11 F3. test-plan.md:141 and sad.md:655 describe the timing test in tests/e2e/pdf-on-demand.spec.ts:279-313 as it is: only the invoices list is opened fresh, 20 times, at 10 Mbit/s, and the time from the Download PDF menu item to the download event is measured, p95 <= 3 s, behind E2E_TIMING=1. They no longer claim the editor or Print is timed. Docs only; no test change.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md",
+        "docs/features/editor-ux/sad.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r11.md",
+      "source": "review-2026-10-11-r11"
+    },
+    {
+      "id": "T83",
+      "title": "Correct the SAD's building-block line for invoice-pdf-helpers (split, not removed)",
+      "layer": "docs",
+      "deps": [],
+      "acs": [],
+      "dod": "Review r11 F4. sad.md:150 says invoice-pdf-helpers.tsx was split: the react-pdf code moved to lib/pdf/invoice-pdf-kit.tsx, and resolveLogoForPdf and prepareInvoiceDataForPdf stay in lib/helpers/invoice-pdf-helpers.ts, reached through hooks/use-pdf-action.ts. It no longer says the file was removed. Docs only.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r11.md",
+      "source": "review-2026-10-11-r11"
+    },
+    {
+      "id": "T84",
+      "title": "Run the full Linux e2e suite at the final HEAD and point the test plan at that log",
+      "layer": "tests",
+      "deps": [
+        "T81",
+        "T82",
+        "T83"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-15"
+      ],
+      "dod": "Review r11 F1. After T81-T83, run plain CI=1 pnpm test:e2e on Linux with the T53/T58/T63/T67/T71 harness (Playwright image matching @playwright/test, Node inside engines, caffeinate on the host, never the repo's .env databases). Record it as _audit/T84-linux-e2e-2026-10-11.log, including both the first-save-after-create AC-05b cases and the layout-baseline compare. test-plan.md:23 names that log and the commit as the last commit that changes the app or an e2e test. If a layout baseline changes, re-capture it and leave it for the owner's review (O2).",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r11.md",
+      "source": "review-2026-10-11-r11"
     }
   ]
 }
