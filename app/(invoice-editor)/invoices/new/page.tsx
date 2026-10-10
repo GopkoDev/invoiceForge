@@ -17,7 +17,7 @@ export default async function NewInvoicePage() {
 
   // ADR-0003: one store per mounted editor, keyed by Freelancer and invoice, built from this data.
   return (
-    <InvoiceEditorProvider key={`${userId}:new`} initial={data}>
+    <InvoiceEditorProvider key={`${userId}:new`} ownerId={userId} initial={data}>
       <InvoiceEditor />
       <InvoiceEditorModalContainer />
     </InvoiceEditorProvider>

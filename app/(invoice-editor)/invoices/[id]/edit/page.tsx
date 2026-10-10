@@ -32,7 +32,7 @@ export default async function EditInvoicePage({
 
   // ADR-0003: one store per mounted editor, keyed by Freelancer and invoice, built from this data.
   return (
-    <InvoiceEditorProvider key={`${userId}:${id}`} initial={data}>
+    <InvoiceEditorProvider key={`${userId}:${id}`} ownerId={userId} initial={data}>
       <InvoiceEditor />
       <InvoiceEditorModalContainer />
     </InvoiceEditorProvider>

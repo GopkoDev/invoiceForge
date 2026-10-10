@@ -43,7 +43,7 @@
 | T35 | Prove money formatting independent of device language on the screens, and test parity against a really rendered PDF | tests | Dmytro Hopko | — | T23 | done |
 | T36 | Add the save-flow UI and integration tests the plan names, and randomise when the mid-save edit happens | tests | Dmytro Hopko | — | T21, T24 | done |
 | T37 | Scan for editor components rendering their own dialog, test the theme switcher in both places, and drop the removed Drawer from the map | tests | Dmytro Hopko | — | — | done |
-| T38 | Keep the editor and its edits through the first Save after a create | app | Dmytro Hopko | — | — | todo |
+| T38 | Keep the editor and its edits through the first Save after a create | app | Dmytro Hopko | — | — | done |
 | T39 | Print an issued invoice opened in the editor with its stored amounts in the preview and in Download/Print | ui | Dmytro Hopko | — | — | todo |
 | T40 | Reject every comma in AmountInput, as AC-13 is written | ui | Dmytro Hopko | — | — | todo |
 | T41 | Show that the PDF is being prepared on the row menu and the editor buttons | ui | Dmytro Hopko | — | — | todo |
