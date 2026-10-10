@@ -221,4 +221,6 @@ The owner must look at the old/new/diff images of the three files above (kept in
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-desktop-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-phone-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-desktop-chromium-linux.png
+T67 (2a5df97) re-took all four baselines again because the cookie banner's text changed (T66): only the banner line differs, plus a scrollbar thumb on the
+existing-invoice phone image; see _audit/T67-linux-e2e-2026-10-10.log. The verdict covers the baselines as they are at HEAD.
 The description above is the implementer's, not a review. To record the review, replace this section's "pending" with the owner's name, date and verdict.

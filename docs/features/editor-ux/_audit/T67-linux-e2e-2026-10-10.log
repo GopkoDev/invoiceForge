@@ -1,0 +1,41 @@
+T67 Linux e2e run at the final HEAD (review r6, after T64-T66 and the T67 test fix), 2026-10-10
+HEAD: 2a5df97 (feature/editor-ux), exported with `git archive 2a5df97` (clean tree); this log is added afterwards (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop, engine 29.8.1); @playwright/test 1.63.0
+Node used for the runs: v22.23.3 (nodejs.org linux-arm64 tarball, checked against SHASUMS256.txt, unpacked on the host and copied to /opt/node22, first on PATH;
+  the image's own Node is not used). Inside the repo's engines (>=22.18 <23). pnpm 10.25.0 via corepack.
+Docker CLI: static 27.3.1 aarch64 from download.docker.com (sha256 4da6a6c7502b7ab561675a5ff5ac192d9b49d76d0b8847cf17ade246122279f4).
+How (the T53/T58/T63 harness): repo copy in the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`, then plain `CI=1 pnpm test:e2e`
+  (no --workers flag, so the config's 2 workers). Docker socket mounted from the host, TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+  (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only). The app server and its throwaway Postgres come from
+  playwright.config.ts's webServer. .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases.
+
+== Layout baselines re-captured (commit 2a5df97) ==
+T66 changed the cookie banner's text, and the fixed banner is inside the editor screenshots, so the four baselines were re-taken at 775c376 in the same image
+with `CI=1 pnpm exec playwright test tests/e2e/editor-layout.spec.ts --update-snapshots`. Changed pixels against the previous baselines (exact RGB compare):
+  editor-new-invoice-desktop-chromium-linux.png       0.78%, rows 766-779 only (the banner line)
+  editor-existing-invoice-desktop-chromium-linux.png  0.78%, rows 762-799 only (the banner line)
+  editor-new-invoice-phone-chromium-linux.png         1.85%, rows 737-787 only (the banner text)
+  editor-existing-invoice-phone-chromium-linux.png    2.36%, rows 62-843: the banner text, plus the overlay scrollbar thumb at the right edge that the d40c9aa
+                                                      capture showed and the new capture does not. No other change.
+The editor layout itself is unchanged in all four.
+
+== Run 1: CI=1 pnpm test:e2e ==
+Running 116 tests using 2 workers
+  1 skipped   (pdf-on-demand.spec.ts:279 first PDF timing p95: needs E2E_TIMING=1)
+  115 passed (7.0m)
+0 failed, 0 flaky, exit code 0. Total wall 424s (MEASURED, `date +%s` stamps).
+
+== Run 2 (stability rerun, same container) ==
+Running 116 tests using 2 workers
+  1 skipped   (same test)
+  115 passed (7.0m)
+0 failed, 0 flaky, exit code 0. Total wall 421s (MEASURED).
+
+New or changed since T63 (all passed in both runs):
+- editor-layout.spec.ts:190, both cases: compare against the re-captured baselines above.
+- first-navigation-after-sign-in.spec.ts:42 and :92, chromium and webkit: the losing wait has a no-op catch and the context closes in a finally (T67).
+- editor-first-display.spec.ts:81: masks the cookie banner by its new wording (T66).
+- mcp-time-zone.spec.ts:42: a local macOS run of 775c376's parent showed the longer T66 banner covering the settings Save button; the shorter wording
+  in 775c376 fixed it, and it passes here.
+
+Result: both runs 115 passed, 1 skipped, 0 failed, 0 flaky, exit 0 at HEAD 2a5df97, Node v22.23.3.
