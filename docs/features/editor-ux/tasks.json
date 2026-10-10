@@ -1017,6 +1017,134 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
       "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T48",
+      "title": "Show and announce that the PDF is being prepared on the phone editor, from a live region outside the buttons",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Review r3 R1. One always-mounted role=\"status\" aria-live=\"polite\" region per trigger surface, outside any <button> or menu item; only its text changes while preparing (same pattern as AmountInput). Below md, the \"More actions\" trigger shows the spinner and aria-busy while a Download or Print chosen from it is preparing. The status is not hidden by the desktop-only container. Component tests: a phone-width case picks Download and Print from the menu and asserts the trigger is busy and the status text is set; the desktop case asserts the status is not a descendant of the button.",
+      "files_hint": [
+        "hooks/use-invoice-pdf.tsx",
+        "components/invoices/pdf-preparing-status.tsx",
+        "components/invoice-editor/invoice-editor-header.tsx",
+        "tests/component/pdf-triggers-real.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T49",
+      "title": "Make the hand-over to the edit page after a create keep focus, scroll and in-flight edits, without Next internals",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-05b",
+        "AC-05c"
+      ],
+      "dod": "Review r3 R2, F2, F4. The provider uses useRouter() from next/navigation (tests mock next/navigation), not next/dist internals. The hand-over decision rests on startedAsNew plus the store invoiceId, not on window.location ordering against replaceState. router.replace is called with { scroll: false }, and the focused field (and caret) is restored after the swap, or both routes share one layout that keeps the editor mounted. The save-command.ts comment on replaceState describes the real behaviour. E2e: hold the create request, type a quantity while it runs, release it, keep typing after the swap; assert the full value, \"Unsaved\", the on-screen total (AC-04) and that the next Save stores it. Replace the 2 s sleeps in editor-first-save-after-create.spec.ts with a deterministic signal; assert or drop __sameNode in the AC-05b case; refresh the header comment. The hand-over component test gains a StrictMode case with a save in flight.",
+      "files_hint": [
+        "store/invoice-editor-store/invoice-editor-provider.tsx",
+        "store/invoice-editor-store/save-command.ts",
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T50",
+      "title": "Make the toolkit-fetch tracker in the PDF on-demand e2e wait for its own handlers",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Review r3 F3. trackToolkitChunks keeps the pending body-classification promises and every \"no toolkit fetched\" assertion awaits them (or records chunk URLs on request); the fixed 500 ms settle is gone. A negative control shows the tracker reports a chunk fetched just before the assertion.",
+      "files_hint": [
+        "tests/e2e/pdf-on-demand.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T51",
+      "title": "Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD",
+      "layer": "docs",
+      "deps": [
+        "T49"
+      ],
+      "acs": [
+        "AC-05c",
+        "AC-07",
+        "AC-01",
+        "AC-09"
+      ],
+      "dod": "Review r3 R4, R5. ADR-0003 and ADR-0005 are amended (or ADR-0008 added) for the hand-over: the key (owner, invoice), who claims an entry, when it is disposed, and why it is safe for AC-07; spec §6.1 points the security review at it. ux-flows.md:20 says the preview is HTML and the editor only warms the toolkit when idle. sad Flow 8 says Download/Print are disabled while there are unsaved changes and the model is built when the action is chosen. updated_at is bumped in sad, ux-flows and test-plan.",
+      "files_hint": [
+        "docs/features/editor-ux/adr/",
+        "docs/features/editor-ux/sad.md",
+        "docs/features/editor-ux/ux-flows.md",
+        "docs/features/editor-ux/test-plan.md",
+        "docs/features/editor-ux/spec.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T52",
+      "title": "Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment",
+      "layer": "wiring",
+      "deps": [],
+      "acs": [
+        "AC-07",
+        "AC-15",
+        "AC-10"
+      ],
+      "dod": "Review r3 F6. isStaticAssetPath sits above the AC-05 allowlist JSDoc in config/routes.config.ts. e2e-nightly.yml pins the Docker CLI version and checks its sha256 before extracting. The { subtotal; taxAmount; total } shape in store/invoice-editor-store/types.ts and types/invoice/types.ts reuses StoredAmounts from lib/invoice-document/types.ts. The session-isolation.spec.ts comment about the cut-off hint request reflects T45b (or the wait is dropped so the test proves T45b).",
+      "files_hint": [
+        "config/routes.config.ts",
+        ".github/workflows/e2e-nightly.yml",
+        "store/invoice-editor-store/types.ts",
+        "types/invoice/types.ts",
+        "tests/e2e/session-isolation.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
+    },
+    {
+      "id": "T53",
+      "title": "Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines",
+      "layer": "infra",
+      "deps": [
+        "T48",
+        "T49",
+        "T50",
+        "T51",
+        "T52"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-13",
+        "AC-07"
+      ],
+      "dod": "Review r3 R3. The WebKit \"navigation interrupted by another navigation to /dashboard\" failure is traced to its cause (sign-in helper waits for the post-sign-in URL to settle, or a product fix) and fixed; us03-status-lifecycle and session-isolation-bfcache:311 failures are explained and fixed. workers is set in playwright.config.ts when CI is set, so the README command is the one that passes. A plain CI=1 pnpm test:e2e on Linux at the final HEAD is logged green under _audit/. The three re-captured layout baselines are compared against the 72cf58b images and the owner review is recorded; one compare run on x86_64 (or the nightly) is on record.",
+      "files_hint": [
+        "tests/e2e/support/",
+        "playwright.config.ts",
+        "README.md",
+        "tests/e2e/README.md",
+        "tests/e2e/editor-layout.spec.ts",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r3.md",
+      "source": "review-2026-10-10-r3"
     }
   ]
 }
