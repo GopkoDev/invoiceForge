@@ -21,7 +21,7 @@ import type { InvoiceEditorState, SaveIntent, SaveOptions } from './types';
 const ISSUED_EDITABLE_KEYS = ['dueDate', 'notes', 'paymentTerms', 'poNumber'] as const;
 
 export const ISSUED_EDITS_DROPPED_NOTICE =
-  'Your latest changes were not saved because the invoice is now issued. Its lines are locked as they were issued.';
+  'Your changes to the lines and other locked details were not saved because the invoice is now issued. Edits to the due date, notes, payment terms and PO number are kept for you to save.';
 
 // F-41: the field-error keys the editor actually renders a FieldError next to
 // (invoice-details-section.tsx, summary-section.tsx, invoice-item-fields.tsx). A key outside this

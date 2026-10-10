@@ -63,7 +63,7 @@ let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 // The exact wording (store/invoice-editor-store/save-command.ts ISSUED_EDITS_DROPPED_NOTICE).
 const DROPPED_NOTICE =
-  'Your latest changes were not saved because the invoice is now issued. Its lines are locked as they were issued.';
+  'Your changes to the lines and other locked details were not saved because the invoice is now issued. Edits to the due date, notes, payment terms and PO number are kept for you to save.';
 const NOTES = 'Additional information for the client...';
 
 function data(): InvoiceEditorData {

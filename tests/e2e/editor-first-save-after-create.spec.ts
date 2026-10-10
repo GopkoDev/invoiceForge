@@ -199,7 +199,7 @@ for (const way of ['save', 'retry'] as const) {
       await expect(toastOf(page, 'Invoice issued')).toBeVisible(UI);
 
       await expect(
-        page.getByText('Your latest changes were not saved because the invoice is now issued.')
+        page.getByText('Your changes to the lines and other locked details were not saved because the invoice is now issued.', { exact: false })
       ).toBeVisible();
       await treeCommitted(page, versionBefore);
       expect(await nodeKept(page)).toBe(true);

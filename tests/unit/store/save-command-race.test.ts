@@ -278,8 +278,11 @@ describe('save command - issued with edits (AC-05b)', () => {
     expect(st.storedStatus).toBe('PENDING');
     expect(st.formData.items.find((i) => i.id === 'a')?.quantity).toBe(2); // the lines it was issued with
     expect(st.hasUnsavedChanges).toBe(false); // nothing allowed was edited
-    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/not saved/i);
-    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/issued/i);
+    // AC-05b: the notice names what was dropped (the line change) and does not imply that edits to
+    // the fields an issued invoice allows were lost too (review r10 N3, T80).
+    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/changes to the lines .* were not saved because the invoice is now issued/i);
+    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/due date, notes, payment terms and PO number are kept/i);
+    expect(cmd(store).issuedEditsDroppedNotice).not.toMatch(/latest changes/i);
     expectTotalsMatchVisibleLines(store);
 
     cmd(store).dismissIssuedEditsDroppedNotice();
