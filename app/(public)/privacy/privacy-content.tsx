@@ -130,8 +130,10 @@ export function PrivacyPolicyContent() {
               <h2 className="mb-4 text-2xl font-bold">3. Cookies & Tracking</h2>
               <p className="text-muted-foreground mb-4">
                 Invoice Forge uses{' '}
-                <strong>one strictly necessary session cookie</strong> for
-                authentication purposes only.
+                <strong>two first-party cookies</strong>: a strictly necessary
+                session cookie for authentication, and a functional time-zone
+                cookie so dates are shown in your time zone. Neither is used
+                for tracking.
               </p>
               <div className="bg-primary/5 mb-4 rounded-lg p-4">
                 <h3 className="mb-3 text-lg font-semibold">
@@ -166,13 +168,46 @@ export function PrivacyPolicyContent() {
                   </li>
                 </ul>
               </div>
+              <div className="bg-primary/5 mb-4 rounded-lg p-4">
+                <h3 className="mb-3 text-lg font-semibold">
+                  Time-Zone Cookie Details
+                </h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="text-muted-foreground">
+                    <strong>Cookie Name:</strong>{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">tz</code>
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Contents:</strong> Your browser&apos;s time zone
+                    name (for example, Europe/Kyiv), nothing else
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Purpose:</strong> Show dates, &quot;today&quot; and
+                    due dates in your time zone; on your first visit it sets
+                    your account&apos;s time zone, which you can change in
+                    Settings
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Set on:</strong> The sign-in pages and the pages
+                    you see when signed in, so it is set even if you do not
+                    finish signing in
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Duration:</strong> 1 year
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Type:</strong> First-party cookie (no third-party
+                    tracking)
+                  </li>
+                </ul>
+              </div>
               <div className="mb-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
                 <p className="text-sm">
                   <strong>
-                    By using Invoice Forge, you consent to the use of this
-                    strictly necessary cookie.
+                    By using Invoice Forge, you consent to the use of these
+                    cookies.
                   </strong>{' '}
-                  Without it, the Service cannot function.
+                  Without the session cookie, the Service cannot function.
                 </p>
               </div>
               <div>

@@ -54,6 +54,7 @@ The invoice list and the dashboard are server-rendered, and the server doesn't k
 - The private layouts still write the cookie when it is missing or stale, but they refresh only while the signed-in account has no saved zone. They look that up on the server (`zoneCookieNeedsRefresh` in `lib/helpers/time-zone.ts`); a failed lookup refreshes, as before.
 - Why: since mcp-server ADR-0006 the server reads the cookie only as the first-visit seed of the account zone, so for an account with a saved zone a refresh changes nothing on the server and only gives the Freelancer's first navigation something to race. A Sign-in link opened in another browser, an expired cookie and a changed device zone no longer refresh for a returning Freelancer.
 - What remains: the very first visit of an account with no saved zone, from a browser that never showed the sign-in pages, still refreshes once.
+- Privacy (editor-ux T61, review r5 Q3): the sign-in pages set the cookie for Visitors who never finish signing in, too. The privacy page's cookie section names it as a functional first-party cookie: the browser's time-zone name only, for one year, never used for tracking.
 
 ## Links
 
