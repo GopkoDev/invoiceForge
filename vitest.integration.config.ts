@@ -12,6 +12,7 @@ export default defineConfig({
     setupFiles: [
       'tests/support/server-only-mock.ts',
       'tests/support/limit-key-env.ts',
+      'tests/support/integration-runtime-gate.ts',
     ],
     include: ['tests/integration/**/*.test.ts'],
     exclude: ['node_modules/**'],

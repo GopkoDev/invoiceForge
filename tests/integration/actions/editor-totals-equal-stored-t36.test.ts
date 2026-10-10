@@ -223,3 +223,7 @@ describe.runIf(containerRuntimeAvailable)('editor totals equal stored totals to 
     expect(differing.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe.runIf(!containerRuntimeAvailable)('editor totals equal stored totals to the cent (T36, AC-04)', () => {
+  it.skip('skipped: no container runtime', () => {});
+});

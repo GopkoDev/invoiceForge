@@ -52,7 +52,7 @@
 | T44 | Close the remaining save-flow, date and hygiene test gaps | tests | Dmytro Hopko | — | T38 | done |
 | T45 | Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose | app | Dmytro Hopko | — | — | done |
 | T45b | Don't send the device to sign-in when the number-hint request was cut off by leaving the page | app | Dmytro Hopko | — | T45 | done |
-| T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | todo |
+| T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | done |
 | T47 | Bring the SAD and the architecture map in line with the shipped code | docs | Dmytro Hopko | — | — | done |
 
 **Total:** 48 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2).

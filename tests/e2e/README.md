@@ -7,8 +7,15 @@ Run them with `pnpm test:e2e` (a production build against a throwaway Postgres c
 The screenshot baselines in `editor-layout.spec.ts-snapshots/` are Linux-only (`-chromium-linux.png`), drawn by the
 Chromium of the official Playwright image that matches `@playwright/test` (CI runs `ubuntu-latest`, so the `-noble`
 image), because fonts render differently on every operating system. They were captured on `main`, before the one-tree
-layout of ADR-0004, and the spec at HEAD matches them within `maxDiffPixelRatio` 0.002 with the invoice number, dates,
-e-mail addresses and the preview page masked. To refresh them on purpose (in a commit of their own), keep the app, its
+layout of ADR-0004 (`main` at 72cf58b), and the spec at HEAD matches them within `maxDiffPixelRatio` 0.002 with the
+invoice number, dates, e-mail addresses and, inside the preview's page, only its header and sender / bill-to blocks
+masked (the table, totals and notes are compared).
+
+The new-invoice baselines (and the existing-invoice desktop one) were re-taken on purpose in editor-ux T46 (review Q7)
+on `feature/editor-ux` at 2b71edd plus that commit's working tree: the new invoice opens with the default sender and
+bank filled in (T22), and the preview mask is narrower. They were drawn with the command below
+(`@playwright/test` 1.63.0, `mcr.microsoft.com/playwright:v1.63.0-noble`) and then matched in three consecutive runs
+(`... --project=chromium -g baselines`, no `--update-snapshots`). To refresh them on purpose (in a commit of their own), keep the app, its
 database and the tests on your machine and run only the browser in the image:
 start `docker run -d --rm --name pwbrowser --ipc=host --init --add-host=host.docker.internal:host-gateway -p 3300:3300
 -v <repo>/node_modules/.pnpm/playwright-core@<version>/node_modules/playwright-core:/pw:ro

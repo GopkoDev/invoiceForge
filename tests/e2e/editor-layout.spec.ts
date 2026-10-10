@@ -11,10 +11,8 @@ import { openSignedInFreelancer } from './support/signed-in';
 import { openEditor } from './support/invoice-ui';
 import {
   APP_E2E_URL,
-  readE2eRuntime,
   SNAPSHOT_PLATFORM,
 } from './support/app-server';
-import { createTestPrismaClient } from '../support/db/client';
 import { protectedRoutes } from '../../config/routes.config';
 
 test.describe.configure({ timeout: 90_000 });
@@ -188,19 +186,6 @@ for (const [label, route] of EDITOR_ROUTES) {
   }
 }
 
-async function removeSenderProfiles(userId: string): Promise<void> {
-  const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
-  try {
-    await prisma.invoice.deleteMany({ where: { senderProfile: { userId } } });
-    await prisma.bankAccount.deleteMany({
-      where: { senderProfile: { userId } },
-    });
-    await prisma.senderProfile.deleteMany({ where: { userId } });
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
 for (const [label, route] of EDITOR_ROUTES) {
   test(`AC-13: desktop and phone editor match their baselines for ${label}`, async ({
     browser,
@@ -221,19 +206,18 @@ for (const [label, route] of EDITOR_ROUTES) {
     );
     try {
       const { page, workspace } = f;
-      if (label === 'a new invoice') {
-        // A new invoice now opens with the Freelancer's default sender and bank filled in (editor-ux
-        // T22, AC-06): a content change on purpose, not a layout one. The baselines come from before
-        // it, so this Freelancer has no sender profile and the form opens empty, as it did.
-        await removeSenderProfiles(workspace.userId);
-      }
       await page.goto(`${APP_E2E_URL}${route(workspace.invoiceId)}`);
       await expect(page.locator('h1').first()).toBeVisible();
       await page.waitForLoadState('networkidle');
       // Covered, so only the layout is compared: the random invoice number (form field, title and
-      // its badge), both dates, the random e-mail addresses, and the preview's page (its wording
-      // and amounts changed on purpose in editor-ux T4-T6; its frame, zoom bar and scroll area
-      // stay in the picture).
+      // its badge), both dates, the random e-mail addresses, and inside the preview's page only
+      // its dynamic text (the header with the number and dates, and the sender / bill-to blocks).
+      // The preview's frame, zoom bar, table, totals and notes stay in the picture (editor-ux T46,
+      // review Q7). A new invoice opens with the default sender and bank filled in (T22), which is
+      // the screen users see, so the baseline is taken that way.
+      const previewPage = page.locator(
+        'div.relative.min-h-0.flex-1.overflow-auto.overscroll-contain div.relative.p-10.text-sm'
+      );
       const volatile = [
         page
           .locator('div.space-y-2')
@@ -243,8 +227,8 @@ for (const [label, route] of EDITOR_ROUTES) {
         page.getByRole('button', { name: /Due Date/ }),
         page.locator('h1.truncate').locator('..'),
         page.getByText(/@example\.test/),
-        page.locator(
-          'div.relative.min-h-0.flex-1.overflow-auto.overscroll-contain'
+        previewPage.locator(
+          ':scope > div.mb-8.justify-between, :scope > div.mb-8.grid'
         ),
       ];
       const shot = {
