@@ -247,7 +247,7 @@ Traceability and scope notes:
   - **On-demand code from an untrusted place:** the PDF toolkit is fetched only from the app's own origin, under the existing content-security rules; the check added by `security-patch` keeps passing.
   - **Smaller dependency surface:** removing packages used only by unused components removes code that could carry future advisories; nothing new is installed for this feature beyond test-only tooling.
   - **Hidden wording drift in the PDF:** a Customer-facing document can no longer differ from what the Freelancer reviewed, because preview and PDF share their wording and formats (AC-09, AC-10).
-- **Security review:** Required (size M). Light: confirm the per-session editor isolation (AC-07) and that on-demand loading stays within the content-security rules.
+- **Security review:** Required (size M). Light: confirm the per-session editor isolation (AC-07), including the one-time store hand-over after a create ([[adr/0003-create-one-editor-store-per-mounted-editor-from-server-data]], Amendment 2026-10-10), and that on-demand loading stays within the content-security rules.
 
 ## 7. Metrics / KPIs
 

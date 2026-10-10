@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-09"
+updated_at: "2026-10-10"
 feature_size: "M"
 target_surfaces: [web-frontend]  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
 ---
@@ -337,7 +337,7 @@ sequenceDiagram
             Note over S,D: persists invoice (existing entity, no schema change)
             D-->>S: stored, invoice id
             S-->>UI: created invoice
-            UI->>UI: replaces the address with the invoice's own editing address
+            UI->>UI: replaces the address with the invoice's own editing address, then moves the router to the edit page, whose editor adopts this live store (ADR-0003 amendment)
             UI-->>U: confirmed as created, a reload opens it and the next Save updates it
         else changed elsewhere
             S-->>UI: refused as changed elsewhere
@@ -472,10 +472,10 @@ sequenceDiagram
         UI->>UI: drops the failure, Download or Print fetches again as in critical flow 2
     end
     U->>UI: chooses Download or Print
-    alt draft with unsaved changes
-        UI->>UI: builds the document model from the last save
+    alt unsaved changes
+        UI-->>U: Download and Print are disabled, nothing is built
     else no unsaved changes, or issued
-        UI->>UI: reuses the preview's document model
+        UI->>UI: builds the document model when the action is chosen, from the form, which equals the last save
     end
     UI->>UI: the PDF layout renders the model with the same wording, dates and money
     alt generated
@@ -560,7 +560,7 @@ sequenceDiagram
 | AC-06 | Flow 5 |
 | AC-07 | Flow 6 |
 | AC-08 | Flow 7 |
-| AC-09 | Flow 7 (money format in lists and the editor), Flow 8 (preview and PDF, a draft prints its last save) |
+| AC-09 | Flow 7 (money format in lists and the editor), Flow 8 (preview and PDF, Download and Print only without unsaved changes) |
 | AC-10 | Flow 8 (issued details, one model for both layouts) |
 | AC-11 | Flow 9 (line positions after a reorder, add or delete). The static names are markup, checked by the accessibility suite |
 | AC-12 | Flow 9, the refused save |

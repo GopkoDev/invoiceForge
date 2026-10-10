@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["implementing engineer", "Tech Lead", "Security Lead"]
-updated_at: "2026-10-09"
+updated_at: "2026-10-10"
 feature_size: "M"
 ---
 

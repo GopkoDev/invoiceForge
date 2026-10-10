@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead"]
-updated_at: "2026-10-09"
+updated_at: "2026-10-10"
 feature_size: "M"
 ticket: "editor-ux"
 ---
@@ -36,7 +36,7 @@ A save's outcome is handled in two places. The store's `saveInvoice` (`store/inv
 - **Saved, revision unchanged** → apply the stored figures and version, mark saved.
 - **Saved, revision changed** → apply only the new version, id and number; keep the form as it is; recompute subtotal, tax and total from the lines on screen with `computeInvoiceAmounts`; stay unsaved.
 - **Issued, revision changed** → load the issued invoice (lines locked as issued); keep later edits only in the fields an issued invoice allows (due date, notes, payment terms, PO number) and stay unsaved if any; discard the rest and set a dismissable "not saved because the invoice is now issued" notice.
-- **Created** → as above, then replace the address with the invoice's editing address (`history.replaceState`), so a reload opens it and the next save updates it.
+- **Created** → as above, then replace the address with the invoice's editing address (`history.replaceState`), so a reload opens it and the next save updates it. The provider then moves Next's router to the edit page and the edit page's editor adopts this same store (Amendment 2026-10-10).
 - **Changed elsewhere / totals changed** → set store state that the editor's dialog host turns into SCR-10 / SCR-09; confirming totals calls the same command with the confirmed figures.
 - **Field errors** → set them on the fields (and their announcements, §8); **failed** → toast with Retry, which calls the same command with the current form and the intent that failed.
 - Retry is ignored while a save is running or after the store was replaced (ADR-0003), as today.
@@ -53,6 +53,10 @@ A save's outcome is handled in two places. The store's `saveInvoice` (`store/inv
 
 **Neutral**
 - Server actions and their results are unchanged.
+
+## Amendment 2026-10-10
+
+A create does more than `history.replaceState`. The command only rewrites the address, and only while the editor is still on `/invoices/new` and the save is not stale. The provider that started as new sees the store get an id and calls `router.replace` to the edit page, which mounts a second editor. That editor adopts the live store, so the in-flight edits, the save state and the Retry toast carry over without a remount of the data. The key, claim, disposal and AC-07 reasoning are in [[0003-create-one-editor-store-per-mounted-editor-from-server-data]]. The "store was replaced" rule for Retry now also holds after a hand-over: the adopted store is the same one, so Retry keeps working there.
 
 ## Links
 

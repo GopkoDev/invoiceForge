@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-09"
+updated_at: "2026-10-10"
 feature_size: "M"
 ticket: "editor-ux"
 ---
@@ -31,7 +31,7 @@ ticket: "editor-ux"
 
 ## Decision outcome
 
-**Chosen:** Option 1. The store holds the same state and actions as today, but each editor mount gets its own instance, already filled when the first render runs, on the server and in the browser alike. The provider's `key` (`${freelancerId}:${invoiceId ?? 'new'}`) makes React discard the store when the invoice or the account changes. The existing selector hooks (`useFormData`, `useSummary`, …) read the store from context; direct `useInvoiceEditorStore.getState()` calls from hooks and components become context reads. The `sessionToken` guard stays inside each store for saves that return after a reset. `initialize` in an effect and `reset` on unmount are removed.
+**Chosen:** Option 1. The store holds the same state and actions as today, but each editor mount gets its own instance, already filled when the first render runs, on the server and in the browser alike. The provider's `key` (`${freelancerId}:${invoiceId ?? 'new'}`) makes React discard the store when the invoice or the account changes. The one exception is the hand-over of a just-created invoice (Amendment 2026-10-10). The existing selector hooks (`useFormData`, `useSummary`, …) read the store from context; direct `useInvoiceEditorStore.getState()` calls from hooks and components become context reads. The `sessionToken` guard stays inside each store for saves that return after a reset. `initialize` in an effect and `reset` on unmount are removed.
 
 ## Consequences
 
@@ -46,6 +46,18 @@ ticket: "editor-ux"
 
 **Neutral**
 - The browser's back/forward cache can still restore a page from memory; that is handled at the page level (sad.md §8), not by the store.
+
+## Amendment 2026-10-10
+
+A create moves the editor from `/invoices/new` to `/invoices/<id>/edit`. These are different route segments, so the edit page mounts a second provider. Building its store from the server row would drop what the Freelancer typed after pressing Save (AC-05c, AC-03). So a store is no longer always discarded when the invoice changes: a new invoice's live store is handed over once. The rest of this ADR holds.
+
+- **Key.** `${ownerId}:${invoiceId}`, in a module-level `Map` in `invoice-editor-provider.tsx`. An entry is `{ store, claimed, focus }`.
+- **Who offers.** Only a provider that started as new (no initial invoice id) and has an `ownerId`, once its store has an id. It adds the entry and calls `router.replace(invoiceEdit(id), { scroll: false })`, once per store. `save-command.ts` still rewrites the address with `history.replaceState` at once, so a reload works before the router has moved.
+- **Who claims.** The provider whose `useState` initializer finds an entry for exactly that owner and invoice, and whose store's invoice id equals it. It marks the entry claimed in a layout effect, which runs before the old provider's passive cleanups. An entry is claimed at most once.
+- **Focus.** The old provider's layout cleanup records the focused field (matched by `aria-label`, `name`, `id` or `placeholder`, plus its selection). The adopter restores it after its own DOM is in place, unless the Freelancer has focused something else.
+- **Disposal.** An unclaimed offer is deleted in the old provider's cleanup and its store is disposed. A claimed store is not disposed by the old provider. The adopter deletes the entry and disposes the store when it unmounts.
+- **StrictMode.** Its extra mount, cleanup, mount runs the dispose cleanup without leaving. The second mount calls `resume()`, which undoes the last `dispose()` only if no `initialize()` or `dispose()` ran in between. A save in flight then still lands.
+- **Why this is safe for AC-07.** Adoption needs the same Freelancer and the same invoice id in the key and in the store's state. An offer ends when the offering editor leaves, so a later visit cannot adopt it. An entry is claimed once. Another Freelancer, or another invoice, finds no entry and gets a fresh store from the server's data. Covered by `tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx` and the "AC-07 (T38 handoff)" case in `tests/e2e/session-isolation.spec.ts`. The Security Lead reviews this under spec §6.1.
 
 ## Links
 
