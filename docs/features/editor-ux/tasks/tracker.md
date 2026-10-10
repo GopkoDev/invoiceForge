@@ -65,7 +65,7 @@
 | T56 | Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections | tests | Dmytro Hopko | — | — | done |
 | T57 | Stop the time-zone cookie refresh from cancelling the Freelancer's first navigation after sign-in | app | Dmytro Hopko | — | — | done |
 | T58 | Keep the layout-baseline images under _audit, point the test plan at the current e2e log, and log plain pnpm test:e2e at the final HEAD | docs | Dmytro Hopko | — | T54, T55, T56, T57 | done |
-| T59 | Make the 'no rebuild during the Save' e2e wait for a server-rendered marker of the revalidated tree | tests | Dmytro Hopko | — | — | todo |
+| T59 | Make the 'no rebuild during the Save' e2e wait for a server-rendered marker of the revalidated tree | tests | Dmytro Hopko | — | — | done |
 | T60 | Refresh after writing the time-zone cookie only while the account has no saved zone | app | Dmytro Hopko | — | — | todo |
 | T61 | Name the tz cookie on the privacy page | ui | Dmytro Hopko | — | T60 | todo |
 | T62 | Restore focus on the picker buttons after the create hand-over, and make the t44 second-adopter check observable | app | Dmytro Hopko | — | — | todo |

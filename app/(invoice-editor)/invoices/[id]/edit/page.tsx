@@ -31,8 +31,11 @@ export default async function EditInvoicePage({
   }
 
   // ADR-0003: one store per mounted editor, keyed by Freelancer and invoice, built from this data.
+  // The hidden marker is rendered only here, on the server: it shows the stored version this tree was
+  // built from, so a check can tell when a Save's revalidated tree has been applied (T59).
   return (
     <InvoiceEditorProvider key={`${userId}:${id}`} ownerId={userId} initial={data}>
+      <span hidden data-editor-server-version={data.version} />
       <InvoiceEditor />
       <InvoiceEditorModalContainer />
     </InvoiceEditorProvider>
