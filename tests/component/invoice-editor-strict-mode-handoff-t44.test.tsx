@@ -225,10 +225,13 @@ describe('T49 the swap to the edit page after a create', () => {
     return strict ? <StrictMode>{tree}</StrictMode> : tree;
   };
 
-  it('asks the router to replace the address with the edit page, keeping the scroll, wherever the address already is', async () => {
-    // The address is not /invoices/new: the decision rests on the editor having started as new and
-    // its store now holding an id, not on the order of history.replaceState and the store update.
-    window.history.replaceState(null, '', '/somewhere-else');
+  // editor-ux T55 (review r4 P2): the move runs only from the create's own addresses. The decision
+  // does not depend on whether save-command rewrote the address before or after the store's set().
+  it.each([
+    ['/invoices/new', 'the address is still the new-invoice page when the create resolves'],
+    ['/invoices/inv-new/edit', 'the address was already rewritten to the edit page before the store update'],
+  ])('asks the router to replace the address with the edit page, keeping the scroll, from %s (%s)', async (start) => {
+    window.history.replaceState(null, '', start);
     createInvoiceMock.mockResolvedValue(saved);
     const api: { current: StoreApi | null } = { current: null };
     render(page('new', newInvoiceData(), api));
@@ -237,6 +240,64 @@ describe('T49 the swap to the edit page after a create', () => {
     });
     await waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
     expect(replaceMock).toHaveBeenCalledWith('/invoices/inv-new/edit', { scroll: false });
+  });
+
+  it('does not move the router when Back took the address elsewhere while the create was in flight', async () => {
+    window.history.replaceState(null, '', '/invoices/new');
+    const inFlight = hold();
+    createInvoiceMock.mockReturnValue(inFlight.promise);
+    const api: { current: StoreApi | null } = { current: null };
+    render(page('new', newInvoiceData(), api));
+    let saving!: Promise<unknown>;
+    act(() => {
+      saving = api.current!.getState().save('save');
+    });
+    await waitFor(() => expect(createInvoiceMock).toHaveBeenCalledTimes(1));
+    // Back: the address is now an unrelated route, as the router would leave it.
+    window.history.pushState(null, '', '/dashboard');
+    await act(async () => {
+      inFlight.resolve(saved);
+      await saving;
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(window.location.pathname).toBe('/dashboard');
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it('does not move the router from an unrelated address even if the address was never the new page', async () => {
+    window.history.replaceState(null, '', '/somewhere-else');
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    render(page('new', newInvoiceData(), api));
+    await act(async () => {
+      await api.current!.getState().save('save');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it('a second provider mounted while a live adopter holds the claimed store does not get that store', async () => {
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    const view = render(page('new', newInvoiceData(), api));
+    const oldStore = api.current!;
+    await act(async () => {
+      await oldStore.getState().save('save');
+    });
+    view.rerender(page('edit', editPageData(), api));
+    expect(api.current).toBe(oldStore); // adopted: the entry is claimed, the adopter is live
+
+    const second: { current: StoreApi | null } = { current: null };
+    const other = render(page('edit-second', editPageData(), second));
+    expect(second.current).not.toBe(oldStore);
+    other.unmount();
+    // The first adopter's store was not disposed by the second one's mount or unmount.
+    expect(api.current).toBe(oldStore);
+    view.unmount();
   });
 
   it('never moves an editor that opened an existing invoice', async () => {
@@ -314,32 +375,31 @@ describe('T49 the swap to the edit page after a create', () => {
       </InvoiceEditorProvider>
     );
     createInvoiceMock.mockResolvedValue(saved);
-    const api: { current: StoreApi | null } = { current: null };
-    const view = render(real('new', newInvoiceData(), api));
-    await act(async () => {
-      await api.current!.getState().save('save');
-    });
-    act(() => api.current!.getState().updateFields({ notes: 'abcdef', poNumber: 'PO-12345' }));
-
-    const fieldsOf = () => ({
-      notes: view.getByPlaceholderText('Additional information for the client...') as HTMLTextAreaElement,
-      po: view.getByLabelText(/^PO Number/) as HTMLInputElement,
-    });
+    // One hand-over per field, as in the app: a new editor creates the invoice and its edit page adopts it.
     for (const [name, caret] of [['notes', [2, 4]], ['po', [3, 5]]] as const) {
+      const api: { current: StoreApi | null } = { current: null };
+      const view = render(real('new', newInvoiceData(), api));
+      await act(async () => {
+        await api.current!.getState().save('save');
+      });
+      act(() => api.current!.getState().updateFields({ notes: 'abcdef', poNumber: 'PO-12345' }));
+      const fieldsOf = () => ({
+        notes: view.getByPlaceholderText('Additional information for the client...') as HTMLTextAreaElement,
+        po: view.getByLabelText(/^PO Number/) as HTMLInputElement,
+      });
       const before = fieldsOf()[name];
       const idBefore = before.id;
       before.focus();
       before.setSelectionRange(caret[0], caret[1]);
 
-      view.rerender(real(name === 'notes' ? 'edit-a' : 'edit-b', editPageData(), api));
-      // Keep the store's typed value, as the adopted store does.
+      view.rerender(real('edit', editPageData(), api));
       const after = fieldsOf()[name];
       expect(after).not.toBe(before);
       // The premise: the new mount has its own useId() ids, so an id cannot find the field again.
       expect(after.id).not.toBe(idBefore);
       expect(document.activeElement).toBe(after);
       expect([after.selectionStart, after.selectionEnd]).toEqual([...caret]);
+      view.unmount();
     }
-    view.unmount();
   });
 });

@@ -84,7 +84,7 @@ export function InvoiceEditorProvider({
     const id = initial.invoiceId;
     if (ownerId && id) {
       const entry = handoffs.get(handoffKey(ownerId, id));
-      if (entry && entry.store.getState().invoiceId === id) {
+      if (entry && !entry.claimed && entry.store.getState().invoiceId === id) {
         return { store: entry.store, adoptedKey: handoffKey(ownerId, id) };
       }
     }
@@ -111,7 +111,7 @@ export function InvoiceEditorProvider({
   useLayoutEffect(
     () => () => {
       for (const entry of handoffs.values()) {
-        if (entry.store === store) entry.focus = captureFocus();
+        if (entry.store === store && !entry.claimed) entry.focus = captureFocus();
       }
     },
     [store]
@@ -119,7 +119,11 @@ export function InvoiceEditorProvider({
 
   // A new invoice that was just created offers its live store to the edit page of the same id and
   // moves the router there. The decision is this provider's own: it started as new and its store
-  // now has an id; the address (rewritten by the save) plays no part.
+  // now has an id. The address is only a guard for Back: the router moves only if, when the queued
+  // call runs, the address is still /invoices/new or already this invoice's edit page (whichever
+  // order the save's set() and history.replaceState ran in). Anywhere else the Freelancer has gone
+  // on, so no move happens. The entry stays only until this editor leaves: the cleanup below deletes an
+  // unclaimed entry, so the offer cannot leak.
   useEffect(() => {
     if (!ownerId || !startedAsNew) return;
     let key: string | null = null;
@@ -131,7 +135,12 @@ export function InvoiceEditorProvider({
         if (!moved.has(store)) {
           moved.add(store);
           // Out of the store update that announced the id; the scroll position stays where it is.
-          queueMicrotask(() => router.replace(protectedRoutes.invoiceEdit(id), { scroll: false }));
+          queueMicrotask(() => {
+            const path = window.location.pathname;
+            if (path === protectedRoutes.invoicesNew || path === protectedRoutes.invoiceEdit(id)) {
+              router.replace(protectedRoutes.invoiceEdit(id), { scroll: false });
+            }
+          });
         }
       }
     };
