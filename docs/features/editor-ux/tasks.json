@@ -1542,6 +1542,59 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r8.md",
       "source": "review-2026-10-11-r8"
+    },
+    {
+      "id": "T75",
+      "title": "Correct the SAD's new-server-call, logging and Flow 5 default wording, and the T53 log's percentage note",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-13"
+      ],
+      "dod": "Review r9 R1-R4. sad.md:591 names both new server-side calls: the private layouts' saved-zone read (Flow 6) and the editor pages' own actingFreelancerFromSession lookup that keys the store (app/(invoice-editor)/invoices/new/page.tsx:14, [id]/edit/page.tsx:25; Flow 5, ADR-0003), both User_pkey lookups. sad.md:618 Logging row records the one new server log: a failed saved-zone lookup in zoneCookieNeedsRefresh, error redacted (lib/helpers/time-zone.ts:64; Flow 6, ADR-0010 amendment T60). sad.md:373 Flow 5 no longer lists payment terms among the new-invoice defaults (editor-data.ts sets paymentTerms ''). _audit/T53-linux-e2e-2026-10-10.log:204 no longer says the percentages 'can differ slightly'; it says percentages.txt also includes the T66/T67 banner change and so runs higher (up to 2.09 points), as T58 README:8 says. No other claim in these files becomes inaccurate.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md",
+        "docs/features/editor-ux/_audit/T53-linux-e2e-2026-10-10.log"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r9.md",
+      "source": "review-2026-10-11-r9"
+    },
+    {
+      "id": "T76",
+      "title": "Test that a failed invoice-number hint leaves the loading state for 'Assigned on save' at the same size",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "Review r9 R5. A component test where generateInvoiceNumber resolves a failure result (success: false) asserts: the number field loses aria-busy, 'Loading…' is replaced by 'Assigned on save' in the same slot (same tag and classes, as the reserved-size test checks), and the field stays editable. It fails if store/invoice-editor-store/create-invoice-editor-store.ts:168 (hintStatus 'failed' on a failure result) is removed. test-plan.md:112 names the test.",
+      "files_hint": [
+        "tests/component/",
+        "store/invoice-editor-store/create-invoice-editor-store.ts",
+        "components/invoice-editor/invoice-details-section.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r9.md",
+      "source": "review-2026-10-11-r9"
+    },
+    {
+      "id": "T77",
+      "title": "Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-02",
+        "AC-02b"
+      ],
+      "dod": "Review r9 R6. test-plan.md:105 says a captive portal answering the probe is classified as a newer version: Reload is offered, the failure is reported with pdf.stage=version, and the page stays usable (lib/pdf/load-pdf-kit.ts:25-31; no probe timeout). tests/component/pdf-kit-load-edge.test.tsx:112 asserts the action label matches /reload/i only, and its comment no longer says 'Try again or Reload'. No production code changes.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md",
+        "tests/component/pdf-kit-load-edge.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r9.md",
+      "source": "review-2026-10-11-r9"
     }
   ]
 }
