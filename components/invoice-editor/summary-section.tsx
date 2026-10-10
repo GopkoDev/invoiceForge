@@ -96,6 +96,7 @@ export function SummarySection() {
                 onChange={discountInput.onChange}
                 className="h-8 w-24 text-right"
                 id={`${fieldId}-discount`}
+                data-field="discount"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.discount}
                 aria-describedby={fieldErrors?.discount ? `${fieldId}-discount-error` : undefined}
@@ -120,6 +121,7 @@ export function SummarySection() {
                 onChange={shippingInput.onChange}
                 className="h-8 w-24 text-right"
                 id={`${fieldId}-shipping`}
+                data-field="shipping"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.shipping}
                 aria-describedby={fieldErrors?.shipping ? `${fieldId}-shipping-error` : undefined}
@@ -155,6 +157,7 @@ export function SummarySection() {
                 onChange={taxRateInput.onChange}
                 className="h-8 w-16 text-right"
                 id={`${fieldId}-tax-rate`}
+                data-field="taxRate"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.taxRate}
                 aria-describedby={fieldErrors?.taxRate ? `${fieldId}-tax-rate-error` : undefined}

@@ -30,7 +30,9 @@ interface FocusSnapshot {
   value: string;
   selection: [number, number, 'forward' | 'backward' | 'none'] | null;
 }
-const NAMING_ATTRS = ['aria-label', 'name', 'id', 'placeholder'] as const;
+// data-field is the editor's own stable key (the form path). An id is never used: useId() ids differ
+// between mounts, so they cannot find the field again on the edit page.
+const NAMING_ATTRS = ['data-field', 'aria-label', 'name', 'placeholder'] as const;
 
 function captureFocus(): FocusSnapshot | null {
   const el = document.activeElement;
@@ -109,7 +111,7 @@ export function InvoiceEditorProvider({
   useLayoutEffect(
     () => () => {
       for (const entry of handoffs.values()) {
-        if (entry.store === store && !entry.claimed) entry.focus = captureFocus();
+        if (entry.store === store) entry.focus = captureFocus();
       }
     },
     [store]

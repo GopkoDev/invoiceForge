@@ -235,6 +235,44 @@ test('AC-03/04/05: a quantity typed across the create and the swap to the edit p
   }
 });
 
+// T54 (review r4 P1): Notes is named only by a useId() id, which differs on the edit page's fresh
+// mount. The focus and caret still follow it: keys typed during the create and after the swap all land.
+test('AC-03/05b: text typed in Notes across the create and the swap to the edit page is kept whole', async ({
+  browser,
+}, testInfo) => {
+  const f = await session(browser, testInfo, 'eux-t54-notes');
+  const { page, workspace: ws } = f;
+  try {
+    await fillNewInvoice(page);
+    await markQuantityNode(page);
+    const held = await holdNextAction(page);
+    await saveButton(page).click();
+    await held.arrived;
+
+    // While the create runs: "abc" in Notes.
+    await notesField(page).click();
+    await page.keyboard.type('abc');
+    held.release();
+
+    const id = await waitForEditPageEditor(page);
+    // After the swap, typing goes on where it was: no click, the keys follow the focus.
+    await page.keyboard.type('def');
+
+    await expect(notesField(page)).toHaveValue('abcdef');
+    await expect(notesField(page)).toBeFocused();
+
+    await saveButton(page).click();
+    await expect(toastOf(page, 'Invoice updated')).toBeVisible(UI);
+    await expect
+      .poll(async () => (await readInvoicesOf(ws.userId)).find((i) => i.id === id)!.notes)
+      .toBe('abcdef');
+    await page.reload();
+    await expect(notesField(page)).toHaveValue('abcdef');
+  } finally {
+    await f.context.close();
+  }
+});
+
 // Control: the same typing during a Save on an invoice opened by its address (never created in
 // this page) keeps the edit, so a failure above is the create-then-Save path, not the harness.
 test('control: a quantity typed during a Save of an opened invoice stays', async ({

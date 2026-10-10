@@ -35,6 +35,8 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
 const { InvoiceEditorProvider } = await import('@/store/invoice-editor-store/invoice-editor-provider');
 const { useInvoiceEditorStoreApi } = await import('@/store/invoice-editor-store/selectors');
 const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');
+const { NotesSection } = await import('@/components/invoice-editor/notes-section');
+const { InvoiceDetailsSection } = await import('@/components/invoice-editor/invoice-details-section');
 type StoreApi = Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 const sender = { id: 'sp-1', name: 'Studio', legalName: null, address: null, city: null, country: null, postalCode: null, email: null, phone: null, taxId: null, logo: null, invoicePrefix: 'INV', invoiceCounter: 1 };
@@ -299,6 +301,45 @@ describe('T49 the swap to the edit page after a create', () => {
     expect(after.value).toBe('abcdef');
     expect(document.activeElement).toBe(after);
     expect([after.selectionStart, after.selectionEnd]).toEqual([2, 4]);
+    view.unmount();
+  });
+
+  // editor-ux T54 (review r4 P1): fields named only by a useId() id, as the real sections render them.
+  it('puts the focus and the caret back on the real Notes and PO number fields, whose ids change with the mount', async () => {
+    const real = (key: string, initial: InvoiceEditorData, api: { current: StoreApi | null }) => (
+      <InvoiceEditorProvider key={key} ownerId="owner-t54" initial={initial}>
+        <Capture storeRef={api} />
+        <InvoiceDetailsSection />
+        <NotesSection />
+      </InvoiceEditorProvider>
+    );
+    createInvoiceMock.mockResolvedValue(saved);
+    const api: { current: StoreApi | null } = { current: null };
+    const view = render(real('new', newInvoiceData(), api));
+    await act(async () => {
+      await api.current!.getState().save('save');
+    });
+    act(() => api.current!.getState().updateFields({ notes: 'abcdef', poNumber: 'PO-12345' }));
+
+    const fieldsOf = () => ({
+      notes: view.getByPlaceholderText('Additional information for the client...') as HTMLTextAreaElement,
+      po: view.getByLabelText(/^PO Number/) as HTMLInputElement,
+    });
+    for (const [name, caret] of [['notes', [2, 4]], ['po', [3, 5]]] as const) {
+      const before = fieldsOf()[name];
+      const idBefore = before.id;
+      before.focus();
+      before.setSelectionRange(caret[0], caret[1]);
+
+      view.rerender(real(name === 'notes' ? 'edit-a' : 'edit-b', editPageData(), api));
+      // Keep the store's typed value, as the adopted store does.
+      const after = fieldsOf()[name];
+      expect(after).not.toBe(before);
+      // The premise: the new mount has its own useId() ids, so an id cannot find the field again.
+      expect(after.id).not.toBe(idBefore);
+      expect(document.activeElement).toBe(after);
+      expect([after.selectionStart, after.selectionEnd]).toEqual([...caret]);
+    }
     view.unmount();
   });
 });

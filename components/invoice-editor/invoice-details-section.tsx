@@ -96,6 +96,7 @@ export function InvoiceDetailsSection() {
 
             <Input
               id={invoiceNumberId}
+              data-field="invoiceNumber"
               value={invoiceNumber}
               onChange={(e) => updateField('invoiceNumber', e.target.value)}
               placeholder={invoiceNumberHint}
@@ -221,6 +222,7 @@ export function InvoiceDetailsSection() {
           <Label htmlFor={poNumberId}>PO Number (optional)</Label>
           <Input
             id={poNumberId}
+            data-field="poNumber"
             value={poNumber}
             onChange={(e) => updateField('poNumber', e.target.value)}
             placeholder="Customer purchase order number"

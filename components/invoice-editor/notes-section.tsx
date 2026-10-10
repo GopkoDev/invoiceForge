@@ -44,6 +44,7 @@ export function NotesSection() {
           <Label htmlFor={`${fieldId}-notes`}>Notes</Label>
           <Textarea
             id={`${fieldId}-notes`}
+            data-field="notes"
             value={notes}
             onChange={(e) => updateField('notes', e.target.value)}
             placeholder="Additional information for the client..."
@@ -56,6 +57,7 @@ export function NotesSection() {
           <Label htmlFor={`${fieldId}-payment-terms`}>Payment Terms</Label>
           <Input
             id={`${fieldId}-payment-terms`}
+            data-field="paymentTerms"
             value={paymentTerms}
             onChange={(e) => updateField('paymentTerms', e.target.value)}
             placeholder="e.g. Net 14"
@@ -67,6 +69,7 @@ export function NotesSection() {
           <Label htmlFor={`${fieldId}-terms`}>Terms</Label>
           <Textarea
             id={`${fieldId}-terms`}
+            data-field="terms"
             value={terms}
             onChange={(e) => updateField('terms', e.target.value)}
             placeholder="Payment terms and conditions..."

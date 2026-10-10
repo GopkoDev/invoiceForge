@@ -60,7 +60,7 @@
 | T51 | Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD | docs | Dmytro Hopko | — | T49 | done |
 | T52 | Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment | wiring | Dmytro Hopko | — | — | done |
 | T53 | Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines | infra | Dmytro Hopko | — | T48, T49, T50, T51, T52 | review |
-| T54 | Restore focus after the create hand-over on every editor field, not only fields with an aria-label | app | Dmytro Hopko | — | — | todo |
+| T54 | Restore focus after the create hand-over on every editor field, not only fields with an aria-label | app | Dmytro Hopko | — | — | done |
 | T55 | Guard the create hand-over: move only from the new or the edit address, and adopt an entry only once | app | Dmytro Hopko | — | T54 | todo |
 | T56 | Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections | tests | Dmytro Hopko | — | — | todo |
 | T57 | Stop the time-zone cookie refresh from cancelling the Freelancer's first navigation after sign-in | app | Dmytro Hopko | — | — | todo |
