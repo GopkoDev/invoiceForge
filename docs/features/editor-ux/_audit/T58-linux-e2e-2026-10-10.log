@@ -1,0 +1,37 @@
+T58 Linux e2e run at the final HEAD (review r4 P6/P7/O2), 2026-10-10
+HEAD: 1050f70 (feature/editor-ux), clean working tree; the repo copy was taken before this log, the T58-layout-baselines folder, and the two doc edits were added (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop); @playwright/test 1.63.0
+Node used for the runs: v22.23.3 (nodejs.org linux-arm64 tarball unpacked to /opt/node22 and put first on PATH; the image's own Node is v24.20.0, not used). This is inside the repo's engines (>=22.18 <23), so no engines warning. pnpm 10.25.0 via corepack.
+How (the T53 harness): repo copied (no node_modules/.git/.env/.env.*/test-results/.next) into the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`, then plain `CI=1 pnpm test:e2e`
+  (CI=1 in the container's environment, no --workers flag, so the config's 2 workers). Docker socket mounted from the host, static Docker CLI 27.3.1 (aarch64), TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+  (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only). The app server and its throwaway Postgres container come from playwright.config.ts's webServer
+  (tests/e2e/support/start-app-server.mjs). .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases.
+  docker run -d --name t58-e2e --ipc=host --init --add-host=host.docker.internal:host-gateway -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true \
+    -e CI=1 -v /var/run/docker.sock:/var/run/docker.sock -v <repo copy>:/src:ro mcr.microsoft.com/playwright:v1.63.0-noble sleep infinity; then docker exec for setup and each run. Both runs in the same container and install.
+
+== Run 1: CI=1 pnpm test:e2e ==
+Running 114 tests using 2 workers
+  1 skipped   (pdf-on-demand.spec.ts:279 first PDF timing p95: needs E2E_TIMING=1)
+  113 passed (7.5m)
+0 failed, 0 flaky, exit code 0.
+Timing: total wall 7m32.8s = 452.8s (MEASURED, shell `time` around the command). Playwright's own summary: 7.5m (MEASURED by Playwright; it includes the webServer start, i.e. the build).
+  App build time (next build) for this run was NOT measured: run 1 was started untimed and its output carries no timestamps. It cannot be derived from the two figures above (Playwright's 7.5m includes it).
+
+== Run 2 (stability rerun, same container; per-line timestamps added to the output, DEBUG=pw:webserver to show the server's own lines) ==
+Running 114 tests using 2 workers
+  1 skipped   (same test)
+  113 passed (6.6m)
+0 failed, 0 flaky.
+Timing (all MEASURED with `date +%s` stamps on the output lines):
+  total wall: 398s (6m38s) from the command start to its exit
+  migrations applied: 2s; app build (`next build`, "building the app" line to "starting the built app" line): 20s (Next's own "Compiled successfully in 8.0s")
+  Playwright test time, from "Running 114 tests" to the end: 371s (6m11s); Playwright's own summary 6.6m (includes the build)
+  Command start to the migrations line (Postgres container start): about 3s.
+  (Run 1 was 55s slower than run 2; the cause was not investigated.)
+
+== Watch item: session-isolation-bfcache.spec.ts:392 (chromium) "route.fetch: read ECONNRESET" ==
+Did not occur in either run: chromium :373 and :392 passed in both. (The macOS T57 failure on a static chunk was not reproduced on Linux/arm64 in 2 of 2 runs.)
+Noise, not failures: the app server prints "Error: aborted ... code: 'ECONNRESET'" / "uncaughtException" lines during route-sweep.spec.ts:334/356 (a POST the test aborts on purpose); present in both runs, all those tests pass.
+
+Result: both runs 113 passed, 1 skipped, 0 failed, 0 flaky, exit 0 at HEAD 1050f70, Node v22.23.3.
+(The test count is 114, up from 111 in T53: T54-T57 added tests, e.g. first-navigation-after-sign-in.spec.ts.)

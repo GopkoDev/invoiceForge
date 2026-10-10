@@ -1,0 +1,3 @@
+editor-new-invoice-desktop-chromium-linux: old 1280x800, new 1280x800, 35.78% of pixels differ (366416 of 1024000)
+editor-new-invoice-phone-chromium-linux: old 390x844, new 390x844, 10.00% of pixels differ (32905 of 329160)
+editor-existing-invoice-desktop-chromium-linux: old 1280x800, new 1280x800, 26.08% of pixels differ (267039 of 1024000)

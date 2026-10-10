@@ -64,6 +64,6 @@
 | T55 | Guard the create hand-over: move only from the new or the edit address, and adopt an entry only once | app | Dmytro Hopko | — | T54 | done |
 | T56 | Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections | tests | Dmytro Hopko | — | — | done |
 | T57 | Stop the time-zone cookie refresh from cancelling the Freelancer's first navigation after sign-in | app | Dmytro Hopko | — | — | done |
-| T58 | Keep the layout-baseline images under _audit, point the test plan at the current e2e log, and log plain pnpm test:e2e at the final HEAD | docs | Dmytro Hopko | — | T54, T55, T56, T57 | todo |
+| T58 | Keep the layout-baseline images under _audit, point the test plan at the current e2e log, and log plain pnpm test:e2e at the final HEAD | docs | Dmytro Hopko | — | T54, T55, T56, T57 | done |
 
 **Total:** 59 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4).

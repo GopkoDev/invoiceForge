@@ -216,7 +216,7 @@ comparator, red = differing pixels) are outside the repo, in the job's scratch d
 No change is in the editor layout itself: every difference comes from the pre-filled sender/bank of T22 or from the narrower preview mask of T46.
 
 == Owner review: pending ==
-The owner must look at the old/new/diff images of the three files above and accept or reject them:
+The owner must look at the old/new/diff images of the three files above (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-desktop-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-phone-chromium-linux.png
   tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-desktop-chromium-linux.png
