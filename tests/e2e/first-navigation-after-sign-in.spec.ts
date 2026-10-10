@@ -45,42 +45,48 @@ test('the first navigation after sign-in reaches the editor, with no time-zone r
   await skipWithoutContainerRuntime(testInfo);
   // A zone far from UTC, so a missing or stale cookie would matter to the server.
   const context = await browser.newContext({ timezoneId: 'Pacific/Auckland' });
-  await allowPlainHttpOnWebKit(browser, context);
-  const page = await context.newPage();
+  try {
+    await allowPlainHttpOnWebKit(browser, context);
+    const page = await context.newPage();
 
-  const link = await requestSignInLink(page, uniqueTestEmail('first-nav'));
+    const link = await requestSignInLink(page, uniqueTestEmail('first-nav'));
 
-  const landingRefreshes: string[] = [];
-  let refreshSent: () => void = () => {};
-  const sent = new Promise<void>((resolve) => (refreshSent = resolve));
-  const onRequest = (request: Request) => {
-    if (!isRouterRefresh(request)) return;
-    landingRefreshes.push(request.url());
-    refreshSent();
-  };
-  page.on('request', onRequest);
+    const landingRefreshes: string[] = [];
+    let refreshSent: () => void = () => {};
+    const sent = new Promise<void>((resolve) => (refreshSent = resolve));
+    const onRequest = (request: Request) => {
+      if (!isRouterRefresh(request)) return;
+      landingRefreshes.push(request.url());
+      refreshSent();
+    };
+    page.on('request', onRequest);
 
-  await page.goto(link);
-  await expect(page, 'the Sign-in link must land on the dashboard').toHaveURL(/\/dashboard/);
-  // A Freelancer who clicks at once: navigate the moment a refresh goes out, or once hydrated.
-  await Promise.race([sent, pageHydrated(page)]);
+    await page.goto(link);
+    await expect(page, 'the Sign-in link must land on the dashboard').toHaveURL(/\/dashboard/);
+    // A Freelancer who clicks at once: navigate the moment a refresh goes out, or once hydrated.
+    // The losing wait keeps running; it must not reject unhandled once the context closes.
+    const hydrated = pageHydrated(page);
+    hydrated.catch(() => {});
+    await Promise.race([sent, hydrated]);
 
-  const editor = `${APP_E2E_URL}${protectedRoutes.invoicesNew}`;
-  await page.goto(editor);
-  page.off('request', onRequest);
-  await expect(page, 'the navigation must not be replaced by a load of /dashboard').toHaveURL(editor);
-  await expect(page.locator('h1.truncate')).toBeVisible();
-  // Stay a moment: a late full load of /dashboard (the old failure) would move the page away.
-  await page.waitForLoadState('networkidle');
-  await expect(page).toHaveURL(editor);
+    const editor = `${APP_E2E_URL}${protectedRoutes.invoicesNew}`;
+    await page.goto(editor);
+    page.off('request', onRequest);
+    await expect(page, 'the navigation must not be replaced by a load of /dashboard').toHaveURL(editor);
+    await expect(page.locator('h1.truncate')).toBeVisible();
+    // Stay a moment: a late full load of /dashboard (the old failure) would move the page away.
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(editor);
 
-  expect(
-    landingRefreshes,
-    'the landing page must not refresh: the sign-in pages already wrote the tz cookie'
-  ).toEqual([]);
-  const tz = (await page.context().cookies(APP_E2E_URL)).find((c) => c.name === 'tz');
-  expect(tz?.value).toBe('Pacific/Auckland');
-  await context.close();
+    expect(
+      landingRefreshes,
+      'the landing page must not refresh: the sign-in pages already wrote the tz cookie'
+    ).toEqual([]);
+    const tz = (await page.context().cookies(APP_E2E_URL)).find((c) => c.name === 'tz');
+    expect(tz?.value).toBe('Pacific/Auckland');
+  } finally {
+    await context.close();
+  }
 });
 
 test('a returning Freelancer who opens the Sign-in link in another browser gets no time-zone refresh', async ({
@@ -97,43 +103,46 @@ test('a returning Freelancer who opens the Sign-in link in another browser gets 
   await requester.close();
 
   const context = await browser.newContext({ timezoneId: 'Pacific/Auckland' });
-  await allowPlainHttpOnWebKit(browser, context);
-  const page = await context.newPage();
-  expect((await context.cookies(APP_E2E_URL)).some((c) => c.name === 'tz')).toBe(false);
+  try {
+    await allowPlainHttpOnWebKit(browser, context);
+    const page = await context.newPage();
+    expect((await context.cookies(APP_E2E_URL)).some((c) => c.name === 'tz')).toBe(false);
 
-  const landingRefreshes: string[] = [];
-  let refreshSent: () => void = () => {};
-  const sent = new Promise<void>((resolve) => (refreshSent = resolve));
-  const onRequest = (request: Request) => {
-    if (!isRouterRefresh(request)) return;
-    landingRefreshes.push(request.url());
-    refreshSent();
-  };
-  page.on('request', onRequest);
+    const landingRefreshes: string[] = [];
+    let refreshSent: () => void = () => {};
+    const sent = new Promise<void>((resolve) => (refreshSent = resolve));
+    const onRequest = (request: Request) => {
+      if (!isRouterRefresh(request)) return;
+      landingRefreshes.push(request.url());
+      refreshSent();
+    };
+    page.on('request', onRequest);
 
-  await page.goto(link);
-  await expect(page, 'the Sign-in link must land on the dashboard').toHaveURL(/\/dashboard/);
-  // The cookie is written on the landing page; navigate once it is, or the moment a refresh goes out.
-  await Promise.race([
-    sent,
-    expect
+    await page.goto(link);
+    await expect(page, 'the Sign-in link must land on the dashboard').toHaveURL(/\/dashboard/);
+    // The cookie is written on the landing page; navigate once it is, or the moment a refresh goes out.
+    // The losing poll keeps running; it must not reject unhandled once the context closes.
+    const cookieWritten = expect
       .poll(async () => (await context.cookies(APP_E2E_URL)).find((c) => c.name === 'tz')?.value)
-      .toBe('Pacific/Auckland'),
-  ]);
+      .toBe('Pacific/Auckland');
+    cookieWritten.catch(() => {});
+    await Promise.race([sent, cookieWritten]);
 
-  const editor = `${APP_E2E_URL}${protectedRoutes.invoicesNew}`;
-  await page.goto(editor);
-  page.off('request', onRequest);
-  await expect(page, 'the navigation must not be replaced by a load of /dashboard').toHaveURL(editor);
-  await expect(page.locator('h1.truncate')).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  await expect(page).toHaveURL(editor);
+    const editor = `${APP_E2E_URL}${protectedRoutes.invoicesNew}`;
+    await page.goto(editor);
+    page.off('request', onRequest);
+    await expect(page, 'the navigation must not be replaced by a load of /dashboard').toHaveURL(editor);
+    await expect(page.locator('h1.truncate')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(editor);
 
-  expect(
-    landingRefreshes,
-    'the landing page must not refresh for an account whose zone is saved'
-  ).toEqual([]);
-  // The saved zone wins (ADR-0006): the browser's cookie never replaces it.
-  expect(await readSavedTimeZone(userId)).toBe('Europe/Kyiv');
-  await context.close();
+    expect(
+      landingRefreshes,
+      'the landing page must not refresh for an account whose zone is saved'
+    ).toEqual([]);
+    // The saved zone wins (ADR-0006): the browser's cookie never replaces it.
+    expect(await readSavedTimeZone(userId)).toBe('Europe/Kyiv');
+  } finally {
+    await context.close();
+  }
 });
