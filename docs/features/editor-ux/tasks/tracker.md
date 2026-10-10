@@ -58,7 +58,7 @@
 | T49 | Make the hand-over to the edit page after a create keep focus, scroll and in-flight edits, without Next internals | app | Dmytro Hopko | — | — | done |
 | T50 | Make the toolkit-fetch tracker in the PDF on-demand e2e wait for its own handlers | tests | Dmytro Hopko | — | — | done |
 | T51 | Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD | docs | Dmytro Hopko | — | T49 | todo |
-| T52 | Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment | wiring | Dmytro Hopko | — | — | todo |
+| T52 | Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment | wiring | Dmytro Hopko | — | — | done |
 | T53 | Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines | infra | Dmytro Hopko | — | T48, T49, T50, T51, T52 | todo |
 
 **Total:** 54 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3).

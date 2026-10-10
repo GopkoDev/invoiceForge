@@ -479,9 +479,8 @@ test('AC-07 (T38 handoff): B never sees the invoice A created, opening a new inv
     await signInWithSignInLink(page, emailB);
     await page.goto(`${APP_E2E_URL}${protectedRoutes.invoicesNew}`);
     await expect(page.getByRole('textbox', { name: /^Invoice Number/ })).toBeVisible();
-    // Let B's number-hint request finish before leaving: a request cut off by a navigation is
-    // treated as a rejected call and sends the tab to the clear-session route (see the report).
-    await expect(page.getByLabel(/invoice number/i)).not.toHaveAttribute('aria-busy', 'true');
+    // No wait for B's number-hint request: one cut off by leaving the page no longer sends the tab
+    // to the clear-session route (T45b), so the spec goes straight on and proves that.
     await settleFrames(page);
     const body = page.locator('body');
     for (const secret of [LINE_A, CUSTOMER_A, NOTES_A, created!.invoiceNumber]) {

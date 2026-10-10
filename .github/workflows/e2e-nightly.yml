@@ -32,7 +32,15 @@ jobs:
       - uses: actions/checkout@v4
       # The image has no Docker CLI; the e2e app server (start-app-server.mjs) probes `docker version`.
       - name: Install the Docker CLI
-        run: curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar xz --strip-components=1 -C /usr/local/bin docker/docker
+        env:
+          DOCKER_CLI_VERSION: 27.3.1
+          # sha256 of docker-27.3.1.tgz (linux x86_64 static), computed from download.docker.com.
+          DOCKER_CLI_SHA256: 9b4f6fe406e50f9085ee474c451e2bb5adb119a03591f467922d3b4e2ddf31d3
+        run: |
+          curl -fsSL -o /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz"
+          echo "${DOCKER_CLI_SHA256}  /tmp/docker.tgz" | sha256sum -c -
+          tar xzf /tmp/docker.tgz --strip-components=1 -C /usr/local/bin docker/docker
+          rm /tmp/docker.tgz
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

@@ -4,13 +4,10 @@ import type {
   InvoiceFormData,
   InvoiceSenderProfile,
   SerializedInvoice,
+  StoredAmounts,
 } from '@/types/invoice/types';
 
-export interface StoredAmounts {
-  subtotal: number;
-  taxAmount: number;
-  total: number;
-}
+export type { StoredAmounts };
 
 export interface InvoiceDocumentParties {
   senderProfile?: InvoiceSenderProfile | null;
