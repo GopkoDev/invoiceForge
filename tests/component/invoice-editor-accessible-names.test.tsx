@@ -93,6 +93,20 @@ describe('AC-11 — line fields announce their column and current position', () 
     expect(screen.getByRole('textbox', { name: 'Quantity, line 2' })).toHaveValue('2');
   });
 
+  // T68 (review r7 G2): the "added" case of AC-11.
+  it('keeps n correct after a line is duplicated or added', () => {
+    const { store } = renderWithEditorStore(<ItemsSection />, { initial: dataWithLines() });
+
+    act(() => store.getState().duplicateItem('it-1')); // lines are now [1, 1, 2, 3]
+    expect(screen.getByRole('textbox', { name: 'Quantity, line 2' })).toHaveValue('1');
+    expect(screen.getByRole('textbox', { name: 'Quantity, line 3' })).toHaveValue('2');
+    expect(screen.getByRole('textbox', { name: 'Quantity, line 4' })).toHaveValue('3');
+
+    act(() => store.getState().addItem()); // a fifth, empty line at the end
+    expect(screen.getByRole('textbox', { name: 'Quantity, line 5' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Quantity, line 4' })).toHaveValue('3');
+  });
+
   it('names the mobile card fields the same way', () => {
     renderWithEditorStore(<InvoiceItemRow itemId="it-3" />, { initial: dataWithLines() });
     expect(screen.getByRole('textbox', { name: 'Quantity, line 3' })).toHaveValue('3');
