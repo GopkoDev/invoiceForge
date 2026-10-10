@@ -286,6 +286,16 @@ for (const scenario of Object.values(scenarios)) {
         expect((await readInvoicesOf(byRetry.ws.userId))[0].notes).toBe('Edited before saving');
       }
       if (scenario.label === 'totals changed on issue') {
+        // Same through Save: confirming on the page Save reached ends issued as well (review r2 Q12).
+        const [before] = await readInvoicesOf(bySave.ws.userId);
+        expect(before.status).toBe('DRAFT');
+        await dialogOf(bySave.page).getByRole('button', { name: 'Confirm and save' }).click();
+        await expect(toastOf(bySave.page, 'Invoice issued')).toBeVisible();
+        const [issued] = await readInvoicesOf(bySave.ws.userId);
+        expect(issued.status).toBe('PENDING');
+        expect(issued.notes).toBe('Edited before saving');
+      }
+      if (scenario.label === 'totals changed on issue') {
         const dialog = dialogOf(byRetry.page);
         const [row] = await readInvoicesOf(byRetry.ws.userId);
         expect(row.status).toBe('DRAFT');

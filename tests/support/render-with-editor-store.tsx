@@ -1,7 +1,7 @@
 // editor-ux T11 (ADR-0003): the editor store is one instance per mounted editor, provided by context.
 // Component tests that used to call useInvoiceEditorStore.getState()/setState() now render under the
 // real provider and drive the instance through `store`, which is the same object the components read.
-import { useEffect, type ReactElement, type ReactNode } from 'react';
+import { StrictMode, useEffect, type ReactElement, type ReactNode } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
 import type { InvoiceEditorData } from '@/types/invoice/types';
 import { InvoiceEditorProvider } from '@/store/invoice-editor-store/invoice-editor-provider';
@@ -41,6 +41,10 @@ export interface RenderWithEditorStoreOptions {
   initial?: InvoiceEditorData;
   /** The provider key the page would pass: `${freelancerId}:${invoiceId ?? 'new'}`. */
   storeKey?: string;
+  /** The Freelancer id the page passes as ownerId; it makes a created invoice's store hand-over-able (T38). */
+  ownerId?: string;
+  /** Wrap the provider in React.StrictMode, so mount, cleanup, mount runs on the store (T44). */
+  strict?: boolean;
 }
 
 export type RenderWithEditorStoreResult = RenderResult & {
@@ -50,7 +54,7 @@ export type RenderWithEditorStoreResult = RenderResult & {
 
 export function renderWithEditorStore(
   ui: ReactElement,
-  { initial = emptyEditorData(), storeKey = 'test:new' }: RenderWithEditorStoreOptions = {}
+  { initial = emptyEditorData(), storeKey = 'test:new', ownerId, strict = false }: RenderWithEditorStoreOptions = {}
 ): RenderWithEditorStoreResult {
   const holder: { store: InvoiceEditorStoreApi | null } = { store: null };
   function Capture(): ReactNode {
@@ -60,12 +64,13 @@ export function renderWithEditorStore(
     }, [api]);
     return null;
   }
-  const result = render(
-    <InvoiceEditorProvider key={storeKey} initial={initial}>
+  const tree = (
+    <InvoiceEditorProvider key={storeKey} initial={initial} ownerId={ownerId}>
       <Capture />
       {ui}
     </InvoiceEditorProvider>
   );
+  const result = render(strict ? <StrictMode>{tree}</StrictMode> : tree);
   if (!holder.store) throw new Error('renderWithEditorStore: the provider did not expose a store');
   return Object.assign(result, { store: holder.store });
 }

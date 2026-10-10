@@ -4,7 +4,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { APP_E2E_URL } from './support/app-server';
 import { openSignedInFreelancer } from './support/signed-in';
-import { chooseRowAction, openInvoiceList } from './support/invoice-ui';
+import { chooseRowAction, openEditor, openInvoiceList } from './support/invoice-ui';
 import { downloadedPdfText } from './support/pdf-download-text';
 import { protectedRoutes } from '../../config/routes.config';
 import { PDF_TOOLKIT_MARKERS } from '../../scripts/check-pdf-chunks';
@@ -191,6 +191,41 @@ test('AC-02b: a toolkit chunk gone after a release shows the newer-version messa
     const download = page.waitForEvent('download');
     await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
     expect(await downloadedPdfText(await download)).toContain(workspace.invoiceNumber);
+  } finally {
+    await f.context.close();
+  }
+});
+
+test('AC-09: a quantity changed and not saved is not in the PDF the list downloads; it shows the last save', async ({
+  browser,
+}, testInfo) => {
+  const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-unsaved', {
+    seed: { timeZone: 'UTC', status: 'DRAFT' },
+  });
+  try {
+    const { page, workspace } = f;
+    await openEditor(page, workspace.invoiceId);
+    // Seeded: one line, quantity 1 at 100.00, stored subtotal and total 100.00.
+    await page.getByRole('textbox', { name: 'Quantity, line 1' }).fill('7');
+    await expect(page.getByText('Unsaved', { exact: true })).toBeVisible();
+    // Nothing the editor offers can print the unsaved quantity.
+    await expect(page.getByRole('button', { name: /Download/ }).first()).toBeDisabled();
+    await expect(page.getByRole('button', { name: /Print/ }).first()).toBeDisabled();
+
+    // Back to the list without saving, as the Freelancer would.
+    await page.getByRole('button', { name: /Home/ }).click();
+    await page.getByRole('button', { name: 'Discard and leave' }).click();
+    await page.waitForURL(`**${protectedRoutes.invoices}`);
+    await page.waitForLoadState('networkidle');
+
+    const download = page.waitForEvent('download');
+    await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
+    const pdf = await downloadedPdfText(await download);
+    expect(pdf).toContain(workspace.invoiceNumber);
+    expect(pdf).toMatch(/Test Item \$100\.00 1 pcs \$100\.00/);
+    expect(pdf).toContain('Subtotal: $100.00');
+    expect(pdf).toContain('TOTAL: $100.00');
+    expect(pdf).not.toContain('$700.00');
   } finally {
     await f.context.close();
   }

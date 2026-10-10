@@ -387,7 +387,10 @@ describe('race: edits injected at random points of the save (50 runs, seeded)', 
     let s = seed >>> 0;
     return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
   }
-  const SEED = Number(process.env.SAVE_RACE_SEED ?? Math.floor(Math.random() * 2 ** 31));
+  // A fixed default keeps the run the same everywhere; SAVE_RACE_SEED=<n> tries another interleaving.
+  // The seed is printed on failure either way.
+  const DEFAULT_SEED = 20261010;
+  const SEED = Number(process.env.SAVE_RACE_SEED ?? DEFAULT_SEED);
   const RUNS = 50;
   const MAX_TICKS = 6;
 
@@ -396,8 +399,21 @@ describe('race: edits injected at random points of the save (50 runs, seeded)', 
     for (let i = 0; i < n; i++) await Promise.resolve();
   }
 
+  // Where an edit landed relative to the save, so the test can prove every kind of interleaving was
+  // exercised and not just whichever the random plan happened to favour.
+  const INTERLEAVINGS = [
+    'edit before resolve',
+    'edit between resolve and apply',
+    'edit after apply',
+    'two edits per save',
+    'line deleted mid-save',
+  ] as const;
+  type Interleaving = (typeof INTERLEAVINGS)[number];
+
   it('loses 0 edits, never marks them saved, and the totals shown always match what they claim', async () => {
     const rand = rng(SEED);
+    const seen = new Map<Interleaving, number>(INTERLEAVINGS.map((i) => [i, 0]));
+    const hit = (i: Interleaving) => seen.set(i, (seen.get(i) ?? 0) + 1);
     const int = (n: number) => Math.floor(rand() * n);
     for (let run = 0; run < RUNS; run++) {
       const plan: string[] = [];
@@ -431,18 +447,27 @@ describe('race: edits injected at random points of the save (50 runs, seeded)', 
 
         const resolve = deferredUpdate();
         const pending = cmd(s).save('save');
+        const versionBefore = s.getState().loadedVersion;
+        let resolved = false;
+        if (editCount === 2) hit('two edits per save');
         for (let e = 0; e <= editCount; e++) {
           if (e === resolveAt) {
             const before = int(MAX_TICKS);
             await ticks(before);
             plan.push(`ticks ${before}`, 'resolve');
+            resolved = true;
             resolve(ok(saved(editorData().initialData!.items, { total: STORED_TOTAL })));
           }
           if (e === editCount) break;
           const n = int(MAX_TICKS);
-          await ticks(n);
+          // 0 ticks means no await at all: an edit in the same turn as resolve(), before the save applies.
+          if (n > 0) await ticks(n);
           const [name, edit] = edits[int(edits.length)];
           plan.push(`ticks ${n}`, name);
+          // The save applies its answer by moving loadedVersion on; that is the moment of "apply".
+          const applied = s.getState().loadedVersion !== versionBefore;
+          hit(!resolved ? 'edit before resolve' : applied ? 'edit after apply' : 'edit between resolve and apply');
+          if (name === 'delete b' && s.getState().isSaving) hit('line deleted mid-save');
           edit();
         }
         const typed = s.getState().formData;
@@ -477,5 +502,12 @@ describe('race: edits injected at random points of the save (50 runs, seeded)', 
         );
       }
     }
+
+    // Every kind of interleaving happened at least once, or this run proved less than it claims.
+    const missed = INTERLEAVINGS.filter((i) => !seen.get(i));
+    expect(
+      missed,
+      `interleavings never exercised with SAVE_RACE_SEED=${SEED}: ${missed.join(', ')} (counts: ${JSON.stringify(Object.fromEntries(seen))})`
+    ).toEqual([]);
   });
 });

@@ -49,7 +49,7 @@
 | T41 | Show that the PDF is being prepared on the row menu and the editor buttons | ui | Dmytro Hopko | — | — | done |
 | T42 | Make the PDF on-demand tests able to fail | tests | Dmytro Hopko | — | T41 | done |
 | T43 | Prove AC-06 hydration and AC-07 isolation through the client router | tests | Dmytro Hopko | — | T38 | done |
-| T44 | Close the remaining save-flow, date and hygiene test gaps | tests | Dmytro Hopko | — | T38 | todo |
+| T44 | Close the remaining save-flow, date and hygiene test gaps | tests | Dmytro Hopko | — | T38 | done |
 | T45 | Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose | app | Dmytro Hopko | — | — | done |
 | T45b | Don't send the device to sign-in when the number-hint request was cut off by leaving the page | app | Dmytro Hopko | — | T45 | done |
 | T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | todo |

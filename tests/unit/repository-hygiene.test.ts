@@ -41,6 +41,11 @@ function sourceFiles(dir: string): string[] {
 function rendersOwnDialog(text: string): boolean {
   return (
     /from\s+['"]@\/components\/ui\/(dialog|alert-dialog)['"]/.test(text) ||
+    // The primitives under the shared ones and the plain element: an editor dialog built from any of
+    // them would also be a dialog outside the editor's dialog host.
+    /from\s+['"]@radix-ui\/react-(alert-)?dialog['"]/.test(text) ||
+    /from\s+['"]vaul['"]/.test(text) ||
+    /<dialog[\s>/]/.test(text) ||
     /\b\w*Modal\b/.test(text.replace(/\buse\w*Modal\w*\b/g, ''))
   );
 }
@@ -195,6 +200,12 @@ describe('unused code removal (AC-16, T4)', () => {
       )
     ).toBe(true);
     expect(rendersOwnDialog(`import { Button } from '@/components/ui/button';`)).toBe(false);
+    // Negative controls: each further way of rendering a dialog is flagged too.
+    expect(rendersOwnDialog(`import * as D from '@radix-ui/react-dialog';`)).toBe(true);
+    expect(rendersOwnDialog(`import { Root } from "@radix-ui/react-alert-dialog";`)).toBe(true);
+    expect(rendersOwnDialog(`import { Drawer } from 'vaul';`)).toBe(true);
+    expect(rendersOwnDialog(`export const X = () => <dialog open>hi</dialog>;`)).toBe(true);
+    expect(rendersOwnDialog(`export const X = () => <dialog>hi</dialog>;`)).toBe(true);
     // layout sheet is allowed (ADR-0004)
     expect(rendersOwnDialog(`import { Sheet } from '@/components/ui/sheet';`)).toBe(false);
   });

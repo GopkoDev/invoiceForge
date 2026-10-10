@@ -182,6 +182,42 @@ describe('AC-03: leaving after a save during which an edit happened', () => {
     // The save that was sent carried the form as it was when Save was pressed.
     expect(updateInvoiceMock.mock.calls[0][1].notes).toBe('a note x');
   });
+
+  it('Home after a mid-save edit opens UnsavedChangesDialog (the in-app leave, not only beforeunload)', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(NOTES), ' x');
+    const finish = holdNextSave();
+    await user.click(screen.getAllByText('Save')[0]);
+    await waitFor(() => expect(store.getState().isSaving).toBe(true));
+    await user.type(screen.getByPlaceholderText(NOTES), ' typed mid-save');
+    await finish(savedResult());
+    await waitFor(() => expect(store.getState().isSaving).toBe(false));
+    expect(screen.queryByText('Unsaved changes', { selector: '[role="alertdialog"] *' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Home/ }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Unsaved changes');
+    expect(dialog).toHaveTextContent('Save and leave');
+    expect(dialog).toHaveTextContent('Discard and leave');
+    // The modal registry outlives the render; close it so it does not hide the next test's page.
+    await user.click(screen.getByRole('button', { name: 'Cancel and stay' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('control: Home after a save with no edit during it leaves without asking', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(NOTES), ' x');
+    const finish = holdNextSave();
+    await user.click(screen.getAllByText('Save')[0]);
+    await finish(savedResult());
+    await waitFor(() => expect(screen.getAllByText('Saved').length).toBeGreaterThan(0));
+
+    await user.click(screen.getByRole('button', { name: /Home/ }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
 });
 
 describe('AC-05: a refused save keeps the change typed during it on screen', () => {
@@ -283,5 +319,29 @@ describe('AC-05b: IssuedEditsDroppedNotice', () => {
     await user.type(screen.getByPlaceholderText(NOTES), '!');
     expect(screen.getByPlaceholderText(NOTES)).toHaveValue('a note!');
     expect(screen.getByText('Unsaved')).toBeInTheDocument();
+  });
+
+  it('after dismissing the notice, Save carries the allowed fields and none of the dropped quantity', async () => {
+    const user = await issueWithQuantityEditedMidSave();
+    await screen.findByText(DROPPED_NOTICE);
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    updateInvoiceMock.mockClear();
+
+    await user.type(screen.getByPlaceholderText(NOTES), '!');
+    await user.clear(screen.getByPlaceholderText('e.g. Net 14'));
+    await user.type(screen.getByPlaceholderText('e.g. Net 14'), 'Net 30');
+    await user.clear(screen.getByPlaceholderText('Customer purchase order number'));
+    await user.type(screen.getByPlaceholderText('Customer purchase order number'), 'PO-88');
+    const finish = holdNextSave();
+    await user.click(screen.getAllByText('Save')[0]);
+    await finish(savedResult('PENDING'));
+
+    await waitFor(() => expect(updateInvoiceMock).toHaveBeenCalledTimes(1));
+    const [id, payload] = updateInvoiceMock.mock.calls[0];
+    expect(id).toBe('inv-1');
+    expect(payload).toMatchObject({ notes: 'a note!', paymentTerms: 'Net 30', poNumber: 'PO-88' });
+    expect(payload.dueDate).toBeDefined();
+    // The quantity typed during the issuing save was dropped: the lines are as issued.
+    expect(payload.items[0].quantity).toBe(10);
   });
 });
