@@ -14,22 +14,49 @@ test.describe.configure({ timeout: 240_000 });
 const CHUNK = /\/_next\/static\/chunks\/.+\.js/;
 const isChunk = (url: string) => CHUNK.test(url);
 
-/** URLs of every script chunk served to the page whose body holds the PDF toolkit. */
-function trackToolkitChunks(page: Page): string[] {
+/**
+ * Every script chunk served to the page whose body holds the PDF toolkit. A body is read after
+ * the response arrives, so `urls` is complete only after `settled()` has awaited every read still
+ * pending (including reads that start while it waits).
+ */
+function trackToolkitChunks(page: Page) {
   const urls: string[] = [];
-  page.on('response', async (r) => {
+  const pending = new Set<Promise<void>>();
+  page.on('response', (r) => {
     if (!isChunk(r.url()) || r.status() !== 200) return;
-    const body = await r.text().catch(() => '');
-    if (PDF_TOOLKIT_MARKERS.some((m) => body.includes(m))) urls.push(r.url());
+    const read: Promise<void> = (async () => {
+      const body = await r.text().catch(() => '');
+      if (PDF_TOOLKIT_MARKERS.some((m) => body.includes(m))) urls.push(r.url());
+    })().finally(() => pending.delete(read));
+    pending.add(read);
   });
-  return urls;
+  return {
+    urls,
+    async settled() {
+      while (pending.size > 0) await Promise.all([...pending]);
+    },
+  };
 }
 
-/** Lets every response handler already queued (each reads its body) run to completion. */
-async function settleResponseHandlers(page: Page) {
-  await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
-  await page.waitForLoadState('networkidle');
-}
+test('control: the tracker counts a toolkit chunk whose body is still being read when asked', async () => {
+  const marker = PDF_TOOLKIT_MARKERS[0];
+  let respond: (r: unknown) => void = () => {};
+  const fakePage = { on: (_: string, h: typeof respond) => (respond = h) } as unknown as Page;
+  const tracked = trackToolkitChunks(fakePage);
+  const slowResponse = {
+    url: () => 'http://app.test/_next/static/chunks/late.js',
+    status: () => 200,
+    text: () => new Promise<string>((resolve) => setTimeout(() => resolve(`x${marker}x`), 700)),
+  };
+  respond(slowResponse);
+  // Just before the assertion the body read is pending: reading the list now, as the old
+  // sleep-based settle effectively did, misses the chunk.
+  expect(tracked.urls, 'body read still pending').toEqual([]);
+  await tracked.settled();
+  expect(tracked.urls, 'settled() waits for the pending body read').toEqual([
+    'http://app.test/_next/static/chunks/late.js',
+  ]);
+});
 
 test('AC-01: pages open without the toolkit; the first Download fetches it, later actions reuse it', async ({
   browser,
@@ -37,7 +64,8 @@ test('AC-01: pages open without the toolkit; the first Download fetches it, late
   const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-first');
   try {
     const { page, workspace } = f;
-    const fetched = trackToolkitChunks(page);
+    const tracker = trackToolkitChunks(page);
+    const fetched = tracker.urls;
     const pages = [
       protectedRoutes.dashboard,
       protectedRoutes.invoices,
@@ -51,21 +79,26 @@ test('AC-01: pages open without the toolkit; the first Download fetches it, late
       await page.goto(`${APP_E2E_URL}${route}`);
       await page.waitForLoadState('networkidle');
     }
+    await tracker.settled();
     expect(fetched, 'no page but the editor fetches the toolkit when it opens').toEqual([]);
 
     await openInvoiceList(page);
     await page.waitForLoadState('networkidle');
+    await tracker.settled();
     expect(fetched).toEqual([]);
 
     const download = page.waitForEvent('download');
     await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
     expect(await downloadedPdfText(await download)).toContain(workspace.invoiceNumber);
+    await tracker.settled();
     const afterFirst = fetched.length;
     expect(afterFirst).toBeGreaterThan(0);
 
     const second = page.waitForEvent('download');
     await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
     await second;
+    await page.waitForLoadState('networkidle');
+    await tracker.settled();
     expect(fetched.length, 'a later Download does not fetch the toolkit again').toBe(afterFirst);
   } finally {
     await f.context.close();
@@ -78,7 +111,8 @@ test('AC-01: opening the invoice preview first fetches no toolkit chunk, and sho
   const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-preview-first');
   try {
     const { page, workspace } = f;
-    const fetched = trackToolkitChunks(page);
+    const tracker = trackToolkitChunks(page);
+    const fetched = tracker.urls;
     await openInvoiceList(page);
     await page.waitForLoadState('networkidle');
 
@@ -87,7 +121,8 @@ test('AC-01: opening the invoice preview first fetches no toolkit chunk, and sho
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(workspace.invoiceNumber);
     await page.waitForLoadState('networkidle');
-    await settleResponseHandlers(page);
+    await page.waitForLoadState('networkidle');
+    await tracker.settled();
     expect(fetched, 'the preview alone never fetches the PDF toolkit').toEqual([]);
   } finally {
     await f.context.close();
@@ -100,13 +135,15 @@ test('AC-01: after the first Download, a later Print and the preview fetch no ne
   const f = await openSignedInFreelancer(browser, testInfo, 'eux-pdf-reuse');
   try {
     const { page, workspace } = f;
-    const fetched = trackToolkitChunks(page);
+    const tracker = trackToolkitChunks(page);
+    const fetched = tracker.urls;
     await openInvoiceList(page);
     await page.waitForLoadState('networkidle');
 
     const download = page.waitForEvent('download');
     await chooseRowAction(page, workspace.invoiceNumber, 'Download PDF');
     await download;
+    await tracker.settled();
     const afterFirst = fetched.length;
     expect(afterFirst).toBeGreaterThan(0);
 
@@ -132,13 +169,15 @@ test('AC-01: after the first Download, a later Print and the preview fetch no ne
       })
       .toBe(1);
     await page.waitForLoadState('networkidle');
-    await settleResponseHandlers(page);
+    await page.waitForLoadState('networkidle');
+    await tracker.settled();
     expect(fetched.length, 'a later Print does not fetch the toolkit again').toBe(afterFirst);
 
     await chooseRowAction(page, workspace.invoiceNumber, 'View Document');
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.waitForLoadState('networkidle');
-    await settleResponseHandlers(page);
+    await page.waitForLoadState('networkidle');
+    await tracker.settled();
     expect(fetched.length, 'the preview does not fetch the toolkit again').toBe(afterFirst);
   } finally {
     await f.context.close();
