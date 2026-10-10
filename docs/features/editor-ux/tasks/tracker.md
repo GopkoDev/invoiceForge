@@ -84,7 +84,7 @@
 | T75 | Correct the SAD's new-server-call, logging and Flow 5 default wording, and the T53 log's percentage note | docs | Dmytro Hopko | — | — | done |
 | T76 | Test that a failed invoice-number hint leaves the loading state for 'Assigned on save' at the same size | tests | Dmytro Hopko | — | — | done |
 | T77 | Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload | tests | Dmytro Hopko | — | — | done |
-| T78 | Name the editor pages' session-actor lookup in the SAD's list of server-side changes | docs | Dmytro Hopko | — | — | todo |
+| T78 | Name the editor pages' session-actor lookup in the SAD's list of server-side changes | docs | Dmytro Hopko | — | — | done |
 | T79 | Assert that a rejected invoice-number hint request goes to sign-in, and separate it from the non-success case in the test plan | tests | Dmytro Hopko | — | — | todo |
 | T80 | Word the 'not saved because issued' notice by what was dropped (the lines and other locked details), and assert that wording | app | Dmytro Hopko | — | — | todo |
 
