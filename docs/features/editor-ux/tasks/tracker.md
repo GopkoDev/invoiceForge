@@ -85,7 +85,7 @@
 | T76 | Test that a failed invoice-number hint leaves the loading state for 'Assigned on save' at the same size | tests | Dmytro Hopko | — | — | done |
 | T77 | Make the captive-portal test-plan row match the code (newer version, Reload) and pin the test to Reload | tests | Dmytro Hopko | — | — | done |
 | T78 | Name the editor pages' session-actor lookup in the SAD's list of server-side changes | docs | Dmytro Hopko | — | — | done |
-| T79 | Assert that a rejected invoice-number hint request goes to sign-in, and separate it from the non-success case in the test plan | tests | Dmytro Hopko | — | — | todo |
+| T79 | Assert that a rejected invoice-number hint request goes to sign-in, and separate it from the non-success case in the test plan | tests | Dmytro Hopko | — | — | done |
 | T80 | Word the 'not saved because issued' notice by what was dropped (the lines and other locked details), and assert that wording | app | Dmytro Hopko | — | — | todo |
 
 **Total:** 82 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10).

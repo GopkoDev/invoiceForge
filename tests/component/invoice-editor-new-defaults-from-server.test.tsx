@@ -18,8 +18,15 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   generateInvoiceNumber: vi.fn().mockResolvedValue({ success: true, data: 'INV-NEXT' }),
   getInvoiceEditorData: vi.fn(),
 }));
+// editor-ux T79: a rejected hint request sends the Freelancer to sign-in (architecture-hardening
+// AC-21), a full-page navigation jsdom cannot do, so it is mocked here and asserted below.
+vi.mock('@/lib/helpers/client-session-redirect', () => ({
+  goToSignIn: vi.fn(),
+  redirectIfUnauthorized: () => false,
+}));
 
 import { generateInvoiceNumber } from '@/lib/actions/invoice-actions/invoice-actions';
+import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import { InvoiceDetailsSection } from '@/components/invoice-editor/invoice-details-section';
 import * as storeHelpers from '@/store/invoice-editor-store/helpers';
 import { createInvoiceEditorStore } from '@/store/invoice-editor-store/create-invoice-editor-store';
@@ -92,6 +99,7 @@ function withSender(): InvoiceEditorData {
 }
 const numberInput = () => screen.getAllByRole('textbox')[0];
 const gen = vi.mocked(generateInvoiceNumber);
+const signIn = vi.mocked(goToSignIn);
 
 describe('number hint on a new invoice (T22)', () => {
   it('requests the hint exactly once on mount and shows Loading until it arrives', async () => {
@@ -110,28 +118,35 @@ describe('number hint on a new invoice (T22)', () => {
     expect(gen).toHaveBeenCalledTimes(1);
   });
 
+  // A rejected call ends the loading state too, but the Freelancer is then sent to sign-in
+  // (architecture-hardening AC-21); only a non-success result leaves them on the editable field.
   it.each([
-    ['rejects', () => Promise.reject(new Error('boom'))],
-    ['returns a non-success result', () => Promise.resolve({ success: false, error: 'nope', code: 'INTERNAL' })],
-  ])('leaves the loading state when the request %s', async (_n, impl) => {
+    ['rejects, and sends the Freelancer to sign-in', () => Promise.reject(new Error('boom')), 1],
+    ['returns a non-success result, and stays in the editor', () =>
+      Promise.resolve({ success: false, error: 'nope', code: 'INTERNAL' }), 0],
+  ])('leaves the loading state when the request %s', async (_n, impl, signInCalls) => {
     gen.mockReset();
+    signIn.mockClear();
     gen.mockImplementation(impl as never);
     renderWithEditorStore(<InvoiceDetailsSection />, { initial: withSender() });
     await waitFor(() => expect(gen).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
     expect(numberInput()).not.toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText('Assigned on save')).toBeInTheDocument();
+    expect(signIn).toHaveBeenCalledTimes(signInCalls);
   });
 
   // editor-ux T76 (test-plan.md edge case "the invoice-number hint never arrives"): a failed hint
   // swaps "Loading…" for "Assigned on save" in the same slot, keeps the field's box, and leaves the
-  // field empty and editable.
+  // field empty and editable. T79: on a rejection the store does the same and then goes to sign-in
+  // (AC-21), so the editable field is what the Freelancer keeps only after a non-success result.
   it.each([
-    ['rejects', (settle: { reject: (e: Error) => void }) => settle.reject(new Error('boom'))],
-    ['returns a non-success result', (settle: { resolve: (v: unknown) => void }) =>
-      settle.resolve({ success: false, error: 'nope', code: 'FAILED' })],
-  ])('keeps the field box and description slot, and the field editable, when the request %s', async (_n, finish) => {
+    ['rejects (then goes to sign-in)', (settle: { reject: (e: Error) => void }) => settle.reject(new Error('boom')), 1],
+    ['returns a non-success result (stays in the editor)', (settle: { resolve: (v: unknown) => void }) =>
+      settle.resolve({ success: false, error: 'nope', code: 'FAILED' }), 0],
+  ])('keeps the field box and description slot, and the field editable, when the request %s', async (_n, finish, signInCalls) => {
     gen.mockReset();
+    signIn.mockClear();
     const settle = {} as { resolve: (v: unknown) => void; reject: (e: Error) => void };
     gen.mockReturnValue(new Promise((resolve, reject) => Object.assign(settle, { resolve, reject })) as never);
     renderWithEditorStore(<InvoiceDetailsSection />, { initial: withSender() });
@@ -141,6 +156,7 @@ describe('number hint on a new invoice (T22)', () => {
     const [slotTag, slotClass, slotParent] = [loadingSlot.tagName, loadingSlot.className, loadingSlot.parentElement];
 
     await act(async () => finish(settle as never));
+    expect(signIn).toHaveBeenCalledTimes(signInCalls);
 
     const failedSlot = screen.getByText('Assigned on save');
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
