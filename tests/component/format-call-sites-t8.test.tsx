@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 // editor-ux T8 (AC-08, AC-09): the editor's line amounts and totals use lib/format ("$1,234.50",
 // "UAH 1,234.50"), independent of device language; custom-price and paid dates keep the stored day.
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+// T35 (review T-a): every money case runs with en-US, uk-UA and de-DE as the default locale, and the
+// dashboard's Debtors card is rendered too. Expected strings are written out, never from lib/format.
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SummarySection } from '@/components/invoice-editor/summary-section';
 import { InvoiceItemFields } from '@/components/invoice-editor/invoice-item-fields';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
+import { DashboardDebtors } from '@/components/dashboard/debtors/dashboard-debtors';
 import type { InvoiceFormItem } from '@/types/invoice/types';
+import { DEVICE_LOCALES, stubDefaultLocale } from '../support/default-locale';
 
 vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   generateInvoiceNumber: vi.fn(),
@@ -39,9 +43,14 @@ const setCurrency = (currency: 'USD' | 'UAH') =>
     total: 1234.5,
   }));
 
-describe('editor money display (AC-09)', () => {
+describe.each(DEVICE_LOCALES)('money display with a %s device language (AC-09)', (locale) => {
   beforeEach(() => {
+    stubDefaultLocale(locale);
     store = createInvoiceEditorStore(emptyEditorData());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -68,6 +77,19 @@ describe('editor money display (AC-09)', () => {
       { wrapper: withEditorStore(store) },
     );
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['USD', '$1,234.50'],
+    ['UAH', 'UAH 1,234.50'],
+  ] as const)('the dashboard Debtors card shows a %s debt as %s', (currency, expected) => {
+    render(
+      <DashboardDebtors
+        debtors={[{ customerId: 'c1', customerName: 'Globex', total: 1234.5, count: 1, currencies: [currency] }]}
+      />,
+    );
+    const debt = screen.getByLabelText(`Total overdue: ${expected}`);
+    expect(debt).toHaveTextContent(new RegExp(`^${expected.replace('$', '\\$')}$`));
   });
 });
 
