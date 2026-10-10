@@ -73,7 +73,7 @@ async function snapshot(page: Page) {
       // above the preview; like the percentage it appears only with JavaScript.
       .replace(/ The logo [^.]*\. The PDF was made without it\./, '')
       .replace(/ \d+% (?=INVOICE )/, ' ')
-      .replace(/ We use strictly necessary session cookies.*$/, ''),
+      .replace(/ We use a strictly necessary session cookie.*$/, ''),
   };
 }
 

@@ -34,8 +34,9 @@ export function CookieBanner() {
       <div className="container mx-auto px-4 py-2.5 sm:py-3">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-muted-foreground flex-1 text-xs leading-relaxed sm:text-sm">
-            We use strictly necessary session cookies to manage your
-            authentication. By using Invoice Forge, you agree to our use of
+            We use a strictly necessary session cookie to keep you signed in,
+            and a functional cookie that stores your time zone so dates are
+            shown correctly. By using Invoice Forge, you agree to our use of
             these cookies as outlined in our{' '}
             <Link
               href={legalRoutes.privacy}

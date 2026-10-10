@@ -129,11 +129,12 @@ export function PrivacyPolicyContent() {
             <ContentCard variant="hover-only">
               <h2 className="mb-4 text-2xl font-bold">3. Cookies & Tracking</h2>
               <p className="text-muted-foreground mb-4">
-                Invoice Forge uses{' '}
-                <strong>two first-party cookies</strong>: a strictly necessary
-                session cookie for authentication, and a functional time-zone
-                cookie so dates are shown in your time zone. Neither is used
-                for tracking.
+                Invoice Forge sets <strong>only first-party cookies</strong>,
+                and none of them is used for tracking: a strictly necessary
+                session cookie for authentication, short-lived Auth.js cookies
+                while you sign in, a functional time-zone cookie so dates are
+                shown in your time zone, and a cookie that remembers whether
+                the sidebar is open.
               </p>
               <div className="bg-primary/5 mb-4 rounded-lg p-4">
                 <h3 className="mb-3 text-lg font-semibold">
@@ -143,11 +144,11 @@ export function PrivacyPolicyContent() {
                   <li className="text-muted-foreground">
                     <strong>Cookie Name:</strong>{' '}
                     <code className="bg-muted rounded px-1 py-0.5">
-                      next-auth.session-token
+                      authjs.session-token
                     </code>{' '}
                     (or{' '}
                     <code className="bg-muted rounded px-1 py-0.5">
-                      __Secure-next-auth.session-token
+                      __Secure-authjs.session-token
                     </code>{' '}
                     on HTTPS)
                   </li>
@@ -194,6 +195,78 @@ export function PrivacyPolicyContent() {
                   </li>
                   <li className="text-muted-foreground">
                     <strong>Duration:</strong> 1 year
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Type:</strong> First-party cookie (no third-party
+                    tracking)
+                  </li>
+                </ul>
+              </div>
+              <div className="bg-primary/5 mb-4 rounded-lg p-4">
+                <h3 className="mb-3 text-lg font-semibold">
+                  Sign-In Cookie Details
+                </h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="text-muted-foreground">
+                    <strong>Cookie Names:</strong>{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">
+                      authjs.csrf-token
+                    </code>{' '}
+                    and{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">
+                      authjs.callback-url
+                    </code>
+                    , and for Google sign-in{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">
+                      authjs.state
+                    </code>{' '}
+                    and{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">
+                      authjs.pkce.code_verifier
+                    </code>{' '}
+                    (with a <code className="bg-muted rounded px-1 py-0.5">__Host-</code>{' '}
+                    or <code className="bg-muted rounded px-1 py-0.5">__Secure-</code>{' '}
+                    prefix on HTTPS)
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Purpose:</strong> Protect the sign-in form and the
+                    Google sign-in from forgery, and return you to the page you
+                    signed in from
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Technology:</strong> Auth.js (NextAuth.js)
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Duration:</strong> Until you close the browser; the
+                    Google sign-in cookies expire after 15 minutes
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Type:</strong> First-party cookie (no third-party
+                    tracking)
+                  </li>
+                </ul>
+              </div>
+              <div className="bg-primary/5 mb-4 rounded-lg p-4">
+                <h3 className="mb-3 text-lg font-semibold">
+                  Sidebar Cookie Details
+                </h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="text-muted-foreground">
+                    <strong>Cookie Name:</strong>{' '}
+                    <code className="bg-muted rounded px-1 py-0.5">
+                      sidebar_state
+                    </code>
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Contents:</strong> Whether the sidebar is open
+                    (true or false), nothing else
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Set on:</strong> The pages you see when signed in,
+                    when you open or close the sidebar
+                  </li>
+                  <li className="text-muted-foreground">
+                    <strong>Duration:</strong> 7 days
                   </li>
                   <li className="text-muted-foreground">
                     <strong>Type:</strong> First-party cookie (no third-party
