@@ -1,3 +1,5 @@
+import type { InvoiceEditorState } from './types';
+import type { StoredAmounts } from '@/lib/invoice-document/types';
 import {
   InvoiceFormData,
   InvoiceFormItem,
@@ -336,4 +338,12 @@ export function editorModeOf(invoiceId: string | undefined, storedStatus: Invoic
   if (storedStatus === 'DRAFT') return 'draft';
   if (storedStatus === 'CANCELLED') return 'cancelled';
   return 'issued';
+}
+
+/** Issued and cancelled invoices print the amounts stored on them; a draft or new one is recomputed. */
+export function storedAmountsToPrint(
+  state: Partial<Pick<InvoiceEditorState, 'invoiceId'>> & Pick<InvoiceEditorState, 'storedStatus' | 'storedAmounts'>
+): StoredAmounts | undefined {
+  const mode = editorModeOf(state.invoiceId, state.storedStatus);
+  return (mode === 'issued' || mode === 'cancelled') && state.storedAmounts ? state.storedAmounts : undefined;
 }

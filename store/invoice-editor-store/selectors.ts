@@ -5,7 +5,7 @@ import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { InvoiceStatus } from '@/types/invoice/types';
 import type { InvoiceEditorState } from './types';
-import { editorModeOf } from './helpers';
+import { editorModeOf, storedAmountsToPrint } from './helpers';
 import type { InvoiceEditorStoreApi } from './create-invoice-editor-store';
 
 export const InvoiceEditorStoreContext = createContext<InvoiceEditorStoreApi | null>(null);
@@ -98,6 +98,10 @@ export const useEditorLocks = () =>
 export const useIssuedDetails = () =>
   useInvoiceEditor(useShallow((state) => state.issuedDetails));
 
+/** The stored figures an issued or cancelled invoice prints; undefined while the invoice is a draft or new. */
+export const useStoredAmountsToPrint = () =>
+  useInvoiceEditor((state) => storedAmountsToPrint(state));
+
 export const useInvoiceId = () =>
   useInvoiceEditor((state) => state.invoiceId);
 
@@ -131,9 +135,8 @@ export const useLegacy = () =>
 export const useSummary = () =>
   useInvoiceEditor(
     useShallow((state) => ({
-      subtotal: state.subtotal,
-      taxAmount: state.taxAmount,
-      total: state.total,
+      // An issued or cancelled invoice shows the amounts stored on it (ADR-0002), not a recalculation.
+      ...(storedAmountsToPrint(state) ?? { subtotal: state.subtotal, taxAmount: state.taxAmount, total: state.total }),
       taxRate: state.formData.taxRate,
       discount: state.formData.discount,
       shipping: state.formData.shipping,

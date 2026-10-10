@@ -6,6 +6,12 @@ import type {
   SerializedInvoice,
 } from '@/types/invoice/types';
 
+export interface StoredAmounts {
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+}
+
 export interface InvoiceDocumentParties {
   senderProfile?: InvoiceSenderProfile | null;
   customer?: InvoiceCustomer | null;
@@ -13,7 +19,14 @@ export interface InvoiceDocumentParties {
 }
 
 export type InvoiceDocumentSource =
-  | { kind: 'draft'; form: InvoiceFormData; parties: InvoiceDocumentParties }
+  | {
+      kind: 'draft';
+      form: InvoiceFormData;
+      parties: InvoiceDocumentParties;
+      /** An issued invoice opened in the editor: print these stored figures and the lines' stored
+       * `total`s instead of recomputing (AC-10, ADR-0002). Omitted for a draft or a new invoice. */
+      storedAmounts?: StoredAmounts;
+    }
   | { kind: 'issued'; invoice: SerializedInvoice };
 
 export interface InvoiceDocumentRow {

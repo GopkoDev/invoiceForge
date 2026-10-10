@@ -33,6 +33,7 @@ export {
   useEditorMode,
   useEditorLocks,
   useIssuedDetails,
+  useStoredAmountsToPrint,
   useInvoiceId,
   useInvoiceEditorActions,
   usePoNumber,

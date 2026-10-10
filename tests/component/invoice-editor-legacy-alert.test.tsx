@@ -39,6 +39,7 @@ vi.mock('@/store/invoice-editor-store', () => ({
   // invoice-integrity T18: the stale / reload-failed states.
   useIsStale: () => false,
   useReloadFailed: () => false,
+  useStoredAmountsToPrint: () => undefined,
   useLegacy: () => ({
     storedTotal: '100.00',
     recomputedTotal: '100.00',

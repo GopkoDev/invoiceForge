@@ -7,7 +7,7 @@ import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
 import { WORDING } from './wording';
 import type { InvoiceDocument, InvoiceDocumentParties, InvoiceDocumentSource } from './types';
 
-export type { InvoiceDocument, InvoiceDocumentSource, InvoiceDocumentParties } from './types';
+export type { InvoiceDocument, InvoiceDocumentSource, InvoiceDocumentParties, StoredAmounts } from './types';
 
 const present = (v: string | null | undefined): v is string => Boolean(v);
 
@@ -24,6 +24,7 @@ export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocu
   let form;
   let parties: InvoiceDocumentParties;
   const stored = source.kind === 'issued' ? source.invoice : null;
+  const editorStored = source.kind === 'draft' ? source.storedAmounts : undefined;
   if (source.kind === 'issued') {
     const data = prepareInvoiceDataForPdf(source.invoice);
     form = data.formData;
@@ -46,7 +47,9 @@ export function buildInvoiceDocument(source: InvoiceDocumentSource): InvoiceDocu
         taxAmount: stored.taxAmount,
         total: stored.total,
       }
-    : computeInvoiceAmounts({
+    : editorStored
+      ? { items: form.items.map((i) => ({ amount: i.total })), ...editorStored }
+      : computeInvoiceAmounts({
         items: form.items.map((i) => ({ quantity: i.quantity, price: i.price })),
         discount: form.discount,
         shipping: form.shipping,

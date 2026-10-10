@@ -2,7 +2,8 @@
 // and PDF; review 2026-10-10 T-a): with the browser's language set to uk-UA or de-DE, every place
 // that shows an invoice amount writes it the en-US way, "$1,234.50" and "UAH 1,234.50": the
 // editor's line amount and summary totals, its preview, the PDF it downloads and the dashboard's
-// Debtors card. The amounts are the issued invoice's stored ones (T23). Every expected string is
+// Debtors card. The amounts are the issued invoice's stored ones (T23, T39): the seeded line's stored
+// amount, subtotal and total (1,234.50) differ from price x quantity (1,300.00), so a recalculation shows 1,300.00. Every expected string is
 // written out by hand; lib/format, the module under test, never supplies one.
 import { test, expect as baseExpect, type Locator, type Page } from '@playwright/test';
 import { createTestPrismaClient } from '../support/db/client';
@@ -32,8 +33,8 @@ const BROWSERS = [
 // Written out: the en-US amount for each currency, and the same as a regular expression for rows
 // whose label and amount sit in sibling elements.
 const CURRENCIES = [
-  { currency: 'USD', amount: '$1,234.50', pattern: '\\$1,234\\.50' },
-  { currency: 'UAH', amount: 'UAH 1,234.50', pattern: 'UAH\\s1,234\\.50' },
+  { currency: 'USD', amount: '$1,234.50', pattern: '\\$1,234\\.50', price: '$1,300.00', pricePattern: '\\$1,300\\.00' },
+  { currency: 'UAH', amount: 'UAH 1,234.50', pattern: 'UAH\\s1,234\\.50', price: 'UAH 1,300.00', pricePattern: 'UAH\\s1,300\\.00' },
 ] as const;
 
 const HYDRATION =
@@ -80,7 +81,7 @@ async function seedUsdAndUahDebts(workspace: SeededWorkspace): Promise<Record<'U
         subtotal: 1234.5,
         taxAmount: 0,
         total: 1234.5,
-        items: { updateMany: { where: {}, data: { name: 'Locale Work', quantity: 1, rate: 1234.5, amount: 1234.5 } } },
+        items: { updateMany: { where: {}, data: { name: 'Locale Work', quantity: 1, rate: 1300, amount: 1234.5 } } },
       },
     });
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -100,7 +101,7 @@ async function seedUsdAndUahDebts(workspace: SeededWorkspace): Promise<Record<'U
         invoiceNumber: uahNumber,
         invoiceNumberKey: uahNumber.toLowerCase(),
         currency: 'UAH',
-        items: { create: [{ name: 'Locale Work', unit: 'pcs', quantity: 1, rate: 1234.5, amount: 1234.5 }] },
+        items: { create: [{ name: 'Locale Work', unit: 'pcs', quantity: 1, rate: 1300, amount: 1234.5 }] },
       } as typeof copy,
     });
     return { USD: workspace.invoiceId, UAH: uah.id };
@@ -125,7 +126,7 @@ for (const { locale, native } of BROWSERS) {
       await signInWithSignInLink(page, email);
       const errors = watchRenderErrors(page);
 
-      for (const { currency, amount, pattern } of CURRENCIES) {
+      for (const { currency, amount, pattern, price, pricePattern } of CURRENCIES) {
         await test.step(`${currency}: editor, preview and PDF`, async () => {
           await page.goto(`${APP_E2E_URL}${protectedRoutes.invoiceEdit(invoiceIds[currency])}`);
 
@@ -153,7 +154,7 @@ for (const { locale, native } of BROWSERS) {
           // Preview: the line row and the summary rows
           const preview = page.locator('div').filter({ has: page.getByRole('columnheader', { name: 'Product / Service', exact: true }) }).last();
           await expect(preview.getByRole('row').filter({ hasText: 'Locale Work' })).toHaveText(
-            new RegExp(`^Locale Work\\s*${pattern}\\s*1\\s.*${pattern}$`),
+            new RegExp(`^Locale Work\\s*${pricePattern}\\s*1\\s.*${pattern}$`),
           );
           await expect(innermost(page, preview, page.getByText('Subtotal:', { exact: true }))).toHaveText(
             new RegExp(`^Subtotal:\\s*${pattern}$`),
@@ -162,16 +163,20 @@ for (const { locale, native } of BROWSERS) {
             new RegExp(`^TOTAL:\\s*${pattern}$`),
           );
           await expect(preview).not.toContainText(native);
+          // Stored, not recalculated (T39): the 1,300.00 price x 1 is never the subtotal or total.
+          await expect(innermost(page, preview, page.getByText('TOTAL:', { exact: true }))).not.toContainText(price);
 
           // The PDF it downloads
           await page.waitForLoadState('networkidle');
           const download = page.waitForEvent('download', { timeout: 90_000 });
           await page.getByRole('button', { name: 'Download PDF' }).click();
           const pdf = await downloadedPdfText(await download);
-          expect(pdf).toMatch(new RegExp(`Locale Work ${pattern} 1 .*${pattern}`));
+          expect(pdf).toMatch(new RegExp(`Locale Work ${pricePattern} 1 .*${pattern}`));
           expect(pdf).toContain(`Subtotal: ${amount}`);
           expect(pdf).toContain(`TOTAL: ${amount}`);
           expect(pdf).not.toMatch(native);
+          expect(pdf).not.toContain(`TOTAL: ${price}`);
+          expect(pdf).not.toContain(`Subtotal: ${price}`);
         });
 
         await test.step(`${currency}: dashboard Debtors`, async () => {

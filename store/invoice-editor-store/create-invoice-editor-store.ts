@@ -60,6 +60,7 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
     derivedOverdue: data.derivedOverdue ?? false,
     storedStatus: data.initialData && data.invoiceId ? data.initialData.status : null,
     issuedDetails: data.issuedDetails ?? null,
+    storedAmounts: data.storedAmounts ?? null,
     lockedRefusal: null,
     loadedVersion: data.invoiceId && data.initialData ? (data.version ?? null) : null,
     changedElsewhere: null,

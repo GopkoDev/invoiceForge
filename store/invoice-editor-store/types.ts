@@ -120,6 +120,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   storedStatus: InvoiceStatus | null;
   /** The issued details shown as text once the invoice is issued (ADR-0001). */
   issuedDetails: InvoiceIssuedDetails | null;
+  /** The subtotal, tax and total stored on the invoice: what an issued invoice prints (ADR-0002). */
+  storedAmounts: { subtotal: number; taxAmount: number; total: number } | null;
   /** The `error` of the last save's ISSUED_INVOICE_LOCKED refusal; cleared when a save starts. */
   lockedRefusal: string | null;
   /** invoice-integrity T18 (ADR-0004): Invoice.version as loaded, then as returned by each save. */
@@ -185,6 +187,7 @@ export interface InvoiceEditorInitData {
   legacy?: InvoiceLegacyInfo | null;
   version?: number;
   issuedDetails?: InvoiceIssuedDetails | null;
+  storedAmounts?: { subtotal: number; taxAmount: number; total: number };
 }
 
 export interface RecalculateComputedValuesStateInput extends NormalizedData {

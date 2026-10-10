@@ -5,6 +5,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import { useHasUnsavedChanges, useInvoiceEditorStoreApi } from '@/store/invoice-editor-store';
 import { pdfPartiesOfState } from '@/store/invoice-editor-store/pdf-parties';
+import { storedAmountsToPrint } from '@/store/invoice-editor-store/helpers';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { usePdfAction, type PdfAction } from '@/hooks/use-pdf-action';
 import { loadPdfKit } from '@/lib/pdf/load-pdf-kit';
@@ -37,7 +38,7 @@ export function useInvoicePdf() {
       const result = await runInput(action, () => {
         const parties = pdfPartiesOfState(state);
         return {
-          document: buildInvoiceDocument({ kind: 'draft', form: state.formData, parties }),
+          document: buildInvoiceDocument({ kind: 'draft', form: state.formData, parties, storedAmounts: storedAmountsToPrint(state) }),
           senderProfile: parties.senderProfile,
         };
       });

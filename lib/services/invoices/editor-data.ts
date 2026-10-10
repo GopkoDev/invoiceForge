@@ -101,6 +101,13 @@ export async function getInvoiceEditorData(
       legacy,
       version: existingInvoice?.version,
       issuedDetails: existingInvoice ? issuedDetailsOf(existingInvoice) : null,
+      storedAmounts: existingInvoice
+        ? {
+            subtotal: Number(existingInvoice.subtotal),
+            taxAmount: Number(existingInvoice.taxAmount),
+            total: Number(existingInvoice.total),
+          }
+        : undefined,
     });
   } catch (error) {
     return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');

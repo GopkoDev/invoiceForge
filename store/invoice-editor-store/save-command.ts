@@ -197,6 +197,7 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
       storedStatus: saved.status,
       // What the server froze in this save (null for a draft): the issued blocks and PDF show it.
       issuedDetails: saved.issuedDetails,
+      storedAmounts: { subtotal: saved.subtotal, taxAmount: saved.taxAmount, total: saved.total },
       // The row's version now: the next save's loadedVersion (ADR-0004).
       loadedVersion: saved.version,
       fieldErrors: undefined,

@@ -21,6 +21,7 @@ import {
   usePdfParties,
   useIsStale,
   useReloadFailed,
+  useStoredAmountsToPrint,
 } from '@/store/invoice-editor-store';
 
 // The contract's shared-number text (lib/actions/invoice-actions/invoice-actions.ts
@@ -35,9 +36,10 @@ export function InvoiceEditor() {
   // once issued, its parties are the issued details (SCR-03 decision 4).
   const pdfFormData = useFormData();
   const { senderProfile, customer, bankAccount } = usePdfParties();
+  const storedAmounts = useStoredAmountsToPrint();
   const previewSource = useMemo<InvoiceDocumentSource>(
-    () => ({ kind: 'draft', form: pdfFormData, parties: { senderProfile, customer, bankAccount } }),
-    [pdfFormData, senderProfile, customer, bankAccount]
+    () => ({ kind: 'draft', form: pdfFormData, parties: { senderProfile, customer, bankAccount }, storedAmounts }),
+    [pdfFormData, senderProfile, customer, bankAccount, storedAmounts]
   );
   const mode = useEditorMode();
   const legacy = useLegacy();
