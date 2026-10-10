@@ -60,7 +60,6 @@ function Harness() {
     <div>
       <button onClick={() => void run('download', invoice)}>Download</button>
       <button onClick={() => void run('print', invoice)}>Print</button>
-      <button onClick={() => void run('preview', invoice)}>Preview</button>
       <span data-testid="state">{preparing ? 'preparing' : 'idle'}</span>
     </div>
   );
@@ -98,19 +97,6 @@ describe('usePdfAction (T2)', () => {
     expect(kit.downloadPdf).not.toHaveBeenCalled();
   });
 
-  it('AC-01: preview resolves with the PDF blob and neither downloads nor prints', async () => {
-    let result: unknown;
-    function P() {
-      const { run } = usePdfAction();
-      return <button onClick={async () => (result = await run('preview', invoice))}>go</button>;
-    }
-    render(<P />);
-    await userEvent.setup().click(screen.getByText('go'));
-    await vi.waitFor(() => expect(result).toMatchObject({ success: true, blob }));
-    expect(kit.downloadPdf).not.toHaveBeenCalled();
-    expect(kit.printPdf).not.toHaveBeenCalled();
-  });
-
   it('AC-01: a second action in the same visit goes through loadPdfKit again (cached there), never a new import', async () => {
     render(<Harness />);
     const user = userEvent.setup();
@@ -144,7 +130,7 @@ describe('usePdfAction (T2)', () => {
   it('AC-02b: a missing toolkit after an update offers Reload, never Try again', async () => {
     loadPdfKit.mockRejectedValueOnce(new PdfKitLoadError('new-version'));
     render(<Harness />);
-    await userEvent.setup().click(screen.getByText('Preview'));
+    await userEvent.setup().click(screen.getByText('Download'));
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     const [message, options] = toast.error.mock.calls[0];
     expect(message).toMatch(/newer version/i);

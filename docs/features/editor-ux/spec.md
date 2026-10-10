@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-09"
+updated_at: "2026-10-10"
 feature_size: "M"
 ---
 
@@ -97,8 +97,10 @@ Traceability and scope notes:
 ### AC-01 (US-01) — happy path
 
 **Given** a signed-in Freelancer with issued invoices
-**When** they open any signed-in page other than the invoice editor (the dashboard, the invoices list, the customers, products and sender profiles pages, and a Customer's or sender profile's page with its related invoices), and then choose Download, Print or the PDF preview on one invoice
-**Then** none of those pages fetches the PDF toolkit when it opens. Choosing Download, Print or the PDF preview fetches it, shows that the PDF is being prepared, and then downloads, prints or shows that invoice's PDF, with the content and format AC-09 and AC-10 define. Later Download, Print or preview actions in the same visit don't fetch it again. The invoice editor shows its live preview from the first display, so it may fetch the toolkit when it opens
+**When** they open any signed-in page other than the invoice editor (the dashboard, the invoices list, the customers, products and sender profiles pages, and a Customer's or sender profile's page with its related invoices), and then choose Download, Print or the invoice preview on one invoice
+**Then** none of those pages fetches the PDF toolkit when it opens. The invoice preview shows that invoice with the content and format AC-09 and AC-10 define without fetching the PDF toolkit. Choosing Download or Print fetches it, shows that the PDF is being prepared, and then downloads or prints that invoice's PDF, with the same content and format. Later Download or Print actions in the same visit don't fetch it again. The invoice editor may fetch the toolkit in the background once it has opened, so its Download and Print rarely wait
+
+<!-- changed 2026-10-10 by review-2026-10-10 D9 (owner: Dmytro Hopko): the preview is built from the invoice document model as HTML (ADR-0002) and never fetches the PDF toolkit; only Download and Print do. -->
 
 ### AC-02 (US-01) — error
 
@@ -109,8 +111,10 @@ Traceability and scope notes:
 ### AC-02b (US-01) — error
 
 **Given** a signed-in Freelancer whose page was opened before a newer version of the app was released, or whose PDF fails while it is being generated
-**When** they choose Download, Print or the PDF preview on an invoice
+**When** they choose Download or Print on an invoice
 **Then** if the PDF toolkit can no longer be fetched because the app was updated, the system says in plain language that a newer version is available and offers to reload the page, instead of a try-again that keeps failing. If generating the PDF fails, the system shows the same plain-language message as AC-02 with an offer to try again, and the failure is recorded for the team. In both cases the page stays usable and nothing else on it changes
+
+<!-- changed 2026-10-10 by review-2026-10-10 D9: the invoice preview no longer fetches the toolkit (AC-01), so only Download and Print can meet a missing toolkit. -->
 
 ### AC-03 (US-02) — happy path
 

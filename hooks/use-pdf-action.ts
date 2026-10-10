@@ -13,11 +13,10 @@ import { siteConfig } from '@/config/site.config';
 import { buildInvoiceDocument, type InvoiceDocument } from '@/lib/invoice-document';
 import type { InvoiceSenderProfile, SerializedInvoice } from '@/types/invoice/types';
 
-export type PdfAction = 'download' | 'print' | 'preview';
+export type PdfAction = 'download' | 'print';
 
 export interface PdfActionResult {
   success: boolean;
-  blob?: Blob;
   unauthorized?: boolean;
 }
 
@@ -72,12 +71,9 @@ async function execute(
     toast.success('PDF downloaded');
     return { success: true };
   }
-  if (action === 'print') {
-    // printWindow is set here: a blocked window never reaches execute.
-    kit.printPdf(blob, printWindow as Window);
-    return { success: true };
-  }
-  return { success: true, blob };
+  // printWindow is set here: a blocked window never reaches execute.
+  kit.printPdf(blob, printWindow as Window);
+  return { success: true };
 }
 
 /**

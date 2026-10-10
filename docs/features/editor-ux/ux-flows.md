@@ -50,10 +50,12 @@ Out of scope for drawing (no human-facing movement in the app):
 
 ### Flow: US-01 — Lists open without printing tools
 
+<!-- changed 2026-10-10 by review-2026-10-10 D9: the invoice preview is HTML from the document model (ADR-0002) and never fetches the toolkit. -->
+
 ```mermaid
 flowchart TD
     A0["SCR-01 Dashboard, SCR-02 Invoices list, SCR-03 Customer or sender profile page, SCR-04 Other signed-in pages"] -->|"page opens"| A1["Page usable, PDF toolkit not fetched"]
-    A1 -->|"Download, Print or PDF preview on one invoice row of SCR-01, SCR-02 or SCR-03"| A2["Same page: the PDF is being prepared"]
+    A1 -->|"Download or Print on one invoice row of SCR-01, SCR-02 or SCR-03"| A2["Same page: the PDF is being prepared"]
     A2 --> A3{"Toolkit already fetched in this visit?"}
     A3 -->|"yes, no second fetch"| A5{"Generate the PDF"}
     A3 -->|"no"| A4{"Fetch the toolkit from the app's own origin"}
@@ -65,15 +67,15 @@ flowchart TD
     A7 -->|"Reload"| A0
     A5 -->|"Download"| A8["SCR-08 Invoice PDF downloaded"]
     A5 -->|"Print"| A9["SCR-08 Invoice PDF in the print dialog"]
-    A5 -->|"PDF preview"| A10["SCR-07 PDF preview dialog"]
+    A1 -->|"Invoice preview on one invoice row, no toolkit fetch"| A10["SCR-07 invoice preview dialog"]
     A8 -->|"back"| A1
     A9 -->|"back"| A1
     A10 -->|"close"| A1
-    E0["SCR-06 Invoice editor"] -->|"opens with its live preview, may fetch the toolkit at once"| E1["SCR-06 preview shown from the first display"]
+    E0["SCR-06 Invoice editor"] -->|"opens with its live preview, may fetch the toolkit in the background"| E1["SCR-06 preview shown from the first display"]
     E1 -->|"Download or Print"| A8
 ```
 
-The Freelancer opens the dashboard, the invoices list, a Customer's or sender profile's page, or any other signed-in page except the editor. The page opens and is usable without fetching the PDF toolkit. When they choose Download, Print or the PDF preview on an invoice row, that page shows that the PDF is being prepared. If the toolkit hasn't been fetched yet in this visit, it is fetched now, only from the app's own origin. A later PDF action in the same visit skips the fetch. Once the PDF is generated, Download saves the file, Print opens the print dialog and the preview opens the preview dialog, and the Freelancer returns to the same page. There are three failure branches, and each keeps the page usable and changes nothing else on it. If the connection dropped before the toolkit arrived, a plain message says the PDF couldn't be prepared and offers Try again. Trying again once the connection is back produces the PDF. If generating the PDF fails, the same message appears and the failure is recorded for the team. If the toolkit can't be fetched because the app was updated after the page opened, the message says a newer version is available and offers Reload instead of a Try again that would keep failing. The editor is the exception: its live preview is part of its first display, so it may fetch the toolkit when it opens, and its Download and Print go straight to the PDF.
+The Freelancer opens the dashboard, the invoices list, a Customer's or sender profile's page, or any other signed-in page except the editor. The page opens and is usable without fetching the PDF toolkit. When they choose the invoice preview on a row, the preview dialog shows the invoice from its document model without fetching the toolkit. When they choose Download or Print on an invoice row, that page shows that the PDF is being prepared. If the toolkit hasn't been fetched yet in this visit, it is fetched now, only from the app's own origin. A later PDF action in the same visit skips the fetch. Once the PDF is generated, Download saves the file and Print opens the print dialog, and the Freelancer returns to the same page. There are three failure branches, and each keeps the page usable and changes nothing else on it. If the connection dropped before the toolkit arrived, a plain message says the PDF couldn't be prepared and offers Try again. Trying again once the connection is back produces the PDF. If generating the PDF fails, the same message appears and the failure is recorded for the team. If the toolkit can't be fetched because the app was updated after the page opened, the message says a newer version is available and offers Reload instead of a Try again that would keep failing. The editor is the exception: its live preview is part of its first display and needs no toolkit, and it may fetch the toolkit in the background once it has opened, so its Download and Print rarely wait.
 
 ### Flow: US-02 — Nothing typed during a save is lost
 
