@@ -1487,6 +1487,61 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10-r7.md",
       "source": "review-2026-10-10-r7"
+    },
+    {
+      "id": "T72",
+      "title": "Record the new-invoice initialData pre-fill and the private layouts' saved-zone read in the SAD, data model and contract",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-10"
+      ],
+      "dod": "Review r8 H1. sad.md:207 no longer says the containers' contracts do not change (only the additive getInvoiceEditorData result fields change). sad.md:591 no longer says the feature makes no new server calls; it names the saved-zone read the private layouts make (Flow 6, zoneCookieNeedsRefresh -> getSavedTimeZone). data-model.md:94 User access patterns adds Flow 6. data-model.md:11, sad.md:46, :113, :136 and invoice-integrity contracts/server-actions.md (getInvoiceEditorData entry) record that for a new invoice initialData is now filled server-side (today and due date +30 in the Freelancer zone, the default sender profile, its default bank account and its currency; was undefined), next to storedAmounts. Every statement matches lib/services/invoices/editor-data.ts.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md",
+        "docs/features/editor-ux/data-model.md",
+        "docs/features/invoice-integrity/contracts/server-actions.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r8.md",
+      "source": "review-2026-10-11-r8"
+    },
+    {
+      "id": "T73",
+      "title": "Make the layout-baseline owner-review notes and the existing-invoice phone diff show the scrollbar thumb, and drop the 'under 1 point' claim",
+      "layer": "infra",
+      "deps": [
+        "T72",
+        "T74"
+      ],
+      "acs": [
+        "AC-13"
+      ],
+      "dod": "Review r8 H2 (O2 evidence). _audit/T58-layout-baselines/README.md:8 no longer claims the percentages differ from the T53 log by under 1 point (say the later banner changes add to the T53 figures, or give the real gap). README:17 and the Owner review section of _audit/T53-linux-e2e-2026-10-10.log describe the existing-invoice phone change as the banner text plus the vanished overlay scrollbar thumb (x 382-388, rows 62-278). build.mjs builds that one diff (or an extra exact diff) at threshold 0 so the thumb shows red; percentages.txt and README match the rebuilt output. Every *.new.png stays byte-identical to the committed baseline at the final HEAD; if T74 or anything else changes a baseline, re-capture it on purpose first. The owner verdict (O2) itself stays the owner's.",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/T58-layout-baselines/",
+        "docs/features/editor-ux/_audit/T53-linux-e2e-2026-10-10.log"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r8.md",
+      "source": "review-2026-10-11-r8"
+    },
+    {
+      "id": "T74",
+      "title": "Test that a line moved to the first position with the keyboard announces 'line 1'",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-11"
+      ],
+      "dod": "Review r8 H3. A component test focuses a line's reorder handle (the dnd-kit KeyboardSensor wired in components/invoice-editor/items-section.tsx:63), presses Space, ArrowUp (as many times as needed), Space, and asserts the moved line's fields are named 'line 1' and the others shift by one, as test-plan.md:117 says. It drives the real handle, not store.reorderItems. It fails if the keyboard reorder or the index-based names break. test-plan.md:117 names the test.",
+      "files_hint": [
+        "tests/component/invoice-editor-accessible-names.test.tsx",
+        "components/invoice-editor/items-section.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r8.md",
+      "source": "review-2026-10-11-r8"
     }
   ]
 }
