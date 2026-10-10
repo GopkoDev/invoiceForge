@@ -787,6 +787,217 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-10.md",
       "source": "review-2026-10-10"
+    },
+    {
+      "id": "T38",
+      "title": "Keep the editor and its edits through the first Save after a create",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-04",
+        "AC-05b",
+        "AC-05c"
+      ],
+      "dod": "Review r2 N1. First an e2e: create a new invoice, then Save (and, separately, Save and issue) while a quantity is typed during the update; assert the typed value and 'Unsaved' survive and the issued notice is not wiped. Same after a successful Retry create. If it fails, fix it, e.g. switch to router.replace right after the create while nothing is in flight, or keep the live store when the edit page mounts for the same invoice and Freelancer. The e2e passes at HEAD.",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "app/(invoice-editor)/invoices/",
+        "store/invoice-editor-store/invoice-editor-provider.tsx",
+        "tests/e2e/editor-retry-parity.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T39",
+      "title": "Print an issued invoice opened in the editor with its stored amounts in the preview and in Download/Print",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-10",
+        "AC-09"
+      ],
+      "dod": "Review r2 N2 (D3 remainder). When the editor mode is issued or cancelled, the preview and use-invoice-pdf build the model from the stored line amounts and totals (ADR-0002:45), not a recalculation. A component test opens a legacy issued invoice whose stored totals differ from a recalculation and asserts the stored figures in the preview and in the Download model. money-locale.spec.ts seeds stored amounts that differ from the recalculation.",
+      "files_hint": [
+        "components/invoice-editor/invoice-editor.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "lib/invoice-document/index.ts",
+        "tests/component/",
+        "tests/e2e/money-locale.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T40",
+      "title": "Reject every comma in AmountInput, as AC-13 is written",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-13"
+      ],
+      "dod": "Review r2 N3; owner decision: reject the comma. Any change containing ',' keeps the previous value (no '12,5' -> 12.5, no '1,000' -> 1, no '12,5' -> 125). Component comment, docs/design-system.md AmountInput row and tests agree with spec AC-13, ux-flows K4, sad Flow 10 and test-plan. Tests type '12,5' and '1,000' key by key and paste '1,234.50', and assert input.value and the stored number for line quantity, price, Discount, Shipping and Tax (onPrice last call / store formData field).",
+      "files_hint": [
+        "components/invoice-editor/amount-input.tsx",
+        "tests/component/amount-input.test.tsx",
+        "docs/design-system.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T41",
+      "title": "Show that the PDF is being prepared on the row menu and the editor buttons",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Review r2 N4 (D8c remainder). InvoiceRowActions (list, dashboard) and the editor Download/Print show the same preparing indication as related invoices and the preview dialog (spinner + aria-busy or a 'Preparing PDF...' status) while preparing. Component tests assert the visible/announced state, not only toBeDisabled.",
+      "files_hint": [
+        "components/invoices/invoice-row-actions.tsx",
+        "hooks/use-invoice-pdf.tsx",
+        "tests/component/pdf-triggers-real.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T42",
+      "title": "Make the PDF on-demand tests able to fail",
+      "layer": "tests",
+      "deps": [
+        "T41"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02"
+      ],
+      "dod": "Review r2 test gaps. pdf-on-demand.spec.ts: in a fresh visit, open the preview first and assert no toolkit chunk was fetched; the later-Print reuse check waits until the print finished (popup on blob: URL) and pending response handlers settled. pdf-triggers-real: a successful Print fires load and asserts revokeObjectURL (no conditional). pdf-kit-load-edge: no setTimeout sync; add Try again while the failed load is still being classified; count toolkit import attempts through the loader.",
+      "files_hint": [
+        "tests/e2e/pdf-on-demand.spec.ts",
+        "tests/component/pdf-triggers-real.test.tsx",
+        "tests/component/pdf-kit-load-edge.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T43",
+      "title": "Prove AC-06 hydration and AC-07 isolation through the client router",
+      "layer": "tests",
+      "deps": [
+        "T38"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "Review r2 test gaps. editor-first-display.spec.ts waits for a real hydration signal, compares the full settled body with the server HTML (number description masked), drops the 500 ms sleep and fails on hydration/render-mismatch console errors (watchRenderErrors). session-isolation.spec.ts: Y has its own Customer, line and total and all are asserted; X->Y via in-app navigation (router.push) then Back/Forward; the Visitor's Back is proven to reach A's editor URL. session-isolation-bfcache test 1 asserts no {path: editorPathA, persisted: true}; the WebKit run records pageshow.persisted.",
+      "files_hint": [
+        "tests/e2e/editor-first-display.spec.ts",
+        "tests/e2e/session-isolation.spec.ts",
+        "tests/e2e/session-isolation-bfcache.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T44",
+      "title": "Close the remaining save-flow, date and hygiene test gaps",
+      "layer": "tests",
+      "deps": [
+        "T38"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-04",
+        "AC-05b",
+        "AC-05c",
+        "AC-05d",
+        "AC-08",
+        "AC-09",
+        "AC-16"
+      ],
+      "dod": "Review r2 test gaps. AC-09: component test that Download/Print are disabled with unsaved changes, plus the planned e2e (unsaved quantity change, download from the list, PDF shows the last save). StrictMode renderWithEditorStore case: save a new invoice, assert the address and isSaving. editor-retry-parity.spec.ts confirms totals-changed on the bySave page and asserts PENDING. T36 component test: Home after a mid-save edit shows UnsavedChangesDialog; after dismissing the notice, Save carries the allowed fields. save-command-race: fixed default seed (env override), each interleaving class asserted to occur. CustomerDetailView with timeZone asserts 'Customer since' in that zone. repository-hygiene dialog scan also matches @radix-ui/react-(alert-)?dialog, vaul and <dialog, with negative controls.",
+      "files_hint": [
+        "tests/component/",
+        "tests/e2e/editor-retry-parity.spec.ts",
+        "tests/unit/store/save-command-race.test.ts",
+        "tests/unit/repository-hygiene.test.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T45",
+      "title": "Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-02b",
+        "AC-06",
+        "AC-07",
+        "AC-05c"
+      ],
+      "dod": "Review r2 stage 2. use-pdf-action tags new-version as pdf.stage=version and offline as fetch (sad:585), with a unit assertion. requestNumberHint's catch calls goToSignIn() like selectSenderProfile. proxy.ts also skips staticAssetRoutes and iconPathPattern (/opengraph-image, /twitter-image, /icon/<id>) but keeps no-store on signed-in pages; proxy.test covers them. dispose() also clears isSaving, with a test of remount after dispose.",
+      "files_hint": [
+        "hooks/use-pdf-action.ts",
+        "store/invoice-editor-store/create-invoice-editor-store.ts",
+        "store/invoice-editor-store/save-command.ts",
+        "proxy.ts",
+        "tests/unit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T46",
+      "title": "Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD",
+      "layer": "infra",
+      "deps": [
+        "T38",
+        "T39",
+        "T40",
+        "T41",
+        "T42",
+        "T43",
+        "T44",
+        "T45"
+      ],
+      "acs": [
+        "AC-13",
+        "AC-15",
+        "AC-04"
+      ],
+      "dod": "Review r2 stage 1/2. e2e-nightly.yml: permissions contents: read, upload test-results on failure, job named for what it runs, runs in the same Playwright image as the baselines. Integration suites use containerRuntimeDecision (fail when CI is set) and the T36 suite has the skip marker. New-invoice layout baseline re-taken on purpose with the default sender filled in; the main SHA and command used for baselines are recorded. A full pnpm test:e2e run on Linux at the final HEAD is logged under _audit/.",
+      "files_hint": [
+        ".github/workflows/e2e-nightly.yml",
+        "tests/integration/",
+        "tests/e2e/editor-layout.spec.ts",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
+    },
+    {
+      "id": "T47",
+      "title": "Bring the SAD and the architecture map in line with the shipped code",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-02b",
+        "AC-16"
+      ],
+      "dod": "Review r2 doc drift. sad.md:18,187 no longer say the preview fetches the toolkit. docs/architecture-map.md state and PDF rows point at create-invoice-editor-store.ts / invoice-editor-provider.tsx and lib/pdf/load-pdf-kit.ts / lib/invoice-document/index.ts, and list lib/format and components/session-restore-guard.tsx.",
+      "files_hint": [
+        "docs/features/editor-ux/sad.md",
+        "docs/architecture-map.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-10-r2.md",
+      "source": "review-2026-10-10-r2"
     }
   ]
 }

@@ -29,7 +29,7 @@
 | T22 | Open a new invoice with the default sender profile, its default bank account and currency, and request the invoice-number hint on mount | app | Dmytro Hopko | — | — | done |
 | T23 | Print an issued invoice with its stored line amounts and totals in the preview and the PDF | domain | Dmytro Hopko | — | — | done |
 | T24 | Keep the failed intent through the changed-totals confirmation so Save and issue stays Save and issue | app | Dmytro Hopko | — | T21 | done |
-| T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | — | done |
+| T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | owner: iPhone (Ukrainian region) keypad check, before ship | blocked |
 | T26 | Name the phone more-actions button and the line product fields, tie the product error to its field, and run axe at phone width and after a refused save | ui | Dmytro Hopko | — | — | done |
 | T27 | Show "Customer since" in the Freelancer time zone | ui | Dmytro Hopko | — | — | done |
 | T28 | Make every PDF action fail safely, show its preparing state, resist double clicks and popup blockers, and test the real triggers | ui | Dmytro Hopko | — | — | done |
@@ -43,5 +43,15 @@
 | T35 | Prove money formatting independent of device language on the screens, and test parity against a really rendered PDF | tests | Dmytro Hopko | — | T23 | done |
 | T36 | Add the save-flow UI and integration tests the plan names, and randomise when the mid-save edit happens | tests | Dmytro Hopko | — | T21, T24 | done |
 | T37 | Scan for editor components rendering their own dialog, test the theme switcher in both places, and drop the removed Drawer from the map | tests | Dmytro Hopko | — | — | done |
+| T38 | Keep the editor and its edits through the first Save after a create | app | Dmytro Hopko | — | — | todo |
+| T39 | Print an issued invoice opened in the editor with its stored amounts in the preview and in Download/Print | ui | Dmytro Hopko | — | — | todo |
+| T40 | Reject every comma in AmountInput, as AC-13 is written | ui | Dmytro Hopko | — | — | todo |
+| T41 | Show that the PDF is being prepared on the row menu and the editor buttons | ui | Dmytro Hopko | — | — | todo |
+| T42 | Make the PDF on-demand tests able to fail | tests | Dmytro Hopko | — | T41 | todo |
+| T43 | Prove AC-06 hydration and AC-07 isolation through the client router | tests | Dmytro Hopko | — | T38 | todo |
+| T44 | Close the remaining save-flow, date and hygiene test gaps | tests | Dmytro Hopko | — | T38 | todo |
+| T45 | Fix the PDF failure tag, the number-hint sign-in, static-route caching and isSaving after dispose | app | Dmytro Hopko | — | — | todo |
+| T46 | Harden the nightly e2e and integration CI, and prove pnpm test:e2e on Linux at HEAD | infra | Dmytro Hopko | — | T38, T39, T40, T41, T42, T43, T44, T45 | todo |
+| T47 | Bring the SAD and the architecture map in line with the shipped code | docs | Dmytro Hopko | — | — | todo |
 
-**Total:** 37 tasks (T21–T37 are follow-ups from review 2026-10-10).
+**Total:** 47 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 from review 2026-10-10-r2).
