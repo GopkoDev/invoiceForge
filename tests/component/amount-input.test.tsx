@@ -65,14 +65,51 @@ describe('AmountInput standalone (AC-13)', () => {
     expect(onChange).toHaveBeenLastCalledWith('12.5');
   });
 
-  it('rejects "12,5": the comma is never accepted', async () => {
+  // Rule: a single "," typed/pasted after digits (no "." yet) is read as the decimal point ("12,5" -> "12.5");
+  // any other comma (thousands separator, more than one, after a ".") rejects the whole change.
+  async function setup(initial?: string) {
     const Wrapped = await Harness();
     const onChange = vi.fn();
     render(<Wrapped onChange={onChange} />);
     const input = screen.getByRole('textbox', { name: 'Amount' }) as HTMLInputElement;
-    await userEvent.setup().type(input, '12,5');
-    expect(input.value).not.toContain(',');
+    const user = userEvent.setup();
+    if (initial) await user.type(input, initial);
+    return { input, onChange, user };
+  }
+
+  it('typing "12,5" key by key yields "12.5", never 125', async () => {
+    const { input, onChange, user } = await setup();
+    await user.type(input, '12,5');
+    expect(input.value).toBe('12.5');
+    expect(onChange).toHaveBeenLastCalledWith('12.5');
+    for (const [raw] of onChange.mock.calls) {
+      expect(raw).not.toBe('125');
+      expect(raw).not.toContain(',');
+    }
+  });
+
+  it('pasting "1,234.50" over "10" is rejected whole: the value stays "10"', async () => {
+    const { input, onChange, user } = await setup('10');
+    onChange.mockClear();
+    await user.keyboard('{Control>}a{/Control}');
+    await user.paste('1,234.50');
+    expect(input.value).toBe('10');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('rejects a comma typed after a "." ("1.5," keeps "1.5")', async () => {
+    const { input, onChange, user } = await setup();
+    await user.type(input, '1.5,');
+    expect(input.value).toBe('1.5');
     for (const [raw] of onChange.mock.calls) expect(raw).not.toContain(',');
+  });
+
+  it('pasting "12,5" yields "12.5"', async () => {
+    const { input, onChange, user } = await setup();
+    await user.click(input);
+    await user.paste('12,5');
+    expect(input.value).toBe('12.5');
+    expect(onChange).toHaveBeenLastCalledWith('12.5');
   });
 
   it('keeps an unfinished "12." as a draft', async () => {
@@ -94,7 +131,7 @@ const item: InvoiceFormItem = {
 } as InvoiceFormItem;
 
 describe('editor fields use AmountInput (AC-13)', () => {
-  it('line price and quantity are decimal AmountInputs; "12,5" is not accepted', async () => {
+  it('line price and quantity are decimal AmountInputs; typing "12,5" never yields 125', async () => {
     const onPrice = vi.fn();
     const onQty = vi.fn();
     const data = emptyEditorData();
@@ -117,22 +154,23 @@ describe('editor fields use AmountInput (AC-13)', () => {
       expect(el).toHaveAttribute('data-slot', 'amount-input');
     }
     await userEvent.setup().type(price, '{Control>}a{/Control}12,5');
-    for (const [raw] of onPrice.mock.calls) expect(raw).not.toContain(',');
-    expect(price.value).not.toContain(',');
+    const raws = onPrice.mock.calls.map(([raw]) => String(raw));
+    expect(raws).not.toContain('125');
+    for (const raw of raws) expect(raw).not.toContain(',');
   });
 
   it.each([
     ['Discount'],
     ['Shipping'],
     ['Tax'],
-  ])('%s is a decimal AmountInput and rejects the comma', async (label) => {
+  ])('%s is a decimal AmountInput and reads 12,5 as 12.5', async (label) => {
     const store = createInvoiceEditorStore(emptyEditorData());
     render(<SummarySection />, { wrapper: withEditorStore(store) });
     const input = screen.getByLabelText(label) as HTMLInputElement;
     expect(input).toHaveAttribute('inputmode', 'decimal');
     expect(input).toHaveAttribute('data-slot', 'amount-input');
     await userEvent.setup().type(input, '{Control>}a{/Control}12,5');
-    expect(input.value).not.toContain(',');
+    expect(input.value).toBe('12.5');
     const { discount, shipping, taxRate } = store.getState().formData;
     for (const v of [discount, shipping, taxRate]) expect(Number.isNaN(v)).toBe(false);
   });

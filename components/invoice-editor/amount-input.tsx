@@ -11,9 +11,18 @@ type AmountInputProps = Omit<
   onChange: (raw: string) => void;
 };
 
-// editor-ux AC-13: money and quantity fields take "." as the only decimal separator. A change that
-// contains "," is dropped whole (the field keeps its text), never rewritten — a pasted "12,5" must
-// not silently become 125.
+// editor-ux AC-13: money and quantity fields use "." as the decimal separator. A single "," typed or
+// pasted after digits, with no "." in the value yet, is read as the decimal point ("12,5" -> "12.5").
+// Any other comma (a thousands separator like "1,234.50", more than one comma, or a comma after a
+// ".") rejects the whole change and the field keeps its previous value.
+function normalizeComma(next: string): string | null {
+  if (!next.includes(',')) return next;
+  if (next.includes('.')) return null;
+  if (next.split(',').length !== 2) return null;
+  if (!/\d,/.test(next)) return null;
+  return next.replace(',', '.');
+}
+
 export function AmountInput({ value, onChange, ...props }: AmountInputProps) {
   return (
     <Input
@@ -23,8 +32,8 @@ export function AmountInput({ value, onChange, ...props }: AmountInputProps) {
       data-slot="amount-input"
       value={value}
       onChange={(e) => {
-        if (e.target.value.includes(',')) return;
-        onChange(e.target.value);
+        const next = normalizeComma(e.target.value);
+        if (next !== null) onChange(next);
       }}
     />
   );
