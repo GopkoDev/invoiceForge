@@ -89,7 +89,7 @@ None.
 
 ## Housekeeping noticed (not acted on)
 
-`docker ps` showed about ten leftover `postgres:16-alpine` containers with generated names (test leftovers, see memory "e2e leaked Postgres"). They were left untouched. Remove them deliberately, never with a blind prune (`invoiceflow-pg` is the dev DB).
+`docker ps` showed about ten leftover `postgres:16-alpine` containers with generated names (test leftovers, see memory "e2e leaked Postgres"). They were left untouched. Remove them deliberately, never with a blind prune (the local dev DB container is among them).
 
 ## Next stage
 

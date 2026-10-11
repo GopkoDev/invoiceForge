@@ -30,7 +30,7 @@ No external trigger was named in the interview. The idea extends the MCP server,
 
 - **AI issuing or sending invoices.** The AI only creates Drafts; a human always reviews and issues them, so every existing invoice-integrity rule stays in force.
 - **A standalone PDF that bypasses the system.** The PDF is always a rendering of a real Draft invoice, never an off-the-books file.
-- **Off-topic conversation.** Anything outside invoiceFlow's own data and actions is politely refused in one sentence, including general invoicing, tax and legal advice.
+- **Off-topic conversation.** Anything outside Invoice Forge's own data and actions is politely refused in one sentence, including general invoicing, tax and legal advice.
 - **Bring-your-own API key.** It contradicts the primary audience: people without an AI client rarely have a key.
 - **Silent write access for existing MCP connections.** Write is opt-in, and existing connections stay read-only.
 
@@ -39,13 +39,13 @@ No external trigger was named in the interview. The idea extends the MCP server,
 - **Weakest spot: the one-sentence promise vs. "never invent data".** The core value assumes the sentence holds everything needed. In practice the client is often ambiguous or missing, and the rate or currency is unstated. Every one of those cases turns into a follow-up question, so the "one sentence" flow may in reality take three or four turns. If it regularly does, the headline value erodes.
 - **Cost is paid by the product, not the user.** Unlike MCP, every chat token is ours. This assumes a per-user daily limit is enough to cap spend. That fails if tool-call loops or long conversations burn the budget per message faster than the limit counts.
 - **Write access through external clients.** The draft action is the first MCP write, and there is no orchestrator on that path to ask follow-ups. The action itself must reject incomplete or ambiguous input. If that guard lives only in the chat orchestrator, MCP clients will create drafts from guessed data.
-- **Topic boundary drift.** The orchestrator assumes a crisp line ("only invoiceFlow data and actions"). Borderline asks such as "how should I word a reminder?" will test that line constantly. A fuzzy refusal annoys users, and a lax one costs money.
+- **Topic boundary drift.** The orchestrator assumes a crisp line ("only Invoice Forge data and actions"). Borderline asks such as "how should I word a reminder?" will test that line constantly. A fuzzy refusal annoys users, and a lax one costs money.
 - **Persistent chat history holds financial data.** Saved conversations become a new store of client names and amounts. That brings retention, deletion and privacy obligations the product does not carry today.
 - **Discoverability.** The primary audience is AI-inexperienced and may never open a separate "AI" nav section. An entry point is needed where invoices are created.
 
 ## 7. Recommendation
 
-Build a new **AI section** in the nav containing a **chat** and a link to **MCP settings**. Add a **"Create with AI"** entry next to "New invoice", which opens the same chat. An **orchestrator** sits in front of the chat. It refuses anything outside invoiceFlow's data and actions, picks the right tool, and asks for missing or ambiguous data instead of inventing it. The headline action creates a **real Draft invoice with its PDF** that a human reviews and issues. The same action ships to MCP at once, behind a **separate opt-in write permission**, and the no-guessing rule is enforced **inside the action itself** so both channels share it. Spend is capped with a **per-user daily limit**; the chat states the limit honestly and points to MCP once it is exhausted. Conversations are **saved as a list** the user can return to. The stack choices named in §1 are carried to `design` as the owner's preference.
+Build a new **AI section** in the nav containing a **chat** and a link to **MCP settings**. Add a **"Create with AI"** entry next to "New invoice", which opens the same chat. An **orchestrator** sits in front of the chat. It refuses anything outside Invoice Forge's data and actions, picks the right tool, and asks for missing or ambiguous data instead of inventing it. The headline action creates a **real Draft invoice with its PDF** that a human reviews and issues. The same action ships to MCP at once, behind a **separate opt-in write permission**, and the no-guessing rule is enforced **inside the action itself** so both channels share it. Spend is capped with a **per-user daily limit**; the chat states the limit honestly and points to MCP once it is exhausted. Conversations are **saved as a list** the user can return to. The stack choices named in §1 are carried to `design` as the owner's preference.
 
 ## 8. Open questions
 

@@ -19,7 +19,7 @@ A freelancer with no AI client of their own opens the AI section, asks about the
 
 | # | Step | Source | Size | Status |
 |---|---|---|:---:|---|
-| 1 | AI section with a read-only chat — a new nav section holding the chat and a link to MCP settings; the chat answers questions through the existing read tools, an orchestrator refuses anything outside invoiceFlow's data and actions and picks the right tool, and every conversation is traced for debugging | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
+| 1 | AI section with a read-only chat — a new nav section holding the chat and a link to MCP settings; the chat answers questions through the existing read tools, an orchestrator refuses anything outside Invoice Forge's data and actions and picks the right tool, and every conversation is traced for debugging | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
 | 2 | Per-user daily limit — the chat counts usage per user, states the limit honestly when it runs out and points to MCP; usage statistics are visible | `idea-brief.md §6 Risks` | S | spec'd → [spec](spec.md) |
 | 3 | Draft from one sentence in the chat — a new action creates a real Draft invoice through the existing server-side rules, asks back when the client is ambiguous or the rate or currency is missing, never invents a value, and answers with a link to the draft | `idea-brief.md §2 Problem` | M | spec'd → [spec](spec.md) |
 | 4 | Draft action in MCP behind a write permission — keys gain an opt-in write permission set on the MCP settings page, existing keys stay read-only, and the same draft action with the same no-guessing guard is offered to external assistants | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
@@ -38,7 +38,7 @@ Nothing is in fog: every step's open question can be stated precisely today, and
 
 - Server-side PDF rendering — the draft action answers with a link; the PDF keeps rendering in the browser from the draft, so external assistants receive the link, not a file.
 - AI issuing or sending invoices — the AI only creates Drafts; a human reviews and issues every one.
-- Off-topic conversation, including general invoicing, tax and legal advice — the orchestrator refuses anything outside invoiceFlow's own data and actions.
+- Off-topic conversation, including general invoicing, tax and legal advice — the orchestrator refuses anything outside Invoice Forge's own data and actions.
 - Bring-your-own model key — the primary users are the ones without an AI client, and they rarely hold a key.
 - Silent write access for existing MCP keys — write is opt-in per key; nothing already issued gains it.
 

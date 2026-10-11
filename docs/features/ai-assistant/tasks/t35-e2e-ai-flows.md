@@ -66,7 +66,7 @@ This task walks the headline journeys end to end in a real browser: from opening
 
 **Model in e2e:** the app runs against a stub model selected by an e2e-only setting (`AI_CHAT_MODEL=stub:e2e`, honoured by `getChatModel()` only when `E2E=1`) that answers the AC-12 sentence with a `propose_draft` call; no real provider is called.
 
-**Local runbook (memory):** check `docker info` before blaming a change for an e2e red; run long e2e with `caffeinate`; after the run, check for leaked testcontainers Postgres and never prune volumes blindly (`invoiceflow-pg` is the dev DB).
+**Local runbook (memory):** check `docker info` before blaming a change for an e2e red; run long e2e with `caffeinate`; after the run, check for leaked testcontainers Postgres and never prune volumes blindly (the local dev DB container is among them).
 
 **Fallback:** insufficient or contradicted by the code → read the named file in full ([sad.md](../sad.md) · [screens.md](../screens.md) SCR-01/02/03/05/06) and the existing `tests/e2e/` specs for the sign-in and DB helpers. Do not guess.
 
