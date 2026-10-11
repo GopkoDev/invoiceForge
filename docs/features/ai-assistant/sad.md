@@ -75,37 +75,42 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+Invoice Forge is a web app where a Freelancer manages sender profiles, Customers, products and invoices. This feature adds an in-app Assistant (the chat) that answers questions about the Freelancer's own data and proposes Draft invoices, and extends the existing MCP endpoint with a draft action for external Assistants holding a key with Draft permission. The trust boundary gains one new outbound edge: the content of each chat turn, including Customer names and amounts from tool answers, leaves the system for an external model provider, and what comes back is untrusted text that may only propose, never write.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: docs/architecture-map.md (reflects 2064466; only docs changed since) — Next.js 16 monolith on Vercel, service layer with ActingFreelancer, read-only MCP server at /api/mcp behind Personal keys, Postgres via Prisma, no AI runtime installed. -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| Freelancer | Person | Signs in, uses the AI section and chat, presses Create on draft cards, manages Conversations and Personal keys |
+| Assistant (external MCP client) | Person (external program acting for one Freelancer) | Calls the seven read tools and, with Draft permission, the draft action over MCP with a Personal key |
+| Visitor | Person | Reaches pages or endpoints without a session or key; sent to sign in or refused |
+| AI model provider (new) | System (external) | Receives each chat turn's context and tool schemas, streams back text and tool calls; the concrete provider and access path are decided in §4 |
+| Sentry | System (external, existing) | Receives errors and metadata-only traces and spans |
+| Google OAuth / SMTP | System (external, existing, unchanged) | Sign-in provider and sign-in link email |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title ai-assistant - System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(freelancer, "Freelancer", "Asks the in-app chat, presses Create on draft cards, manages Conversations and keys")
+    Person_Ext(assistant, "Assistant (external MCP client)", "Acts for one Freelancer through a Personal key")
+    Person_Ext(visitor, "Visitor", "No session and no valid key")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(app, "Invoice Forge", "Invoices, dashboard, in-app Assistant chat, MCP endpoint with read questions and the draft action")
+    System_Ext(model, "AI model provider", "Produces chat replies and tool calls from each turn's context")
+    System_Ext(sentry, "Sentry", "Errors and metadata-only traces")
+    System_Ext(signin, "Google OAuth and SMTP", "Sign-in, unchanged")
+
+    Rel(freelancer, app, "Chats, creates drafts, manages Conversations and keys", "HTTPS, session")
+    Rel(assistant, app, "Reads and creates drafts", "HTTPS, MCP, Bearer Personal key")
+    Rel(visitor, app, "Refused or sent to sign in", "HTTPS")
+    Rel(app, model, "Sends turn context, receives streamed text and tool calls", "HTTPS")
+    Rel(app, sentry, "Reports errors and metadata spans", "HTTPS")
+    Rel(app, signin, "Authenticates the Freelancer", "OAuth, SMTP")
 ```
 
 ## 4. Solution strategy
