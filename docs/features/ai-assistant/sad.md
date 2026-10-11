@@ -36,6 +36,9 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 <!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
 
+- Decision override: the model runs on a Google AI Studio **free-tier** Gemini key — contradicts spec §6.1 (Confidential) and §8 ("no training on the data") — rationale: the owner prefers zero model spend at launch; resolved before `sdd:ship` by updating the spec and Privacy page or moving to paid terms (ADR-0003, §11).
+- Decision override: **no turn deadlines** in the chat route — the spec §6 target "AI temporarily unavailable within 10 s" is guaranteed only for providers that fail fast — rationale: owner decision during the design walk; revisited if the hanging-provider fault test is red (§7, §11).
+
 ## 2. Constraints
 
 **Technical.**
@@ -499,22 +502,29 @@ Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
 <!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
+     a Save-as-OQ resolution during the Socratic walk (none in this pass). -->
 
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| **Free-tier key vs the spec's privacy promise.** Under the free tier's terms, Google may use chat content, including Customer names and amounts, to improve its products, and human reviewers may read it. This contradicts spec §6.1 (Confidential) and §8 ("no training on the data") — ADR-0003, §1 override. | High | Before `sdd:ship`, either update spec §6.1 / §8 and the Privacy page to say so plainly, or move the key to paid terms (one setting change); `/security-review` checks which one happened. | Dmytro Hopko |
+| **Free-tier capacity ceiling.** Roughly 300–1,300 chat messages a day and 3–10 a minute for the whole project on Flash-Lite (ADR-0003; ranges to verify before ship); beyond that every Freelancer sees "AI is temporarily unavailable". | High | Sentry alert when rate-limited turns exceed 5 % in a day; move to paid terms after three such days. Rate-limited turns are never counted (AC-11). | Dmytro Hopko |
+| **No turn deadlines.** A provider that hangs without answering holds the stream on the platform's default duration, so "AI is temporarily unavailable within 10 s" is guaranteed only for fast failures (§1 override, §7). | Medium | The fault-injection test includes a hanging provider. If it is red, add a first-token timeout and a turn deadline in the chat route (code change only, no schema impact). | Dmytro Hopko |
+| **Text leaking into Mastra traces after an upgrade.** A new Mastra version may add a text-bearing span attribute that the metadata-only processor does not strip (ADR-0004). | High | Exact pins for every Mastra package; a contract test exports spans from a scripted turn and fails on any message text, tool argument or tool answer; it reruns on every Mastra upgrade. | Dmytro Hopko |
+| **The `mastra` schema lives outside Prisma.** Its tables are created by Mastra, not by `prisma migrate`. Testcontainers, local dev and deploys each need the extra step. | Medium | `pnpm mastra:migrate` runs beside `prisma migrate deploy` in deploy and in the integration test setup. Prisma never touches the `mastra` schema. | Dmytro Hopko |
+| **Model quality on Flash-Lite.** The boundary (≥ 95 % / ≤ 5 %) or the extraction into `propose_draft` may fall short on the smallest model. | Medium | The evaluation run blocks release. Fallback: a Flash model via `AI_CHAT_MODEL`, which lowers the free-tier ceiling. | Dmytro Hopko |
+| **"One sentence" becomes three or four turns** (idea brief §6), eroding the headline value. | Medium | KPI turns per draft ≤ 2 (spec §7). Defaults are named on the card instead of asked. Review at the 60-day mark. | Dmytro Hopko |
+| **Residual: junk drafts from a steered external Assistant.** A key with Draft permission can be steered into junk drafts, up to 50 a day (spec §6.1, accepted). | Medium | Assistant-draft mark, daily key limit, drafts never issued or sent; the Freelancer revokes the key. | Dmytro Hopko |
+| **Moving `lib/mcp/tools` to `lib/assistant-tools`** breaks imports, the read-only lint rule and the `tools/list` contract test if done alongside feature work (ADR-0010). | Low | A separate move-only first task, green on the existing MCP tests before anything else builds on it. | Dmytro Hopko |
+| **Brownfield: `createInvoice(actor, InvoiceFormInput)`** is the editor's input shape. The Assistant origin must be added without leaking into the editor form or `duplicateInvoice` (ADR-0013). | Low | The resolver emits `InvoiceFormInput`; origin is passed as a separate service argument; unit tests assert that duplicate and editor saves never copy or overwrite it. | Dmytro Hopko |
+| **Spec §8 carried over: monthly model budget per weekly active chat user,** and whether 30 messages is tuned to it. | Medium | Review the 14-day cost and capacity data from `AssistantTurn`; due 14 days after launch. | Dmytro Hopko |
+| **Spec §8 carried over: Privacy page wording** for the external processors (Vercel gateway, Google), retention and training. | High | New Privacy section before `sdd:ship`, consistent with the first row's outcome. | Dmytro Hopko |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- Two limiting patterns side by side: the `LimitEvent` log (MCP calls, sign-in) and per-local-day counters (ADR-0009).
+- App text around the chat (banners, card labels) is English only; only the Assistant's replies follow the Freelancer's language.
+- Old Draft cards live as long as their Conversation (at most 90 days after its last message); a press on one is always rebuilt and confirmed again (AC-18).
+- No server-side PDF; the Assistant answers with a link to the draft (spec §3).
 
 ## 12. Glossary
 
