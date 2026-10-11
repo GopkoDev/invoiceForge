@@ -102,6 +102,6 @@
 | T93 | Make the AC-06 component row cite the tests that check each part of the first render | tests | Dmytro Hopko | — | — | done |
 | T94 | Assert the totals confirmation leaves the DOM after Cancel and make the totals-cancel row say the notes edit stays in the form | tests | Dmytro Hopko | — | — | done |
 | T95 | Assert the store state is unchanged when Retry is pressed while a save is running | tests | Dmytro Hopko | — | — | done |
-| T96 | Point the editor-retry-parity e2e comment at the renamed retry-through-save-command test | tests | Dmytro Hopko | — | — | todo |
+| T96 | Point the editor-retry-parity e2e comment at the renamed retry-through-save-command test | tests | Dmytro Hopko | — | — | done |
 
 **Total:** 98 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11; T85–T89 from review 2026-10-11-r12; T90–T92 from review 2026-10-11-r13; T93–T94 from review 2026-10-11-r14; T95–T96 from review 2026-10-11-r15).

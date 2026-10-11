@@ -6,7 +6,7 @@
 // Not covered here, by design: «Retry while a save is running» and «Retry after the editor moved
 // to another invoice» do nothing. Both need a click that races the save or a second editor
 // session, which an e2e cannot time reliably; they are proven on the save command in
-// tests/unit/store/save-command-race.test.ts and tests/unit/store/retry-through-save-command.test.ts.
+// tests/unit/store/save-command-race.test.ts and tests/unit/store/retry-through-save-command.test.tsx.
 import { test, expect, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { openSignedInFreelancer } from './support/signed-in';
 import { notesField, openEditor } from './support/invoice-ui';
