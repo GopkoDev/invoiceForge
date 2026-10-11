@@ -96,5 +96,8 @@
 | T87 | Make five test-plan rows say what their tests assert (AC-01, AC-05c, AC-06, AC-14, double Download) | docs | Dmytro Hopko | — | — | done |
 | T88 | Pin the line-only notice exactly in the e2e and list every user of the remaining PDF helpers in the SAD | tests | Dmytro Hopko | — | T85 | done |
 | T89 | Run the full Linux e2e suite at the final HEAD after T85-T88 and point the test plan at that log | tests | Dmytro Hopko | — | T85, T86, T87, T88 | done |
+| T90 | Make the three edge-case rows match their tests: reword the Try-again row, edit the price in the two-edits test, and edit before Retry in the totals-cancel test | tests | Dmytro Hopko | — | — | todo |
+| T91 | Assert the line count and the Notes draft survive the AC-14 resizes, and make the test-plan row name the real sizes | tests | Dmytro Hopko | — | — | todo |
+| T92 | Run the full Linux e2e suite at the final HEAD after T90-T91 and point the test plan at that log | tests | Dmytro Hopko | — | T90, T91 | todo |
 
-**Total:** 91 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11; T85–T89 from review 2026-10-11-r12).
+**Total:** 94 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11; T85–T89 from review 2026-10-11-r12; T90–T92 from review 2026-10-11-r13).

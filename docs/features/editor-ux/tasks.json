@@ -1807,6 +1807,60 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
       "source": "review-2026-10-11-r12"
+    },
+    {
+      "id": "T90",
+      "title": "Make the three edge-case rows match their tests: reword the Try-again row, edit the price in the two-edits test, and edit before Retry in the totals-cancel test",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-02",
+        "AC-04",
+        "AC-05d"
+      ],
+      "dod": "Review r13 P2. test-plan.md:104 says what tests/component/pdf-kit-load-edge.test.tsx:120-151 asserts: one new toolkit import and one probe, each Try-again click is told once the shared load fails, level component. tests/unit/store/save-command-race.test.ts:345-366 makes the second edit a price change (not notes) and still asserts both stay on screen, unsaved, the totals match the visible lines and the next Save sends both; test-plan.md:106 matches. tests/component/invoice-editor-retry-parity.test.tsx:90-102 makes an edit (e.g. notes) before the failing save, and after Cancel asserts that edit is still on screen, nothing was saved and hasUnsavedChanges is true; test-plan.md:111 says component. No assertion is weakened.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md",
+        "tests/unit/store/save-command-race.test.ts",
+        "tests/component/invoice-editor-retry-parity.test.tsx"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r13.md",
+      "source": "review-2026-10-11-r13"
+    },
+    {
+      "id": "T91",
+      "title": "Assert the line count and the Notes draft survive the AC-14 resizes, and make the test-plan row name the real sizes",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-14"
+      ],
+      "dod": "Review r13 P3. tests/e2e/editor-layout.spec.ts:62-94 types a Notes draft before the resizes and, after each resize, asserts the line count is unchanged and the Notes draft is unchanged, besides the existing quantity value, focus and aria-label checks. test-plan.md:89 names the sizes the test uses (1280 desktop, 390x844 phone, 1024x768) and says exactly what is asserted. The layout baselines are not re-captured by this change.",
+      "files_hint": [
+        "tests/e2e/editor-layout.spec.ts",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r13.md",
+      "source": "review-2026-10-11-r13"
+    },
+    {
+      "id": "T92",
+      "title": "Run the full Linux e2e suite at the final HEAD after T90-T91 and point the test plan at that log",
+      "layer": "tests",
+      "deps": [
+        "T90",
+        "T91"
+      ],
+      "acs": [
+        "AC-14"
+      ],
+      "dod": "After T90 and T91, run plain CI=1 pnpm test:e2e on Linux with the T84/T89 harness (Playwright image matching @playwright/test, Node inside engines, caffeinate on the host, never the repo's .env databases). Record it as _audit/T92-linux-e2e-2026-10-11.log with the raw Playwright summary lines, including the AC-14 resize case and the layout-baseline compare. test-plan.md:30 names that log and the last commit that changes the app or an e2e test. If a layout baseline changes, re-capture it and leave it for the owner's review (O2).",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r13.md",
+      "source": "review-2026-10-11-r13"
     }
   ]
 }
