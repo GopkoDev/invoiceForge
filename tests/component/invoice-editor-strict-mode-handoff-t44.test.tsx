@@ -39,6 +39,8 @@ const { NotesSection } = await import('@/components/invoice-editor/notes-section
 const { InvoiceDetailsSection } = await import('@/components/invoice-editor/invoice-details-section');
 const { CustomerSection } = await import('@/components/invoice-editor/customer-section');
 const { SenderSection } = await import('@/components/invoice-editor/sender-section');
+const { SummarySection } = await import('@/components/invoice-editor/summary-section');
+const { ItemsSection } = await import('@/components/invoice-editor/items-section');
 type StoreApi = Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 const sender = { id: 'sp-1', name: 'Studio', legalName: null, address: null, city: null, country: null, postalCode: null, email: null, phone: null, taxId: null, logo: null, invoicePrefix: 'INV', invoiceCounter: 1 };
@@ -419,6 +421,67 @@ describe('T49 the swap to the edit page after a create', () => {
       expect(after.id).not.toBe(idBefore);
       expect(document.activeElement).toBe(after);
       expect([after.selectionStart, after.selectionEnd]).toEqual([...caret]);
+      view.unmount();
+    }
+  });
+
+  // editor-ux T99 (review r16 G3): every text and amount field, not only Notes and PO number. Each is
+  // found again on the edit page by a stable name - its data-field key, aria-label or placeholder -
+  // never by its useId() id. Discount, shipping and tax have only data-field, so a missing key fails here.
+  it('puts the focus and the caret back on every real text and amount field after the hand-over', async () => {
+    const real = (key: string, initial: InvoiceEditorData, api: { current: StoreApi | null }) => (
+      <InvoiceEditorProvider key={key} ownerId="owner-t99" initial={initial}>
+        <Capture storeRef={api} />
+        <InvoiceDetailsSection />
+        <ItemsSection />
+        <SummarySection />
+        <NotesSection />
+      </InvoiceEditorProvider>
+    );
+    type View = ReturnType<typeof render>;
+    const fields: [string, (v: View) => HTMLElement][] = [
+      ['invoice number', (v) => v.getByLabelText(/^Invoice Number/)],
+      ['PO number', (v) => v.getByLabelText(/^PO Number/)],
+      ['price', (v) => v.getByRole('textbox', { name: 'Price, line 1' })],
+      ['quantity', (v) => v.getByRole('textbox', { name: 'Quantity, line 1' })],
+      ['discount', (v) => v.getByLabelText(/^Discount/)],
+      ['shipping', (v) => v.getByLabelText(/^Shipping/)],
+      ['tax rate', (v) => v.getByLabelText(/^Tax/)],
+      ['notes', (v) => v.getByLabelText(/^Notes/)],
+      ['payment terms', (v) => v.getByLabelText(/^Payment Terms/)],
+      ['terms', (v) => v.getByLabelText(/^Terms/)],
+    ];
+    createInvoiceMock.mockResolvedValue(saved);
+    for (const [name, find] of fields) {
+      const api: { current: StoreApi | null } = { current: null };
+      const view = render(real('new', newInvoiceData(), api));
+      await act(async () => {
+        await api.current!.getState().save('save');
+      });
+      act(() =>
+        api.current!.getState().updateFields({
+          invoiceNumber: 'INV-0099',
+          poNumber: 'PO-12345',
+          discount: 12.5,
+          shipping: 30.25,
+          taxRate: 20,
+          notes: 'abcdef',
+          paymentTerms: 'Net 30',
+          terms: 'Pay by wire',
+        })
+      );
+      const before = find(view) as HTMLInputElement;
+      const idBefore = before.id;
+      before.focus();
+      // Not where the value's end leaves the caret, so a field that only got the focus back fails.
+      before.setSelectionRange(0, 1);
+
+      view.rerender(real('edit', editPageData(), api));
+      const after = find(view) as HTMLInputElement;
+      expect(after, name).not.toBe(before);
+      if (idBefore) expect(after.id, name).not.toBe(idBefore);
+      expect(document.activeElement, name).toBe(after);
+      expect([after.selectionStart, after.selectionEnd], name).toEqual([0, 1]);
       view.unmount();
     }
   });

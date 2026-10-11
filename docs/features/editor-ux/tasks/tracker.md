@@ -105,7 +105,7 @@
 | T96 | Point the editor-retry-parity e2e comment at the renamed retry-through-save-command test | tests | Dmytro Hopko | — | — | done |
 | T97 | Make the AC-04 race row say the totals check covers edited states and a saved form shows the stored figures | docs | Dmytro Hopko | — | — | done |
 | T98 | Assert the list row's Print shows and announces the preparing state, like Download | tests | Dmytro Hopko | — | — | done |
-| T99 | Assert focus and caret survive the create hand-over for every text and amount field | tests | Dmytro Hopko | — | — | todo |
+| T99 | Assert focus and caret survive the create hand-over for every text and amount field | tests | Dmytro Hopko | — | — | done |
 | T100 | Render the preview from the real read side in pdf-fidelity and assert it matches the PDF line by line | tests | Dmytro Hopko | — | — | todo |
 
 **Total:** 102 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11; T85–T89 from review 2026-10-11-r12; T90–T92 from review 2026-10-11-r13; T93–T94 from review 2026-10-11-r14; T95–T96 from review 2026-10-11-r15; T97–T100 from review 2026-10-11-r16).
