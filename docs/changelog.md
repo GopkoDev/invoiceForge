@@ -9,9 +9,14 @@ This page shows how the project grows. The newest work is at the top.
 
 ## In progress
 
-- **editor-ux.** A faster and safer invoice editor: no lost edits, correct dates near midnight, screen reader support and a stable phone layout. Shipped for review on 2026-10-11 (PR #9). The owner skipped the real-iPhone keypad check and the layout baseline review. See the [spec](./features/editor-ux/spec.md) and the [changelog](./features/editor-ux/_ship/changelog.md).
+Nothing is in progress.
 
 ## Shipped
+
+### 2026-10-11 · editor-ux (#9)
+
+The invoice editor is fast and correct. Lists open without the PDF tools, no edit is lost during a save, dates and money look the same everywhere, and the editor works with a screen reader and on a phone.
+[Spec](./features/editor-ux/spec.md) · [Changelog](./features/editor-ux/_ship/changelog.md)
 
 ### 2026-10-08 · invoice-integrity (#8)
 
