@@ -80,6 +80,7 @@ export function buildSecurityHeaders(
 }
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['@mastra/core', '@mastra/pg'],
   async headers() {
     return [{ source: '/(.*)', headers: buildSecurityHeaders() }];
   },
