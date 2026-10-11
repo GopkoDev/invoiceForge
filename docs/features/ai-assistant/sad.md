@@ -373,6 +373,462 @@ sequenceDiagram
     M-->>E: tool answer
 ```
 
+### Flow 4: Open the AI section or start from Create with AI
+
+Covers US-01, US-10, US-11 (list) and US-13 (signed out). UI path: SCR-05 or the navigation, then SCR-01 (`ux-flows.md`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: the Freelancer opens the AI section from the navigation, or presses Create with AI on the invoice list
+    U->>UI: opens the AI section or presses Create with AI
+    UI->>S: load the AI section for the current session
+    alt no signed-in session
+        S-->>UI: not signed in
+        UI-->>U: sends the Visitor to sign in, nothing processed or counted
+    else signed in
+        S->>D: read today's allowance row for the Freelancer local day
+        D-->>S: messages used today, or no row yet
+        S->>D: list the Freelancer's Conversations, newest last message first
+        D-->>S: titles and last-message dates
+        Note over S,D: read path: allowance by Freelancer and local day, Conversations by owner and last message time
+        S-->>UI: messages left, renewal time, Conversation list, 90-day retention notice
+        alt opened from Create with AI and the allowance is used up
+            UI-->>U: allowance used up, renewal time, link to create the invoice by hand
+        else opened from Create with AI with messages left
+            UI-->>U: new Conversation ready to draft, with an example request
+        else opened from the navigation
+            UI-->>U: chat ready, example questions, messages left, link to connect an AI client, past Conversations
+        end
+    end
+    Note over U,D: Postcondition: nothing is written and nothing is counted by opening the section
+```
+
+### Flow 5: Ask a read question in the chat
+
+Covers US-02, US-03 (finding things, issue requests) and US-13 (tenancy). Extends Flow 1 with the answer shapes the ACs demand. UI path: SCR-02, links to SCR-06 or SCR-09.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer in a Conversation, with messages left today (used up is Flow 1)
+    U->>UI: asks about their invoices, Customers, figures, or where something is in the app
+    UI->>S: message text and Conversation id
+    alt message over 2,000 characters
+        S-->>UI: too long, shorten it, nothing reserved or counted
+    else within the length limit
+        S->>D: reserve one slot of today's allowance by conditional increment
+        Note over S,D: persists allowance day row (Freelancer, local day, count)
+        S->>X: classify the message (topic router)
+        X-->>S: in scope
+        loop at most 8 tool steps, history capped at the latest 40 messages
+            S->>X: next step with the tool schemas
+            X-->>S: text, or a call to a read question or the app map
+            S->>D: run the read question as the acting Freelancer, owner-scoped, today in the Freelancer time zone
+            D-->>S: rows owned by this Freelancer only
+        end
+        alt model provider unavailable or rate limited
+            S->>D: release the reserved slot
+            S-->>UI: AI is temporarily unavailable, try again, not counted
+        else reply produced
+            alt step cap reached before a full answer
+                S-->>UI: the part found, too broad to answer in full, suggest a narrower question
+            else more matches than one answer holds
+                S-->>UI: rows returned, marked partial, total match count, offer to narrow, a total amount only if it covers every match
+            else no read question returns the asked total
+                S-->>UI: says it cannot answer this one, never adds numbers up itself
+            else Customer or invoice not among this Freelancer's records
+                S-->>UI: answers as for one that does not exist, no hint about other accounts
+            else asked to issue or send a draft
+                S-->>UI: only you can issue an invoice, link to the draft, draft unchanged
+            else asked where something is in the app
+                S-->>UI: short answer with a page link from the fixed app map
+            else answer complete
+                S-->>UI: plain answer, every figure equal to the dashboard, invoice links by id
+            end
+            S->>D: save the visible messages and the turn metadata
+            Note over S,D: persists Conversation message (visible text, link ids) and turn metadata row (no text)
+        end
+    end
+    UI-->>U: streamed answer and messages left today
+    Note over U,D: Postcondition: a produced reply counts once, a system-side failure counts nothing, no other Freelancer's data was read
+```
+
+### Flow 6: Propose a draft card in the chat
+
+Covers US-05 and US-06: everything between the drafting message and the card that Flow 2 creates from. UI path: SCR-02 and SCR-03, links to SCR-09 or SCR-10.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a slot is reserved for this message and the router said in scope or mixed (Flow 1)
+    U->>UI: describes an invoice in one sentence, or asks a change to the last card
+    UI->>S: message text and Conversation id
+    S->>X: run the agent with propose_draft offered
+    alt only stored text (notes, addresses, product names) asks for an invoice
+        X-->>S: no propose_draft call
+        S-->>UI: the asked details, no draft card
+    else the Freelancer's own message asks for a draft
+        X-->>S: propose_draft with the request's own words, never resolved values
+        S->>D: resolve as the acting Freelancer: Customers, sender profiles, bank accounts, catalogue and custom prices, editor defaults
+        D-->>S: this Freelancer's records only
+        alt no sender profile with a bank account
+            S-->>UI: a sender profile with a bank account is needed, link to set one up, no card
+        else default profile has no bank account but another profile has one
+            S-->>UI: says so, link to add an account to the default profile, offers to draft under a profile the Freelancer names
+        else no Customer matches
+            S-->>UI: no such Customer, link to the Customer form, nothing created
+        else several Customers match
+            S-->>UI: asks which one, naming each, no card
+        else a line has no amount and matches no catalogue product
+            S-->>UI: asks for the quantity and the price, fills in no value
+        else currency unclear, or no bank account in it, or several
+            S-->>UI: asks the currency or which account, or says none exists with a link to add one
+        else the product has no price in the invoice currency and none was named
+            S-->>UI: free-text line, asks the price in the invoice currency
+        else request complete
+            S->>D: store the Draft card, mark the earlier live card in this Conversation replaced
+            Note over S,D: persists Draft card (owner, Conversation, stored request, proposal, state live) and the earlier card's state replaced
+            S-->>UI: card with every value and its source (named price, custom price, catalogue, default), Create button
+        end
+    end
+    S->>D: save the visible messages and the turn metadata
+    Note over S,D: persists Conversation message (visible text, card reference) and turn metadata row
+    UI-->>U: the card, a question, or a refusal
+    Note over U,D: Postcondition: no invoice exists, at most one live card per Conversation, and no value came from neither the request nor the editor defaults
+```
+
+### Flow 7: Reopen a past Conversation
+
+Covers US-11 and US-13 (another Freelancer's link). UI path: SCR-01, then SCR-02, or SCR-12 when not found.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer opens a Conversation from the list or from a saved link
+    U->>UI: opens a Conversation
+    UI->>S: load the Conversation by id for the current session
+    S->>D: find the Conversation by id and owner
+    alt no such Conversation, or it belongs to another Freelancer
+        D-->>S: nothing
+        S-->>UI: not found
+        UI-->>U: cannot be found, exactly as for one that never existed
+    else found
+        D-->>S: visible messages in order, card references, linked invoice ids
+        Note over S,D: read path: Conversation by id and owner, messages by Conversation in order
+        S->>D: read the current state of each linked invoice, owner-scoped
+        D-->>S: draft, issued, or gone
+        S-->>UI: the whole exchange, each link carrying its invoice's current state
+        alt linked invoice issued since
+            UI-->>U: the link shows issued, not draft
+        else linked invoice deleted since
+            UI-->>U: the link shows no longer available
+        else still a draft
+            UI-->>U: the link opens the draft in the editor
+        end
+        opt the Freelancer continues the Conversation
+            U->>UI: sends a new message
+            Note over UI,S: handled as Flow 1 and counted, an old card pressed is rebuilt as in Flow 2
+        end
+    end
+    Note over U,D: Postcondition: opening writes nothing, only a new message moves the Conversation's last-message time
+```
+
+### Flow 8: Delete one or all Conversations
+
+Covers US-12 (deleting by hand). UI path: SCR-01 or SCR-02, then SCR-04, back to SCR-01.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer with one or more Conversations
+    U->>UI: chooses delete on one Conversation, or delete all
+    UI-->>U: confirmation dialog, drafts are not affected
+    alt the Freelancer cancels
+        UI-->>U: dialog closes, nothing deleted
+    else the Freelancer confirms
+        UI->>S: delete one Conversation by id, or all, for the current session
+        S->>D: in one transaction delete the owner's Conversations with their messages and Draft cards, detach their turn metadata
+        Note over S,D: persists removal of Conversations, messages and Draft cards by owner, turn metadata rows keep no Conversation reference
+        alt the Conversation is not this Freelancer's or is already gone
+            D-->>S: nothing deleted
+            S-->>UI: not found, list refreshed
+        else deleted
+            D-->>S: count deleted
+            S-->>UI: deleted
+        end
+        UI-->>U: the list without the deleted Conversations
+    end
+    Note over U,D: Postcondition: deleted Conversations cannot be opened, every invoice they created is unchanged
+```
+
+### Flow 9: Daily clean-up (scheduled)
+
+Covers US-12 (automatic deletion after 90 days) and the retention periods of §7, including the 24-hour life of MCP repeat marks (AC-32). Async: a scheduled job, no user in the loop.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as <client>
+    participant S as <service>
+    participant D as <data-store>
+    participant X as <external-system>
+
+    Note over C,S: Trigger: the platform scheduler calls the existing daily clean-up once a day
+    C->>S: run the daily clean-up with the scheduler secret
+    alt secret missing or wrong
+        S-->>C: refused, nothing deleted
+    else authorised
+        S->>S: check idempotency: every step deletes by age only, so a repeated run deletes nothing new
+        loop each step on its own, one failure never skips the others
+            S->>D: delete Conversations whose last message is past 90 days, with their messages and Draft cards
+            S->>D: delete MCP repeat marks older than 24 hours
+            S->>D: delete traces older than 30 days
+            S->>D: delete turn metadata and daily counters older than 400 days
+            Note over S,D: persists removals by age, informs indexes on last message time, created time and local day
+            D-->>S: rows deleted per step
+        end
+        Note over S,X: no retry inside a run, the next daily run retries every step, so deletion lands within 24 h of the mark
+        alt a step failed
+            S->>X: report the failed step and its error
+            Note over S,X: dead-letter: the failed step raises an alert, a second consecutive failure breaks the 24 h retention target
+        end
+        S-->>C: rows deleted per step and each step's outcome
+    end
+    Note over C,D: Postcondition: after a successful run no Conversation is more than a day past its 90-day mark and no repeat mark is more than a day past 24 h
+```
+
+### Flow 10: Create a key with Draft permission and lift its daily limit
+
+Covers US-08. The refusal at the limit is Flow 3. UI path: SCR-07, SCR-08, back to SCR-07.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer on the Connect your AI page
+    UI->>S: load the key list for the current session
+    S->>D: read the owner's keys with Draft permission and today's draft count per key
+    D-->>S: keys, permission, today's count, last lift time
+    S-->>UI: key list, can-create-drafts marks, counts, lift action where the limit is reached
+    alt the Freelancer creates a key
+        U->>UI: names a new key and chooses Draft permission or not
+        UI->>S: create the key with the chosen permission
+        S->>D: store the key and its permission, set once at creation
+        Note over S,D: persists Personal key with Draft permission, no update path for it
+        S-->>UI: the key, shown once
+        UI-->>U: key shown once, list marks it able to create drafts or read-only
+    else the Freelancer looks for draft access on a read-only key
+        UI-->>U: no such action, drafting needs a new key with Draft permission, then revoke the old one
+    else the Freelancer lifts the limit on a key
+        U->>UI: lifts the daily draft limit
+        UI->>S: lift the limit for this key
+        S->>D: for the owner's key and today in the Freelancer time zone, add 50 only if today's count has reached the limit
+        alt key not the Freelancer's, or limit not reached yet
+            D-->>S: nothing changed
+            S-->>UI: lift not available, nothing changed
+        else limit reached
+            Note over S,D: persists key draft day row (key, local day, count, allowed, last lift time)
+            D-->>S: new allowance for today
+            S-->>UI: lifted, 50 more until midnight local time
+        end
+        UI-->>U: counts and last lift time refreshed
+    end
+    Note over U,D: Postcondition: Draft permission was set only at creation, a lift adds 50 for today only and the next day starts again at 50
+```
+
+### Flow 11: Recognise, review and issue an Assistant draft
+
+Covers US-07. UI path: SCR-05, then SCR-06.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a draft created by the chat (Flow 2) or by a key (Flow 3), with its origin and the key name as it was at creation
+    U->>UI: opens the invoice list or a draft
+    UI->>S: load invoices for the current session
+    S->>D: read the owner's invoices with status and Assistant origin
+    D-->>S: invoices, origin chat or key name snapshot
+    alt invoice is a draft with an Assistant origin
+        S-->>UI: marked as created by the in-app chat or by the named key
+    else issued, or made by hand
+        S-->>UI: no Assistant mark
+    end
+    UI-->>U: list or editor, the mark never changes when the key is renamed or revoked
+    alt the Freelancer edits or deletes the draft
+        U->>UI: edits or deletes it
+        UI->>S: same update or delete as any draft
+        S->>D: update or delete the invoice, origin columns never rewritten
+        S-->>UI: done, like any draft
+    else the Freelancer issues it
+        U->>UI: issues the draft
+        UI->>S: issue the invoice
+        S->>D: set the status issued and the first issue time, once
+        Note over S,D: persists invoice status and issue time, origin kept unseen for the issue-rate KPI
+        S-->>UI: issued
+        UI-->>U: no Assistant mark, the issued invoice and its document say nothing about AI
+    end
+    Note over U,D: Postcondition: the origin stays with the invoice until the invoice or the account is deleted, and a duplicate never copies it
+```
+
+### Flow 12: Data export and account deletion
+
+Covers US-12 (Conversations in the export and gone with the account). UI path: SCR-13.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer with Conversations, daily counts and keys on the privacy settings page
+    alt the Freelancer downloads their data export
+        U->>UI: downloads the data export
+        UI->>S: build the export for the current session
+        S->>D: read the owner's Conversations with messages, daily message counts, key draft counts and lift times
+        D-->>S: this Freelancer's rows only
+        S-->>UI: the export file, now including Conversations and AI counters
+        UI-->>U: the file is downloaded
+    else the Freelancer deletes their account
+        U->>UI: deletes the account and confirms
+        UI->>S: delete the account
+        S->>D: in the existing account-deletion transaction delete Conversations, messages, Draft cards, turn metadata, allowance and key draft rows, repeat marks, with the rest of their data
+        Note over S,D: persists removal of every AI row by owner in one transaction, informs indexes and cascades by owner
+        alt any delete fails
+            D-->>S: transaction rolled back
+            S-->>UI: account not deleted, try again
+        else committed
+            D-->>S: deleted
+            S-->>UI: account deleted, session ended
+        end
+    end
+    Note over U,D: Postcondition: the export holds every Conversation, and after account deletion no AI row of the Freelancer remains
+```
+
+### Coverage: user stories and acceptance criteria
+
+Flows 1–3 are the design-seeded flows above. Flows 4–12 use the generic participants: `<user>` is the Freelancer, `<client>` is the external Assistant or the scheduler, and `<external-system>` is the model provider or error tracking.
+
+| User story | Flows |
+|---|---|
+| US-01 Open the AI section | 4 |
+| US-02 Ask about my invoices | 1, 5 |
+| US-03 Stay on topic | 1, 5 |
+| US-04 Know my daily allowance | 1, 5 |
+| US-05 Draft an invoice from one sentence | 6, 2 |
+| US-06 Be asked, never guessed | 6 |
+| US-07 Recognise an Assistant draft | 11, 5 |
+| US-08 Give my own AI client draft access | 10, 3 |
+| US-09 Create a draft from an external client | 3 |
+| US-10 Start drafting from the invoice list | 4 |
+| US-11 Return to a past conversation | 4, 7 |
+| US-12 Control my conversation history | 8, 9, 12 |
+| US-13 Only my data, only when signed in | 4, 5, 7 |
+
+| AC | Where it is shown |
+|---|---|
+| AC-01 | Flow 4, opened from the navigation |
+| AC-02, AC-03 | Flow 5, answer complete |
+| AC-04 | Flow 5, more matches than one answer holds |
+| AC-05 | Flow 5, read question with today in the Freelancer time zone |
+| AC-06 | Flow 1, off topic |
+| AC-06b | Flow 1, in scope or mixed, with the card from Flow 6 |
+| AC-07 | Flow 5, where something is in the app |
+| AC-08 | Flow 5, answer complete, or no read question returns the asked total |
+| AC-09 | Flow 1 and Flow 5, slot reserved and messages left shown |
+| AC-10 | Flow 1, no slot left |
+| AC-10b | Flow 1, no slot left (the conditional reservation makes the second tab lose) |
+| AC-11 | Flow 1, system-side failure, and Flow 5, provider unavailable |
+| AC-11b | Flow 5, step cap reached |
+| AC-11c | Flow 2, result never counted as a message |
+| AC-12 | Flow 6, request complete |
+| AC-13 | Flow 2, content matches |
+| AC-14 | Flow 2, card already created |
+| AC-14b | Flow 6, earlier card marked replaced, and Flow 2, card replaced |
+| AC-15 | Flow 6, only stored text asks for an invoice |
+| AC-16, AC-16b | Flow 6, request complete (price source), and no price in the invoice currency |
+| AC-17 | Flow 6, no sender profile with a bank account, and default profile without one. External Assistant: Flow 3, ambiguous or missing values |
+| AC-18 | Flow 2, content differs |
+| AC-19 | Flow 6, currency branch and request complete |
+| AC-20 | Flow 6, several Customers match |
+| AC-21 | Flow 6, no Customer matches |
+| AC-22 | Flow 6, a line has no amount |
+| AC-23 | Flow 11 |
+| AC-24 | Flow 5, asked to issue or send a draft |
+| AC-25 | Flow 10, creates a key |
+| AC-26 | Flow 10, draft access on a read-only key |
+| AC-27 | Flow 3, key daily limit reached |
+| AC-28 | Flow 10, lifts the limit |
+| AC-29 | Flow 3, no Draft permission |
+| AC-30 | Flow 3, created |
+| AC-31 | Flow 3, ambiguous or missing values |
+| AC-32 | Flow 3, repeat within 24 hours, and Flow 9, repeat marks deleted after 24 h |
+| AC-33, AC-34 | Flow 4, opened from Create with AI |
+| AC-35 | Flow 4, Conversation list, and Flow 7, continuing |
+| AC-36 | Flow 7, linked invoice issued or deleted |
+| AC-37 | Flow 8 |
+| AC-38 | Flow 9, and Flow 4 for the retention notice |
+| AC-39 | Flow 12 |
+| AC-40 | Flow 5, Customer or invoice not among this Freelancer's records |
+| AC-41 | Flow 7, no such Conversation |
+| AC-42 | Flow 4, no signed-in session (the proxy also refuses anonymous chat requests, §8) |
+
+### Flags for design and data-model
+
+- **Flows 1–3 use the §5 container names**, not the generic participant vocabulary. They were seeded by `design` and are left as drawn.
+- **One live Draft card per Conversation** (Flow 6): a new card always replaces the earlier live card, decided by code, not by the model. §5 does not state this rule yet. Reconcile it in §5, and consider recording it with ADR-0007.
+- **Clean-up retry is the next daily run** (Flow 9): two failed runs in a row break the "deleted within 24 h" target. Candidate risk for §11.
+- **Flow 3 and AC-17:** the MCP "ambiguous or missing values" refusal must include the no-sender-profile and no-bank-account cases with the same explanation as the chat.
+- **No new participants:** every generic participant maps to a §5 container or an existing external system. No `<message-bus>` is used, as §8 Events is N/A.
+- **Index hints for data-model, taken from the persist and read notes:**
+  - allowance day row unique by Freelancer and local day;
+  - key draft day row unique by key and local day, with today's allowed count and last lift time;
+  - Conversation by owner and last message time, for the list and the 90-day purge;
+  - messages by Conversation in order;
+  - Draft card by Conversation and state;
+  - MCP repeat mark unique by key and repeat key, with a created time for the 24 h purge;
+  - turn metadata and counters by created time or local day, for the 400-day purge;
+  - every AI row reachable by owner, for the export and account deletion;
+  - `Invoice.issuedAt` written only while it is empty.
+
 ## 7. Deployment view
 
 The feature ships inside the existing Vercel deployable (region `fra1`). There is no new runtime unit.
