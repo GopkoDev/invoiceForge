@@ -199,8 +199,12 @@ describe('Retry reaches the same outcome as Save (AC-05d)', () => {
     let release!: (v: unknown) => void;
     updateInvoiceMock.mockReturnValueOnce(new Promise((r) => (release = r)));
     const running = save(store);
+    // Every data field of the store (JSON drops the actions), so "the state is unchanged" is checked.
+    const before = JSON.stringify(store.getState());
+    expect(store.getState().isSaving).toBe(true);
     pressRetry();
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(store.getState())).toBe(before);
     release(ok(savedResult({ id: 'inv-1' })));
     await running;
     expect(updateInvoiceMock).toHaveBeenCalledTimes(2);
