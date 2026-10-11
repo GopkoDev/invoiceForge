@@ -14,7 +14,7 @@
 | T07 | [Resolve the Customer, sender profile, bank account, currency and dates of a draft request with no guessing](./t07-draft-resolver-parties-and-defaults.md) | app | Dmytro Hopko | M | T03 | done |
 | T08 | [Count the Daily message allowance in per-local-day rows: read, reserve with a conditional increment, release on failure](./t08-daily-message-allowance.md) | app | Dmytro Hopko | M | T01, T03 | done |
 | T09 | [Set Draft permission only when a Personal key is created and return it from the key list and the key check](./t09-personal-key-draft-permission.md) | app | Dmytro Hopko | S | T01 | done |
-| T10 | [List and open Conversations owner-scoped, with Draft card views and the current state of every linked invoice](./t10-conversation-reads.md) | app | Dmytro Hopko | M | T01, T03 | todo |
+| T10 | [List and open Conversations owner-scoped, with Draft card views and the current state of every linked invoice](./t10-conversation-reads.md) | app | Dmytro Hopko | M | T01, T03 | done |
 | T11 | [Strip every text-bearing attribute from Mastra spans before export and pin it with a span contract test](./t11-metadata-only-span-processor.md) | infra | Dmytro Hopko | S | T04 | todo |
 | T12 | [Classify every chat message as in_scope, mixed or off_topic before the agent and end off-topic turns with the fixed refusal](./t12-topic-router.md) | app | Dmytro Hopko | M | T04 | todo |
 | T13 | [Wrap the shared read questions as chat tools bound to the acting Freelancer and add find_in_app over a fixed app map](./t13-chat-read-tools-and-app-map.md) | app | Dmytro Hopko | M | T02, T04 | todo |
