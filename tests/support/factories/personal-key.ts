@@ -6,7 +6,7 @@ import type { PersonalKey, PrismaClient } from '@prisma/client';
 import { generatePersonalKey } from '@/lib/services/personal-keys/key-format';
 
 export type PersonalKeyOverrides = Partial<
-  Pick<PersonalKey, 'name' | 'lastUsedAt' | 'firstSuccessAt' | 'revokedAt' | 'createdAt'>
+  Pick<PersonalKey, 'name' | 'lastUsedAt' | 'firstSuccessAt' | 'revokedAt' | 'createdAt' | 'canCreateDrafts'>
 > & { revoked?: boolean };
 
 let counter = 0;
@@ -29,6 +29,7 @@ export async function createPersonalKey(
       lastFour,
       lastUsedAt: overrides.lastUsedAt ?? null,
       firstSuccessAt: overrides.firstSuccessAt ?? null,
+      ...(overrides.canCreateDrafts !== undefined ? { canCreateDrafts: overrides.canCreateDrafts } : {}),
       revokedAt: revoked ? (overrides.revokedAt ?? new Date()) : null,
       ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {}),
     },

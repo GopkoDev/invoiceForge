@@ -20,6 +20,11 @@ model User {
     limitEvents      LimitEvent[]
     personalKeys     PersonalKey[]
 
+    conversations        Conversation[]
+    draftCards           DraftCard[]
+    messageAllowanceDays MessageAllowanceDay[]
+    assistantTurns       AssistantTurn[]
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 }
@@ -122,18 +127,22 @@ model EmailHistory {
 }
 
 model PersonalKey {
-    id             String    @id @default(cuid())
-    userId         String
-    name           String
-    activeNameKey  String? // lower-case name while active, NULL once revoked
-    digest         String    @unique // sha256 hex of the full key (ADR-0004)
-    lastFour       String
-    lastUsedAt     DateTime?
-    firstSuccessAt DateTime?
-    revokedAt      DateTime?
+    id              String    @id @default(cuid())
+    userId          String
+    name            String
+    activeNameKey   String? // lower-case name while active, NULL once revoked
+    digest          String    @unique // sha256 hex of the full key (ADR-0004)
+    lastFour        String
+    lastUsedAt      DateTime?
+    firstSuccessAt  DateTime?
+    revokedAt       DateTime?
+    canCreateDrafts Boolean   @default(false) // Draft permission, set only at creation (ADR-0011)
 
-    user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    usageWeeks PersonalKeyUsageWeek[]
+    user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    usageWeeks      PersonalKeyUsageWeek[]
+    draftDays       PersonalKeyDraftDay[]
+    draftRepeats    McpDraftRepeat[]
+    assistantDrafts Invoice[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -152,4 +161,35 @@ model PersonalKeyUsageWeek {
     personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
 
     @@id([personalKeyId, weekStart])
+}
+
+// Per-key daily draft limit: one row per key per local day (ADR-0009). Counts only. (06)
+model PersonalKeyDraftDay {
+    personalKeyId String
+    day           DateTime // the Freelancer's local calendar day, stored as that day at 00:00 UTC
+    created       Int       @default(0) // Assistant drafts created through the key that day
+    allowance     Int       @default(50) // 50, plus 50 per lift (AC-28)
+    lastLiftedAt  DateTime?
+
+    personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
+
+    @@id([personalKeyId, day])
+    @@index([day])
+}
+
+// MCP repeat marks (ADR-0012): honoured for 24 hours, purged daily after that. (07)
+model McpDraftRepeat {
+    personalKeyId String
+    repeatKey     String
+    fingerprint   String // sha256 hex of the canonical request; the same mark with other content is refused
+    invoiceId     String? // the first draft; NULL once that invoice is deleted
+
+    personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
+    invoice     Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+    createdAt DateTime @default(now())
+
+    @@id([personalKeyId, repeatKey])
+    @@index([invoiceId])
+    @@index([createdAt])
 }

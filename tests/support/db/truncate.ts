@@ -7,6 +7,13 @@ import type { PrismaClient } from '@prisma/client';
 // Ordered so children are listed before/with parents; RESTART IDENTITY CASCADE makes FK order
 // irrelevant, but keeping this readable in FK-dependency order helps when adding tables later.
 const APP_TABLES = [
+  'McpDraftRepeat',
+  'PersonalKeyDraftDay',
+  'AssistantTurn',
+  'DraftCard',
+  'ConversationMessage',
+  'Conversation',
+  'MessageAllowanceDay',
   'InvoiceItem',
   'Invoice',
   'CustomPrice',
