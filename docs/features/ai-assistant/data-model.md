@@ -330,7 +330,7 @@ erDiagram
 
 **Write rules (app-side, no DB form, as in the repo):**
 - The three origin columns are set only by `createFromCard` (chat) and `createForKey` (MCP). `updateInvoice` and the editor save never write them, and `duplicateInvoice` never copies them (ADR-0013 Negative; a unit test guards both).
-- `issuedAt` is set with `"issuedAt" = $now WHERE "issuedAt" IS NULL` on every path that moves an invoice out of `DRAFT`. In `lib/services/invoices/invoices.ts` those paths are `createInvoice` with a non-draft status, `updateInvoice` with a status change, and `updateInvoiceStatus`. Going back to draft never clears it.
+- `issuedAt` is set with `"issuedAt" = $now WHERE "issuedAt" IS NULL` on every path that moves an invoice out of `DRAFT`. In `lib/services/invoices/invoices.ts` those paths are `createInvoice` with a non-draft status, `updateInvoice` with a status change, and `updateInvoiceStatus`. Nothing clears it (an issued invoice never returns to draft).
 - **No backfill.** Existing invoices keep NULL. The KPI measures Assistant drafts created after the release (SAD §6 flow 11, accepted 2026-10-11).
 
 **Access patterns:**

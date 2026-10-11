@@ -219,13 +219,16 @@ const recentRow = z.object({
   dueDate: z.date(),
   total: num,
   currency: z.string(),
+  assistantOrigin: z.enum(['CHAT', 'PERSONAL_KEY']).nullable(),
+  assistantKeyName: z.string().nullable(),
 });
 
 /** The 10 most recently created invoices in the currency, newest first. */
 export async function queryRecentInvoices(actor: ActingFreelancer, currency: Currency) {
   const rows = await prisma.$queryRaw<unknown[]>`
     SELECT i."id", i."invoiceNumber", i."customerName", i."status"::text AS status, i."issueDate", i."dueDate",
-      i."total"::float8 AS total, i."currency"::text AS currency
+      i."total"::float8 AS total, i."currency"::text AS currency,
+      i."assistantOrigin"::text AS "assistantOrigin", i."assistantKeyName"
     FROM "Invoice" i
     JOIN "SenderProfile" sp ON sp."id" = i."senderProfileId"
     WHERE sp."userId" = ${actor.userId}

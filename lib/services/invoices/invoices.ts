@@ -2,11 +2,13 @@ import 'server-only';
 import { z } from 'zod';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/prisma';
+import { assistantMarkOf } from '@/lib/services/invoices/assistant-mark';
 import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
 import type {
   InvoiceFilterOptions,
   InvoiceIssuedDetails,
   InvoiceListItem,
+  InvoiceOrigin,
   SerializedInvoice,
 } from '@/types/invoice/types';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -101,7 +103,7 @@ export async function getInvoice(
 
     // AC-17's legacy flags (contracts/server-actions.md §getInvoiceEditorData / getInvoice).
     const legacy = await computeInvoiceLegacyInfo(prisma, invoice);
-    return ok({ ...serialized, legacy });
+    return ok({ ...serialized, legacy, assistantMark: assistantMarkOf(invoice) });
   } catch (error) {
     return failed('Error fetching invoice:', error, 'Failed to fetch invoice.');
   }
@@ -292,9 +294,10 @@ export async function listInvoices(
 
     return ok({
       ...page,
-      items: page.items.map((inv) => ({
+      items: page.items.map(({ assistantOrigin: _o, assistantKeyName: _k, ...inv }) => ({
         ...withDerivedStatus(inv, today),
         storedStatus: inv.status,
+        assistantMark: assistantMarkOf({ status: inv.status, assistantOrigin: _o, assistantKeyName: _k }),
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },
@@ -421,15 +424,20 @@ function inOutcomeSpan<T>(
   });
 }
 
-export async function createInvoice(actor: ActingFreelancer, data: InvoiceFormInput) {
+export async function createInvoice(
+  actor: ActingFreelancer,
+  data: InvoiceFormInput,
+  origin?: InvoiceOrigin
+) {
   return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'create' } }, () =>
-    createInvoiceUnspanned(actor, data)
+    createInvoiceUnspanned(actor, data, origin)
   );
 }
 
 async function createInvoiceUnspanned(
   actor: ActingFreelancer,
-  data: InvoiceFormInput
+  data: InvoiceFormInput,
+  origin?: InvoiceOrigin
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -502,6 +510,15 @@ async function createInvoiceUnspanned(
           status: 'DRAFT',
           paidAt: null,
           version: 0,
+          // ADR-0013: written once here, from the separate argument; no other path writes it.
+          ...(origin?.origin === 'CHAT' ? { assistantOrigin: 'CHAT' as const } : {}),
+          ...(origin?.origin === 'PERSONAL_KEY'
+            ? {
+                assistantOrigin: 'PERSONAL_KEY' as const,
+                assistantKeyId: origin.keyId,
+                assistantKeyName: origin.keyName,
+              }
+            : {}),
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
@@ -913,6 +930,8 @@ async function updateInvoiceUnspanned(
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,
+          // AC-23: the first move out of DRAFT stamps issuedAt; it is never cleared.
+          ...(status !== 'DRAFT' && !existingInvoice.issuedAt ? { issuedAt: new Date() } : {}),
           version: { increment: 1 },
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
@@ -1067,7 +1086,15 @@ async function updateInvoiceStatusUnspanned(
 
       return tx.invoice.update({
         where: { id, senderProfile: { userId } },
-        data: { status: decision.status, paidAt: decision.paidAt, version: { increment: 1 } },
+        data: {
+          status: decision.status,
+          paidAt: decision.paidAt,
+          // AC-23: set once when the invoice first leaves DRAFT, never cleared.
+          ...(invoice.status === 'DRAFT' && decision.status !== 'DRAFT' && !invoice.issuedAt
+            ? { issuedAt: new Date() }
+            : {}),
+          version: { increment: 1 },
+        },
         select: { status: true, paidAt: true },
       });
     });

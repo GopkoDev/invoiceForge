@@ -10,7 +10,7 @@
 | T03 | [Add the FORBIDDEN code, the three new error-detail kinds, the shared assistant types and the zod draft schemas](./t03-shared-assistant-types-and-draft-schemas.md) | domain | Dmytro Hopko | M | — | done |
 | T04 | [Install the pinned AI SDK, gateway and Mastra packages, add the model settings and the Mastra instance on its own mastra schema](./t04-ai-runtime-and-mastra-storage.md) | infra | Dmytro Hopko | M | — | done |
 | T05 | [Name the AI model provider, the gateway and the chat retention on the public Privacy page](./t05-privacy-page-model-provider.md) | docs | Dmytro Hopko | S | — | done |
-| T06 | [Write the Assistant origin once at creation, set issuedAt when an invoice first leaves DRAFT, and expose assistantMark on invoice reads](./t06-invoice-assistant-origin-and-issued-at.md) | app | Dmytro Hopko | M | T01 | todo |
+| T06 | [Write the Assistant origin once at creation, set issuedAt when an invoice first leaves DRAFT, and expose assistantMark on invoice reads](./t06-invoice-assistant-origin-and-issued-at.md) | app | Dmytro Hopko | M | T01 | done |
 | T07 | [Resolve the Customer, sender profile, bank account, currency and dates of a draft request with no guessing](./t07-draft-resolver-parties-and-defaults.md) | app | Dmytro Hopko | M | T03 | todo |
 | T08 | [Count the Daily message allowance in per-local-day rows: read, reserve with a conditional increment, release on failure](./t08-daily-message-allowance.md) | app | Dmytro Hopko | M | T01, T03 | todo |
 | T09 | [Set Draft permission only when a Personal key is created and return it from the key list and the key check](./t09-personal-key-draft-permission.md) | app | Dmytro Hopko | S | T01 | todo |

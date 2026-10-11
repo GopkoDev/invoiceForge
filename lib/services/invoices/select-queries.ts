@@ -75,4 +75,7 @@ export const invoiceListSelect = {
   createdAt: true,
   // T35 (AC-18, F-15): the list row shows the paid date next to the "Paid" badge.
   paidAt: true,
+  // AC-23: the Assistant mark on a draft row.
+  assistantOrigin: true,
+  assistantKeyName: true,
 } satisfies Prisma.InvoiceSelect;

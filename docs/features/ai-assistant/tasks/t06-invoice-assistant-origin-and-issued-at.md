@@ -49,7 +49,7 @@ This task makes the origin of every Assistant draft a write-once fact on the inv
 
 > **Write rules (app-side, no DB form, as in the repo):**
 > - The three origin columns are set only by `createFromCard` (chat) and `createForKey` (MCP). `updateInvoice` and the editor save never write them, and `duplicateInvoice` never copies them (ADR-0013 Negative; a unit test guards both).
-> - `issuedAt` is set with `"issuedAt" = $now WHERE "issuedAt" IS NULL` on every path that moves an invoice out of `DRAFT`. In `lib/services/invoices/invoices.ts` those paths are `createInvoice` with a non-draft status, `updateInvoice` with a status change, and `updateInvoiceStatus`. Going back to draft never clears it.
+> - `issuedAt` is set with `"issuedAt" = $now WHERE "issuedAt" IS NULL` on every path that moves an invoice out of `DRAFT`. In `lib/services/invoices/invoices.ts` those paths are `createInvoice` with a non-draft status, `updateInvoice` with a status change, and `updateInvoiceStatus`. Nothing clears it (an issued invoice never returns to draft).
 > - **No backfill.** Existing invoices keep NULL.
 >
 > — `data-model.md §Invoice, write rules, abridged` · full text: [data-model.md](../data-model.md)
@@ -103,7 +103,7 @@ Current signatures (code): `createInvoice(actor, data: InvoiceFormInput)` (`invo
 
 | Case | Behaviour |
 |---|---|
-| Draft with origin issued, then reverted to draft | `issuedAt` kept; mark shows again (stored status DRAFT) — origin is never cleared |
+| Draft with origin issued, then a revert to draft is attempted | refused by the lifecycle (an issued invoice never returns to draft); mark stays hidden; origin and `issuedAt` kept |
 | Invoice created already non-draft | `issuedAt` = creation time |
 | Duplicate of an Assistant draft | copy has no origin, `issuedAt` NULL |
 | Key renamed or revoked after creation | `assistantKeyName` unchanged |
