@@ -1986,6 +1986,55 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r16.md",
       "source": "review-2026-10-11-r16"
+    },
+    {
+      "id": "T101",
+      "title": "Assert focus and caret survive the create hand-over for the custom line's Product name field",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review r17 F1. In tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx, the T99 fields loop also covers the custom line's free-text 'Product, line 1' input (getByRole('textbox', { name: 'Product, line 1' })) with the same new-node, focus and caret [0, 1] checks. test-plan.md:45 adds 'line Product name' to its list of checked fields and T101 to its task list, so 'every text and amount field' holds. Component test only; if it exposes a broken restore and forces an app fix, a Linux e2e run at the new HEAD is required.",
+      "files_hint": [
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r17.md",
+      "source": "review-2026-10-11-r17"
+    },
+    {
+      "id": "T102",
+      "title": "Make the AC-10 wording row name the rendering tests that prove the layouts carry no label text of their own",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "Review r17 F2. test-plan.md:78 no longer describes a scan of the layouts. It says the preview and the rendered PDF print exactly the document model's strings in order (tests/unit/invoice-document-parity.test.ts) and that a wording change reaches both layouts (tests/unit/invoice-document-wording-parity.test.ts). Docs-only; no test changes.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r17.md",
+      "source": "review-2026-10-11-r17"
+    },
+    {
+      "id": "T103",
+      "title": "Run the first-PDF timing e2e (E2E_TIMING=1) on Linux and keep the log as the NFR evidence",
+      "layer": "tests",
+      "deps": [
+        "T101",
+        "T102"
+      ],
+      "acs": [],
+      "dod": "Review r17 F3. Run tests/e2e/pdf-on-demand.spec.ts 'first PDF timing' with E2E_TIMING=1 on Linux against a production build at the final HEAD (after T101-T102; check docker info and caffeinate first). The p95 of 20 runs at 10 Mbit/s is within 3 s. Save the log under docs/features/editor-ux/_audit/T103-linux-e2e-timing-<date>.log with the p95 figure, and point the test-plan.md NFR line (:141) at it. If p95 exceeds 3 s, stop and report; do not loosen the threshold.",
+      "files_hint": [
+        "tests/e2e/pdf-on-demand.spec.ts",
+        "docs/features/editor-ux/test-plan.md",
+        "docs/features/editor-ux/_audit/"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r17.md",
+      "source": "review-2026-10-11-r17"
     }
   ]
 }
