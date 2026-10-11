@@ -149,7 +149,7 @@ The numeric NFRs in spec.md §6 are checked by these tests, not by a load tool:
 
 ## CI placement
 
-- **On every PR:** unit, component and integration (integration needs the throwaway container), the build-output check for the PDF toolkit, lint, and an e2e job against a production build that runs the AC-08 date matrix and the AC-11 / AC-12 accessibility check.
-- **Before each wave ships, and nightly:** the rest of e2e-through-UI against a production build (PDF on demand and its failures, first-PDF timing, Save versus Retry, first display, AC-07 in Chromium and WebKit, device language, the phone layout and width change), visual-regression, and the README fresh-clone check.
+- **On every PR:** unit, component and integration (integration needs the throwaway container), the build-output check for the PDF toolkit, and lint. No e2e runs in CI.
+- **Locally, before each ship:** the full e2e and e2e-through-UI suite against a production build (`pnpm test:e2e`: the AC-08 date matrix, the AC-11 / AC-12 accessibility check, PDF on demand and its failures, Save versus Retry, first display, AC-07 in Chromium and WebKit, device language, the phone layout and width change), first-PDF timing (`E2E_TIMING=1`), visual-regression on Linux, and the README fresh-clone check. *(Changed 2026-10-11 at ship, owner decision: the per-PR e2e job and the nightly run were removed.)*
 - **After release:** CLS for phone-width editor visits and render-mismatch errors from error tracking, each over 14 days (spec §7).
-- **Known gap (sad.md §11):** a regression in a pre-wave suite can merge between waves. The pre-wave run on each release candidate is the mitigation.
+- **Known gap (sad.md §11):** a change merged without a ship run can regress an e2e-only behaviour. The full local run at every ship is the mitigation.

@@ -29,7 +29,7 @@
 - **Feature flag / config:** none. No new required setting.
 - **Cookie:** the sign-in pages now write the functional `tz` cookie (the browser's time-zone name) for every Visitor. The privacy page names it.
 - **Caching:** signed-in pages are sent `Cache-Control: private, no-store`.
-- **CI:** the `test` workflow now runs the PDF chunk check (`pnpm check:pdf-chunks`) and an `e2e` job (accessibility suite and the server/browser date matrix) on every PR.
+- **CI:** the `test` workflow now builds the app and runs the PDF chunk check (`pnpm check:pdf-chunks`) on every PR. CI runs no e2e: run the full `pnpm test:e2e` locally before each ship.
 - **Before the release:** record the 14-day baselines for the two KPIs that are still TBD: render-mismatch errors in error tracking and the p75 phone-width editor layout shift ([spec](../spec.md) §7).
 - **Rollback:** revert the deploy. Nothing is stored, so there is nothing to undo in the database.
 
@@ -37,6 +37,6 @@
 
 - **O1 (AC-13):** the owner checks the decimal keypad on a real iPhone in the Ukrainian region (task T25, `blocked`).
 - **O2 (AC-13):** the owner reviews the Linux layout baselines (task T53, `review`).
-- **N3:** the PR's green `unit`, `integration` and `e2e` jobs are the CI evidence for the "PDF toolkit on non-printing pages" and "No regressions" NFRs ([spec](../spec.md) §8).
+- **N3:** the PR's green `unit` and `integration` jobs, with the local full e2e run at ship (113 passed, 3 skipped), are the CI evidence for the "PDF toolkit on non-printing pages" and "No regressions" NFRs ([spec](../spec.md) §8).
 
 **Acceptance criteria delivered:** AC-01 to AC-16, including AC-02b and AC-05b to AC-05d. For AC-13, the code and the automated tests are done; the real-iPhone keypad check (O1) and the baseline review (O2) are still open.

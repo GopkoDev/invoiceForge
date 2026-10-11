@@ -271,7 +271,7 @@ test('AC-09: a quantity changed and not saved is not in the PDF the list downloa
 });
 
 // Spec §6 / sad QG-3: 20 fresh opens at 10 Mbit/s, p95 of click -> download <= 3 s. Slow, so it
-// runs before each wave and nightly (E2E_TIMING=1), not on every PR.
+// runs only on request (E2E_TIMING=1), not in the default e2e run.
 test.describe('first PDF timing', () => {
   test.skip(process.env.E2E_TIMING !== '1', 'timing run: set E2E_TIMING=1');
   test.describe.configure({ timeout: 900_000 });

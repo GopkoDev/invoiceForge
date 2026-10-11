@@ -1,9 +1,8 @@
 name: test
 
 # test-plan.md §CI placement: "On every PR: unit, component, contract and integration."
-# The rate-limit load scenario and the rest of the e2e suite run before each wave ships and
-# nightly, against a production build (see tests/README.md §CI placement). editor-ux T19 wires the
-# `e2e` job below into every PR: the accessibility suite and the server/browser date matrix.
+# e2e (`pnpm test:e2e`, a production build against a throwaway Postgres) runs locally before
+# each ship, not in CI (see tests/README.md §CI placement).
 on:
   pull_request:
   push:
@@ -60,24 +59,3 @@ jobs:
       # tests/integration/env-guard.test.ts) and every test talks only to the throwaway
       # container testcontainers starts.
       - run: pnpm test:integration
-
-  # editor-ux T19 (sad.md §7): builds the app for production and boots it against a throwaway
-  # PostgreSQL container, both done by playwright.config.ts's webServer
-  # (tests/e2e/support/start-app-server.mjs, which sets its own build and runtime settings;
-  # Docker is preinstalled on ubuntu-latest). Runs the accessibility suite (axe, serious and
-  # critical fail) and the date matrix (hydration errors and displayed days fail).
-  e2e:
-    name: e2e (accessibility + date matrix)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec prisma generate
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e:ci

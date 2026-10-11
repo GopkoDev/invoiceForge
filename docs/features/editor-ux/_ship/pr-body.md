@@ -130,7 +130,7 @@ The Contributor sees these changes:
 
 1. Make sure that the owner did check O1: the decimal keypad on a real iPhone, with the Ukrainian region.
 2. Make sure that the owner did check O2: the Linux layout baselines.
-3. Make sure that the `unit`, `integration` and `e2e` jobs of this pull request are green.
+3. Make sure that the `unit` and `integration` jobs of this pull request are green.
 4. Before the release, record the 14-day baselines for these two values:
    - the render-mismatch errors in error tracking
    - the p75 layout shift of the editor at phone width.
@@ -167,7 +167,9 @@ The invoice editor and the lists around it are now fast, truthful and accessible
 > - **O1:** the decimal keypad on a real iPhone in the Ukrainian region (T25, `blocked`).
 > - **O2:** the owner's review of the Linux layout baselines (T53, `review`; `_audit/T53-linux-e2e-2026-10-10.log:219`).
 >
-> **N3:** this PR's green `unit`, `integration` and `e2e` jobs are the CI evidence for the NFRs "PDF toolkit on non-printing pages" and "No regressions" (spec §8).
+> **N3:** this PR's green `unit` and `integration` jobs, with the local full e2e run below, are the evidence for the NFRs "PDF toolkit on non-printing pages" and "No regressions" (spec §8).
+>
+> **CI change at ship (owner decision):** the per-PR `e2e` job and the nightly full e2e workflow added earlier in this branch are removed. CI runs unit, integration, lint, typecheck, audit, `next build` and the PDF chunk check; the full `pnpm test:e2e` runs locally before each ship.
 
 ## Acceptance criteria
 
@@ -342,6 +344,7 @@ All runs on `dff223d`, macOS, Node 22, Docker up.
 - **Migration:** none.
 - **Feature flag / config:** none. No new required setting.
 - **Before the release:** record the 14-day baselines for render-mismatch errors and the p75 phone-width editor layout shift (spec §7).
+- **CI:** no e2e in CI; run `CI=1 pnpm test:e2e` locally before each ship.
 - **Rollback:** deploy the previous build. Nothing is stored, so the database needs no change.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

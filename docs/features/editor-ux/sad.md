@@ -171,7 +171,7 @@ app/(invoice-editor)/invoices/new     passes today and the due date in the Freel
 scripts/check-pdf-chunks.ts      NEW  CI build-output check: no toolkit in non-editor routes' initial chunks
 tests/e2e/                            + accessibility checks, the date matrix, AC-07 isolation, first-PDF timing
 playwright.config.ts                  + chromium and webkit projects (webkit for Safari's back/forward cache, AC-07)
-.github/workflows/test.yml            + e2e job: production build, then the date-matrix and accessibility suites
+.github/workflows/test.yml            + next build and the PDF chunk check in the unit job
 README.md                             setup and test steps verified in a fresh clone (AC-15)
 package.json                          - uuid, @types/uuid and the packages only the removed ui components use; + @axe-core/playwright (dev)
 ```
@@ -594,7 +594,7 @@ No infrastructure change: the feature ships inside the existing single Vercel de
 
 **Build and CI gates (added):**
 - `scripts/check-pdf-chunks.ts` after `next build`: fails when any route other than the invoice editor lists a chunk containing `@react-pdf/renderer` among its initial chunks (spec §6 "PDF toolkit on non-printing pages").
-- A new `e2e` job in `.github/workflows/test.yml` builds the app for production against a throwaway PostgreSQL container and runs two suites on every PR: the accessibility suite (`@axe-core/playwright` on the editor — new and existing invoice — the invoices list and the dashboard, failing on any serious or critical violation) and the server/browser date matrix (spec §6 "Server/browser date agreement", "Accessibility" — both measured in CI). The other e2e suites (AC-07 isolation, first-PDF timing, Retry outcomes) run before each wave ships and nightly, as `tests/README.md` places e2e today.
+- CI runs no e2e. The full `pnpm test:e2e` (a production build against a throwaway PostgreSQL container) runs locally before each ship. It includes the accessibility suite (`@axe-core/playwright` on the editor — new and existing invoice — the invoices list and the dashboard, failing on any serious or critical violation) and the server/browser date matrix (spec §6 "Server/browser date agreement", "Accessibility"). *(Changed 2026-10-11 at ship, owner decision: the per-PR `e2e` job and the nightly full run were removed.)*
 - Existing gates unchanged: lint, `tsc`, unit and integration, and every `invoice-integrity` acceptance test (spec §6 "No regressions").
 
 **Scaling thresholds:** none — the feature removes browser weight and adds no server load. The toolkit chunk (~1.6 MB) is the only size to watch: if it grows past what downloads in 3 s at 10 Mbit/s (spec §6 "First PDF after page load"), revisit ADR-0001 option 2 (server rendering).
@@ -666,7 +666,7 @@ Each top-3 goal from §1 expanded into scenarios. Targets are quoted from spec �
 | Moving from the module-level store to a per-mount store (ADR-0003) touches about 20 editor components and the header hook; a missed consumer breaks a save path covered by `invoice-integrity` | Medium | Ship it alone in wave 3; run the full `invoice-integrity` acceptance suite and the new store tests; a lint rule forbids importing the old module-level store | Dmytro Hopko |
 | Replacing the desktop resizable panels with one CSS-only layout (ADR-0004) can change the desktop editor's look or resizing | Medium | Visual-regression snapshots of the desktop and phone editor before and after; keep the drag handle's behaviour | Dmytro Hopko |
 | Back/forward-cache behaviour differs between browsers; the no-store header alone does not stop Safari (ADR-0007) | Medium | The `pageshow` guard covers it; the AC-07 e2e runs in both the Chromium and WebKit Playwright projects | Dmytro Hopko |
-| Only the accessibility and date-matrix e2e suites run in CI; AC-07 isolation, first-PDF timing and the Retry-outcome e2e run before each wave ships and nightly (`tests/README.md`), so a regression there can merge between waves | Medium | Run them on every wave's release candidate; the new CI e2e job (§7) can take more suites later | Dmytro Hopko |
+| CI runs no e2e; the full suite runs locally before each ship, so a change merged without a ship run can regress an e2e-only behaviour | Medium | Every ship runs the full `pnpm test:e2e` locally and records the result in the PR | Dmytro Hopko |
 | KPI baselines are still TBD (render mismatches, phone-width CLS, accessibility violations — spec §7) | Medium | Measure all three before wave 1 starts: Sentry hydration issues and Speed Insights CLS over 14 days, one axe run on the three pages | Dmytro Hopko |
 | The first PDF of a visit can exceed 3 s on connections slower than the NFR's 10 Mbit/s, since the 1.6 MB toolkit downloads first | Low | The editor warms the module when idle (§4); watch Sentry `pdf.stage` events; ADR-0001 option 2 (server rendering) stays the fallback if the chunk grows | Dmytro Hopko |
 | The failed-fetch classification (offline vs new version) may misjudge a captive portal or a partial outage | Low | Both outcomes keep the page usable and offer a next step; the failure is reported to Sentry with its stage | Dmytro Hopko |

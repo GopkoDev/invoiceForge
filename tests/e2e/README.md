@@ -1,13 +1,13 @@
 # End-to-end tests
 
 Run them with `pnpm test:e2e` (a production build against a throwaway Postgres container; Docker is required).
-With `CI` set (`CI=1 pnpm test:e2e`, which is what the nightly workflow runs) `playwright.config.ts` uses two workers;
+With `CI` set (`CI=1 pnpm test:e2e`, the command to run before each ship) `playwright.config.ts` uses two workers;
 without it Playwright's default (half the CPUs) applies.
 
 ## Layout baselines
 
 The screenshot baselines in `editor-layout.spec.ts-snapshots/` are Linux-only (`-chromium-linux.png`), drawn by the
-Chromium of the official Playwright image that matches `@playwright/test` (CI runs `ubuntu-latest`, so the `-noble`
+Chromium of the official Playwright image that matches `@playwright/test` (the `-noble`
 image), because fonts render differently on every operating system. They were captured on `main`, before the one-tree
 layout of ADR-0004 (`main` at 72cf58b), and the spec at HEAD matches them within `maxDiffPixelRatio` 0.002 with the
 invoice number, dates, e-mail addresses and, inside the preview's page, only its header and sender / bill-to blocks

@@ -130,7 +130,7 @@ The Contributor sees these changes:
 
 1. Make sure that the owner did check O1: the decimal keypad on a real iPhone, with the Ukrainian region.
 2. Make sure that the owner did check O2: the Linux layout baselines.
-3. Make sure that the `unit`, `integration` and `e2e` jobs of this pull request are green.
+3. Make sure that the `unit` and `integration` jobs of this pull request are green.
 4. Before the release, record the 14-day baselines for these two values:
    - the render-mismatch errors in error tracking
    - the p75 layout shift of the editor at phone width.
