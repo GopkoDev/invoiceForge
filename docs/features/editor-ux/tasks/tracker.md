@@ -1,7 +1,7 @@
 # Tracker — editor-ux
 
 > Status of every task in the epic. `implement` updates `done` as it commits each task.
-> States: `todo` · `in_progress` · `blocked` · `review` · `done`.
+> States: `todo` · `in_progress` · `blocked` · `review` · `done` · `skipped` (waived by the owner).
 
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
@@ -29,7 +29,7 @@
 | T22 | Open a new invoice with the default sender profile, its default bank account and currency, and request the invoice-number hint on mount | app | Dmytro Hopko | — | — | done |
 | T23 | Print an issued invoice with its stored line amounts and totals in the preview and the PDF | domain | Dmytro Hopko | — | — | done |
 | T24 | Keep the failed intent through the changed-totals confirmation so Save and issue stays Save and issue | app | Dmytro Hopko | — | T21 | done |
-| T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | owner: iPhone (Ukrainian region) keypad check, before ship | blocked |
+| T25 | Stop AmountInput from turning a typed comma decimal into a larger amount, and record the iPhone keypad check | ui | Dmytro Hopko | — | owner: iPhone (Ukrainian region) keypad check — skipped by the owner 2026-10-11 | skipped |
 | T26 | Name the phone more-actions button and the line product fields, tie the product error to its field, and run axe at phone width and after a refused save | ui | Dmytro Hopko | — | — | done |
 | T27 | Show "Customer since" in the Freelancer time zone | ui | Dmytro Hopko | — | — | done |
 | T28 | Make every PDF action fail safely, show its preparing state, resist double clicks and popup blockers, and test the real triggers | ui | Dmytro Hopko | — | — | done |
@@ -59,7 +59,7 @@
 | T50 | Make the toolkit-fetch tracker in the PDF on-demand e2e wait for its own handlers | tests | Dmytro Hopko | — | — | done |
 | T51 | Record the store hand-over in the ADRs and fix the remaining PDF wording in ux-flows and the SAD | docs | Dmytro Hopko | — | T49 | done |
 | T52 | Tidy the route JSDoc, verify the nightly Docker CLI download, reuse StoredAmounts and fix a stale test comment | wiring | Dmytro Hopko | — | — | done |
-| T53 | Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines | infra | Dmytro Hopko | — | T48, T49, T50, T51, T52 | review |
+| T53 | Make plain pnpm test:e2e pass on Linux and record the reviewed layout baselines | infra | Dmytro Hopko | — | T48, T49, T50, T51, T52 (owner baseline review skipped by the owner 2026-10-11) | skipped |
 | T54 | Restore focus after the create hand-over on every editor field, not only fields with an aria-label | app | Dmytro Hopko | — | — | done |
 | T55 | Guard the create hand-over: move only from the new or the edit address, and adopt an entry only once | app | Dmytro Hopko | — | T54 | done |
 | T56 | Make the 'no rebuild during the Save' e2e wait for a positive signal, and stop e2e watchers leaking rejections | tests | Dmytro Hopko | — | — | done |

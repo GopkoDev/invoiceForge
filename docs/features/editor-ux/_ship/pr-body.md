@@ -128,13 +128,13 @@ The Contributor sees these changes:
 
 > **NOTE:** This feature has no new required setting and no feature flag.
 
-1. Make sure that the owner did check O1: the decimal keypad on a real iPhone, with the Ukrainian region.
-2. Make sure that the owner did check O2: the Linux layout baselines.
-3. Make sure that the `unit` and `integration` jobs of this pull request are green.
-4. Before the release, record the 14-day baselines for these two values:
+1. Make sure that the `unit` and `integration` jobs of this pull request are green.
+2. Before the release, record the 14-day baselines for these two values:
    - the render-mismatch errors in error tracking
    - the p75 layout shift of the editor at phone width.
-5. Merge the pull request. Then, deploy the code.
+3. Merge the pull request. Then, deploy the code.
+
+> **NOTE:** The owner did not do the checks O1 (the decimal keypad on a real iPhone) and O2 (the review of the Linux layout baselines). The owner skipped them on 2026-10-11.
 
 ## 6. Rollback procedure
 
@@ -163,9 +163,9 @@ The Contributor sees these changes:
 
 The invoice editor and the lists around it are now fast, truthful and accessible, and the repository works as written. Signed-in list pages no longer load the PDF toolkit, a change typed during a save is never lost, Retry behaves exactly like Save, the editor draws the right invoice from the server's first HTML, dates and money look the same everywhere, and the editor works with a screen reader and on a phone. No business rule changes: every `invoice-integrity` acceptance test still passes. See the [spec](docs/features/editor-ux/spec.md) and the [changelog](docs/features/editor-ux/_ship/changelog.md).
 
-> **Merge is blocked on two owner checks (AC-13)**, carried by review r18:
-> - **O1:** the decimal keypad on a real iPhone in the Ukrainian region (T25, `blocked`).
-> - **O2:** the owner's review of the Linux layout baselines (T53, `review`; `_audit/T53-linux-e2e-2026-10-10.log:219`).
+> **Owner checks for AC-13 from review r18 — skipped by the owner (2026-10-11):**
+> - **O1:** the decimal keypad on a real iPhone in the Ukrainian region (T25) — skipped.
+> - **O2:** the owner's review of the Linux layout baselines (T53; `_audit/T53-linux-e2e-2026-10-10.log:219`) — skipped.
 >
 > **N3:** this PR's green `unit` and `integration` jobs, with the local full e2e run below, are the evidence for the NFRs "PDF toolkit on non-printing pages" and "No regressions" (spec §8).
 >
@@ -189,7 +189,7 @@ The invoice editor and the lists around it are now fast, truthful and accessible
 - AC-10 — the preview and the PDF show the same issued details, line by line, from one document model ✓
 - AC-11 — every editor field and icon button has an announced name ("Quantity, line 3") ✓
 - AC-12 — an invalid field is announced as invalid with its error tied to it ✓
-- AC-13 — phone layout from the first display; decimal keypad; only "." accepted ✓ in code and tests — **O1, O2 open**
+- AC-13 — phone layout from the first display; decimal keypad; only "." accepted ✓ in code and tests (O1, O2 skipped by the owner)
 - AC-14 — an unfinished "12." keeps its text and focus across a phone/desktop layout switch ✓
 - AC-15 — the README setup and test steps work word for word on a fresh clone ✓
 - AC-16 — no unused UI component or package, one theme switcher, the save confirmation sits with the editor's dialogs ✓
@@ -336,8 +336,8 @@ All runs on `dff223d`, macOS, Node 22, Docker up.
   - **AC-09:** with the browser in `uk-UA` and `de-DE`, the editor, preview, PDF and Debtors showed "$1,234.50" and "UAH 1,234.50".
   - **AC-11:** axe found 0 serious or critical violations on the editor (new, existing, refused save; desktop and phone), the invoices list and the dashboard.
   - **AC-13 / AC-14:** at 390 px the server HTML was already the phone layout and did not change on hydration; "12." in a focused line field survived a breakpoint resize both ways.
-  - **Skipped on macOS (by design):** the two layout-baseline comparisons (the baselines are Linux-only; their review is O2) and the opt-in first-PDF timing run, recorded on Linux at p95 1107 ms against 3000 ms (`47969a0`, T103).
-  - **Not verifiable here:** the real-iPhone keypad (O1) and the real-user layout-shift KPI (measured 14 days after release).
+  - **Skipped on macOS (by design):** the two layout-baseline comparisons (the baselines are Linux-only; their owner review, O2, was skipped by the owner) and the opt-in first-PDF timing run, recorded on Linux at p95 1107 ms against 3000 ms (`47969a0`, T103).
+  - **Not verifiable here:** the real-iPhone keypad (O1, skipped by the owner) and the real-user layout-shift KPI (measured 14 days after release).
 
 ## Operational notes
 

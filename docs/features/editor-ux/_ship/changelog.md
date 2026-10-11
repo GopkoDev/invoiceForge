@@ -33,10 +33,10 @@
 - **Before the release:** record the 14-day baselines for the two KPIs that are still TBD: render-mismatch errors in error tracking and the p75 phone-width editor layout shift ([spec](../spec.md) §7).
 - **Rollback:** revert the deploy. Nothing is stored, so there is nothing to undo in the database.
 
-**Open before merge:**
+**Owner checks and open items:**
 
-- **O1 (AC-13):** the owner checks the decimal keypad on a real iPhone in the Ukrainian region (task T25, `blocked`).
-- **O2 (AC-13):** the owner reviews the Linux layout baselines (task T53, `review`).
+- **O1 (AC-13):** the decimal keypad check on a real iPhone in the Ukrainian region (task T25) — **skipped by the owner** on 2026-10-11.
+- **O2 (AC-13):** the owner review of the Linux layout baselines (task T53) — **skipped by the owner** on 2026-10-11.
 - **N3:** the PR's green `unit` and `integration` jobs, with the local full e2e run at ship (113 passed, 3 skipped), are the CI evidence for the "PDF toolkit on non-printing pages" and "No regressions" NFRs ([spec](../spec.md) §8).
 
-**Acceptance criteria delivered:** AC-01 to AC-16, including AC-02b and AC-05b to AC-05d. For AC-13, the code and the automated tests are done; the real-iPhone keypad check (O1) and the baseline review (O2) are still open.
+**Acceptance criteria delivered:** AC-01 to AC-16, including AC-02b and AC-05b to AC-05d. For AC-13, the code and the automated tests are done; the owner skipped the real-iPhone keypad check (O1) and the baseline review (O2).

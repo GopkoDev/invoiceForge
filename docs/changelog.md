@@ -9,7 +9,7 @@ This page shows how the project grows. The newest work is at the top.
 
 ## In progress
 
-- **editor-ux.** A faster and safer invoice editor: no lost edits, correct dates near midnight, screen reader support and a stable phone layout. Shipped for review on 2026-10-11. The merge waits on two owner checks (a real-iPhone keypad check and the layout baseline review). See the [spec](./features/editor-ux/spec.md) and the [changelog](./features/editor-ux/_ship/changelog.md).
+- **editor-ux.** A faster and safer invoice editor: no lost edits, correct dates near midnight, screen reader support and a stable phone layout. Shipped for review on 2026-10-11 (PR #9). The owner skipped the real-iPhone keypad check and the layout baseline review. See the [spec](./features/editor-ux/spec.md) and the [changelog](./features/editor-ux/_ship/changelog.md).
 
 ## Shipped
 

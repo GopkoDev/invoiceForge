@@ -128,13 +128,13 @@ The Contributor sees these changes:
 
 > **NOTE:** This feature has no new required setting and no feature flag.
 
-1. Make sure that the owner did check O1: the decimal keypad on a real iPhone, with the Ukrainian region.
-2. Make sure that the owner did check O2: the Linux layout baselines.
-3. Make sure that the `unit` and `integration` jobs of this pull request are green.
-4. Before the release, record the 14-day baselines for these two values:
+1. Make sure that the `unit` and `integration` jobs of this pull request are green.
+2. Before the release, record the 14-day baselines for these two values:
    - the render-mismatch errors in error tracking
    - the p75 layout shift of the editor at phone width.
-5. Merge the pull request. Then, deploy the code.
+3. Merge the pull request. Then, deploy the code.
+
+> **NOTE:** The owner did not do the checks O1 (the decimal keypad on a real iPhone) and O2 (the review of the Linux layout baselines). The owner skipped them on 2026-10-11.
 
 ## 6. Rollback procedure
 
