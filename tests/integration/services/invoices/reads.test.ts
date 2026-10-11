@@ -114,7 +114,7 @@ describe.runIf(containerRuntimeAvailable)('invoice reads service (T12, AC-07, AC
       productId: a.product.id,
     });
     expect(Number(res.data.customPrices[0].price)).toBe(77);
-    expect(res.data.initialData).toBeUndefined();
+    expect(res.data.initialData?.status).toBe('DRAFT'); // editor-ux T12: a new invoice carries server-computed defaults
   });
 
   it('getInvoiceEditorData with an own invoice id returns the invoice form data and legacy info', async () => {

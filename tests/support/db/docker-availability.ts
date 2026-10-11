@@ -7,6 +7,28 @@ import { spawn } from 'node:child_process';
 
 const PROBE_TIMEOUT_MS = 4000;
 
+export type ContainerRuntimeDecision = 'run' | 'skip' | 'fail';
+
+/**
+ * editor-ux T31 (review S2): with CI set, a missing container runtime must fail the run, not skip
+ * every test and exit 0. Locally it still skips. Twin of the inline rule in
+ * tests/e2e/support/start-app-server.mjs (plain JS, cannot import this file).
+ */
+export function containerRuntimeDecision(input: {
+  ci: boolean;
+  available: boolean;
+}): ContainerRuntimeDecision {
+  if (input.available) return 'run';
+  return input.ci ? 'fail' : 'skip';
+}
+
+/** Integration gate (T46, review Q6): throws when CI is set and no runtime answers; skips stay local. */
+export function requireContainerRuntimeForIntegration(input: { ci: boolean; available: boolean }): void {
+  if (containerRuntimeDecision(input) === 'fail') {
+    throw new Error('no container runtime available in CI: the integration suite cannot run');
+  }
+}
+
 let cached: Promise<boolean> | undefined;
 
 /** Memoized for the lifetime of the process: one probe per test run, not per test file. */

@@ -8,6 +8,41 @@ const createActingFreelancerPath = {
   message: "Use actingFreelancerFromSession / actingFreelancerForRoute from @/lib/helpers/session-actor.",
 };
 
+// ADR-0001 (editor-ux): the PDF toolkit is reached only through the lazy loader in lib/pdf.
+const pdfToolkitPaths = [
+  {
+    name: "@react-pdf/renderer",
+    message: "Import the PDF toolkit only inside lib/pdf; elsewhere use loadPdfKit via hooks/use-pdf-action.",
+  },
+  {
+    name: "@/lib/pdf/invoice-pdf-kit",
+    message: "Do not import the kit statically; use loadPdfKit from @/lib/pdf/load-pdf-kit.",
+  },
+];
+
+// ADR-0003 (editor-ux): the editor store is one instance per mount, read through context
+// (selectors.ts); the old module-level store must not come back.
+const moduleLevelEditorStorePaths = [
+  {
+    name: "@/store/invoice-editor-store/use-invoice-editor-store",
+    message: "The editor store is per mount: use the selectors or useInvoiceEditorStoreApi from @/store/invoice-editor-store/selectors.",
+  },
+  {
+    name: "./use-invoice-editor-store",
+    message: "The editor store is per mount: use createInvoiceEditorStore or the selectors.",
+  },
+  {
+    name: "@/store/invoice-editor-store",
+    importNames: ["useInvoiceEditorStore"],
+    message: "The editor store is per mount: use the selectors or useInvoiceEditorStoreApi.",
+  },
+];
+
+const actingFreelancerCastRestriction = {
+  selector: "TSAsExpression[typeAnnotation.typeName.name='ActingFreelancer']",
+  message: "Only lib/services/_shared/acting-freelancer.ts may cast to ActingFreelancer.",
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -27,7 +62,13 @@ const eslintConfig = defineConfig([
     // actingFreelancerFromSession / actingFreelancerForRoute in lib/helpers/session-actor.ts.
     ignores: ["lib/helpers/session-actor.ts", "tests/support/**"],
     rules: {
-      "no-restricted-imports": ["error", { paths: [createActingFreelancerPath] }],
+      "no-restricted-imports": ["error", { paths: [createActingFreelancerPath, ...pdfToolkitPaths, ...moduleLevelEditorStorePaths] }],
+    },
+  },
+  {
+    files: ["lib/pdf/**"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: [createActingFreelancerPath, ...moduleLevelEditorStorePaths] }],
     },
   },
   {
@@ -36,7 +77,7 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath],
+          paths: ["next/headers", "next/cache", "next/navigation", "@/auth", "next-auth", createActingFreelancerPath, ...pdfToolkitPaths, ...moduleLevelEditorStorePaths],
           patterns: ["next-auth/*", "@/lib/actions", "@/lib/actions/*", "lib/actions", "lib/actions/*"],
         },
       ],
@@ -53,9 +94,23 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-syntax": [
         "error",
+        actingFreelancerCastRestriction,
+      ],
+    },
+  },
+  {
+    // ADR-0006 (T8): display formatting goes only through lib/format. components/ui holds third-party
+    // primitives (chart, calendar). Composed with the ActingFreelancer cast rule above, which this
+    // block would otherwise replace.
+    files: ["components/**", "app/**"],
+    ignores: ["components/ui/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        actingFreelancerCastRestriction,
         {
-          selector: "TSAsExpression[typeAnnotation.typeName.name='ActingFreelancer']",
-          message: "Only lib/services/_shared/acting-freelancer.ts may cast to ActingFreelancer.",
+          selector: "CallExpression[callee.property.name=/^(toFixed|toLocale\\w*String)$/]",
+          message: "Format amounts, days and moments through @/lib/format (formatMoney, formatDay, formatMoment).",
         },
       ],
     },

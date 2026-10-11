@@ -1,0 +1,230 @@
+T53 Linux e2e run (review r3 R3), 2026-10-10
+HEAD: 5bdf5c3 (feature/editor-ux) + working tree = the T53 commit's changes (the sign-in helper, the bfcache spec, the server-action wait, playwright.config.ts workers, the nightly, the two READMEs); after the runs only this log, the tracker row and a Prettier pass over session-isolation-bfcache.spec.ts (whitespace only) changed
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop); @playwright/test 1.63.0; Node in the image v24.20.0 (pnpm warns: repo wants >=22.18 <23); pnpm 10.25.0 via corepack
+How (same harness as _audit/T46-linux-e2e-2026-10-10.log): repo copied (no node_modules/.git/.env/test-results) into the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`,
+  then `pnpm test:e2e` inside the container with CI=1 in the container's environment (so the command is exactly the README's `CI=1 pnpm test:e2e`, no --workers flag).
+  Docker socket mounted from the host (-v /var/run/docker.sock), static Docker CLI 27.3.1 (aarch64) in the container, TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+  (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only; the nightly keeps Ryuk). The app server and its throwaway Postgres container come
+  from playwright.config.ts's webServer (start-app-server.mjs). .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases.
+  docker run -d --name t53-e2e --ipc=host --init --add-host=host.docker.internal:host-gateway -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true \
+    -e CI=1 -v /var/run/docker.sock:/var/run/docker.sock -v <repo copy>:/src:ro mcr.microsoft.com/playwright:v1.63.0-noble sleep infinity; then docker exec: setup (copy /src to /work,
+    Docker CLI, .env, install, prisma generate) and the runs below. The final runs used a fresh copy and a fresh install.
+Docker VM: 10 CPUs, 7.75 GiB memory (aarch64)
+
+== RED: CI=1 pnpm test:e2e at 5bdf5c3, before the fixes (no workers in the config, so Playwright's default: half the VM CPUs = 5) ==
+Running 111 tests using 5 workers
+  ✘  105 [chromium] › tests/e2e/session-isolation-bfcache.spec.ts:292:1 › AC-07: with the back/forward cache on, B pressing Back to A's editor never sees A's invoice (5.6s)
+  ✘  106 [chromium] › tests/e2e/session-isolation-bfcache.spec.ts:311:1 › AC-07: when A's editor IS restored from the cache (no-store ignored), the restore guard keeps A's invoice off screen (5.0s)
+  ✘  110 [webkit] › tests/e2e/session-isolation.spec.ts:378:1 › AC-07: B pressing Back to A's editor address never sees A's invoice (12.6s)
+  ✘  108 [webkit] › tests/e2e/session-isolation.spec.ts:288:1 › AC-07: after sign-out a direct request for A's editor address carries no invoice data (15.8s)
+    Error: the back/forward cache is not live in this run (http://127.0.0.1:4311/privacy: NetworkRequestRedirected)
+    Error: the back/forward cache is not live in this run (http://127.0.0.1:4311/privacy: IgnoreEventAndEvict)
+    Error: page.goto: Navigation to "http://127.0.0.1:4311/invoices/cmv2jrx9t00050lqi5cvihfhh/edit" is interrupted by another navigation to "http://127.0.0.1:4311/dashboard"
+    Error: page.goto: Navigation to "http://127.0.0.1:4311/invoices/cmv2js01r000590qiha04m5cs/edit" is interrupted by another navigation to "http://127.0.0.1:4311/dashboard"
+  4 failed
+  1 skipped
+  106 passed (4.3m)
+us03-status-lifecycle passed in this run (it failed in T46 run 1; its cause is below, from the T46 trace).
+
+== Causes and fixes ==
+1. WebKit session-isolation "page.goto ... is interrupted by another navigation to /dashboard" (288 and 378; any test that signs in and then navigates).
+   The Sign-in link lands on /dashboard. The private layout's TimeZoneCookie (components/time-zone-cookie.tsx) writes the `tz` cookie on mount and calls router.refresh().
+   On a busy machine the sign-in helper's `networkidle` came before the dashboard hydrated, so the helper returned and the caller's page.goto started just as that refresh
+   fetch was sent. WebKit cancels the in-flight fetch when the new navigation starts; the trace has the page's own console line
+   "Failed to fetch RSC payload for http://127.0.0.1:4311/dashboard. Falling back to browser navigation. TypeError: Load failed", 0.27 s after the goto began, and
+   Next.js answers a failed RSC fetch with a full navigation to that URL (next/dist/client/components/router-reducer/fetch-server-response.js), which interrupts the goto.
+   [Corrected by T57 (review r4 P5): it IS a product bug; the window lasts a network round trip, not one tick, and a Freelancer's first navigation could be lost. T57 fixes it in the product and removes this harness wait.] Fix: tests/e2e/support/genuine-session.ts now, when the browser's zone is not yet in
+   the `tz` cookie, waits for that router.refresh() request (an RSC request that is neither a prefetch nor a server action) to finish, or, if it fails, for the full load
+   Next.js does instead. Chromium kept the fetch alive, which is why only WebKit showed it.
+2. session-isolation-bfcache 292/311 "the back/forward cache is not live in this run (/privacy: IgnoreEventAndEvict | NetworkRequestRedirected)".
+   The control opened /privacy and left it for /terms right after `load`. The root layout's Vercel Analytics and Speed Insights load their scripts only after hydration;
+   locally the proxy redirects those requests to sign-in. In the traces /privacy was left 80 ms after the first script request went out (it was redirected while the page sat in
+   the cache: NetworkRequestRedirected), or before hydration had finished at all (IgnoreEventAndEvict). Chromium then evicts the page, so the control is right to refuse.
+   Fix: the spec waits until the new document has hydrated and both analytics script requests have ended (afterHydrationRequestsEnded) before leaving /privacy, and before
+   A leaves the editor (as well as the existing networkidle). No product change.
+3. us03-status-lifecycle "Mark as Paid": the row still said Pending after the 5 s expect timeout (T46 run 1). In that trace the Mark as Paid server action POST alone took 4.1 s
+   on the loaded VM, and the row check started as soon as the click returned, so its 5 s ran out 0.9 s after the answer arrived, before the row was redrawn. Not a race in the product: the answer arrives, just late.
+   Fix: tests/e2e/support/invoice-ui.ts untilServerActionDone() waits for the server action's response to finish before the row is checked; used for Mark as Paid,
+   Mark as Pending, Cancel invoice and Duplicate in us03 and Mark as Paid in us05-two-tabs.
+Guard: playwright.config.ts now sets `workers: process.env.CI ? 2 : undefined`, so `CI=1 pnpm test:e2e` (the README's command) and the nightly (now plain `pnpm test:e2e`) run
+the same load. The fixes were proven first at 5 workers, the load that failed before.
+
+== Fixes at the RED load: CI=1 pnpm test:e2e --workers=5 (fixes applied, same container) ==
+Running 111 tests using 5 workers
+  -   82 [chromium] › tests/e2e/pdf-on-demand.spec.ts:279:3 › first PDF timing › p95 of Download click to file, 20 runs at 10 Mbit/s, is within 3 s
+  1 skipped
+  110 passed (5.4m)
+exit code: 0, wall 324s
+
+== Final run 1: CI=1 pnpm test:e2e (fresh copy, workers from the config = 2) ==
+Running 111 tests using 2 workers
+  ✓    1 [chromium] › tests/e2e/accessibility.spec.ts:51:5 › AC-11: no serious or critical accessibility violations › the editor, new and existing invoice at phone 390x844 (6.6s)
+  ✓    2 [chromium] › tests/e2e/accessibility.spec.ts:51:5 › AC-11: no serious or critical accessibility violations › the editor, new and existing invoice at desktop 1280x800 (7.1s)
+  ✓    4 [chromium] › tests/e2e/accessibility.spec.ts:126:3 › AC-11: no serious or critical accessibility violations › the invoices list and the dashboard (5.9s)
+  ✓    5 [chromium] › tests/e2e/csp-gate.spec.ts:86:5 › AC-20 CSP release gate — data-free public flows (also on preview) › /login opens with zero violations (837ms)
+  ✓    6 [chromium] › tests/e2e/csp-gate.spec.ts:86:5 › AC-20 CSP release gate — data-free public flows (also on preview) › / opens with zero violations (728ms)
+  ✓    7 [chromium] › tests/e2e/csp-gate.spec.ts:86:5 › AC-20 CSP release gate — data-free public flows (also on preview) › /privacy opens with zero violations (784ms)
+  ✓    3 [chromium] › tests/e2e/accessibility.spec.ts:91:3 › AC-11: no serious or critical accessibility violations › the editor with a refused save, at desktop and phone width (9.2s)
+  ✓    8 [chromium] › tests/e2e/csp-gate.spec.ts:86:5 › AC-20 CSP release gate — data-free public flows (also on preview) › /terms opens with zero violations (693ms)
+  ✓   10 [chromium] › tests/e2e/csp-gate.spec.ts:94:3 › AC-20 CSP release gate — data-free public flows (also on preview) › a client-side error is tunnelled (/monitoring answers 200 on preview) without a violation (195ms)
+  ✓   11 [chromium] › tests/e2e/csp-gate.spec.ts:138:3 › AC-20 CSP release gate — core flows complete with zero policy violations › the Sign-in link flow left a genuine session on a private page (10ms)
+  ✓   12 [chromium] › tests/e2e/csp-gate.spec.ts:142:3 › AC-20 CSP release gate — core flows complete with zero policy violations › dashboard chart renders (486ms)
+  ✓    9 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone Pacific/Honolulu, browser Pacific/Kiritimati, clock 23:55: every page shows the stored days (7.6s)
+  ✓   13 [chromium] › tests/e2e/csp-gate.spec.ts:150:3 › AC-20 CSP release gate — core flows complete with zero policy violations › invoice PDF: preview, download and print (3.7s)
+  ✓   15 [chromium] › tests/e2e/csp-gate.spec.ts:182:3 › AC-20 CSP release gate — core flows complete with zero policy violations › a client-side error is tunnelled without a violation (312ms)
+  ✓   16 [chromium] › tests/e2e/csp-gate.spec.ts:188:3 › AC-20 CSP release gate — core flows complete with zero policy violations › settings: profile avatar and privacy page (546ms)
+  ✓   17 [chromium] › tests/e2e/csp-gate.spec.ts:201:3 › AC-20 CSP release gate — core flows complete with zero policy violations › logo and customer-image previews (3.8s)
+  ✓   18 [chromium] › tests/e2e/csp-gate.spec.ts:215:3 › AC-20 CSP release gate — core flows complete with zero policy violations › data export (743ms)
+  ✓   19 [chromium] › tests/e2e/csp-gate.spec.ts:223:3 › AC-20 CSP release gate — core flows complete with zero policy violations › legal pages (1.6s)
+  ✓   14 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone Pacific/Honolulu, browser Pacific/Kiritimati, clock 00:05: every page shows the stored days (10.4s)
+  ✓   20 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone UTC, browser Pacific/Honolulu, clock 23:55: every page shows the stored days (11.2s)
+  ✓   21 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone UTC, browser Pacific/Honolulu, clock 00:05: every page shows the stored days (10.9s)
+  ✓   22 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone Pacific/Kiritimati, browser Pacific/Honolulu, clock 23:55: every page shows the stored days (10.5s)
+  ✓   23 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone Pacific/Kiritimati, browser Pacific/Honolulu, clock 00:05: every page shows the stored days (10.5s)
+  ✓   24 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone none saved, browser UTC, clock 23:55: every page shows the stored days (10.1s)
+  ✓   25 [chromium] › tests/e2e/date-matrix.spec.ts:101:5 › AC-08: zone none saved, browser UTC, clock 00:05: every page shows the stored days (9.8s)
+  ✓   26 [chromium] › tests/e2e/date-matrix.spec.ts:255:3 › AC-08: a new invoice opened at 23:58 in UTC+14, browser Pacific/Honolulu: today and the due date are the Freelancer's day (4.8s)
+  ✓   27 [chromium] › tests/e2e/date-matrix.spec.ts:255:3 › AC-08: a new invoice opened at 23:58 in UTC-10, browser Pacific/Kiritimati: today and the due date are the Freelancer's day (4.5s)
+  ✓   28 [chromium] › tests/e2e/editor-first-display.spec.ts:81:3 › AC-06: a new invoice looks the same in the server HTML and after hydration (4.1s)
+  ✓   29 [chromium] › tests/e2e/editor-first-display.spec.ts:81:3 › AC-06: a existing invoice looks the same in the server HTML and after hydration (4.3s)
+  ✓   30 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:122:3 › AC-03/04/05c: first Save after a create keeps a quantity typed during it (4.9s)
+  ✓   31 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:164:3 › AC-05b: first Save and issue after a create keeps the dropped-edits notice (4.2s)
+  ✓   32 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:122:3 › AC-03/04/05c: first Save after a Retry create keeps a quantity typed during it (5.6s)
+  ✓   33 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:164:3 › AC-05b: first Save and issue after a Retry create keeps the dropped-edits notice (5.2s)
+  ✓   34 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:194:1 › AC-03/04/05: a quantity typed across the create and the swap to the edit page is kept whole (5.0s)
+  ✓   35 [chromium] › tests/e2e/editor-first-save-after-create.spec.ts:240:1 › control: a quantity typed during a Save of an opened invoice stays (3.8s)
+  ✓   36 [chromium] › tests/e2e/editor-layout.spec.ts:23:1 › AC-13: the server HTML at 390 px is the phone layout, from one tree (3.1s)
+  ✓   37 [chromium] › tests/e2e/editor-layout.spec.ts:62:1 › AC-14: «12.» in a focused line field survives a breakpoint resize both ways (3.9s)
+  ✓   38 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: an existing invoice at phone width has the same structure before and after hydration (3.8s)
+  ✓   39 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: an existing invoice at desktop width has the same structure before and after hydration (3.7s)
+  ✓   40 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: a new invoice at phone width has the same structure before and after hydration (3.9s)
+  ✓   41 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: a new invoice at desktop width has the same structure before and after hydration (3.9s)
+  ✓   42 [chromium] › tests/e2e/editor-layout.spec.ts:190:3 › AC-13: desktop and phone editor match their baselines for an existing invoice (4.2s)
+  ✓   43 [chromium] › tests/e2e/editor-layout.spec.ts:190:3 › AC-13: desktop and phone editor match their baselines for a new invoice (4.1s)
+  ✓   45 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: updated - Retry shows the same address, dialog and unsaved flag as Save (10.3s)
+  ✓   44 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: created - Retry shows the same address, dialog and unsaved flag as Save (13.0s)
+  ✓   46 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: issued - Retry shows the same address, dialog and unsaved flag as Save (9.0s)
+  ✓   47 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: changed elsewhere - Retry shows the same address, dialog and unsaved flag as Save (8.8s)
+  ✓   48 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: totals changed - Retry shows the same address, dialog and unsaved flag as Save (9.8s)
+  ✓   49 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: totals changed on issue - Retry shows the same address, dialog and unsaved flag as Save (10.7s)
+  ✓   51 [chromium] › tests/e2e/invoice-integrity/us01-issued-details-survive.spec.ts:20:1 › AC-01: after the records change, the editor and the PDF still show the old issued details (6.3s)
+  ✓   50 [chromium] › tests/e2e/editor-retry-parity.spec.ts:236:3 › AC-05c/05d: field error - Retry shows the same address, dialog and unsaved flag as Save (9.5s)
+  ✓   53 [chromium] › tests/e2e/invoice-integrity/us03-status-lifecycle.spec.ts:18:1 › AC-04: mark paid shows the payment date, undo to pending clears it (4.6s)
+  ✓   52 [chromium] › tests/e2e/invoice-integrity/us01-issued-details-survive.spec.ts:92:1 › AC-02: a draft follows the corrected Customer on save, and stops following once issued (6.1s)
+  ✓   54 [chromium] › tests/e2e/invoice-integrity/us03-status-lifecycle.spec.ts:60:1 › AC-06: cancelling asks for confirmation (SCR-04) and, once confirmed, the row shows cancelled (4.7s)
+  ✓   55 [chromium] › tests/e2e/invoice-integrity/us03-status-lifecycle.spec.ts:94:1 › AC-06: a cancelled invoice is read-only, its row offers four actions, and Duplicate opens an editable draft (5.1s)
+  ✓   56 [chromium] › tests/e2e/invoice-integrity/us04-overdue-due-date.spec.ts:15:1 › AC-07: after moving the due date into the future, the list no longer shows the invoice overdue (5.2s)
+  ✓   57 [chromium] › tests/e2e/invoice-integrity/us05-two-tabs.spec.ts:17:1 › AC-10: a stale editor save opens the changed-elsewhere dialog and stores nothing; reload shows paid (5.0s)
+  ✓   58 [chromium] › tests/e2e/invoice-integrity/us11-foreign-invoice-not-found.spec.ts:12:1 › AC-23: a foreign invoice link and a missing invoice link render the identical not-found screen (3.2s)
+  ✓   59 [chromium] › tests/e2e/mcp-invoice-link.spec.ts:14:1 › AC-19: the invoice link leads through sign-in back to the invoice (2.5s)
+  ✓   61 [chromium] › tests/e2e/mcp-overdue-surfaces.spec.ts:39:3 › AC-24 a past-due unmarked invoice is overdue on every surface › dashboard recent invoices (417ms)
+  ✓   60 [chromium] › tests/e2e/mcp-key-flows.spec.ts:40:3 › Connect your AI: reach it, create a key, revoke it › AC-01: the dashboard entry point opens the connect page (770ms)
+  ✓   62 [chromium] › tests/e2e/mcp-overdue-surfaces.spec.ts:45:3 › AC-24 a past-due unmarked invoice is overdue on every surface › invoice list (704ms)
+  ✓   64 [chromium] › tests/e2e/mcp-overdue-surfaces.spec.ts:51:3 › AC-24 a past-due unmarked invoice is overdue on every surface › customer page (406ms)
+  ✓   63 [chromium] › tests/e2e/mcp-key-flows.spec.ts:49:3 › Connect your AI: reach it, create a key, revoke it › AC-01: the settings navigation opens the connect page (822ms)
+  ✓   65 [chromium] › tests/e2e/mcp-overdue-surfaces.spec.ts:65:3 › AC-24 a past-due unmarked invoice is overdue on every surface › invoice page (487ms)
+  ✓   66 [chromium] › tests/e2e/mcp-key-flows.spec.ts:60:3 › Connect your AI: reach it, create a key, revoke it › AC-02: the new key is shown once and is gone after a reload (1.5s)
+  ✓   68 [chromium] › tests/e2e/mcp-key-flows.spec.ts:87:3 › Connect your AI: reach it, create a key, revoke it › AC-06: revoking after confirming moves the key to the revoked list (1.1s)
+  ✓   67 [chromium] › tests/e2e/mcp-proxy.spec.ts:42:3 › AC-09 the Assistant endpoint refuses a call without a Personal key › a Visitor with no key and no session is refused (47ms)
+  ✓   70 [chromium] › tests/e2e/mcp-proxy.spec.ts:57:3 › AC-09 the Assistant endpoint refuses a call without a Personal key › a signed-in browser calling with its session cookie and no key is refused (12ms)
+  ✓   71 [chromium] › tests/e2e/mcp-proxy.spec.ts:70:3 › AC-09 the Assistant endpoint refuses a call without a Personal key › a key-shaped value that is not a real key is refused the same way (12ms)
+  ✓   69 [chromium] › tests/e2e/mcp-time-zone.spec.ts:16:1 › AC-22: a Kyiv browser has its zone saved on the first visit and shown in settings (3.9s)
+  ✓   72 [chromium] › tests/e2e/mcp-time-zone.spec.ts:42:1 › AC-22: changing the zone in settings changes what the dashboard shows as overdue (4.9s)
+  ✓   73 [chromium] › tests/e2e/money-locale.spec.ts:114:3 › AC-09: browser language uk-UA: editor, preview, PDF and Debtors show $1,234.50 and UAH 1,234.50 (7.7s)
+  ✓   75 [chromium] › tests/e2e/pdf-on-demand.spec.ts:41:1 › control: the tracker counts a toolkit chunk whose body is still being read when asked (701ms)
+  ✓   74 [chromium] › tests/e2e/money-locale.spec.ts:114:3 › AC-09: browser language de-DE: editor, preview, PDF and Debtors show $1,234.50 and UAH 1,234.50 (6.8s)
+  ✓   77 [chromium] › tests/e2e/pdf-on-demand.spec.ts:108:1 › AC-01: opening the invoice preview first fetches no toolkit chunk, and shows the invoice (4.6s)
+  ✓   78 [chromium] › tests/e2e/pdf-on-demand.spec.ts:132:1 › AC-01: after the first Download, a later Print and the preview fetch no new toolkit chunk (5.7s)
+  ✓   76 [chromium] › tests/e2e/pdf-on-demand.spec.ts:61:1 › AC-01: pages open without the toolkit; the first Download fetches it, later actions reuse it (11.5s)
+  ✓   79 [chromium] › tests/e2e/pdf-on-demand.spec.ts:187:1 › AC-02: with the connection dropped Download offers to try again, and trying again works (4.9s)
+  ✓   80 [chromium] › tests/e2e/pdf-on-demand.spec.ts:212:1 › AC-02b: a toolkit chunk gone after a release shows the newer-version message, and Reload recovers (6.2s)
+  -   82 [chromium] › tests/e2e/pdf-on-demand.spec.ts:279:3 › first PDF timing › p95 of Download click to file, 20 runs at 10 Mbit/s, is within 3 s
+  ✓   83 [chromium] › tests/e2e/route-sweep.spec.ts:132:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › the manifest is read and includes the nested routes the old hand list missed (1ms)
+  ✓   84 [chromium] › tests/e2e/route-sweep.spec.ts:141:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › the sweep exclusion matches exactly one manifest entry (0ms)
+  ✓   85 [chromium] › tests/e2e/route-sweep.spec.ts:147:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › every protected built path is denied with no session (pages redirect, handlers 401) (130ms)
+  ✓   86 [chromium] › tests/e2e/route-sweep.spec.ts:195:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › every allowlisted built path returns 200 with no redirect to sign-in (791ms)
+  ✓   87 [chromium] › tests/e2e/route-sweep.spec.ts:233:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › a server action (Next-Action header) with no session is refused with no data (9ms)
+  ✓   88 [chromium] › tests/e2e/route-sweep.spec.ts:284:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › every anonymous-action shape POSTed to a public page is refused with no data (24ms)
+  ✓   89 [chromium] › tests/e2e/route-sweep.spec.ts:317:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › a header-less JSON POST to a private page is refused with no data (8ms)
+  ✓   90 [chromium] › tests/e2e/route-sweep.spec.ts:334:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › a form-encoded POST naming an action is refused with no data (10ms)
+  ✓   91 [chromium] › tests/e2e/route-sweep.spec.ts:356:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › POST /login naming a non-sign-in action is refused and the action does not run (34ms)
+  ✓   92 [chromium] › tests/e2e/route-sweep.spec.ts:387:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › POST /login naming getCustomers never returns another account's customer (44ms)
+  ✓   93 [chromium] › tests/e2e/route-sweep.spec.ts:428:3 › AC-05 route sweep — every built non-public route denies a cookie-less request › an unseen path (added in the future, not on the allowlist) still denies by default (6ms)
+  ✓   81 [chromium] › tests/e2e/pdf-on-demand.spec.ts:238:1 › AC-09: a quantity changed and not saved is not in the PDF the list downloads; it shows the last save (4.5s)
+  ✓   95 [chromium] › tests/e2e/route-sweep.spec.ts:575:3 › AC-04 / AC-06 — a failing sign-in check never ends a session › AC-04: while the check fails a private page goes to sign-in and data is refused; once it recovers the same cookie opens the dashboard (295ms)
+  ✓   96 [chromium] › tests/e2e/route-sweep.spec.ts:618:3 › AC-04 / AC-06 — a failing sign-in check never ends a session › AC-04: hydrated sign-in and public pages on the failing server leave the genuine cookie untouched (2.9s)
+  ✓   97 [chromium] › tests/e2e/route-sweep.spec.ts:652:3 › AC-04 / AC-06 — a failing sign-in check never ends a session › AC-06: the sign-in and landing pages render in one response while the check fails, and sign-in works once it recovers (4.2s)
+  ✓   94 [chromium] › tests/e2e/route-sweep.spec.ts:493:3 › AC-05 route sweep — a genuine session reaches every private page › every private page loads directly with no redirect to sign-in and zero CSP violations (21.3s)
+  ✓   99 [chromium] › tests/e2e/session-isolation.spec.ts:288:1 › AC-07: after sign-out a direct request for A's editor address carries no invoice data (3.3s)
+  ✓   98 [chromium] › tests/e2e/session-isolation.spec.ts:211:1 › AC-07: B never sees A's invoice through sign-out, sign-in, Back and Forward (20.7s)
+  ✓  100 [chromium] › tests/e2e/session-isolation.spec.ts:323:1 › AC-07: Back and Forward between two invoices of one Freelancer show the right one each time (16.3s)
+  ✓  101 [chromium] › tests/e2e/session-isolation.spec.ts:378:1 › AC-07: B pressing Back to A's editor address never sees A's invoice (12.2s)
+  ✓  103 [chromium] › tests/e2e/smoke.spec.ts:5:3 › e2e harness smoke › a browser can load a page served by the harness (79ms)
+  ✓  104 [chromium] › tests/e2e/smoke.spec.ts:11:3 › e2e harness smoke › DB-backed e2e tests skip cleanly without a container runtime (0ms)
+  ✓  102 [chromium] › tests/e2e/session-isolation.spec.ts:426:1 › AC-07 (T38 handoff): B never sees the invoice A created, opening a new invoice in the same tab (7.9s)
+  ✓  105 [chromium] › tests/e2e/session-isolation-bfcache.spec.ts:369:1 › AC-07: with the back/forward cache on, B pressing Back to A's editor never sees A's invoice (17.5s)
+  ✓  106 [chromium] › tests/e2e/session-isolation-bfcache.spec.ts:388:1 › AC-07: when A's editor IS restored from the cache (no-store ignored), the restore guard keeps A's invoice off screen (18.5s)
+  ✓  108 [webkit] › tests/e2e/session-isolation.spec.ts:288:1 › AC-07: after sign-out a direct request for A's editor address carries no invoice data (7.5s)
+  ✓  107 [webkit] › tests/e2e/session-isolation.spec.ts:211:1 › AC-07: B never sees A's invoice through sign-out, sign-in, Back and Forward (30.1s)
+  ✓  109 [webkit] › tests/e2e/session-isolation.spec.ts:323:1 › AC-07: Back and Forward between two invoices of one Freelancer show the right one each time (25.4s)
+  ✓  110 [webkit] › tests/e2e/session-isolation.spec.ts:378:1 › AC-07: B pressing Back to A's editor address never sees A's invoice (18.2s)
+  ✓  111 [webkit] › tests/e2e/session-isolation.spec.ts:426:1 › AC-07 (T38 handoff): B never sees the invoice A created, opening a new invoice in the same tab (15.6s)
+  1 skipped
+  110 passed (5.8m)
+final run 1 exit code: 0, wall 349s
+
+== Final run 2 (stability rerun, same copy) ==
+Running 111 tests using 2 workers
+  -   82 [chromium] › tests/e2e/pdf-on-demand.spec.ts:279:3 › first PDF timing › p95 of Download click to file, 20 runs at 10 Mbit/s, is within 3 s
+  1 skipped
+  110 passed (5.4m)
+final run 2 exit code: 0, wall 323sResult: both final runs 110 passed, 1 skipped (first PDF timing p95: needs E2E_TIMING=1), 0 failed, 0 flaky; exit 0. Plus the 5-worker run above: 110 passed, 1 skipped.
+
+== x86_64: emulated compare run of the layout spec ==
+Same image pulled for linux/amd64 (x86_64 Chromium, /ms-playwright/chromium-1243/chrome-linux64), run with `docker run --platform linux/amd64` under Docker Desktop emulation,
+same harness (x86_64 Docker CLI, fresh install inside, CI=1). Command: `pnpm test:e2e tests/e2e/editor-layout.spec.ts --project=chromium` (no --update-snapshots).
+Running 8 tests using 2 workers
+  ✓  1 [chromium] › tests/e2e/editor-layout.spec.ts:62:1 › AC-14: «12.» in a focused line field survives a breakpoint resize both ways (13.3s)
+  ✓  2 [chromium] › tests/e2e/editor-layout.spec.ts:23:1 › AC-13: the server HTML at 390 px is the phone layout, from one tree (13.7s)
+  ✓  3 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: an existing invoice at phone width has the same structure before and after hydration (10.5s)
+  ✓  4 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: an existing invoice at desktop width has the same structure before and after hydration (11.4s)
+  ✓  5 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: a new invoice at phone width has the same structure before and after hydration (11.0s)
+  ✓  6 [chromium] › tests/e2e/editor-layout.spec.ts:137:5 › AC-13: a new invoice at desktop width has the same structure before and after hydration (11.1s)
+  ✓  7 [chromium] › tests/e2e/editor-layout.spec.ts:190:3 › AC-13: desktop and phone editor match their baselines for an existing invoice (10.0s)
+  ✓  8 [chromium] › tests/e2e/editor-layout.spec.ts:190:3 › AC-13: desktop and phone editor match their baselines for a new invoice (9.4s)
+  8 passed (2.2m)
+amd64 layout run exit code: 0, wall 136s
+The two baseline tests (new and existing invoice, desktop and phone) match the arm64-drawn baselines on x86_64 Chromium within maxDiffPixelRatio 0.002. This is emulation,
+not native x86_64 hardware; the nightly on ubuntu-latest is the native check.
+
+== Layout baselines: the three re-captured in T46 (fc03e39) against the ones recorded from main ==
+The baselines did not exist at 72cf58b (`git show 72cf58b:tests/e2e/editor-layout.spec.ts-snapshots/...` is empty). They were first recorded from main's app (72cf58b) in d40c9aa
+("masked Linux baselines from main", tests/e2e/README.md), so d40c9aa is the "old" image. "New" is HEAD (re-taken in fc03e39). Old, new and diff images are in the repo under
+_audit/T58-layout-baselines/<name>.{old,new,diff}.png (T58). The old and new images are the committed baselines; the diff images (red = differing pixels) are rebuilt from git with
+_audit/T58-layout-baselines/build.mjs, not taken from Playwright's comparator. Their percentages (percentages.txt) also include the later T66 banner text and T67 re-capture, so they run higher than the ones below, by up to 2.09 points (new-invoice phone: 11.09% there, 9% here; see the T58 README).
+- editor-new-invoice-desktop-chromium-linux.png: 35% of pixels differ.
+  Editor column: the new invoice now opens with the default sender profile and bank account filled in (T22), so "Test Sender Profile" and "Test Bank (USD)" are chosen
+  and their detail cards show; everything below moves down about 220 px. Preview column: it was fully masked; now only the preview's header and sender/bill-to blocks are masked,
+  so the empty items table, the $0.00 subtotal and total and the payment block are compared. The preview now shows the red "The logo link is not a secure web address.
+  The PDF was made without it." notice (the seeded sender's logo is http), as the existing-invoice baseline already did. The cookie banner is now fully visible (in the old
+  image the masked date fields were drawn over it).
+- editor-new-invoice-phone-chromium-linux.png: 9% differ. Same cause as the desktop editor column: sender and bank are pre-filled with their cards, so "To" moves down
+  and "Invoice Details" (with its masked invoice number) falls below the fold. Header, cookie banner and Accept button are unchanged.
+- editor-existing-invoice-desktop-chromium-linux.png: 26% differ, all in the preview column. The editor column and header are pixel-identical. Only the narrower preview mask
+  changed: the preview's table (Test Item, $100.00, 1 pcs, $100.00), subtotal, total and payment information are now visible and compared, and the right part of the
+  cookie banner (with the Accept button) that the old full mask covered.
+- editor-existing-invoice-phone-chromium-linux.png was not re-taken; it is byte-identical to d40c9aa.
+No change is in the editor layout itself: every difference comes from the pre-filled sender/bank of T22 or from the narrower preview mask of T46.
+
+== Owner review: pending ==
+T67 (2a5df97) re-took all four baselines again because the cookie banner's text changed (T66): only the banner line differs, plus a scrollbar thumb on the
+existing-invoice phone image; see _audit/T67-linux-e2e-2026-10-10.log. T71 (review r7) rebuilt the review images against bd2278c, so every *.new.png is
+byte-identical to the baseline CI compares, and added images for the existing-invoice phone baseline (d40c9aa -> HEAD: the cookie banner, rows 737-843, and the vanished overlay scrollbar thumb
+at x 382-388, rows 62-278; nothing else). T73 (review r8) added an exact-diff image per baseline, red wherever any byte differs, because the 0.2-threshold diff hides the thumb.
+The owner must look at the old/new/diff/exact-diff images of these four files (kept in the repo, with a rebuild command, in _audit/T58-layout-baselines/README.md) and accept or reject them:
+  tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-desktop-chromium-linux.png
+  tests/e2e/editor-layout.spec.ts-snapshots/editor-new-invoice-phone-chromium-linux.png
+  tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-desktop-chromium-linux.png
+  tests/e2e/editor-layout.spec.ts-snapshots/editor-existing-invoice-phone-chromium-linux.png
+The verdict covers these four baselines as they are at HEAD (unchanged since 2a5df97).
+The description above is the implementer's, not a review. To record the review, replace this section's "pending" with the owner's name, date and verdict.

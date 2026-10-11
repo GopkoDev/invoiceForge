@@ -3,15 +3,13 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { InvoiceItemRow } from './invoice-item-row';
-import { InvoiceItemCard } from './invoice-item-card';
 import { InvoiceFormItem } from '@/types/invoice/types';
 
 interface SortableItemProps {
   item: InvoiceFormItem;
-  isMobile: boolean;
 }
 
-export function SortableItem({ item, isMobile }: SortableItemProps) {
+export function SortableItem({ item }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -26,17 +24,6 @@ export function SortableItem({ item, isMobile }: SortableItemProps) {
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-
-  if (isMobile) {
-    return (
-      <div ref={setNodeRef} style={style}>
-        <InvoiceItemCard
-          itemId={item.id}
-          dragHandleProps={{ attributes, listeners }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div ref={setNodeRef} style={style}>

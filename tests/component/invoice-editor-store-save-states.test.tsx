@@ -2,7 +2,7 @@
 // legacy flags and the TOTALS_CHANGED confirmation state.
 // See docs/features/architecture-hardening/tasks/t16-editor-number-and-save-states.md
 //
-// These tests exercise store/invoice-editor-store/use-invoice-editor-store.ts directly (the
+// These tests exercise store/invoice-editor-store/create-invoice-editor-store.ts directly (the
 // smallest unit that owns each SCR-03/SCR-15 state per the task's harness note) and mock only the
 // server actions it calls. The store today has no `fieldErrors`, `totalsChanged`, `legacy` or
 // `invoiceNumberHint` state, and `selectSenderProfile` fills the number field with the hint
@@ -24,7 +24,10 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
 }));
 
 // Imported after the mock so the store picks up the mocked actions module.
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store/use-invoice-editor-store');
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+let store: ReturnType<typeof createInvoiceEditorStore>;
+const emptyData = { senderProfiles: [], bankAccounts: [], customers: [], products: [], customPrices: [], initialData: emptyEditorData().initialData };
 
 function savedInvoice(overrides: Partial<SavedInvoice> = {}): SavedInvoice {
   return {
@@ -77,7 +80,7 @@ const bankAccountA = {
 const bankAccountB = { ...bankAccountA, id: 'bank-b', senderProfileId: 'profile-b', bankName: 'Bank B' };
 
 function resetStore() {
-  useInvoiceEditorStore.getState().reset();
+  store = createInvoiceEditorStore(emptyData);
 }
 
 describe('invoice editor store — save states (T16)', () => {
@@ -95,18 +98,19 @@ describe('invoice editor store — save states (T16)', () => {
   it('AC-06: leaves the number field empty and exposes the proposed number as a separate hint when a sender profile is selected for a new invoice', async () => {
     generateInvoiceNumberMock.mockResolvedValue(ok('INV-0100'));
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
 
-    await useInvoiceEditorStore.getState().selectSenderProfile('profile-a');
+    await store.getState().selectSenderProfile('profile-a');
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.invoiceNumber).toBe('');
     expect(after.invoiceNumberHint).toBe('INV-0100');
   });
@@ -118,13 +122,14 @@ describe('invoice editor store — save states (T16)', () => {
       ok(savedInvoice({ invoiceNumber: 'INV-0101', subtotal: 42.42, taxAmount: 4.24, total: 46.66 }))
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     // The browser's own (possibly different) computed total before saving.
     state.updateFields({
@@ -135,9 +140,9 @@ describe('invoice editor store — save states (T16)', () => {
       ],
     });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().save('save');
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.invoiceNumber).toBe('INV-0101');
     expect(after.total).toBe(46.66);
     expect(after.subtotal).toBe(42.42);
@@ -153,19 +158,20 @@ describe('invoice editor store — save states (T16)', () => {
       fail('CONFLICT', message, { fieldErrors: { invoiceNumber: [message] } })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     state.updateFields({ invoiceNumber: 'INV-0001', senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().save('save');
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.fieldErrors?.invoiceNumber).toEqual([message]);
     // The save was blocked: the manually typed number the Freelancer entered is kept.
     expect(after.formData.invoiceNumber).toBe('INV-0001');
@@ -183,13 +189,14 @@ describe('invoice editor store — save states (T16)', () => {
       })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
     });
     state.updateFields({
       senderProfileId: 'profile-a',
@@ -200,9 +207,9 @@ describe('invoice editor store — save states (T16)', () => {
       ],
     });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().save('save');
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.fieldErrors?.['items.0.price']).toEqual(["Price can't be negative."]);
     expect(after.fieldErrors?.discount).toEqual(["Discount can't exceed the subtotal plus shipping."]);
     // Entered (invalid) values are kept, not reverted.
@@ -216,7 +223,7 @@ describe('invoice editor store — save states (T16)', () => {
   it('AC-11: clears the number field and fetches the new profile hint when moving an existing invoice', async () => {
     generateInvoiceNumberMock.mockResolvedValue(ok('B-0001'));
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA, senderProfileB],
       bankAccounts: [bankAccountA, bankAccountB],
@@ -244,9 +251,9 @@ describe('invoice editor store — save states (T16)', () => {
       } satisfies InvoiceFormData,
     });
 
-    await useInvoiceEditorStore.getState().selectSenderProfile('profile-b');
+    await store.getState().selectSenderProfile('profile-b');
 
-    const after = useInvoiceEditorStore.getState();
+    const after = store.getState();
     expect(after.formData.invoiceNumber).toBe('');
     expect(after.invoiceNumberHint).toBe('B-0001');
   });
@@ -254,18 +261,19 @@ describe('invoice editor store — save states (T16)', () => {
   // AC-17: legacy flags from getInvoiceEditorData land in the store on initialize, so the editor
   // can show the SCR-03 "legacy-shared-number" Alert.
   it('AC-17: carries legacy.sharedNumber from initialize into store state', () => {
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
       legacy: { storedTotal: '100.00', recomputedTotal: '100.00', sharedNumber: true },
     });
 
-    expect(useInvoiceEditorStore.getState().legacy).toEqual({
+    expect(store.getState().legacy).toEqual({
       storedTotal: '100.00',
       recomputedTotal: '100.00',
       sharedNumber: true,
@@ -276,7 +284,7 @@ describe('invoice editor store — save states (T16)', () => {
   // overdue back; the header badge reads the separate derivedOverdue flag, refreshed by each save.
   it('AC-24: keeps the stored status in formData and shows the derived overdue badge beside it', async () => {
     updateInvoiceMock.mockResolvedValue(ok(savedInvoice({ status: 'PENDING', derivedOverdue: false })));
-    useInvoiceEditorStore.getState().initialize({
+    store = createInvoiceEditorStore({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
@@ -304,17 +312,17 @@ describe('invoice editor store — save states (T16)', () => {
       } satisfies InvoiceFormData,
     });
 
-    const loaded = useInvoiceEditorStore.getState();
+    const loaded = store.getState();
     expect(loaded.formData.status).toBe('PENDING');
     expect(loaded.derivedOverdue).toBe(true);
 
-    await loaded.saveInvoice();
+    await loaded.save('save');
 
     expect(updateInvoiceMock).toHaveBeenCalledWith(
       'late-invoice',
       expect.objectContaining({ status: 'PENDING' })
     );
-    const saved = useInvoiceEditorStore.getState();
+    const saved = store.getState();
     expect(saved.formData.status).toBe('PENDING');
     expect(saved.derivedOverdue).toBe(false);
   });
@@ -329,32 +337,33 @@ describe('invoice editor store — save states (T16)', () => {
       })
     );
 
-    const state = useInvoiceEditorStore.getState();
+    const state = store.getState();
     state.initialize({
       senderProfiles: [senderProfileA],
       bankAccounts: [bankAccountA],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
     });
     state.updateFields({ senderProfileId: 'profile-a', bankAccountId: 'bank-a' });
 
-    await useInvoiceEditorStore.getState().saveInvoice();
+    await store.getState().save('save');
 
-    const afterConflict = useInvoiceEditorStore.getState();
+    const afterConflict = store.getState();
     expect(afterConflict.totalsChanged).toEqual({ oldTotal: '120.00', newTotal: '119.99' });
 
     updateInvoiceMock.mockResolvedValueOnce(ok(savedInvoice({ total: 119.99 })));
 
-    await useInvoiceEditorStore
+    await store
       .getState()
-      .saveInvoice({ confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } });
+      .save('save', { confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } });
 
     expect(updateInvoiceMock).toHaveBeenLastCalledWith(
       'legacy-invoice',
       expect.objectContaining({ confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } })
     );
-    expect(useInvoiceEditorStore.getState().totalsChanged).toBeNull();
+    expect(store.getState().totalsChanged).toBeNull();
   });
 });

@@ -40,5 +40,24 @@ export async function chooseRowAction(
   await (await rowMenuItem(page, invoiceNumber, name)).click();
 }
 
+/**
+ * Runs `act` (a click that calls a server action, such as a row's status change) and resolves once
+ * that action's response has fully arrived. T53 (review r3 R3): on a loaded machine the action
+ * alone took over 4 s, so a row check started right after the click ran out of its 5 s before the
+ * new status came back. Checks made after this wait start from the server's answer.
+ */
+export async function untilServerActionDone(
+  page: Page,
+  act: () => Promise<unknown>
+): Promise<void> {
+  const response = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      Boolean(r.request().headers()['next-action'])
+  );
+  await act();
+  await (await response).finished();
+}
+
 export const notesField = (page: Page): Locator =>
   page.getByPlaceholder('Additional information for the client...');

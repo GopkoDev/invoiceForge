@@ -12,11 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { useModal } from '@/store/use-modal-store';
 import { PDFPreviewPanel } from '@/components/invoice-editor/pdf-preview-panel';
-import {
-  prepareInvoiceDataForPdf,
-  downloadInvoicePdf,
-  printInvoicePdf,
-} from '@/lib/helpers/invoice-pdf-helpers';
+import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
+import type { InvoiceDocumentSource } from '@/lib/invoice-document';
+import { usePdfAction } from '@/hooks/use-pdf-action';
+import { PdfPreparingStatus } from '@/components/invoices/pdf-preparing-status';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
@@ -28,6 +27,7 @@ export function InvoicePdfPreviewModal() {
   const { isOpen, props, close } = useModal('invoicePdfPreviewModal');
   const invoice = props?.invoice;
 
+  const { run: runPdf } = usePdfAction();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -36,29 +36,34 @@ export function InvoicePdfPreviewModal() {
     [invoice]
   );
 
+  const previewSource = useMemo<InvoiceDocumentSource | null>(
+    () => (invoice ? { kind: 'issued', invoice } : null),
+    [invoice]
+  );
+
   const handleDownload = useCallback(async () => {
     if (!invoice || !invoiceData) return;
 
     setIsDownloading(true);
     try {
-      const result = await downloadInvoicePdf(invoice, invoiceData);
+      const result = await runPdf('download', invoice);
       if (result.unauthorized) goToSignIn();
     } finally {
       setIsDownloading(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, runPdf]);
 
   const handlePrint = useCallback(async () => {
     if (!invoice || !invoiceData) return;
 
     setIsPrinting(true);
     try {
-      const result = await printInvoicePdf(invoice, invoiceData);
+      const result = await runPdf('print', invoice);
       if (result.unauthorized) goToSignIn();
     } finally {
       setIsPrinting(false);
     }
-  }, [invoice, invoiceData]);
+  }, [invoice, invoiceData, runPdf]);
 
   if (!isOpen || !invoice || !invoiceData) return null;
 
@@ -79,6 +84,7 @@ export function InvoicePdfPreviewModal() {
                 size="sm"
                 onClick={handlePrint}
                 disabled={isPrinting}
+                aria-busy={isPrinting || undefined}
                 className="gap-1 sm:gap-2"
               >
                 {isPrinting ? (
@@ -86,13 +92,14 @@ export function InvoicePdfPreviewModal() {
                 ) : (
                   <Printer className="size-4" />
                 )}
-                <span className="hidden sm:inline">Print</span>
+                <span className="sr-only sm:not-sr-only">Print</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
                 disabled={isDownloading}
+                aria-busy={isDownloading || undefined}
                 className="gap-1 sm:gap-2"
               >
                 {isDownloading ? (
@@ -100,10 +107,12 @@ export function InvoicePdfPreviewModal() {
                 ) : (
                   <Download className="size-4" />
                 )}
-                <span className="hidden sm:inline">Download</span>
+                <span className="sr-only sm:not-sr-only">Download</span>
               </Button>
+              <PdfPreparingStatus busy={isPrinting || isDownloading} />
               <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
                 <X className="size-4" />
+                <span className="sr-only">Close preview</span>
               </DialogClose>
             </div>
           </div>
@@ -111,15 +120,12 @@ export function InvoicePdfPreviewModal() {
 
         {/* PDF Preview */}
         <div className="min-h-0 flex-1">
-          <PDFPreviewPanel
-            formData={invoiceData.formData}
-            senderProfile={invoiceData.senderProfile ?? undefined}
-            customer={invoiceData.customer ?? undefined}
-            bankAccount={invoiceData.bankAccount ?? undefined}
-            subtotal={invoice.subtotal}
-            taxAmount={invoice.taxAmount}
-            total={invoice.total}
-          />
+          {previewSource && (
+            <PDFPreviewPanel
+              source={previewSource}
+              senderProfile={invoiceData?.senderProfile ?? undefined}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

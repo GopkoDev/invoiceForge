@@ -105,7 +105,7 @@ describe('lib/services boundary (T1)', () => {
   });
 });
 
-describe('lib/services ESLint rules (T1)', () => {
+describe('lib/services ESLint rules (T1)', { timeout: 30_000 }, () => {
   const eslint = new ESLint({ cwd: root });
   const lint = async (filePath: string, code: string) =>
     (await eslint.lintText(code, { filePath: join(root, filePath) }))[0].messages;

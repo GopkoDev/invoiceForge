@@ -46,9 +46,9 @@ const invoice: InvoiceListItem = {
 };
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
-  // The row's trigger is icon-only (MoreHorizontal) with no accessible name, unlike "New
+  // The row's trigger is icon-only (MoreHorizontal), named by an sr-only name, unlike "New
   // Invoice" and "View All Invoices".
-  const trigger = screen.getAllByRole('button', { name: '' })[0];
+  const trigger = screen.getAllByRole('button', { name: /^Actions for invoice/ })[0];
   await user.click(trigger);
 }
 

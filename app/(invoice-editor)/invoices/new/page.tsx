@@ -1,6 +1,9 @@
 import { InvoiceEditor } from '@/components/invoice-editor';
+import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 import { getInvoiceEditorData } from '@/lib/actions/invoice-actions/invoice-actions';
 import { unwrapPageResult } from '@/components/layout/content-area';
+import { InvoiceEditorProvider } from '@/store/invoice-editor-store/invoice-editor-provider';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 
 export const metadata = {
   title: 'New Invoice',
@@ -8,8 +11,15 @@ export const metadata = {
 };
 
 export default async function NewInvoicePage() {
-  const result = await getInvoiceEditorData();
+  const [actorResult, result] = await Promise.all([actingFreelancerFromSession(), getInvoiceEditorData()]);
+  const { userId } = unwrapPageResult(actorResult);
   const data = unwrapPageResult(result);
 
-  return <InvoiceEditor data={data} />;
+  // ADR-0003: one store per mounted editor, keyed by Freelancer and invoice, built from this data.
+  return (
+    <InvoiceEditorProvider key={`${userId}:new`} ownerId={userId} initial={data}>
+      <InvoiceEditor />
+      <InvoiceEditorModalContainer />
+    </InvoiceEditorProvider>
+  );
 }

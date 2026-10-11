@@ -1,8 +1,10 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
+import { useId } from 'react';
+import { AmountInput } from './amount-input';
 import { FieldError } from '@/components/ui/field';
 import { Currency, InvoiceFormItem } from '@/types/invoice/types';
+import { formatMoney } from '@/lib/format';
 import { Label } from '../ui/label';
 import { useNumberDraft } from '@/hooks/use-number-draft';
 import { useFieldErrors, useInvoiceItems } from '@/store/invoice-editor-store';
@@ -15,7 +17,6 @@ interface InvoiceItemFieldsProps {
   isPriceDisabled: boolean;
   /** The line is locked (issued or cancelled invoice). */
   disabled?: boolean;
-  layout?: 'desktop' | 'mobile';
 }
 
 export function InvoiceItemFields({
@@ -25,9 +26,9 @@ export function InvoiceItemFields({
   onQuantityChange,
   isPriceDisabled,
   disabled = false,
-  layout = 'desktop',
 }: InvoiceItemFieldsProps) {
-  const total = `${item.total.toFixed(2)} ${currency}`;
+  const fieldId = useId();
+  const total = formatMoney(item.total, currency);
   const priceInput = useNumberDraft(item.price, onPriceChange);
   const quantityInput = useNumberDraft(item.quantity, onQuantityChange);
 
@@ -39,83 +40,58 @@ export function InvoiceItemFields({
   const priceErrors = fieldErrors?.[`items.${itemIndex}.price`];
   const quantityErrors = fieldErrors?.[`items.${itemIndex}.quantity`];
   const totalErrors = fieldErrors?.[`items.${itemIndex}.total`];
+  // Line fields announce their column and current position, e.g. "Quantity, line 3".
+  const priceErrorId = `${fieldId}-price-error`;
+  const quantityErrorId = `${fieldId}-quantity-error`;
+  const priceName = `Price, line ${itemIndex + 1}`;
+  const quantityName = `Quantity, line ${itemIndex + 1}`;
 
-  if (layout === 'mobile') {
-    return (
-      <>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label>Price</Label>
-            <Input
-              type="text"
-              value={priceInput.value}
-              onChange={(e) => priceInput.onChange(e.target.value)}
-              className="text-right"
-              disabled={disabled || isPriceDisabled}
-              aria-invalid={!!priceErrors}
-            />
-            <FieldError
-              errors={priceErrors?.map((message) => ({ message }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Quantity</Label>
-            <Input
-              type="text"
-              value={quantityInput.value}
-              onChange={(e) => quantityInput.onChange(e.target.value)}
-              className="text-right"
-              disabled={disabled}
-              aria-invalid={!!quantityErrors}
-            />
-            <FieldError
-              errors={quantityErrors?.map((message) => ({ message }))}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t pt-2">
-          <span className="text-muted-foreground text-sm">Amount:</span>
-          <span className="font-semibold">{total}</span>
-        </div>
-        <FieldError errors={totalErrors?.map((message) => ({ message }))} />
-      </>
-    );
-  }
-
+  // One tree for both layouts: the parent line container is a two-column grid on phones and a flex
+  // row from md up (ADR-0004), so these cells are restyled, never swapped.
   return (
     <>
-      <div className="w-24">
-        <Input
-          type="text"
+      <div className="space-y-1 md:w-24 md:space-y-0">
+        <Label className="md:hidden">Price</Label>
+        <AmountInput
           value={priceInput.value}
-          onChange={(e) => priceInput.onChange(e.target.value)}
+          onChange={priceInput.onChange}
           className="text-right"
           placeholder="Price"
           disabled={disabled || isPriceDisabled}
+          aria-label={priceName}
           aria-invalid={!!priceErrors}
+          aria-describedby={priceErrors ? priceErrorId : undefined}
         />
-        <FieldError errors={priceErrors?.map((message) => ({ message }))} />
+        <FieldError
+          id={priceErrorId}
+          errors={priceErrors?.map((message) => ({ message }))}
+        />
       </div>
 
-      <div className="w-20">
-        <Input
-          type="text"
+      <div className="space-y-1 md:w-20 md:space-y-0">
+        <Label className="md:hidden">Quantity</Label>
+        <AmountInput
           value={quantityInput.value}
-          onChange={(e) => quantityInput.onChange(e.target.value)}
+          onChange={quantityInput.onChange}
           className="text-right"
           placeholder="Qty"
           disabled={disabled}
-              aria-invalid={!!quantityErrors}
+          aria-label={quantityName}
+          aria-invalid={!!quantityErrors}
+          aria-describedby={quantityErrors ? quantityErrorId : undefined}
         />
         <FieldError
+          id={quantityErrorId}
           errors={quantityErrors?.map((message) => ({ message }))}
         />
       </div>
 
-      <div className="w-24 text-right font-medium">
-        {total}
-        <FieldError errors={totalErrors?.map((message) => ({ message }))} />
+      <div className="col-span-2 flex items-center justify-between border-t pt-2 md:col-span-1 md:block md:w-24 md:border-t-0 md:pt-0 md:text-right">
+        <span className="text-muted-foreground text-sm md:hidden">Amount:</span>
+        <div className="font-semibold md:font-medium">
+          {total}
+          <FieldError errors={totalErrors?.map((message) => ({ message }))} />
+        </div>
       </div>
     </>
   );

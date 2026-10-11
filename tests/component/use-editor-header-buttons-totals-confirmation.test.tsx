@@ -4,11 +4,12 @@
 // saveInvoice with confirmedTotals; cancelling clears the store's totalsChanged.
 // See docs/features/architecture-hardening/tasks/t16-editor-number-and-save-states.md
 //
-// useEditorHeaderButtons today calls saveInvoice() once inside performSave and never looks at
+// useEditorHeaderButtons today calls save('save') once inside performSave and never looks at
 // state.totalsChanged afterwards, so no confirmationModal is ever opened — this assertion is
 // expected to fail until T16 adds the SCR-15 wiring.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ok, fail } from '@/types/actions';
 import type { InvoiceSenderProfile, InvoiceBankAccount } from '@/types/invoice/types';
 
@@ -29,10 +30,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Imported after the mocks so both the store and the hook pick up the mocked actions module.
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 const { useModalStore } = await import('@/store/use-modal-store');
+const { InvoiceEditorModalContainer } = await import(
+  '@/components/modals/invoice-editor/invoice-editor-modal-container'
+);
 const { useEditorHeaderButtons } = await import('@/hooks/use-editor-header-buttons');
 
 const senderProfile: InvoiceSenderProfile = {
@@ -65,7 +70,7 @@ const bankAccount: InvoiceBankAccount = {
 
 describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
     useModalStore.getState().resetAllModals();
     updateInvoiceMock.mockReset();
     createInvoiceMock.mockReset();
@@ -74,7 +79,7 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
     pushMock.mockReset();
   });
 
-  it('opens the confirmation modal with the old/new totals on CONFLICT TOTALS_CHANGED, and resubmits with confirmedTotals on confirm', async () => {
+  it('shows the confirmation with the old/new totals on CONFLICT TOTALS_CHANGED, and resubmits with confirmedTotals on confirm', async () => {
     updateInvoiceMock.mockResolvedValueOnce(
       fail(
         'CONFLICT',
@@ -83,15 +88,16 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       )
     );
 
-    const state = useInvoiceEditorStore.getState();
-    state.initialize({
+    store = createInvoiceEditorStore({
       senderProfiles: [senderProfile],
       bankAccounts: [bankAccount],
       customers: [],
       products: [],
       customPrices: [],
+      initialData: emptyEditorData().initialData,
       invoiceId: 'legacy-invoice',
     });
+    const state = store.getState();
     state.updateFields({
       senderProfileId: 'profile-a',
       bankAccountId: 'bank-a',
@@ -110,15 +116,24 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
       ],
     });
 
-    const { result } = renderHook(() => useEditorHeaderButtons());
+    // editor-ux T14: the dialog is shown by the editor's modal container from the store's state.
+    const Provide = withEditorStore(store);
+    const { result } = renderHook(() => useEditorHeaderButtons(), {
+      wrapper: ({ children }) => (
+        <Provide>
+          {children}
+          <InvoiceEditorModalContainer />
+        </Provide>
+      ),
+    });
 
     await act(async () => {
       await result.current.SaveButton!.props.onClick();
     });
 
-    const modal = useModalStore.getState().modals.confirmationModal;
-    expect(modal?.open).toBe(true);
-    expect(modal?.confirmText).toBe('Confirm and save');
+    expect(await screen.findByText('Confirm the new total')).toBeTruthy();
+    expect(screen.getByText('120.00')).toBeTruthy();
+    expect(screen.getByText('119.99')).toBeTruthy();
 
     updateInvoiceMock.mockResolvedValueOnce(
       ok({
@@ -129,17 +144,18 @@ describe('useEditorHeaderButtons — SCR-15 totals confirmation (T16)', () => {
         total: 10,
         status: 'DRAFT' as const,
         paidAt: null,
+        issueDate: '2026-10-01T00:00:00.000Z',
+        dueDate: '2026-10-15T00:00:00.000Z',
       })
     );
 
-    await act(async () => {
-      await modal!.onConfirm();
-    });
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm and save' }));
+    await waitFor(() => expect(store.getState().isSaving).toBe(false));
 
     expect(updateInvoiceMock).toHaveBeenLastCalledWith(
       'legacy-invoice',
       expect.objectContaining({ confirmedTotals: { oldTotal: '120.00', newTotal: '119.99' } })
     );
-    expect(useInvoiceEditorStore.getState().totalsChanged).toBeNull();
+    expect(store.getState().totalsChanged).toBeNull();
   });
 });

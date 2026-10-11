@@ -126,7 +126,7 @@ overrides; fixture emails use `@example.test`.
 ## CI placement
 
 Per `test-plan.md` §CI placement: unit, component, contract and integration run on every PR
-(`.github/workflows/test.yml`). e2e, e2e-through-UI and the rate-limit load scenario are meant
-to run before each wave ships and nightly, against a production build - not wired into this
-minimal CI config yet; add them alongside the first task that needs a real e2e-through-UI run
-against the app.
+(`.github/workflows/test.yml`), plus the build-output check for the PDF toolkit. e2e,
+e2e-through-UI and the rate-limit load scenario do not run in CI: run the full `pnpm test:e2e`
+(a production build against a throwaway Postgres container; Docker is required) locally before
+each ship.

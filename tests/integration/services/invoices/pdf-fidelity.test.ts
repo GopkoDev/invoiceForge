@@ -3,6 +3,7 @@
 // and bank account change. Text, not bytes: the logo stays current (spec §3).
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
 import type { InvoiceStatus, PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
@@ -16,6 +17,9 @@ import { createCustomer } from '../../../support/factories/customer';
 import { createProduct } from '../../../support/factories/product';
 import { createInvoice } from '../../../support/factories/invoice';
 import { pdfTextRuns } from '../../../support/pdf-text';
+import { flat } from '../../../support/invoice-document-fixtures';
+import { buildInvoiceDocument } from '@/lib/invoice-document';
+import { formatMoney } from '@/lib/format';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -25,14 +29,14 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {}, unstable_cache: (fn: ()
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() } }));
 
 type Invoices = typeof import('@/lib/services/invoices/invoices');
-type PdfHelpers = typeof import('@/lib/helpers/invoice-pdf-helpers');
-type PdfDocument = typeof import('@/components/invoice-editor/invoice-pdf-document');
+type PdfDocument = typeof import('@/lib/pdf/invoice-pdf-kit');
+type PreviewDocument = typeof import('@/components/invoice-editor/pdf-preview-document');
 
 describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)', () => {
   let db: TestDatabase;
   let invoices: Invoices;
-  let helpers: PdfHelpers;
   let pdfDocument: PdfDocument;
+  let previewDocument: PreviewDocument;
 
   beforeAll(async () => {
     db = await startTestDatabase();
@@ -40,8 +44,8 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     vi.resetModules();
     testClient = createTestPrismaClient(db.connectionString);
     invoices = await import('@/lib/services/invoices/invoices');
-    helpers = await import('@/lib/helpers/invoice-pdf-helpers');
-    pdfDocument = await import('@/components/invoice-editor/invoice-pdf-document');
+    pdfDocument = await import('@/lib/pdf/invoice-pdf-kit');
+    previewDocument = await import('@/components/invoice-editor/pdf-preview-document');
   }, 60_000);
 
   afterAll(async () => {
@@ -57,18 +61,29 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     const result = await invoices.getInvoice(actor, id);
     if (!result.success) throw new Error(result.error);
     const inv = result.data;
-    const data = helpers.prepareInvoiceDataForPdf(inv);
     return pdfTextRuns(
       createElement(pdfDocument.InvoicePDFDocument, {
-        formData: data.formData,
-        senderProfile: data.senderProfile ?? undefined,
-        customer: data.customer ?? undefined,
-        bankAccount: data.bankAccount ?? undefined,
-        subtotal: inv.subtotal,
-        taxAmount: inv.taxAmount,
-        total: inv.total,
+        document: buildInvoiceDocument({ kind: 'issued', invoice: inv }),
       })
     );
+  }
+
+  // editor-ux T100 (review r16 G4; AC-10): the preview, built from the same real read as the PDF.
+  // renderToString keeps adjacent text apart with <!-- -->, so what lies between tags and comments is
+  // exactly the text nodes a browser shows. Compared without case: the PDF prints section titles in
+  // capitals, the preview does it with CSS.
+  const decodeEntities = (t: string) =>
+    t.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_m, e: string) =>
+      ({ amp: '&', lt: '<', gt: '>', quot: '"', '#x27': "'", '#39': "'" })[e]!
+    );
+  async function shownPair(actor: Awaited<ReturnType<typeof actingFreelancerForTest>>, id: string) {
+    const result = await invoices.getInvoice(actor, id);
+    if (!result.success) throw new Error(result.error);
+    const document = buildInvoiceDocument({ kind: 'issued', invoice: result.data });
+    const html = renderToString(createElement(previewDocument.PDFPreviewDocument, { document }));
+    const parts = html.split(/<!--.*?-->|<[^>]*>/).map(decodeEntities);
+    const pdf = pdfTextRuns(createElement(pdfDocument.InvoicePDFDocument, { document }));
+    return { preview: flat(parts).toLowerCase(), pdf: flat(pdf).toLowerCase() };
   }
 
   it('every issued fixture prints the same text after its sender profile, Customer and bank account change', async () => {
@@ -117,6 +132,12 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
 
     const before = new Map<string, string[]>();
     for (const inv of fixtures) before.set(inv.id, await printedText(actor, inv.id));
+    const previewBefore = new Map<string, string>();
+    for (const inv of fixtures) {
+      const { preview, pdf } = await shownPair(actor, inv.id);
+      expect(preview, `preview vs PDF of ${inv.invoiceNumber}`).toBe(pdf);
+      previewBefore.set(inv.id, preview);
+    }
 
     // The printed bank block: account number always, IBAN/SWIFT only when present (AC-03).
     const ibanText = before.get(fixtures[0].id)!;
@@ -145,13 +166,56 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     for (const inv of fixtures) {
       const after = await printedText(actor, inv.id);
       expect(after, `PDF text of ${inv.invoiceNumber}`).toEqual(before.get(inv.id));
+      const { preview, pdf } = await shownPair(actor, inv.id);
+      expect(preview, `preview vs PDF of ${inv.invoiceNumber}`).toBe(pdf);
+      expect(preview, `preview of ${inv.invoiceNumber}`).toBe(previewBefore.get(inv.id));
       identical++;
     }
     expect(identical).toBe(fixtures.length);
     // The deleted product's line still prints, as free text, with an unchanged total (AC-16).
     expect(await printedText(actor, fixtures[0].id)).toEqual(
-      expect.arrayContaining(['Retired service', 'Audit', '100.00 USD', '125.00 USD'])
+      expect.arrayContaining(['Retired service', 'Audit', '$100.00', '$125.00'])
     );
+  });
+
+  // editor-ux T23 (AC-10; review 2026-10-10 D3): a legacy issued invoice prints its stored amounts.
+  it('an issued invoice whose stored total differs from a recompute prints the stored total, as the list shows', async () => {
+    const user = await createFreelancer(testClient);
+    const actor = await actingFreelancerForTest(user.id, 'UTC');
+    const profile = await createSenderProfile(testClient, user.id, { name: 'Studio' });
+    const customer = await createCustomer(testClient, user.id, { name: 'Acme' });
+    const bank = await createBankAccount(testClient, profile.id, { currency: 'USD' });
+    const inv = await createInvoice(testClient, {
+      senderProfile: profile,
+      customer,
+      bankAccount: bank,
+      items: [{ name: 'Legacy line', quantity: 2, rate: 617.25, amount: 1000 }],
+      overrides: {
+        invoiceNumber: 'LEG-1',
+        status: 'PENDING',
+        currency: 'USD',
+        subtotal: 1000,
+        taxRate: 10,
+        taxAmount: 77,
+        total: 1077,
+      },
+    });
+
+    const read = await invoices.getInvoice(actor, inv.id);
+    if (!read.success) throw new Error(read.error);
+    const doc = buildInvoiceDocument({ kind: 'issued', invoice: read.data });
+
+    const listed = await invoices.listInvoices(actor, {});
+    if (!listed.success) throw new Error(listed.error);
+    const row = listed.data.items.find((i) => i.id === inv.id)!;
+    const listTotal = formatMoney(Number(row.total), 'USD');
+
+    expect(listTotal).toBe(formatMoney(1077, 'USD'));
+    expect(doc.total.value).toBe(listTotal);
+    expect(doc.lines[0].amount).toBe(formatMoney(1000, 'USD'));
+    const text = pdfTextRuns(createElement(pdfDocument.InvoicePDFDocument, { document: doc })).join(' ');
+    expect(text).toContain(listTotal);
+    expect(text).not.toContain(formatMoney(1357.95, 'USD'));
   });
 });
 

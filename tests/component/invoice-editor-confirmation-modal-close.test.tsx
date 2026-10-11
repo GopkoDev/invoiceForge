@@ -8,13 +8,13 @@
 // RED (F-47 not yet fixed): components/invoice-editor/invoice-editor.tsx passes
 // `onClose={confirmationModal.close}` directly instead of `confirmationModal.props.onClose`.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InvoiceEditor } from '@/components/invoice-editor/invoice-editor';
-import type { InvoiceEditorData } from '@/types/invoice/types';
+import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
 
 vi.mock('@/components/invoice-editor/invoice-editor-header', () => ({
-  InvoiceEditorHeader: () => null,
+  InvoiceEditorHeader: () => <div data-testid="editor-header" />,
 }));
 vi.mock('@/components/invoice-editor/pdf-preview-panel', () => ({
   PDFPreviewPanel: () => null,
@@ -42,8 +42,18 @@ vi.mock('@/store/invoice-editor-store', () => ({
   // invoice-integrity T18: the stale / reload-failed states.
   useIsStale: () => false,
   useReloadFailed: () => false,
+  useStoredAmountsToPrint: () => undefined,
   useLegacy: () => null,
-  useInvoiceEditorActions: () => ({ initialize: initializeMock, reset: resetMock }),
+  useInvoiceEditorActions: () => ({
+    initialize: initializeMock,
+    reset: resetMock,
+    save: vi.fn(),
+    clearTotalsChanged: vi.fn(),
+    markStale: vi.fn(),
+  }),
+  // editor-ux T14: the container also hosts the changed-elsewhere / totals dialogs from store state.
+  useTotalsChanged: () => null,
+  useChangedElsewhere: () => null,
 }));
 
 const closeMock = vi.fn();
@@ -51,8 +61,8 @@ const dialogOnClose = vi.fn();
 const onConfirmMock = vi.fn();
 
 vi.mock('@/store/use-modal-store', () => ({
-  useModal: () => ({
-    isOpen: true,
+  useModal: (name: string) => ({
+    isOpen: name === 'confirmationModal',
     props: {
       title: 'Confirm the new total',
       description: 'This invoice was saved before totals were recalculated.',
@@ -63,21 +73,32 @@ vi.mock('@/store/use-modal-store', () => ({
   }),
 }));
 
-const data: InvoiceEditorData = {
-  senderProfiles: [],
-  bankAccounts: [],
-  customers: [],
-  products: [],
-  customPrices: [],
-};
+// editor-ux T5 (AC-16): the dialog is mounted by InvoiceEditorModalContainer, not InvoiceEditor.
+describe('ConfirmationModal mounting + onClose wiring (T40 F-47, editor-ux T5 AC-16)', () => {
+  it('InvoiceEditorModalContainer renders the confirmation dialog', async () => {
+    render(<InvoiceEditorModalContainer />);
 
-describe('InvoiceEditor — ConfirmationModal onClose wiring (T40, F-47)', () => {
-  it('calls the dialog props.onClose (not just confirmationModal.close) when Cancel is clicked', async () => {
+    expect(await screen.findByText('Confirm the new total')).toBeTruthy();
+  });
+
+  it('calls the dialog props.onClose (not just confirmationModal.close) when Cancel is clicked in the container', async () => {
     const user = userEvent.setup();
-    render(<InvoiceEditor data={data} />);
+    dialogOnClose.mockClear();
+    render(<InvoiceEditorModalContainer />);
 
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     expect(dialogOnClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('InvoiceEditor itself no longer renders the confirmation dialog', async () => {
+    render(<InvoiceEditor />);
+    // Positive signal first: the editor has rendered its header, so the absence below is not
+    // read before anything rendered.
+    await waitFor(() => expect(screen.getByTestId('editor-header')).toBeTruthy());
+    // Settle every pending lazy dynamic() import deterministically instead of a fixed sleep.
+    await vi.dynamicImportSettled();
+
+    expect(screen.queryByText('Confirm the new total')).toBeNull();
   });
 });

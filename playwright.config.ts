@@ -1,8 +1,9 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import {
   APP_E2E_PORT,
   APP_E2E_URL,
   BASE_URL_OVERRIDE,
+  SNAPSHOT_PLATFORM,
 } from './tests/e2e/support/app-server';
 
 const PORT = 4310;
@@ -15,13 +16,34 @@ const APP_PORT = APP_E2E_PORT;
 // as their origin. Local runs stay the default.
 export default defineConfig({
   testDir: './tests/e2e',
+  // Baselines are named by the OS that drew them; see SNAPSHOT_PLATFORM.
+  snapshotPathTemplate: `{testDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}-${SNAPSHOT_PLATFORM}{ext}`,
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
+  // T53 (review r3 R3): on CI (and with CI=1, as the README runs it) two workers, so the plain
+  // `pnpm test:e2e` is the command that passes and every machine runs the same load. Local runs
+  // keep Playwright's default (half the CPUs). This is a guard; the races it once hid are fixed.
+  workers: process.env.CI ? 2 : undefined,
   reporter: [['list']],
   use: {
     baseURL: BASE_URL_OVERRIDE ?? `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
   },
+  // AC-07 (T15): the session-isolation proof runs in Chromium and WebKit (Safari's back/forward
+  // cache behaves differently from Chromium's).
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // WebKit runs only the session-isolation proof and the first-navigation-after-sign-in proof
+      // (T57: WebKit is the browser that cancelled the sign-in time-zone refresh), not the whole suite.
+      name: 'webkit',
+      testMatch: ['**/session-isolation.spec.ts', '**/first-navigation-after-sign-in.spec.ts'],
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
   webServer: BASE_URL_OVERRIDE
     ? []
     : [
@@ -41,6 +63,9 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
           env: { APP_E2E_PORT: String(APP_PORT) },
           timeout: 300_000,
+          // SIGTERM, not Playwright's default SIGKILL: the script's handler then stops the throwaway
+          // Postgres container, which would otherwise keep running wherever Ryuk is off.
+          gracefulShutdown: { signal: 'SIGTERM', timeout: 20_000 },
         },
       ],
 });

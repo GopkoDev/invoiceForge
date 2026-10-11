@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { legalRoutes } from '@/config/routes.config';
-import { X } from 'lucide-react';
 
 const COOKIE_CONSENT_KEY = 'cookie-consent';
 
@@ -34,9 +33,9 @@ export function CookieBanner() {
       <div className="container mx-auto px-4 py-2.5 sm:py-3">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-muted-foreground flex-1 text-xs leading-relaxed sm:text-sm">
-            We use strictly necessary session cookies to manage your
-            authentication. By using Invoice Forge, you agree to our use of
-            these cookies as outlined in our{' '}
+            We use cookies to keep you signed in and to show dates in your time
+            zone. By using Invoice Forge, you agree to their use as outlined in
+            our{' '}
             <Link
               href={legalRoutes.privacy}
               target="_blank"

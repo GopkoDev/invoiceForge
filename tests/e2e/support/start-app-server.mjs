@@ -86,6 +86,8 @@ async function startRealApp() {
     .withDatabase('invoice_forge_e2e')
     .withUsername('test')
     .withPassword('test')
+    // Data lives in memory: no anonymous volume is left behind even if the run is killed.
+    .withTmpFs({ '/var/lib/postgresql/data': 'rw' })
     .start();
   const connectionString = container.getConnectionUri();
 
@@ -161,11 +163,20 @@ async function startRealApp() {
     }
   );
 
+  // Playwright sends SIGTERM at the end of the run (playwright.config.ts gracefulShutdown); stop the
+  // container before exiting so no throwaway database is left running.
+  let stopping = false;
   const stop = async () => {
+    if (stopping) return;
+    stopping = true;
     server.kill('SIGTERM');
     brokenCheckServer.kill('SIGTERM');
     mailSink.close();
-    await container.stop();
+    try {
+      await container.stop();
+    } finally {
+      process.exit(0);
+    }
   };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
@@ -176,6 +187,14 @@ async function startRealApp() {
 
 const dockerAvailable = await isDockerAvailable();
 if (!dockerAvailable) {
+  // Same rule as containerRuntimeDecision in tests/support/db/docker-availability.ts (the TS twin):
+  // unavailable + CI -> fail; unavailable + not CI -> skip (placeholder).
+  if (process.env.CI) {
+    console.error(
+      '[e2e app server] no container runtime available in CI: refusing to start a placeholder'
+    );
+    process.exit(1);
+  }
   startPlaceholderServer();
 } else {
   await startRealApp();

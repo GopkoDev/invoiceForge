@@ -51,6 +51,8 @@ export function SenderSection() {
   // The bank account picker is named by its label, then its value (review r2 L2), and is
   // described by its error text while it has one (review r3 P2).
   const fieldId = useId();
+  const profileLabelId = `${fieldId}-profile-label`;
+  const profileTriggerId = `${fieldId}-profile`;
   const bankAccountLabelId = `${fieldId}-bank-account-label`;
   const bankAccountTriggerId = `${fieldId}-bank-account`;
   const bankAccountErrorId = `${fieldId}-bank-account-error`;
@@ -128,12 +130,17 @@ export function SenderSection() {
 
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>
+          <Label id={profileLabelId}>
             Sender Profile <span className="text-destructive">*</span>
           </Label>
 
           <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs">
+            <PopoverTrigger
+              id={profileTriggerId}
+              data-field="senderProfileId"
+              aria-labelledby={`${profileLabelId} ${profileTriggerId}`}
+              className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs"
+            >
               <span className="truncate">
                 {selectedProfile?.name || 'Select sender profile...'}
               </span>
@@ -224,6 +231,7 @@ export function SenderSection() {
           <Popover open={openBankAccount} onOpenChange={setOpenBankAccount}>
             <PopoverTrigger
               id={bankAccountTriggerId}
+              data-field="bankAccountId"
               aria-labelledby={`${bankAccountLabelId} ${bankAccountTriggerId}`}
               disabled={isBankAccountDisabled}
               aria-invalid={!!fieldErrors?.bankAccountId}

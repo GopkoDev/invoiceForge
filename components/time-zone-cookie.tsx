@@ -7,6 +7,14 @@ import { useRouter } from 'next/navigation';
 // client island that writes the browser's IANA time zone into the `tz` cookie so the server can
 // compute local day bounds and the current month (sad.md §8, Hard rule "Time and time zones").
 // Renders nothing; runs once on mount.
+//
+// T57 (review r4 P5): the sign-in pages ((auth) layout) mount it with refresh={false}, so the zone
+// is already in the cookie when the Sign-in link lands on a private page and the private layout
+// has nothing to refresh. A refresh there could be cancelled by the Freelancer's first navigation
+// (WebKit), and Next.js answered that failed fetch with a full load of the landing page.
+//
+// T60 (review r5 Q2): the private layouts pass refresh only while the account has no saved zone, the
+// one case where the server reads the cookie (the first-visit seed, ADR-0006).
 
 const TZ_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
@@ -18,7 +26,15 @@ function readCookie(name: string): string | undefined {
     ?.split('=')[1];
 }
 
-export function TimeZoneCookie() {
+interface TimeZoneCookieProps {
+  /**
+   * Re-render the server components once the cookie changed (default). False on pages that render
+   * nothing zone-dependent: the cookie is written for the next request only.
+   */
+  refresh?: boolean;
+}
+
+export function TimeZoneCookie({ refresh = true }: TimeZoneCookieProps = {}) {
   const router = useRouter();
 
   useEffect(() => {
@@ -29,8 +45,8 @@ export function TimeZoneCookie() {
     }
 
     document.cookie = `tz=${browserTimeZone}; path=/; max-age=${TZ_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
-    router.refresh();
-    // Runs once on mount: the browser zone and router are stable for the component's lifetime.
+    if (refresh) router.refresh();
+    // Runs once on mount: the browser zone, router and mode are stable for the component's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

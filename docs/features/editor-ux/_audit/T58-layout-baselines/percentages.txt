@@ -1,0 +1,4 @@
+editor-new-invoice-desktop-chromium-linux: old 1280x800, new 1280x800, 35.81% of pixels differ at threshold 0.2 (366653 of 1024000), 49.85% exactly (510464)
+editor-new-invoice-phone-chromium-linux: old 390x844, new 390x844, 11.09% of pixels differ at threshold 0.2 (36494 of 329160), 32.63% exactly (107395)
+editor-existing-invoice-desktop-chromium-linux: old 1280x800, new 1280x800, 26.33% of pixels differ at threshold 0.2 (269579 of 1024000), 26.89% exactly (275363)
+editor-existing-invoice-phone-chromium-linux: old 390x844, new 390x844, 1.09% of pixels differ at threshold 0.2 (3588 of 329160), 2.36% exactly (7757)

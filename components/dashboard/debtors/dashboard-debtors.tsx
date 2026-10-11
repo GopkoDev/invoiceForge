@@ -3,6 +3,7 @@ import { UsersIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
+import { formatNumber } from '@/lib/format';
 import { DebtorInfo } from '@/types/dashboard';
 
 interface DashboardDebtorsProps {
@@ -43,7 +44,7 @@ export function DashboardDebtors({ debtors }: DashboardDebtorsProps) {
             <p className="text-muted-foreground text-sm font-medium">
               No overdue invoices
             </p>
-            <p className="text-muted-foreground/70 text-xs">
+            <p className="text-muted-foreground text-xs">
               All payments are on track
             </p>
           </div>
@@ -78,11 +79,11 @@ export function DashboardDebtors({ debtors }: DashboardDebtorsProps) {
                 </div>
                 <span
                   className="text-destructive font-mono text-sm font-semibold"
-                  aria-label={`Total overdue: ${debtor.currencies.length === 1 ? formatCurrency(debtor.total, debtor.currencies[0]) : `${debtor.total.toLocaleString()} mixed currencies`}`}
+                  aria-label={`Total overdue: ${debtor.currencies.length === 1 ? formatCurrency(debtor.total, debtor.currencies[0]) : `${formatNumber(debtor.total)} mixed currencies`}`}
                 >
                   {debtor.currencies.length === 1
                     ? formatCurrency(debtor.total, debtor.currencies[0])
-                    : `${debtor.total.toLocaleString()} (mixed)`}
+                    : `${formatNumber(debtor.total)} (mixed)`}
                 </span>
               </li>
             ))}

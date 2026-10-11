@@ -1,0 +1,42 @@
+T32 fresh-clone audit, 2026-10-10 (README word for word, incl. playwright install and pnpm test:e2e)
+HEAD cloned: d40c9aa55b0219adb0442c55211238171bfc7dfd (branch feature/editor-ux)
+OS: macOS 26.6.2 (Darwin 25.6.0, arm64); node v22.21.0; pnpm 10.25.0; Docker available
+Throwaway values used (never the repo's .env): DATABASE_URL=postgresql://postgres:throwaway@localhost:55432/invoiceforge?schema=public
+  (local container t32-pg, postgres:16-alpine, started and removed by this audit); AUTH_SECRET, CRON_SECRET, LIMIT_KEY_SECRET =
+  freshly generated openssl rand -base64 32; NEXT_PUBLIC_SENTRY_DSN=https://dummy@o0.ingest.sentry.io/0; other env.example values left as placeholders.
+
+== Step 1: Linux re-check of part (a), compare mode (tests/e2e/README.md "Layout baselines") ==
+$ docker run -d --rm --name pwbrowser ... mcr.microsoft.com/playwright:v1.63.0-noble (browser only; app, DB, tests on the host)
+$ PW_TEST_CONNECT_WS_ENDPOINT=ws://127.0.0.1:3300/ PW_SNAPSHOT_PLATFORM=linux pnpm exec playwright test tests/e2e/editor-layout.spec.ts --project=chromium
+  exit 0   8 passed (51.9s)   (no --update-snapshots; baselines and tolerance untouched)
+$ docker rm -f pwbrowser   done
+
+== Step 2: README Quick Start in a fresh clone ==
+$ git clone -b feature/editor-ux <local repo> fresh-clone                 exit 0
+$ docker run -d --name t32-pg ... postgres:16-alpine (port 55432)          exit 0
+$ pnpm install                                                             exit 0  (Done in 13.4s)
+$ cp env.example .env ; edit DATABASE_URL, secrets, NEXT_PUBLIC_SENTRY_DSN (values above)   exit 0
+$ pnpm prisma migrate deploy                                               exit 0  (all migrations applied)
+$ pnpm dev                                                                 started; GET http://localhost:3000/ -> 200; stopped
+
+== Step 3: README Testing ==
+$ pnpm test                  exit 0   1804 passed (1804)
+$ pnpm test:integration      exit 0   103 files passed; 926 passed | 49 skipped
+$ pnpm exec playwright install   exit 0
+$ pnpm test:e2e              FIRST RUN exit 1: 82 passed, 3 skipped, 3 failed (not README faults; stale tests at HEAD):
+   - editor-first-display.spec.ts (existing invoice): hydrated text carried the logo-refusal notice (seed logo is a data: URL), JS-only like the %
+   - editor-retry-parity.spec.ts (created): new invoice now opens with the default sender chosen (T22), the test still clicked "Select sender profile..."
+   - route-sweep.spec.ts: public /api/mcp answers 405 to GET (POST-only), the allowlist expected 200
+   FIXED in tests/e2e (strip the notice; pick the sender only if still asked; /api/mcp -> 405 in PUBLIC_REFUSALS; toast waits use DIALOG_TIMEOUT)
+   re-run: 1 flaky failure (session-isolation.spec.ts Back/Forward, "Not attached to an active page", host load average 30);
+   that spec 8/8 with --repeat-each=4. T33 reworks that test.
+$ pnpm test:e2e (from scratch, same clone)   exit 0   85 passed, 3 skipped (2 layout screenshots skip on macOS by design; 1 PDF timing test)
+$ pnpm lint                  exit 0   0 errors, 5 warnings
+$ pnpm exec tsc --noEmit     exit 0
+$ pnpm build                 exit 0
+
+README fix: Testing section now says the two layout screenshot tests skip off Linux.
+The macOS skip of the screenshot tests is expected; Step 1 above is the Linux proof (8/8 in the Playwright noble image).
+
+== Cleanup ==
+fresh-clone directory removed; container t32-pg (d4144f9311cf) stopped and removed; pwbrowser removed; other containers untouched.

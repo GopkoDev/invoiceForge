@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Package, Plus } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
 import {
   useEditorLocks,
   useInvoiceItems,
@@ -43,8 +42,6 @@ function ItemsEmptyState() {
 }
 
 export function ItemsSection() {
-  const isMobile = useIsMobile();
-
   // invoice-integrity T16 (AC-15): every line is shown as saved, none is ever flagged for removal;
   // an issued or cancelled invoice's lines can't be added, removed or reordered (SCR-02).
   const validItems = useInvoiceItems();
@@ -127,8 +124,7 @@ export function ItemsSection() {
             >
               <div className="space-y-2">
                 {/* Desktop Header */}
-                {!isMobile && (
-                  <div className="text-muted-foreground hidden items-center gap-2 px-3 py-2 text-sm font-medium md:flex">
+                <div className="text-muted-foreground hidden items-center gap-2 px-3 py-2 text-sm font-medium md:flex">
                     <div className="w-6" />
                     <div className="flex-1">Product</div>
                     <div className="w-24 text-right">Price</div>
@@ -136,10 +132,9 @@ export function ItemsSection() {
                     <div className="w-24 text-right">Total</div>
                     <div className="w-20" />
                   </div>
-                )}
 
                 {validItems.map((item) => (
-                  <SortableItem key={item.id} item={item} isMobile={isMobile} />
+                  <SortableItem key={item.id} item={item} />
                 ))}
               </div>
             </SortableContext>

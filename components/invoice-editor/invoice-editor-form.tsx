@@ -5,13 +5,12 @@ import { InvoiceDetailsSection } from './invoice-details-section';
 import { ItemsSection } from './items-section';
 import { SummarySection } from './summary-section';
 import { NotesSection } from './notes-section';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { IssuedEditsDroppedNotice } from './invoice-editor-save-status';
 import { useLockedRefusal } from '@/store/invoice-editor-store';
 
 export function InvoiceEditorForm() {
-  const isMobile = useIsMobile();
   // invoice-integrity T17 (SCR-02 issued — locked-field refusal), reachable only from a stale form.
   const lockedRefusal = useLockedRefusal();
 
@@ -24,6 +23,7 @@ export function InvoiceEditorForm() {
             <AlertDescription>{lockedRefusal}</AlertDescription>
           </Alert>
         )}
+        <IssuedEditsDroppedNotice />
         <SenderSection />
         <CustomerSection />
         <InvoiceDetailsSection />
@@ -32,7 +32,7 @@ export function InvoiceEditorForm() {
         <NotesSection />
 
         {/* Spacer for mobile floating button */}
-        {isMobile && <div className="h-20" />}
+        <div className="h-20 md:hidden" />
       </div>
     </ScrollArea>
   );

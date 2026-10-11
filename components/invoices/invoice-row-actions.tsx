@@ -34,16 +34,14 @@ import {
 import { InvoiceStatus } from '@/types/invoice/types';
 import { toast } from 'sonner';
 import { useModal } from '@/store/use-modal-store';
-import {
-  downloadInvoicePdf,
-  printInvoicePdf,
-} from '@/lib/helpers/invoice-pdf-helpers';
+import { openPrintWindow, usePdfAction } from '@/hooks/use-pdf-action';
 import {
   goToSignIn,
   redirectIfUnauthorized,
 } from '@/lib/helpers/client-session-redirect';
 import { allowedTargets } from '@/lib/helpers/invoice-status';
 import { todayInZone } from '@/lib/helpers/calendar-day';
+import { PdfPreparingSpinner, PdfPreparingStatus } from '@/components/invoices/pdf-preparing-status';
 
 interface InvoiceRowActionsProps {
   invoiceId: string;
@@ -82,6 +80,7 @@ export function InvoiceRowActions({
   const [refusedStatus, setRefusedStatus] = useState<{ from: InvoiceStatus; to: InvoiceStatus } | null>(null);
   const menuStatus = storedStatus ?? status;
   const rowStatus = refusedStatus && refusedStatus.from === menuStatus ? refusedStatus.to : menuStatus;
+  const { run: runPdf, preparing } = usePdfAction();
   const invoicePdfPreviewModal = useModal('invoicePdfPreviewModal');
   const confirmationModal = useModal('confirmationModal');
 
@@ -118,7 +117,7 @@ export function InvoiceRowActions({
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await downloadInvoicePdf(result.data);
+      const pdf = await runPdf('download', result.data);
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
@@ -127,29 +126,33 @@ export function InvoiceRowActions({
     } finally {
       setIsLoadingPdf(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   const handlePrint = useCallback(async () => {
+    // Opened here, before any await: a popup blocker only allows a window opened by the click itself.
+    const printWindow = openPrintWindow();
     setIsLoadingPdf(true);
     setOpen(false);
     try {
       const result = await getInvoice(invoiceId);
       if (!result.success) {
         // AC-21: a stale session must go to sign-in, not a generic "failed to load" toast.
+        printWindow?.close();
         if (redirectIfUnauthorized(result)) return;
         toast.error(result.error || 'Failed to load invoice');
         return;
       }
-      const pdf = await printInvoicePdf(result.data);
+      const pdf = await runPdf('print', result.data, { printWindow });
       // N-05: a 401 on the logo fetch is reported as a result, not thrown.
       if (pdf.unauthorized) goToSignIn();
     } catch {
+      printWindow?.close();
       // AC-21: a rejected call is treated like UNAUTHORIZED.
       goToSignIn();
     } finally {
       setIsLoadingPdf(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, runPdf]);
 
   const handleDuplicate = () => {
     startTransition(async () => {
@@ -270,14 +273,18 @@ export function InvoiceRowActions({
 
   const isShowSeparator =
     canMarkAsPending || canMarkAsPaid || canMarkAsOverdue || canCancel;
-  const isDisabled = isPending || isLoadingPdf;
+  const isDisabled = isPending || isLoadingPdf || preparing;
+
+  const pdfBusy = isLoadingPdf || preparing;
 
   return (
+    <>
+    <PdfPreparingStatus busy={pdfBusy} />
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" disabled={isDisabled}>
-            <MoreHorizontal className="size-4" />
+          <Button variant="ghost" size="icon-sm" disabled={isDisabled} aria-busy={pdfBusy || undefined}>
+            {pdfBusy ? <PdfPreparingSpinner /> : <MoreHorizontal className="size-4" />}
             <span className="sr-only">Actions for {invoiceNumber}</span>
           </Button>
         }
@@ -360,5 +367,6 @@ export function InvoiceRowActions({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }

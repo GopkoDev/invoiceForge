@@ -6,7 +6,7 @@
 // cancelled invoice is read-only with Save hidden. Retired-product lines are shown as saved and never
 // flagged for removal.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -52,7 +52,9 @@ Element.prototype.getAnimations = () => [];
 Element.prototype.scrollIntoView = () => {};
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
+const { renderWithEditorStore, emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 const ISSUED_ALERT =
   'This invoice is issued. You can change only the due date, notes, payment terms and PO number. To correct anything else, cancel it and duplicate it.';
@@ -97,7 +99,7 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
       { id: 'pr-retired', name: 'Consulting 2025', description: null, unit: 'h', price: 150, currency: 'USD', isActive: false },
     ],
     customPrices: [],
-    initialData,
+    initialData: initialData ?? emptyEditorData().initialData,
     invoiceId: status ? 'inv-1' : undefined,
     version: status ? 3 : undefined,
     issuedDetails: status
@@ -112,7 +114,9 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
 }
 
 function renderEditor(d: InvoiceEditorData) {
-  return render(<InvoiceEditor data={d} />);
+  const rendered = renderWithEditorStore(<InvoiceEditor />, { initial: d });
+  store = rendered.store;
+  return rendered;
 }
 
 const byPlaceholder = (text: string) => screen.getByPlaceholderText(text);
@@ -120,7 +124,6 @@ const triggerOf = (text: RegExp) => screen.getByText(text).closest('button') as 
 
 beforeEach(() => {
   for (const m of [updateInvoiceMock, createInvoiceMock, toastSuccess, toastError]) m.mockReset();
-  useInvoiceEditorStore.getState().reset();
 });
 
 describe('InvoiceEditor modes (T16, SCR-02)', () => {
@@ -263,7 +266,7 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
 
     const { renderHook } = await import('@testing-library/react');
     const { usePdfParties } = await import('@/store/invoice-editor-store/pdf-parties');
-    const { result } = renderHook(() => usePdfParties());
+    const { result } = renderHook(() => usePdfParties(), { wrapper: withEditorStore(store) });
     expect(result.current.senderProfile?.address).toBe('Frozen Street 9');
     expect(result.current.customer?.address).toBe('Frozen Road 7');
     expect(result.current.bankAccount?.bankName).toBe('Frozen Bank');
@@ -275,18 +278,18 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
     );
     updateInvoiceMock.mockResolvedValue(issuedResult({ version: 1 }));
     renderEditor(data(null));
-    useInvoiceEditorStore.getState().updateFields({
+    store.getState().updateFields({
       senderProfileId: 'sp-1',
       bankAccountId: 'ba-1',
       customerId: 'cu-1',
     });
     await act(async () => {
-      await useInvoiceEditorStore.getState().saveInvoice();
+      await store.getState().save('save');
     });
     expect(createInvoiceMock).toHaveBeenCalled();
     expect(screen.getAllByText('Current Customer').length).toBeGreaterThan(0); // still a draft: pickers stay
     await act(async () => {
-      await useInvoiceEditorStore.getState().saveInvoice({ issue: true });
+      await store.getState().save('save-and-issue');
     });
     expect(await screen.findByText(ISSUED_ALERT)).toBeInTheDocument();
     expect(screen.getByText('Frozen Legal Ltd')).toBeInTheDocument();
@@ -311,7 +314,7 @@ describe('InvoiceEditor modes (T16, SCR-02)', () => {
       await user.click(screen.getByText('Save and issue'));
     });
     expect(screen.queryByText(ISSUED_ALERT)).not.toBeInTheDocument();
-    expect(useInvoiceEditorStore.getState().formData.status).toBe('DRAFT');
+    expect(store.getState().formData.status).toBe('DRAFT');
     expect(within(document.body).getByText('Save and issue')).toBeInTheDocument();
   });
 });

@@ -9,6 +9,7 @@ import {
 import { invoiceStatusConfig } from '@/types/invoice/types';
 import { useInvoicePdf } from '@/hooks/use-invoice-pdf';
 import { MoreVertical } from 'lucide-react';
+import { PdfPreparingSpinner } from '@/components/invoices/pdf-preparing-status';
 import {
   useInvoiceNumber,
   useInvoiceStatus,
@@ -34,6 +35,8 @@ export function InvoiceEditorHeader() {
     SaveAndIssueMobileItem,
   } = useEditorHeaderButtons();
   const {
+    pdfBusy,
+    PdfStatus,
     DownloadButton,
     DownloadMobileButton,
     PrintButton,
@@ -82,8 +85,16 @@ export function InvoiceEditorHeader() {
           {SaveMobileButton}
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md">
-              <MoreVertical className="h-4 w-4" />
+            <DropdownMenuTrigger
+              aria-label="More actions"
+              aria-busy={pdfBusy || undefined}
+              className="hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md"
+            >
+              {pdfBusy ? (
+                <PdfPreparingSpinner />
+              ) : (
+                <MoreVertical className="h-4 w-4" />
+              )}
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end">
@@ -95,6 +106,7 @@ export function InvoiceEditorHeader() {
           </DropdownMenu>
         </div>
       </div>
+      {PdfStatus}
     </div>
   );
 }

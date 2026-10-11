@@ -72,21 +72,52 @@ export async function signInWithSignInLink(
   email: string,
   options: { from?: string } = {}
 ): Promise<void> {
+  const link = await requestSignInLink(page, email, options);
+  // T57 (review r4 P5): the sign-in pages wrote the browser zone into the `tz` cookie, so the
+  // private page the link lands on has no time-zone refresh for the caller's next navigation to
+  // cancel (T53 used to wait that refresh out here).
+  expect(
+    await zoneCookieIsCurrent(page),
+    'the sign-in pages must have written the browser zone into the tz cookie'
+  ).toBe(true);
+  await page.goto(link);
+  await expect(
+    page,
+    'the Sign-in link must land on a private page'
+  ).not.toHaveURL(/\/(login|error|verify-request)/);
+  // The landing page finishes loading (and any redirect behind it settles) before the caller
+  // navigates on.
+  await page.waitForLoadState('networkidle');
+}
+
+/**
+ * Drives /login like a Freelancer (gate, address, Continue), waits on /verify-request, and returns
+ * the mailed Sign-in link without opening it.
+ */
+export async function requestSignInLink(
+  page: Page,
+  email: string,
+  options: { from?: string } = {}
+): Promise<string> {
   if (process.env.E2E_SIGNIN_LINK_FILE)
     fs.rmSync(process.env.E2E_SIGNIN_LINK_FILE, { force: true });
   const requestedAt = Date.now();
 
   await page.goto(`${APP_E2E_URL}${options.from ?? '/login'}`);
   if (options.from) await page.waitForURL('**/login**');
-  await page.getByRole('checkbox').click();
+  await page.locator('[data-slot="checkbox"]').click();
   await page.locator('#login-email').fill(email);
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL('**/verify-request**');
 
-  const link = await waitForLink(email, requestedAt);
-  await page.goto(link);
-  await expect(
-    page,
-    'the Sign-in link must land on a private page'
-  ).not.toHaveURL(/\/(login|error|verify-request)/);
+  return waitForLink(email, requestedAt);
+}
+
+/** The browser's zone is already in the `tz` cookie, so the private landing page will not refresh. */
+async function zoneCookieIsCurrent(page: Page): Promise<boolean> {
+  const browserZone = await page.evaluate(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+  const cookies = await page.context().cookies(APP_E2E_URL);
+  return cookies.some((c) => c.name === 'tz' && c.value === browserZone);
 }

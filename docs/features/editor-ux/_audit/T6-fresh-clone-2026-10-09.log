@@ -1,0 +1,48 @@
+git clone -> 0
+docker run postgres -> 0
+$ pnpm install
+  exit 0
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 12.5s using pnpm v10.25.0
+$ cp env.example .env
+  exit 0
+$ pnpm prisma migrate deploy
+  exit 0
+    └─ migration.sql
+  └─ 20261007100300_single_default_bank_account/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+$ pnpm test
+  exit 0
+
+     Import  596 modules were evaluated 2840 times · 93.70s total, 27% of tracked time
+             ~3.55s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+$ pnpm build
+  exit 0
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+$ pnpm test:integration (timeout 240s)
+  exit 127
+(eval):4: command not found: timeout
+pnpm test:integration (rerun, no timeout) exit 0
+(node:69280) [DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address is not permitted by RFC 6066. This will be ignored in a future version.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  103 passed (103)
+      Tests  925 passed | 49 skipped (974)
+   Start at  19:39:53
+   Duration  500.48s (tests 93%, import 7%)
+
+pnpm exec playwright test --list (command starts) exit 0
+  smoke.spec.ts:5:3 › e2e harness smoke › a browser can load a page served by the harness
+  smoke.spec.ts:11:3 › e2e harness smoke › DB-backed e2e tests skip cleanly without a container runtime
+Total: 56 tests in 14 files

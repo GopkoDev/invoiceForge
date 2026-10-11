@@ -26,10 +26,14 @@ const { downloadPdfFromFormDataMock, printPdfFromFormDataMock } = vi.hoisted(() 
   downloadPdfFromFormDataMock: vi.fn(),
   printPdfFromFormDataMock: vi.fn(),
 }));
-vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
-  downloadPdfFromFormData: downloadPdfFromFormDataMock,
-  printPdfFromFormData: printPdfFromFormDataMock,
+vi.mock('@/hooks/use-pdf-action', () => ({
+  usePdfAction: () => ({
+    preparing: false,
+    runInput: (action: string, ...a: unknown[]) =>
+      action === 'download' ? downloadPdfFromFormDataMock(...a) : printPdfFromFormDataMock(...a),
+  }),
 }));
+vi.mock('@/lib/pdf/load-pdf-kit', () => ({ loadPdfKit: () => Promise.resolve({}) }));
 
 const baseFormData: InvoiceFormData = {
   invoiceNumber: 'INV-0001',
@@ -51,11 +55,16 @@ const baseFormData: InvoiceFormData = {
 };
 
 vi.mock('@/store/invoice-editor-store', () => ({
-  useFormData: () => baseFormData,
-  // invoice-integrity T16: the PDF's parties come from usePdfParties (issued details once issued).
-  usePdfParties: () => ({ senderProfile: undefined, customer: undefined, bankAccount: undefined }),
+  // T28: the document is built from the store's current state when Download / Print runs.
+  useInvoiceEditorStoreApi: () => ({
+    getState: () => ({ hasUnsavedChanges: false, formData: baseFormData }),
+  }),
   useSummary: () => ({ subtotal: 0, taxAmount: 0, total: 0 }),
   useHasUnsavedChanges: () => false,
+}));
+// invoice-integrity T16: the PDF's parties come from the state (issued details once issued).
+vi.mock('@/store/invoice-editor-store/pdf-parties', () => ({
+  pdfPartiesOfState: () => ({ senderProfile: undefined, customer: undefined, bankAccount: undefined }),
 }));
 
 import { useInvoicePdf } from '@/hooks/use-invoice-pdf';

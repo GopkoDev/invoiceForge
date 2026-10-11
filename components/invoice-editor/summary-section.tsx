@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import {
   Card,
   CardContent,
@@ -8,9 +9,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { AmountInput } from './amount-input';
 import { FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
+import { formatMoney } from '@/lib/format';
 import { Calculator } from 'lucide-react';
 import { parseDecimalDraft, useNumberDraft } from '@/hooks/use-number-draft';
 import {
@@ -22,6 +24,7 @@ import {
 } from '@/store/invoice-editor-store';
 
 export function SummarySection() {
+  const fieldId = useId();
   const currency = useInvoiceCurrency();
   const { updateField } = useInvoiceEditorActions();
   const { subtotal, taxRate, taxAmount, discount, shipping, total } =
@@ -69,12 +72,12 @@ export function SummarySection() {
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="font-medium">
-            {subtotal.toFixed(2)} {currency}
+            {formatMoney(subtotal, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.subtotal?.map((message) => ({ message }))} />
 
-        <Separator className="my-3" />
+        <Separator aria-hidden="true" className="my-3" />
 
         <div className="bg-muted/50 space-y-3 rounded-lg p-3">
           <p className="text-muted-foreground text-xs font-medium">
@@ -82,88 +85,103 @@ export function SummarySection() {
           </p>
 
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground">Discount</Label>
+            <Label htmlFor={`${fieldId}-discount`} className="text-muted-foreground">
+              Discount
+            </Label>
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">−</span>
-              <Input
-                type="text"
+              <AmountInput
                 value={discountInput.value}
-                onChange={(e) => discountInput.onChange(e.target.value)}
+                onChange={discountInput.onChange}
                 className="h-8 w-24 text-right"
+                id={`${fieldId}-discount`}
+                data-field="discount"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.discount}
+                aria-describedby={fieldErrors?.discount ? `${fieldId}-discount-error` : undefined}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
           <FieldError
+            id={`${fieldId}-discount-error`}
             errors={fieldErrors?.discount?.map((message) => ({ message }))}
           />
 
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground">Shipping</Label>
+            <Label htmlFor={`${fieldId}-shipping`} className="text-muted-foreground">
+              Shipping
+            </Label>
 
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">+</span>
-              <Input
-                type="text"
+              <AmountInput
                 value={shippingInput.value}
-                onChange={(e) => shippingInput.onChange(e.target.value)}
+                onChange={shippingInput.onChange}
                 className="h-8 w-24 text-right"
+                id={`${fieldId}-shipping`}
+                data-field="shipping"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.shipping}
+                aria-describedby={fieldErrors?.shipping ? `${fieldId}-shipping-error` : undefined}
               />
               <span className="text-muted-foreground w-12">{currency}</span>
             </div>
           </div>
           <FieldError
+            id={`${fieldId}-shipping-error`}
             errors={fieldErrors?.shipping?.map((message) => ({ message }))}
           />
 
-          <Separator className="my-2" />
+          <Separator aria-hidden="true" className="my-2" />
 
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm font-medium">
               Taxable Amount
             </span>
             <span className="font-medium">
-              {taxableAmount.toFixed(2)} {currency}
+              {formatMoney(taxableAmount, currency)}
             </span>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Tax</span>
+            <Label htmlFor={`${fieldId}-tax-rate`} className="text-muted-foreground">
+              Tax
+            </Label>
             <div className="flex items-center">
-              <Input
-                type="text"
+              <AmountInput
                 value={taxRateInput.value}
-                onChange={(e) => taxRateInput.onChange(e.target.value)}
+                onChange={taxRateInput.onChange}
                 className="h-8 w-16 text-right"
+                id={`${fieldId}-tax-rate`}
+                data-field="taxRate"
                 disabled={locked}
                 aria-invalid={!!fieldErrors?.taxRate}
+                aria-describedby={fieldErrors?.taxRate ? `${fieldId}-tax-rate-error` : undefined}
               />
               <span className="text-muted-foreground ml-1">%</span>
             </div>
           </div>
 
           <span className="font-medium">
-            {taxAmount.toFixed(2)} {currency}
+            {formatMoney(taxAmount, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.taxAmount?.map((message) => ({ message }))} />
         <FieldError
+          id={`${fieldId}-tax-rate-error`}
           errors={fieldErrors?.taxRate?.map((message) => ({ message }))}
         />
 
-        <Separator />
+        <Separator aria-hidden="true" />
 
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold">Total</span>
           <span className="text-xl font-bold">
-            {total.toFixed(2)} {currency}
+            {formatMoney(total, currency)}
           </span>
         </div>
         <FieldError errors={fieldErrors?.total?.map((message) => ({ message }))} />

@@ -5,12 +5,20 @@ import { Panel, Group, Separator } from 'react-resizable-panels';
 
 import { cn } from '@/lib/utils';
 
+// react-resizable-panels puts aria-orientation on the group's plain <div>, which has no role that
+// allows it (axe: aria-allowed-attr, critical). The group is a layout container, not a widget, so
+// the attribute is dropped once the element mounts; the handle keeps its own separator semantics.
+function dropAriaOrientation(element: HTMLDivElement | null) {
+  element?.removeAttribute('aria-orientation');
+}
+
 function ResizablePanelGroup({
   className,
   ...props
 }: React.ComponentProps<typeof Group>) {
   return (
     <Group
+      elementRef={dropAriaOrientation}
       data-slot="resizable-panel-group"
       className={cn(
         'flex h-full w-full data-[group-orientation=vertical]:flex-col',

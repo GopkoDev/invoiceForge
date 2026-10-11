@@ -24,9 +24,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock, push: pushMock }),
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 const { useModalStore } = await import('@/store/use-modal-store');
 const { useEditorHeaderButtons } = await import('@/hooks/use-editor-header-buttons');
 
@@ -59,14 +60,15 @@ const bankAccount: InvoiceBankAccount = {
 };
 
 function seedUnsavedInvoice() {
-  const state = useInvoiceEditorStore.getState();
-  state.initialize({
+  store = createInvoiceEditorStore({
     senderProfiles: [senderProfile],
     bankAccounts: [bankAccount],
     customers: [],
     products: [],
     customPrices: [],
+    initialData: emptyEditorData().initialData,
   });
+  const state = store.getState();
   state.updateFields({
     senderProfileId: 'profile-a',
     bankAccountId: 'bank-a',
@@ -88,7 +90,7 @@ function seedUnsavedInvoice() {
 
 describe('useEditorHeaderButtons — unsaved-changes dialog Save (T40, F-41)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
     useModalStore.getState().resetAllModals();
     updateInvoiceMock.mockReset();
     createInvoiceMock.mockReset();
@@ -105,7 +107,7 @@ describe('useEditorHeaderButtons — unsaved-changes dialog Save (T40, F-41)', (
     );
 
     seedUnsavedInvoice();
-    const { result } = renderHook(() => useEditorHeaderButtons());
+    const { result } = renderHook(() => useEditorHeaderButtons(), { wrapper: withEditorStore(store) });
 
     await act(async () => {
       result.current.HomeButton.props.onClick();
@@ -138,7 +140,7 @@ describe('useEditorHeaderButtons — unsaved-changes dialog Save (T40, F-41)', (
     );
 
     seedUnsavedInvoice();
-    const { result } = renderHook(() => useEditorHeaderButtons());
+    const { result } = renderHook(() => useEditorHeaderButtons(), { wrapper: withEditorStore(store) });
 
     await act(async () => {
       result.current.HomeButton.props.onClick();

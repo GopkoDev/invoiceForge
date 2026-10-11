@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import {
   useInvoiceNumber,
   useInvoiceNumberHint,
+  useInvoiceHintStatus,
   useFieldErrors,
   useInvoiceDates,
   useInvoiceCurrency,
@@ -51,8 +52,13 @@ export function InvoiceDetailsSection() {
   const dueDateLabelId = `${fieldId}-due-date-label`;
   const dueDateTriggerId = `${fieldId}-due-date`;
   const dueDateErrorId = `${fieldId}-due-date-error`;
+  const invoiceNumberId = `${fieldId}-invoice-number`;
+  const invoiceNumberErrorId = `${fieldId}-invoice-number-error`;
+  const currencyId = `${fieldId}-currency`;
+  const poNumberId = `${fieldId}-po-number`;
   const invoiceNumber = useInvoiceNumber();
   const invoiceNumberHint = useInvoiceNumberHint();
+  const hintLoading = useInvoiceHintStatus() === 'loading';
   const fieldErrors = useFieldErrors();
   const { issueDate, dueDate } = useInvoiceDates();
   const currency = useInvoiceCurrency();
@@ -84,33 +90,41 @@ export function InvoiceDetailsSection() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Invoice Number */}
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor={invoiceNumberId}>
               Invoice Number <span className="text-destructive">*</span>
             </Label>
 
             <Input
+              id={invoiceNumberId}
+              data-field="invoiceNumber"
               value={invoiceNumber}
               onChange={(e) => updateField('invoiceNumber', e.target.value)}
               placeholder={invoiceNumberHint}
               disabled={locked}
               aria-invalid={!!fieldErrors?.invoiceNumber}
+              aria-describedby={fieldErrors?.invoiceNumber ? invoiceNumberErrorId : undefined}
+              aria-busy={invoiceNumber === '' && hintLoading ? true : undefined}
             />
 
             {/* An empty field is the only signal a number is system-proposed (AC-06); the hint
                 is shown only as a placeholder, never merged into the value. */}
             {invoiceNumber === '' && (
-              <FieldDescription>Assigned on save</FieldDescription>
+              <FieldDescription>
+                {hintLoading ? 'Loading…' : 'Assigned on save'}
+              </FieldDescription>
             )}
 
             <FieldError
+              id={invoiceNumberErrorId}
               errors={fieldErrors?.invoiceNumber?.map((message) => ({ message }))}
             />
           </div>
 
           {/* Currency (read-only, derived from bank account) */}
           <div className="space-y-2">
-            <Label>Currency</Label>
+            <Label htmlFor={currencyId}>Currency</Label>
             <Input
+              id={currencyId}
               value={currency}
               readOnly
               disabled
@@ -127,6 +141,7 @@ export function InvoiceDetailsSection() {
             <Popover>
               <PopoverTrigger
                 id={issueDateTriggerId}
+                data-field="issueDate"
                 aria-labelledby={`${issueDateLabelId} ${issueDateTriggerId}`}
                 disabled={locked}
                 className={cn(
@@ -157,6 +172,7 @@ export function InvoiceDetailsSection() {
             <Popover>
               <PopoverTrigger
                 id={dueDateTriggerId}
+                data-field="dueDate"
                 aria-labelledby={`${dueDateLabelId} ${dueDateTriggerId}`}
                 disabled={readOnly}
                 aria-invalid={!!fieldErrors?.dueDate}
@@ -205,8 +221,10 @@ export function InvoiceDetailsSection() {
 
         {/* PO Number */}
         <div className="space-y-2">
-          <Label>PO Number (optional)</Label>
+          <Label htmlFor={poNumberId}>PO Number (optional)</Label>
           <Input
+            id={poNumberId}
+            data-field="poNumber"
             value={poNumber}
             onChange={(e) => updateField('poNumber', e.target.value)}
             placeholder="Customer purchase order number"

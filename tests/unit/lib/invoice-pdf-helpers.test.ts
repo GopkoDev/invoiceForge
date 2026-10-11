@@ -8,7 +8,8 @@ import { createElement } from 'react';
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() } }));
 
 import { prepareInvoiceDataForPdf } from '@/lib/helpers/invoice-pdf-helpers';
-import { InvoicePDFDocument } from '@/components/invoice-editor/invoice-pdf-document';
+const { InvoicePDFDocument } = await import('@/lib/pdf/invoice-pdf-kit');
+import { buildInvoiceDocument } from '@/lib/invoice-document';
 import type { SerializedInvoice } from '@/types/invoice/types';
 import { pdfTextRuns } from '../../support/pdf-text';
 
@@ -101,17 +102,8 @@ function invoice(over: Partial<SerializedInvoice> = {}): SerializedInvoice {
 }
 
 function printed(inv: SerializedInvoice): string[] {
-  const data = prepareInvoiceDataForPdf(inv);
   return pdfTextRuns(
-    createElement(InvoicePDFDocument, {
-      formData: data.formData,
-      senderProfile: data.senderProfile ?? undefined,
-      customer: data.customer ?? undefined,
-      bankAccount: data.bankAccount ?? undefined,
-      subtotal: inv.subtotal,
-      taxAmount: inv.taxAmount,
-      total: inv.total,
-    })
+    createElement(InvoicePDFDocument, { document: buildInvoiceDocument({ kind: 'issued', invoice: inv }) })
   );
 }
 
@@ -165,6 +157,6 @@ describe('prepareInvoiceDataForPdf — issued details (T14)', () => {
 
   it('a deleted product line prints as free text with its description (AC-16)', () => {
     const text = printed(invoice());
-    expect(text).toEqual(expect.arrayContaining(['Retired service', 'Kept as free text', '100.00 EUR']));
+    expect(text).toEqual(expect.arrayContaining(['Retired service', 'Kept as free text', '€100.00']));
   });
 });

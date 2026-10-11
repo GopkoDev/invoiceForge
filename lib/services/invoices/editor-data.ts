@@ -4,6 +4,7 @@ import { prisma } from '@/prisma';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type {
   InvoiceBankAccount,
+  InvoiceFormData,
   InvoiceCustomPrice,
   InvoiceCustomer,
   InvoiceEditorData,
@@ -14,6 +15,7 @@ import type {
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { isDerivedOverdue, todayIn } from '@/lib/services/_shared/overdue';
 import { failed } from '@/lib/services/_shared/result-helpers';
+import { addDaysToDay, dayToUtcDate } from '@/lib/helpers/calendar-day';
 import {
   bankAccountSelect,
   customPriceSelect,
@@ -39,7 +41,7 @@ export async function getInvoiceEditorData(
     const [senderProfiles, customers, products, customPrices, existingInvoice] = await Promise.all([
       prisma.senderProfile.findMany({
         where: { userId },
-        select: { ...senderProfileSelect, bankAccounts: { select: bankAccountSelect, orderBy: { id: 'asc' } } },
+        select: { ...senderProfileSelect, isDefault: true, bankAccounts: { select: bankAccountSelect, orderBy: { id: 'asc' } } },
         orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
       }),
       prisma.customer.findMany({ where: { userId }, select: customerSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
@@ -77,7 +79,7 @@ export async function getInvoiceEditorData(
     }));
     const transformedProfiles: InvoiceSenderProfile[] = senderProfiles.map(
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ bankAccounts: _bankAccounts, ...profile }) => profile,
+      ({ bankAccounts: _bankAccounts, isDefault: _isDefault, ...profile }) => profile,
     );
 
     const legacy = existingInvoice ? await computeInvoiceLegacyInfo(prisma, existingInvoice) : null;
@@ -89,16 +91,54 @@ export async function getInvoiceEditorData(
       products: transformedProducts,
       customPrices: transformedCustomPrices,
       // The editor gets the stored status (a save echoes it back); the derived badge travels beside it.
-      initialData: existingInvoice ? transformInvoiceToFormData(existingInvoice) : undefined,
+      initialData: existingInvoice
+        ? transformInvoiceToFormData(existingInvoice)
+        : invoiceId
+          ? undefined
+          : newInvoiceDefaults(todayIn(actor.timeZone), senderProfiles),
       derivedOverdue: existingInvoice ? isDerivedOverdue(existingInvoice, todayIn(actor.timeZone)) : undefined,
       invoiceId,
       legacy,
       version: existingInvoice?.version,
       issuedDetails: existingInvoice ? issuedDetailsOf(existingInvoice) : null,
+      storedAmounts: existingInvoice
+        ? {
+            subtotal: Number(existingInvoice.subtotal),
+            taxAmount: Number(existingInvoice.taxAmount),
+            total: Number(existingInvoice.total),
+          }
+        : undefined,
     });
   } catch (error) {
     return failed('Error fetching invoice editor data:', error, 'Failed to fetch invoice editor data.');
   }
+}
+
+/** A new invoice's defaults: issued `today` (a calendar day in the Freelancer zone), due 30 days later. */
+function newInvoiceDefaults(
+  today: string,
+  senderProfiles: { id: string; isDefault: boolean; bankAccounts: InvoiceBankAccount[] }[],
+): InvoiceFormData {
+  const profile = senderProfiles.find((p) => p.isDefault) ?? senderProfiles[0];
+  const account = profile?.bankAccounts.find((a) => a.isDefault) ?? profile?.bankAccounts[0];
+  return {
+    invoiceNumber: '',
+    status: 'DRAFT',
+    senderProfileId: profile?.id ?? '',
+    bankAccountId: account?.id ?? '',
+    customerId: '',
+    issueDate: dayToUtcDate(today),
+    dueDate: dayToUtcDate(addDaysToDay(today, 30)),
+    currency: account?.currency ?? 'USD',
+    poNumber: '',
+    paymentTerms: '',
+    items: [],
+    taxRate: 0,
+    discount: 0,
+    shipping: 0,
+    notes: '',
+    terms: '',
+  };
 }
 
 /** The invoice's snapshot columns as the editor's read-only issued blocks (ADR-0001). */

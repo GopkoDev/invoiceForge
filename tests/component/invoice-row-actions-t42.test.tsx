@@ -18,12 +18,17 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   getInvoice: (...a: unknown[]) => getInvoiceMock(...a),
 }));
 
-const downloadMock = vi.fn();
-const printMock = vi.fn();
+// The PDF path: usePdfAction loads the toolkit, then resolves the logo; a 401 there is a result.
 vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
-  downloadInvoicePdf: (...a: unknown[]) => downloadMock(...a),
-  printInvoicePdf: (...a: unknown[]) => printMock(...a),
+  prepareInvoiceDataForPdf: () => ({ senderProfile: null }),
+  resolveLogoForPdf: () => Promise.resolve({ unauthorized: true }),
 }));
+vi.mock('@/lib/invoice-document', () => ({ buildInvoiceDocument: () => ({}) }));
+vi.mock('@/lib/pdf/load-pdf-kit', () => ({
+  PdfKitLoadError: class extends Error {},
+  loadPdfKit: () => Promise.resolve({}),
+}));
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -74,13 +79,12 @@ beforeEach(() => {
     duplicateMock,
     deleteMock,
     statusMock,
-    downloadMock,
-    printMock,
     toastError,
     assignMock,
   ]) {
     m.mockReset();
   }
+  vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn() } as unknown as Window);
   Object.defineProperty(window, 'location', {
     value: { ...window.location, assign: assignMock },
     writable: true,
@@ -103,14 +107,12 @@ describe('InvoiceRowActions (T42)', () => {
 
   it('N-05: Download PDF with an unauthorized logo result routes to sign-in', async () => {
     getInvoiceMock.mockResolvedValue(ok({ id: 'inv-1' }));
-    downloadMock.mockResolvedValue({ success: false, unauthorized: true });
     await pick('Download PDF');
     await vi.waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
   });
 
   it('N-05: Print with an unauthorized logo result routes to sign-in', async () => {
     getInvoiceMock.mockResolvedValue(ok({ id: 'inv-1' }));
-    printMock.mockResolvedValue({ success: false, unauthorized: true });
     await pick('Print');
     await vi.waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
   });
@@ -154,20 +156,18 @@ describe('RelatedInvoicesList (T42)', () => {
         entityId="cust-1"
       />
     );
-    await user.click(screen.getAllByRole('button', { name: '' })[0]);
+    await user.click(screen.getAllByRole('button', { name: /^Actions for invoice/ })[0]);
     await user.click(await screen.findByText(label));
   }
 
   it('N-05: Download with an unauthorized logo result routes to sign-in', async () => {
     getInvoiceMock.mockResolvedValue(ok({ id: 'inv-1' }));
-    downloadMock.mockResolvedValue({ success: false, unauthorized: true });
     await pick('Download');
     await vi.waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
   });
 
   it('N-05: Print with an unauthorized logo result routes to sign-in', async () => {
     getInvoiceMock.mockResolvedValue(ok({ id: 'inv-1' }));
-    printMock.mockResolvedValue({ success: false, unauthorized: true });
     await pick('Print');
     await vi.waitFor(() => expect(assignMock).toHaveBeenCalledWith(SIGN_IN));
   });

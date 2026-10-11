@@ -1,6 +1,7 @@
-import { InvoiceEditorModalContainer } from '@/components/modals/invoice-editor/invoice-editor-modal-container';
+import { SessionRestoreGuard } from '@/components/session-restore-guard';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
+import { zoneCookieNeedsRefresh } from '@/lib/helpers/time-zone';
 
 export default async function InvoiceEditorLayout({
   children,
@@ -9,13 +10,15 @@ export default async function InvoiceEditorLayout({
 }) {
   // T09 (ADR-0002, AC-21): a stale token whose User row is gone is treated as a Visitor —
   // redirected to sign-in before any protected data renders.
-  await requireLiveUser();
+  const { userId } = await requireLiveUser();
+  const refreshZone = await zoneCookieNeedsRefresh(userId);
 
   return (
     <>
       <div className="bg-background min-h-screen">{children}</div>
-      <TimeZoneCookie />
-      <InvoiceEditorModalContainer />
+      <SessionRestoreGuard />
+      {/* T60: refresh only while the account has no saved zone (the cookie is then its seed). */}
+      <TimeZoneCookie refresh={refreshZone} />
     </>
   );
 }

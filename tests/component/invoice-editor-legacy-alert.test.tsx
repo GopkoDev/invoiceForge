@@ -9,7 +9,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { InvoiceEditor } from '@/components/invoice-editor/invoice-editor';
-import type { InvoiceEditorData } from '@/types/invoice/types';
 
 vi.mock('@/components/invoice-editor/invoice-editor-header', () => ({
   InvoiceEditorHeader: () => null,
@@ -40,6 +39,7 @@ vi.mock('@/store/invoice-editor-store', () => ({
   // invoice-integrity T18: the stale / reload-failed states.
   useIsStale: () => false,
   useReloadFailed: () => false,
+  useStoredAmountsToPrint: () => undefined,
   useLegacy: () => ({
     storedTotal: '100.00',
     recomputedTotal: '100.00',
@@ -48,17 +48,9 @@ vi.mock('@/store/invoice-editor-store', () => ({
   useInvoiceEditorActions: () => ({ initialize: initializeMock, reset: resetMock }),
 }));
 
-const data: InvoiceEditorData = {
-  senderProfiles: [],
-  bankAccounts: [],
-  customers: [],
-  products: [],
-  customPrices: [],
-};
-
 describe('InvoiceEditor — legacy shared-number alert (T16)', () => {
   it('shows the shared-number warning above the form when legacy.sharedNumber is true', () => {
-    render(<InvoiceEditor data={data} />);
+    render(<InvoiceEditor />);
 
     expect(
       screen.getByText(

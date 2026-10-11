@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -36,6 +36,10 @@ import { InvoiceEditorSelectedPreview } from './invoice-editor-selected-preview'
 
 export function CustomerSection() {
   const [open, setOpen] = useState(false);
+  // The picker is named by its label, then its value.
+  const fieldId = useId();
+  const labelId = `${fieldId}-label`;
+  const triggerId = `${fieldId}-trigger`;
   const customers = useCustomers();
   const selectedCustomer = useSelectedCustomer();
   const { selectCustomer } = useInvoiceEditorActions();
@@ -82,12 +86,17 @@ export function CustomerSection() {
 
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>
+          <Label id={labelId}>
             Customer <span className="text-destructive">*</span>
           </Label>
 
           <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs">
+            <PopoverTrigger
+              id={triggerId}
+              data-field="customerId"
+              aria-labelledby={`${labelId} ${triggerId}`}
+              className="border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 mb-0 inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-md border px-2.5 text-sm font-normal shadow-xs"
+            >
               <span className="truncate">
                 {selectedCustomer
                   ? selectedCustomer.name

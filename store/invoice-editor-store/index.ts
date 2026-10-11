@@ -5,11 +5,13 @@ export type {
   GroupedProducts,
   EditorMode,
   TotalsChanged,
+  SaveIntent,
 } from './types';
 
 // Store and selectors
 export {
-  useInvoiceEditorStore,
+  useInvoiceEditor,
+  useInvoiceEditorStoreApi,
   // Selectors
   useFormData,
   useInvoiceNumber,
@@ -31,17 +33,20 @@ export {
   useEditorMode,
   useEditorLocks,
   useIssuedDetails,
+  useStoredAmountsToPrint,
   useInvoiceId,
   useInvoiceEditorActions,
   usePoNumber,
   useInvoiceItem,
   useInvoiceNumberHint,
+  useInvoiceHintStatus,
   useFieldErrors,
   useTotalsChanged,
   useLegacy,
   useLockedRefusal,
+  useIssuedEditsDroppedNotice,
   useChangedElsewhere,
   useIsStale,
   useReloadFailed,
-} from './use-invoice-editor-store';
+} from './selectors';
 export { usePdfParties } from './pdf-parties';

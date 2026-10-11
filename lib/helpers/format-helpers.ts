@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/format';
 import { UNIT_OPTIONS } from '@/constants/unit-options';
 
 /**
@@ -32,14 +33,7 @@ export function formatFullAddress(
  * @returns Formatted currency string
  */
 export function formatCurrency(amount: number, currency: string): string {
-  const formatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-  return formatter.format(amount);
+  return formatMoney(amount, currency);
 }
 
 /**

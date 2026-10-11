@@ -4,6 +4,8 @@
 // compared and shown by that day alone, never shifted into a zone. Pure and framework-free: the
 // editor (browser), the services and the schema all use it.
 
+import { formatDay } from '@/lib/format';
+
 /** A calendar day, `yyyy-MM-dd`. */
 export type CalendarDay = string;
 
@@ -48,7 +50,7 @@ export function dayToLocalDate(day: CalendarDay): Date {
 
 /** `toLocaleDateString` of a stored day, read in UTC so a browser west of UTC does not show the day before. */
 export function formatStoredDay(stored: Date | string, options: Intl.DateTimeFormatOptions): string {
-  return new Date(stored).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
+  return formatDay(stored, options);
 }
 
 /** `day` plus `days` calendar days (DST-free: UTC arithmetic on whole days). */

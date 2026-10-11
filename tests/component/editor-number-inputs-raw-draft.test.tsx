@@ -19,11 +19,12 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: vi.fn(),
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 
-function ItemHarness({ itemId, layout }: { itemId: string; layout?: 'desktop' | 'mobile' }) {
+function ItemHarness({ itemId }: { itemId: string }) {
   const { item, currency, handlePriceChange, handleQuantityChange } = useInvoiceItemHandlers({
     itemId,
   });
@@ -34,14 +35,13 @@ function ItemHarness({ itemId, layout }: { itemId: string; layout?: 'desktop' | 
       onPriceChange={handlePriceChange}
       onQuantityChange={handleQuantityChange}
       isPriceDisabled={false}
-      layout={layout}
     />
   );
 }
 
 describe('SummarySection number inputs keep the raw draft (N-01)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
   });
 
   it.each([
@@ -50,20 +50,20 @@ describe('SummarySection number inputs keep the raw draft (N-01)', () => {
     ['taxRate', 2, '1.5'],
   ] as const)('%s shows exactly what was typed (%s)', async (field, index, typed) => {
     const user = userEvent.setup();
-    render(<SummarySection />);
+    render(<SummarySection />, { wrapper: withEditorStore(store) });
     const input = screen.getAllByRole('textbox')[index] as HTMLInputElement;
 
     await user.clear(input);
     await user.type(input, typed);
 
     expect(input.value).toBe(typed);
-    const stored = useInvoiceEditorStore.getState().formData[field];
+    const stored = store.getState().formData[field];
     expect(Object.is(stored, Number(typed))).toBe(true);
   });
 
   it('a trailing decimal point survives while typing "1.5" (not 15)', async () => {
     const user = userEvent.setup();
-    render(<SummarySection />);
+    render(<SummarySection />, { wrapper: withEditorStore(store) });
     const input = screen.getAllByRole('textbox')[0] as HTMLInputElement;
 
     await user.clear(input);
@@ -72,22 +72,22 @@ describe('SummarySection number inputs keep the raw draft (N-01)', () => {
     await user.type(input, '5');
 
     expect(input.value).toBe('1.5');
-    expect(useInvoiceEditorStore.getState().formData.discount).toBe(1.5);
+    expect(store.getState().formData.discount).toBe(1.5);
   });
 });
 
 describe('InvoiceItemFields number inputs keep the raw draft (N-01)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().addCustomItem();
+    store = createInvoiceEditorStore(emptyEditorData());
+    store.getState().addCustomItem();
   });
 
-  it.each(['desktop', 'mobile'] as const)(
+  it.each(['one tree for both layouts'])(
     '%s: price "-5" and quantity "abc" show as typed',
-    async (layout) => {
+    async () => {
       const user = userEvent.setup();
-      const itemId = useInvoiceEditorStore.getState().formData.items[0].id;
-      render(<ItemHarness itemId={itemId} layout={layout} />);
+      const itemId = store.getState().formData.items[0].id;
+      render(<ItemHarness itemId={itemId} />, { wrapper: withEditorStore(store) });
       const [price, quantity] = screen.getAllByRole('textbox') as HTMLInputElement[];
 
       await user.clear(price);
@@ -102,26 +102,26 @@ describe('InvoiceItemFields number inputs keep the raw draft (N-01)', () => {
 
   it('quantity "1.5" keeps its decimal point while typing', async () => {
     const user = userEvent.setup();
-    const itemId = useInvoiceEditorStore.getState().formData.items[0].id;
-    render(<ItemHarness itemId={itemId} />);
+    const itemId = store.getState().formData.items[0].id;
+    render(<ItemHarness itemId={itemId} />, { wrapper: withEditorStore(store) });
     const quantity = screen.getAllByRole('textbox')[1] as HTMLInputElement;
 
     await user.clear(quantity);
     await user.type(quantity, '1.5');
 
     expect(quantity.value).toBe('1.5');
-    expect(useInvoiceEditorStore.getState().formData.items[0].quantity).toBe(1.5);
+    expect(store.getState().formData.items[0].quantity).toBe(1.5);
   });
 
   it('a store-side change (product pick) replaces a stale draft', async () => {
     const user = userEvent.setup();
-    const itemId = useInvoiceEditorStore.getState().formData.items[0].id;
-    render(<ItemHarness itemId={itemId} />);
+    const itemId = store.getState().formData.items[0].id;
+    render(<ItemHarness itemId={itemId} />, { wrapper: withEditorStore(store) });
     const price = screen.getAllByRole('textbox')[0] as HTMLInputElement;
 
     await user.clear(price);
     await user.type(price, '12');
-    act(() => useInvoiceEditorStore.getState().updateItem(itemId, { price: 99 }));
+    act(() => store.getState().updateItem(itemId, { price: 99 }));
 
     expect(price.value).toBe('99');
   });

@@ -1,3 +1,5 @@
+import type { InvoiceEditorState } from './types';
+import type { StoredAmounts } from '@/lib/invoice-document/types';
 import {
   InvoiceFormData,
   InvoiceFormItem,
@@ -19,7 +21,6 @@ import {
   RecalculateComputedValuesStateInput,
   LoadedDates,
 } from './types';
-import { v4 as uuidv4 } from 'uuid';
 import {
   computeInvoiceAmounts,
   decimalStringToNumber,
@@ -290,36 +291,9 @@ export function toSavePayload(
   };
 }
 
-function localToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-export function createInitialFormData(): InvoiceFormData {
-  const today = localToday();
-  return {
-    invoiceNumber: '',
-    status: 'DRAFT' as InvoiceStatus,
-    senderProfileId: '',
-    bankAccountId: '',
-    customerId: '',
-    issueDate: today,
-    dueDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30), // +30 calendar days
-    currency: 'USD' as Currency,
-    poNumber: '',
-    paymentTerms: '',
-    items: [],
-    taxRate: 0,
-    discount: 0,
-    shipping: 0,
-    notes: '',
-    terms: '',
-  };
-}
-
 export function createNewItem(): InvoiceFormItem {
   return {
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     productId: '',
     productName: '',
     description: '',
@@ -364,4 +338,12 @@ export function editorModeOf(invoiceId: string | undefined, storedStatus: Invoic
   if (storedStatus === 'DRAFT') return 'draft';
   if (storedStatus === 'CANCELLED') return 'cancelled';
   return 'issued';
+}
+
+/** Issued and cancelled invoices print the amounts stored on them; a draft or new one is recomputed. */
+export function storedAmountsToPrint(
+  state: Partial<Pick<InvoiceEditorState, 'invoiceId'>> & Pick<InvoiceEditorState, 'storedStatus' | 'storedAmounts'>
+): StoredAmounts | undefined {
+  const mode = editorModeOf(state.invoiceId, state.storedStatus);
+  return (mode === 'issued' || mode === 'cancelled') && state.storedAmounts ? state.storedAmounts : undefined;
 }

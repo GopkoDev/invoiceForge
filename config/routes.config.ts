@@ -131,6 +131,11 @@ const nextAuthStaticPaths = [
 // Auth.js's only two endpoints that carry a dynamic provider segment.
 const nextAuthProviderPathPattern = /^\/api\/auth\/(signin|callback)\/[\w-]+$/;
 
+/** Static assets and icons: public files that stay cacheable even for a signed-in request. */
+export function isStaticAssetPath(pathname: string): boolean {
+  return staticAssetRoutes.some((route) => pathname === route) || iconPathPattern.test(pathname);
+}
+
 /**
  * AC-05: deny-by-default allowlist. Everything not covered here — including paths added
  * later — is private and requires a session.

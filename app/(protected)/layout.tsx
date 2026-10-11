@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SiteHeader } from '@/components/layout/site-header';
+import { SessionRestoreGuard } from '@/components/session-restore-guard';
 import { TimeZoneCookie } from '@/components/time-zone-cookie';
 import { siteConfig } from '@/config/site.config';
 import { requireLiveUser } from '@/lib/helpers/route-auth';
+import { zoneCookieNeedsRefresh } from '@/lib/helpers/time-zone';
 
 export const metadata: Metadata = {
   robots: {
@@ -24,12 +26,15 @@ export default async function PrivateLayout({
 }) {
   // T09 (ADR-0002, AC-21): a stale token whose User row is gone is treated as a Visitor —
   // redirected to sign-in before any protected data renders.
-  await requireLiveUser();
+  const { userId } = await requireLiveUser();
+  const refreshZone = await zoneCookieNeedsRefresh(userId);
 
   return (
     <>
       {/* T22 (ADR-0010): tz-cookie client island carries the browser time zone to the server. */}
-      <TimeZoneCookie />
+      <SessionRestoreGuard />
+      {/* T60: refresh only while the account has no saved zone (the cookie is then its seed). */}
+      <TimeZoneCookie refresh={refreshZone} />
       <SidebarProvider
         defaultOpen={siteConfig.sidebar.defaultOpen}
         style={

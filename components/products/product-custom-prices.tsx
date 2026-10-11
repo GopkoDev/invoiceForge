@@ -31,6 +31,7 @@ import {
 import { CustomerInfo } from '@/components/custom-prices/custom-price-entity-cell';
 import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { formatCurrency } from '@/lib/helpers';
+import { formatMoment } from '@/lib/format';
 import { useProductCustomPriceModal } from '@/hooks/use-product-custom-price-modal';
 import type { Currency } from '@prisma/client';
 
@@ -41,6 +42,8 @@ interface ProductCustomPricesProps {
   productCurrency: Currency;
   productUnit: string;
   customPrices: SerializedCustomPrice[];
+  // AC-08: the Freelancer time zone passed from the server; UTC when none is saved.
+  timeZone?: string | null;
 }
 
 export function ProductCustomPrices({
@@ -50,6 +53,7 @@ export function ProductCustomPrices({
   productCurrency,
   productUnit,
   customPrices,
+  timeZone,
 }: ProductCustomPricesProps) {
   const customPriceModal = useModal('customPriceModal');
   const confirmationModal = useModal('confirmationModal');
@@ -170,7 +174,7 @@ export function ProductCustomPrices({
                     </Badge>
                   ) : (
                     <span className="text-muted-foreground text-xs">
-                      {new Date(price.createdAt).toLocaleDateString()}
+                      {formatMoment(price.createdAt, timeZone ?? null)}
                     </span>
                   )}
                 </TableCell>

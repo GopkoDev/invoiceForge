@@ -17,17 +17,18 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: vi.fn(),
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 
 describe('SummarySection (F-04, no silent rewrites)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
+    store = createInvoiceEditorStore(emptyEditorData());
   });
 
   it('keeps a negative discount entry as negative instead of stripping the "-" sign', () => {
-    render(<SummarySection />);
+    render(<SummarySection />, { wrapper: withEditorStore(store) });
 
     // Discount, Shipping and Tax rate are all plain text inputs with no accessible name wired to
     // them; Discount renders first in the DOM. A single change event (rather than
@@ -36,6 +37,6 @@ describe('SummarySection (F-04, no silent rewrites)', () => {
     const discountInput = screen.getAllByRole('textbox')[0];
     fireEvent.change(discountInput, { target: { value: '-1' } });
 
-    expect(useInvoiceEditorStore.getState().formData.discount).toBe(-1);
+    expect(store.getState().formData.discount).toBe(-1);
   });
 });

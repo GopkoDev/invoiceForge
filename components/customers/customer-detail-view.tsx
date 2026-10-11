@@ -18,12 +18,14 @@ interface CustomerDetailViewProps {
   customer: CustomerWithRelations;
   customPrices: SerializedCustomPrice[];
   invoices: InvoiceListItem[];
+  timeZone?: string | null;
 }
 
 export function CustomerDetailView({
   customer,
   customPrices,
   invoices,
+  timeZone,
 }: CustomerDetailViewProps) {
   return (
     <ContactsDetailsLayout>
@@ -43,7 +45,7 @@ export function CustomerDetailView({
 
       <ContactsDetailsGrid>
         <ContactsDetailsSidebar>
-          <CustomerInfoSidebar customer={customer} />
+          <CustomerInfoSidebar customer={customer} timeZone={timeZone} />
         </ContactsDetailsSidebar>
 
         <ContactsDetailsContentLayout>

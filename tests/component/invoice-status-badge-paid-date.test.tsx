@@ -177,5 +177,7 @@ describe('invoices page wiring — paid date in the account time zone (T55, S-06
 
     expect(screen.getByText(/Sep 21, 2026/)).toBeInTheDocument();
     expect(screen.queryByText(/Sep 22, 2026/)).not.toBeInTheDocument();
-  });
+    // The cold import of the whole page tree is slow under a loaded full run (it used to be warmed
+    // by the PDF toolkit import that the row actions no longer make).
+  }, 30000);
 });

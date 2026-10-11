@@ -1,27 +1,20 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  InvoiceFormData,
-  InvoiceSenderProfile,
-  InvoiceCustomer,
-  InvoiceBankAccount,
-} from '@/types/invoice/types';
+import type { InvoiceSenderProfile } from '@/types/invoice/types';
+import { buildInvoiceDocument, type InvoiceDocumentSource } from '@/lib/invoice-document';
 import { ZoomIn, ZoomOut, Maximize, AlertTriangle } from 'lucide-react';
 import { PDF_PAGE } from '@/config/pdf-config';
 import { PDFPreviewDocument } from './pdf-preview-document';
 import { fetchLogoDataUrl } from '@/lib/utils/image-to-base64';
 
 interface PDFPreviewPanelProps {
-  formData: InvoiceFormData;
+  /** What the document model is built from (ADR-0002): the form and its parties, or an issued invoice. Keep it referentially stable. */
+  source: InvoiceDocumentSource;
+  /** Only for the logo; the printed sender block comes from the document. */
   senderProfile?: InvoiceSenderProfile;
-  customer?: InvoiceCustomer;
-  bankAccount?: InvoiceBankAccount;
-  subtotal: number;
-  taxAmount: number;
-  total: number;
 }
 
 const PAGE_WIDTH_PX = PDF_PAGE.WIDTH_PX;
@@ -31,15 +24,8 @@ const MAX_ZOOM = 200;
 const MIN_ZOOM = 25;
 const ZOOM_STEP = 25;
 
-export function PDFPreviewPanel({
-  formData,
-  senderProfile,
-  customer,
-  bankAccount,
-  subtotal,
-  taxAmount,
-  total,
-}: PDFPreviewPanelProps) {
+export function PDFPreviewPanel({ source, senderProfile }: PDFPreviewPanelProps) {
+  const document = useMemo(() => buildInvoiceDocument(source), [source]);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<number | 'fit'>('fit');
@@ -137,7 +123,7 @@ export function PDFPreviewPanel({
     resizeObserver.observe(pageRef.current);
 
     return () => resizeObserver.disconnect();
-  }, [formData]);
+  }, [document]);
 
   const currentScale = zoom === 'fit' ? fitScale : zoom / 100;
   const scaledWidth = PAGE_WIDTH_PX * currentScale;
@@ -172,6 +158,7 @@ export function PDFPreviewPanel({
             variant="outline"
             size="icon"
             onClick={handleZoomOut}
+            aria-label="Zoom out"
             disabled={zoom !== 'fit' && zoom <= MIN_ZOOM}
           >
             <ZoomOut className="h-4 w-4" />
@@ -185,6 +172,7 @@ export function PDFPreviewPanel({
             variant="outline"
             size="icon"
             onClick={handleZoomIn}
+            aria-label="Zoom in"
             disabled={zoom !== 'fit' && zoom >= MAX_ZOOM}
           >
             <ZoomIn className="h-4 w-4" />
@@ -253,16 +241,7 @@ export function PDFPreviewPanel({
                 }}
               >
                 {/* Page Content */}
-                <PDFPreviewDocument
-                  logoSrc={logoSrc}
-                  formData={formData}
-                  senderProfile={senderProfile}
-                  customer={customer}
-                  bankAccount={bankAccount}
-                  subtotal={subtotal}
-                  taxAmount={taxAmount}
-                  total={total}
-                />
+                <PDFPreviewDocument document={document} logoSrc={logoSrc} />
               </div>
             </div>
           </div>

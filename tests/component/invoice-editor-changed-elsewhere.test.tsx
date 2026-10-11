@@ -5,7 +5,7 @@
 // invoice in its current status's mode; Close leaves a stale Alert with Reload, and any save re-opens
 // SCR-05.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -46,7 +46,12 @@ vi.mock('@/hooks/use-invoice-pdf', () => ({
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
+// T5: the totals dialog is mounted by the route layout's modal container, as in app/(invoice-editor)/layout.tsx.
+const { InvoiceEditorModalContainer } = await import(
+  '@/components/modals/invoice-editor/invoice-editor-modal-container'
+);
+const { renderWithEditorStore } = await import('../support/render-with-editor-store');
+let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
 
 function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEditorData> = {}): InvoiceEditorData {
@@ -103,14 +108,21 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
 }
 
 function renderEditor(d: InvoiceEditorData) {
-  return render(<InvoiceEditor data={d} />);
+  const rendered = renderWithEditorStore(
+    <>
+      <InvoiceEditor />
+      <InvoiceEditorModalContainer />
+    </>,
+    { initial: d }
+  );
+  store = rendered.store;
+  return rendered;
 }
 
 const byPlaceholder = (text: string) => screen.getByPlaceholderText(text);
 
 beforeEach(() => {
   for (const m of [updateInvoiceMock, createInvoiceMock, toastSuccess, toastError, editorDataMock, refreshMock]) m.mockReset();
-  useInvoiceEditorStore.getState().reset();
 });
 
 
@@ -174,7 +186,7 @@ describe('InvoiceEditor — loaded version and changed elsewhere (T18)', () => {
     expect(editorDataMock).toHaveBeenCalledWith('inv-1');
     expect(screen.getByText('Paid')).toBeInTheDocument();
     expect(byPlaceholder('Additional information for the client...')).toHaveValue('a note');
-    expect(useInvoiceEditorStore.getState().hasUnsavedChanges).toBe(false);
+    expect(store.getState().hasUnsavedChanges).toBe(false);
     // The next save carries the reloaded version.
     updateInvoiceMock.mockResolvedValue(saved(5, 'PAID'));
     await typeNoteAndSave(user, ' z');

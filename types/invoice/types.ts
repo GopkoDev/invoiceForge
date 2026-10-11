@@ -192,6 +192,9 @@ export interface InvoiceEditorData {
   /** invoice-integrity (ADR-0001, AC-01): the invoice's issued details (its snapshot columns), which the
    * editor shows as text once the invoice is issued. Null for a new invoice. */
   issuedDetails?: InvoiceIssuedDetails | null;
+  /** The subtotal, tax and total stored on the invoice (ADR-0002): an issued invoice prints these, not a
+   * recalculation from its lines. Absent for a new invoice. */
+  storedAmounts?: StoredAmounts;
 }
 
 /** The issued details of an invoice: the sender, Customer and bank blocks as recorded on it. */
@@ -291,4 +294,11 @@ export interface PaginatedInvoiceList {
   totalPages: number;
   filterOptions: InvoiceFilterOptions;
   totalInvoices: number; // Total invoices without any filters (for empty state detection)
+}
+
+/** The subtotal, tax and total stored on an invoice (ADR-0002). */
+export interface StoredAmounts {
+  subtotal: number;
+  taxAmount: number;
+  total: number;
 }

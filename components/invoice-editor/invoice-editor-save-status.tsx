@@ -1,4 +1,9 @@
-import { Check, Circle } from 'lucide-react';
+'use client';
+
+import { AlertTriangle, Check, Circle, X } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { useInvoiceEditorActions, useIssuedEditsDroppedNotice } from '@/store/invoice-editor-store';
 
 interface SaveStatusProps {
   isNew: boolean;
@@ -39,5 +44,31 @@ export function EditorSaveStatus({ isNew, isSaved }: SaveStatusProps) {
         <Icon className={iconClass} />
       </div>
     </>
+  );
+}
+
+/** AC-05b: edits made while Save and issue ran were not saved because the invoice is now issued. */
+export function IssuedEditsDroppedNotice() {
+  const notice = useIssuedEditsDroppedNotice();
+  const { dismissIssuedEditsDroppedNotice } = useInvoiceEditorActions();
+  if (!notice) return null;
+
+  return (
+    <Alert role="status">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription className="flex items-start justify-between gap-2">
+        <span>{notice}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          aria-label="Dismiss"
+          onClick={dismissIssuedEditsDroppedNotice}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }

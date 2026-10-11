@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ModeToggle } from '@/components/teheme-toggle';
+import { ModeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/custom-icons/logo';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';

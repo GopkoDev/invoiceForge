@@ -24,31 +24,32 @@ vi.mock('@/lib/actions/invoice-actions/invoice-actions', () => ({
   updateInvoice: vi.fn(),
 }));
 
-const { useInvoiceEditorStore } = await import(
-  '@/store/invoice-editor-store/use-invoice-editor-store'
-);
+const { createInvoiceEditorStore } = await import('@/store/invoice-editor-store/create-invoice-editor-store');
+const { emptyEditorData } = await import('../support/render-with-editor-store');
+const { withEditorStore } = await import('../support/editor-store-wrapper');
+let store: ReturnType<typeof createInvoiceEditorStore> = createInvoiceEditorStore(emptyEditorData());
 
 describe('useInvoiceItemHandlers (F-01, shared line totals)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().addCustomItem();
+    store = createInvoiceEditorStore(emptyEditorData());
+    store.getState().addCustomItem();
   });
 
   function firstItemId() {
-    return useInvoiceEditorStore.getState().formData.items[0].id;
+    return store.getState().formData.items[0].id;
   }
 
   it('handlePriceChange totals the line with the shared exact-decimal module, not float multiply', () => {
     const itemId = firstItemId();
-    useInvoiceEditorStore.getState().updateItem(itemId, { quantity: 0.5 });
+    store.getState().updateItem(itemId, { quantity: 0.5 });
 
-    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }));
+    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }), { wrapper: withEditorStore(store) });
 
     act(() => {
       result.current.handlePriceChange('2.01');
     });
 
-    const item = useInvoiceEditorStore.getState().formData.items[0];
+    const item = store.getState().formData.items[0];
     // 0.5 x 2.01 as a naive float multiply renders 1.00 (float drift); the shared module rounds
     // the exact product half-up to 1.01, matching what the server stores (AC-13).
     expect(item.total).toBe(Number(lineAmount(0.5, 2.01)));
@@ -57,50 +58,50 @@ describe('useInvoiceItemHandlers (F-01, shared line totals)', () => {
 
   it('handleQuantityChange totals the line with the shared exact-decimal module', () => {
     const itemId = firstItemId();
-    useInvoiceEditorStore.getState().updateItem(itemId, { price: 2.01 });
+    store.getState().updateItem(itemId, { price: 2.01 });
 
-    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }));
+    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }), { wrapper: withEditorStore(store) });
 
     act(() => {
       result.current.handleQuantityChange('0.5');
     });
 
-    const item = useInvoiceEditorStore.getState().formData.items[0];
+    const item = store.getState().formData.items[0];
     expect(item.total).toBe(1.01);
   });
 });
 
 describe('useInvoiceItemHandlers (F-04, no silent rewrites)', () => {
   beforeEach(() => {
-    useInvoiceEditorStore.getState().reset();
-    useInvoiceEditorStore.getState().addCustomItem();
+    store = createInvoiceEditorStore(emptyEditorData());
+    store.getState().addCustomItem();
   });
 
   function firstItemId() {
-    return useInvoiceEditorStore.getState().formData.items[0].id;
+    return store.getState().formData.items[0].id;
   }
 
   it('keeps a negative price entry as negative instead of stripping the "-" sign', () => {
     const itemId = firstItemId();
-    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }));
+    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }), { wrapper: withEditorStore(store) });
 
     act(() => {
       result.current.handlePriceChange('-5');
     });
 
-    const item = useInvoiceEditorStore.getState().formData.items[0];
+    const item = store.getState().formData.items[0];
     expect(item.price).toBe(-5);
   });
 
   it('keeps a non-numeric quantity entry instead of silently defaulting it to 0', () => {
     const itemId = firstItemId();
-    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }));
+    const { result } = renderHook(() => useInvoiceItemHandlers({ itemId }), { wrapper: withEditorStore(store) });
 
     act(() => {
       result.current.handleQuantityChange('abc');
     });
 
-    const item = useInvoiceEditorStore.getState().formData.items[0];
+    const item = store.getState().formData.items[0];
     expect(Number.isNaN(item.quantity)).toBe(true);
   });
 });

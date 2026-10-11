@@ -3,6 +3,7 @@ import { getCustomerCustomPrices } from '@/lib/actions/custom-price-actions';
 import { getInvoicesByCustomer } from '@/lib/actions/invoice-actions/invoice-actions';
 import { CustomerDetailView } from '@/components/customers';
 import { unwrapPageResult } from '@/components/layout/content-area';
+import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -21,14 +22,16 @@ export default async function CustomerDetailPage({
 }: CustomerDetailPageProps) {
   const { id } = await params;
 
-  const [customerResult, customPricesResult, invoicesResult] =
+  const [actorResult, customerResult, customPricesResult, invoicesResult] =
     await Promise.all([
+      actingFreelancerFromSession(),
       getCustomer(id),
       getCustomerCustomPrices(id),
       getInvoicesByCustomer(id, PREVIEW_INVOICES_LIMIT),
     ]);
 
   // The record first, so a missing or foreign customer is not-found, not a load error.
+  const { timeZone } = unwrapPageResult(actorResult);
   const customer = unwrapPageResult(customerResult);
   const customPrices = unwrapPageResult(customPricesResult);
   const invoices = unwrapPageResult(invoicesResult);
@@ -38,6 +41,7 @@ export default async function CustomerDetailPage({
       customer={customer}
       customPrices={customPrices}
       invoices={invoices}
+      timeZone={timeZone}
     />
   );
 }

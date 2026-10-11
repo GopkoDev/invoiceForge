@@ -78,11 +78,11 @@ describe('T20 release gate', () => {
     expect(workflow).toContain('pnpm audit --prod --audit-level=high');
   });
 
-  it('AC-27: uuid is a patched release (>= 13.0.1) in the manifest and the lockfile', () => {
+  it('AC-27: uuid is no longer a dependency (removed in T4), so no vulnerable copy is in the lockfile', () => {
     const pkg = JSON.parse(read('package.json')) as {
       dependencies: Record<string, string>;
     };
-    expect(pkg.dependencies.uuid).toBe('^13.0.1');
+    expect(pkg.dependencies.uuid).toBeUndefined();
     expect(read('pnpm-lock.yaml')).not.toMatch(/uuid@13\.0\.0\b/);
   });
 

@@ -342,3 +342,83 @@ describe('proxy matcher (sad.md §11, api is no longer excluded)', () => {
     expect(pattern.test('/_next/imagex')).toBe(true);
   });
 });
+
+// AC-07 / ADR-0007: signed-in page responses are never stored by the browser's cache; route
+// handlers keep their own headers and public pages keep their caching.
+describe('proxy Cache-Control (AC-07, signed-in pages are no-store)', () => {
+  const signedIn = { user: { id: 'u1' } };
+
+  it.each(['/dashboard', '/invoices', '/invoices/abc/edit', '/settings'])(
+    'sends "private, no-store" on the signed-in page %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    }
+  );
+
+  it.each([
+    '/invoices?_rsc=abc12',
+    '/invoices/abc/edit?_rsc=1x9z',
+  ])('sends "private, no-store" on the signed-in RSC request %s', async (path) => {
+    const res = await callProxy(
+      buildRequest(path, { token: signedIn, headers: { RSC: '1' } })
+    );
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  it('sends "private, no-store" on a signed-in RSC request identified only by the RSC header', async () => {
+    const res = await callProxy(
+      buildRequest('/invoices', { token: signedIn, headers: { RSC: '1' } })
+    );
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  // Public static files keep their own caching for a signed-in user (fonts feed the PDF).
+  it.each([
+    '/fonts/roboto/Roboto-Regular.ttf',
+    '/fonts/roboto/Roboto-Bold.ttf',
+    '/invoice-forge-logo.svg',
+    '/web-app-manifest-192x192.png',
+    '/web-app-manifest-512x512.png',
+    '/favicon.ico',
+    '/some/other/file.woff2',
+  ])(
+    'does not send no-store on the signed-in static file %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+
+  // T45 (review r2): generated image routes are assets, not pages.
+  it.each(['/opengraph-image', '/twitter-image', '/icon/abc'])(
+    'does not send no-store on the signed-in generated asset %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+
+  it.each(['/privacy', '/terms'])(
+    'keeps no-store on the signed-in legal page %s',
+    async (path) => {
+      const res = await callProxy(buildRequest(path, { token: signedIn }));
+      expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    }
+  );
+
+  it('leaves a signed-in route handler (/api/*) without the page header', async () => {
+    const res = await callProxy(
+      buildRequest('/api/user/export', { token: signedIn })
+    );
+    expect(res.headers.get('Cache-Control')).toBeNull();
+  });
+
+  it.each(['/', '/login', '/robots.txt'])(
+    'leaves the public page %s without the header for a Visitor',
+    async (path) => {
+      const res = await callProxy(buildRequest(path));
+      expect(res.headers.get('Cache-Control')).toBeNull();
+    }
+  );
+});

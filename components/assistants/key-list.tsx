@@ -15,6 +15,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from '@/components/ui/item';
+import { formatMoment } from '@/lib/format';
 import { MAX_ACTIVE_PERSONAL_KEYS } from '@/lib/validations/personal-key';
 import type {
   PersonalKeySummary,
@@ -32,17 +33,11 @@ interface KeyListProps {
 
 // Explicit zone so the server pass and the browser agree.
 function formatDate(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatMoment(iso, timeZone);
 }
 
 function formatDateTime(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    timeZone,
+  return formatMoment(iso, timeZone, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

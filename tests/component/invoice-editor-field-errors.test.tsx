@@ -4,7 +4,7 @@
 // and no toast fallback; an ISSUED_INVOICE_LOCKED refusal shows a destructive Alert above the form; a
 // STATUS_NOT_ALLOWED refusal is a toast.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { InvoiceEditorData, InvoiceFormData } from '@/types/invoice/types';
@@ -50,7 +50,7 @@ Element.prototype.getAnimations = () => [];
 Element.prototype.scrollIntoView = () => {};
 
 const { InvoiceEditor } = await import('@/components/invoice-editor/invoice-editor');
-const { useInvoiceEditorStore } = await import('@/store/invoice-editor-store');
+const { renderWithEditorStore } = await import('../support/render-with-editor-store');
 
 
 function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEditorData> = {}): InvoiceEditorData {
@@ -107,7 +107,7 @@ function data(status: InvoiceFormData['status'] | null, over: Partial<InvoiceEdi
 }
 
 function renderEditor(d: InvoiceEditorData) {
-  return render(<InvoiceEditor data={d} />);
+  return renderWithEditorStore(<InvoiceEditor />, { initial: d });
 }
 
 const byPlaceholder = (text: string) => screen.getByPlaceholderText(text);
@@ -123,7 +123,6 @@ function belowRow(label: string): Element {
 
 beforeEach(() => {
   for (const m of [updateInvoiceMock, createInvoiceMock, toastSuccess, toastError]) m.mockReset();
-  useInvoiceEditorStore.getState().reset();
 });
 
 
@@ -178,7 +177,7 @@ describe('InvoiceEditor field errors (T17)', () => {
     expect(within(bankField).getByText(MSG.bankAccountId)).toBeInTheDocument();
     const productField = screen.getByText('Consulting 2025').closest('.min-w-0') as HTMLElement;
     expect(within(productField).getByText(MSG.productId)).toBeInTheDocument();
-    const lineTotal = screen.getByText('300.00 USD');
+    const lineTotal = screen.getByText('$300.00');
     expect(within(lineTotal).getByText(MSG.lineTotal)).toBeInTheDocument();
     expect(belowRow('Subtotal')).toHaveTextContent(MSG.subtotal);
     expect(belowRow('Discount')).toHaveTextContent(MSG.discount);
