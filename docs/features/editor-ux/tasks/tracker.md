@@ -87,7 +87,7 @@
 | T78 | Name the editor pages' session-actor lookup in the SAD's list of server-side changes | docs | Dmytro Hopko | — | — | done |
 | T79 | Assert that a rejected invoice-number hint request goes to sign-in, and separate it from the non-success case in the test plan | tests | Dmytro Hopko | — | — | done |
 | T80 | Word the 'not saved because issued' notice by what was dropped (the lines and other locked details), and assert that wording | app | Dmytro Hopko | — | — | done |
-| T81 | Show the notice's 'kept for you to save' sentence only when an allowed field was edited | app | Dmytro Hopko | — | — | todo |
+| T81 | Show the notice's 'kept for you to save' sentence only when an allowed field was edited | app | Dmytro Hopko | — | — | done |
 | T82 | Make the first-PDF timing rows in the test plan and SAD say what the test measures | docs | Dmytro Hopko | — | — | todo |
 | T83 | Correct the SAD's building-block line for invoice-pdf-helpers (split, not removed) | docs | Dmytro Hopko | — | — | todo |
 | T84 | Run the full Linux e2e suite at the final HEAD and point the test plan at that log | tests | Dmytro Hopko | — | — | todo |

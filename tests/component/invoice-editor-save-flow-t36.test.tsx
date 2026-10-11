@@ -61,9 +61,11 @@ const { InvoiceEditorModalContainer } = await import(
 const { renderWithEditorStore } = await import('../support/render-with-editor-store');
 let store: Awaited<ReturnType<typeof renderWithEditorStore>>['store'];
 
-// The exact wording (store/invoice-editor-store/save-command.ts ISSUED_EDITS_DROPPED_NOTICE).
+// The exact wording (store/invoice-editor-store/save-command.ts): only a locked detail was edited
+// during the save, and a locked detail plus a field an issued invoice allows (T81).
 const DROPPED_NOTICE =
-  'Your changes to the lines and other locked details were not saved because the invoice is now issued. Edits to the due date, notes, payment terms and PO number are kept for you to save.';
+  'Your changes to the lines and other locked details were not saved because the invoice is now issued.';
+const DROPPED_AND_KEPT_NOTICE = `${DROPPED_NOTICE} Edits to the due date, notes, payment terms and PO number are kept for you to save.`;
 const NOTES = 'Additional information for the client...';
 
 function data(): InvoiceEditorData {
@@ -307,6 +309,22 @@ describe('AC-05b: IssuedEditsDroppedNotice', () => {
     expect((screen.getByText(/March 24th, 2026/).closest('button') as HTMLButtonElement)).not.toBeDisabled();
     // Nothing allowed was edited, so there is nothing left to save.
     expect(store.getState().hasUnsavedChanges).toBe(false);
+  });
+
+  it('also says the allowed edits are kept when one was made during the save, and the editor stays unsaved', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+    const finish = holdNextSave();
+    await user.click(screen.getByText('Save and issue'));
+    await waitFor(() => expect(store.getState().isSaving).toBe(true));
+    await user.clear(firstQty());
+    await user.type(firstQty(), '9');
+    await user.type(screen.getByPlaceholderText(NOTES), '!');
+    await finish(savedResult('PENDING'));
+
+    expect(await screen.findByText(DROPPED_AND_KEPT_NOTICE)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(NOTES)).toHaveValue('a note!');
+    expect(screen.getByText('Unsaved')).toBeInTheDocument();
   });
 
   it('can be dismissed, and the allowed fields can still be typed into afterwards', async () => {

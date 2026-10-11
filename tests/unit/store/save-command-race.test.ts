@@ -279,10 +279,11 @@ describe('save command - issued with edits (AC-05b)', () => {
     expect(st.formData.items.find((i) => i.id === 'a')?.quantity).toBe(2); // the lines it was issued with
     expect(st.hasUnsavedChanges).toBe(false); // nothing allowed was edited
     // AC-05b: the notice names what was dropped (the line change) and does not imply that edits to
-    // the fields an issued invoice allows were lost too (review r10 N3, T80).
-    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/changes to the lines .* were not saved because the invoice is now issued/i);
-    expect(cmd(store).issuedEditsDroppedNotice).toMatch(/due date, notes, payment terms and PO number are kept/i);
-    expect(cmd(store).issuedEditsDroppedNotice).not.toMatch(/latest changes/i);
+    // the fields an issued invoice allows were lost too (review r10 N3, T80). Nothing allowed was
+    // edited, so it does not say anything is kept to save (review r11 F2, T81).
+    expect(cmd(store).issuedEditsDroppedNotice).toBe(
+      'Your changes to the lines and other locked details were not saved because the invoice is now issued.'
+    );
     expectTotalsMatchVisibleLines(store);
 
     cmd(store).dismissIssuedEditsDroppedNotice();
@@ -304,7 +305,10 @@ describe('save command - issued with edits (AC-05b)', () => {
     expect(st.formData.paymentTerms).toBe('Net 15');
     expect(st.formData.items.find((i) => i.id === 'a')?.quantity).toBe(2);
     expect(st.hasUnsavedChanges).toBe(true);
-    expect(cmd(store).issuedEditsDroppedNotice).not.toBeNull();
+    // The allowed edits are pending, so the notice also says they are kept (T81).
+    expect(cmd(store).issuedEditsDroppedNotice).toBe(
+      'Your changes to the lines and other locked details were not saved because the invoice is now issued. Edits to the due date, notes, payment terms and PO number are kept for you to save.'
+    );
   });
 
   it('Save and issue with no edit during it sets no notice', async () => {

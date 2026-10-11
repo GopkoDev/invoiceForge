@@ -21,7 +21,10 @@ import type { InvoiceEditorState, SaveIntent, SaveOptions } from './types';
 const ISSUED_EDITABLE_KEYS = ['dueDate', 'notes', 'paymentTerms', 'poNumber'] as const;
 
 export const ISSUED_EDITS_DROPPED_NOTICE =
-  'Your changes to the lines and other locked details were not saved because the invoice is now issued. Edits to the due date, notes, payment terms and PO number are kept for you to save.';
+  'Your changes to the lines and other locked details were not saved because the invoice is now issued.';
+/** Added only when an edit the issued invoice allows is still waiting to be saved (T81). */
+export const ISSUED_EDITS_KEPT_NOTE =
+  'Edits to the due date, notes, payment terms and PO number are kept for you to save.';
 
 // F-41: the field-error keys the editor actually renders a FieldError next to
 // (invoice-details-section.tsx, summary-section.tsx, invoice-item-fields.tsx). A key outside this
@@ -204,7 +207,11 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
       totalsChanged: null,
       hasUnsavedChanges: untouched ? false : droppedByIssue ? allowedEdited : true,
       issuedEditsDroppedNotice:
-        droppedByIssue && lockedEdited ? ISSUED_EDITS_DROPPED_NOTICE : state.issuedEditsDroppedNotice,
+        droppedByIssue && lockedEdited
+          ? allowedEdited
+            ? `${ISSUED_EDITS_DROPPED_NOTICE} ${ISSUED_EDITS_KEPT_NOTE}`
+            : ISSUED_EDITS_DROPPED_NOTICE
+          : state.issuedEditsDroppedNotice,
       // F-46: the legacy shared-number Alert is stale once a save succeeds.
       legacy: null,
       // What the row holds now: the next save compares its days against these.
