@@ -327,6 +327,29 @@ describe('AC-05b: IssuedEditsDroppedNotice', () => {
     expect(screen.getByText('Unsaved')).toBeInTheDocument();
   });
 
+  it('once the kept edits are saved, the notice no longer says they are kept and the editor shows Saved', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+    const finishIssue = holdNextSave();
+    await user.click(screen.getByText('Save and issue'));
+    await waitFor(() => expect(store.getState().isSaving).toBe(true));
+    await user.clear(firstQty());
+    await user.type(firstQty(), '9');
+    await user.type(screen.getByPlaceholderText(NOTES), '!');
+    await finishIssue(savedResult('PENDING'));
+    await screen.findByText(DROPPED_AND_KEPT_NOTICE);
+
+    // Review r12 N1 (T85): the next Save leaves nothing unsaved, so the notice keeps only what was dropped.
+    const finishSave = holdNextSave();
+    await user.click(screen.getAllByText('Save')[0]);
+    await finishSave(savedResult('PENDING'));
+
+    expect(await screen.findByText(DROPPED_NOTICE)).toBeInTheDocument();
+    expect(screen.queryByText(DROPPED_AND_KEPT_NOTICE)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(NOTES)).toHaveValue('a note!');
+    expect(screen.getByText('Saved')).toBeInTheDocument();
+  });
+
   it('can be dismissed, and the allowed fields can still be typed into afterwards', async () => {
     const user = await issueWithQuantityEditedMidSave();
     await screen.findByText(DROPPED_NOTICE);

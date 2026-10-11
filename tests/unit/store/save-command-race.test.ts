@@ -311,6 +311,28 @@ describe('save command - issued with edits (AC-05b)', () => {
     );
   });
 
+  it('the next Save that leaves nothing unsaved drops the "kept" sentence from the notice', async () => {
+    const issuedItems = editorData().initialData!.items;
+    const resolve = deferredUpdate();
+    const pending = cmd(store).save('save-and-issue');
+    store.getState().updateItem('a', { quantity: 9 });
+    store.getState().updateField('notes', 'Thanks');
+    resolve(ok(saved(issuedItems, { status: 'PENDING', version: 4 })));
+    await pending;
+
+    updateInvoiceMock.mockResolvedValueOnce(ok(saved(issuedItems, { status: 'PENDING', version: 5 })));
+    await cmd(store).save('save');
+
+    const st = store.getState();
+    expect(st.formData.notes).toBe('Thanks');
+    expect(st.hasUnsavedChanges).toBe(false);
+    // Nothing is waiting to be saved any more, so the notice no longer says edits are kept
+    // (review r12 N1, T85); it still says the line change was dropped.
+    expect(cmd(store).issuedEditsDroppedNotice).toBe(
+      'Your changes to the lines and other locked details were not saved because the invoice is now issued.'
+    );
+  });
+
   it('Save and issue with no edit during it sets no notice', async () => {
     updateInvoiceMock.mockResolvedValueOnce(ok(saved(editorData().initialData!.items, { status: 'PENDING' })));
     await cmd(store).save('save-and-issue');

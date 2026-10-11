@@ -191,6 +191,17 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
           recalculateComputedValues({ ...state, formData })
         );
 
+    const hasUnsavedChanges = untouched ? false : droppedByIssue ? allowedEdited : true;
+    // Once nothing is left to save, a notice from an earlier save no longer says edits are kept (T85).
+    const issuedEditsDroppedNotice =
+      droppedByIssue && lockedEdited
+        ? allowedEdited
+          ? `${ISSUED_EDITS_DROPPED_NOTICE} ${ISSUED_EDITS_KEPT_NOTE}`
+          : ISSUED_EDITS_DROPPED_NOTICE
+        : state.issuedEditsDroppedNotice && !hasUnsavedChanges
+          ? ISSUED_EDITS_DROPPED_NOTICE
+          : state.issuedEditsDroppedNotice;
+
     set({
       formData,
       ...figures,
@@ -205,13 +216,8 @@ export function createSaveCommand({ get, set, sessionToken, failureToast }: Api)
       loadedVersion: saved.version,
       fieldErrors: undefined,
       totalsChanged: null,
-      hasUnsavedChanges: untouched ? false : droppedByIssue ? allowedEdited : true,
-      issuedEditsDroppedNotice:
-        droppedByIssue && lockedEdited
-          ? allowedEdited
-            ? `${ISSUED_EDITS_DROPPED_NOTICE} ${ISSUED_EDITS_KEPT_NOTE}`
-            : ISSUED_EDITS_DROPPED_NOTICE
-          : state.issuedEditsDroppedNotice,
+      hasUnsavedChanges,
+      issuedEditsDroppedNotice,
       // F-46: the legacy shared-number Alert is stale once a save succeeds.
       legacy: null,
       // What the row holds now: the next save compares its days against these.

@@ -91,7 +91,7 @@
 | T82 | Make the first-PDF timing rows in the test plan and SAD say what the test measures | docs | Dmytro Hopko | — | — | done |
 | T83 | Correct the SAD's building-block line for invoice-pdf-helpers (split, not removed) | docs | Dmytro Hopko | — | — | done |
 | T84 | Run the full Linux e2e suite at the final HEAD and point the test plan at that log | tests | Dmytro Hopko | — | — | done |
-| T85 | Drop the notice's 'kept for you to save' sentence once a later save leaves nothing unsaved | app | Dmytro Hopko | — | — | todo |
+| T85 | Drop the notice's 'kept for you to save' sentence once a later save leaves nothing unsaved | app | Dmytro Hopko | — | — | done |
 | T86 | Test a custom-price moment that falls on the previous day in a negative time zone | tests | Dmytro Hopko | — | — | todo |
 | T87 | Make five test-plan rows say what their tests assert (AC-01, AC-05c, AC-06, AC-14, double Download) | docs | Dmytro Hopko | — | — | todo |
 | T88 | Pin the line-only notice exactly in the e2e and list every user of the remaining PDF helpers in the SAD | tests | Dmytro Hopko | — | T85 | todo |
