@@ -37,12 +37,12 @@ Replies must appear progressively, and a Draft card must be pressable while or a
 ## Consequences
 
 **Positive**
-- Messages travel in the AI SDK UI-message shape (typed parts: text, tool calls, data parts for the Draft card), which is also the stored shape (ADR-0008).
+- Messages travel in the AI SDK UI-message shape (typed parts: text, tool calls, data parts for the Draft card); only the visible parts are stored — the Freelancer's text, the final reply text, link targets as ids and the Draft-card reference, never raw tool answers (ADR-0008).
 - The route handler follows the existing guard and error conventions: `actingFreelancerForRoute`, `RATE_LIMITED` → 429, anonymous → 401 at the proxy.
 
 **Negative**
 - One more session route under `/api`; the proxy keeps refusing it anonymously, and the page redirects the Visitor to sign-in.
-- The route needs an explicit `maxDuration` above the 12 s reply budget on Vercel.
+- The route runs on the platform's default function duration with no `maxDuration` and no turn deadlines of its own (owner decision, SAD §7, §1 override); a provider that hangs holds the stream until the platform stops it.
 
 **Neutral**
 - The Create press and Conversation deletion stay server actions, outside the stream.

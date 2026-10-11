@@ -37,7 +37,8 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 <!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
 
 - Decision override: the model runs on a Google AI Studio **free-tier** Gemini key — contradicts spec §6.1 (Confidential) and §8 ("no training on the data") — rationale: the owner prefers zero model spend at launch; resolved before `sdd:ship` by updating the spec and Privacy page or moving to paid terms (ADR-0003, §11).
-- Decision override: **no turn deadlines** in the chat route — the spec §6 target "AI temporarily unavailable within 10 s" is guaranteed only for providers that fail fast — rationale: owner decision during the design walk; revisited if the hanging-provider fault test is red (§7, §11).
+- Decision override: **no turn deadlines** in the chat route — the spec §6 target "AI temporarily unavailable within 10 s" and AC-11 ("that message does not count") are guaranteed only for providers that fail fast; a provider that hangs until the platform stops the function leaves the reserved slot spent — rationale: owner decision during the design walk; revisited if the hanging-provider fault test is red (§7, §11).
+- Decision override: **§2 keeps its pre-switch wording** — "the product pays for every model token (no bring-your-own key)" and "the Privacy page must say … no training on the data" — although ADR-0003 now runs on a free-tier, product-owned Gemini key registered with the Gateway as bring-your-own-key — rationale: the owner did not take the critic's amendment during finalization; read §2's cost and privacy lines together with the first override above and ADR-0003 (spec §3's bring-your-own-key non-goal refers to keys a Freelancer brings).
 
 ## 2. Constraints
 
@@ -183,7 +184,7 @@ app/
     ├── chat/route.ts                   NEW  session-guarded; reserve allowance → router → agent stream → persist → release on failure
     ├── mcp/route.ts                    unchanged route; server registers the draft tool
     ├── user/export/route.ts            + Conversations, daily counts, key draft counts and lifts
-    └── cron/purge-limits/route.ts      + Conversations past 90 days, MCP repeat keys past 24 h, Mastra traces past retention
+    └── cron/purge-limits/route.ts      + Conversations past 90 days, MCP repeat keys past 24 h, Mastra traces past 30 days, AssistantTurn rows and daily counters past 400 days
 components/ai/                          NEW  chat island (useChat), message list, Draft card (live / replaced / outdated / created), allowance banner, delete dialog container
 lib/
 ├── ai/                                 NEW  Mastra instance + storage (schema `mastra`), chat agent, topic router (input processor), metadata-only span processor, instructions
@@ -240,7 +241,7 @@ C4Container
         Container(mcp, "MCP server", "lib/mcp, MCP SDK 1.32", "Seven read tools and create_draft_invoice behind Personal key auth")
         Container(agent, "Assistant agent", "lib/ai, Mastra on the AI SDK", "Topic router, tool agent, read-tool adapters, propose_draft, find_in_app, metadata-only spans")
         Container(services, "Service layer", "lib/services", "assistant-drafts resolver and cards, conversations, assistant-usage counters, invoices, personal-keys")
-        Container(cron, "Daily clean-up", "app/api/cron/purge-limits", "Deletes Conversations past 90 days, repeat keys past 24 h, old traces")
+        Container(cron, "Daily clean-up", "app/api/cron/purge-limits", "Deletes Conversations past 90 days, repeat keys past 24 h, traces past 30 days, turn metadata and daily counters past 400 days")
     }
 
     ContainerDb(db, "PostgreSQL", "Prisma 7 schemas public, plus Mastra schema mastra", "Conversations, Draft cards, counters, turn metadata, invoices with origin, keys with Draft permission; Mastra traces")
@@ -386,7 +387,7 @@ The feature ships inside the existing Vercel deployable (region `fra1`). There i
 - **Sentry alerts.**
   - System-side failures above 2 % of chat messages in a week.
   - Rate-limited (provider 429) turns above 5 % in a day — the early signal that the free-tier ceiling is near.
-  - Model cost per message p95 above USD 0.02 — guards a later move to paid terms.
+  - Model cost per message p95 above USD 0.02 — guards a later move to paid terms. While the free-tier key is in use, model cost per message is USD 0 (ADR-0003).
   - Any failed step of the daily clean-up.
 
 **Retention (daily cron):**
@@ -397,7 +398,7 @@ The feature ships inside the existing Vercel deployable (region `fra1`). There i
 
 **Scaling thresholds:**
 - **Model capacity, the binding limit.** On the free tier one Google project allows roughly 300–1,300 chat messages a day and 3–10 a minute on Flash-Lite (ADR-0003; ranges to verify before ship). That is about 10–40 Freelancers using their full allowance.
-  - When rate-limited turns exceed 5 % for three days running, move the key to paid terms (one setting change).
+  - When system-side failures, rate-limited turns included, exceed 2 % of chat messages in a week (the spec §6 target and the alert above), move the key to paid terms (one setting change). The daily 5 % rate-limit alert is the early warning.
 - **Storage** stays small at any realistic scale.
   - At most 30 messages per Freelancer per day, kept 90 days: at most ~5,400 message rows per Freelancer.
   - One allowance row per Freelancer per active day, one key-draft row per key per active day.
@@ -472,7 +473,7 @@ Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 - **Then:** "at most 8 tool steps per message; conversation history sent to the model capped at the latest 40 messages"; "at most 2,000 characters per message; a longer message is rejected before processing and not counted".
 - **How verify:** an integration test with a stubbed model that keeps calling tools asserts it stops at 8 steps, returns the partial answer and counts (AC-11b); a history test asserts 40 messages are sent; a 2,001-character message is refused without a reservation.
 - **When:** the chat runs in production.
-- **Then:** "Model cost per message, p95 ≤ USD 0.02" (USD 0 while the free-tier key is in use, ADR-0003).
+- **Then:** "Model cost per message, p95 ≤ USD 0.02".
 - **How verify:** weekly query over `AssistantTurn.cost` (metadata only); Sentry alert above the threshold.
 - **When:** an external Assistant's key creates its 51st draft of the day, and the Freelancer then lifts the limit.
 - **Then:** "50 Assistant drafts per Personal key per day in the Freelancer time zone; liftable by the Freelancer from the web".
@@ -498,7 +499,7 @@ Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 - **How verify:** per-message traces (router plus agent spans), 7-day window after release.
 - **When:** the model provider fails or rate-limits.
 - **Then:** "the chat shows that AI is temporarily unavailable within 10 s; every other part of the app keeps working"; "≤ 2 % of chat messages per week fail on the system's side".
-- **How verify:** a fault-injection integration test with the provider returning errors and rate limits, plus the weekly failure-rate query. A provider that hangs without answering is **not** covered: with no turn deadlines (§7), the 10-second target holds only for providers that fail fast (§11).
+- **How verify:** a fault-injection integration test with the provider returning errors and rate limits, plus the weekly failure-rate query. A provider that hangs without answering is **not** covered: with no turn deadlines (§7), the 10-second target and the AC-11 slot release hold only for providers that fail fast (§1 override, §11).
 
 ## 11. Risks and technical debt
 
@@ -508,8 +509,8 @@ Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
 | **Free-tier key vs the spec's privacy promise.** Under the free tier's terms, Google may use chat content, including Customer names and amounts, to improve its products, and human reviewers may read it. This contradicts spec §6.1 (Confidential) and §8 ("no training on the data") — ADR-0003, §1 override. | High | Before `sdd:ship`, either update spec §6.1 / §8 and the Privacy page to say so plainly, or move the key to paid terms (one setting change); `/security-review` checks which one happened. | Dmytro Hopko |
-| **Free-tier capacity ceiling.** Roughly 300–1,300 chat messages a day and 3–10 a minute for the whole project on Flash-Lite (ADR-0003; ranges to verify before ship); beyond that every Freelancer sees "AI is temporarily unavailable". | High | Sentry alert when rate-limited turns exceed 5 % in a day; move to paid terms after three such days. Rate-limited turns are never counted (AC-11). | Dmytro Hopko |
-| **No turn deadlines.** A provider that hangs without answering holds the stream on the platform's default duration, so "AI is temporarily unavailable within 10 s" is guaranteed only for fast failures (§1 override, §7). | Medium | The fault-injection test includes a hanging provider. If it is red, add a first-token timeout and a turn deadline in the chat route (code change only, no schema impact). | Dmytro Hopko |
+| **Free-tier capacity ceiling.** Roughly 300–1,300 chat messages a day and 3–10 a minute for the whole project on Flash-Lite (ADR-0003; ranges to verify before ship); beyond that every Freelancer sees "AI is temporarily unavailable". | High | Daily early-warning alert when rate-limited turns exceed 5 %; move to paid terms as soon as system-side failures, rate limits included, exceed 2 % in a week (spec §6). Rate-limited turns are never counted (AC-11). | Dmytro Hopko |
+| **No turn deadlines.** A provider that hangs without answering holds the stream on the platform's default duration, so "AI is temporarily unavailable within 10 s" and AC-11 (a failed reply is not counted) are guaranteed only for fast failures: if the platform stops the function, the slot-release step never runs (§1 override, §7). | Medium | The fault-injection test includes a hanging provider and asserts both the notice and the released slot. If it is red, add a first-token timeout and a turn deadline in the chat route (code change only, no schema impact). | Dmytro Hopko |
 | **Text leaking into Mastra traces after an upgrade.** A new Mastra version may add a text-bearing span attribute that the metadata-only processor does not strip (ADR-0004). | High | Exact pins for every Mastra package; a contract test exports spans from a scripted turn and fails on any message text, tool argument or tool answer; it reruns on every Mastra upgrade. | Dmytro Hopko |
 | **The `mastra` schema lives outside Prisma.** Its tables are created by Mastra, not by `prisma migrate`. Testcontainers, local dev and deploys each need the extra step. | Medium | `pnpm mastra:migrate` runs beside `prisma migrate deploy` in deploy and in the integration test setup. Prisma never touches the `mastra` schema. | Dmytro Hopko |
 | **Model quality on Flash-Lite.** The boundary (≥ 95 % / ≤ 5 %) or the extraction into `propose_draft` may fall short on the smallest model. | Medium | The evaluation run blocks release. Fallback: a Flash model via `AI_CHAT_MODEL`, which lowers the free-tier ceiling. | Dmytro Hopko |
