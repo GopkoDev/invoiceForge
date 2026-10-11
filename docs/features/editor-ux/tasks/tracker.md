@@ -104,7 +104,7 @@
 | T95 | Assert the store state is unchanged when Retry is pressed while a save is running | tests | Dmytro Hopko | — | — | done |
 | T96 | Point the editor-retry-parity e2e comment at the renamed retry-through-save-command test | tests | Dmytro Hopko | — | — | done |
 | T97 | Make the AC-04 race row say the totals check covers edited states and a saved form shows the stored figures | docs | Dmytro Hopko | — | — | done |
-| T98 | Assert the list row's Print shows and announces the preparing state, like Download | tests | Dmytro Hopko | — | — | todo |
+| T98 | Assert the list row's Print shows and announces the preparing state, like Download | tests | Dmytro Hopko | — | — | done |
 | T99 | Assert focus and caret survive the create hand-over for every text and amount field | tests | Dmytro Hopko | — | — | todo |
 | T100 | Render the preview from the real read side in pdf-fidelity and assert it matches the PDF line by line | tests | Dmytro Hopko | — | — | todo |
 

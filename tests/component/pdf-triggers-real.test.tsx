@@ -260,17 +260,22 @@ describe('T28 editor header Download / Print', () => {
 describe('T41 the preparing state is visible and announced, then gone', () => {
   const preparing = () => screen.getByRole('status');
 
-  it('row actions (list / dashboard): Download PDF marks the trigger busy and announces "Preparing"', async () => {
+  // editor-ux T98 (review r16 G2): the row's Print shows the same preparing state as its Download.
+  it.each([
+    ['Download PDF', () => kit.downloadPdf],
+    ['Print', () => kit.printPdf],
+  ] as const)('row actions (list / dashboard): %s marks the trigger busy and announces "Preparing"', async (action, delivered) => {
     let release!: (k: typeof kit) => void;
     loadPdfKit.mockReturnValue(new Promise((r) => (release = r)));
+    vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn(), location: { href: '' } } as never);
     const { container } = renderRow();
-    await rowAction(userEvent.setup(), 'Download PDF');
+    await rowAction(userEvent.setup(), action);
     const trigger = screen.getByRole('button', { name: /actions for/i });
     await vi.waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'true'));
     expect(preparing()).toHaveTextContent(/preparing/i);
     expect(container.querySelector('.animate-spin')).not.toBeNull();
     await act(async () => release(kit));
-    await vi.waitFor(() => expect(kit.downloadPdf).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(delivered()).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(trigger).not.toHaveAttribute('aria-busy', 'true'));
     expect(preparing()).toBeEmptyDOMElement();
     expect(container.querySelector('.animate-spin')).toBeNull();
