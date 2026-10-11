@@ -1713,6 +1713,100 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r11.md",
       "source": "review-2026-10-11-r11"
+    },
+    {
+      "id": "T85",
+      "title": "Drop the notice's 'kept for you to save' sentence once a later save leaves nothing unsaved",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-05b"
+      ],
+      "dod": "Review r12 N1. After Save and issue drops locked edits and keeps allowed ones, the notice reads both sentences. When a later save comes back with nothing left unsaved (untouched, hasUnsavedChanges false) and the notice is showing, applySavedInvoice resets it to ISSUED_EDITS_DROPPED_NOTICE without ISSUED_EDITS_KEPT_NOTE (store/invoice-editor-store/save-command.ts:209-214). The editor never shows Saved next to 'kept for you to save'. tests/unit/store/save-command-race.test.ts and tests/component/invoice-editor-save-flow-t36.test.tsx add the case: quantity plus notes edited during Save and issue, then Save, then the notice is exactly the first sentence and the editor shows Saved. test-plan.md:53-54 describe it.",
+      "files_hint": [
+        "store/invoice-editor-store/save-command.ts",
+        "tests/unit/store/save-command-race.test.ts",
+        "tests/component/invoice-editor-save-flow-t36.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
+      "source": "review-2026-10-11-r12"
+    },
+    {
+      "id": "T86",
+      "title": "Test a custom-price moment that falls on the previous day in a negative time zone",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "Review r12 N2. tests/unit/lib/format/format.test.ts adds a moment shortly after midnight UTC (00:30Z) that formatMoment shows as the previous day for Pacific/Honolulu, so the negative-offset branch is told apart from UTC. tests/e2e/date-matrix.spec.ts adds the same case if its fixtures allow it without a new baseline. test-plan.md:71 names the moments actually used: next day for UTC+14 from 23:30Z, previous day for UTC-10 from 00:30Z, the UTC day when no time zone is saved. No production change.",
+      "files_hint": [
+        "tests/unit/lib/format/format.test.ts",
+        "tests/e2e/date-matrix.spec.ts",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
+      "source": "review-2026-10-11-r12"
+    },
+    {
+      "id": "T87",
+      "title": "Make five test-plan rows say what their tests assert (AC-01, AC-05c, AC-06, AC-14, double Download)",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-05c",
+        "AC-06",
+        "AC-14"
+      ],
+      "dod": "Review r12 N3. Docs only. test-plan.md:60 (AC-06) names the moments editor-data-new-today.test.ts:47-77 uses (23:30Z and 23:55Z) instead of '5 minutes either side of midnight'. test-plan.md:33 (AC-01 component) drops the preview-without-toolkit clause or points it at the e2e row (pdf-on-demand.spec.ts:108-130). test-plan.md:56 (AC-05c) says exactly one invoice is created and the next Save adds none (editor-retry-parity.spec.ts:323-340 expects 2 with the seeded one). test-plan.md:89 (AC-14) says the line's quantity, as editor-layout.spec.ts:73-77 does. test-plan.md:103 says two loads share one import (load-pdf-kit.test.ts:33-42) and a double click on one trigger generates once (pdf-triggers-real.test.tsx:211-222).",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
+      "source": "review-2026-10-11-r12"
+    },
+    {
+      "id": "T88",
+      "title": "Pin the line-only notice exactly in the e2e and list every user of the remaining PDF helpers in the SAD",
+      "layer": "tests",
+      "deps": [
+        "T85"
+      ],
+      "acs": [
+        "AC-05b"
+      ],
+      "dod": "Review r12 N4 and N5. tests/e2e/editor-first-save-after-create.spec.ts:201-203 matches the quantity-only notice with exact: true, so a wrongly added 'kept' sentence fails it. sad.md:150-151 says resolveLogoForPdf and prepareInvoiceDataForPdf are used by hooks/use-pdf-action.ts, components/modals/invoice/invoice-pdf-preview-modal.tsx and lib/invoice-document/index.ts.",
+      "files_hint": [
+        "tests/e2e/editor-first-save-after-create.spec.ts",
+        "docs/features/editor-ux/sad.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
+      "source": "review-2026-10-11-r12"
+    },
+    {
+      "id": "T89",
+      "title": "Run the full Linux e2e suite at the final HEAD after T85-T88 and point the test plan at that log",
+      "layer": "tests",
+      "deps": [
+        "T85",
+        "T86",
+        "T87",
+        "T88"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-08",
+        "AC-15"
+      ],
+      "dod": "After T85-T88, run plain CI=1 pnpm test:e2e on Linux with the T84 harness (Playwright image matching @playwright/test, Node inside engines, caffeinate on the host, never the repo's .env databases). Record it as _audit/T89-linux-e2e-2026-10-11.log with the raw Playwright summary lines, including both AC-05b first-save-after-create cases, the date matrix and the layout-baseline compare. test-plan.md:23 names that log and the last commit that changes the app or an e2e test. If a layout baseline changes, re-capture it and leave it for the owner's review (O2).",
+      "files_hint": [
+        "docs/features/editor-ux/_audit/",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r12.md",
+      "source": "review-2026-10-11-r12"
     }
   ]
 }

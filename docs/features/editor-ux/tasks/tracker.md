@@ -91,5 +91,10 @@
 | T82 | Make the first-PDF timing rows in the test plan and SAD say what the test measures | docs | Dmytro Hopko | — | — | done |
 | T83 | Correct the SAD's building-block line for invoice-pdf-helpers (split, not removed) | docs | Dmytro Hopko | — | — | done |
 | T84 | Run the full Linux e2e suite at the final HEAD and point the test plan at that log | tests | Dmytro Hopko | — | — | done |
+| T85 | Drop the notice's 'kept for you to save' sentence once a later save leaves nothing unsaved | app | Dmytro Hopko | — | — | todo |
+| T86 | Test a custom-price moment that falls on the previous day in a negative time zone | tests | Dmytro Hopko | — | — | todo |
+| T87 | Make five test-plan rows say what their tests assert (AC-01, AC-05c, AC-06, AC-14, double Download) | docs | Dmytro Hopko | — | — | todo |
+| T88 | Pin the line-only notice exactly in the e2e and list every user of the remaining PDF helpers in the SAD | tests | Dmytro Hopko | — | T85 | todo |
+| T89 | Run the full Linux e2e suite at the final HEAD after T85-T88 and point the test plan at that log | tests | Dmytro Hopko | — | T85, T86, T87, T88 | todo |
 
-**Total:** 86 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11).
+**Total:** 91 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11; T85–T89 from review 2026-10-11-r12).
