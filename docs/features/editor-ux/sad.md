@@ -147,7 +147,8 @@ lib/
 └── helpers/
     ├── invoice-calculations.ts       unchanged — totals rule shared with the services (arch-hardening ADR-0006)
     ├── calendar-day.ts               unchanged — calendar-day storage rules (mcp-server ADR-0009)
-    └── invoice-pdf-helpers.tsx       REMOVED — moved into lib/pdf/
+    └── invoice-pdf-helpers.ts        split from the old .tsx: react-pdf code moved to lib/pdf/invoice-pdf-kit.tsx;
+                                      resolveLogoForPdf + prepareInvoiceDataForPdf stay here, used by use-pdf-action
 hooks/
 ├── use-pdf-action.ts            NEW  preparing / try again / reload states for every PDF trigger
 ├── use-invoice-pdf.tsx               rewritten over use-pdf-action
