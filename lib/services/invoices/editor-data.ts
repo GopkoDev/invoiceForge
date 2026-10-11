@@ -117,7 +117,7 @@ export async function getInvoiceEditorData(
 }
 
 /** A new invoice's defaults: issued `today` (a calendar day in the Freelancer zone), due 30 days later. */
-function newInvoiceDefaults(
+export function newInvoiceDefaults(
   today: string,
   senderProfiles: { id: string; isDefault: boolean; bankAccounts: InvoiceBankAccount[] }[],
 ): InvoiceFormData {
