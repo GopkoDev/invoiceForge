@@ -31,7 +31,7 @@ The chat answers only three kinds of requests — the Freelancer's own data, dra
 
 ## Decision outcome
 
-**Chosen:** Option 1. The verdict is recorded by code, so the KPI and the evaluation measure one component directly; off-topic messages never load tool schemas, which keeps them cheap and keeps jailbreaks away from the tools. The extra call is small on Haiku 5.5 and fits the first-words budget.
+**Chosen:** Option 1. The verdict is recorded by code, so the KPI and the evaluation measure one component directly; off-topic messages never load tool schemas, which keeps them cheap and keeps jailbreaks away from the tools. The extra call is short and fits the first-words budget.
 
 ## Consequences
 
@@ -40,7 +40,7 @@ The chat answers only three kinds of requests — the Freelancer's own data, dra
 - Off-topic refusals are uniform, fixed text in the Freelancer's language.
 
 **Negative**
-- One more model call per message (latency and a small cost); a router failure is a system-side failure (not counted, AC-11).
+- One more model call per message (latency, and on the free tier one more request against the project rate limit); a router failure is a system-side failure (not counted, AC-11).
 - The router sees a few previous turns so follow-ups like "make it 25 hours" stay in scope; a too-short window would misclassify them.
 
 **Neutral**

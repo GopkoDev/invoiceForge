@@ -129,8 +129,12 @@ The web frontend gains the AI section, the Conversation with the inline Draft ca
 
 1. **Two surfaces in one deployable, with the chat as an RSC page plus a streaming client island** (ADR-0001, ADR-0002). The AI section and the Conversation list are server-rendered like the rest of the app. The chat itself is a client island driven by the AI SDK UI `useChat` hook, reading a UI-message stream from a new session-guarded route handler. Streaming meets the first-words budget (QG-4). A route handler, unlike a server action, does not serialize the page's other actions behind a long reply, so a Create press never waits for a stream to end.
 2. **The model runs through the AI SDK and the Vercel AI Gateway, with a Mastra agent and Mastra observability on top** (ADR-0003, ADR-0004).
-   - The default model is Claude Haiku 5.5 (`claude-haiku-5-5`), a setting rather than a code constant. It is the one current Claude model whose worst case (8 tool steps over a 40-message history) stays inside USD 0.02 per message (QG-2).
-   - The gateway gives one secret, per-call cost in the response metadata, and a fallback model for provider outages (QG-4).
+   - The model is a Google Gemini Flash-Lite model on a Google AI Studio **free-tier key**, registered with the gateway as bring-your-own-key. The model id is the setting `AI_CHAT_MODEL`, not a code constant. Model spend is zero while the free tier holds (QG-2).
+   - Two consequences are recorded as a §1 override and §11 risks:
+     - the free tier's terms let Google use the content to improve its products, which contradicts spec §6.1 / §8;
+     - its project-wide request limits cap the whole chat at roughly 300–1,300 messages a day (ADR-0003).
+   - The gateway keeps the provider a configuration choice and reports per-call usage.
+   - There are no turn deadlines in code (§7). A rate-limited or failed provider call ends the turn as a system-side failure.
    - Mastra owns the agent definition, the evaluation runs and the debugging traces.
    - A metadata-only span processor strips message text and tool answers from every span before export. This keeps Mastra inside the spec's metadata-only rule rather than by convention.
 3. **A topic router classifies every message before the tool agent runs** (ADR-0005). A short structured classification sees the new message plus the last few turns and returns `in_scope`, `mixed` or `off_topic`.
@@ -237,7 +241,7 @@ C4Container
     }
 
     ContainerDb(db, "PostgreSQL", "Prisma 7 schemas public, plus Mastra schema mastra", "Conversations, Draft cards, counters, turn metadata, invoices with origin, keys with Draft permission; Mastra traces")
-    System_Ext(gateway, "Vercel AI Gateway and model provider", "Claude Haiku 5.5 by default")
+    System_Ext(gateway, "Vercel AI Gateway and Google Gemini", "Gemini Flash-Lite on a free-tier key (BYOK)")
     System_Ext(sentry, "Sentry", "Errors and metadata spans")
 
     Rel(freelancer, web, "Uses", "HTTPS")

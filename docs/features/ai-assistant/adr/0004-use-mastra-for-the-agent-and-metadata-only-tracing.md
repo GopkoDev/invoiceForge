@@ -56,4 +56,4 @@ The idea brief names Mastra "for debugging and statistics". The spec requires pe
 
 - Spec: [[../spec.md]] §1, §6, §6.1, §7
 - SAD: [[../sad.md]] §4, §5, §7, §8, §11
-- Related ADR: [[0003-run-the-model-through-the-ai-sdk-and-the-vercel-ai-gateway-on-claude-haiku-5-5]], [[0008-store-conversations-in-prisma-tables-keeping-only-what-the-freelancer-saw]]
+- Related ADR: [[0003-run-a-gemini-model-through-the-ai-sdk-and-the-vercel-ai-gateway-on-a-free-tier-key]], [[0008-store-conversations-in-prisma-tables-keeping-only-what-the-freelancer-saw]]

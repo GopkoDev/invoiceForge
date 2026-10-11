@@ -51,4 +51,4 @@ Replies must appear progressively, and a Draft card must be pressable while or a
 
 - Spec: [[../spec.md]] §6, AC-11c, AC-13, AC-42
 - SAD: [[../sad.md]] §4, §5, §8
-- Related ADR: [[0003-run-the-model-through-the-ai-sdk-and-the-vercel-ai-gateway-on-claude-haiku-5-5]], [[0008-store-conversations-in-prisma-tables-keeping-only-what-the-freelancer-saw]]
+- Related ADR: [[0003-run-a-gemini-model-through-the-ai-sdk-and-the-vercel-ai-gateway-on-a-free-tier-key]], [[0008-store-conversations-in-prisma-tables-keeping-only-what-the-freelancer-saw]]
