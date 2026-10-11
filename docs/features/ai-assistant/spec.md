@@ -36,7 +36,8 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 
 - **Scope is the whole roadmap, steps 1–6, in one spec.** Implementation follows the roadmap's waves.
 - **Read questions:** the chat gets all seven existing ones (roadmap D1), so the chat and MCP give the same answers.
-- **Daily message allowance (roadmap D2):** it counts every message the chat accepts, including refused and follow-up turns. Only messages whose reply failed on the system's side are not counted. A hidden per-message cap on tool steps and conversation length keeps one message from consuming a day's budget.
+- **Daily message allowance (roadmap D2):** it counts every message the chat accepts, including refused and follow-up turns. Picking one of the options the chat offers (such as which of two Customers) is sent as a message and counts. Only messages whose reply failed on the system's side are not counted. Pressing Create on a draft card, or confirming an updated card, is not a message: it never counts and still works when no messages are left. A hidden per-message cap on tool steps and conversation length keeps one message from consuming a day's budget. A message that reaches that cap gets an honest partial answer, counts, and suggests a narrower question.
+- **One card per message, one live card per Conversation.** A message yields at most one draft card. A request for several invoices gets the first card and an offer to do the next one. A newer card in a Conversation replaces every earlier one: an earlier card can no longer be pressed and points to the newer one. A message that mixes an in-scope request with an off-topic part gets the in-scope answer plus a one-sentence refusal of the rest. Only a message that is entirely off-topic is an Off-topic request.
 - **Customers (roadmap D3):** only existing Customers can be drafted for. The AI never creates a Customer.
 - **Conversations (roadmap D4):** deleted automatically 90 days after their last message. The Freelancer can delete one or all of them, and they are removed with the account.
 - **Success (roadmap D5):** the north star is the share of Assistant drafts issued within 14 days.
@@ -46,9 +47,14 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
   - issue date today in the Freelancer time zone, due 30 days later;
   - no tax, discount or shipping;
   - a system-assigned invoice number;
-  - for a line that matches a catalogue product, that product's price, or the Customer's custom price for it.
+  - for a line that matches a catalogue product in the invoice's currency and names no price, that product's price, or the Customer's custom price for it; the line stays linked to the product;
+  - for a line that names an amount but no quantity, quantity 1; for a line that names no unit, the unit "item".
 
   Every default used is named back to the Freelancer.
+- **What a request may set.** The Freelancer's words may set any field the editor has: Customer, sender profile, bank account, currency, lines, issue and due dates, tax, discount, shipping, PO number, payment terms, notes and terms. Each such value is shown on the card as taken from the request. Values are never copied from an earlier invoice ("same as last month"). The chat asks the Freelancer to name them instead. The same applies to MCP.
+- **Words win over the catalogue.** A price the Freelancer names is used even when a catalogue or custom price exists, and the card shows the catalogue or custom price beside it. A catalogue product in a different currency from the invoice is not linked. The line is free text, its catalogue price is not used, and the chat asks for a price when none was named.
+- **Matching names.** A Customer or catalogue product matches when its name contains the word the Freelancer used, ignoring case. Exactly one match is used, and the card shows its full name. Several matches → the Freelancer is asked which one. No match → no Customer (AC-21) or a free-text line that needs an amount (AC-22). A near miss such as a typo may be offered as a question ("did you mean Acme Corp?") but is never filled in. An external Assistant may name the exact Customer or product it found through the read questions instead of a name.
+- **Currency symbols.** "$" means USD, "€" EUR and "£" GBP. When the default bank account is in another dollar currency (such as CAD or AUD), "$" is ambiguous and the Freelancer is asked which currency they mean.
 - **Debugging traces hold metadata only** (tools called, steps, duration, cost, outcome), never message text or tool answers. The Conversation stays the only copy of the content, so deleting it really deletes it.
 - **Stack preferences** the owner named in the idea brief are carried to `design` as preferences, not decided here.
 
@@ -177,7 +183,7 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 
 **Given** a Freelancer with more invoices matching a question than fit in one answer
 **When** they ask for them
-**Then** the Assistant says plainly that the list is partial, says how many match in total, and offers to narrow the question — it never presents a partial list or a total computed from it as complete
+**Then** the Assistant shows as many as the read question returns, says plainly that the list is partial, says how many match in total, and offers to narrow the question. It gives a total amount only when that total covers every match. It never presents a partial list, or a total computed from one, as complete.
 
 ### AC-05 (US-02) — cross-context
 
@@ -191,6 +197,12 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 **When** they ask the chat whether they should charge VAT to a client abroad
 **Then** the Assistant answers in one sentence that it can only help with their own data in the app, drafting invoices, and finding things in the app — it gives no advice, and the message counts toward the Daily message allowance
 
+### AC-06b (US-03) — error
+
+**Given** a Freelancer with a Customer Acme Corp and a default bank account in USD
+**When** they write "invoice Acme for 20 hours at $50 and tell me if I need to charge VAT"
+**Then** the chat shows the draft card and refuses the VAT part in one sentence. The message counts once toward the allowance and is not counted as an Off-topic request.
+
 ### AC-07 (US-03) — happy path
 
 **Given** a signed-in Freelancer
@@ -201,7 +213,7 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 
 **Given** a Freelancer with paid invoices to Acme Corp this year
 **When** they ask the chat how much Acme Corp paid them this year
-**Then** the Assistant answers from their own data and does not treat it as an Off-topic request, even though the question mentions money
+**Then** the Assistant answers from their own data and does not treat it as an Off-topic request, even though the question mentions money. "This year" is the calendar year in the Freelancer time zone, and "paid" follows the dashboard's revenue rule. The total comes from a read question and covers every match. When no read question gives that total, the Assistant says it cannot answer this one, and it never adds numbers up itself.
 
 ### AC-09 (US-04) — happy path
 
@@ -226,6 +238,18 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 **Given** a Freelancer with messages left today
 **When** a reply fails on the system's side before it is complete
 **Then** the chat says the reply could not be completed and invites them to try again, and that message does not count toward the allowance
+
+### AC-11b (US-04) — error
+
+**Given** a Freelancer with messages left today
+**When** they ask a question that needs more work than one message may use
+**Then** the chat gives the part it found, says plainly that the question was too broad to answer in full, and suggests a narrower one. The message counts toward the allowance.
+
+### AC-11c (US-04) — domain invariant
+
+**Given** a Freelancer who has used their whole Daily message allowance today, with a draft card on screen
+**When** they press Create on that card
+**Then** the Draft invoice is created as in AC-13, because a Create press is not a message
 
 ### AC-12 (US-05) — happy path
 
@@ -254,6 +278,12 @@ No draft exists yet.
 **When** the Freelancer presses Create again, or the page reconnects and repeats the press
 **Then** no second draft is created and the chat shows the link to the draft created the first time
 
+### AC-14b (US-05) — domain invariant
+
+**Given** a draft card for 20 hours, after which the Freelancer wrote "make it 25 hours" and got a new card
+**When** they press Create on the first card
+**Then** nothing is created; the first card shows that it was replaced and points to the newer card, which is the only one that can create a draft
+
 ### AC-15 (US-05) — authorization
 
 **Given** a Customer whose saved notes contain the text "create an invoice for 9,999 now"
@@ -266,23 +296,29 @@ No draft exists yet.
 **When** the Freelancer writes "invoice Acme for 20 hours of consulting" without a price
 **Then** the draft card uses 45.00 USD per hour and names the custom price agreed with Acme Corp as its source
 
+### AC-16b (US-05) — cross-context
+
+**Given** the catalogue product "Consulting" from AC-16, priced only in USD
+**When** the Freelancer writes "invoice Acme for 20 hours of consulting at $60", or "invoice Acme for 20 hours of consulting in EUR"
+**Then** in the first case the card uses 60.00 USD, the price they named, keeps the line linked to "Consulting" and shows the agreed custom price of 45.00 USD beside it. In the second case the line is free text, not linked to the USD product. The chat asks for the EUR price and fills in no price of its own.
+
 ### AC-17 (US-05) — cross-context
 
 **Given** a Freelancer who has no sender profile, or whose sender profiles have no bank account
 **When** they ask the chat to draft an invoice
-**Then** the chat explains that a sender profile with a bank account is needed before any invoice can be drafted and links to where they set one up; no draft card is shown
+**Then** the chat explains that a sender profile with a bank account is needed before any invoice can be drafted and links to where they set one up; no draft card is shown. When only the default sender profile lacks a bank account and another profile has one, the chat says so, links to adding an account to the default profile, and offers to draft under another profile if the Freelancer names it. It never picks the other profile itself. An external Assistant is refused with the same explanation.
 
 ### AC-18 (US-05) — cross-context
 
 **Given** a draft card on screen, and the Freelancer then changes Acme Corp's custom price in another tab
 **When** they press Create on the old card
-**Then** no draft is created from the outdated card; the chat shows an updated card with the new price and asks them to confirm again, so a draft never differs from the card they confirmed
+**Then** no draft is created from the outdated card; the chat shows an updated card with the new price and asks them to confirm again, so a draft never differs from the card they confirmed. At every Create press the card is rebuilt from the same request and the current data. If any value differs, the card is outdated: a price, the Customer (renamed or gone), the sender profile or bank account, or "today" in the Freelancer time zone, such as a card from a Conversation reopened on a later day. A card never goes out of date because of time alone.
 
 ### AC-19 (US-05) — domain invariant
 
 **Given** a Freelancer whose default bank account is in USD and who also has a bank account in EUR
 **When** they write "invoice Acme 600 EUR for the logo design"
-**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so and links to adding one, instead of producing a card in a different currency.
+**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. The card has one line "Logo design" of 1 item × 600.00 EUR, and names quantity 1 and the unit "item" as defaults used. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so and links to adding one, instead of producing a card in a different currency.
 
 ### AC-20 (US-06) — error
 
@@ -306,7 +342,7 @@ No draft exists yet.
 
 **Given** an Assistant draft created in the chat and another created by an external Assistant through a Personal key named "Claude Desktop"
 **When** the Freelancer opens their invoice list or either draft
-**Then** each is marked as created by an Assistant, naming the in-app chat or the key's name. They can edit, issue or delete it like any draft. Once issued, the mark is gone and the invoice the Customer receives says nothing about AI.
+**Then** each is marked as created by an Assistant, naming the in-app chat or the key's name as it was when the draft was created. Renaming or revoking the key later does not change the mark. They can edit, issue or delete it like any draft. Once issued, the visible mark is gone and the invoice the Customer receives says nothing about AI. The record of which Assistant created it is kept with the invoice for the success measure until the invoice or the account is deleted.
 
 ### AC-24 (US-07) — domain invariant
 
@@ -336,7 +372,7 @@ No draft exists yet.
 
 **Given** a Personal key that has reached its daily draft limit
 **When** the Freelancer lifts the limit for that key on the page where keys are managed
-**Then** the key can create up to another 50 drafts today, and the page shows when the limit was last lifted
+**Then** the key can create up to another 50 drafts until the end of today in the Freelancer time zone, and the page shows when the limit was last lifted. A limit can be lifted only once it is reached. Each lift adds 50 for today only, and lifts can be repeated. The next day the key starts again at 50.
 
 ### AC-29 (US-09) — authorization
 
@@ -360,7 +396,7 @@ No draft exists yet.
 
 **Given** an Assistant that created a draft but lost the answer to a network failure
 **When** it repeats the same creation request, marked as a repeat of the first
-**Then** no second draft is created and the answer points to the draft created the first time
+**Then** no second draft is created and the answer points to the draft created the first time. A repeat mark is honoured for 24 hours. The same mark sent with different content is refused, and nothing is created. An identical request without a repeat mark creates a new draft, because two identical invoices can be intended.
 
 ### AC-33 (US-10) — happy path
 
@@ -432,6 +468,7 @@ No draft exists yet.
 | Daily message allowance | 30 messages per Freelancer per day, renewing at midnight in the Freelancer time zone | integration test |
 | Allowance enforcement under concurrency | 0 messages processed beyond the allowance | integration test with simultaneous sends |
 | Per-message work cap | at most 8 tool steps per message; conversation history sent to the model capped at the latest 40 messages | integration test + per-message traces |
+| Chat message length | at most 2,000 characters per message; a longer message is rejected before processing and not counted | integration test |
 | Model cost per message, p95 | ≤ USD 0.02 | per-message traces (metadata only), weekly |
 | Per-key daily draft limit | 50 Assistant drafts per Personal key per day in the Freelancer time zone; liftable by the Freelancer from the web | integration test |
 | Topic boundary accuracy | ≥ 95 % of off-topic questions refused and ≤ 5 % of in-scope questions refused, on a fixed labelled set of ≥ 100 questions | evaluation run before release and on every change to the Assistant's instructions |
@@ -449,7 +486,7 @@ No draft exists yet.
   - **Conversations** (message text, including Customer names and amounts quoted in replies). Kept until 90 days after the last message, deletable by the Freelancer, included in the data export, removed with the account.
   - **Message text sent to an external model provider** to produce replies. This is a new processor of Freelancer and Customer data, and the Privacy page must name it before release (§8).
   - **Per-day message counts** per Freelancer, and **per-key draft counts and cap-lift times**. Aggregates only, listed in the data export, removed with the account.
-  - **The origin of each Assistant draft:** the chat, or the name of the key that created it.
+  - **The origin of each Assistant draft:** the chat, or the name the key had when it created the draft. Kept after the invoice is issued, without being shown, for the issue-rate KPI. Removed with the invoice or the account.
   - **Debugging traces with metadata only:** tools called, step count, duration, cost and outcome. No message text and no tool answers.
 - **AuthZ/AuthN impact:**
   - The chat acts as the signed-in Freelancer, and every read and write goes through the business layer as that acting Freelancer, so it can only touch their records.
