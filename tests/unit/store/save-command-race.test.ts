@@ -342,25 +342,27 @@ describe('save command - issued with edits (AC-05b)', () => {
 });
 
 describe('save command - edits during the save (T36)', () => {
-  it('two edits in one save: both stay on screen and unsaved, and the next Save sends both', async () => {
+  it('two edits in one save (quantity, then price): both stay on screen and unsaved, the totals add up both, and the next Save sends both', async () => {
     const resolve = deferredUpdate();
     const pending = cmd(store).save('save');
     store.getState().updateItem('a', { quantity: 5 });
-    store.getState().updateField('notes', 'Second edit');
+    store.getState().updateItem('b', { price: 12 });
     resolve(ok(saved(editorData().initialData!.items)));
     await pending;
 
     const st = store.getState();
     expect(st.formData.items.find((i) => i.id === 'a')?.quantity).toBe(5);
-    expect(st.formData.notes).toBe('Second edit');
+    expect(st.formData.items.find((i) => i.id === 'b')?.price).toBe(12);
     expect(st.hasUnsavedChanges).toBe(true);
+    // 5 × 10 + 1 × 12: the subtotal counts both edits, not the saved 2 × 10 + 1 × 7.5.
+    expect(st.subtotal).toBe(62);
     expectTotalsMatchVisibleLines(store);
 
-    updateInvoiceMock.mockResolvedValueOnce(ok(saved([line('a', 5), line('b', 1, 7.5)], { version: 5 })));
+    updateInvoiceMock.mockResolvedValueOnce(ok(saved([line('a', 5), line('b', 1, 12)], { version: 5 })));
     await cmd(store).save('save');
     const [, payload] = updateInvoiceMock.mock.calls[1];
     expect(payload.items.find((i: InvoiceFormItem) => i.id === 'a').quantity).toBe(5);
-    expect(payload.notes).toBe('Second edit');
+    expect(payload.items.find((i: InvoiceFormItem) => i.id === 'b').price).toBe(12);
     expect(payload.loadedVersion).toBe(4);
     expect(store.getState().hasUnsavedChanges).toBe(false);
   });

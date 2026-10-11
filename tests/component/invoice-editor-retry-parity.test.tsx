@@ -36,8 +36,13 @@ type Cmd = { save: (i: 'save' | 'save-and-issue', o?: unknown) => Promise<void> 
 const existing = () =>
   ({ ...emptyEditorData(), invoiceId: 'inv-1', version: 3 }) as InvoiceEditorData;
 
-async function failThenRetry(retriedAnswer: unknown, intent: 'save' | 'save-and-issue' = 'save') {
+async function failThenRetry(
+  retriedAnswer: unknown,
+  intent: 'save' | 'save-and-issue' = 'save',
+  edit?: (store: ReturnType<typeof renderWithEditorStore>['store']) => void
+) {
   const view = renderWithEditorStore(<InvoiceEditorModalContainer />, { initial: existing() });
+  if (edit) act(() => edit(view.store));
   updateInvoiceMock.mockResolvedValueOnce(fail('FAILED', 'Could not reach the server.'));
   await act(async () => {
     await (view.store.getState() as unknown as Cmd).save(intent);
@@ -91,7 +96,9 @@ describe('dialog host, reached by Retry (AC-05d)', () => {
     const view = await failThenRetry(
       fail('CONFLICT', 'Total changes.', {
         details: { kind: 'TOTALS_CHANGED', oldTotal: '10.00', newTotal: '11.00' },
-      } as never)
+      } as never),
+      'save',
+      (store) => store.getState().updateField('notes', 'Edited before the save')
     );
     await screen.findByText('Confirm the new total');
     const calls = updateInvoiceMock.mock.calls.length;
@@ -99,6 +106,7 @@ describe('dialog host, reached by Retry (AC-05d)', () => {
     expect(updateInvoiceMock.mock.calls.length).toBe(calls);
     expect(view.store.getState().totalsChanged).toBeNull();
     expect(view.store.getState().hasUnsavedChanges).toBe(true);
+    expect(view.store.getState().formData.notes).toBe('Edited before the save');
   });
 });
 
