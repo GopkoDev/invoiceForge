@@ -37,6 +37,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^3.10.0",
     "@mastra/core": "1.76.0",
+    "@mastra/observability": "1.19.0",
     "@mastra/pg": "1.31.0",
     "@modelcontextprotocol/sdk": "1.32.0",
     "@prisma/adapter-pg": "^7.10.0",
