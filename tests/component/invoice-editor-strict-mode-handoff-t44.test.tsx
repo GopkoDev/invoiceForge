@@ -442,7 +442,9 @@ describe('T49 the swap to the edit page after a create', () => {
     const fields: [string, (v: View) => HTMLElement][] = [
       ['invoice number', (v) => v.getByLabelText(/^Invoice Number/)],
       ['PO number', (v) => v.getByLabelText(/^PO Number/)],
-      ['price', (v) => v.getByRole('textbox', { name: 'Price, line 1' })],
+      // T101 (review r17 F1): the fixture's line is custom, so its product name is a free-text field too.
+      ['product name', (v) => v.getByRole('textbox', { name: 'Product, line 1' })],
+      ['price',(v) => v.getByRole('textbox', { name: 'Price, line 1' })],
       ['quantity', (v) => v.getByRole('textbox', { name: 'Quantity, line 1' })],
       ['discount', (v) => v.getByLabelText(/^Discount/)],
       ['shipping', (v) => v.getByLabelText(/^Shipping/)],

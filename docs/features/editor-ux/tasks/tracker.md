@@ -107,7 +107,7 @@
 | T98 | Assert the list row's Print shows and announces the preparing state, like Download | tests | Dmytro Hopko | — | — | done |
 | T99 | Assert focus and caret survive the create hand-over for every text and amount field | tests | Dmytro Hopko | — | — | done |
 | T100 | Render the preview from the real read side in pdf-fidelity and assert it matches the PDF line by line | tests | Dmytro Hopko | — | — | done |
-| T101 | Assert focus and caret survive the create hand-over for the custom line's Product name field | tests | Dmytro Hopko | — | — | todo |
+| T101 | Assert focus and caret survive the create hand-over for the custom line's Product name field | tests | Dmytro Hopko | — | — | done |
 | T102 | Make the AC-10 wording row name the rendering tests that prove the layouts carry no label text of their own | docs | Dmytro Hopko | — | — | todo |
 | T103 | Run the first-PDF timing e2e (E2E_TIMING=1) on Linux and keep the log as the NFR evidence | tests | Dmytro Hopko | — | T101, T102 | todo |
 
