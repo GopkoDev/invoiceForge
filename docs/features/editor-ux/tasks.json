@@ -1923,6 +1923,69 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r15.md",
       "source": "review-2026-10-11-r15"
+    },
+    {
+      "id": "T97",
+      "title": "Make the AC-04 race row say the totals check covers edited states and a saved form shows the stored figures",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Review r16 G1. test-plan.md:46 says the check runs after every state change of an edited form (tests/unit/store/save-command-race.test.ts:459 returns early when !hasUnsavedChanges), and that a saved form shows the stored figures (rows :47 and :49). Docs-only; no test changes.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r16.md",
+      "source": "review-2026-10-11-r16"
+    },
+    {
+      "id": "T98",
+      "title": "Assert the list row's Print shows and announces the preparing state, like Download",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Review r16 G2. In tests/component/pdf-triggers-real.test.tsx 'T41 the preparing state is visible and announced, then gone', the list-row case (:263-277) runs for both 'Download PDF' and 'Print' (it.each), stubbing window.open as at :297. For each it asserts aria-busy and the 'Preparing' status while the PDF is pending, and that both are gone after. test-plan.md:33 then holds as written. No assertion is weakened.",
+      "files_hint": [
+        "tests/component/pdf-triggers-real.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r16.md",
+      "source": "review-2026-10-11-r16"
+    },
+    {
+      "id": "T99",
+      "title": "Assert focus and caret survive the create hand-over for every text and amount field",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Review r16 G3. In tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx, the T54 loop (:389-426) renders the real InvoiceDetailsSection, NotesSection, SummarySection and a line row, and covers every text and amount field with a data-field key: Invoice Number, PO Number, Payment Terms, Notes, Terms, Discount, Shipping, Tax rate and the line Price (plus quantity if not covered elsewhere). For each it asserts the focused element after the rerender is the new field (its useId id changed) and the caret range is kept. Removing or changing the data-field on any of them makes the test red. test-plan.md:45 lists the fields or keeps 'every text and amount field' only if all are covered.",
+      "files_hint": [
+        "tests/component/invoice-editor-strict-mode-handoff-t44.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r16.md",
+      "source": "review-2026-10-11-r16"
+    },
+    {
+      "id": "T100",
+      "title": "Render the preview from the real read side in pdf-fidelity and assert it matches the PDF line by line",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "Review r16 G4. In tests/integration/services/invoices/pdf-fidelity.test.ts, the first test also renders PDFPreviewDocument from the same buildInvoiceDocument({kind:'issued'}) built from invoices.getInvoice, and asserts its normalised text equals the PDF text before and after the sender profile, Customer and bank account change. test-plan.md:77 then holds as written. Integration test only; no e2e change.",
+      "files_hint": [
+        "tests/integration/services/invoices/pdf-fidelity.test.ts",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r16.md",
+      "source": "review-2026-10-11-r16"
     }
   ]
 }
