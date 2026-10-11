@@ -156,49 +156,104 @@ Each tactical decision in later sections traces to one of these seeds. A tactica
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
+The feature keeps the repo's layering: thin adapters (pages, route handlers, server actions, MCP tools) resolve an `ActingFreelancer` from a trusted factory and call services in `lib/services/<domain>/`, which own every rule and every database access. Three things are new:
 
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+- **`lib/ai/`** — the Mastra agent layer: agent definition, topic router, tool adapters, metadata-only span processor. Its tools are adapters too: they call services with the actor bound to the request and never touch Prisma.
+- **`lib/assistant-tools/`** — one registry of the seven read questions, moved out of `lib/mcp/tools/`. MCP and the chat both register from it, so the two channels cannot drift (ADR-0010).
+- **Three service domains** — `assistant-drafts` (resolver, Draft cards, create-from-card), `conversations`, and `assistant-usage` (allowance and key-draft counters, per-turn metadata).
+
+The invoice and personal-key services are extended in place, not wrapped. The web frontend is the existing Next.js page tree: a new `app/(protected)/ai/` segment with RSC pages and a `components/ai/` client island built from `components/ui/` and the `docs/design-system.md` inventory.
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+app/
+├── (protected)/ai/                     page.tsx (AI section: start + Conversation list), [conversationId]/page.tsx, loading.tsx  — RSC
+├── (protected)/invoices/…              + "Create with AI" entry, Assistant-draft mark in the list
+├── (invoice-editor)/…                  + Assistant-draft mark in the editor
+├── (protected)/settings/assistants/    + Draft permission in the new-key dialog, per-key draft count, lift action
+└── api/
+    ├── chat/route.ts                   NEW  session-guarded; reserve allowance → router → agent stream → persist → release on failure
+    ├── mcp/route.ts                    unchanged route; server registers the draft tool
+    ├── user/export/route.ts            + Conversations, daily counts, key draft counts and lifts
+    └── cron/purge-limits/route.ts      + Conversations past 90 days, MCP repeat keys past 24 h, Mastra traces past retention
+components/ai/                          NEW  chat island (useChat), message list, Draft card (live / replaced / outdated / created), allowance banner, delete dialog container
+lib/
+├── ai/                                 NEW  Mastra instance + storage (schema `mastra`), chat agent, topic router (input processor), metadata-only span processor, instructions
+│   └── tools/                          NEW  read-tool adapter (from assistant-tools), propose_draft, find_in_app
+├── assistant-tools/                    NEW  (moved from lib/mcp/tools) seven read-question definitions: zod in/out + handler
+├── mcp/
+│   ├── server.ts                       registerReadOnlyTool (from the shared registry) + NEW registerDraftTool
+│   └── tools/create-draft.ts           NEW  create_draft_invoice — permission check, key limit, repeat key, resolver, create
+├── services/
+│   ├── assistant-drafts/               NEW  resolveDraftRequest, request schema, Draft cards, createFromCard, createForKey
+│   ├── conversations/                  NEW  list / open / append / trim to 40 / delete one or all / purge after 90 days / export
+│   ├── assistant-usage/                NEW  message-allowance counter, key-draft counter + lift, per-turn metadata rows
+│   ├── invoices/                       + Assistant origin on create; origin never copied by duplicateInvoice
+│   ├── personal-keys/                  + Draft permission at creation only
+│   └── account/                        + new tables in the account-deletion transaction
+├── actions/assistant-actions.ts        NEW  createDraftFromCard, deleteConversation, deleteAllConversations, liftKeyDraftLimit
+config/routes.config.ts, navigation-menu.config.ts   + AI section route and sidebar entry
+prisma/schema/ai.prisma                 NEW  Conversation, ConversationMessage, DraftCard, MessageAllowanceDay, AssistantTurn
+prisma/schema/auth.prisma               + PersonalKey.canCreateDrafts, PersonalKeyDraftDay, McpDraftRepeat
+prisma/schema/invoice.prisma            + Invoice.assistantOrigin / assistantKeyName / assistantKeyId / issuedAt
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+Building-block decisions:
+
+- **One read-tool registry for both channels** (ADR-0010). The seven definitions (name, description, zod input/output, handler taking the actor) move to `lib/assistant-tools/`. `lib/mcp/server.ts` registers them with `registerReadOnlyTool` as today, and `lib/ai/tools/` wraps the same handlers as Mastra tools. The chat's dashboard parity is the MCP parity by construction.
+- **The draft tool is listed to every key and refused without Draft permission** (ADR-0011).
+  - `PersonalKey.canCreateDrafts` is set only by the create-key service and has no update path.
+  - `create_draft_invoice` is registered through a new `registerDraftTool`, which sets `readOnlyHint: false` and runs the permission check before anything else.
+  - A key without the permission gets the AC-29 refusal. The tool's description says a key with Draft permission is needed.
+- **MCP repeat marks live in their own table** (ADR-0012). The tool takes an optional `repeatKey`.
+  - `McpDraftRepeat` (key id + repeat key unique, request fingerprint, invoice id, created at) is written in the same transaction as the invoice.
+  - A repeat within 24 h returns the first draft, and the same key with different content is refused.
+  - The daily cron deletes rows older than 24 h.
+- **The Assistant origin sits on the invoice** (ADR-0013). `assistantOrigin` (`CHAT` | `PERSONAL_KEY`), `assistantKeyName` (the name at creation) and `assistantKeyId` (set to null if the key row is deleted) are written once at creation and never changed.
+  - The mark is rendered only while the invoice is a draft.
+  - Issued details and the PDF never read these columns, and `duplicateInvoice` never copies them.
+  - `Invoice.issuedAt` is written once, when an invoice first leaves draft, so the north-star KPI can measure "issued within 14 days". The schema records no such time today.
+- **"Where is this in the app" comes from a fixed map.** `find_in_app` answers from a static list of the app's real pages (route, title, what is set there) built from `config/routes.config.ts`, so the Assistant only ever links to pages that exist (AC-07). Inline: one module, no alternative worth recording.
+- **`AssistantTurn` holds per-message metadata only**: kind, outcome, counted, steps, tool names, duration, tokens, cost — no text. It feeds the §7 KPIs and survives Conversation deletion (its Conversation reference is set to null), and it is removed with the account (ADR-0004).
+
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title ai-assistant - Containers
 
-    Person(actor, "<Actor>")
+    Person(freelancer, "Freelancer")
+    Person_Ext(assistant, "Assistant (external MCP client)")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "Invoice Forge (one Next.js deployable on Vercel)") {
+        Container(web, "Web frontend", "Next.js 16 RSC pages + React 19 client islands, useChat", "AI section, Conversation with Draft cards, Create with AI, Assistant-draft mark, Draft permission and lift on Connect your AI")
+        Container(chat, "Chat route", "app/api/chat route handler", "Session guard, allowance reservation, streams the agent reply, persists visible messages")
+        Container(actions, "Server actions", "lib/actions, use server", "Create from card, delete Conversations, lift key draft limit")
+        Container(mcp, "MCP server", "lib/mcp, MCP SDK 1.32", "Seven read tools and create_draft_invoice behind Personal key auth")
+        Container(agent, "Assistant agent", "lib/ai, Mastra on the AI SDK", "Topic router, tool agent, read-tool adapters, propose_draft, find_in_app, metadata-only spans")
+        Container(services, "Service layer", "lib/services", "assistant-drafts resolver and cards, conversations, assistant-usage counters, invoices, personal-keys")
+        Container(cron, "Daily clean-up", "app/api/cron/purge-limits", "Deletes Conversations past 90 days, repeat keys past 24 h, old traces")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    ContainerDb(db, "PostgreSQL", "Prisma 7 schemas public, plus Mastra schema mastra", "Conversations, Draft cards, counters, turn metadata, invoices with origin, keys with Draft permission; Mastra traces")
+    System_Ext(gateway, "Vercel AI Gateway and model provider", "Claude Haiku 5.5 by default")
+    System_Ext(sentry, "Sentry", "Errors and metadata spans")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(freelancer, web, "Uses", "HTTPS")
+    Rel(assistant, mcp, "Calls tools", "HTTPS, Bearer Personal key")
+    Rel(web, chat, "Sends messages, reads the stream", "HTTPS, UI-message stream")
+    Rel(web, actions, "Presses Create, deletes, lifts")
+    Rel(chat, agent, "Runs one turn")
+    Rel(chat, services, "Reserves allowance, saves messages")
+    Rel(agent, services, "Read tools and draft resolver as the acting Freelancer")
+    Rel(agent, gateway, "Router and agent calls", "HTTPS")
+    Rel(actions, services, "Direct call")
+    Rel(mcp, services, "Direct call")
+    Rel(cron, services, "Daily purge")
+    Rel(services, db, "Reads and writes", "Prisma client")
+    Rel(agent, db, "Stores metadata-only traces", "Mastra storage")
+    Rel(agent, sentry, "Reports spans and errors")
 ```
 
 ## 6. Runtime view
