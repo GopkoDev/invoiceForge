@@ -1,0 +1,36 @@
+T103 Linux e2e first-PDF timing run (review r17 F3; spec §6 NFR "first PDF <= 3 s p95"), 2026-10-11
+HEAD: e19054e (feature/editor-ux, after T101-T102), exported with `git archive e19054e` (clean tree); this log and the T103 doc change are added afterwards (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop, engine 29.8.1); @playwright/test 1.63.0
+Node used: v22.23.3 (the T67/T71/T84/T92 nodejs.org linux-arm64 tarball, copied to /opt/node22, first on PATH). pnpm 10.25.0 via corepack.
+Docker CLI: static 27.3.1 aarch64 (the T67 download).
+How (the T92 prep.sh): repo copy in the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`, then
+  `E2E_TIMING=1 CI=1 pnpm exec playwright test tests/e2e/pdf-on-demand.spec.ts -g "first PDF timing" --project=chromium --reporter=list,json`.
+  The app is the production build (`next build` + `next start`, NODE_ENV=production) from playwright.config.ts's webServer
+  (tests/e2e/support/start-app-server.mjs), with its throwaway Postgres container. Docker socket mounted from the host,
+  TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal, TESTCONTAINERS_RYUK_DISABLED=true (local only).
+  .env = env.example with generated AUTH/CRON/LIMIT_KEY secrets and a dummy Sentry DSN; never the repo's .env databases.
+  The host was kept awake with `caffeinate -i` for the whole run.
+What the test does (pdf-on-demand.spec.ts:279): network throttled to 10 Mbit/s, browser cache cleared before each of 20 runs; each run
+  opens the invoices list fresh and times Download PDF in the row menu to the download event; fails if p95 > 3000 ms.
+
+== Attempt 1 (not counted) ==
+`next build` failed before any test ran: Turbopack could not fetch the next/font/google Roboto files
+  ("Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'", 18 errors), a network fetch from the container.
+  Playwright: "Process from config.webServer was not able to start", 0 tests run. No app or test code involved; the same build passed in T92.
+  The throwaway Postgres container it left (testcontainers label, created 03:47:34Z) was removed with `docker rm -f`.
+
+== Attempt 2: the run ==
+== Timing run start 1791690544
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e/pdf-on-demand.spec.ts:279:3 › first PDF timing › p95 of Download click to file, 20 runs at 10 Mbit/s, is within 3 s (1.0m)
+
+  1 passed (2.1m)
+== Timing run end 1791690669 exit 0
+
+Playwright JSON report: status passed, duration 62224 ms, annotation p95-ms = 1107
+stats: expected 1, skipped 0, unexpected 0, flaky 0
+
+Result: p95 = 1107 ms over 20 runs at 10 Mbit/s, within the 3000 ms limit. 1 passed, exit 0, at HEAD e19054e, Node v22.23.3.
+After the run: no testcontainers left (docker ps -a shows only the unrelated tg-postgres-1).
