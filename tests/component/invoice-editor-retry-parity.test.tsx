@@ -103,6 +103,7 @@ describe('dialog host, reached by Retry (AC-05d)', () => {
     await screen.findByText('Confirm the new total');
     const calls = updateInvoiceMock.mock.calls.length;
     await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByText('Confirm the new total')).not.toBeInTheDocument());
     expect(updateInvoiceMock.mock.calls.length).toBe(calls);
     expect(view.store.getState().totalsChanged).toBeNull();
     expect(view.store.getState().hasUnsavedChanges).toBe(true);
