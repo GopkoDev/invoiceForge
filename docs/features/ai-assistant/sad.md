@@ -258,31 +258,112 @@ C4Container
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
+design seeds the three critical flows below; `sequences` covers every §5 acceptance criterion. Participants are the §5 containers.
 
-**Critical flow 1: <flow name>**
+**Critical flow 1: one chat message (read answer or draft card)**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor F as Freelancer
+    participant W as Web frontend
+    participant C as Chat route
+    participant S as Service layer
+    participant A as Assistant agent
+    participant G as AI Gateway and model
+    F->>W: types a message and sends it
+    W->>C: message text and Conversation id
+    C->>S: resolve acting Freelancer and check message length
+    C->>S: reserve one slot of today's allowance
+    alt no slot left
+        S-->>C: allowance used up, renewal time
+        C-->>W: used-up notice, nothing processed
+    else slot reserved
+        C->>S: load the latest 40 visible messages
+        C->>A: run the turn as the acting Freelancer
+        A->>G: classify the message (topic router)
+        alt off topic
+            A-->>C: fixed one-sentence refusal
+        else in scope or mixed
+            loop at most 8 tool steps
+                A->>G: next step with tool schemas
+                G-->>A: text delta or tool call
+                A->>S: read question or propose_draft as the Freelancer
+                S-->>A: answer, or questions, or a stored Draft card
+            end
+            A-->>C: streamed text and card data parts
+        end
+        C-->>W: UI-message stream, first words first
+        C->>S: save the visible messages and the turn metadata
+        opt system-side failure before the reply completes
+            C->>S: release the reserved slot
+            C-->>W: could not complete, try again
+        end
+    end
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: Create press on a Draft card (chat)**
+
+```mermaid
+sequenceDiagram
+    actor F as Freelancer
+    participant W as Web frontend
+    participant X as Server actions
+    participant S as Service layer
+    participant D as PostgreSQL
+    F->>W: presses Create on a card
+    W->>X: create from card id
+    X->>S: createFromCard as the acting Freelancer
+    S->>D: lock the card row owned by the Freelancer
+    alt card already created
+        S-->>X: link to the draft created the first time
+    else card replaced by a newer one
+        S-->>X: replaced, points to the newer card
+    else card live
+        S->>S: re-resolve the stored request against current data
+        alt content differs from the confirmed card
+            S->>D: mark the card replaced and store an updated card
+            S-->>X: updated card, confirm again
+        else content matches
+            S->>D: create the Draft invoice with origin chat and mark the card created, one transaction
+            S-->>X: draft link
+        end
+    end
+    X-->>W: result, never counted as a message
+```
+
+**Critical flow 3: external Assistant creates a draft over MCP**
+
+```mermaid
+sequenceDiagram
+    actor E as External Assistant
+    participant M as MCP server
+    participant S as Service layer
+    participant D as PostgreSQL
+    E->>M: create_draft_invoice with request and optional repeat key
+    M->>S: authenticate the Personal key, acting Freelancer
+    alt key has no Draft permission
+        S-->>M: refused, key can only read
+    else permission present
+        M->>S: check the repeat key
+        alt repeat within 24 hours
+            S-->>M: same content returns the first draft, different content is refused
+        else new request
+            M->>S: resolveDraftRequest
+            alt ambiguous or missing values
+                S-->>M: refused, names what is ambiguous or missing
+            else complete
+                S->>D: in one transaction take one of today's key drafts, create the Draft invoice with origin key name, write the repeat row
+                alt key daily limit reached
+                    D-->>S: no draft slot left, nothing created
+                    S-->>M: refused, lift the limit on the keys page
+                else created
+                    S-->>M: draft link and every default used
+                end
+            end
+        end
+    end
+    M-->>E: tool answer
+```
 
 ## 7. Deployment view
 
