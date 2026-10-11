@@ -22,6 +22,9 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     .withDatabase('invoice_forge_test')
     .withUsername('test')
     .withPassword('test')
+    // Data lives in memory: nothing is written to disk, so no anonymous volume is left behind
+    // even when the run is killed before stop().
+    .withTmpFs({ '/var/lib/postgresql/data': 'rw' })
     .start();
 
   const connectionString = container.getConnectionUri();

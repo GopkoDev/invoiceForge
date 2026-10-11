@@ -86,6 +86,8 @@ async function startRealApp() {
     .withDatabase('invoice_forge_e2e')
     .withUsername('test')
     .withPassword('test')
+    // Data lives in memory: no anonymous volume is left behind even if the run is killed.
+    .withTmpFs({ '/var/lib/postgresql/data': 'rw' })
     .start();
   const connectionString = container.getConnectionUri();
 
