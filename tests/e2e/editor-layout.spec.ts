@@ -73,6 +73,13 @@ test('AC-14: «12.» in a focused line field survives a breakpoint resize both w
     // One DOM tree: exactly one input per line field.
     const quantity = page.getByRole('textbox', { name: 'Quantity, line 1' });
     await expect(quantity).toHaveCount(1);
+    const lines = page.getByRole('textbox', { name: /^Quantity, line \d+$/ });
+    const lineCount = await lines.count();
+    expect(lineCount).toBeGreaterThan(0);
+
+    // A draft in another field, so the check covers more than the focused one.
+    const notes = page.getByRole('textbox', { name: 'Notes' });
+    await notes.fill('Draft note, kept across widths');
 
     await quantity.click();
     await quantity.fill('12.');
@@ -82,6 +89,8 @@ test('AC-14: «12.» in a focused line field survives a breakpoint resize both w
       await page.setViewportSize(size);
       await expect(quantity).toHaveValue('12.');
       await expect(quantity).toBeFocused();
+      await expect(lines).toHaveCount(lineCount);
+      await expect(notes).toHaveValue('Draft note, kept across widths');
       expect(
         await page.evaluate(() =>
           document.activeElement?.getAttribute('aria-label')
