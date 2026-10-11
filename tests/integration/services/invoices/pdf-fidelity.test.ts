@@ -3,6 +3,7 @@
 // and bank account change. Text, not bytes: the logo stays current (spec §3).
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
 import type { InvoiceStatus, PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
 import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
@@ -16,6 +17,7 @@ import { createCustomer } from '../../../support/factories/customer';
 import { createProduct } from '../../../support/factories/product';
 import { createInvoice } from '../../../support/factories/invoice';
 import { pdfTextRuns } from '../../../support/pdf-text';
+import { flat } from '../../../support/invoice-document-fixtures';
 import { buildInvoiceDocument } from '@/lib/invoice-document';
 import { formatMoney } from '@/lib/format';
 
@@ -28,11 +30,13 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn(), success: v
 
 type Invoices = typeof import('@/lib/services/invoices/invoices');
 type PdfDocument = typeof import('@/lib/pdf/invoice-pdf-kit');
+type PreviewDocument = typeof import('@/components/invoice-editor/pdf-preview-document');
 
 describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)', () => {
   let db: TestDatabase;
   let invoices: Invoices;
   let pdfDocument: PdfDocument;
+  let previewDocument: PreviewDocument;
 
   beforeAll(async () => {
     db = await startTestDatabase();
@@ -41,6 +45,7 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     testClient = createTestPrismaClient(db.connectionString);
     invoices = await import('@/lib/services/invoices/invoices');
     pdfDocument = await import('@/lib/pdf/invoice-pdf-kit');
+    previewDocument = await import('@/components/invoice-editor/pdf-preview-document');
   }, 60_000);
 
   afterAll(async () => {
@@ -61,6 +66,24 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
         document: buildInvoiceDocument({ kind: 'issued', invoice: inv }),
       })
     );
+  }
+
+  // editor-ux T100 (review r16 G4; AC-10): the preview, built from the same real read as the PDF.
+  // renderToString keeps adjacent text apart with <!-- -->, so what lies between tags and comments is
+  // exactly the text nodes a browser shows. Compared without case: the PDF prints section titles in
+  // capitals, the preview does it with CSS.
+  const decodeEntities = (t: string) =>
+    t.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_m, e: string) =>
+      ({ amp: '&', lt: '<', gt: '>', quot: '"', '#x27': "'", '#39': "'" })[e]!
+    );
+  async function shownPair(actor: Awaited<ReturnType<typeof actingFreelancerForTest>>, id: string) {
+    const result = await invoices.getInvoice(actor, id);
+    if (!result.success) throw new Error(result.error);
+    const document = buildInvoiceDocument({ kind: 'issued', invoice: result.data });
+    const html = renderToString(createElement(previewDocument.PDFPreviewDocument, { document }));
+    const parts = html.split(/<!--.*?-->|<[^>]*>/).map(decodeEntities);
+    const pdf = pdfTextRuns(createElement(pdfDocument.InvoicePDFDocument, { document }));
+    return { preview: flat(parts).toLowerCase(), pdf: flat(pdf).toLowerCase() };
   }
 
   it('every issued fixture prints the same text after its sender profile, Customer and bank account change', async () => {
@@ -109,6 +132,12 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
 
     const before = new Map<string, string[]>();
     for (const inv of fixtures) before.set(inv.id, await printedText(actor, inv.id));
+    const previewBefore = new Map<string, string>();
+    for (const inv of fixtures) {
+      const { preview, pdf } = await shownPair(actor, inv.id);
+      expect(preview, `preview vs PDF of ${inv.invoiceNumber}`).toBe(pdf);
+      previewBefore.set(inv.id, preview);
+    }
 
     // The printed bank block: account number always, IBAN/SWIFT only when present (AC-03).
     const ibanText = before.get(fixtures[0].id)!;
@@ -137,6 +166,9 @@ describe.runIf(containerRuntimeAvailable)('PDF fidelity of issued invoices (T14)
     for (const inv of fixtures) {
       const after = await printedText(actor, inv.id);
       expect(after, `PDF text of ${inv.invoiceNumber}`).toEqual(before.get(inv.id));
+      const { preview, pdf } = await shownPair(actor, inv.id);
+      expect(preview, `preview vs PDF of ${inv.invoiceNumber}`).toBe(pdf);
+      expect(preview, `preview of ${inv.invoiceNumber}`).toBe(previewBefore.get(inv.id));
       identical++;
     }
     expect(identical).toBe(fixtures.length);
