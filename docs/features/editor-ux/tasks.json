@@ -1861,6 +1861,37 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r13.md",
       "source": "review-2026-10-11-r13"
+    },
+    {
+      "id": "T93",
+      "title": "Make the AC-06 component row cite the tests that check each part of the first render",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "Review r14 F1. test-plan.md:61 claims only what tests/component/invoice-editor-store-provider.test.tsx asserts (number, Customer, line names, total and currency on the first render of an existing invoice; a new invoice's first render does not change) and names the tests that check the rest: tests/component/invoice-editor-new-defaults-from-server.test.tsx for the issue and due days on the first render, and tests/e2e/editor-first-display.spec.ts for the default sender profile and bank account in the server HTML and an unchanged page after hydration. Every test the row names really asserts what the row says. No test or production code changes.",
+      "files_hint": [
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r14.md",
+      "source": "review-2026-10-11-r14"
+    },
+    {
+      "id": "T94",
+      "title": "Assert the totals confirmation leaves the DOM after Cancel and make the totals-cancel row say the notes edit stays in the form",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-05d"
+      ],
+      "dod": "Review r14 F2. tests/component/invoice-editor-retry-parity.test.tsx:95-110 also asserts, after Cancel, that 'Confirm the new total' is no longer in the DOM (waitFor + queryByText). test-plan.md:111 says the notes edit stays in the form, unsaved (not 'on screen'). The existing assertions stay; no assertion is weakened.",
+      "files_hint": [
+        "tests/component/invoice-editor-retry-parity.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r14.md",
+      "source": "review-2026-10-11-r14"
     }
   ]
 }
