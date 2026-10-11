@@ -1,11 +1,11 @@
 ---
 status: current
 mode: current
-updated_at: "2026-09-26"
-reflects_commit: "ded1be7"
-language: "typescript 5 (node, next.js 16.1.1 app router)"
+updated_at: "2026-10-11"
+reflects_commit: "2064466"
+language: "typescript 5 (node 22, next.js 16.3.8 app router)"
 build_cmd: "pnpm build"
-test_cmd: ""
+test_cmd: "pnpm test:unit"
 lint_cmd: "pnpm lint"
 migration_tool: "prisma migrate"
 frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
@@ -20,34 +20,51 @@ frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
 
 ## Stack
 
-- Language / runtime: TypeScript 5 (strict) on Node, pnpm 10 (`package.json`, `tsconfig.json`)
-- Frameworks: Next.js 16.1.1 App Router, React 19.2.3, Prisma 7.2 with `@prisma/adapter-pg` (PostgreSQL), next-auth 5.0.0-beta.30, zod 3, react-hook-form 7, zustand 5, @tanstack/react-table 8, @react-pdf/renderer 4, Sentry 10 (`package.json:15-57`, devDependencies `package.json:58-72`)
-- Build / test / lint: `pnpm build` (= `prisma generate && next build`), `pnpm lint` (eslint 9, `eslint.config.mjs`), `pnpm format:check` (prettier + tailwind plugin). **No test script and no test files exist** — `test_cmd` is intentionally `""`.
-- Hosting: Vercel (`vercel.json`, `@vercel/analytics` + `@vercel/speed-insights` in `app/layout.tsx:123-124`).
+- Language / runtime: TypeScript 5 (strict, `tsconfig.json`) on Node `>=22.18 <23` (`package.json` engines, `.nvmrc` = 22), pnpm 10.25 (`packageManager` in `package.json`).
+- Frameworks: Next.js 16.3.8 App Router and React 19.2.3 (both pinned exactly), Prisma 7.10 with `@prisma/adapter-pg` (`prisma.ts:11`), next-auth 5.0.0-beta.32 (pinned beta), zod 3.25, react-hook-form 7, zustand 5, TanStack Table 8, `@react-pdf/renderer` 4.3 (browser-only), Sentry `@sentry/nextjs` 10, `@modelcontextprotocol/sdk` 1.32.0 (pinned), recharts 2.15.4. **No AI SDK, model-provider package or agent framework is installed** — `ai`, `@ai-sdk/*` and `mastra` are absent from `package.json`.
+- Build / test / lint (`package.json` scripts):
+  - `pnpm build` = `scripts/check-required-settings.ts` → `prisma generate` → `next build`
+  - `pnpm test:unit` = `vitest run -c vitest.config.ts` (unit + component + contract)
+  - `pnpm test:integration` = `vitest run -c vitest.integration.config.ts` (throwaway Postgres via testcontainers)
+  - `pnpm test:e2e` = `playwright test`
+  - `pnpm lint` = eslint 9 flat config (`eslint.config.mjs`); typecheck = `pnpm exec tsc --noEmit` (CI only, no script)
+  - `pnpm check:pdf-chunks` (after a build), `pnpm format:check`, `pnpm docs:dev|build` (VitePress over `docs/`)
+- CI: one workflow, `.github/workflows/test.yml`, on pull requests and pushes to main. It has two jobs:
+  - **unit + component + contract:** audit → lint → tsc → next build → pdf-chunk check → unit tests;
+  - **integration.**
+
+  **e2e and format check do not run in CI.**
+- Hosting: Vercel (`vercel.json`, region `fra1`; daily cron `/api/cron/purge-limits`, `vercel.json:6-8`).
 
 ## C4 — system as it is
 
 ```mermaid
 C4Container
     title Current containers - Invoice Forge
-    Person(user, "Freelancer", "Creates customers, products and invoices; exports PDFs")
-    Container(web, "Next.js app", "Next.js 16 App Router, React 19", "RSC pages, client components, PDF rendering in browser")
-    Container(actions, "Server actions", "lib/actions, use server", "Auth-guarded CRUD returning ActionResult")
-    Container(api, "Route handlers", "app/api", "next-auth endpoints, image conversion, user data export")
-    Container(proxy, "Proxy middleware", "proxy.ts, next-auth edge config", "Protects page routes by routes.config; excludes /api")
-    ContainerDb(db, "PostgreSQL", "Prisma 7 + adapter-pg", "Users, auth, sender profiles, customers, products, invoices")
+    Person(user, "Freelancer", "Manages customers, products and invoices in the browser")
+    Person(assistant, "Assistant", "External MCP client acting for one Freelancer")
+    Container(proxy, "Proxy", "proxy.ts, next-auth edge config", "Deny-by-default gate for pages, actions and /api")
+    Container(web, "Next.js app", "Next.js 16 App Router, React 19", "RSC pages, client components, browser-side PDF")
+    Container(actions, "Server actions", "lib/actions, use server", "Resolve the acting Freelancer, call services, return ActionResult")
+    Container(api, "Route handlers", "app/api", "next-auth, mcp, user export, convert-image, cron purge-limits")
+    Container(mcp, "MCP server", "lib/mcp, MCP SDK 1.32", "Seven read-only tools behind Personal key auth")
+    Container(services, "Service layer", "lib/services", "Domain rules; every call takes an ActingFreelancer")
+    ContainerDb(db, "PostgreSQL", "Prisma 7 + adapter-pg", "Accounts, keys, limits, sender profiles, customers, products, invoices")
     System_Ext(google, "Google OAuth", "Sign-in provider")
-    System_Ext(smtp, "SMTP server", "Magic-link email via Nodemailer")
-    System_Ext(sentry, "Sentry", "Error tracking, prod only")
-    Rel(user, proxy, "HTTPS, pages only")
-    Rel(proxy, web, "Forwards allowed requests")
-    Rel(user, api, "HTTPS, bypasses proxy")
+    System_Ext(smtp, "SMTP server", "Sign-in link email")
+    System_Ext(sentry, "Sentry", "Errors and traces")
+    Rel(user, proxy, "HTTPS")
+    Rel(assistant, proxy, "HTTPS, Bearer Personal key")
+    Rel(proxy, web, "Signed-in pages")
+    Rel(proxy, api, "Allowed /api requests")
     Rel(web, actions, "Calls server actions")
-    Rel(web, api, "fetch")
-    Rel(actions, db, "Prisma client")
-    Rel(api, db, "Prisma client")
+    Rel(actions, services, "Direct call")
+    Rel(api, mcp, "POST /api/mcp")
+    Rel(mcp, services, "Direct call")
+    Rel(api, services, "Direct call")
+    Rel(services, db, "Prisma client")
     Rel(api, google, "OAuth")
-    Rel(api, smtp, "Sends sign-in email")
+    Rel(api, smtp, "Sends sign-in link")
     Rel(web, sentry, "Reports errors")
 ```
 
@@ -56,89 +73,127 @@ C4Container
 | Module | Path | Layers | Wired at | Responsibility |
 |---|---|---|---|---|
 | Routes (public) | `app/(public)/` | ui (RSC) | `app/(public)/page.tsx` | Landing, privacy, terms |
-| Routes (auth) | `app/(auth)/` | ui | `app/(auth)/layout.tsx` | Login, verify-request, auth error |
-| Routes (protected) | `app/(protected)/` | ui (RSC pages + loading) | `app/(protected)/layout.tsx` | Dashboard, invoices list, customers, products, sender-profiles, settings |
-| Routes (invoice editor) | `app/(invoice-editor)/` | ui | `app/(invoice-editor)/layout.tsx` | Full-screen editor: `invoices/new`, `invoices/[id]/edit` |
-| API route handlers | `app/api/` | http | `app/api/auth/[...nextauth]/route.ts` | next-auth handlers, `convert-image`, `user/export`; **not covered by `proxy.ts`** — each handler guards itself; `app/api/auth/log-logout/` is an empty leftover folder |
-| Server actions | `lib/actions/` | app/service + data access | `lib/actions/customer-actions.ts:1` (`'use server'`) | Per-domain CRUD (customer, product, custom-price, sender-profile, bank-account, invoice, dashboard, account, profile, login); dashboard setup gating in `lib/actions/dashboard-setup-check.ts:15` (`checkDashboardSetup`) |
-| Validation | `lib/validations/` | domain (schemas) | `lib/validations/invoice.ts` | Zod schemas per entity, shared by forms and actions |
-| Helpers | `lib/helpers/` | domain/util | `lib/helpers/index.ts` | Auth guard, invoice calculations, PDF building, formatting |
-| Auth | `auth.ts`, `auth.config.ts`, `proxy.ts` | infra | `auth.ts:44`, `auth.config.ts:6`, `proxy.ts:69` | next-auth (Google + Nodemailer), edge-safe config, route guard |
-| Persistence | `prisma.ts`, `prisma/schema/`, `prisma/migrations/` | infra | `prisma.ts:13` | Prisma client singleton, split schema, migrations |
-| Components | `components/` | ui | `components/ui/` | shadcn primitives + feature folders (invoices, customers, products, invoice-editor, modals, layout, …) |
-| Client state | `store/` | ui state | `store/use-modal-store.ts:18` | Zustand: modal registry, invoice-editor store |
-| Hooks | `hooks/` | ui | `hooks/use-invoice-pdf.tsx` | Editor handlers, invoice filters, PDF, mobile detection |
-| Config / constants / types | `config/`, `constants/`, `types/` | shared | `config/routes.config.ts` | Routes, site, nav, PDF, JWT config; currency options; shared TS types |
+| Routes (auth) | `app/(auth)/` | ui | `app/(auth)/layout.tsx` | Sign-in, verify-request, auth error |
+| Routes (protected) | `app/(protected)/` | ui (RSC pages + loading + error) | `app/(protected)/layout.tsx:29` (`requireLiveUser`) | App shell with sidebar: dashboard, invoices, customers, products, sender-profiles, settings (profile, privacy, assistants) |
+| Routes (invoice editor) | `app/(invoice-editor)/` | ui | `app/(invoice-editor)/layout.tsx` | Full-screen editor without sidebar: `invoices/new`, `invoices/[id]/edit` |
+| API route handlers | `app/api/` | http | `app/api/mcp/route.ts`, `app/api/user/export/route.ts` | next-auth + `clear-session`, `mcp`, `user/export`, `convert-image`, `cron/purge-limits` |
+| Service layer | `lib/services/` | domain/app | `lib/services/_shared/acting-freelancer.ts:7` (`ActingFreelancer`) | One folder per domain (account, bank-accounts, custom-prices, customers, dashboard, invoices, personal-keys, products, profile, sender-profiles); every function takes the actor first |
+| Server actions | `lib/actions/` | adapter (`'use server'`) | `lib/actions/invoice-actions/invoice-actions.ts:27` | Thin wrappers: resolve actor from session → call service → `ActionResult` |
+| MCP | `lib/mcp/` | adapter | `lib/mcp/server.ts:89-95` (`registerReadOnlyTool`) | Server factory, Bearer auth pipeline (`authenticate.ts`), answer shaping (`answers.ts`), one file per tool in `tools/` |
+| Security | `lib/security/` | infra | `lib/security/limits/mcp.ts` | Rate limits over the `LimitEvent` log (`limits/`), logo-fetch limit, IP-pinned safe fetch |
+| Auth | `auth.ts`, `auth.config.ts`, `proxy.ts`, `lib/auth/`, `lib/helpers/route-auth.ts`, `lib/helpers/session-actor.ts` | infra | `proxy.ts:126`, `lib/helpers/route-auth.ts:59` | next-auth (Google + email link), deny-by-default proxy, route/session guards, actor factories |
+| Validation | `lib/validations/` | domain (schemas) | `lib/validations/invoice.ts` | Zod schemas per entity, shared by forms, actions and services |
+| Helpers | `lib/helpers/` | util | `lib/helpers/index.ts` | Guards, invoice calculations, error scrubbing, client session redirect |
+| Env | `lib/env/` | infra | `lib/env/required-settings.ts:3` | Required/optional settings list, checked at build time |
+| Persistence | `prisma.ts`, `prisma/schema/`, `prisma/migrations/` | infra | `prisma.ts:11` | Prisma client singleton, split schema, migrations |
+| Document / PDF / format | `lib/invoice-document/`, `lib/pdf/`, `lib/format/` | domain/ui | `lib/pdf/load-pdf-kit.ts:38` | One document model for preview and PDF; on-demand browser PDF kit; en-US money and date formatting |
+| Components | `components/` | ui | `components/ui/` | 39 shadcn primitives plus feature folders: invoices, invoice-editor, customers, products, sender-profiles, bank-accounts, dashboard, assistants, settings, modals, layout, landing, legal |
+| Client state | `store/` | ui state | `store/use-modal-store.ts:18` | Global modal registry; one invoice-editor store per mounted editor |
+| Hooks | `hooks/` | ui | `hooks/use-invoice-pdf.tsx` | PDF actions, unsaved-changes guard, editor handlers, filters, mobile detection |
+| Config / constants / types | `config/`, `constants/`, `types/` | shared | `config/routes.config.ts:13`, `config/navigation-menu.config.ts:5` | Routes, sidebar sections, icons, PDF/JWT config; currency/unit options; `ActionResult` and shared types |
+| Tests | `tests/` | test | `vitest.config.ts`, `vitest.integration.config.ts`, `playwright.config.ts` | `unit/`, `component/`, `contract/`, `integration/`, `e2e/`, `support/` |
 
 ## Conventions (cited — the rules a new feature must match)
 
-- **Module wiring / registration:** data access lives in `'use server'` files under `lib/actions/<domain>-actions.ts` (larger domains get a folder: `lib/actions/invoice-actions/{invoice-actions,helpers,select-queries}.ts`); RSC pages call them directly — `lib/actions/customer-actions.ts:14`.
-- **Auth guard in actions:** the canonical pattern is `getAuthenticatedUser()` first, then queries scoped by `userId` — `lib/helpers/auth-helpers.ts:10`, used at `lib/actions/customer-actions.ts:18`. Exceptions exist (see §Review findings, F3); copy the customer actions, not account/profile.
-- **Auth guard in API routes:** `proxy.ts` excludes `api` from its matcher (`proxy.ts:70`), so every `app/api/*/route.ts` must call `auth()` itself — `app/api/user/export/route.ts:7`.
-- **Error handling:** actions should not throw to the client; the canonical return is `ActionResult<T> = { success, data?, error? }` — `types/actions.ts:5` (not yet followed everywhere, see F3); errors are `console.error`-logged inside `try/catch` (`lib/helpers/auth-helpers.ts:24-26`).
-- **Cache invalidation:** mutations call `revalidatePath(protectedRoutes.<x>)` — `lib/actions/customer-actions.ts:109`.
-- **IDs:** `String @id @default(cuid())` on User, EmailHistory and every domain model — `prisma/schema/invoice.prisma:21`. The next-auth adapter models differ: `Account` and `VerificationToken` use composite `@@id` (`prisma/schema/auth.prisma:39`, `:58`), `Session` has no `id` and is keyed by `sessionToken @unique` (`prisma/schema/auth.prisma:43`).
-- **Persistence / DB access:** single `prisma` singleton over `PrismaPg` adapter, `DATABASE_URL` required at import — `prisma.ts:6-13`. Invoices snapshot sender/customer/bank data (denormalized) — `prisma/schema/invoice.prisma:142`.
-- **Migrations:** `prisma migrate`, schema split in `prisma/schema/{base,auth,invoice}.prisma`, folders `YYYYMMDDhhmmss_snake_case` — `prisma/migrations/20251231005646_add_invoice_system/`, config `prisma.config.ts`.
-- **Validation:** one zod schema file per entity in `lib/validations/`, reused by react-hook-form via `zodResolver` — `lib/validations/invoice.ts`, `components/customers/customer-form.tsx:51`.
-- **Tests:** **none** — no harness, no test files. Any feature adding tests must also introduce the harness (flag as a design decision).
-- **Inter-module communication:** direct function calls (RSC/client → server action); `fetch` only to `app/api/*` route handlers (e.g. `app/api/user/export/route.ts`). No events/queues.
-- **Env config:** `.env` per `env.example`; no runtime env schema.
-- **UI / styling:** shadcn/ui (base-vega, neutral) + Tailwind 4 CSS variables + `cn()` — `components.json`, `lib/utils.ts` (detail in §Frontend below).
+- **Module wiring / registration:** domain rules live in `lib/services/<domain>/`, every function takes an `ActingFreelancer` first (`lib/services/invoices/invoices.ts:424` `createInvoice(actor, data)`). Callers obtain the actor only from trusted factories:
+  - `actingFreelancerFromSession()` in server actions (`lib/helpers/session-actor.ts:31`);
+  - `actingFreelancerForRoute()` in route handlers (`lib/helpers/session-actor.ts:49`);
+  - `actingFreelancerFromPersonalKey()` for MCP (`lib/services/_shared/acting-freelancer.ts:23`).
+
+  Import services by file path — `lib/services/index.ts` is an empty placeholder.
+- **Server action shape:** resolve actor → `if (!actor.success) return actor` → call the service → return its `ActionResult` (`lib/actions/profile-actions.ts:11-18`).
+- **Route handler guard:** session routes start with `actingFreelancerForRoute(...)` (wraps `requireSession()`, `lib/helpers/route-auth.ts:59`, which re-checks the User row). Example: `app/api/convert-image/route.ts:39`. `/api/mcp` (Bearer key), `/api/cron/purge-limits` (`CRON_SECRET`) and `/api/auth/clear-session` are deliberate exceptions.
+- **Proxy:** deny by default — every path, including `/api`, goes through `proxy.ts`. Anonymous `/api` and server-action requests get a 401 (`proxy.ts:98-107`). Public paths are an explicit allowlist in `config/routes.config.ts:114-132`. A new page route goes into `protectedRoutesBase` (`config/routes.config.ts:13`).
+- **Error handling:** `ActionResult<T> = { success: true, data } | ActionFailure` with a typed `ActionErrorCode` (`types/result.ts:11`, `:68`), built with `fail(code, message)` (`types/result.ts:76`). Messages are plain language, never raw DB text. Pages unwrap results with `unwrapPageResult` (`components/layout/content-area/unwrap-page-result.ts:14-25`), and segment `error.tsx` renders `LoadError`. Prisma errors are scrubbed with `redactError` (`lib/helpers/prisma-error-scrub.ts`).
+- **Observability:** service hot paths are wrapped in `inOutcomeSpan` (`lib/services/invoices/invoices.ts:412`). The MCP and cron routes report to Sentry; elsewhere logging goes through `console.error` with redaction (`lib/helpers/route-auth.ts:69`).
+- **Rate limiting:** a sliding-window log in the `LimitEvent` table (`prisma/schema/auth.prisma:95`) behind `lib/security/limits/` (`mcp.ts` per-key and per-source; `scopes.ts`), purged daily by the cron route. Assistant calls fail closed when the counter fails (mcp-server ADR-0007).
+- **IDs:** `String @id @default(cuid())` on every domain model (`prisma/schema/invoice.prisma:21`, `prisma/schema/auth.prisma:126`). Tenancy: every domain row carries `userId`, and services scope by owner (`lib/services/_shared/owner-scope.ts`).
+- **Persistence / DB access:** one `prisma` singleton over `PrismaPg` (`prisma.ts:11`). Invoices keep issued details (sender/customer/bank snapshots) that freeze at issue (invoice-integrity ADR-0001). Numbers are allocated under a sender-profile row lock (architecture-hardening ADR-0005).
+- **Migrations:** `prisma migrate`, split schema `prisma/schema/{base,auth,invoice}.prisma` (`prisma.config.ts`). Folders are named `YYYYMMDDHHMMSS_snake_case`, latest `prisma/migrations/20261007100300_single_default_bank_account/`. Deploy with `pnpm prisma migrate deploy` (`README.md:36`).
+- **Tests:** vitest + Playwright, layout per `tests/README.md:9-22`. Naming is `*.test.ts(x)` for vitest and `*.spec.ts` for Playwright. Examples per tier:
+  - unit: `tests/unit/invoice-calculations.test.ts`;
+  - component: `tests/component/login-form.test.tsx`;
+  - contract: `tests/contract/mcp-tools-list.test.ts`;
+  - integration: `tests/integration/limit-event-table.test.ts`, on `postgres:16-alpine` via testcontainers (`tests/support/db/container.ts:11`);
+  - e2e: `tests/e2e/smoke.spec.ts`.
+
+  Architecture rules are enforced as unit tests, for example `tests/unit/service-layer-boundary.test.ts` and `tests/unit/pdf-toolkit-import-lint.test.ts`.
+- **Inter-module communication:** direct function calls (page/action/route/MCP → service). HTTP only at `app/api/*`. No events or queues.
+- **Env config:** `.env` per `env.example`. Required settings are listed in `lib/env/required-settings.ts:3-15` and enforced at build by `scripts/check-required-settings.ts`. There is no runtime env schema; only `DATABASE_URL` is checked at import (`prisma.ts`).
+- **UI / styling:** shadcn/ui (base-vega, neutral) + Tailwind 4 CSS variables + `cn()` — `components.json`, `lib/utils`. Detail is in §Frontend below, and the canon is `docs/design-system.md`.
 
 ## Datastores
 
 | Store | Engine | Accessed via | Notes |
 |---|---|---|---|
-| Main DB | PostgreSQL | Prisma 7 client (`prisma.ts`) | Models: User, Account, Session, VerificationToken, EmailHistory (`prisma/schema/auth.prisma`); SenderProfile, BankAccount, Customer, Product, CustomPrice, Invoice, InvoiceItem + enums Currency (UAH/USD/EUR/GBP/PLN), InvoiceStatus (DRAFT/PENDING/PAID/OVERDUE/CANCELLED) (`prisma/schema/invoice.prisma:3-243`) |
+| Main DB | PostgreSQL (16 in tests) | Prisma 7 client (`prisma.ts`) | `auth.prisma`: User, Account, Session, VerificationToken, LogoFetchWindow, LimitEvent (+ enums LimitScope, LimitOutcome), EmailHistory, PersonalKey (sha-256 digest, no scope/permission field, `:124`), PersonalKeyUsageWeek (weekly counts). `invoice.prisma`: SenderProfile, BankAccount, Customer, Product, CustomPrice, Invoice, InvoiceItem + enums Currency (UAH/USD/EUR/GBP/PLN), InvoiceStatus (DRAFT/PENDING/PAID/OVERDUE/CANCELLED) |
 
 ## Frontend / UI foundation
 
-- **Component library / design system:** shadcn/ui 3.6, style `base-vega`, base color `neutral`, RSC on, over `@base-ui/react` — `components.json`; 54 primitives in `components/ui/`.
-- **Design tokens:** OKLch CSS variables in `:root` (`app/globals.css:51`) and `.dark` (`app/globals.css:86`), mapped into Tailwind via `@theme inline` (`app/globals.css:7`); radius, sidebar and chart tokens included.
-- **Styling approach:** Tailwind CSS 4 + `tw-animate-css`, class merging via `cn()` (clsx + tailwind-merge) — `lib/utils.ts`; prettier-plugin-tailwindcss sorts classes.
-- **Theming:** `next-themes` via `components/theme-provider.tsx`, mounted at `app/layout.tsx:109`.
-- **Shared primitives:** Button, Card, Input, Field, InputGroup, Select, Combobox, Command, Dialog, AlertDialog, Sheet, Popover, Tabs, Table, Pagination, Calendar, Chart, Sidebar, Skeleton, Empty, Spinner, Sonner (toasts), … — `components/ui/`.
-- **State / data-fetching:** server data via RSC + server actions (no client cache lib); client state in zustand — `store/use-modal-store.ts:18` (typed modal registry); the invoice editor gets one store per mounted editor, created in `store/invoice-editor-store/create-invoice-editor-store.ts` and provided by `store/invoice-editor-store/invoice-editor-provider.tsx` (editor-ux ADR-0003), with every save going through `save-command.ts` (ADR-0005). A just-created invoice's live store is handed over once, keyed by owner and invoice, to the edit page's provider (ADR-0003 amendment).
-- **Forms / tables / PDF:** react-hook-form + zod (`components/customers/customer-form.tsx:51`); TanStack Table (`components/invoices/invoices-data-table.tsx:190`); the invoice preview and the PDF are both laid out from one document model, `lib/invoice-document/index.ts` (editor-ux ADR-0002); the PDF toolkit is a separate chunk loaded on demand through `lib/pdf/load-pdf-kit.ts` (ADR-0001). Money, calendar days and moments are formatted in en-US by `lib/format/index.ts` (ADR-0006).
-- **Back/forward cache:** signed-in pages are sent `no-store`, and `components/session-restore-guard.tsx` reloads a page restored from the back/forward cache (editor-ux ADR-0007).
-- **Load error state:** `LoadError` (`components/layout/content-area/load-error.tsx`) is the plain-language "couldn't load your data" state every segment `error.tsx` renders.
-- **Async ConfirmationModal rule:** `ConfirmationModal`'s `onConfirm` may be async; the dialog stays open with a `Spinner` until the promise settles, and every caller must close it itself on both success and failure.
-- **Client session redirect:** a client component that gets `UNAUTHORIZED` back from a server action checks `isUnauthorizedFailure` and calls `goToSignIn` — `lib/helpers/client-session-redirect.ts` — sending the browser through the cookie-clearing route, the client counterpart to the server-side `unwrapPageResult()`.
-- **Closest UI precedent:** a list screen looks like the invoices list — `app/(protected)/invoices/page.tsx` → `components/invoices/invoices-list-container.tsx` → `components/invoices/invoices-data-table.tsx`; a CRUD form looks like `components/customers/customer-form.tsx`.
+- **Component library / design system:** shadcn/ui, style `base-vega`, base color `neutral`, lucide icons (`components.json`); 39 primitives in `components/ui/`. The design canon with registered reusable components (LoadError, ConfirmationModal, CopyButton, IssuedDetailsCard, AmountInput, PdfPreparingStatus) is `docs/design-system.md`.
+- **Design tokens:** OKLCH CSS variables in `:root` (`app/globals.css:51`) and `.dark` (`app/globals.css:86`), mapped into Tailwind via `@theme inline` (`app/globals.css:7`).
+- **Styling approach:** Tailwind 4 utility classes + `cn()`; primitives carry `data-slot` attributes. Fonts come from `next/font/google` (`app/layout.tsx:2`).
+- **Theming:** `next-themes` (`components/theme-provider.tsx`), class attribute, mounted in `app/layout.tsx`; `components/theme-toggle.tsx`.
+- **Shared primitives:** Button, Card, Input, Field, InputGroup, Item, Select, Combobox, Command, Dialog, AlertDialog, Sheet, Tabs, Table, Sidebar, Skeleton, Empty, Spinner, Sonner, CopyButton (`components/ui/`).
+- **State / data-fetching:** server data via RSC + server actions; no client cache library. Client state is zustand:
+  - the global modal registry in `store/use-modal-store.ts:18`, with modal types in `components/modals/modal-types-registry.ts`;
+  - one editor store per mounted editor, `store/invoice-editor-store/` (editor-ux ADR-0003), with every save going through `save-command.ts` (ADR-0005).
+- **Forms / tables / PDF:**
+  - forms: react-hook-form + zod (`components/products/product-form.tsx:67-69`);
+  - tables: TanStack Table (`components/invoices/invoices-data-table.tsx`);
+  - preview and PDF come from one document model (`lib/invoice-document/index.ts`, editor-ux ADR-0002);
+  - **PDF rendering is browser-only:** `lib/pdf/invoice-pdf-kit.tsx` is `'use client'` and is loaded on demand by `lib/pdf/load-pdf-kit.ts:38` (ADR-0001). eslint restricts `@react-pdf/renderer` to `lib/pdf`.
+- **Navigation:** sidebar sections are `main` (Dashboard, Invoices), group `Management` (Customers, Sender Profiles, Products) and `secondary` (Privacy, Terms, Settings) in `config/navigation-menu.config.ts:5`, rendered by `components/layout/app-sidebar.tsx`. Settings sub-routes include `/settings/assistants` ("Connect your AI", `config/routes.config.ts:30`).
+- **Cross-cutting UI rules:**
+  - load error state: `LoadError` (`components/layout/content-area/load-error.tsx`);
+  - an async `ConfirmationModal` stays open until its caller closes it. It is mounted per layout container (`components/modals/settings/settings-modal-container.tsx`, `components/modals/invoice-editor/invoice-editor-modal-container.tsx`), so a new section needs its own container;
+  - client session redirect: `lib/helpers/client-session-redirect.ts`;
+  - back/forward cache guard: `components/session-restore-guard.tsx` (editor-ux ADR-0007);
+  - unsaved-changes guard: `hooks/use-unsaved-changes-guard.ts`;
+  - live-region and `aria-busy` patterns: `components/invoices/pdf-preparing-status.tsx`, `components/ui/copy-button.tsx`.
+- **Closest UI precedent:**
+  - list screen: `app/(protected)/products/page.tsx` → `components/products/products-list.tsx`;
+  - CRUD form: `components/products/product-form.tsx`;
+  - settings page: `app/(protected)/settings/assistants/page.tsx` → `components/assistants/assistant-keys.tsx`;
+  - full-screen flow: `app/(invoice-editor)/invoices/[id]/edit/page.tsx`.
 
 ## Where things live / closest precedents
 
-- A new CRUD entity → Prisma model in `prisma/schema/invoice.prisma` + migration, zod schema in `lib/validations/<entity>.ts`, actions in `lib/actions/<entity>-actions.ts`, page in `app/(protected)/<entity>/page.tsx`, components in `components/<entity>/`, types in `types/<entity>/` — modelled on customers (`lib/actions/customer-actions.ts`, `app/(protected)/customers/page.tsx`).
-- A complex, multi-query domain → action folder like `lib/actions/invoice-actions/` (`invoice-actions.ts:167` `createInvoice`, `select-queries.ts`).
-- A full-screen editor flow → `app/(invoice-editor)/` route group + a zustand store in `store/` — modelled on `app/(invoice-editor)/invoices/new/page.tsx` and `store/invoice-editor-store/`.
-- An HTTP endpoint (file/binary responses, non-action callers) → `app/api/<name>/route.ts`, modelled on `app/api/user/export/route.ts`.
-- A new screen / UI component → composed from `components/ui/` primitives and tokens in `app/globals.css`, modelled on `components/invoices/invoices-list-container.tsx`; modals go through `store/use-modal-store.ts`.
-- A new page route → register it in `config/routes.config.ts` so `proxy.ts` protects it. A new API route is **not** protected by the proxy — guard it with `auth()` inside the handler.
+- **A new domain capability** → a service in `lib/services/<domain>/` taking `ActingFreelancer`, a zod schema in `lib/validations/`, a thin server action in `lib/actions/`. Model it on invoices: `lib/actions/invoice-actions/invoice-actions.ts:27` → `lib/services/invoices/invoices.ts:424`.
+- **A new Assistant (MCP) tool** → a file in `lib/mcp/tools/` that calls a service, registered in `lib/mcp/server.ts:89-95`, and listed in the contract test `tests/contract/mcp-tools-list.test.ts`. Model it on `lib/mcp/tools/summary.ts`. Registration today is read-only by construction (`registerReadOnlyTool`, `lib/mcp/server.ts:186`).
+- **A new HTTP endpoint** → `app/api/<name>/route.ts`, guarded first with `actingFreelancerForRoute` and mapping `RATE_LIMITED` to 429 + `Retry-After`. Model it on `app/api/user/export/route.ts`.
+- **A rate-limited action** → a scope in `lib/security/limits/scopes.ts` over the `LimitEvent` log. Model it on `lib/security/limits/mcp.ts`.
+- **A new protected page / nav section** → register it in `protectedRoutesBase` (`config/routes.config.ts:13`), add a sidebar item in `config/navigation-menu.config.ts:5`, then add `app/(protected)/<segment>/page.tsx` + `loading.tsx`.
+- **A new screen / UI component** → compose it from `components/ui/` and the components registered in `docs/design-system.md`. Model it on `components/assistants/assistant-keys.tsx` (client island inside an RSC page).
 
 ## Constraints & known tech-debt
 
-- **No automated tests** — TDD-driven `implement` will need a test harness introduced first (unit runner choice is an open decision).
-- **next-auth 5.0.0-beta.30** — beta API; `auth.config.ts` must stay edge-safe (no Prisma/Nodemailer imports, `auth.config.ts:4`).
-- **No runtime env validation** — missing vars fail late (only `DATABASE_URL` is checked, `prisma.ts:7`).
-- **`@prisma/extension-accelerate` installed but unused** — no import anywhere in app code.
-- **Prisma 7 split schema** — schema is a folder (`prisma.config.ts`), not a single `schema.prisma`; tooling must point at `prisma/schema`.
-- **Sentry** is production-only with a `/monitoring` tunnel (`next.config.ts`); most actions log via `console.error` rather than Sentry.
+- **next-auth 5.0.0-beta.32** — a pinned beta; `auth.config.ts` must stay edge-safe.
+- **Exact pins** — next 16.3.8, react 19.2.3, `@modelcontextprotocol/sdk` 1.32.0, recharts 2.15.4. Upgrades are deliberate.
+- **PDF is browser-only** — any server-side PDF (for Assistants or email) is new work.
+- **Personal keys have no permission level** — write access for Assistants needs a schema change (`prisma/schema/auth.prisma:124`); the MCP spec deferred a "read and drafts" level.
+- **No AI runtime installed** — an in-app chat brings new dependencies, a new provider secret in `lib/env/required-settings.ts`, and a new cost surface.
+- **e2e is not in CI** — the full e2e suite runs locally before a ship; Playwright baselines are Linux-named.
+- **Build-time-only env check** — missing settings fail the build, not a running server; `AUTH_URL` and the `SENTRY_*` settings are not in the required list.
+- **Two zod majors in the lockfile** — 3.25 declared, 4.1 pulled in transitively.
 
-## Review findings (code-review, 2026-09-26)
+## Review findings (code-review, 2026-09-26) — status at `2064466`
 
-Problems found by `/code-review high` over the survey commit and checked against the code. Map errors it reported (proxy coverage, ID rule, action-convention wording, citation ranges, missing inventory rows) are already corrected above; the items below are open problems in the code or repo config.
+| ID | Status | Evidence |
+|---|---|---|
+| F1 `convert-image` unauthenticated | Fixed | `app/api/convert-image/route.ts:39` guards with `actingFreelancerForRoute` |
+| F2 no shared route guard | Fixed | `lib/helpers/route-auth.ts:59` `requireSession()`; proxy now deny-by-default including `/api` (`proxy.ts:98-107`) |
+| F3 account/profile actions bypass guard | Fixed | `lib/actions/profile-actions.ts:11-18` uses `actingFreelancerFromSession` + `ActionResult` |
+| F4 sdd marketplace undeclared | Fixed | `.claude/settings.json` declares `extraKnownMarketplaces.sdd` |
+| F5 `settings.local.json` not ignored | Fixed | `.gitignore:51` |
+| F6 empty `log-logout` folder | Fixed | folder removed |
+| F7 no test harness | Fixed | vitest + Playwright + testcontainers (`tests/README.md`) |
 
-| ID | Severity | Where | Problem | Impact | Suggested fix |
-|---|---|---|---|---|---|
-| F1 | High | `app/api/convert-image/route.ts:6-37`, `proxy.ts:70` | The only protection is an Origin/Referer check — no session check — and `proxy.ts` excludes `api`, so the proxy doesn't cover it either. | Origin/Referer headers are easy to forge outside a browser, so anyone can call the endpoint. | Add an `auth()` check like `app/api/user/export/route.ts:7`; keep the origin check as extra hardening. |
-| F2 | Medium | `proxy.ts:70` | Any new `app/api/*` handler starts out unauthenticated; nothing enforces a guard. | New endpoints can ship public by accident. | Add a shared `requireSession()` helper for route handlers; note it in the conventions. |
-| F3 | Medium | `lib/actions/account-actions.ts:8,34`, `lib/actions/profile-actions.ts:12-15` | These call `auth()` directly instead of `getAuthenticatedUser()`, return `{ success, message }` (not part of `ActionResult`), and `profile-actions.ts` parses input before checking auth. | Inconsistent client-side handling of results; unauthenticated callers get validation errors instead of `Unauthorized`. | Switch to `getAuthenticatedUser()` + `ActionResult<T>`; check auth before validating. (`login-actions.ts` has no guard on purpose — it is the login flow.) |
-| F4 | Medium | `.claude/settings.json:3` | `enabledPlugins` turns on `sdd@sdd`, but no `extraKnownMarketplaces` entry declares the `sdd` marketplace. | Other developers and CI can't install the plugin, so the SDD pipeline only works on the author's machine. | Add the `sdd` marketplace source (repo/URL) to `extraKnownMarketplaces`. |
-| F5 | Medium | `.gitignore:43-45` | `.claude/settings.local.json` (per-developer permissions) is not ignored. | A `git add .` can commit someone's personal allowlist to the shared repo. | Add `.claude/settings.local.json` to `.gitignore`. |
-| F6 | Low | `app/api/auth/log-logout/` | Empty folder left over from a removed route. | Confusing; looks like a half-removed feature. | Delete the folder. |
-| F7 | Info | frontmatter `test_cmd` | Empty because no test harness exists (`""` = unknown, per the survey contract). | `implement` has no test command until a harness is added. | Pick a test runner before the first TDD feature; then set `test_cmd`. |
+New, low severity:
+
+- the header comment of `lib/helpers/route-auth.ts:3` says every route calls `requireSession()`, which is no longer literally true (MCP, cron and clear-session are exempt);
+- `lib/services/index.ts` is an empty placeholder barrel.
 
 ## Reconciliation with the authored architecture doc
 
-No authored architecture doc (no `docs/architecture.md`, `ARCHITECTURE.md`, `CLAUDE.md` or ADRs); `README.md` only describes the product. This map is the current reference.
+No authored architecture doc (`docs/architecture.md`, `ARCHITECTURE.md`, root `CLAUDE.md`) exists, so this map is the current reference. Feature-level decisions live in `docs/features/*/adr/`, and the domain glossary is `CONTEXT.md` (its terms, such as Assistant, Personal key and Draft invoice, are used verbatim above).
