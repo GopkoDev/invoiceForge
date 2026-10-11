@@ -63,6 +63,9 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
           env: { APP_E2E_PORT: String(APP_PORT) },
           timeout: 300_000,
+          // SIGTERM, not Playwright's default SIGKILL: the script's handler then stops the throwaway
+          // Postgres container, which would otherwise keep running wherever Ryuk is off.
+          gracefulShutdown: { signal: 'SIGTERM', timeout: 20_000 },
         },
       ],
 });

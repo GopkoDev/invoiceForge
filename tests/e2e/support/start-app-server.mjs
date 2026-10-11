@@ -161,11 +161,20 @@ async function startRealApp() {
     }
   );
 
+  // Playwright sends SIGTERM at the end of the run (playwright.config.ts gracefulShutdown); stop the
+  // container before exiting so no throwaway database is left running.
+  let stopping = false;
   const stop = async () => {
+    if (stopping) return;
+    stopping = true;
     server.kill('SIGTERM');
     brokenCheckServer.kill('SIGTERM');
     mailSink.close();
-    await container.stop();
+    try {
+      await container.stop();
+    } finally {
+      process.exit(0);
+    }
   };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
