@@ -8,8 +8,12 @@
 
 import type { InvoiceStatus } from '@prisma/client';
 
+import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
+
 export type ActionErrorCode =
   | 'UNAUTHORIZED'
+  /** A known caller without the right (ai-assistant AC-29). */
+  | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'VALIDATION'
   | 'CONFLICT'
@@ -35,6 +39,17 @@ export type ActionErrorDetails =
     }
   /** invoice-integrity (AC-08): a locked field changed on an issued invoice (fields in fieldErrors). */
   | { kind: 'ISSUED_INVOICE_LOCKED' }
+  /** ai-assistant (AC-10, AC-34): the Daily message allowance is used up. */
+  | { kind: 'ALLOWANCE_USED_UP'; limit: 30; renewsAt: string; timeZone: string }
+  /** ai-assistant (AC-31, AC-17): the draft request is ambiguous or incomplete; the issues name what. */
+  | { kind: 'DRAFT_ISSUES'; issues: DraftIssue[] }
+  /** ai-assistant (AC-27): the key's daily draft limit is reached. */
+  | {
+      kind: 'DRAFT_LIMIT_REACHED';
+      created: number;
+      allowance: number;
+      renewsAt: string;
+    }
   /** A name or number matched more than one record; the caller picks one. */
   | {
       kind: 'AMBIGUOUS_REFERENCE';
