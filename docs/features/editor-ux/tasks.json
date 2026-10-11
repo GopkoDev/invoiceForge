@@ -1892,6 +1892,37 @@
       ],
       "file": "docs/features/editor-ux/_review/review-2026-10-11-r14.md",
       "source": "review-2026-10-11-r14"
+    },
+    {
+      "id": "T95",
+      "title": "Assert the store state is unchanged when Retry is pressed while a save is running",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-05d"
+      ],
+      "dod": "Review r15 F1. In tests/unit/store/retry-through-save-command.test.tsx 'Retry while a save is running sends nothing', record JSON.stringify(store.getState().formData) and isSaving just before pressRetry() and assert both are unchanged right after it, before release(...). The existing call-count assertions stay; test-plan.md:58 keeps 'No second save is sent, and the state is unchanged (T14)' and is now true. No assertion is weakened.",
+      "files_hint": [
+        "tests/unit/store/retry-through-save-command.test.tsx",
+        "docs/features/editor-ux/test-plan.md"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r15.md",
+      "source": "review-2026-10-11-r15"
+    },
+    {
+      "id": "T96",
+      "title": "Point the editor-retry-parity e2e comment at the renamed retry-through-save-command test",
+      "layer": "tests",
+      "deps": [],
+      "acs": [
+        "AC-05d"
+      ],
+      "dod": "Review r15 F2. tests/e2e/editor-retry-parity.spec.ts:9 names tests/unit/store/retry-through-save-command.test.tsx (renamed from .ts in 5a28fbd). Comment-only change; no e2e behaviour changes.",
+      "files_hint": [
+        "tests/e2e/editor-retry-parity.spec.ts"
+      ],
+      "file": "docs/features/editor-ux/_review/review-2026-10-11-r15.md",
+      "source": "review-2026-10-11-r15"
     }
   ]
 }
