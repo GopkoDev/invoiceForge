@@ -15,26 +15,23 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 1. Introduction and goals
 
-<!-- 🎯 Why: durable memory of «what + the three dominant qualities + who cares». A year from
-     now nobody recalls which three qualities were critical for this system.
-     📋 Write: 1 ¶ intent + 3 lines of top-3 quality goals + a stakeholders table.
-     ¶4 is the override slot — critic `Override` resolutions emit «Decision override: <headline>
-     — rationale: <reason>» bullets here so downstream skills see the deliberate choice. -->
+**Intent.** An in-app AI chat inside Invoice Forge for Freelancers who have no AI client of their own: a new **AI section** in the navigation, a **"Create with AI"** entry next to "New invoice", answers about the Freelancer's own invoices through the seven existing read questions, short "where is this in the app" help, and the headline action, a **real Draft invoice from one sentence** that exists only after the Freelancer presses Create on the card the chat proposed. The same draft action ships at once to external Assistants over MCP, behind a new **Draft permission** that can be chosen only when a Personal key is created, capped at 50 drafts per key per day. Both channels share one no-guessing rule that lives inside the action itself: every value on an Assistant draft comes from the request or the editor's own new-invoice defaults, and anything else is asked (chat) or refused (MCP). Spend is bounded by an honest **Daily message allowance** and a per-message work cap; Conversations are saved, listed, deletable and removed 90 days after their last message (spec §1, §2).
 
-**Intent.** <One paragraph from spec §2 Goals — what we're building and for whom.>
+**Top-4 quality goals (1-liners; full scenarios in §10):**
 
-**Top-3 quality goals (1-liners; full scenarios in §10):**
-
-1. <e.g. "Availability under partial failure of a downstream module">
-2. <e.g. "Read performance for the dashboard under data-scale growth">
-3. <e.g. "Recoverability with <30 min RTO">
+1. **Write safety without guessing** — no Assistant draft carries a value from neither the request nor the editor defaults, the chat never creates a draft without the Freelancer's Create press, and no press or retry ever creates a second draft.
+2. **Bounded, honest cost** — the Daily message allowance holds exactly under concurrency, one message can never consume a day's budget, and model cost stays within the spec's per-message p95.
+3. **Trustworthy answers** — every figure equals the dashboard to the cent, one Freelancer's data never reaches another, and the topic boundary refuses off-topic requests without refusing in-scope ones.
+4. **Responsiveness under a third-party dependency** — first visible words and full replies inside the spec's p95 budgets, and a model-provider outage shown within seconds while the rest of the app keeps working.
 
 **Stakeholders.**
 
 | Role | Interest | Sign-off owner? |
 |---|---|---|
-| <author role from glossary> | <feature usage> | No |
-| <consumer role from glossary> | <read usage> | No |
+| Freelancer | Uses the AI section and chat, presses Create on draft cards, manages Conversations, creates keys with Draft permission and lifts their daily draft limit | No |
+| Assistant | Either the in-app chat acting inside the Freelancer's signed-in session, or an external MCP client acting through a Personal key; reads, and with Draft permission creates Draft invoices | No |
+| Visitor | Any caller without a session or valid key; must be sent to sign in or refused, with nothing processed or counted | No |
+| Security Lead | First AI write path, new key capability, new processor of personal data, new store of financial conversation text (spec §6.1 "Security review: Required") | Yes |
 | Tech Lead | SAD approval | Yes |
 
 <!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
