@@ -4,7 +4,7 @@ owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
 updated_at: "2026-10-11"
 feature_size: "L"
-target_surfaces: []  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
+target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
 ---
 
 # Software Architecture Document — ai-assistant
@@ -115,19 +115,44 @@ C4Context
 
 ## 4. Solution strategy
 
-<!-- 🎯 Why: the 3–4 STRATEGIC PILLARS every ADR grows from. Without §4 each ADR looks random —
-     there's no umbrella. ⭐ The densest section — the blast-radius gate fires almost always here
-     (decisions are irreversible + multi-module).
-     📋 Write: 3–4 choices; each a heading + 2–3 sentences of rationale.
-     📌 «Store content as a table of typed blocks» is a pillar — ADR-0001 grows from it. -->
+**Target surfaces: `[backend-service, web-frontend]`** (ADR-0001). The backend service is the existing Next.js app, which gains:
+- the chat route handler;
+- the topic router and agent;
+- the draft resolver and the Create server action;
+- the MCP draft tool;
+- the counters;
+- the daily clean-up inside the existing cron route.
+
+The web frontend gains the AI section, the Conversation with the inline Draft card, the delete dialog, "Create with AI", the Assistant-draft mark and the Draft-permission choice on the Connect your AI page (`ux-flows.md` SCR-01–SCR-13). There is no separate worker surface. Retention runs in the daily cron route that already exists.
 
 **Top strategic choices (the seeds for ADRs):**
 
-1. **<e.g. Module isolation through events>** — <2–3 sentences citing quality goals + constraints>.
-2. **<e.g. Single-store persistence>** — <2–3 sentences>.
-3. **<e.g. Server-rendered read side>** — <2–3 sentences>.
+1. **Two surfaces in one deployable, with the chat as an RSC page plus a streaming client island** (ADR-0001, ADR-0002). The AI section and the Conversation list are server-rendered like the rest of the app. The chat itself is a client island driven by the AI SDK UI `useChat` hook, reading a UI-message stream from a new session-guarded route handler. Streaming meets the first-words budget (QG-4). A route handler, unlike a server action, does not serialize the page's other actions behind a long reply, so a Create press never waits for a stream to end.
+2. **The model runs through the AI SDK and the Vercel AI Gateway, with a Mastra agent and Mastra observability on top** (ADR-0003, ADR-0004).
+   - The default model is Claude Haiku 5.5 (`claude-haiku-5-5`), a setting rather than a code constant. It is the one current Claude model whose worst case (8 tool steps over a 40-message history) stays inside USD 0.02 per message (QG-2).
+   - The gateway gives one secret, per-call cost in the response metadata, and a fallback model for provider outages (QG-4).
+   - Mastra owns the agent definition, the evaluation runs and the debugging traces.
+   - A metadata-only span processor strips message text and tool answers from every span before export. This keeps Mastra inside the spec's metadata-only rule rather than by convention.
+3. **A topic router classifies every message before the tool agent runs** (ADR-0005). A short structured classification sees the new message plus the last few turns and returns `in_scope`, `mixed` or `off_topic`.
+   - `off_topic` ends the run with the fixed one-sentence refusal, so no tools are loaded and none can be jailbroken.
+   - `mixed` runs the agent with an instruction to refuse the rest in one sentence.
+   - The verdict is recorded by code, so the Off-topic KPI and the ≥ 95 % / ≤ 5 % evaluation measure the router directly (QG-3).
+4. **The model proposes, code decides** (ADR-0006, ADR-0007). The agent's only write-shaped tool, `propose_draft`, carries the request's own words as a strict structured request (Customer word or id, lines as stated, currency or symbol, dates, optional fields). It never carries resolved values.
+   - One deterministic service, `resolveDraftRequest(actor, request)` in `lib/services/assistant-drafts/`, does all the work: name matching, currency-symbol rules, catalogue and custom prices, the editor's new-invoice defaults, and the no-guessing guard. It returns either questions or refusals, or a proposal whose every value names its source.
+   - The chat stores that proposal as a server-side Draft card. Only the Freelancer's Create press, a server action that is never a model call and never a message, creates the invoice. It re-resolves the stored request against current data and creates only when the content matches what the Freelancer confirmed.
+   - The MCP draft tool calls the same resolver and creates at once when the request is complete, so both channels share one guard (QG-1).
+5. **Everything stays in the one Postgres, owned by Prisma, keeping only what the Freelancer saw** (ADR-0008, ADR-0009).
+   - Conversations and their messages live in a new `prisma/schema/ai.prisma`. Each message holds the visible text, link targets as ids and a reference to its Draft card, never raw tool answers. Export, the 90-day clean-up and account deletion therefore stay in one transaction model, and history replayed to the model stays cheap.
+   - The Daily message allowance and the per-key draft limit are per-local-day counter rows. Each message reserves a slot with a conditional increment and gets it back on a system-side failure, so concurrency never overshoots (QG-2).
+   - Mastra's own trace store sits in a separate `mastra` schema of the same database and holds metadata only.
 
-Each tactical decision in later sections should trace to one of these seeds. Tactical decisions that *contradict* a strategic choice are red flags — surface them in §11.
+Each tactical decision in later sections traces to one of these seeds. A tactical decision that contradicts one is raised in §11.
+
+**UI architecture (web-frontend):** hybrid. RSC pages for the AI section and the Conversation shell, and a `'use client'` chat island with `useChat`, composed from the existing shadcn/ui primitives and the `docs/design-system.md` inventory (ADR-0002). Client state stays inside `useChat` plus the existing modal registry for the delete dialog. No new global store.
+
+**Resolved spec §8 open questions (due before design):**
+- *Allowance after a time-zone change:* changing the Freelancer time zone never renews the allowance earlier than 24 hours after the first message of that day. The counter row keeps the time zone and first-message time it was opened with (ADR-0009).
+- *Reply language:* the Assistant replies in the language of the Freelancer's message, Ukrainian and English included, refusals and follow-up questions too. Fixed app text, such as the allowance banner and card labels, stays English (§8).
 
 ## 5. Building block view
 
