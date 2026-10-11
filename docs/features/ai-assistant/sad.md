@@ -424,17 +424,23 @@ The feature ships inside the existing Vercel deployable (region `fra1`). There i
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| 0001 | Build the backend service and the web frontend as two surfaces of one deployable | Accepted | §4 |
+| 0002 | Serve the chat from an RSC page with a useChat island streaming from a route handler | Accepted | §4 |
+| 0003 | Run a Gemini model through the AI SDK and the Vercel AI Gateway on a free-tier key | Accepted | §4 |
+| 0004 | Use Mastra for the agent and metadata-only tracing | Accepted | §4 |
+| 0005 | Classify each message with a topic router before the tool agent | Accepted | §4 |
+| 0006 | Resolve every Assistant draft in one deterministic service shared by chat and MCP | Accepted | §4 |
+| 0007 | Store Draft cards server-side and create only from a Create server action | Accepted | §4 |
+| 0008 | Store Conversations in Prisma tables keeping only what the Freelancer saw | Accepted | §4 |
+| 0009 | Count daily allowances in per-local-day counter rows | Accepted | §4 |
+| 0010 | Share one read-tool registry between MCP and the chat | Accepted | §5 |
+| 0011 | List the MCP draft tool to every key and refuse it without Draft permission | Accepted | §5 |
+| 0012 | Keep MCP repeat keys in their own table purged after 24 hours | Accepted | §5 |
+| 0013 | Record the Assistant origin as write-once columns on the invoice | Accepted | §5 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/ai-assistant/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
