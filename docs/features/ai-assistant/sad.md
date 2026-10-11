@@ -528,13 +528,25 @@ Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
+Domain terms follow [`CONTEXT.md`](../../../CONTEXT.md) verbatim; the SAD-level terms below are implementation vocabulary. Terms marked † are domain-facing and not yet in `CONTEXT.md`, so they are candidates for `/sdd:glossary ai-assistant`.
 
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| Assistant | A program acting for exactly one Freelancer: the in-app chat (inside the signed-in session) or an external MCP client (through a Personal key) — `CONTEXT.md`. |
+| Assistant draft | A Draft invoice an Assistant created; marked with its origin while a draft, origin kept but never shown after issuing — `CONTEXT.md`. |
+| Conversation | One saved exchange with the in-app Assistant; deleted 90 days after its last message, on request, or with the account — `CONTEXT.md`. |
+| Daily message allowance | Messages a Freelancer may send to the in-app Assistant per day in the Freelancer time zone (30) — `CONTEXT.md`. |
+| Draft permission | Opt-in capability chosen only when a Personal key is created, letting its Assistant create Draft invoices — `CONTEXT.md`. |
+| Off-topic request | A message asking for anything other than own data, drafting, or where something is in the app; refused in one sentence — `CONTEXT.md`. |
+| Draft card † | The proposed draft the chat shows inside a Conversation, with every value and the source of each default; states live / replaced / outdated / created. Stored server-side; only the Freelancer's Create press turns it into a Draft invoice (ADR-0007). |
+| Create press † | The Freelancer pressing Create on a Draft card; a server action, never a message, never counted (AC-11c). |
+| Repeat mark † | An external Assistant's marker that a draft request repeats an earlier one; honoured for 24 hours (AC-32, ADR-0012). |
+| Daily draft limit † | The 50 Assistant drafts a Personal key may create per day in the Freelancer time zone, liftable by +50 for today once reached (AC-27, AC-28). |
+| Structured draft request | The strict schema `propose_draft` and `create_draft_invoice` take: the request's own words (or exact ids), never resolved values (ADR-0006). |
+| Draft resolver | `resolveDraftRequest` — the deterministic service applying matching rules, editor defaults and the no-guessing guard; returns questions/refusals or a proposal with a source per value. |
+| Topic router | The classification step before the agent: `in_scope`, `mixed` or `off_topic` (ADR-0005). |
+| Turn | One Freelancer message and the Assistant's reply, including the router call and up to 8 agent steps. |
+| Turn metadata | The `AssistantTurn` row: kind, outcome, counted, steps, tool names, duration, tokens, cost — no text (ADR-0004). |
+| Metadata-only trace | A Mastra trace whose spans carry names, counts, durations, tokens, cost and outcome only; text attributes are stripped before export. |
+| Read-tool registry | The seven read questions defined once in `lib/assistant-tools/` and registered by both MCP and the chat (ADR-0010). |
+| Free-tier key | The Google AI Studio Gemini key on free terms, used through the Vercel AI Gateway as bring-your-own-key (ADR-0003). |
