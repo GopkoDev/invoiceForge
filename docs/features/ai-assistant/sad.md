@@ -371,25 +371,35 @@ sequenceDiagram
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
-
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
+The feature ships inside the existing Vercel deployable (region `fra1`). There is no new runtime unit.
+- **Chat route.** `app/api/chat/route.ts` runs on the Node.js runtime with the platform's default function duration; no `maxDuration` is set and the turn has no deadlines of its own (owner decision, §11).
+- **Daily clean-up.** The existing daily cron (`/api/cron/purge-limits`, 03:17 UTC) gains its steps. Each step runs and reports independently, so one failure never skips the others.
+- **New settings in `lib/env/required-settings.ts`.** `AI_GATEWAY_API_KEY` and `GOOGLE_GENERATIVE_AI_API_KEY` are required; the build fails without them. `AI_CHAT_MODEL` is optional and defaults to a Gemini Flash-Lite model.
+- **Mastra.** Its packages are declared server-external in `next.config`. Its storage tables (schema `mastra`) are created by an explicit `pnpm mastra:migrate` step run beside `pnpm prisma migrate deploy`, never lazily on a user request.
 
 **Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
+- **Metrics.** Per-turn metadata rows (`AssistantTurn`: kind, outcome, steps, tools, duration, tokens, cost) feed the spec §7 KPIs: off-topic share, turns per draft, weekly active chat users, allowance exhaustion, cost per weekly active chat user. The Assistant draft issue rate comes from `Invoice.assistantOrigin` + `issuedAt`.
+- **Tracing.** One Mastra trace per turn (router, agent steps, tool calls) through the metadata-only span processor into the `mastra` schema and Sentry. Spans also cover the Create server action and the MCP draft tool (`inOutcomeSpan`).
+- **Sentry alerts.**
+  - System-side failures above 2 % of chat messages in a week.
+  - Rate-limited (provider 429) turns above 5 % in a day — the early signal that the free-tier ceiling is near.
+  - Model cost per message p95 above USD 0.02 — guards a later move to paid terms.
+  - Any failed step of the daily clean-up.
+
+**Retention (daily cron):**
+- **Conversations** (with their messages and Draft cards): 90 days after the last message, deleted within 24 h of the mark (spec §6).
+- **MCP repeat keys:** after 24 h (ADR-0012).
+- **Mastra traces** (metadata only): after 30 days.
+- **`AssistantTurn` rows and the daily counters** (`MessageAllowanceDay`, `PersonalKeyDraftDay`): after 400 days. They are listed in the export and removed with the account sooner.
 
 **Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+- **Model capacity, the binding limit.** On the free tier one Google project allows roughly 300–1,300 chat messages a day and 3–10 a minute on Flash-Lite (ADR-0003; ranges to verify before ship). That is about 10–40 Freelancers using their full allowance.
+  - When rate-limited turns exceed 5 % for three days running, move the key to paid terms (one setting change).
+- **Storage** stays small at any realistic scale.
+  - At most 30 messages per Freelancer per day, kept 90 days: at most ~5,400 message rows per Freelancer.
+  - One allowance row per Freelancer per active day, one key-draft row per key per active day.
+  - No partitioning is needed below about 10,000 active Freelancers.
+- **Function concurrency** is bounded by the model's request limits long before Vercel's.
 
 ## 8. Crosscutting concepts
 
