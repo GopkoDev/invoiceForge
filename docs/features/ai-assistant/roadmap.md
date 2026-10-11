@@ -3,7 +3,7 @@ status: living
 updated_at: "2026-10-11"
 ---
 
-# Roadmap — invoiceFlow
+# Roadmap — ai-assistant
 
 > **A decomposition, not a promise.** The overall idea broken into incremental steps: what each
 > step is, where it comes from, how big it is — or that nobody has looked at it yet — and in which
@@ -54,11 +54,11 @@ Nothing is in fog: every step's open question can be stated precisely today, and
 
 ## Decisions so far
 
-- The chat serves people without their own AI client; MCP stays for those who have one → [`docs/idea-brief.md` §3 Users](idea-brief.md#_3-users)
-- The draft action creates a real Draft invoice through the existing rules, and a human always issues it → [`docs/idea-brief.md` §5 Out of scope](idea-brief.md#_5-out-of-scope)
+- The chat serves people without their own AI client; MCP stays for those who have one → [`idea-brief.md` §3 Users](idea-brief.md#_3-users)
+- The draft action creates a real Draft invoice through the existing rules, and a human always issues it → [`idea-brief.md` §5 Out of scope](idea-brief.md#_5-out-of-scope)
 - The draft action answers with a link to the draft, not a PDF file; the brief's «Draft with its PDF» is narrowed accordingly → [this file, Out of scope](#out-of-scope)
-- Write access through MCP is a separate opt-in permission — the «read and drafts» level the MCP spec deferred → [`docs/features/mcp-server/spec.md`](features/mcp-server/spec.md)
-- Spend is capped by a per-user daily limit → [`docs/idea-brief.md` §7 Recommendation](idea-brief.md#_7-recommendation)
+- Write access through MCP is a separate opt-in permission — the «read and drafts» level the MCP spec deferred → [`docs/features/mcp-server/spec.md`](../mcp-server/spec.md)
+- Spend is capped by a per-user daily limit → [`idea-brief.md` §7 Recommendation](idea-brief.md#_7-recommendation)
 
 ## Dependency graph
 
