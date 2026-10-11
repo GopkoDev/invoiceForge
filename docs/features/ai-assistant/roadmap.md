@@ -19,12 +19,12 @@ A freelancer with no AI client of their own opens the AI section, asks about the
 
 | # | Step | Source | Size | Status |
 |---|---|---|:---:|---|
-| 1 | AI section with a read-only chat — a new nav section holding the chat and a link to MCP settings; the chat answers questions through the existing read tools, an orchestrator refuses anything outside invoiceFlow's data and actions and picks the right tool, and every conversation is traced for debugging | `idea-brief.md §7 Recommendation` | M | idea |
-| 2 | Per-user daily limit — the chat counts usage per user, states the limit honestly when it runs out and points to MCP; usage statistics are visible | `idea-brief.md §6 Risks` | S | idea |
-| 3 | Draft from one sentence in the chat — a new action creates a real Draft invoice through the existing server-side rules, asks back when the client is ambiguous or the rate or currency is missing, never invents a value, and answers with a link to the draft | `idea-brief.md §2 Problem` | M | idea |
-| 4 | Draft action in MCP behind a write permission — keys gain an opt-in write permission set on the MCP settings page, existing keys stay read-only, and the same draft action with the same no-guessing guard is offered to external assistants | `idea-brief.md §7 Recommendation` | M | idea |
-| 5 | «Create with AI» next to «New invoice» — opens the chat ready to draft | `idea-brief.md §6 Risks` | XS | idea |
-| 6 | Saved conversations — a list of past chats the user can reopen | `idea-brief.md §7 Recommendation` | M | idea |
+| 1 | AI section with a read-only chat — a new nav section holding the chat and a link to MCP settings; the chat answers questions through the existing read tools, an orchestrator refuses anything outside invoiceFlow's data and actions and picks the right tool, and every conversation is traced for debugging | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
+| 2 | Per-user daily limit — the chat counts usage per user, states the limit honestly when it runs out and points to MCP; usage statistics are visible | `idea-brief.md §6 Risks` | S | spec'd → [spec](spec.md) |
+| 3 | Draft from one sentence in the chat — a new action creates a real Draft invoice through the existing server-side rules, asks back when the client is ambiguous or the rate or currency is missing, never invents a value, and answers with a link to the draft | `idea-brief.md §2 Problem` | M | spec'd → [spec](spec.md) |
+| 4 | Draft action in MCP behind a write permission — keys gain an opt-in write permission set on the MCP settings page, existing keys stay read-only, and the same draft action with the same no-guessing guard is offered to external assistants | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
+| 5 | «Create with AI» next to «New invoice» — opens the chat ready to draft | `idea-brief.md §6 Risks` | XS | spec'd → [spec](spec.md) |
+| 6 | Saved conversations — a list of past chats the user can reopen | `idea-brief.md §7 Recommendation` | M | spec'd → [spec](spec.md) |
 
 ## Not yet specified
 
@@ -54,6 +54,7 @@ Nothing is in fog: every step's open question can be stated precisely today, and
 
 ## Decisions so far
 
+- D1–D5 are resolved in the spec (all seven read tools; 30 messages a day plus a per-message cap; existing Customers only; Conversations kept 90 days after the last message, deletable one or all; north star = share of Assistant drafts issued within 14 days) → [`spec.md` §1](spec.md#_1-context)
 - The chat serves people without their own AI client; MCP stays for those who have one → [`idea-brief.md` §3 Users](idea-brief.md#_3-users)
 - The draft action creates a real Draft invoice through the existing rules, and a human always issues it → [`idea-brief.md` §5 Out of scope](idea-brief.md#_5-out-of-scope)
 - The draft action answers with a link to the draft, not a PDF file; the brief's «Draft with its PDF» is narrowed accordingly → [this file, Out of scope](#out-of-scope)
