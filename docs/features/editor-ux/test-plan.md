@@ -138,7 +138,7 @@ Every error and authorization AC (AC-02, AC-02b, AC-05, AC-05d, AC-07, AC-12) al
 The numeric NFRs in spec.md §6 are checked by these tests, not by a load tool:
 
 - **PDF toolkit on non-printing pages: 0 bytes** → the AC-01 build-output row (e2e).
-- **First PDF after page load: ≤ 3 s p95 on a 10 Mbit/s connection, 20 runs** → a dedicated e2e-through-UI test. The network is throttled to 10 Mbit/s, the editor and the invoices list are each opened fresh 20 times, and the time from choosing Download or Print to the file or print dialog is measured. It fails if p95 is above 3 s.
+- **First PDF after page load: ≤ 3 s p95 on a 10 Mbit/s connection, 20 runs** → a dedicated e2e-through-UI test. The network is throttled to 10 Mbit/s and the browser cache is cleared before each of 20 runs. Each run opens the invoices list fresh and measures the time from choosing Download PDF in the invoice's row menu to the download event. It fails if p95 is above 3 s. It runs only with `E2E_TIMING=1` (`tests/e2e/pdf-on-demand.spec.ts`, `first PDF timing`). The editor's buttons and Print are not timed; they load the same toolkit through `use-pdf-action`.
 - **Lost edits during save: 0 over 50 runs** and **Totals consistency: 100 % over the same 50 runs** → the AC-04 race row (unit).
 - **Retry parity: 100 % of 6 outcomes** → the AC-05d Save-versus-Retry row (e2e-through-UI).
 - **Server/browser date agreement: 0 mismatches over UTC−10, UTC and UTC+14, ±5 minutes around midnight** → the AC-08 matrix row (e2e-through-UI).
