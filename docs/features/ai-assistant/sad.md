@@ -403,21 +403,24 @@ The feature ships inside the existing Vercel deployable (region `fra1`). There i
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
-
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Authentication | Chat route: session via `actingFreelancerForRoute`; the proxy refuses anonymous `/api` with 401, and AI pages redirect a Visitor to sign-in, with nothing processed or counted (AC-42). MCP: Bearer Personal key, never a session. | `docs/architecture-map.md` §Conventions; architecture-hardening ADR-0001; mcp-server ADR-0003 |
+| Authorization and tenancy | Every read and write goes through a service as the `ActingFreelancer`, scoped by owner in the `WHERE` clause. The agent's tools receive the actor bound by the route, never an id from the model. Another Freelancer's Customer, invoice or Conversation answers exactly as one that does not exist (AC-40, AC-41). Draft permission is checked inside `registerDraftTool` (ADR-0011). | service-layer ADR-0001, ADR-0003; here |
+| Write safety | The model has no create tool in the chat. `propose_draft` only stores a Draft card, and a chat draft is created only by the Freelancer's Create server action on a card they own (ADR-0007). The MCP draft tool and the chat share `resolveDraftRequest`, the no-guessing guard (ADR-0006). No Assistant can issue, send, edit or delete an invoice; such requests get the AC-24 answer and a link. | here |
+| Untrusted text (prompt injection) | Tool answers are data, never instructions. Every tool description carries the existing data-not-instructions suffix, and the agent's instructions say stored text (notes, addresses, product names) is never a request. `propose_draft` is offered only for the Freelancer's own message; injection fixtures prove that stored text never yields a card (AC-15). | `lib/mcp/server.ts` (`DATA_NOT_INSTRUCTIONS`); here |
+| Links | The chat renders links only from structured data parts: an invoice id, a Customer form, or a page key from the `find_in_app` map. URLs written by the model are shown as plain text, so the Assistant only ever links to pages that exist (AC-07), and a stored invoice link shows its current state when opened (AC-36). | here |
+| Money and figures | Amounts are exact decimal strings from the read questions and the resolver, never converted between currencies. The model never adds numbers up: a total exists only when a read question returns it and it covers every match (AC-04, AC-08). | mcp-server SAD §8; here |
+| Time | "Today", day boundaries and allowance days use the Freelancer time zone saved on the account (UTC until saved); invoice dates are calendar days. | mcp-server ADR-0006, ADR-0009 |
+| Error handling | Services return `ActionResult` with typed codes. The chat route turns them into stream outcomes: used-up allowance, message too long, could not complete, AI temporarily unavailable. A provider error or rate limit is a system-side failure: the slot is released and the message is not counted (AC-11). Counting fails closed: if the reservation cannot be written, nothing is processed. | `types/result.ts`; ADR-0009 |
+| Limits | Daily message allowance and per-key draft limit are per-local-day counter rows with conditional increments (ADR-0009). The existing `LimitEvent` per-key MCP call limits still apply to every MCP call. The per-message work cap is at most 8 agent steps (`stopWhen`) and the latest 40 visible messages as history; a capped turn returns its partial answer and counts (AC-11b). Messages over 2,000 characters are refused before any reservation. | ADR-0009; security-patch ADR-0002 |
+| Observability | Metadata-only traces: a Mastra span processor drops every text-bearing attribute (input, output, messages, tool arguments and results) before export, and a contract test fails on any exported text (ADR-0004). Per-turn KPIs are in `AssistantTurn`. Errors go to Sentry through `redactError`. | ADR-0004; here |
+| Data lifecycle | Conversations keep only what the Freelancer saw (ADR-0008). Deleting a Conversation removes its messages and Draft cards but never the drafts they created (AC-37). The export lists Conversations, daily message counts, key draft counts and lift times (AC-39). Account deletion removes all of them in the existing transaction. Retention periods are in §7. | architecture-hardening ADR-0007; here |
+| Internationalisation | The Assistant replies in the language of the Freelancer's message, Ukrainian and English included, refusals and follow-up questions too; the router's fixed refusal exists in both. App text (banners, card labels, buttons) stays English, as the rest of the app. | spec §8 (resolved in §4) |
+| Cost control | A stable prompt prefix: frozen instructions and a deterministic tool order, so provider-side caching applies where offered. Tool answers are not replayed in history (ADR-0008). | here |
+| IDs | `cuid()` strings on every new model; every new domain row carries `userId` (or a key id owned by one). | `docs/architecture-map.md` §Conventions |
+| Events | N/A — direct calls only, as in the rest of the app; no queue or event bus. | — |
+| UI | Composed from `components/ui/` and the `docs/design-system.md` inventory: `ConfirmationModal` for deletes, mounted in a new AI-section modal container, `LoadError`, live-region patterns for streaming text. New components (chat island, Draft card) are registered in the design canon by `implement`. | `docs/design-system.md` |
 
 ## 9. Architecture decisions
 
