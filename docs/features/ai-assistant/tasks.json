@@ -1,0 +1,812 @@
+{
+  "slug": "ai-assistant",
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Promote the ten staged migrations, add the Prisma models and extend the test factories for the AI tables",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-26",
+        "AC-39"
+      ],
+      "dod": "The ten staged pairs are promoted into prisma/migrations, apply and revert cleanly on a throwaway database with no Prisma drift, every pre-existing PersonalKey reads canCreateDrafts = false, and an integration test shows prisma.user.delete leaves no Conversation, ConversationMessage, DraftCard, MessageAllowanceDay, AssistantTurn, PersonalKeyDraftDay or McpDraftRepeat row.",
+      "files_hint": [
+        "docs/features/ai-assistant/migrations/01_create_conversation.up.sql",
+        "docs/features/ai-assistant/migrations/01_create_conversation.down.sql",
+        "docs/features/ai-assistant/migrations/02_create_draft_card.up.sql",
+        "docs/features/ai-assistant/migrations/02_create_draft_card.down.sql",
+        "docs/features/ai-assistant/migrations/03_create_message_allowance_day.up.sql",
+        "docs/features/ai-assistant/migrations/03_create_message_allowance_day.down.sql",
+        "docs/features/ai-assistant/migrations/04_create_assistant_turn.up.sql",
+        "docs/features/ai-assistant/migrations/04_create_assistant_turn.down.sql",
+        "docs/features/ai-assistant/migrations/05_add_personal_key_can_create_drafts.up.sql",
+        "docs/features/ai-assistant/migrations/05_add_personal_key_can_create_drafts.down.sql",
+        "docs/features/ai-assistant/migrations/06_create_personal_key_draft_day.up.sql",
+        "docs/features/ai-assistant/migrations/06_create_personal_key_draft_day.down.sql",
+        "docs/features/ai-assistant/migrations/07_create_mcp_draft_repeat.up.sql",
+        "docs/features/ai-assistant/migrations/07_create_mcp_draft_repeat.down.sql",
+        "docs/features/ai-assistant/migrations/08_add_invoice_assistant_origin.up.sql",
+        "docs/features/ai-assistant/migrations/08_add_invoice_assistant_origin.down.sql",
+        "docs/features/ai-assistant/migrations/09_add_invoice_issued_at.up.sql",
+        "docs/features/ai-assistant/migrations/09_add_invoice_issued_at.down.sql",
+        "docs/features/ai-assistant/migrations/10_create_invoice_assistant_key_id_index.up.sql",
+        "docs/features/ai-assistant/migrations/10_create_invoice_assistant_key_id_index.down.sql",
+        "prisma/schema/ai.prisma",
+        "prisma/schema/auth.prisma",
+        "prisma/schema/invoice.prisma",
+        "tests/support/factories/conversation.ts",
+        "tests/support/factories/draft-card.ts",
+        "tests/support/factories/message-allowance-day.ts",
+        "tests/support/factories/assistant-turn.ts",
+        "tests/support/factories/personal-key-draft-day.ts",
+        "tests/support/factories/personal-key.ts",
+        "tests/support/factories/invoice.ts",
+        "tests/support/db/truncate.ts",
+        "tests/integration/ai-assistant-migrations.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t01-promote-migrations-and-test-support.md"
+    },
+    {
+      "id": "T02",
+      "title": "Move the seven read-question definitions from lib/mcp/tools into the shared lib/assistant-tools registry, behaviour unchanged",
+      "layer": "ports",
+      "deps": [],
+      "acs": [
+        "AC-02"
+      ],
+      "dod": "The seven definitions live in lib/assistant-tools, lib/mcp/server.ts registers them from there with registerReadOnlyTool, lib/mcp/tools holds no read-tool definition, and the existing MCP contract, parity, isolation and lookup/aggregate tests pass unchanged.",
+      "files_hint": [
+        "lib/assistant-tools/",
+        "lib/mcp/tools/",
+        "lib/mcp/server.ts",
+        "eslint.config.mjs",
+        "tests/unit/service-layer-boundary.test.ts",
+        "tests/contract/mcp-tools-list.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t02-move-read-tool-registry.md"
+    },
+    {
+      "id": "T03",
+      "title": "Add the FORBIDDEN code, the three new error-detail kinds, the shared assistant types and the zod draft schemas",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-10",
+        "AC-29",
+        "AC-31"
+      ],
+      "dod": "types/result.ts carries FORBIDDEN and the ALLOWANCE_USED_UP, DRAFT_ISSUES and DRAFT_LIMIT_REACHED detail kinds, every exhaustive switch over ActionErrorCode or details.kind handles them, and unit tests parse the openapi.yaml examples through the new zod schemas (DraftRequest, DraftProposal, DraftIssue, AppLink, AllowanceState, ChatRequest) and reject the documented invalid shapes.",
+      "files_hint": [
+        "types/result.ts",
+        "types/assistant/types.ts",
+        "lib/services/assistant-drafts/schema.ts",
+        "lib/validations/assistant-chat.ts",
+        "tests/unit/services/assistant-draft-schema.test.ts",
+        "tests/unit/types/action-result-codes.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t03-shared-assistant-types-and-draft-schemas.md"
+    },
+    {
+      "id": "T04",
+      "title": "Install the pinned AI SDK, gateway and Mastra packages, add the model settings and the Mastra instance on its own mastra schema",
+      "layer": "infra",
+      "deps": [],
+      "acs": [],
+      "dod": "The AI SDK, gateway, Google provider and Mastra packages are pinned to exact versions, the build fails without AI_GATEWAY_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY, getChatModel() resolves AI_CHAT_MODEL with a Flash-Lite default, pnpm mastra:migrate creates the mastra schema beside prisma migrate deploy (also in the integration setup), and Prisma never sees the mastra schema.",
+      "files_hint": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "next.config.ts",
+        "lib/env/required-settings.ts",
+        "lib/ai/model.ts",
+        "lib/ai/mastra.ts",
+        "scripts/mastra-migrate.ts",
+        "tests/support/setup.ts",
+        "tests/unit/lib/env/required-settings-ai.test.ts",
+        "tests/integration/mastra-storage.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t04-ai-runtime-and-mastra-storage.md"
+    },
+    {
+      "id": "T05",
+      "title": "Name the AI model provider, the gateway and the chat retention on the public Privacy page",
+      "layer": "docs",
+      "deps": [],
+      "acs": [],
+      "dod": "The public Privacy page has a section that names the Vercel AI Gateway and Google as processors of chat text, states the free-tier terms (content may be used to improve Google's products and read by reviewers) exactly as ADR-0003 records them, the 90-day Conversation retention and the metadata-only traces, and a component test asserts the section renders.",
+      "files_hint": [
+        "app/(public)/privacy/page.tsx",
+        "tests/component/privacy-page-ai-section.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t05-privacy-page-model-provider.md"
+    },
+    {
+      "id": "T06",
+      "title": "Write the Assistant origin once at creation, set issuedAt when an invoice first leaves DRAFT, and expose assistantMark on invoice reads",
+      "layer": "app",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-23"
+      ],
+      "dod": "Integration tests show createInvoice stores the origin columns only when passed the separate origin argument, updateInvoice/the editor save and duplicateInvoice never write or copy them, issuedAt is set once on every path out of DRAFT and never cleared, and every invoice read DTO returns assistantMark only while the stored status is DRAFT.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "lib/services/invoices/select-queries.ts",
+        "lib/services/invoices/editor-data.ts",
+        "types/invoice/types.ts",
+        "tests/integration/services/invoices/assistant-origin.test.ts",
+        "tests/integration/services/invoices/issued-at.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t06-invoice-assistant-origin-and-issued-at.md"
+    },
+    {
+      "id": "T07",
+      "title": "Resolve the Customer, sender profile, bank account, currency and dates of a draft request with no guessing",
+      "layer": "app",
+      "deps": [
+        "T03"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-19",
+        "AC-20",
+        "AC-21"
+      ],
+      "dod": "Unit and integration tests drive resolveParties with the AC-17, AC-19, AC-20 and AC-21 fixtures plus the currency-symbol cases and assert each returns the named DraftIssue (never a picked value) or a party block whose every value carries source REQUEST or DEFAULT, using only the acting Freelancer's rows.",
+      "files_hint": [
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "lib/services/assistant-drafts/currency-symbols.ts",
+        "tests/unit/services/assistant-drafts/currency-symbols.test.ts",
+        "tests/integration/services/assistant-drafts/resolve-parties.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t07-draft-resolver-parties-and-defaults.md"
+    },
+    {
+      "id": "T08",
+      "title": "Count the Daily message allowance in per-local-day rows: read, reserve with a conditional increment, release on failure",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T03"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-10",
+        "AC-10b",
+        "AC-11"
+      ],
+      "dod": "Integration tests on Postgres show 30 reservations succeed and the 31st returns ALLOWANCE_USED_UP with renewsAt, two simultaneous reservations for the last slot yield exactly one success, release gives a slot back, a write failure fails closed, and a time-zone change never opens a new day earlier than 24 h after firstMessageAt.",
+      "files_hint": [
+        "lib/services/assistant-usage/allowance.ts",
+        "lib/services/assistant-usage/index.ts",
+        "tests/integration/services/assistant-usage/allowance.test.ts",
+        "tests/unit/services/assistant-usage/allowance-day.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t08-daily-message-allowance.md"
+    },
+    {
+      "id": "T09",
+      "title": "Set Draft permission only when a Personal key is created and return it from the key list and the key check",
+      "layer": "app",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26"
+      ],
+      "dod": "Integration tests show createPersonalKey stores canCreateDrafts (default false), no service or action can change it afterwards, listPersonalKeys returns canCreateDrafts, and authenticatePersonalKey returns canCreateDrafts and name from the same row with no extra query.",
+      "files_hint": [
+        "lib/services/personal-keys/personal-keys.ts",
+        "lib/services/personal-keys/authenticate.ts",
+        "lib/actions/personal-key-actions.ts",
+        "lib/validations/personal-key.ts",
+        "types/personal-key/types.ts",
+        "tests/integration/services/personal-keys/draft-permission.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t09-personal-key-draft-permission.md"
+    },
+    {
+      "id": "T10",
+      "title": "List and open Conversations owner-scoped, with Draft card views and the current state of every linked invoice",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T03"
+      ],
+      "acs": [
+        "AC-35",
+        "AC-36",
+        "AC-41"
+      ],
+      "dod": "Integration tests show listConversations pages 20 per page newest first, getConversation returns messages in position order with a DraftCardView per card part and a LinkedInvoiceState per invoice link (DRAFT, ISSUED, UNAVAILABLE), another Freelancer's id answers the same NOT_FOUND as an unknown id, and loadHistory returns at most the latest 40 messages in order.",
+      "files_hint": [
+        "lib/services/conversations/conversations.ts",
+        "lib/services/conversations/index.ts",
+        "lib/services/assistant-drafts/card-view.ts",
+        "tests/integration/services/conversations/conversation-reads.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t10-conversation-reads.md"
+    },
+    {
+      "id": "T11",
+      "title": "Strip every text-bearing attribute from Mastra spans before export and pin it with a span contract test",
+      "layer": "infra",
+      "deps": [
+        "T04"
+      ],
+      "acs": [],
+      "dod": "A contract test runs a scripted turn through a stub model with the processor registered, collects every exported span, and fails if any attribute carries the message text, a tool argument, a tool answer or a model output; names, step counts, durations, tokens, cost and outcome survive.",
+      "files_hint": [
+        "lib/ai/observability/metadata-only-processor.ts",
+        "lib/ai/mastra.ts",
+        "tests/contract/ai-spans-metadata-only.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t11-metadata-only-span-processor.md"
+    },
+    {
+      "id": "T12",
+      "title": "Classify every chat message as in_scope, mixed or off_topic before the agent and end off-topic turns with the fixed refusal",
+      "layer": "app",
+      "deps": [
+        "T04"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-06b"
+      ],
+      "dod": "Unit tests with a stub model show off_topic ends the turn with the fixed one-sentence refusal in the message's language and loads no tools, mixed hands the agent an instruction to refuse the rest in one sentence, in_scope passes through, and the verdict is returned to the caller as IN_SCOPE / MIXED / OFF_TOPIC.",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/instructions/refusal.ts",
+        "tests/unit/lib/ai/router.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t12-topic-router.md"
+    },
+    {
+      "id": "T13",
+      "title": "Wrap the shared read questions as chat tools bound to the acting Freelancer and add find_in_app over a fixed app map",
+      "layer": "app",
+      "deps": [
+        "T02",
+        "T04"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-07",
+        "AC-08",
+        "AC-40"
+      ],
+      "dod": "The existing dashboard-parity test passes through the chat tool adapters, tool answers carry invoice links as AppLink ids and the registry's partial-list fields untouched, an id from another Freelancer answers exactly as an unknown one, and a unit test asserts every AppPageKey of find_in_app resolves to a route in config/routes.config.ts.",
+      "files_hint": [
+        "lib/ai/turn-context.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/ai/tools/find-in-app.ts",
+        "lib/ai/app-map.ts",
+        "tests/integration/api/chat-read-tools-parity.test.ts",
+        "tests/unit/lib/ai/app-map.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t13-chat-read-tools-and-app-map.md"
+    },
+    {
+      "id": "T14",
+      "title": "Add the four independent AI retention steps to the daily purge cron",
+      "layer": "wiring",
+      "deps": [
+        "T01",
+        "T04"
+      ],
+      "acs": [
+        "AC-38"
+      ],
+      "dod": "An integration test with a fixed clock shows one run deletes Conversations (with messages and cards) past 90 days, repeat marks past 24 h, Mastra traces past 30 days and AssistantTurn / allowance / key-draft rows past 400 days, a second run deletes nothing new, and one failing step is reported to Sentry while the others still run.",
+      "files_hint": [
+        "app/api/cron/purge-limits/route.ts",
+        "lib/services/conversations/purge.ts",
+        "lib/services/assistant-usage/purge.ts",
+        "tests/integration/api/purge-limits.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t14-daily-clean-up-steps.md"
+    },
+    {
+      "id": "T15",
+      "title": "Add Conversations and the AI counters to the data export 2.2 and prove account deletion leaves no AI row",
+      "layer": "ports",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-39"
+      ],
+      "dod": "Integration tests show GET /api/user/export returns exportVersion 2.2 with conversations (messages, cards), messageAllowanceDays and each key's canCreateDrafts and draftDays, never assistantKeyId, AssistantTurn rows or repeat marks, and that deleteAccount leaves no AI row of the Freelancer.",
+      "files_hint": [
+        "lib/services/account/account.ts",
+        "app/api/user/export/route.ts",
+        "tests/integration/api/user-export.test.ts",
+        "tests/integration/actions/account-deletion.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t15-data-export-and-account-deletion.md"
+    },
+    {
+      "id": "T16",
+      "title": "Resolve draft lines against the catalogue and custom prices, apply the quantity and unit defaults and finish resolveDraftRequest",
+      "layer": "app",
+      "deps": [
+        "T07"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-16",
+        "AC-16b",
+        "AC-22"
+      ],
+      "dod": "A contract test calls resolveDraftRequest with the AC-12, AC-16, AC-16b, AC-19 and AC-22 fixtures and asserts every proposal value carries a source, words win over catalogue and custom prices with agreedCustomPrice beside them, a product in another currency is not linked and yields LINE_PRICE_MISSING_IN_CURRENCY, a line with no amount yields LINE_AMOUNT_MISSING, and the canonical fingerprint is stable for equal requests.",
+      "files_hint": [
+        "lib/services/assistant-drafts/resolve-lines.ts",
+        "lib/services/assistant-drafts/resolve.ts",
+        "lib/services/assistant-drafts/fingerprint.ts",
+        "lib/services/assistant-drafts/index.ts",
+        "tests/contract/assistant-draft-resolver.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t16-draft-resolver-lines-and-proposal.md"
+    },
+    {
+      "id": "T17",
+      "title": "Count Assistant drafts per key per local day, take a slot inside the create transaction and lift the limit by 50 once reached",
+      "layer": "app",
+      "deps": [
+        "T03",
+        "T09"
+      ],
+      "acs": [
+        "AC-27",
+        "AC-28"
+      ],
+      "dod": "Integration tests show the 51st slot of a day is refused with DRAFT_LIMIT_REACHED and renewsAt, a lift before the limit returns CONFLICT, a lift at 50 gives 100 for today only with lastLiftedAt, a double lift lifts once, the next local day starts at 50, and listPersonalKeys returns draftsToday per draft key.",
+      "files_hint": [
+        "lib/services/assistant-usage/key-drafts.ts",
+        "lib/services/personal-keys/personal-keys.ts",
+        "lib/actions/personal-key-actions.ts",
+        "types/personal-key/types.ts",
+        "tests/integration/services/assistant-usage/key-drafts.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t17-key-daily-draft-limit-and-lift.md"
+    },
+    {
+      "id": "T18",
+      "title": "Add the AI section route and sidebar entry and render the Conversation list with paging, empty state and the retention notice",
+      "layer": "ui",
+      "deps": [
+        "T10"
+      ],
+      "acs": [
+        "AC-35",
+        "AC-38",
+        "AC-42"
+      ],
+      "dod": "Component tests render SCR-01 loading, default list, empty, paged and error states from listConversations, the retention notice is always shown, the sidebar shows \"AI\" after \"Invoices\", and the proxy unit test shows a Visitor on /ai and /ai/{id} is redirected to sign-in.",
+      "files_hint": [
+        "config/routes.config.ts",
+        "config/navigation-menu.config.ts",
+        "config/navigation-icons.config.ts",
+        "app/(protected)/ai/page.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "components/ai/conversation-list.tsx",
+        "tests/component/ai-conversation-list.test.tsx",
+        "tests/unit/routes-config.test.ts",
+        "tests/unit/proxy.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t18-ai-section-route-and-conversation-list.md"
+    },
+    {
+      "id": "T19",
+      "title": "Add \"Create with AI\" to the invoice list header and the AssistantMark to draft rows and the editor header",
+      "layer": "ui",
+      "deps": [
+        "T06"
+      ],
+      "acs": [
+        "AC-23",
+        "AC-33"
+      ],
+      "dod": "Component tests show the invoice list header links \"Create with AI\" to /ai?start=draft before \"New Invoice\", a draft row and the editor header show the AI mark with \"Created by the in-app chat\" or \"Created by {keyName}\", and an issued or hand-made invoice shows no mark.",
+      "files_hint": [
+        "app/(protected)/invoices/layout.tsx",
+        "components/invoices/invoices-data-table.tsx",
+        "components/invoice-editor/invoice-editor-header.tsx",
+        "components/ai/assistant-mark.tsx",
+        "docs/design-system.md",
+        "tests/component/assistant-mark.test.tsx",
+        "tests/component/invoices-header-create-with-ai.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t19-create-with-ai-entry-and-assistant-mark.md"
+    },
+    {
+      "id": "T20",
+      "title": "Store Draft cards with one live card per Conversation and create the Draft invoice only from the Create press",
+      "layer": "app",
+      "deps": [
+        "T06",
+        "T10",
+        "T16"
+      ],
+      "acs": [
+        "AC-11c",
+        "AC-13",
+        "AC-14",
+        "AC-14b",
+        "AC-18"
+      ],
+      "dod": "Integration tests on Postgres show a press on a live matching card creates exactly one Draft invoice with origin CHAT and marks the card CREATED, two concurrent presses create one invoice, a replaced card returns REPLACED with the newer id, a changed custom price or a new local day returns OUTDATED with an updated LIVE card, a vanished Customer returns NEEDS_ANSWERS, and the action never touches the allowance.",
+      "files_hint": [
+        "lib/services/assistant-drafts/cards.ts",
+        "lib/actions/assistant-actions.ts",
+        "tests/integration/services/assistant-drafts/create-from-card.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t20-draft-cards-and-create-press.md"
+    },
+    {
+      "id": "T21",
+      "title": "Create a Draft invoice for a Personal key: permission, repeat mark, resolver, key slot, invoice and repeat row in one transaction",
+      "layer": "app",
+      "deps": [
+        "T06",
+        "T16",
+        "T17"
+      ],
+      "acs": [
+        "AC-27",
+        "AC-30",
+        "AC-31",
+        "AC-32"
+      ],
+      "dod": "Integration tests show a key without Draft permission gets FORBIDDEN before anything is read, a complete request creates a draft with origin PERSONAL_KEY and the key name, an ambiguous or incomplete one returns DRAFT_ISSUES naming the problem, the 51st draft rolls back with DRAFT_LIMIT_REACHED, and a repeat mark within 24 h returns the first draft (same content) or CONFLICT (different content) while two racing repeats create one invoice.",
+      "files_hint": [
+        "lib/services/assistant-drafts/create-for-key.ts",
+        "lib/services/assistant-drafts/repeat-marks.ts",
+        "tests/integration/services/assistant-drafts/create-for-key.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t21-create-draft-for-key.md"
+    },
+    {
+      "id": "T22",
+      "title": "Build the AI start panel with example prompts, the start=draft variant and the AllowanceNotice counter and used-up modes",
+      "layer": "ui",
+      "deps": [
+        "T08",
+        "T18"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-10",
+        "AC-33",
+        "AC-34"
+      ],
+      "dod": "Component tests render SCR-01 default (four examples, composer, \"{left} of 30 messages left today\", the connect link), example picked (fills, never sends), start=draft, used-up and used-up from Create with AI (with \"Create it by hand →\" to /invoices/new), and AllowanceNotice formats renewsAt per the manifest rule.",
+      "files_hint": [
+        "app/(protected)/ai/page.tsx",
+        "components/ai/start-panel.tsx",
+        "components/ai/allowance-notice.tsx",
+        "docs/design-system.md",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/component/allowance-notice.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t22-ai-start-panel-and-allowance-notice.md"
+    },
+    {
+      "id": "T23",
+      "title": "Render a saved Conversation with ChatLink invoice states, the not-found page and the loading skeleton",
+      "layer": "ui",
+      "deps": [
+        "T10",
+        "T18"
+      ],
+      "acs": [
+        "AC-36",
+        "AC-41"
+      ],
+      "dod": "Component tests render SCR-02 default and links (draft, issued with InvoiceStatusBadge, no longer available as plain text, page links from the app map), SCR-12 for NOT_FOUND with the same copy for unknown and foreign ids, and Assistant text as plain text where a model-written URL is never an anchor.",
+      "files_hint": [
+        "app/(protected)/ai/[conversationId]/page.tsx",
+        "app/(protected)/ai/[conversationId]/loading.tsx",
+        "app/(protected)/ai/[conversationId]/not-found.tsx",
+        "components/ai/message-list.tsx",
+        "components/ai/chat-link.tsx",
+        "components/ai/conversation-header.tsx",
+        "docs/design-system.md",
+        "tests/component/ai-conversation-page.test.tsx",
+        "tests/component/chat-link.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t23-conversation-page-and-chat-links.md"
+    },
+    {
+      "id": "T24",
+      "title": "Add the Draft permission choice, the permission badges, the read-only explanation and the lift action to Connect your AI",
+      "layer": "ui",
+      "deps": [
+        "T17"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26",
+        "AC-28"
+      ],
+      "dod": "Component tests render SCR-07 default (badges, drafts today, last lift), read-only explanation, limit reached with \"Lift limit\", lifting, lifted, lift-conflict and lift-not-found, and SCR-08 with the unchecked Draft permission checkbox passed to createPersonalKey and reset after creation.",
+      "files_hint": [
+        "components/assistants/key-create-form.tsx",
+        "components/assistants/key-list.tsx",
+        "components/assistants/assistant-keys.tsx",
+        "app/(protected)/settings/assistants/page.tsx",
+        "tests/component/assistants-keys.test.tsx",
+        "tests/component/assistants-draft-permission.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t24-connect-your-ai-draft-permission-ui.md"
+    },
+    {
+      "id": "T25",
+      "title": "Save each turn under the Conversation row lock with its card and metadata, and delete one or all Conversations",
+      "layer": "app",
+      "deps": [
+        "T10",
+        "T20"
+      ],
+      "acs": [
+        "AC-35",
+        "AC-37"
+      ],
+      "dod": "Integration tests show saveTurn creates a Conversation with its pre-generated id and an 80-character title, appends two messages at the next positions under the row lock, persists a proposed card as the only LIVE card, writes one AssistantTurn row with no text, saves only metadata for a failed turn, and deleteConversation / deleteAllConversations remove messages and cards, detach turns, keep every invoice and answer NOT_FOUND for a foreign id.",
+      "files_hint": [
+        "lib/services/conversations/save-turn.ts",
+        "lib/services/conversations/delete.ts",
+        "lib/services/assistant-usage/turns.ts",
+        "lib/actions/assistant-actions.ts",
+        "tests/integration/services/conversations/save-turn.test.ts",
+        "tests/integration/actions/delete-conversations.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t25-conversation-writes-and-deletes.md"
+    },
+    {
+      "id": "T26",
+      "title": "Register create_draft_invoice through registerDraftTool for every key and map its results to the MCP tool answer",
+      "layer": "ports",
+      "deps": [
+        "T02",
+        "T21"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-29"
+      ],
+      "dod": "The tools/list contract test shows exactly one new tool, create_draft_invoice, with readOnlyHint false and the data-not-instructions suffix for every key, and MCP integration tests show a read-only key gets the FORBIDDEN answer, a Freelancer without a sender profile with a bank account gets the AC-17 explanation, and a success returns DraftCreatedAnswer with the editor link.",
+      "files_hint": [
+        "lib/mcp/server.ts",
+        "lib/mcp/tools/create-draft.ts",
+        "tests/contract/mcp-tools-list.test.ts",
+        "tests/integration/api/mcp-create-draft.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t26-mcp-create-draft-tool.md"
+    },
+    {
+      "id": "T27",
+      "title": "Add the propose_draft tool that resolves the Freelancer's own words into a pending Draft card or into questions",
+      "layer": "app",
+      "deps": [
+        "T04",
+        "T20"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-15",
+        "AC-19",
+        "AC-20",
+        "AC-21",
+        "AC-22"
+      ],
+      "dod": "Unit and integration tests show propose_draft takes only the strict DraftRequest, returns a pending card (pre-generated id, request, proposal) for a complete request and the DraftIssues for an incomplete one, never creates an invoice, and its description carries the data-not-instructions suffix.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/turn-context.ts",
+        "tests/integration/lib/ai/propose-draft.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t27-propose-draft-tool.md"
+    },
+    {
+      "id": "T28",
+      "title": "Build the DraftCard component in every SCR-03 state and wire Create to createDraftFromCard",
+      "layer": "ui",
+      "deps": [
+        "T20",
+        "T23"
+      ],
+      "acs": [
+        "AC-11c",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-14b",
+        "AC-16",
+        "AC-16b",
+        "AC-18",
+        "AC-19"
+      ],
+      "dod": "Component tests render SCR-03 loading, live (every source label of AC-12, AC-16, AC-16b, AC-19), creating, created, created issued since, created deleted since, replaced, outdated with its successor, needs-answers, not-found and create-failed, and show Create fires createDraftFromCard once and works with the allowance used up.",
+      "files_hint": [
+        "components/ai/draft-card.tsx",
+        "components/ai/message-list.tsx",
+        "docs/design-system.md",
+        "tests/component/draft-card.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t28-draft-card-component.md"
+    },
+    {
+      "id": "T29",
+      "title": "Define the chat agent: instructions, tool set, 8-step cap, 40-message history and the turn runner the route calls",
+      "layer": "app",
+      "deps": [
+        "T11",
+        "T12",
+        "T13",
+        "T27"
+      ],
+      "acs": [
+        "AC-11b",
+        "AC-24"
+      ],
+      "dod": "Integration tests with a stub model show runTurn stops at 8 steps and returns the partial answer with outcome CAPPED, sends at most 40 history messages, offers propose_draft and the read tools in a fixed order, answers a request to issue or send with the only-you-can-issue text and an invoice link, and maps a provider error or 429 to a FAILED / AI_UNAVAILABLE result.",
+      "files_hint": [
+        "lib/ai/agent.ts",
+        "lib/ai/instructions/chat.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/mastra.ts",
+        "tests/integration/lib/ai/run-turn.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t29-chat-agent.md"
+    },
+    {
+      "id": "T30",
+      "title": "Mount the AI-section modal container and confirm deleting one or all Conversations from the list and the Conversation header",
+      "layer": "ui",
+      "deps": [
+        "T18",
+        "T23",
+        "T25"
+      ],
+      "acs": [
+        "AC-37"
+      ],
+      "dod": "Component tests render SCR-04 one and all, cancelled, pending, success (toast and refresh, or push to /ai from SCR-02), not-found (toast verbatim and refresh) and rejected (goToSignIn), and \"Delete all\" is hidden for an empty list.",
+      "files_hint": [
+        "components/modals/ai/",
+        "components/modals/modal-types-registry.ts",
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-header.tsx",
+        "tests/component/ai-delete-conversations.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t30-delete-conversations-dialog.md"
+    },
+    {
+      "id": "T31",
+      "title": "Serve POST /api/chat: validate, check the Conversation, reserve a slot, stream the turn, save it, release on failure",
+      "layer": "ports",
+      "deps": [
+        "T08",
+        "T25",
+        "T29"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-09",
+        "AC-10",
+        "AC-10b",
+        "AC-11",
+        "AC-42"
+      ],
+      "dod": "Integration tests on /api/chat show 400 for an empty or 2,001-character message with nothing reserved, 404 alike for unknown and foreign Conversations, 429 ALLOWANCE_USED_UP for the 31st message and for the losing tab of two simultaneous sends, a 200 stream with data-conversation, data-allowance and data-outcome parts, an off-topic message counted once, and a provider failure that releases the slot and ends AI_UNAVAILABLE; the proxy test shows an anonymous POST gets 401 before the handler.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/ai/stream.ts",
+        "tests/integration/api/chat-route.test.ts",
+        "tests/unit/proxy.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t31-chat-route.md"
+    },
+    {
+      "id": "T32",
+      "title": "Add the labelled topic-boundary set and the no-guessing set as a Mastra evaluation run that blocks a failing change",
+      "layer": "tests",
+      "deps": [
+        "T29"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-06b"
+      ],
+      "dod": "pnpm eval:assistant runs ≥ 100 labelled questions through the router and agent and exits non-zero unless ≥ 95 % of off-topic ones are refused and ≤ 5 % of in-scope ones are refused, and runs the no-guessing set to 100 % questions for incomplete or ambiguous requests with 0 proposals carrying a value from neither the request nor the defaults.",
+      "files_hint": [
+        "evals/assistant/topic-boundary.jsonl",
+        "evals/assistant/no-guessing.jsonl",
+        "evals/assistant/run.ts",
+        "package.json"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t32-evaluation-sets.md"
+    },
+    {
+      "id": "T33",
+      "title": "Build the useChat island: send only the new message, show waiting, streaming and every outcome, and keep the allowance live",
+      "layer": "ui",
+      "deps": [
+        "T22",
+        "T23",
+        "T31"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-10b",
+        "AC-11",
+        "AC-11b"
+      ],
+      "dod": "Component tests with a mocked transport render SCR-02 waiting, streaming, answered, partial, could-not-complete (streamed text discarded, counter restored, Try again resends), ai-unavailable, too-long (client check, Send disabled), used-up on 429 including the losing tab, conversation-gone and sending first message (URL becomes /ai/{id} without remount).",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "components/ai/composer.tsx",
+        "app/(protected)/ai/page.tsx",
+        "app/(protected)/ai/[conversationId]/page.tsx",
+        "tests/component/ai-chat-island.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t33-chat-island.md"
+    },
+    {
+      "id": "T34",
+      "title": "Prove provider-fault handling, the stored-text injection guard and cross-tenant silence through the chat route",
+      "layer": "tests",
+      "deps": [
+        "T31"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-15",
+        "AC-40",
+        "AC-41"
+      ],
+      "dod": "Integration tests through /api/chat show provider errors and 429s end AI_UNAVAILABLE within 10 s with the slot released, a hanging provider also ends with the notice and a released slot (if red, the sad §11 mitigation lands here: a first-token timeout and a turn deadline in the route), stored Customer notes asking for an invoice never yield a card or a draft, and a Customer or Conversation of another Freelancer answers byte for byte like a non-existent one.",
+      "files_hint": [
+        "tests/integration/api/chat-faults.test.ts",
+        "tests/integration/api/chat-injection.test.ts",
+        "tests/integration/api/chat-isolation.test.ts",
+        "tests/support/ai-stub-model.ts",
+        "app/api/chat/route.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t34-chat-resilience-injection-and-tenancy.md"
+    },
+    {
+      "id": "T35",
+      "title": "Add Playwright flows: open the AI section, draft and create from a card, Create with AI, and the Assistant mark",
+      "layer": "tests",
+      "deps": [
+        "T19",
+        "T28",
+        "T33"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-13",
+        "AC-23",
+        "AC-33"
+      ],
+      "dod": "Playwright specs with a stub model show a signed-in Freelancer opens /ai, sends the AC-12 sentence, presses Create once, lands in the editor on a draft marked AI, sees the mark gone after issuing, and reaches the draft-ready start panel from \"Create with AI\".",
+      "files_hint": [
+        "tests/e2e/ai-assistant.spec.ts",
+        "tests/e2e/support/ai-stub.ts",
+        "lib/ai/model.ts",
+        "playwright.config.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t35-e2e-ai-flows.md"
+    }
+  ]
+}
