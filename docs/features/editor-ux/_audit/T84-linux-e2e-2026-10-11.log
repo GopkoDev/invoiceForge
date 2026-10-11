@@ -1,0 +1,34 @@
+T84 Linux e2e run at the final HEAD (review r11, after T81-T83), 2026-10-11
+HEAD: 6e46f69 (feature/editor-ux), exported with `git archive 6e46f69` (clean tree); this log and the T84 doc change are added afterwards (docs only)
+Image: mcr.microsoft.com/playwright:v1.63.0-noble (linux/arm64 on Docker Desktop, engine 29.8.1); @playwright/test 1.63.0
+Node used for the runs: v22.23.3 (the same nodejs.org linux-arm64 tarball as T67/T71, re-checked against SHASUMS256.txt: OK, copied to /opt/node22,
+  first on PATH; the image's own Node is not used). Inside the repo's engines (>=22.18 <23). pnpm 10.25.0 via corepack.
+Docker CLI: static 27.3.1 aarch64 from download.docker.com (the T67 download).
+How (the T53/T58/T63/T67/T71 harness, same prep.sh/full.sh): repo copy in the container, `pnpm install --frozen-lockfile`, `pnpm exec prisma generate`,
+  then plain `CI=1 pnpm test:e2e` (no --workers flag, so the config's 2 workers). Docker socket mounted from the host,
+  TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal (--add-host=host.docker.internal:host-gateway), TESTCONTAINERS_RYUK_DISABLED=true (local only).
+  The app server and its throwaway Postgres come from playwright.config.ts's webServer. .env = env.example with generated AUTH/CRON/LIMIT_KEY
+  secrets and a dummy Sentry DSN; never the repo's .env databases. The host was kept awake with `caffeinate -i` for the whole run.
+
+== What changed since T71 (bd2278c) ==
+App: store/invoice-editor-store/save-command.ts, the "not saved because issued" notice (T80 wording, T81 second sentence only when an allowed
+  field was edited). E2e: tests/e2e/editor-first-save-after-create.spec.ts:202 matches the notice's first sentence (T80).
+Both AC-05b cases (`first Save and issue after a create` / `after a Retry create keeps the dropped-edits notice`) passed in both runs below.
+
+== Layout baselines ==
+Not re-taken: no editor-layout.spec.ts state shows the notice (it never clicks Save and issue), and the four baselines are unchanged since 2a5df97.
+editor-layout.spec.ts matched them in both runs below. The owner review of those four baselines (T53 log, Owner review section) is still pending.
+
+== Run 1: CI=1 pnpm test:e2e ==
+Running 116 tests using 2 workers
+  1 skipped   (pdf-on-demand.spec.ts:279 first PDF timing p95: needs E2E_TIMING=1)
+  115 passed (6.0m)
+0 failed, 0 flaky, exit code 0. Total wall 363s (MEASURED, `date +%s` stamps).
+
+== Run 2 (stability rerun, same container) ==
+Running 116 tests using 2 workers
+  1 skipped   (same test)
+  115 passed (6.4m)
+0 failed, 0 flaky, exit code 0. Total wall 386s (MEASURED).
+
+Result: both runs 115 passed, 1 skipped, 0 failed, 0 flaky, exit 0 at HEAD 6e46f69, Node v22.23.3.

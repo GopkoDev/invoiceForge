@@ -90,6 +90,6 @@
 | T81 | Show the notice's 'kept for you to save' sentence only when an allowed field was edited | app | Dmytro Hopko | — | — | done |
 | T82 | Make the first-PDF timing rows in the test plan and SAD say what the test measures | docs | Dmytro Hopko | — | — | done |
 | T83 | Correct the SAD's building-block line for invoice-pdf-helpers (split, not removed) | docs | Dmytro Hopko | — | — | done |
-| T84 | Run the full Linux e2e suite at the final HEAD and point the test plan at that log | tests | Dmytro Hopko | — | — | todo |
+| T84 | Run the full Linux e2e suite at the final HEAD and point the test plan at that log | tests | Dmytro Hopko | — | — | done |
 
 **Total:** 86 tasks (T21–T37 are follow-ups from review 2026-10-10; T38–T47 and T45b from review 2026-10-10-r2; T48–T53 from review 2026-10-10-r3; T54–T58 from review 2026-10-10-r4; T59–T63 from review 2026-10-10-r5; T64–T67 from review 2026-10-10-r6; T68–T71 from review 2026-10-10-r7; T72–T74 from review 2026-10-11-r8; T75–T77 from review 2026-10-11-r9; T78–T80 from review 2026-10-11-r10; T81–T84 from review 2026-10-11-r11).
