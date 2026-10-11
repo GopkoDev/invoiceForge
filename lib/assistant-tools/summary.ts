@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Currency } from '@prisma/client';
 import { getSummaryFiguresAllCurrencies } from '@/lib/services/dashboard/assistant-reads';
 import type { AssistantPeriodInput } from '@/lib/services/dashboard/period';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import { appliedPeriodSchema, outputBase, periodInput } from './shared';
 
 const figure = z.object({

@@ -2,8 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import { Currency } from '@prisma/client';
 import { listCustomersForAssistant } from '@/lib/services/customers/customers';
-import { freelancerText, nullableFreelancerText } from '@/lib/mcp/answers';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import { freelancerText, nullableFreelancerText } from './freelancer-text';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import { pageInfoSchema } from './shared';
 
 const text = z.object({ freelancerText: z.string() });

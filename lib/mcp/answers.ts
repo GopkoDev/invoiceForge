@@ -3,21 +3,14 @@ import type {
   ActionFailure,
   AmbiguousCandidate,
 } from '@/types/result';
+import { freelancerText } from '@/lib/assistant-tools/freelancer-text';
 
 // The one place that turns service results into MCP answers: Freelancer-entered
 // text marking (AC-19b) and tool errors. Pure; no I/O.
 
 const MAX_CANDIDATES = 50;
 
-export type FreelancerText = { freelancerText: string };
-
-export function freelancerText(text: string): FreelancerText {
-  return { freelancerText: text };
-}
-
-export function nullableFreelancerText(text: string | null | undefined): FreelancerText | null {
-  return text === null || text === undefined ? null : freelancerText(text);
-}
+export { freelancerText, nullableFreelancerText, type FreelancerText } from '@/lib/assistant-tools/freelancer-text';
 
 export type ToolErrorDetails =
   | { kind: 'PAGE_OUT_OF_RANGE'; total: number; lastPage: number }

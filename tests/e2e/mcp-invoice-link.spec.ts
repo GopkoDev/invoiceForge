@@ -1,6 +1,6 @@
 // AC-19 (test-plan.md, e2e-through-UI): an invoice link from an Assistant answer, opened with no
 // session, goes through sign-in and comes back to the invoice with its status badge. The link is
-// the page the endpoint itself links to (lib/mcp/tools/invoice.ts).
+// the page the endpoint itself links to (lib/assistant-tools/invoice.ts).
 import { test, expect } from '@playwright/test';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import { APP_E2E_URL } from './support/app-server';

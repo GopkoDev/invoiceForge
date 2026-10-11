@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { Currency } from '@prisma/client';
-import { freelancerText } from '@/lib/mcp/answers';
+import { freelancerText } from './freelancer-text';
 
 // Zod shapes shared by the aggregate tools; they mirror contracts/openapi.yaml components.schemas.
 

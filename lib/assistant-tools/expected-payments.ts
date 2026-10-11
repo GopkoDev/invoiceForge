@@ -2,7 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import { listExpectedPaymentsPage } from '@/lib/services/dashboard/assistant-reads';
 import type { AssistantPeriodInput } from '@/lib/services/dashboard/period';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import {
   appliedPeriodSchema,
   currencyTotalSchema,

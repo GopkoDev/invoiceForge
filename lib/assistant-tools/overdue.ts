@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { listOverdueInvoices } from '@/lib/services/dashboard/assistant-reads';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import {
   currencyTotalSchema,
   invoiceRowSchema,

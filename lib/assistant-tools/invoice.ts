@@ -1,8 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
 import { findInvoiceByReference, type InvoiceAnswer } from '@/lib/services/invoices/find-by-reference';
-import { freelancerText, nullableFreelancerText } from '@/lib/mcp/answers';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import { freelancerText, nullableFreelancerText } from './freelancer-text';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import { todayIn } from '@/lib/services/_shared/overdue';
 import { outputBase } from './shared';
 

@@ -2,7 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import { searchInvoicesForAssistant } from '@/lib/services/invoices/assistant-search';
 import { fail } from '@/types/result';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import {
   currencyTotalSchema,
   outputBase,

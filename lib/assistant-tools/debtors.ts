@@ -2,8 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import { Currency } from '@prisma/client';
 import { listDebtorsPage } from '@/lib/services/dashboard/assistant-reads';
-import { freelancerText } from '@/lib/mcp/answers';
-import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from '@/lib/mcp/server';
+import { freelancerText } from './freelancer-text';
+import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import { outputBase, pageInfoSchema, pageInputShape } from './shared';
 
 const currency = z.nativeEnum(Currency);
