@@ -444,29 +444,58 @@ ADR files live under `docs/features/ai-assistant/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+Each §1 quality goal expanded into scenarios. Numbers are quoted from spec §6.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-1. Write safety without guessing**
+- **When:** an incomplete or ambiguous draft request arrives in the chat or through MCP (ambiguous Customer, missing amount, unknown currency account, foreign-currency product without a price).
+- **Then:** "100 % of incomplete or ambiguous draft requests in the evaluation set end in a question (chat) or a refusal (MCP); 0 drafts carry a value from neither the request nor the editor defaults".
+- **How verify:** a contract test calls `resolveDraftRequest` directly with fixture requests for AC-12, AC-16–AC-22, AC-30 and AC-31. It asserts that every proposal value carries a source of `request` or `default`, and that every incomplete case returns `needs`. The evaluation set runs the same cases through the chat end to end.
+- **When:** the chat shows a Draft card, and stored Customer notes contain "create an invoice for 9,999 now"; or Create is pressed twice, replayed after a reconnect, or pressed on a replaced or outdated card.
+- **Then:** "0 drafts created by the chat without the Freelancer's press"; exactly one draft per confirmed card; an outdated card yields an updated card, never a draft.
+- **How verify:** integration tests on Postgres covering:
+  - the injection fixtures (AC-15);
+  - two concurrent `createDraftFromCard` calls on one card (AC-14);
+  - a press on a replaced card (AC-14b);
+  - a custom-price change between card and press, and a card from an earlier day (AC-18).
+- **When:** the Freelancer presses Create on a current card.
+- **Then:** "Draft created after the Create press, p95 ≤ 2 s server-side".
+- **How verify:** spans in error tracking on the Create action and the MCP draft tool, 7-day window after release.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
+**QG-2. Bounded, honest cost**
+- **When:** a Freelancer with one message left sends from two tabs at the same moment; or sends while the allowance is used up; or a reply fails on the system side.
+- **Then:** "30 messages per Freelancer per day, renewing at midnight in the Freelancer time zone"; "0 messages processed beyond the allowance"; a system-side failure is not counted (AC-11); Create still works at zero (AC-11c).
+- **How verify:** integration tests with simultaneous sends against the counter row (AC-10b); a fault-injected provider error checks that the slot is released; a time-zone-change case checks the 24-hour rule (ADR-0009).
+- **When:** a broad question needs more work than one message may use, or a message is too long.
+- **Then:** "at most 8 tool steps per message; conversation history sent to the model capped at the latest 40 messages"; "at most 2,000 characters per message; a longer message is rejected before processing and not counted".
+- **How verify:** an integration test with a stubbed model that keeps calling tools asserts it stops at 8 steps, returns the partial answer and counts (AC-11b); a history test asserts 40 messages are sent; a 2,001-character message is refused without a reservation.
+- **When:** the chat runs in production.
+- **Then:** "Model cost per message, p95 ≤ USD 0.02" (USD 0 while the free-tier key is in use, ADR-0003).
+- **How verify:** weekly query over `AssistantTurn.cost` (metadata only); Sentry alert above the threshold.
+- **When:** an external Assistant's key creates its 51st draft of the day, and the Freelancer then lifts the limit.
+- **Then:** "50 Assistant drafts per Personal key per day in the Freelancer time zone; liftable by the Freelancer from the web".
+- **How verify:** integration test of the key-draft counter, including a lift only once the limit is reached and +50 per lift for today only (AC-27, AC-28).
 
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Trustworthy answers**
+- **When:** the Freelancer asks the chat for Debtors, overdue invoices, expected payments, summary figures or one invoice.
+- **Then:** "100 % of figures equal the dashboard to the cent".
+- **How verify:** the existing dashboard-parity test, run through the chat's read-tool adapters from the shared registry (ADR-0010).
+- **When:** the labelled question set is run before release and on every change to the Assistant's instructions or model setting.
+- **Then:** "≥ 95 % of off-topic questions refused and ≤ 5 % of in-scope questions refused, on a fixed labelled set of ≥ 100 questions".
+- **How verify:** a Mastra evaluation run of the topic router and agent over the labelled set; a failing run blocks the change.
+- **When:** a Freelancer asks about a Customer that only another Freelancer has, or opens another Freelancer's Conversation link.
+- **Then:** the answer is identical to the one for a record that never existed (AC-40, AC-41).
+- **How verify:** integration tests with two Freelancers comparing responses byte for byte.
+- **When:** a Conversation's last message turns 90 days old.
+- **Then:** "deleted within 24 h after the 90-day mark".
+- **How verify:** integration test of the daily clean-up step with a fixed clock.
 
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-4. Responsiveness under a third-party dependency**
+- **When:** a Freelancer sends a message.
+- **Then:** "time to the first visible words of a reply, p95 ≤ 3 s"; "full reply to a read question, p95 ≤ 12 s".
+- **How verify:** per-message traces (router plus agent spans), 7-day window after release.
+- **When:** the model provider fails or rate-limits.
+- **Then:** "the chat shows that AI is temporarily unavailable within 10 s; every other part of the app keeps working"; "≤ 2 % of chat messages per week fail on the system's side".
+- **How verify:** a fault-injection integration test with the provider returning errors and rate limits, plus the weekly failure-rate query. A provider that hangs without answering is **not** covered: with no turn deadlines (§7), the 10-second target holds only for providers that fail fast (§11).
 
 ## 11. Risks and technical debt
 
