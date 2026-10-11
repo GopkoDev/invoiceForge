@@ -509,9 +509,45 @@ export function PrivacyPolicyContent() {
             </ContentCard>
 
             {/* Section 11 */}
+            <ContentCard variant="hover-only">
+              <h2 className="mb-4 text-2xl font-bold">11. AI assistant</h2>
+              <p className="text-muted-foreground mb-4">
+                The AI assistant sends the text of your chat messages, and the
+                data it reads to answer them (for example Customer names and
+                invoice amounts), to a Google Gemini model through the Vercel
+                AI Gateway. Vercel AI Gateway and Google therefore process your
+                message text.
+              </p>
+              <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
+                <p className="text-muted-foreground text-sm">
+                  <strong>Free tier terms:</strong> We use Google&apos;s free
+                  tier. Under those terms Google may use the content you send
+                  to improve its products, and human reviewers may read it. Do
+                  not put anything into the assistant that you do not want
+                  shared on those terms.
+                </p>
+              </div>
+              <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
+                <li>
+                  <strong>Retention:</strong> A Conversation is kept for 90
+                  days after its last message, then deleted.
+                </li>
+                <li>
+                  <strong>Your control:</strong> You can delete a Conversation
+                  at any time. Conversations are included in your data export
+                  and are removed when you delete your account.
+                </li>
+                <li>
+                  <strong>Debugging traces:</strong> Traces hold metadata only
+                  (such as timings and token counts) and no message text.
+                </li>
+              </ul>
+            </ContentCard>
+
+            {/* Section 12 */}
             <ContentCard variant="always">
               <h2 className="mb-4 text-center text-2xl font-bold">
-                11. Final Note: We&apos;re Not Tax Advisors
+                12. Final Note: We&apos;re Not Tax Advisors
               </h2>
               <p className="text-muted-foreground mb-6 text-center">
                 {parseHtmlText(privacyContent.sections[10]!.intro)}
