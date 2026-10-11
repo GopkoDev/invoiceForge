@@ -5,6 +5,7 @@ import {
   KEY_LIMIT_MESSAGE,
   KEY_NAME_MESSAGE,
   MAX_ACTIVE_PERSONAL_KEYS,
+  personalKeyCanCreateDraftsSchema,
   personalKeyNameSchema,
 } from '@/lib/validations/personal-key';
 import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
@@ -30,18 +31,21 @@ function summarize(row: PersonalKey): PersonalKeySummary {
     name: row.name,
     createdAt: row.createdAt.toISOString(),
     lastFour: row.lastFour,
+    canCreateDrafts: row.canCreateDrafts,
     lastUsedAt: row.lastUsedAt ? row.lastUsedAt.toISOString() : null,
   };
 }
 
 export async function createPersonalKey(
   actor: ActingFreelancer,
-  input: { name: string },
+  input: { name: string; canCreateDrafts?: boolean },
 ): Promise<ActionResult<{ key: PersonalKeySummary; fullKey: string }>> {
   try {
     const parsed = personalKeyNameSchema.safeParse(input?.name);
     if (!parsed.success) return nameRefusal();
     const name = parsed.data;
+    const canCreateDrafts = personalKeyCanCreateDraftsSchema.safeParse(input?.canCreateDrafts ?? false);
+    if (!canCreateDrafts.success) return fail('VALIDATION', 'Invalid Draft permission.');
     const activeNameKey = name.toLowerCase();
     const { fullKey, digest, lastFour } = generatePersonalKey();
 
@@ -59,7 +63,7 @@ export async function createPersonalKey(
       if (active >= MAX_ACTIVE_PERSONAL_KEYS) return fail('CONFLICT', KEY_LIMIT_MESSAGE);
 
       return tx.personalKey.create({
-        data: { userId: actor.userId, name, activeNameKey, digest, lastFour },
+        data: { userId: actor.userId, name, activeNameKey, digest, lastFour, canCreateDrafts: canCreateDrafts.data },
       });
     });
 

@@ -54,6 +54,7 @@ type Active = {
   createdAt: string;
   lastFour: string;
   lastUsedAt: string | null;
+  canCreateDrafts: boolean;
 };
 const laptop: Active = {
   id: 'k1',
@@ -61,6 +62,7 @@ const laptop: Active = {
   createdAt: '2026-09-01T10:00:00.000Z',
   lastFour: 'a1b2',
   lastUsedAt: '2026-09-20T14:30:00.000Z',
+  canCreateDrafts: false,
 };
 const unused: Active = {
   id: 'k2',
@@ -68,6 +70,7 @@ const unused: Active = {
   createdAt: '2026-09-02T10:00:00.000Z',
   lastFour: 'c3d4',
   lastUsedAt: null,
+  canCreateDrafts: false,
 };
 const old = {
   id: 'k3',
@@ -75,6 +78,7 @@ const old = {
   createdAt: '2026-08-01T10:00:00.000Z',
   lastFour: 'e5f6',
   lastUsedAt: null,
+  canCreateDrafts: false,
   revokedAt: '2026-08-15T10:00:00.000Z',
 };
 

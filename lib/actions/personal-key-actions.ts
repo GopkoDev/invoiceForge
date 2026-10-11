@@ -9,6 +9,7 @@ import type { ActionResult } from '@/types/result';
 
 export async function createPersonalKey(input: {
   name: string;
+  canCreateDrafts?: boolean;
 }): Promise<ActionResult<{ key: PersonalKeySummary; fullKey: string }>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;

@@ -63,7 +63,7 @@ describe.runIf(containerRuntimeAvailable)('personal key management (T09)', () =>
     if (!r.success) return;
     expect(isWellFormedKey(r.data.fullKey)).toBe(true);
     expect(r.data.key).toMatchObject({ name: 'Laptop assistant', lastFour: r.data.fullKey.slice(-4), lastUsedAt: null });
-    expect(Object.keys(r.data.key).sort()).toEqual(['createdAt', 'id', 'lastFour', 'lastUsedAt', 'name']);
+    expect(Object.keys(r.data.key).sort()).toEqual(['canCreateDrafts', 'createdAt', 'id', 'lastFour', 'lastUsedAt', 'name']);
     const row = await prisma.personalKey.findUniqueOrThrow({ where: { id: r.data.key.id } });
     expect(row).toMatchObject({
       userId: user.id,
