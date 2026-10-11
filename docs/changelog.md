@@ -6,13 +6,17 @@ This page shows how the project grows. The newest work is at the top.
 
 - **MCP OAuth (v2).** Hosted chat assistants (claude.ai, ChatGPT) connect with the Invoice Forge account, not with a Personal key. See the [idea brief](./features/mcp-server/idea-brief.md) §7.
 - **MCP drafts (v1.1).** An Assistant can create and change draft invoices. This work starts after invoice-integrity. See the [idea brief](./features/mcp-server/idea-brief.md) §7.
-- **editor-ux.** A faster and safer invoice editor: no lost edits, correct dates near midnight, screen reader support and a stable phone layout. See the [brief](./features/editor-ux/brief.md).
 
 ## In progress
 
-- **invoice-integrity.** An issued invoice keeps the details that it was sent with. Status changes follow one lifecycle. The server checks currencies and totals. See the [brief](./features/invoice-integrity/brief.md).
+- **editor-ux.** A faster and safer invoice editor: no lost edits, correct dates near midnight, screen reader support and a stable phone layout. Shipped for review on 2026-10-11. The merge waits on two owner checks (a real-iPhone keypad check and the layout baseline review). See the [spec](./features/editor-ux/spec.md) and the [changelog](./features/editor-ux/_ship/changelog.md).
 
 ## Shipped
+
+### 2026-10-08 · invoice-integrity (#8)
+
+An issued invoice keeps the details that it was sent with. Status changes follow one lifecycle. The server checks every invoice rule.
+[Spec](./features/invoice-integrity/spec.md) · [Changelog](./features/invoice-integrity/_ship/changelog.md)
 
 ### 2026-10-07 · mcp-server (#6)
 
