@@ -198,8 +198,10 @@ for (const way of ['save', 'retry'] as const) {
       await held.answered;
       await expect(toastOf(page, 'Invoice issued')).toBeVisible(UI);
 
+      // Only a quantity changed, so the notice is the line-change text alone, with no "kept" sentence
+      // (review r12 N4, T88).
       await expect(
-        page.getByText('Your changes to the lines and other locked details were not saved because the invoice is now issued.', { exact: false })
+        page.getByText('Your changes to the lines and other locked details were not saved because the invoice is now issued.', { exact: true })
       ).toBeVisible();
       await treeCommitted(page, versionBefore);
       expect(await nodeKept(page)).toBe(true);
