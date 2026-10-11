@@ -88,6 +88,11 @@ describe.each(LOCALES)('lib/format with a %s default locale', (locale) => {
       it('is the same day in UTC-10', () => {
         expect(formatMoment(instant, 'Pacific/Honolulu')).toBe('Mar 1, 2026');
       });
+      it('is the previous day in UTC-10 for a moment shortly after midnight UTC', () => {
+        const afterMidnight = new Date('2026-03-02T00:30:00.000Z');
+        expect(formatMoment(afterMidnight, 'Pacific/Honolulu')).toBe('Mar 1, 2026');
+        expect(formatMoment(afterMidnight, null)).toBe('Mar 2, 2026');
+      });
       it('uses UTC when no time zone is saved (null)', () => {
         expect(formatMoment(instant, null)).toBe('Mar 1, 2026');
       });

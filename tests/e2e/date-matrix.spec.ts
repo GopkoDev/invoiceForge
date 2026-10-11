@@ -23,28 +23,34 @@ const DUE = new Date('2027-03-29T00:00:00Z');
 const OTHER_ISSUE = new Date('2027-03-02T00:00:00Z');
 const OTHER_DUE = new Date('2027-03-09T00:00:00Z');
 const CUSTOMER = 'Matrix Customer Ltd';
-// A custom price created at 23:30 UTC on Mar 15: Mar 16 in UTC+14, Mar 15 in UTC-10 and UTC.
+// A custom price created at 23:30 UTC on Mar 15: Mar 16 in UTC+14, Mar 15 in UTC. For UTC-10 it is
+// created at 00:30 UTC on Mar 16 instead, which is Mar 15 there, so that zone also shows a day that
+// differs from UTC's (review r12 N2, T86).
 const CUSTOM_PRICE_CREATED = new Date('2027-03-15T23:30:00Z');
+const CUSTOM_PRICE_CREATED_AFTER_UTC_MIDNIGHT = new Date('2027-03-16T00:30:00Z');
 
 // Offset (hours) of each Freelancer zone on 2027-03-15, a browser zone that differs from it, and
-// the day the custom price's creation moment falls on in the Freelancer zone.
+// the custom price's creation moment and the day it falls on in the Freelancer zone.
 const ZONES = [
   {
     zone: 'Pacific/Honolulu' as string | null,
     offset: -10,
     browser: 'Pacific/Kiritimati',
+    customPriceCreated: CUSTOM_PRICE_CREATED_AFTER_UTC_MIDNIGHT,
     customPriceDay: 'Mar 15, 2027',
   },
   {
     zone: 'UTC' as string | null,
     offset: 0,
     browser: 'Pacific/Honolulu',
+    customPriceCreated: CUSTOM_PRICE_CREATED,
     customPriceDay: 'Mar 15, 2027',
   },
   {
     zone: 'Pacific/Kiritimati' as string | null,
     offset: 14,
     browser: 'Pacific/Honolulu',
+    customPriceCreated: CUSTOM_PRICE_CREATED,
     customPriceDay: 'Mar 16, 2027',
   },
   // No zone saved: every place uses UTC (the first visit would save the browser's zone, so the
@@ -53,6 +59,7 @@ const ZONES = [
     zone: null as string | null,
     offset: 0,
     browser: 'UTC',
+    customPriceCreated: CUSTOM_PRICE_CREATED,
     customPriceDay: 'Mar 15, 2027',
   },
 ];
@@ -96,7 +103,7 @@ async function editorDownloadText(page: Page): Promise<string> {
   return downloadedPdfText(await download);
 }
 
-for (const { zone, offset, browser: browserZone, customPriceDay } of ZONES) {
+for (const { zone, offset, browser: browserZone, customPriceCreated, customPriceDay } of ZONES) {
   for (const side of MIDNIGHT_SIDES) {
     test(`AC-08: zone ${zone ?? 'none saved'}, browser ${browserZone}, clock ${side.label}: every page shows the stored days`, async ({
       browser,
@@ -135,7 +142,7 @@ for (const { zone, offset, browser: browserZone, customPriceDay } of ZONES) {
               productId: workspace.productId,
               customerId: workspace.customerId,
               price: 80,
-              createdAt: CUSTOM_PRICE_CREATED,
+              createdAt: customPriceCreated,
             },
           });
         } finally {
