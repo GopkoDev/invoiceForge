@@ -38,7 +38,7 @@
 | T31 | [Serve POST /api/chat: validate, check the Conversation, reserve a slot, stream the turn, save it, release on failure](./t31-chat-route.md) | ports | Dmytro Hopko | M | T08, T25, T29 | done |
 | T32 | [Add the labelled topic-boundary set and the no-guessing set as a Mastra evaluation run that blocks a failing change](./t32-evaluation-sets.md) | tests | Dmytro Hopko | M | T29 | done |
 | T33 | [Build the useChat island: send only the new message, show waiting, streaming and every outcome, and keep the allowance live](./t33-chat-island.md) | ui | Dmytro Hopko | M | T22, T23, T31 | done |
-| T34 | [Prove provider-fault handling, the stored-text injection guard and cross-tenant silence through the chat route](./t34-chat-resilience-injection-and-tenancy.md) | tests | Dmytro Hopko | M | T31 | todo |
+| T34 | [Prove provider-fault handling, the stored-text injection guard and cross-tenant silence through the chat route](./t34-chat-resilience-injection-and-tenancy.md) | tests | Dmytro Hopko | M | T31 | done |
 | T35 | [Add Playwright flows: open the AI section, draft and create from a card, Create with AI, and the Assistant mark](./t35-e2e-ai-flows.md) | tests | Dmytro Hopko | M | T19, T28, T33 | todo |
 
 **Total:** 35 tasks, ~30.5 person-days (S = ½ day, M = 1 day).

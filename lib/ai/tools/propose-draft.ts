@@ -37,8 +37,14 @@ function linksFor(issues: DraftIssue[]): AppLink[] {
   return links;
 }
 
-function summarize(proposal: DraftProposal): string {
-  return `Draft for ${proposal.customer.name.freelancerText}: ${proposal.lines.length} line(s), total ${proposal.total} ${proposal.currency}.`;
+// Stored text (the Customer name) stays wrapped as data, never interpolated into the tool's own words.
+function summarize(proposal: DraftProposal) {
+  return {
+    customer: proposal.customer.name,
+    lines: proposal.lines.length,
+    total: proposal.total,
+    currency: proposal.currency,
+  };
 }
 
 /**
