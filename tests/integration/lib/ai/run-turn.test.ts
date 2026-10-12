@@ -243,7 +243,8 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     await run('Send INV-042 to the customer');
 
     const names = toolNamesOf(model.doStreamCalls[0] as any);
-    for (const n of names) expect(n).not.toMatch(/issue|send|edit|update|delete|cancel|mark/i);
+    // A verb as a name segment: list_sender_profiles reads sender profiles, it sends nothing (ai-chat-v2 T05).
+    for (const n of names) expect(n).not.toMatch(/(^|_)(issue|send|edit|update|delete|cancel|mark)(_|$)/i);
     expect(names).not.toContain('create_draft_invoice');
     const system = (model.doStreamCalls[0].prompt as any[]).filter((m) => m.role === 'system').map((m) => JSON.stringify(m.content)).join('\n');
     expect(system).toMatch(/only (the Freelancer|you) can issue/i);

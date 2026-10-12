@@ -22,6 +22,7 @@ const READ_TOOL_NAMES = [
   'list_customers',
   'search_invoices',
   'get_invoice',
+  'list_sender_profiles', // ai-chat-v2 T05
 ];
 
 /** Links are the chat's own concern (AppLink ids, absolute URLs are MCP's): compare the rest. */
@@ -84,7 +85,7 @@ describe.runIf(containerRuntimeAvailable)('chat read tools / dashboard parity (T
 
   const chat = (name: string, args: Record<string, unknown> = {}) => tools[name].execute!(args, {});
 
-  it('offers exactly the seven MCP read questions, none taking an actor from the model', () => {
+  it('offers exactly the MCP read questions, none taking an actor from the model', () => {
     expect(Object.keys(tools).sort()).toEqual([...READ_TOOL_NAMES].sort());
     for (const t of Object.values(tools)) {
       const keys = Object.keys(t.inputSchema.shape ?? {});

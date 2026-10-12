@@ -15,6 +15,16 @@ import {
   zodValidationFailure,
 } from '@/lib/services/_shared/result-helpers';
 import { captureMessage } from '@sentry/nextjs';
+import { z } from 'zod';
+import type { Currency } from '@prisma/client';
+import { accountLastFour } from '@/lib/helpers/account-last-four';
+import {
+  isPageOutOfRange,
+  pageOutOfRange,
+  strictPage,
+  strictPageInfo,
+  type StrictPageInfo,
+} from '@/lib/services/_shared/strict-page';
 
 const NOT_FOUND_MESSAGE = 'Sender profile not found.';
 const PREFIX_TAKEN_MESSAGE = 'This invoice prefix is already in use. Please choose another one.';
@@ -270,5 +280,89 @@ export async function deleteSenderProfile(actor: ActingFreelancer, id: string): 
     const result = settled<void>(error);
     if (result) return result;
     return failed('Error deleting sender profile:', error, 'Failed to delete sender profile. Please try again.');
+  }
+}
+
+// ---------- ai-chat-v2 T05: the list_sender_profiles read question (openapi SenderProfilesAnswer) ----------
+
+const MAX_INT = 2 ** 31 - 1;
+/** The contract's page cap for sender profiles (ListSenderProfilesInput). */
+export const SENDER_PROFILES_PAGE_CAP = 20;
+
+const listSenderProfilesInput = z.object({
+  page: z.number().int().min(1).max(MAX_INT).optional(),
+  pageSize: z.number().int().min(1).max(MAX_INT).optional(),
+});
+
+export type ListSenderProfilesForAssistantInput = z.input<typeof listSenderProfilesInput>;
+
+/** A bank account summarized: no account name, full number, IBAN or SWIFT exists in this shape (spec §1). */
+export type BankAccountSummary = {
+  bankAccountId: string;
+  bankName: string;
+  lastFour: string;
+  currency: Currency;
+  isDefault: boolean;
+};
+
+export type SenderProfileSummary = {
+  senderProfileId: string;
+  name: string;
+  isDefault: boolean;
+  bankAccounts: BankAccountSummary[];
+};
+
+export type SenderProfilesAnswer = { rows: SenderProfileSummary[]; pageInfo: StrictPageInfo };
+
+/**
+ * The Freelancer's own sender profiles (AC-07), default first, then by name, then id, each with every bank account
+ * (default first, then by bank name) summarized by the last four characters of its number (AC-01, AC-06).
+ */
+export async function listSenderProfilesForAssistant(
+  actor: ActingFreelancer,
+  input: ListSenderProfilesForAssistantInput = {},
+): Promise<ActionResult<SenderProfilesAnswer>> {
+  const parsed = listSenderProfilesInput.safeParse(input ?? {});
+  if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
+  const where = { userId: actor.userId };
+  try {
+    const plan = strictPage(parsed.data, SENDER_PROFILES_PAGE_CAP);
+    const total = await prisma.senderProfile.count({ where });
+    if (isPageOutOfRange(plan.page, total, plan.pageSize)) return pageOutOfRange(total, plan.pageSize);
+    const rows =
+      total === 0
+        ? []
+        : await prisma.senderProfile.findMany({
+            where,
+            select: {
+              id: true,
+              name: true,
+              isDefault: true,
+              bankAccounts: {
+                select: { id: true, bankName: true, accountNumber: true, currency: true, isDefault: true },
+                orderBy: [{ isDefault: 'desc' }, { bankName: 'asc' }, { id: 'asc' }],
+              },
+            },
+            orderBy: [{ isDefault: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+            skip: plan.offset,
+            take: plan.limit,
+          });
+    return ok({
+      rows: rows.map((p) => ({
+        senderProfileId: p.id,
+        name: p.name,
+        isDefault: p.isDefault,
+        bankAccounts: p.bankAccounts.map((a) => ({
+          bankAccountId: a.id,
+          bankName: a.bankName,
+          lastFour: accountLastFour(a.accountNumber),
+          currency: a.currency,
+          isDefault: a.isDefault,
+        })),
+      })),
+      pageInfo: strictPageInfo(plan, total),
+    });
+  } catch (error) {
+    return failed('Error listing sender profiles for the Assistant:', error, 'Failed to fetch sender profiles.');
   }
 }

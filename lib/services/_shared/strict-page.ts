@@ -25,10 +25,14 @@ export type StrictPageInfo = {
   hasMore: boolean;
 };
 
-export function strictPage(input: { page?: number; pageSize?: number }): StrictPagePlan {
-  const requested = input.pageSize ?? DEFAULT_ASSISTANT_PAGE_SIZE;
-  const pageSizeCapped = requested > MAX_ASSISTANT_PAGE_SIZE;
-  const pageSize = Math.min(requested, MAX_ASSISTANT_PAGE_SIZE);
+/** `maxPageSize` lowers the cap for a list whose contract pages by at most that many (ai-chat-v2: 20). */
+export function strictPage(
+  input: { page?: number; pageSize?: number },
+  maxPageSize: number = MAX_ASSISTANT_PAGE_SIZE
+): StrictPagePlan {
+  const requested = input.pageSize ?? Math.min(DEFAULT_ASSISTANT_PAGE_SIZE, maxPageSize);
+  const pageSizeCapped = requested > maxPageSize;
+  const pageSize = Math.min(requested, maxPageSize);
   const page = input.page ?? 1;
   return { page, pageSize, pageSizeCapped, offset: (page - 1) * pageSize, limit: pageSize };
 }

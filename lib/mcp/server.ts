@@ -76,9 +76,10 @@ interface RegisteredTool {
 const registries = new WeakMap<Server, { context: McpServerContext; tools: Map<string, RegisteredTool> }>();
 
 /**
- * A fresh, stateless server per POST (ADR-0002). Only `tools/call` is counted. Tools are
- * read-only by construction: there is no write capability to register (AC-10). The context is
- * what every tool receives, never anything from the request body.
+ * A fresh, stateless server per POST (ADR-0002). Only `tools/call` is counted. The read questions
+ * are read-only; the one writing tool (create_draft_invoice) is refused before its arguments are
+ * read unless the key has Draft permission. The context is what every tool receives, never
+ * anything from the request body.
  */
 export function createMcpServer(context: McpServerContext): Server {
   const server = new Server(

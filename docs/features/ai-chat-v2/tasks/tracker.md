@@ -10,7 +10,7 @@
 | T02 | [Promote staged migrations 01–05, apply the Prisma schema edits and extend the test factories](./t02-promote-migrations-and-factories.md) | migration | Dmytro Hopko | M | — | done |
 | T03 | [Move foldName into an isomorphic shared helper with one look-alike fixture set](./t03-shared-fold-name.md) | domain | Dmytro Hopko | S | — | done |
 | T04 | [Add the offer, origin and start-point types and the CHOICE_UNAVAILABLE and ALREADY_ISSUED error details](./t04-shared-types-and-error-kinds.md) | domain | Dmytro Hopko | S | — | done |
-| T05 | [Add the list_sender_profiles read question for the chat and MCP, and fix the stale MCP read-only comment](./t05-sender-profiles-read.md) | app | Dmytro Hopko | M | — | todo |
+| T05 | [Add the list_sender_profiles read question for the chat and MCP, and fix the stale MCP read-only comment](./t05-sender-profiles-read.md) | app | Dmytro Hopko | M | — | done |
 | T06 | [Add the list_products read question with prices per currency and a Customer's Custom prices](./t06-products-read.md) | app | Dmytro Hopko | M | T03, T05 | todo |
 | T07 | [Make list_customers look-alike aware with a 20-row page, and add the cross-read contract and timing tests](./t07-customers-read-folded-and-read-contracts.md) | app | Dmytro Hopko | M | T03, T06 | todo |
 | T08 | [Extend the draft resolver: senderProfileId in the request and label fields on the issue candidates](./t08-resolver-request-and-candidate-delta.md) | domain | Dmytro Hopko | M | T03 | todo |

@@ -25,7 +25,7 @@ function invoiceLinks(answer: Record<string, unknown>): AppLink[] {
 }
 
 /**
- * The seven shared read questions as chat tools bound to this turn's Freelancer (ADR-0010). The
+ * The shared read questions (READ_QUESTIONS) as chat tools bound to this turn's Freelancer (ADR-0010). The
  * handlers are the MCP ones; the answer is theirs unchanged plus the invoice links.
  */
 export function createReadTools(turn: TurnContext) {
