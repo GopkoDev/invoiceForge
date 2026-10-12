@@ -25,8 +25,9 @@ export default async function AssistantsPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Connect your AI</h1>
         <p className="text-muted-foreground text-sm">
-          Let Claude or Cursor read your invoices and answer money questions.
-          Keys are read-only: an assistant can&apos;t change or send anything.
+          Let Claude or Cursor read your invoices and answer money questions. A
+          key can also create draft invoices if you allow it when you create the
+          key. An assistant can never issue, send, edit or delete an invoice.
         </p>
       </div>
       <AssistantKeys origin={origin} timeZone={actor.timeZone} keys={keys} />

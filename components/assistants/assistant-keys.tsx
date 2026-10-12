@@ -8,7 +8,10 @@ import { KeyCreateForm } from '@/components/assistants/key-create-form';
 import { KeyList } from '@/components/assistants/key-list';
 import { KeyReveal } from '@/components/assistants/key-reveal';
 import { SetupSteps } from '@/components/assistants/setup-steps';
-import { revokePersonalKey } from '@/lib/actions/personal-key-actions';
+import {
+  liftKeyDraftLimit,
+  revokePersonalKey,
+} from '@/lib/actions/personal-key-actions';
 import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { useModal } from '@/store/use-modal-store';
 import type {
@@ -58,7 +61,18 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
 
   function handleCreated(key: CreatedPersonalKey, fullKey: string) {
     setReveal({ id: key.id, name: key.name, fullKey });
-    setList((prev) => ({ ...prev, active: [{ ...key, draftsToday: null }, ...prev.active] }));
+    setList((prev) => ({
+      ...prev,
+      active: [
+        {
+          ...key,
+          draftsToday: key.canCreateDrafts
+            ? { created: 0, allowance: 50, lastLiftedAt: null }
+            : null,
+        },
+        ...prev.active,
+      ],
+    }));
     router.refresh();
   }
 
@@ -73,6 +87,29 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
       confirmText: 'Revoke key',
       variant: 'destructive',
     });
+  }
+
+  async function handleLift(target: PersonalKeySummary) {
+    const result = await liftKeyDraftLimit(target.id);
+    if (redirectIfUnauthorized(result)) return;
+
+    if (result.success) {
+      setList((prev) => ({
+        ...prev,
+        active: prev.active.map((k) =>
+          k.id === target.id ? { ...k, draftsToday: result.data } : k
+        ),
+      }));
+      toast.success('Limit lifted: 50 more drafts until midnight your time.');
+    } else if (result.code === 'CONFLICT') {
+      toast.error('The limit can be lifted once the key has reached it.');
+      router.refresh();
+    } else if (result.code === 'NOT_FOUND') {
+      toast.error('Key not found.');
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
   }
 
   async function handleConfirmRevoke(target: PersonalKeySummary) {
@@ -117,6 +154,7 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
         revoked={list.revoked}
         timeZone={timeZone}
         onRevoke={openRevoke}
+        onLift={handleLift}
         headingRef={headingRef}
       />
     </>

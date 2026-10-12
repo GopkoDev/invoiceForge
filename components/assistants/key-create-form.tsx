@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Field,
   FieldDescription,
@@ -34,6 +35,7 @@ export function KeyCreateForm({
 }: KeyCreateFormProps) {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
+  const [canCreateDrafts, setCanCreateDrafts] = useState(false);
   const [creating, setCreating] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -49,11 +51,12 @@ export function KeyCreateForm({
 
     setCreating(true);
     try {
-      const result = await createPersonalKey({ name });
+      const result = await createPersonalKey({ name, canCreateDrafts });
       if (redirectIfUnauthorized(result)) return;
       if (result.success) {
         onCreated(result.data.key, result.data.fullKey);
         setName('');
+        setCanCreateDrafts(false);
         return;
       }
       if (result.code === 'VALIDATION') {
@@ -102,6 +105,29 @@ export function KeyCreateForm({
             1 to 50 characters, e.g. the device or assistant it&apos;s for.
           </FieldDescription>
         )}
+      </Field>
+      <Field orientation="horizontal">
+        <Checkbox
+          render={<button type="button" />}
+          nativeButton
+          id="personal-key-can-create-drafts"
+          aria-labelledby="personal-key-can-create-drafts-label"
+          checked={canCreateDrafts}
+          onCheckedChange={(checked) => setCanCreateDrafts(checked === true)}
+          disabled={creating}
+        />
+        <div className="space-y-1">
+          <FieldLabel
+            id="personal-key-can-create-drafts-label"
+            htmlFor="personal-key-can-create-drafts"
+          >
+            Allow this key to create draft invoices
+          </FieldLabel>
+          <FieldDescription>
+            The assistant can create drafts for you to review. It can never
+            issue or send them. You can&apos;t change this later.
+          </FieldDescription>
+        </div>
       </Field>
     </form>
   );

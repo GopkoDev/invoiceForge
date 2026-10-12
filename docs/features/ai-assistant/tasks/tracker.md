@@ -28,7 +28,7 @@
 | T21 | [Create a Draft invoice for a Personal key: permission, repeat mark, resolver, key slot, invoice and repeat row in one transaction](./t21-create-draft-for-key.md) | app | Dmytro Hopko | M | T06, T16, T17 | done |
 | T22 | [Build the AI start panel with example prompts, the start=draft variant and the AllowanceNotice counter and used-up modes](./t22-ai-start-panel-and-allowance-notice.md) | ui | Dmytro Hopko | M | T08, T18 | done |
 | T23 | [Render a saved Conversation with ChatLink invoice states, the not-found page and the loading skeleton](./t23-conversation-page-and-chat-links.md) | ui | Dmytro Hopko | M | T10, T18 | done |
-| T24 | [Add the Draft permission choice, the permission badges, the read-only explanation and the lift action to Connect your AI](./t24-connect-your-ai-draft-permission-ui.md) | ui | Dmytro Hopko | M | T17 | todo |
+| T24 | [Add the Draft permission choice, the permission badges, the read-only explanation and the lift action to Connect your AI](./t24-connect-your-ai-draft-permission-ui.md) | ui | Dmytro Hopko | M | T17 | done |
 | T25 | [Save each turn under the Conversation row lock with its card and metadata, and delete one or all Conversations](./t25-conversation-writes-and-deletes.md) | app | Dmytro Hopko | M | T10, T20 | todo |
 | T26 | [Register create_draft_invoice through registerDraftTool for every key and map its results to the MCP tool answer](./t26-mcp-create-draft-tool.md) | ports | Dmytro Hopko | S | T02, T21 | todo |
 | T27 | [Add the propose_draft tool that resolves the Freelancer's own words into a pending Draft card or into questions](./t27-propose-draft-tool.md) | app | Dmytro Hopko | M | T04, T20 | todo |

@@ -197,7 +197,7 @@ describe('create', () => {
     expect(screen.getByText('Never used')).toBeTruthy();
     expect(screen.getByText('••••1234')).toBeTruthy();
     expect(input.value).toBe('');
-    expect(createMock).toHaveBeenCalledWith({ name: 'Laptop assistant' });
+    expect(createMock).toHaveBeenCalledWith({ name: 'Laptop assistant', canCreateDrafts: false });
   });
 
   it('the full key is gone after a remount and the snippets show YOUR_KEY again (AC-02)', async () => {
