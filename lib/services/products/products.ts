@@ -7,6 +7,16 @@ import { failed, zodValidationFailure } from '@/lib/services/_shared/result-help
 import { notFoundOnMiss } from '@/lib/services/_shared/owner-scope';
 import { ilikeAny, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { z } from 'zod';
+import type { Currency } from '@prisma/client';
+import { foldName } from '@/lib/helpers/fold-name';
+import {
+  isPageOutOfRange,
+  pageOutOfRange,
+  strictPage,
+  strictPageInfo,
+  type StrictPageInfo,
+} from '@/lib/services/_shared/strict-page';
 
 const NOT_FOUND_MESSAGE = 'Product not found.';
 
@@ -193,5 +203,100 @@ export async function toggleProductActive(actor: ActingFreelancer, id: string): 
     return ok();
   } catch (error) {
     return failed('Error toggling product status:', error, 'Failed to update product status.');
+  }
+}
+
+// ---------- ai-chat-v2 T06: the list_products read question (openapi ProductsAnswer) ----------
+
+const MAX_INT = 2 ** 31 - 1;
+/** The contract's page cap for products (ListProductsInput). */
+export const PRODUCTS_PAGE_CAP = 20;
+const CUSTOMER_NOT_FOUND_MESSAGE = 'Customer not found.';
+
+const listProductsInput = z.object({
+  name: z.string().trim().max(100, 'Name can be at most 100 characters.').optional(),
+  customerId: z.string().min(1).max(100).optional(),
+  page: z.number().int().min(1).max(MAX_INT).optional(),
+  pageSize: z.number().int().min(1).max(MAX_INT).optional(),
+});
+
+export type ListProductsForAssistantInput = z.input<typeof listProductsInput>;
+
+export type ProductSummary = {
+  productId: string;
+  name: string;
+  unit: string;
+  /** Product.price exactly as stored (Decimal(10,2)), never converted (AC-02). */
+  price: string;
+  currency: Currency;
+  /** The Customer's CustomPrice.price for this product; null without a customerId or when none is agreed. */
+  customPrice: string | null;
+};
+
+export type ProductsAnswer = {
+  rows: ProductSummary[];
+  customer: { customerId: string; name: string } | null;
+  pageInfo: StrictPageInfo;
+};
+
+/**
+ * The Freelancer's own active catalogue (AC-07), by name, then currency, then id, filtered by a folded part of a name
+ * in the app (ADR-0004: no name index). A `customerId` adds that Customer's Custom prices; one that is not this
+ * Freelancer's is answered exactly as one that never existed (flow 5).
+ */
+export async function listProductsForAssistant(
+  actor: ActingFreelancer,
+  input: ListProductsForAssistantInput = {},
+): Promise<ActionResult<ProductsAnswer>> {
+  const parsed = listProductsInput.safeParse(input ?? {});
+  if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
+  const { name, customerId } = parsed.data;
+  try {
+    const customer = customerId
+      ? await prisma.customer.findFirst({ where: { id: customerId, userId: actor.userId }, select: { id: true, name: true } })
+      : null;
+    if (customerId && !customer) return fail('NOT_FOUND', CUSTOMER_NOT_FOUND_MESSAGE);
+
+    const plan = strictPage(parsed.data, PRODUCTS_PAGE_CAP);
+    const catalogue = await prisma.product.findMany({
+      where: { userId: actor.userId, isActive: true },
+      select: { id: true, name: true, unit: true, price: true, currency: true },
+    });
+    // Currency by its code (a Postgres enum sorts by declaration order), so the order is the same on every channel.
+    catalogue.sort(
+      (a, b) =>
+        a.name.localeCompare(b.name) || a.currency.localeCompare(b.currency) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+    const wanted = name ? foldName(name) : '';
+    const matches = wanted ? catalogue.filter((p) => foldName(p.name).includes(wanted)) : catalogue;
+    const total = matches.length;
+    if (isPageOutOfRange(plan.page, total, plan.pageSize)) return pageOutOfRange(total, plan.pageSize);
+    const page = matches.slice(plan.offset, plan.offset + plan.limit);
+
+    const customPrices = new Map<string, string>();
+    if (customer && page.length > 0) {
+      const agreed = await prisma.customPrice.findMany({
+        where: { customerId: customer.id, productId: { in: page.map((p) => p.id) }, product: { userId: actor.userId } },
+        select: { productId: true, price: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      // The same pick as the draft resolver (resolve-lines.ts): the latest-created agreement wins.
+      for (const c of agreed) customPrices.set(c.productId, c.price.toFixed(2));
+    }
+
+    return ok({
+      rows: page.map((p) => ({
+        productId: p.id,
+        name: p.name,
+        unit: p.unit,
+        price: p.price.toFixed(2),
+        currency: p.currency,
+        customPrice: customPrices.get(p.id) ?? null,
+      })),
+      customer: customer ? { customerId: customer.id, name: customer.name } : null,
+      pageInfo: strictPageInfo(plan, total),
+    });
+  } catch (error) {
+    return failed('Error listing products for the Assistant:', error, 'Failed to fetch products.');
   }
 }

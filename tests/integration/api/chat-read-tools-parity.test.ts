@@ -23,6 +23,7 @@ const READ_TOOL_NAMES = [
   'search_invoices',
   'get_invoice',
   'list_sender_profiles', // ai-chat-v2 T05
+  'list_products', // ai-chat-v2 T06
 ];
 
 /** Links are the chat's own concern (AppLink ids, absolute URLs are MCP's): compare the rest. */
