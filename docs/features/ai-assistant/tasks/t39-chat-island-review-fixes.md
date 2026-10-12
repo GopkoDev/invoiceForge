@@ -9,7 +9,7 @@ files_hint: ["components/ai/chat-island.tsx", "components/ai/message-list.tsx", 
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12"
 ---
 
