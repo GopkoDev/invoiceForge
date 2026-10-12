@@ -20,7 +20,7 @@
 | T13 | [Wrap the shared read questions as chat tools bound to the acting Freelancer and add find_in_app over a fixed app map](./t13-chat-read-tools-and-app-map.md) | app | Dmytro Hopko | M | T02, T04 | done |
 | T14 | [Add the four independent AI retention steps to the daily purge cron](./t14-daily-clean-up-steps.md) | wiring | Dmytro Hopko | S | T01, T04 | done |
 | T15 | [Add Conversations and the AI counters to the data export 2.2 and prove account deletion leaves no AI row](./t15-data-export-and-account-deletion.md) | ports | Dmytro Hopko | S | T01 | done |
-| T16 | [Resolve draft lines against the catalogue and custom prices, apply the quantity and unit defaults and finish resolveDraftRequest](./t16-draft-resolver-lines-and-proposal.md) | app | Dmytro Hopko | M | T07 | todo |
+| T16 | [Resolve draft lines against the catalogue and custom prices, apply the quantity and unit defaults and finish resolveDraftRequest](./t16-draft-resolver-lines-and-proposal.md) | app | Dmytro Hopko | M | T07 | done |
 | T17 | [Count Assistant drafts per key per local day, take a slot inside the create transaction and lift the limit by 50 once reached](./t17-key-daily-draft-limit-and-lift.md) | app | Dmytro Hopko | M | T03, T09 | todo |
 | T18 | [Add the AI section route and sidebar entry and render the Conversation list with paging, empty state and the retention notice](./t18-ai-section-route-and-conversation-list.md) | ui | Dmytro Hopko | M | T10 | todo |
 | T19 | [Add "Create with AI" to the invoice list header and the AssistantMark to draft rows and the editor header](./t19-create-with-ai-entry-and-assistant-mark.md) | ui | Dmytro Hopko | S | T06 | todo |

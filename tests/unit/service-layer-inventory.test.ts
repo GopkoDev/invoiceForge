@@ -71,6 +71,8 @@ describe('part 2: every business function has request-free and foreign-record te
     // Cron-only retention sweeps: system-wide, no acting Freelancer (ai-assistant T14).
     /conversations\/purge\.ts$/,
     /assistant-usage\/purge\.ts$/,
+    // Internal line step of resolveDraftRequest (covered through it, ai-assistant T16).
+    /assistant-drafts\/resolve-lines\.ts$/,
   ];
   const NOT_BUSINESS_NAMES = new Set(['resolveManualOrAllocatedNumber', 'invoiceNumberConflict']);
 
