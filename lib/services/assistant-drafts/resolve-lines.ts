@@ -31,6 +31,19 @@ function pickProduct(
   return { ambiguous: matches.length > 1 };
 }
 
+/** The products a line names: the one its productId gives (spec.md §1, an external Assistant), or by name. */
+function productsNamed(
+  line: DraftRequest['lines'][number],
+  products: ProductRow[],
+): ProductRow[] | 'NOT_FOUND' {
+  if (line.productId !== undefined) {
+    const byId = products.find((p) => p.id === line.productId);
+    return byId ? [byId] : 'NOT_FOUND';
+  }
+  const needle = line.description.trim().toLowerCase();
+  return products.filter((p) => p.name.toLowerCase().includes(needle));
+}
+
 function resolveOne(
   index: number,
   line: DraftRequest['lines'][number],
@@ -38,20 +51,35 @@ function resolveOne(
   customPrices: Map<string, string>,
   ctx: LineContext,
 ): One {
-  const needle = line.description.trim().toLowerCase();
-  const matches = products.filter((p) => p.name.toLowerCase().includes(needle));
+  const matches = productsNamed(line, products);
+  if (matches === 'NOT_FOUND') {
+    return { issue: { kind: 'PRODUCT_NOT_FOUND', lineIndex: index, written: line.productId as string } };
+  }
   // A product in another currency is never linked (AC-16b); with no known currency none is excluded.
   const sameCurrency = matches.filter((p) => ctx.currency === undefined || p.currency === ctx.currency);
-  const { product, ambiguous } = pickProduct(sameCurrency, needle);
+  const { product, ambiguous } = pickProduct(sameCurrency, line.description.trim().toLowerCase());
   const named = line.price !== undefined;
-  const missing: DraftIssue = { kind: 'LINE_AMOUNT_MISSING', lineIndex: index, description: line.description };
 
-  if (ambiguous) return { issue: missing };
+  // Several products match: the Freelancer is asked which one, never a pick (spec.md §1, R-11).
+  if (ambiguous) {
+    return {
+      issue: {
+        kind: 'PRODUCT_AMBIGUOUS',
+        lineIndex: index,
+        written: line.description,
+        candidates: sameCurrency.slice(0, 50).map((p) => ({ productId: p.id, name: { freelancerText: p.name } })),
+      },
+    };
+  }
   if (!product && !named) {
     if (matches.length > 0 && ctx.currency !== undefined) {
       return { issue: { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: index, currency: ctx.currency } };
     }
-    return { issue: missing };
+    return { issue: { kind: 'LINE_AMOUNT_MISSING', lineIndex: index, description: line.description } };
+  }
+  // Quantity 1 is the default only for a line that names an amount (spec.md §1 defaults, R-10).
+  if (line.quantity === undefined && !named) {
+    return { issue: { kind: 'LINE_QUANTITY_MISSING', lineIndex: index, description: line.description } };
   }
 
   const custom = product ? customPrices.get(product.id) : undefined;

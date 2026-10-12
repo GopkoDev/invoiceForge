@@ -465,15 +465,30 @@ components:
         customer: { type: string, minLength: 1, maxLength: 200, description: "The Customer as written, e.g. \"Acme\"." }
         customerId: { $ref: "#/components/schemas/RecordId" }
         senderProfile: { type: string, minLength: 1, maxLength: 200, description: "A sender profile the Freelancer named (AC-17). Absent → the default profile." }
+        bankAccount:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: |
+            The bank account as written (words in its bank name, account name or account number, e.g. "Wise" or "1234")
+            or its id (AC-19, review R-06). Matched within the chosen sender profile and, when `currency` is given, within
+            that currency. One match → source REQUEST and the invoice takes its currency; several → BANK_ACCOUNT_AMBIGUOUS;
+            none → BANK_ACCOUNT_NOT_FOUND. Absent → the default account, or the one account in `currency`.
         currency: { type: string, minLength: 1, maxLength: 8, description: "As written: a code (EUR) or a symbol ($, €). Absent → the bank account's currency." }
         lines:
           type: array
           minItems: 1
           maxItems: 50
           items: { $ref: "#/components/schemas/DraftRequestLine" }
-        issueDate: { $ref: "#/components/schemas/LocalDate" }
-        dueDate: { $ref: "#/components/schemas/LocalDate" }
-        notes: { type: string, maxLength: 2000 }
+        issueDate: { $ref: "#/components/schemas/LocalDate", description: "A real calendar day (2026-02-30 is refused). Absent → today." }
+        dueDate: { $ref: "#/components/schemas/LocalDate", description: "A real calendar day, not before the issue date (FIELD_INVALID). Absent → issue date + 30 days." }
+        taxRate: { $ref: "#/components/schemas/PriceInput", description: "Tax rate in percent, 0–100 (the editor's rule; else FIELD_INVALID). Absent → 0." }
+        discount: { $ref: "#/components/schemas/PriceInput", description: "Discount amount, at most subtotal + shipping (FIELD_INVALID). Absent → 0." }
+        shipping: { $ref: "#/components/schemas/PriceInput", description: "Shipping amount. Absent → 0." }
+        poNumber: { type: string, maxLength: 100, description: "Invoice.poNumber. Absent → empty." }
+        paymentTerms: { type: string, maxLength: 200, description: "Invoice.paymentTerms, e.g. \"Net 15\". Absent → empty." }
+        notes: { type: string, maxLength: 2000, description: "Invoice.notes. Absent → empty." }
+        terms: { type: string, maxLength: 2000, description: "Invoice.terms. Absent → empty." }
       oneOf:
         - required: [customer]
         - required: [customerId]
@@ -483,7 +498,14 @@ components:
       additionalProperties: false
       properties:
         description: { type: string, minLength: 1, maxLength: 200, description: "As written, e.g. \"consulting\" or \"logo design\". Matched against the catalogue by name." }
-        quantity: { $ref: "#/components/schemas/QuantityInput" }
+        productId:
+          $ref: "#/components/schemas/RecordId"
+          description: |
+            The exact catalogue product an external Assistant found through the read tools (spec.md §1 "Matching names"),
+            used instead of the name match. Not one of the Freelancer's active products → PRODUCT_NOT_FOUND.
+        quantity:
+          $ref: "#/components/schemas/QuantityInput"
+          description: Must be above zero (FIELD_INVALID). Absent → 1 only when the line names a price; otherwise LINE_QUANTITY_MISSING or LINE_AMOUNT_MISSING.
         unit: { type: string, maxLength: 20, description: "As written, e.g. \"hours\". Absent → the product's unit, or \"item\" (AC-19)." }
         price: { $ref: "#/components/schemas/PriceInput" }
 
@@ -514,7 +536,7 @@ components:
             bankAccountId: { $ref: "#/components/schemas/RecordId" }
             label: { type: string, description: "BankAccount.bankName and the last four of accountNumber." }
             currency: { $ref: "#/components/schemas/Currency" }
-            source: { type: string, enum: [DEFAULT, REQUEST], description: "REQUEST when the request's currency picked the account (AC-19)." }
+            source: { type: string, enum: [DEFAULT, REQUEST], description: "REQUEST when the request named the account, or its currency picked the account (AC-19)." }
         currency: { $ref: "#/components/schemas/Currency" }
         issueDate:
           type: object
@@ -530,7 +552,17 @@ components:
           maxItems: 50
           items: { $ref: "#/components/schemas/DraftProposalLine" }
         subtotal: { $ref: "#/components/schemas/DecimalString" }
-        total: { $ref: "#/components/schemas/DecimalString", description: "Equal to subtotal: no tax, discount or shipping (AC-12)." }
+        taxRate: { $ref: "#/components/schemas/RequestedAmount" }
+        taxAmount: { $ref: "#/components/schemas/DecimalString", description: "Present with taxRate: the tax on subtotal + shipping − discount." }
+        discount: { $ref: "#/components/schemas/RequestedAmount" }
+        shipping: { $ref: "#/components/schemas/RequestedAmount" }
+        total:
+          $ref: "#/components/schemas/DecimalString"
+          description: subtotal + shipping − discount + tax, by the invoice domain's arithmetic; equal to subtotal when the request set none of them (AC-12).
+        poNumber: { $ref: "#/components/schemas/RequestedText" }
+        paymentTerms: { $ref: "#/components/schemas/RequestedText" }
+        notes: { $ref: "#/components/schemas/RequestedText" }
+        terms: { $ref: "#/components/schemas/RequestedText" }
         invoiceNumber:
           description: null on a card — "assigned on creation" (AC-12). Set in the MCP answer.
           type: [string, "null"]
@@ -538,6 +570,20 @@ components:
           description: Every field path whose source is DEFAULT, for the "defaults used" list (AC-12, AC-30).
           type: array
           items: { type: string }
+    RequestedAmount:
+      description: |
+        A value only the request sets (spec.md §1 "What a request may set"), shown on the card as taken from the request.
+        Absent → the editor's default (0), which the card states ("No tax, discount or shipping").
+      type: object
+      required: [value, source]
+      additionalProperties: false
+      properties: { value: { $ref: "#/components/schemas/DecimalString" }, source: { const: REQUEST } }
+    RequestedText:
+      description: A text the request set (spec.md §1), shown on the card as taken from the request. Absent → empty.
+      type: object
+      required: [value, source]
+      additionalProperties: false
+      properties: { value: { type: string }, source: { const: REQUEST } }
     DraftProposalLine:
       type: object
       required: [name, productId, quantity, unit, rate, amount, quantitySource, unitSource, rateSource]
@@ -617,17 +663,59 @@ components:
           required: [kind, currency, senderProfileId]
           properties: { kind: { const: NO_ACCOUNT_IN_CURRENCY }, currency: { $ref: "#/components/schemas/Currency" }, senderProfileId: { $ref: "#/components/schemas/RecordId" } }
         - type: object
-          description: Several bank accounts in the currency (AC-19).
+          description: Several bank accounts in the currency and none named (AC-19). Answered by naming one in `bankAccount`.
           required: [kind, currency, accounts]
           properties:
             kind: { const: SEVERAL_ACCOUNTS_IN_CURRENCY }
             currency: { $ref: "#/components/schemas/Currency" }
-            accounts:
+            accounts: { $ref: "#/components/schemas/BankAccountOptions" }
+        - type: object
+          description: |
+            The named `bankAccount` matches no account of the sender profile (in the currency, if one was named), or
+            several (AC-19, review R-06). `accounts` lists the choices: all of them, or the matching ones. Never picks.
+          required: [kind, written, accounts]
+          properties:
+            kind: { type: string, enum: [BANK_ACCOUNT_NOT_FOUND, BANK_ACCOUNT_AMBIGUOUS] }
+            written: { type: string }
+            accounts: { $ref: "#/components/schemas/BankAccountOptions" }
+        - type: object
+          description: A line that matches a catalogue product but names neither a quantity nor a price (spec.md §1 defaults, review R-10).
+          required: [kind, lineIndex, description]
+          properties: { kind: { const: LINE_QUANTITY_MISSING }, lineIndex: { type: integer, minimum: 0 }, description: { type: string } }
+        - type: object
+          description: Several catalogue products in the invoice currency match the line's word (spec.md §1 "Matching names", AC-31, review R-11). At most 50.
+          required: [kind, lineIndex, written, candidates]
+          properties:
+            kind: { const: PRODUCT_AMBIGUOUS }
+            lineIndex: { type: integer, minimum: 0 }
+            written: { type: string }
+            candidates:
               type: array
+              maxItems: 50
               items:
                 type: object
-                required: [bankAccountId, label]
-                properties: { bankAccountId: { $ref: "#/components/schemas/RecordId" }, label: { type: string } }
+                required: [productId, name]
+                properties: { productId: { $ref: "#/components/schemas/RecordId" }, name: { $ref: "#/components/schemas/FreelancerText" } }
+        - type: object
+          description: The line's `productId` is not one of the Freelancer's active products.
+          required: [kind, lineIndex, written]
+          properties: { kind: { const: PRODUCT_NOT_FOUND }, lineIndex: { type: integer, minimum: 0 }, written: { type: string } }
+        - type: object
+          description: |
+            A value the invoice editor refuses, checked with the invoice domain's own rules before any card or create
+            (AC-31, review R-08): a due date before the issue date, a quantity not above zero, an amount over
+            99,999,999.99, a tax rate outside 0–100 %, a discount over subtotal + shipping. `field` is the editor's field
+            path (`dueDate`, `taxRate`, `discount`, `items.0.quantity`, `items.0.total`, `total`…); `message` is the
+            editor's own message, e.g. "The due date can't be before the issue date (10 Mar 2026)."
+          required: [kind, field, message]
+          properties: { kind: { const: FIELD_INVALID }, field: { type: string }, message: { type: string } }
+
+    BankAccountOptions:
+      type: array
+      items:
+        type: object
+        required: [bankAccountId, label]
+        properties: { bankAccountId: { $ref: "#/components/schemas/RecordId" }, label: { type: string } }
 
     # ---------- MCP tool ----------
     CreateDraftInvoiceInput:

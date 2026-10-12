@@ -119,7 +119,7 @@ type CreateFromCardResult =
 | already `CREATED` | `ok({ kind: 'ALREADY_CREATED', … })` | A second press, or a reconnect repeating the press, creates nothing (AC-14). The row lock makes concurrent presses wait and see `CREATED` |
 | `REPLACED` | `ok({ kind: 'REPLACED', … })` | Only the newer card can create (AC-14b) |
 | live, content differs (price, Customer renamed, profile, account, or "today") | `ok({ kind: 'OUTDATED', card })` | Marks this card `OUTDATED`, stores the updated `LIVE` card in the same Conversation, and returns it. Nothing is created (AC-18). Time alone never outdates a card |
-| live, re-resolve yields issues (Customer, profile or account gone) | `ok({ kind: 'NEEDS_ANSWERS', issues })` | Marks the card `OUTDATED` with no successor and creates nothing. The chat shows the issues as it would for a new request. **Sequence gap:** sad.md §6 flow 2 has no such branch (OQ-A1) |
+| live, re-resolve yields issues (Customer, profile, account or product gone; or a rule now fails, e.g. the request's due date is before the new day's issue date → `FIELD_INVALID`) | `ok({ kind: 'NEEDS_ANSWERS', issues })` | Marks the card `OUTDATED` with no successor and creates nothing. The chat shows the issues as it would for a new request. **Sequence gap:** sad.md §6 flow 2 has no such branch (OQ-A1) |
 | unknown card, or another Freelancer's | `fail('NOT_FOUND', 'This draft card is no longer available.')` | |
 | unexpected failure | `fail('FAILED', "The draft couldn't be created. Try again.")` | Nothing is created (one transaction) |
 
@@ -182,6 +182,8 @@ createDraftForKey(actor: ActingFreelancer, key: { id: string; name: string; canC
 ```
 
 - `resolveDraftRequest` is pure apart from reads, and is shared by `propose_draft` and Create (ADR-0006).
+- It never yields a proposal `createInvoice` would refuse (review-2026-10-12 R-08): before returning `PROPOSAL` it runs the invoice domain's own rules (`invoiceShapeSchema`, `checkDraftAmountRules`, `checkDueDate` from `lib/validations/invoice.ts`) on `toInvoiceFormInput(proposal)` and returns each failure as a `FIELD_INVALID` issue (`field` = editor field path, `message` = editor message). The default due date is the issue date + 30 days (the request's issue date when it names one).
+- Every field spec.md §1 lets a request set (bank account, tax rate, discount, shipping, PO number, payment terms, notes, terms, a line's `productId`) is carried request → proposal (source `REQUEST`) → `toInvoiceFormInput(proposal)` → the invoice, in both channels; absent → the editor's default (R-06, R-09).
 - `createDraftForKey` checks Draft permission first (`FORBIDDEN`), then the repeat mark, then resolves. In one transaction it then takes a key draft slot, creates the invoice with `assistantOrigin = PERSONAL_KEY`, `assistantKeyName` and `assistantKeyId`, and writes the repeat row.
 - The tool maps the `ActionResult` failure to `DraftToolError` (openapi.yaml).
 - `authenticatePersonalKey` ✎ also returns `canCreateDrafts` and `name` from the same row.

@@ -45,6 +45,7 @@ type Proposal = {
   dueDate: { value: string; source: string };
   lines: Line[];
   subtotal: string;
+  taxAmount?: string;
   total: string;
   invoiceNumber?: string | null;
   defaultsUsed: string[];
@@ -340,9 +341,169 @@ describe.runIf(containerRuntimeAvailable)('resolveDraftRequest (T16)', () => {
       await createProduct(prisma, user.id, { name: 'Consulting basic', price: 50, currency: 'USD' });
       await createProduct(prisma, user.id, { name: 'Consulting premium', price: 90, currency: 'USD' });
 
-      const res = await resolve(actor, { lines: [{ description: 'consulting', quantity: '1' }] });
+      const issues = await issuesOf(resolve(actor, { lines: [{ description: 'consulting', quantity: '1' }] }));
 
-      expect(res.success && res.data.kind).toBe('ISSUES');
+      // review-2026-10-12 R-11: the question is which product, naming both, not a missing amount
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'consulting' });
+      const names = (issues[0].candidates as { name: { freelancerText: string } }[]).map((c) => c.name.freelancerText);
+      expect(names).toEqual(['Consulting basic', 'Consulting premium']);
+    });
+
+    it('several matching products and a named price: still a question, never a pick (R-11)', async () => {
+      const { user, actor } = await setup();
+      await createProduct(prisma, user.id, { name: 'Consulting basic', price: 50, currency: 'USD' });
+      await createProduct(prisma, user.id, { name: 'Consulting premium', price: 90, currency: 'USD' });
+
+      const issues = await issuesOf(
+        resolve(actor, { lines: [{ description: 'consulting', quantity: '1', price: '70' }] })
+      );
+
+      expect(issues.map((i) => i.kind)).toEqual(['PRODUCT_AMBIGUOUS']);
+    });
+
+    // review-2026-10-12 R-10: quantity 1 is the default only for a line that names an amount.
+    it('a matched product with neither quantity nor price: LINE_QUANTITY_MISSING, no quantity guessed', async () => {
+      const { user, actor } = await setup();
+      await createProduct(prisma, user.id, { name: 'Consulting', price: 50, currency: 'USD' });
+
+      const issues = await issuesOf(resolve(actor, { lines: [{ description: 'consulting' }] }));
+
+      expect(issues).toEqual([{ kind: 'LINE_QUANTITY_MISSING', lineIndex: 0, description: 'consulting' }]);
+    });
+
+    it('a matched product with a named price and no quantity: quantity 1, named as a default', async () => {
+      const { user, actor } = await setup();
+      const product = await createProduct(prisma, user.id, { name: 'Consulting', price: 50, currency: 'USD' });
+
+      const p = await proposalOf(resolve(actor, { lines: [{ description: 'consulting', price: '80' }] }));
+
+      expect(p.lines[0]).toMatchObject({ productId: product.id, quantity: '1.00', quantitySource: 'DEFAULT', rate: '80.00' });
+    });
+  });
+
+  // spec.md §1 "An external Assistant may name the exact ... product it found through the read questions".
+  describe('a line naming the product by id (R-09)', () => {
+    it('links that product with its catalogue price', async () => {
+      const { user, actor } = await setup();
+      await createProduct(prisma, user.id, { name: 'Consulting basic', price: 50, currency: 'USD' });
+      const premium = await createProduct(prisma, user.id, { name: 'Consulting premium', price: 90, currency: 'USD' });
+
+      const p = await proposalOf(
+        resolve(actor, { lines: [{ description: 'consulting', productId: premium.id, quantity: '2' }] })
+      );
+
+      expect(p.lines[0]).toMatchObject({
+        productId: premium.id,
+        name: 'Consulting premium',
+        rate: '90.00',
+        rateSource: 'CATALOGUE',
+        amount: '180.00',
+      });
+    });
+
+    it("another Freelancer's product id is PRODUCT_NOT_FOUND", async () => {
+      const { actor } = await setup();
+      const b = await createFreelancer(prisma, { email: 't16-b@example.com' });
+      const foreign = await createProduct(prisma, b.id, { name: 'Consulting', price: 50, currency: 'USD' });
+
+      const issues = await issuesOf(
+        resolve(actor, { lines: [{ description: 'consulting', productId: foreign.id, quantity: '1' }] })
+      );
+
+      expect(issues).toEqual([{ kind: 'PRODUCT_NOT_FOUND', lineIndex: 0, written: foreign.id }]);
+    });
+  });
+
+  // review-2026-10-12 R-09: every field spec.md §1 lets a request set, each shown as REQUEST.
+  describe('fields a request may set (spec.md §1)', () => {
+    it('tax, discount, shipping, PO number, payment terms, notes and terms come back as REQUEST', async () => {
+      const { actor } = await setup();
+
+      const p = (await proposalOf(
+        resolve(actor, {
+          lines: [{ description: 'consulting', quantity: '20', unit: 'hours', price: '50' }],
+          taxRate: '20',
+          discount: '100',
+          shipping: '15.5',
+          poNumber: 'PO-77',
+          paymentTerms: 'Net 15',
+          notes: 'Thank you!',
+          terms: 'Pay by wire.',
+        })
+      )) as Proposal & Record<string, unknown>;
+
+      expect(p.taxRate).toEqual({ value: '20.00', source: 'REQUEST' });
+      expect(p.discount).toEqual({ value: '100.00', source: 'REQUEST' });
+      expect(p.shipping).toEqual({ value: '15.50', source: 'REQUEST' });
+      expect(p.poNumber).toEqual({ value: 'PO-77', source: 'REQUEST' });
+      expect(p.paymentTerms).toEqual({ value: 'Net 15', source: 'REQUEST' });
+      expect(p.notes).toEqual({ value: 'Thank you!', source: 'REQUEST' });
+      expect(p.terms).toEqual({ value: 'Pay by wire.', source: 'REQUEST' });
+      // the invoice domain's own arithmetic: tax on 1000 + 15.50 - 100 = 915.50
+      expect(p.subtotal).toBe('1000.00');
+      expect(p.taxAmount).toBe('183.10');
+      expect(p.total).toBe('1098.60');
+      expect(p.defaultsUsed).not.toContain('taxRate');
+    });
+
+    it('a request that sets none of them carries none (the card says no tax, discount or shipping)', async () => {
+      const { actor } = await setup();
+
+      const p = (await proposalOf(
+        resolve(actor, { lines: [{ description: 'logo', price: '600' }] })
+      )) as Proposal & Record<string, unknown>;
+
+      for (const key of ['taxRate', 'taxAmount', 'discount', 'shipping', 'poNumber', 'paymentTerms', 'notes', 'terms']) {
+        expect(p[key]).toBeUndefined();
+      }
+      expect(p.total).toBe(p.subtotal);
+    });
+  });
+
+  // review-2026-10-12 R-08 (AC-31): what the invoice editor would refuse is a question, not a card.
+  describe('the invoice rules (R-08)', () => {
+    async function fieldIssues(request: Record<string, unknown>) {
+      const { actor } = await setup();
+      const issues = await issuesOf(resolve(actor, request));
+      for (const i of issues) expect(i.kind).toBe('FIELD_INVALID');
+      return Object.fromEntries(issues.map((i) => [i.field as string, i.message as string]));
+    }
+
+    it('a due date before the issue date', async () => {
+      const byField = await fieldIssues({
+        issueDate: '2026-03-10',
+        dueDate: '2026-03-01',
+        lines: [{ description: 'logo', price: '600' }],
+      });
+      expect(byField).toEqual({ dueDate: "The due date can't be before the issue date (10 Mar 2026)." });
+    });
+
+    it('a due date before the default issue date (today)', async () => {
+      const byField = await fieldIssues({ dueDate: '2026-03-01', lines: [{ description: 'logo', price: '600' }] });
+      expect(Object.keys(byField)).toEqual(['dueDate']);
+    });
+
+    it('quantity 0', async () => {
+      const byField = await fieldIssues({ lines: [{ description: 'logo', quantity: '0', price: '600' }] });
+      expect(byField).toEqual({ 'items.0.quantity': 'Quantity must be greater than zero.' });
+    });
+
+    it('a line amount over 99,999,999.99', async () => {
+      const byField = await fieldIssues({
+        lines: [{ description: 'logo', quantity: '10000', price: '10000.01' }],
+      });
+      expect(byField['items.0.total']).toBe("The line amount can't exceed 99,999,999.99.");
+    });
+
+    it('a tax rate over 100 %', async () => {
+      const byField = await fieldIssues({ taxRate: '120', lines: [{ description: 'logo', price: '600' }] });
+      expect(byField).toEqual({ taxRate: 'Tax rate must be between 0 and 100 %.' });
+    });
+
+    it('a discount over the subtotal plus shipping', async () => {
+      const byField = await fieldIssues({ discount: '700', lines: [{ description: 'logo', price: '600' }] });
+      expect(byField).toEqual({ discount: "Discount can't exceed the subtotal plus shipping." });
     });
   });
 

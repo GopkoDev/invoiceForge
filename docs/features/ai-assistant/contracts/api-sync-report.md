@@ -76,12 +76,18 @@ feature_size: "L"
 | DraftRequest.issueDate / dueDate (LocalDate) | existing `Invoice.issueDate`/`dueDate` calendar days (mcp-server ADR-0009) | high |
 | DraftProposal (every value with its source) | data-model → `DraftCard.proposal`; AC-12, AC-16, AC-19, AC-30 | high |
 | sources `REQUEST` / `CUSTOM_PRICE` / `CATALOGUE` / `DEFAULT` | AC-12 ("named as the default used"), AC-16 (custom price as the source), AC-19 (quantity 1, unit "item" as defaults) | high |
-| issueDate today, dueDate +30, no tax/discount/shipping | existing `newInvoiceDefaults` (editor-data.ts); AC-12 | high |
+| issueDate today, dueDate = issueDate + 30 (the request's issue date when named — R-08), no tax/discount/shipping unless the request sets them (R-09) | existing `newInvoiceDefaults` (editor-data.ts); AC-12 | high |
 | invoiceNumber null on a card | AC-12 "to be assigned on creation" | high |
 | bankAccount.label | existing `BankAccount.bankName` + `accountNumber` (last four) | high |
 | line.unit default "item" | AC-19. Note: `Product.unit` defaults to `pcs`, so "item" applies to free-text lines only | high |
 | line.agreedCustomPrice | AC-16b "shows the agreed custom price of 45.00 USD beside it" | high |
 | DraftIssue kinds | AC-17 (two kinds), AC-19 (two kinds), AC-20, AC-21, AC-22, AC-16b; ux-flows US-06 (near miss, currency unclear). `SENDER_PROFILE_NOT_FOUND` comes from the AC-17 "names it" path | high, except `CUSTOMER_NEAR_MISS` (ux-flows only, medium) |
+| DraftRequest.bankAccount (words or id, ≤ 200) → `BANK_ACCOUNT_NOT_FOUND` / `BANK_ACCOUNT_AMBIGUOUS` | AC-19 "the chat asks which one" needs an answer the request can carry; spec.md §1 "What a request may set: bank account"; review-2026-10-12 R-06 | high |
+| DraftRequest.taxRate / discount / shipping / poNumber / paymentTerms / notes / terms; proposal `RequestedAmount` / `RequestedText` (source REQUEST, absent = editor default) + `taxAmount` | spec.md §1 "What a request may set"; existing `Invoice.taxRate` Decimal(5,2), `discount`/`shipping` Decimal(10,2), `poNumber`/`paymentTerms`/`notes`/`terms` TEXT (length caps 100/200/2,000/2,000 are zod proposals); review R-09 | high (caps medium) |
+| DraftRequestLine.productId → `PRODUCT_NOT_FOUND` | spec.md §1 "An external Assistant may name the exact … product" | high |
+| `LINE_QUANTITY_MISSING` | spec.md §1 defaults "quantity 1 only for a line that names an amount"; review R-10 | high |
+| `PRODUCT_AMBIGUOUS` (≤ 50 candidates) | spec.md §1 "Matching names: several matches → asked which one"; AC-31; review R-11 | high |
+| `FIELD_INVALID` {field, message}; LocalDate must be a real calendar day; default due = issue date + 30 | AC-31 "the same rule the chat follows"; the invoice domain's rules in `lib/validations/invoice.ts` (`invoiceShapeSchema`, `checkDraftAmountRules`, `checkDueDate`), reused not restated; `newInvoiceDefaults` "due 30 days later"; review R-08 | high |
 
 ### MCP `create_draft_invoice`
 

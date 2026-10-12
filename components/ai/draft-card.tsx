@@ -92,14 +92,51 @@ function issueCopy(issue: DraftIssue): string {
       return `You have no bank account in ${issue.currency}.`;
     case 'SEVERAL_ACCOUNTS_IN_CURRENCY':
       return `You have several bank accounts in ${issue.currency}.`;
+    case 'BANK_ACCOUNT_NOT_FOUND':
+      return `${issue.written} is no longer among this sender profile's bank accounts.`;
+    case 'BANK_ACCOUNT_AMBIGUOUS':
+      return `${issue.written} no longer matches exactly one of your bank accounts.`;
+    case 'LINE_QUANTITY_MISSING':
+      return `${issue.description} has no quantity.`;
+    case 'PRODUCT_AMBIGUOUS':
+      return `${issue.written} no longer matches exactly one of your products.`;
+    case 'PRODUCT_NOT_FOUND':
+      return "A line's product is no longer in your catalogue.";
+    case 'FIELD_INVALID':
+      return issue.message;
   }
 }
+
+/** The editor defaults of the three amounts the request left out, e.g. "No discount or shipping." */
+function unsetAmountsCopy(proposal: DraftCardView['proposal']): string | null {
+  const unset = [
+    !proposal.taxRate && 'tax',
+    !proposal.discount && 'discount',
+    !proposal.shipping && 'shipping',
+  ].filter((w): w is string => Boolean(w));
+  if (unset.length === 0) return null;
+  const words = unset.length === 1 ? unset[0] : `${unset.slice(0, -1).join(', ')} or ${unset[unset.length - 1]}`;
+  return `No ${words}.`;
+}
+
+const FROM_REQUEST = ' (from your request)';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
       <dt className="text-muted-foreground w-28 shrink-0 text-sm">{label}</dt>
       <dd className="min-w-0 text-sm break-words">{children}</dd>
+    </div>
+  );
+}
+
+function AmountRow({ label, value, currency }: { label: string; value: string; currency: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>
+        {money(value)} {currency}
+      </dd>
     </div>
   );
 }
@@ -261,6 +298,12 @@ export function DraftCard({ card }: { card: DraftCardView }) {
             {formatDay(proposal.dueDate.value)}
             {proposal.dueDate.source === 'DEFAULT' && ' (in 30 days, default)'}
           </Row>
+          {proposal.poNumber && <Row label="PO number">{proposal.poNumber.value}{FROM_REQUEST}</Row>}
+          {proposal.paymentTerms && (
+            <Row label="Payment terms">{proposal.paymentTerms.value}{FROM_REQUEST}</Row>
+          )}
+          {proposal.notes && <Row label="Notes">{proposal.notes.value}{FROM_REQUEST}</Row>}
+          {proposal.terms && <Row label="Terms">{proposal.terms.value}{FROM_REQUEST}</Row>}
         </dl>
         <Separator />
         <ul className="flex flex-col gap-2">
@@ -290,11 +333,31 @@ export function DraftCard({ card }: { card: DraftCardView }) {
           })}
         </ul>
         <Separator />
+        {(proposal.taxRate || proposal.discount || proposal.shipping) && (
+          <dl className="flex flex-col gap-1 text-sm">
+            <AmountRow label="Subtotal" value={proposal.subtotal} currency={proposal.currency} />
+            {proposal.discount && (
+              <AmountRow label={`Discount${FROM_REQUEST}`} value={proposal.discount.value} currency={proposal.currency} />
+            )}
+            {proposal.shipping && (
+              <AmountRow label={`Shipping${FROM_REQUEST}`} value={proposal.shipping.value} currency={proposal.currency} />
+            )}
+            {proposal.taxRate && (
+              <AmountRow
+                label={`Tax ${plainQuantity(proposal.taxRate.value)} %${FROM_REQUEST}`}
+                value={proposal.taxAmount ?? '0.00'}
+                currency={proposal.currency}
+              />
+            )}
+          </dl>
+        )}
         <p className="flex justify-between gap-2 text-sm font-medium">
           <span>Total</span> <span>{money(proposal.total)} {proposal.currency}</span>
         </p>
         <p className="text-muted-foreground text-xs">
-          No tax, discount or shipping. The invoice number is assigned when the draft is created.
+          {[unsetAmountsCopy(proposal), 'The invoice number is assigned when the draft is created.']
+            .filter(Boolean)
+            .join(' ')}
         </p>
         {defaults && <p className="text-muted-foreground text-xs">Defaults used: {defaults}.</p>}
         {view.kind === 'created' ? (

@@ -115,6 +115,55 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
     expect(day.created).toBe(1);
   });
 
+  // review-2026-10-12 R-09: the MCP channel carries the same request fields as the chat.
+  it('carries notes, terms, PO number, payment terms, tax, discount and shipping into the draft', async () => {
+    const s = await setup();
+
+    const res = await svc.createDraftForKey(
+      s.actor,
+      s.key,
+      {
+        ...REQUEST,
+        taxRate: '10',
+        discount: '50',
+        shipping: '20',
+        poNumber: 'PO-77',
+        paymentTerms: 'Net 15',
+        notes: 'Thank you!',
+        terms: 'Pay by wire.',
+      },
+      NOW
+    );
+
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    const inv = await prisma.invoice.findFirstOrThrow();
+    expect(inv).toMatchObject({ poNumber: 'PO-77', paymentTerms: 'Net 15', notes: 'Thank you!', terms: 'Pay by wire.' });
+    expect(Number(inv.total)).toBe(1067);
+    expect(res.data.draft.notes).toEqual({ value: 'Thank you!', source: 'REQUEST' });
+    expect(res.data.draft.total).toBe('1067.00');
+  });
+
+  // review-2026-10-12 R-08 (AC-31): a request the invoice rules refuse names the field; nothing is created.
+  it('a due date before the issue date is refused with a FIELD_INVALID issue, not a generic failure', async () => {
+    const s = await setup();
+
+    const res = await svc.createDraftForKey(
+      s.actor,
+      s.key,
+      { ...REQUEST, issueDate: '2026-03-10', dueDate: '2026-03-01' },
+      NOW
+    );
+
+    expect(res.success).toBe(false);
+    if (res.success) return;
+    expect(res.code).toBe('VALIDATION');
+    expect(res.details?.issues).toEqual([
+      { kind: 'FIELD_INVALID', field: 'dueDate', message: "The due date can't be before the issue date (10 Mar 2026)." },
+    ]);
+    expect(await prisma.invoice.count()).toBe(0);
+  });
+
   it('AC-29: a key without Draft permission is FORBIDDEN and nothing is written', async () => {
     const s = await setup({ canCreateDrafts: false });
 

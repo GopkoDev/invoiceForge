@@ -152,6 +152,32 @@ describe.runIf(containerRuntimeAvailable)('Draft cards and the Create press (T20
       expect(stored.invoiceId).toBe(inv.id);
     });
 
+    // review-2026-10-12 R-09: what the request set reaches the invoice; nothing is dropped.
+    it('carries tax, discount, shipping, PO number, payment terms, notes and terms into the draft', async () => {
+      const s = await setup();
+      const card = await storeCard(s, {
+        ...REQUEST,
+        taxRate: '10',
+        discount: '50',
+        shipping: '20',
+        poNumber: 'PO-77',
+        paymentTerms: 'Net 15',
+        notes: 'Thank you!',
+        terms: 'Pay by wire.',
+      });
+
+      const res = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(res.success && res.data.kind).toBe('CREATED');
+      const inv = await prisma.invoice.findFirstOrThrow();
+      expect(inv).toMatchObject({ poNumber: 'PO-77', paymentTerms: 'Net 15', notes: 'Thank you!', terms: 'Pay by wire.' });
+      expect(Number(inv.taxRate)).toBe(10);
+      expect(Number(inv.discount)).toBe(50);
+      expect(Number(inv.shipping)).toBe(20);
+      // (1000 + 20 - 50) = 970, + 10 % = 1067.00
+      expect(Number(inv.total)).toBe(1067);
+    });
+
     it('AC-11c: creates normally with the Daily message allowance used up, and never touches it', async () => {
       const s = await setup();
       const day = new Date(Date.UTC(2026, 2, 15));

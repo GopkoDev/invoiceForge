@@ -277,6 +277,117 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
     });
   });
 
+  // review-2026-10-12 R-08: the default due date counts from the issue date the request named.
+  it('a named issue date without a due date: due 30 days after that issue date (DEFAULT)', async () => {
+    const { user, actor } = await freelancer();
+    await usdProfile(user.id);
+    await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+    const p = await okParties(resolve(actor, { customer: 'Acme', issueDate: '2026-05-01' }));
+
+    expect(p.issueDate).toEqual({ value: '2026-05-01', source: 'REQUEST' });
+    expect(p.dueDate).toEqual({ value: '2026-05-31', source: 'DEFAULT' });
+  });
+
+  // review-2026-10-12 R-06 (AC-19): the request may name the bank account, matched within the profile.
+  describe('AC-19 a named bank account', () => {
+    async function twoEur(userId: string) {
+      const { profile, usd } = await usdProfile(userId);
+      const wise = await createBankAccount(prisma, profile.id, {
+        currency: 'EUR',
+        bankName: 'Wise',
+        accountNumber: 'DE0000001234',
+      });
+      const revolut = await createBankAccount(prisma, profile.id, {
+        currency: 'EUR',
+        bankName: 'Revolut',
+        accountNumber: 'LT0000005678',
+      });
+      await createCustomer(prisma, userId, { name: 'Acme Corp' });
+      return { profile, usd, wise, revolut };
+    }
+
+    it('several EUR accounts and the request names one ("wise"): that account, source REQUEST', async () => {
+      const { user, actor } = await freelancer();
+      const { wise } = await twoEur(user.id);
+
+      const p = await okParties(resolve(actor, { customer: 'Acme', currency: 'EUR', bankAccount: 'wise' }));
+
+      expect(p.bankAccount).toMatchObject({ bankAccountId: wise.id, currency: 'EUR', source: 'REQUEST' });
+      expect(p.bankAccount.label).toBe('Wise ••1234');
+      expect(p.currency).toBe('EUR');
+    });
+
+    it('the account named by its last four digits, or by its id', async () => {
+      const { user, actor } = await freelancer();
+      const { revolut, wise } = await twoEur(user.id);
+
+      const byDigits = await okParties(resolve(actor, { customer: 'Acme', currency: 'EUR', bankAccount: '5678' }));
+      const byId = await okParties(resolve(actor, { customer: 'Acme', bankAccount: wise.id }));
+
+      expect(byDigits.bankAccount.bankAccountId).toBe(revolut.id);
+      expect(byId.bankAccount).toMatchObject({ bankAccountId: wise.id, source: 'REQUEST' });
+    });
+
+    it('a named account without a currency sets the currency (an invoice and its account share one)', async () => {
+      const { user, actor } = await freelancer();
+      const { revolut } = await twoEur(user.id);
+
+      const p = await okParties(resolve(actor, { customer: 'Acme', bankAccount: 'Revolut' }));
+
+      expect(p.bankAccount).toMatchObject({ bankAccountId: revolut.id, source: 'REQUEST' });
+      expect(p.currency).toBe('EUR');
+    });
+
+    it('a name that matches no account of the profile: BANK_ACCOUNT_NOT_FOUND naming the choices', async () => {
+      const { user, actor } = await freelancer();
+      const { wise, revolut } = await twoEur(user.id);
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'EUR', bankAccount: 'Monzo' }));
+
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Monzo' });
+      const accounts = issues[0].accounts as { bankAccountId: string }[];
+      expect(accounts.map((a) => a.bankAccountId).sort()).toEqual([wise.id, revolut.id].sort());
+    });
+
+    it('an account in another currency than the one named is not used', async () => {
+      const { user, actor } = await freelancer();
+      await twoEur(user.id);
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Wise' }));
+
+      expect(issues.map((i) => i.kind)).toEqual(['BANK_ACCOUNT_NOT_FOUND']);
+    });
+
+    it('a name matching several accounts: BANK_ACCOUNT_AMBIGUOUS, never a pick', async () => {
+      const { user, actor } = await freelancer();
+      const { profile } = await usdProfile(user.id);
+      const a = await createBankAccount(prisma, profile.id, { currency: 'EUR', bankName: 'Wise', accountNumber: '1111' });
+      const b = await createBankAccount(prisma, profile.id, { currency: 'EUR', bankName: 'Wise', accountNumber: '2222' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', bankAccount: 'wise' }));
+
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ kind: 'BANK_ACCOUNT_AMBIGUOUS', written: 'wise' });
+      const accounts = issues[0].accounts as { bankAccountId: string }[];
+      expect(accounts.map((x) => x.bankAccountId).sort()).toEqual([a.id, b.id].sort());
+    });
+
+    it("another profile's account is not matched", async () => {
+      const { user, actor } = await freelancer();
+      await usdProfile(user.id);
+      const other = await createSenderProfile(prisma, user.id, { name: 'Studio' });
+      await createBankAccount(prisma, other.id, { currency: 'EUR', bankName: 'Wise' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', bankAccount: 'Wise' }));
+
+      expect(issues.map((i) => i.kind)).toEqual(['BANK_ACCOUNT_NOT_FOUND']);
+    });
+  });
+
   describe('AC-20 several Customers', () => {
     it('"Acme" matches Acme Corp and Acme GmbH: asks which, naming both, picks none', async () => {
       const { user, actor } = await freelancer();

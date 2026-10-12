@@ -6,7 +6,7 @@ import { prisma } from '@/prisma';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { newInvoiceDefaults } from '@/lib/services/invoices/editor-data';
 import { bankAccountSelect } from '@/lib/services/invoices/select-queries';
-import { utcDateToDay } from '@/lib/helpers/calendar-day';
+import { addDaysToDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
@@ -23,6 +23,7 @@ type Currency = DraftProposal['currency'];
 type Account = {
   id: string;
   bankName: string;
+  accountName: string;
   accountNumber: string;
   currency: Currency;
   isDefault: boolean;
@@ -82,6 +83,29 @@ async function resolveCustomer(
   return { issue: { kind: 'CUSTOMER_NOT_FOUND', written } };
 }
 
+const accountOption = (a: Account) => ({ bankAccountId: a.id, label: accountLabel(a) });
+
+/**
+ * AC-19 (review-2026-10-12 R-06): the bank account the request names, matched within the chosen
+ * profile (and currency) like a name (spec.md §1 "Matching names"): its id, or words contained in
+ * its bank name, account name or account number. One exact name wins; several → asked; none → told.
+ */
+function matchAccount(written: string, accounts: Account[]): { account: Account } | { issue: DraftIssue } {
+  const byId = accounts.find((a) => a.id === written);
+  if (byId) return { account: byId };
+  const needle = written.trim().toLowerCase();
+  const matches = accounts.filter((a) =>
+    [a.bankName, a.accountName, a.accountNumber, accountLabel(a)].some((t) => t.toLowerCase().includes(needle))
+  );
+  if (matches.length === 1) return { account: matches[0] };
+  const exact = matches.filter((a) => a.bankName.toLowerCase() === needle || accountLabel(a).toLowerCase() === needle);
+  if (exact.length === 1) return { account: exact[0] };
+  if (matches.length > 1) {
+    return { issue: { kind: 'BANK_ACCOUNT_AMBIGUOUS', written, accounts: matches.map(accountOption) } };
+  }
+  return { issue: { kind: 'BANK_ACCOUNT_NOT_FOUND', written, accounts: accounts.map(accountOption) } };
+}
+
 type Chosen = {
   senderProfile: ResolvedParties['senderProfile'];
   bankAccount: ResolvedParties['bankAccount'];
@@ -135,18 +159,27 @@ function resolveSenderAndAccount(
     profile.bankAccounts.find((a) => a.id === defaults.bankAccountId) ??
     profile.bankAccounts.find((a) => a.isDefault) ??
     profile.bankAccounts[0];
-  let account = defaultAccount;
-  let accountSource: 'REQUEST' | 'DEFAULT' = 'DEFAULT';
+  let currency: Currency | undefined;
   if (request.currency !== undefined) {
     const reading = interpretCurrency(request.currency, defaultAccount.currency);
     if (reading.kind === 'UNCLEAR') {
       return { issue: { kind: 'CURRENCY_UNCLEAR', written: request.currency, options: reading.options } };
     }
-    const currency = reading.currency as Currency;
-    const inCurrency = profile.bankAccounts.filter((a) => a.currency === currency);
-    if (inCurrency.length === 0) {
-      return { issue: { kind: 'NO_ACCOUNT_IN_CURRENCY', currency, senderProfileId: profile.id } };
-    }
+    currency = reading.currency as Currency;
+  }
+  const inCurrency = profile.bankAccounts.filter((a) => currency === undefined || a.currency === currency);
+  if (currency !== undefined && inCurrency.length === 0) {
+    return { issue: { kind: 'NO_ACCOUNT_IN_CURRENCY', currency, senderProfileId: profile.id } };
+  }
+
+  let account = defaultAccount;
+  let accountSource: 'REQUEST' | 'DEFAULT' = 'DEFAULT';
+  if (request.bankAccount !== undefined) {
+    const named = matchAccount(request.bankAccount, inCurrency);
+    if ('issue' in named) return named;
+    account = named.account;
+    accountSource = 'REQUEST';
+  } else if (currency !== undefined) {
     const preferred = inCurrency.find((a) => a.id === defaultAccount.id);
     if (preferred) {
       account = preferred;
@@ -158,7 +191,7 @@ function resolveSenderAndAccount(
         issue: {
           kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
           currency,
-          accounts: inCurrency.map((a) => ({ bankAccountId: a.id, label: accountLabel(a) })),
+          accounts: inCurrency.map(accountOption),
         },
       };
     }
@@ -219,6 +252,9 @@ export async function resolveParties(
   }
 
   const { chosen } = partiesResult;
+  const issueDate: ResolvedParties['issueDate'] = request.issueDate
+    ? { value: request.issueDate, source: 'REQUEST' }
+    : { value: utcDateToDay(defaults.issueDate), source: 'DEFAULT' };
   return {
     ok: true,
     parties: {
@@ -226,12 +262,11 @@ export async function resolveParties(
       senderProfile: chosen.senderProfile,
       bankAccount: chosen.bankAccount,
       currency: chosen.currency,
-      issueDate: request.issueDate
-        ? { value: request.issueDate, source: 'REQUEST' }
-        : { value: utcDateToDay(defaults.issueDate), source: 'DEFAULT' },
+      issueDate,
+      // Due 30 days after the issue date - the request's when it names one (review-2026-10-12 R-08).
       dueDate: request.dueDate
         ? { value: request.dueDate, source: 'REQUEST' }
-        : { value: utcDateToDay(defaults.dueDate), source: 'DEFAULT' },
+        : { value: addDaysToDay(issueDate.value, 30), source: 'DEFAULT' },
     },
   };
 }

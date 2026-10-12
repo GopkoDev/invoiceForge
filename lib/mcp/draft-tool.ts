@@ -24,7 +24,8 @@ export const createDraftTool = {
   title: 'Create a draft invoice',
   description:
     "Creates a Draft invoice for the Freelancer from a request in their words: the Customer, the lines " +
-    'as stated, and optionally the currency, sender profile and dates. Values the request leaves out are ' +
+    'as stated (a line may name a product by its id), and optionally the currency, sender profile, bank account, ' +
+    'dates, tax rate, discount, shipping, PO number, payment terms, notes and terms. Values the request leaves out are ' +
     "filled with the editor's defaults and listed in the answer; nothing ambiguous or missing is guessed " +
     '— the call is refused and names what to ask the Freelancer. The draft is never issued or sent. ' +
     'Needs a Personal key with Draft permission. Pass `repeatKey` to retry safely after a lost answer. ' +

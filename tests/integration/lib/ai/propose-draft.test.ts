@@ -99,6 +99,34 @@ describe.runIf(containerRuntimeAvailable)('propose_draft tool (T27)', () => {
     expect(proposal.lines[0]).toMatchObject({ quantity: '1.00', unit: 'item', rate: '600.00', amount: '600.00' });
   });
 
+  // review-2026-10-12 R-06: SEVERAL_ACCOUNTS_IN_CURRENCY is a question the Freelancer can answer.
+  it('AC-19: several EUR accounts ask which; the answer naming the account gets the card', async () => {
+    const { profile, turn, call } = await setup();
+    await createBankAccount(prisma, profile.id, { currency: 'EUR', bankName: 'Wise', accountNumber: 'DE0000001234' });
+    const revolut = await createBankAccount(prisma, profile.id, { currency: 'EUR', bankName: 'Revolut' });
+    const first = { customer: 'Acme', currency: 'EUR', lines: [{ description: 'logo design', price: '600' }] };
+
+    const asked = await call(first);
+
+    expect(asked.kind).toBe('ISSUES');
+    expect(asked.issues.map((i: any) => i.kind)).toEqual(['SEVERAL_ACCOUNTS_IN_CURRENCY']);
+    expect(turn.pending.card).toBeNull();
+
+    const answered = await call({ ...first, bankAccount: 'Revolut' });
+
+    expect(answered.kind).toBe('CARD');
+    const proposal = (turn.pending.card as any).proposal;
+    expect(proposal.bankAccount).toMatchObject({ bankAccountId: revolut.id, currency: 'EUR', source: 'REQUEST' });
+  });
+
+  it('the tool input takes every field spec.md §1 lets a request set (R-06, R-09)', async () => {
+    const { tool } = await setup();
+    const keys = Object.keys(tool.inputSchema._def.schema?.shape ?? tool.inputSchema.shape ?? {});
+    for (const key of ['bankAccount', 'taxRate', 'discount', 'shipping', 'poNumber', 'paymentTerms', 'notes', 'terms']) {
+      expect(keys).toContain(key);
+    }
+  });
+
   it('AC-20: two matching Customers come back as CUSTOMER_AMBIGUOUS naming both, with no card', async () => {
     const { user, turn, call } = await setup();
     await createCustomer(prisma, user.id, { name: 'Acme GmbH' });

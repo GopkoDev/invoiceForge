@@ -3,11 +3,13 @@
 // the Freelancer's own words, the resolver alone produces values or issues).
 import 'server-only';
 import { z } from 'zod';
+import { isCalendarDay } from '@/lib/helpers/calendar-day';
 
 const recordId = z.string().min(1).max(64);
 const currency = z.enum(['UAH', 'USD', 'EUR', 'GBP', 'PLN']);
 const decimalString = z.string().regex(/^-?\d+\.\d{2}$/);
-const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+// A real calendar day: 2026-02-30 is refused here, never reaching the resolver or the invoice.
+const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDay, 'Not a calendar day.');
 const amountInput = z.string().regex(/^\d{1,8}(\.\d{1,2})?$/);
 const freelancerText = z.object({ freelancerText: z.string() });
 
@@ -15,50 +17,54 @@ const freelancerText = z.object({ freelancerText: z.string() });
 export const draftRequestLineSchema = z
   .object({
     description: z.string().min(1).max(200),
+    productId: recordId.optional().describe('The exact catalogue product found through the read tools, instead of a name match.'),
     quantity: amountInput.optional(),
     unit: z.string().max(20).optional(),
     price: amountInput.optional(),
   })
   .strict();
 
-export const draftRequestSchema = z
-  .object({
-    customer: z.string().min(1).max(200).optional(),
-    customerId: recordId.optional(),
-    senderProfile: z.string().min(1).max(200).optional(),
-    currency: z.string().min(1).max(8).optional(),
-    lines: z.array(draftRequestLineSchema).min(1).max(50),
-    issueDate: localDate.optional(),
-    dueDate: localDate.optional(),
-    notes: z.string().max(2000).optional(),
-  })
-  .strict()
-  .refine((v) => (v.customer === undefined) !== (v.customerId === undefined), {
-    message: 'Give exactly one of customer and customerId.',
-    path: ['customer'],
-  });
+// spec.md §1 "What a request may set": every field the editor has. The invoice domain's rules (tax 0-100 %,
+// discount cap, amount bounds, due >= issue) are checked by the resolver, which reuses the editor's own.
+const draftRequestShape = {
+  customer: z.string().min(1).max(200).optional(),
+  customerId: recordId.optional(),
+  senderProfile: z.string().min(1).max(200).optional(),
+  bankAccount: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("The bank account as written (its bank name, account name or last digits) or its id; matched within the sender profile."),
+  currency: z.string().min(1).max(8).optional(),
+  lines: z.array(draftRequestLineSchema).min(1).max(50),
+  issueDate: localDate.optional(),
+  dueDate: localDate.optional(),
+  taxRate: amountInput.optional().describe('Tax rate in percent, as written, e.g. "20".'),
+  discount: amountInput.optional().describe('Discount amount in the invoice currency.'),
+  shipping: amountInput.optional().describe('Shipping amount in the invoice currency.'),
+  poNumber: z.string().max(100).optional(),
+  paymentTerms: z.string().max(200).optional(),
+  notes: z.string().max(2000).optional(),
+  terms: z.string().max(2000).optional(),
+};
 
-// An extended refined schema cannot be re-extended, so the repeat mark is added on the base shape.
+const oneCustomer = (v: { customer?: string; customerId?: string }) =>
+  (v.customer === undefined) !== (v.customerId === undefined);
+const ONE_CUSTOMER = { message: 'Give exactly one of customer and customerId.', path: ['customer'] };
+
+export const draftRequestSchema = z.object(draftRequestShape).strict().refine(oneCustomer, ONE_CUSTOMER);
+
 export const createDraftInvoiceInputSchema = z
-  .object({
-    customer: z.string().min(1).max(200).optional(),
-    customerId: recordId.optional(),
-    senderProfile: z.string().min(1).max(200).optional(),
-    currency: z.string().min(1).max(8).optional(),
-    lines: z.array(draftRequestLineSchema).min(1).max(50),
-    issueDate: localDate.optional(),
-    dueDate: localDate.optional(),
-    notes: z.string().max(2000).optional(),
-    repeatKey: z.string().min(1).max(200).optional(),
-  })
+  .object({ ...draftRequestShape, repeatKey: z.string().min(1).max(200).optional() })
   .strict()
-  .refine((v) => (v.customer === undefined) !== (v.customerId === undefined), {
-    message: 'Give exactly one of customer and customerId.',
-    path: ['customer'],
-  });
+  .refine(oneCustomer, ONE_CUSTOMER);
 
 // ---------- proposal ----------
 const dated = z.object({ value: localDate, source: z.enum(['REQUEST', 'DEFAULT']) });
+// A value only the request sets (spec.md §1); absent = the editor's default (no tax, discount or shipping, empty text).
+const requested = <T extends z.ZodTypeAny>(value: T) =>
+  z.object({ value, source: z.literal('REQUEST') }).strict().optional();
 
 export const draftProposalLineSchema = z
   .object({
@@ -98,7 +104,15 @@ export const draftProposalSchema = z
     dueDate: dated,
     lines: z.array(draftProposalLineSchema).min(1).max(50),
     subtotal: decimalString,
+    taxRate: requested(decimalString),
+    taxAmount: decimalString.optional(),
+    discount: requested(decimalString),
+    shipping: requested(decimalString),
     total: decimalString,
+    poNumber: requested(z.string()),
+    paymentTerms: requested(z.string()),
+    notes: requested(z.string()),
+    terms: requested(z.string()),
     invoiceNumber: z.string().nullable().optional(),
     defaultsUsed: z.array(z.string()),
   })
@@ -109,6 +123,10 @@ const lineIndex = z.number().int().min(0);
 const candidates = z
   .array(z.object({ customerId: recordId, name: freelancerText }))
   .max(50);
+const productCandidates = z
+  .array(z.object({ productId: recordId, name: freelancerText }))
+  .max(50);
+const accounts = z.array(z.object({ bankAccountId: recordId, label: z.string() }));
 
 export const draftIssueSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('NO_SENDER_PROFILE_WITH_ACCOUNT') }),
@@ -137,11 +155,18 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     currency,
     senderProfileId: recordId,
   }),
+  z.object({ kind: z.literal('SEVERAL_ACCOUNTS_IN_CURRENCY'), currency, accounts }),
+  z.object({ kind: z.literal('BANK_ACCOUNT_NOT_FOUND'), written: z.string(), accounts }),
+  z.object({ kind: z.literal('BANK_ACCOUNT_AMBIGUOUS'), written: z.string(), accounts }),
+  z.object({ kind: z.literal('LINE_QUANTITY_MISSING'), lineIndex, description: z.string() }),
   z.object({
-    kind: z.literal('SEVERAL_ACCOUNTS_IN_CURRENCY'),
-    currency,
-    accounts: z.array(z.object({ bankAccountId: recordId, label: z.string() })),
+    kind: z.literal('PRODUCT_AMBIGUOUS'),
+    lineIndex,
+    written: z.string(),
+    candidates: productCandidates,
   }),
+  z.object({ kind: z.literal('PRODUCT_NOT_FOUND'), lineIndex, written: z.string() }),
+  z.object({ kind: z.literal('FIELD_INVALID'), field: z.string(), message: z.string() }),
 ]);
 
 export type DraftRequest = z.infer<typeof draftRequestSchema>;

@@ -54,6 +54,15 @@ describe('draftRequestSchema (DraftRequest)', () => {
       issueDate: '2026-10-11',
       dueDate: '2026-11-10',
       notes: 'n'.repeat(2000),
+      // review-2026-10-12 R-06, R-09: every field spec.md §1 says a request may set
+      bankAccount: 'Wise',
+      taxRate: '20',
+      discount: '10.50',
+      shipping: '5',
+      poNumber: 'PO-77',
+      paymentTerms: 'Net 15',
+      terms: 't'.repeat(2000),
+      lines: [{ description: 'consulting', productId: 'clx0prod0000000000000001', quantity: '2' }],
     });
     expect(draftRequestSchema.safeParse(full).success).toBe(true);
   });
@@ -65,7 +74,7 @@ describe('draftRequestSchema (DraftRequest)', () => {
     ['a 201-character customer', request({ customer: 'a'.repeat(201) })],
     ['no lines', request({ lines: [] })],
     ['51 lines', request({ lines: Array.from({ length: 51 }, () => ({ description: 'x' })) })],
-    ['an unknown property', request({ taxRate: '10' })],
+    ['an unknown property', request({ colour: 'red' })],
     ['an unknown line property', request({ lines: [{ description: 'x', discount: '1' }] })],
     ['a line without description', request({ lines: [{ quantity: '1' }] })],
     ['quantity 20.005', request({ lines: [{ description: 'x', quantity: '20.005' }] })],
@@ -76,6 +85,17 @@ describe('draftRequestSchema (DraftRequest)', () => {
     ['a 9-character currency', request({ currency: 'EUR-EURO!' })],
     ['a malformed date', request({ issueDate: '11/10/2026' })],
     ['notes over 2000 characters', request({ notes: 'n'.repeat(2001) })],
+    // review-2026-10-12 R-08: an impossible calendar day never reaches the resolver
+    ['an impossible issue date (30 Feb)', request({ issueDate: '2026-02-30' })],
+    ['an impossible due date (31 Apr)', request({ dueDate: '2026-04-31' })],
+    ['an empty bank account', request({ bankAccount: '' })],
+    ['a tax rate as a number', request({ taxRate: 20 })],
+    ['a negative discount', request({ discount: '-1' })],
+    ['shipping with three decimals', request({ shipping: '1.005' })],
+    ['terms over 2000 characters', request({ terms: 't'.repeat(2001) })],
+    ['a PO number over 100 characters', request({ poNumber: 'p'.repeat(101) })],
+    ['payment terms over 200 characters', request({ paymentTerms: 'p'.repeat(201) })],
+    ['an empty line productId', request({ lines: [{ description: 'x', productId: '' }] })],
   ])('rejects %s', (_label, value) => {
     expect(draftRequestSchema.safeParse(value).success).toBe(false);
   });
@@ -135,6 +155,32 @@ describe('draftProposalSchema (DraftProposal)', () => {
     expect(draftProposalSchema.safeParse({ ...draftExample, ...over }).success).toBe(false);
   });
 
+  it('accepts the request-set fields, each REQUEST, with the tax amount (R-09)', () => {
+    const requested = (value: string) => ({ value, source: 'REQUEST' });
+    const value = {
+      ...draftExample,
+      taxRate: requested('20.00'),
+      taxAmount: '200.00',
+      discount: requested('0.00'),
+      shipping: requested('5.00'),
+      poNumber: requested('PO-77'),
+      paymentTerms: requested('Net 15'),
+      notes: requested('Thanks!'),
+      terms: requested('Pay by wire.'),
+      total: '1205.00',
+    };
+    expect(draftProposalSchema.safeParse(value).success).toBe(true);
+    expect(
+      draftProposalSchema.safeParse({ ...value, notes: { value: 'x', source: 'DEFAULT' } }).success
+    ).toBe(false);
+    expect(draftProposalSchema.safeParse({ ...value, taxRate: requested('20') }).success).toBe(false);
+  });
+
+  it('rejects an impossible calendar day in a proposal (R-08)', () => {
+    const value = { ...draftExample, dueDate: { value: '2026-02-30', source: 'REQUEST' } };
+    expect(draftProposalSchema.safeParse(value).success).toBe(false);
+  });
+
   it('rejects a line with an unknown rateSource and 51 lines', () => {
     const bad = { ...draftExample.lines[0], rateSource: 'GUESS' };
     expect(draftProposalSchema.safeParse({ ...draftExample, lines: [bad] }).success).toBe(false);
@@ -165,6 +211,28 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
       currency: 'USD',
       accounts: [{ bankAccountId: 'ba1', label: 'Bank ••0000' }],
     },
+    // review-2026-10-12 R-06, R-08, R-10, R-11
+    { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Revolut', accounts: [{ bankAccountId: 'ba1', label: 'Wise ••1234' }] },
+    {
+      kind: 'BANK_ACCOUNT_AMBIGUOUS',
+      written: 'Wise',
+      accounts: [
+        { bankAccountId: 'ba1', label: 'Wise ••1234' },
+        { bankAccountId: 'ba2', label: 'Wise ••5678' },
+      ],
+    },
+    { kind: 'LINE_QUANTITY_MISSING', lineIndex: 0, description: 'consulting' },
+    {
+      kind: 'PRODUCT_AMBIGUOUS',
+      lineIndex: 0,
+      written: 'consulting',
+      candidates: [
+        { productId: 'p1', name: { freelancerText: 'Consulting basic' } },
+        { productId: 'p2', name: { freelancerText: 'Consulting premium' } },
+      ],
+    },
+    { kind: 'PRODUCT_NOT_FOUND', lineIndex: 2, written: 'clx0prod0000000000000009' },
+    { kind: 'FIELD_INVALID', field: 'dueDate', message: "The due date can't be before the issue date (1 Feb 2026)." },
   ];
 
   it.each(valid.map((v) => [v.kind, v]))('accepts %s', (_kind, value) => {
@@ -189,6 +257,11 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
     ['LINE_AMOUNT_MISSING with a negative lineIndex', { kind: 'LINE_AMOUNT_MISSING', lineIndex: -1, description: 'x' }],
     ['LINE_AMOUNT_MISSING without description', { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0 }],
     ['an unknown currency', { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 0, currency: 'XXX' }],
+    ['PRODUCT_AMBIGUOUS without candidates', { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'x' }],
+    ['PRODUCT_AMBIGUOUS with a customer candidate', { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'x', candidates: [cus(1)] }],
+    ['LINE_QUANTITY_MISSING without lineIndex', { kind: 'LINE_QUANTITY_MISSING', description: 'x' }],
+    ['FIELD_INVALID without message', { kind: 'FIELD_INVALID', field: 'dueDate' }],
+    ['BANK_ACCOUNT_AMBIGUOUS without accounts', { kind: 'BANK_ACCOUNT_AMBIGUOUS', written: 'Wise' }],
     ['a candidate without customerId', { kind: 'CUSTOMER_NEAR_MISS', written: 'a', candidates: [{ name: { freelancerText: 'A' } }] }],
   ])('rejects %s', (_label, value) => {
     expect(draftIssueSchema.safeParse(value).success).toBe(false);
