@@ -7,6 +7,7 @@ import {
   PackageIcon,
   ShieldIcon,
   ScaleIcon,
+  SparklesIcon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -14,6 +15,7 @@ export const navigationIcons = {
   dashboard: LayoutDashboardIcon,
   settings: SettingsIcon,
   invoices: FileTextIcon,
+  ai: SparklesIcon,
   senderProfiles: Building2Icon,
   customers: UsersIcon,
   products: PackageIcon,

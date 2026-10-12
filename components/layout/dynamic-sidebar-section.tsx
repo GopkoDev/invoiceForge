@@ -70,6 +70,7 @@ const MenuItem = ({
         <SidebarMenuButton
           tooltip={item.title}
           isActive={isActive}
+          data-active={isActive ? 'true' : undefined}
           disabled={item.disabled}
         >
           {content}

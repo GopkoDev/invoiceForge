@@ -69,7 +69,7 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     expect(res.status).toBe(200);
   });
 
-  it.each(['/dashboard', '/invoices/x/edit', '/some-new-path'])(
+  it.each(['/dashboard', '/invoices/x/edit', '/some-new-path', '/ai', '/ai/x'])(
     'redirects the private page %s to sign-in with a callbackUrl',
     async (path) => {
       const res = await callProxy(buildRequest(path));

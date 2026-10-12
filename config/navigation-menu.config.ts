@@ -16,6 +16,11 @@ export const navigationMenuConfig: NavigationConfig = {
           url: protectedRoutes.invoices,
           icon: 'invoices',
         },
+        {
+          title: 'AI',
+          url: protectedRoutes.ai,
+          icon: 'ai',
+        },
       ],
     },
 
