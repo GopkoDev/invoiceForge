@@ -23,7 +23,7 @@
 | T16 | [Resolve draft lines against the catalogue and custom prices, apply the quantity and unit defaults and finish resolveDraftRequest](./t16-draft-resolver-lines-and-proposal.md) | app | Dmytro Hopko | M | T07 | done |
 | T17 | [Count Assistant drafts per key per local day, take a slot inside the create transaction and lift the limit by 50 once reached](./t17-key-daily-draft-limit-and-lift.md) | app | Dmytro Hopko | M | T03, T09 | done |
 | T18 | [Add the AI section route and sidebar entry and render the Conversation list with paging, empty state and the retention notice](./t18-ai-section-route-and-conversation-list.md) | ui | Dmytro Hopko | M | T10 | done |
-| T19 | [Add "Create with AI" to the invoice list header and the AssistantMark to draft rows and the editor header](./t19-create-with-ai-entry-and-assistant-mark.md) | ui | Dmytro Hopko | S | T06 | todo |
+| T19 | [Add "Create with AI" to the invoice list header and the AssistantMark to draft rows and the editor header](./t19-create-with-ai-entry-and-assistant-mark.md) | ui | Dmytro Hopko | S | T06 | done |
 | T20 | [Store Draft cards with one live card per Conversation and create the Draft invoice only from the Create press](./t20-draft-cards-and-create-press.md) | app | Dmytro Hopko | M | T06, T10, T16 | todo |
 | T21 | [Create a Draft invoice for a Personal key: permission, repeat mark, resolver, key slot, invoice and repeat row in one transaction](./t21-create-draft-for-key.md) | app | Dmytro Hopko | M | T06, T16, T17 | todo |
 | T22 | [Build the AI start panel with example prompts, the start=draft variant and the AllowanceNotice counter and used-up modes](./t22-ai-start-panel-and-allowance-notice.md) | ui | Dmytro Hopko | M | T08, T18 | todo |

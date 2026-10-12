@@ -42,6 +42,7 @@ function buildInitialState(data: InvoiceEditorInitData | InvoiceEditorData) {
     products: data.products,
     customPrices: data.customPrices,
     invoiceId: data.invoiceId,
+    assistantMark: data.assistantMark ?? null,
     loadedDates: data.initialData && data.invoiceId ? loadedDatesOf(data.initialData) : null,
     isSaving: false,
     hasUnsavedChanges: false,

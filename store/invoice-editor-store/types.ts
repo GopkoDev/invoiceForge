@@ -11,6 +11,7 @@ import {
   InvoiceIssuedDetails,
   InvoiceStatus,
   Currency,
+  AssistantMark,
 } from '@/types/invoice/types';
 
 /**
@@ -87,6 +88,8 @@ export interface InvoiceEditorState extends NormalizedData, ComputedValues {
   products: InvoiceProduct[];
   customPrices: InvoiceCustomPrice[];
   invoiceId?: string;
+  /** Set when an Assistant created this draft (AC-23); null otherwise. */
+  assistantMark: AssistantMark;
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   /** editor-ux ADR-0005: counts every edit of the form (even one restoring a value), so a save can
@@ -194,6 +197,7 @@ export interface InvoiceEditorInitData {
   version?: number;
   issuedDetails?: InvoiceIssuedDetails | null;
   storedAmounts?: StoredAmounts;
+  assistantMark?: AssistantMark;
 }
 
 export interface RecalculateComputedValuesStateInput extends NormalizedData {

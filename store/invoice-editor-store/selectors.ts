@@ -105,6 +105,9 @@ export const useStoredAmountsToPrint = () =>
 export const useInvoiceId = () =>
   useInvoiceEditor((state) => state.invoiceId);
 
+export const useAssistantMark = () =>
+  useInvoiceEditor((state) => state.assistantMark);
+
 export const useInvoiceNumberHint = () =>
   useInvoiceEditor((state) => state.invoiceNumberHint);
 

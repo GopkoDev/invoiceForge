@@ -35,6 +35,7 @@ export {
   useIssuedDetails,
   useStoredAmountsToPrint,
   useInvoiceId,
+  useAssistantMark,
   useInvoiceEditorActions,
   usePoNumber,
   useInvoiceItem,
