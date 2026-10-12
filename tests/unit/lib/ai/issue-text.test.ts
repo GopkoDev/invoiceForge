@@ -9,6 +9,14 @@ import {
 
 const name = (text: string) => ({ freelancerText: text });
 const account = { bankAccountId: 'ba1', label: 'Privat ••1234' };
+// ai-chat-v2 T08: the candidate form of an account carries bank name, last four and currency.
+const candidate = (id: string, label: string, bank: string, lastFour: string) => ({
+  bankAccountId: id,
+  label,
+  bankName: name(bank),
+  lastFour,
+  currency: 'USD' as const,
+});
 
 const ISSUES: DraftIssue[] = [
   { kind: 'NO_SENDER_PROFILE_WITH_ACCOUNT' },
@@ -22,14 +30,14 @@ const ISSUES: DraftIssue[] = [
     kind: 'CUSTOMER_AMBIGUOUS',
     written: 'Acme',
     candidates: [
-      { customerId: 'c1', name: name('Acme Corp') },
-      { customerId: 'c2', name: name('Acme GmbH') },
+      { customerId: 'c1', name: name('Acme Corp'), email: 'corp@acme.test' },
+      { customerId: 'c2', name: name('Acme GmbH'), email: null },
     ],
   },
   {
     kind: 'CUSTOMER_NEAR_MISS',
     written: 'Acm',
-    candidates: [{ customerId: 'c1', name: name('Acme Corp') }],
+    candidates: [{ customerId: 'c1', name: name('Acme Corp'), email: 'corp@acme.test' }],
   },
   { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0, description: 'website' },
   {
@@ -39,7 +47,12 @@ const ISSUES: DraftIssue[] = [
     products: [{ productId: 'p1', name: name('WEB DEV'), currency: 'USD' }],
   },
   { kind: 'CURRENCY_UNCLEAR', written: 'bucks', options: ['USD', 'UAH'] },
-  { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Side', options: ['Main'] },
+  {
+    kind: 'SENDER_PROFILE_NOT_FOUND',
+    written: 'Side',
+    options: ['Main'],
+    profiles: [{ senderProfileId: 'sp1', name: name('Main') }],
+  },
   {
     kind: 'NO_ACCOUNT_IN_CURRENCY',
     currency: 'USD',
@@ -50,13 +63,13 @@ const ISSUES: DraftIssue[] = [
   {
     kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
     currency: 'USD',
-    accounts: [account, { bankAccountId: 'ba2', label: 'Wise ••5678' }],
+    accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234'), candidate('ba2', 'Wise ••5678', 'Wise', '5678')],
   },
-  { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Monzo', accounts: [account] },
+  { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Monzo', accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234')] },
   {
     kind: 'BANK_ACCOUNT_AMBIGUOUS',
     written: 'Bank',
-    accounts: [account, { bankAccountId: 'ba2', label: 'Wise ••5678' }],
+    accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234'), candidate('ba2', 'Wise ••5678', 'Wise', '5678')],
   },
   {
     kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
@@ -70,7 +83,7 @@ const ISSUES: DraftIssue[] = [
     kind: 'PRODUCT_AMBIGUOUS',
     lineIndex: 0,
     written: 'consulting',
-    candidates: [{ productId: 'p1', name: name('Consulting basic') }],
+    candidates: [{ productId: 'p1', name: name('Consulting basic'), unit: 'hours', price: '50.00', currency: 'USD' }],
   },
   { kind: 'PRODUCT_NOT_FOUND', lineIndex: 0, written: 'design' },
   {

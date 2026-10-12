@@ -36,6 +36,10 @@ const draftRequestShape = {
     .max(200)
     .optional()
     .describe('A sender profile the Freelancer named (AC-17). Absent → the default profile.'),
+  // ai-chat-v2 (DraftRequestDelta, ADR-0003): the exact profile, from list_sender_profiles or a pressed choice.
+  senderProfileId: recordId
+    .optional()
+    .describe('The exact sender profile id from list_sender_profiles, instead of a name. At most one of the two.'),
   bankAccount: z
     .string()
     .min(1)
@@ -58,13 +62,24 @@ const draftRequestShape = {
 const oneCustomer = (v: { customer?: string; customerId?: string }) =>
   (v.customer === undefined) !== (v.customerId === undefined);
 const ONE_CUSTOMER = { message: 'Give exactly one of customer and customerId.', path: ['customer'] };
+const atMostOneProfile = (v: { senderProfile?: string; senderProfileId?: string }) =>
+  v.senderProfile === undefined || v.senderProfileId === undefined;
+const AT_MOST_ONE_PROFILE = {
+  message: 'Give at most one of senderProfile and senderProfileId.',
+  path: ['senderProfileId'],
+};
 
-export const draftRequestSchema = z.object(draftRequestShape).strict().refine(oneCustomer, ONE_CUSTOMER);
+export const draftRequestSchema = z
+  .object(draftRequestShape)
+  .strict()
+  .refine(oneCustomer, ONE_CUSTOMER)
+  .refine(atMostOneProfile, AT_MOST_ONE_PROFILE);
 
 export const createDraftInvoiceInputSchema = z
   .object({ ...draftRequestShape, repeatKey: z.string().min(1).max(200).optional() })
   .strict()
-  .refine(oneCustomer, ONE_CUSTOMER);
+  .refine(oneCustomer, ONE_CUSTOMER)
+  .refine(atMostOneProfile, AT_MOST_ONE_PROFILE);
 
 // ---------- proposal ----------
 const dated = z.object({ value: localDate, source: z.enum(['REQUEST', 'DEFAULT']) });
@@ -126,13 +141,32 @@ export const draftProposalSchema = z
 
 // ---------- issues ----------
 const lineIndex = z.number().int().min(0);
+// ai-chat-v2 DraftIssueDelta (ADR-0002): the candidates carry what an Offered choice label needs. Never a full number.
 const candidates = z
-  .array(z.object({ customerId: recordId, name: freelancerText }))
+  .array(z.object({ customerId: recordId, name: freelancerText, email: z.string().nullable() }))
   .max(50);
 const productCandidates = z
-  .array(z.object({ productId: recordId, name: freelancerText }))
+  .array(
+    z.object({
+      productId: recordId,
+      name: freelancerText,
+      unit: z.string(),
+      // The rate the resolver would use: the Customer's Custom price when one exists, else Product.price.
+      price: decimalString,
+      currency,
+    })
+  )
   .max(50);
-const accounts = z.array(z.object({ bankAccountId: recordId, label: z.string() }));
+const accounts = z.array(
+  z.object({
+    bankAccountId: recordId,
+    label: z.string(),
+    bankName: freelancerText,
+    lastFour: z.string().max(4),
+    currency,
+  })
+);
+const senderProfileRefs = z.array(z.object({ senderProfileId: recordId, name: freelancerText }));
 const accountInCurrency = z.object({ bankAccountId: recordId, label: z.string(), currency });
 
 export const draftIssueSchema = z.discriminatedUnion('kind', [
@@ -162,6 +196,7 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     kind: z.literal('SENDER_PROFILE_NOT_FOUND'),
     written: z.string(),
     options: z.array(z.string()),
+    profiles: senderProfileRefs,
   }),
   z.object({
     kind: z.literal('NO_ACCOUNT_IN_CURRENCY'),

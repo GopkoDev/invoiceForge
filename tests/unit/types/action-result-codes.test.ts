@@ -54,8 +54,8 @@ describe('DRAFT_ISSUES (AC-31)', () => {
           kind: 'CUSTOMER_AMBIGUOUS',
           written: 'Acme',
           candidates: [
-            { customerId: 'c1', name: { freelancerText: 'Acme Corp' } },
-            { customerId: 'c2', name: { freelancerText: 'Acme GmbH' } },
+            { customerId: 'c1', name: { freelancerText: 'Acme Corp' }, email: 'billing@acme.test' },
+            { customerId: 'c2', name: { freelancerText: 'Acme GmbH' }, email: null },
           ],
         },
       ],

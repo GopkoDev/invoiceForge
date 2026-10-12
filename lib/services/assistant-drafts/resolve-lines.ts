@@ -68,7 +68,14 @@ function resolveOne(
         kind: 'PRODUCT_AMBIGUOUS',
         lineIndex: index,
         written: line.description,
-        candidates: sameCurrency.slice(0, 50).map((p) => ({ productId: p.id, name: { freelancerText: p.name } })),
+        // ai-chat-v2 (DraftIssueDelta ProductCandidate): unit, the rate this line would get, and its currency.
+        candidates: sameCurrency.slice(0, 50).map((p) => ({
+          productId: p.id,
+          name: { freelancerText: p.name },
+          unit: p.unit,
+          price: money(customPrices.get(p.id) ?? p.price),
+          currency: p.currency,
+        })),
       },
     };
   }

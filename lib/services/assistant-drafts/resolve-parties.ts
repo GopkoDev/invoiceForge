@@ -9,6 +9,7 @@ import { bankAccountSelect } from '@/lib/services/invoices/select-queries';
 import { addDaysToDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import { foldName } from '@/lib/helpers/fold-name';
+import { accountLastFour } from '@/lib/helpers/account-last-four';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
 export type ResolvedParties = Pick<
@@ -31,12 +32,13 @@ type Account = {
   senderProfileId: string;
 };
 type Profile = { id: string; name: string; isDefault: boolean; bankAccounts: Account[] };
-type CustomerRow = { id: string; name: string };
+type CustomerRow = { id: string; name: string; email: string | null };
 
 // The contract's label: the bank name and the last four of the account number.
 const accountLabel = (a: Account) => `${a.bankName} ••${a.accountNumber.slice(-4)}`;
+// ai-chat-v2 (DraftIssueDelta): the email tells look-alike names apart on an Offered choice (AC-10).
 const candidatesOf = (rows: CustomerRow[]) =>
-  rows.map((c) => ({ customerId: c.id, name: { freelancerText: c.name } }));
+  rows.map((c) => ({ customerId: c.id, name: { freelancerText: c.name }, email: c.email }));
 
 function withinOneEdit(a: string, b: string): boolean {
   if (Math.abs(a.length - b.length) > 1) return false;
@@ -59,7 +61,7 @@ async function resolveCustomer(
   if (request.customerId !== undefined) {
     const row = await prisma.customer.findFirst({
       where: { id: request.customerId, userId: actor.userId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     });
     return row ? found(row) : { issue: { kind: 'CUSTOMER_NOT_FOUND', written: request.customerId } };
   }
@@ -67,7 +69,7 @@ async function resolveCustomer(
   const needle = foldName(written);
   const rows = await prisma.customer.findMany({
     where: { userId: actor.userId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, email: true },
     orderBy: { name: 'asc' },
   });
   const matches = rows.filter((c) => foldName(c.name).includes(needle));
@@ -84,8 +86,15 @@ async function resolveCustomer(
   return { issue: { kind: 'CUSTOMER_NOT_FOUND', written } };
 }
 
-const accountOption = (a: Account) => ({ bankAccountId: a.id, label: accountLabel(a) });
-const accountWithCurrency = (a: Account) => ({ ...accountOption(a), currency: a.currency });
+const accountWithCurrency = (a: Account) => ({ bankAccountId: a.id, label: accountLabel(a), currency: a.currency });
+// ai-chat-v2 (DraftIssueDelta BankAccountCandidate): bank name, last four and currency for the choice label.
+const accountOption = (a: Account) => ({
+  ...accountWithCurrency(a),
+  bankName: { freelancerText: a.bankName },
+  lastFour: accountLastFour(a.accountNumber),
+});
+const profileRefs = (profiles: Profile[]) =>
+  profiles.map((p) => ({ senderProfileId: p.id, name: { freelancerText: p.name } }));
 
 /**
  * AC-19 (review-2026-10-12 R-06): the bank account the request names, matched within the chosen
@@ -121,7 +130,21 @@ function resolveSenderAndAccount(
 ): { chosen: Chosen } | { issue: DraftIssue } {
   let profile: Profile | undefined;
   let profileSource: 'REQUEST' | 'DEFAULT' = 'DEFAULT';
-  if (request.senderProfile !== undefined) {
+  if (request.senderProfileId !== undefined) {
+    // Owner-scoped: another Freelancer's id is answered as a name that matches nothing (AC-07).
+    profile = profiles.find((p) => p.id === request.senderProfileId);
+    if (!profile) {
+      return {
+        issue: {
+          kind: 'SENDER_PROFILE_NOT_FOUND',
+          written: request.senderProfileId,
+          options: profiles.map((p) => p.name),
+          profiles: profileRefs(profiles),
+        },
+      };
+    }
+    profileSource = 'REQUEST';
+  } else if (request.senderProfile !== undefined) {
     const needle = foldName(request.senderProfile);
     profile = profiles.find((p) => foldName(p.name) === needle);
     if (!profile) {
@@ -134,6 +157,7 @@ function resolveSenderAndAccount(
           kind: 'SENDER_PROFILE_NOT_FOUND',
           written: request.senderProfile,
           options: profiles.map((p) => p.name),
+          profiles: profileRefs(profiles),
         },
       };
     }
@@ -212,7 +236,11 @@ function resolveSenderAndAccount(
     accountSource = 'REQUEST';
   } else if (currency !== undefined) {
     const preferred = inCurrency.find((a) => a.id === defaultAccount.id);
-    if (preferred) {
+    if (profileSource === 'REQUEST' && inCurrency.length === 1) {
+      // ai-chat-v2 AC-04: the named profile's only account in the named currency is taken from the request.
+      account = inCurrency[0];
+      accountSource = 'REQUEST';
+    } else if (preferred) {
       account = preferred;
     } else if (inCurrency.length === 1) {
       account = inCurrency[0];
