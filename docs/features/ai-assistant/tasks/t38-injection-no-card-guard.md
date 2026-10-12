@@ -9,7 +9,7 @@ files_hint: ["lib/ai/agent.ts", "lib/ai/run-turn.ts", "lib/ai/tools/propose-draf
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12"
 ---
 
