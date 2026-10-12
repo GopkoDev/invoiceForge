@@ -807,6 +807,152 @@
         "playwright.config.ts"
       ],
       "file": "docs/features/ai-assistant/tasks/t35-e2e-ai-flows.md"
+    },
+    {
+      "id": "T36",
+      "title": "Show an OUTDATED card's successor on reload and lock the Conversation before inserting it",
+      "layer": "app",
+      "deps": [
+        "T20",
+        "T25",
+        "T28"
+      ],
+      "acs": [
+        "AC-14b",
+        "AC-18",
+        "AC-35",
+        "AC-36"
+      ],
+      "dod": "After an OUTDATED press, reopening the Conversation renders the successor card (with its created/issued/unavailable state) under the collapsed old one and \"Go to the newer card\" scrolls to it; createFromCard locks the Conversation row (same order as saveTurn) before inserting the successor so a concurrent turn cannot break the one-LIVE-card index.",
+      "files_hint": [
+        "lib/services/assistant-drafts/cards.ts",
+        "lib/services/conversations/conversations.ts",
+        "components/ai/draft-card.tsx",
+        "tests/integration/services/assistant-drafts/",
+        "tests/integration/services/conversations/conversation-reads.test.ts",
+        "tests/component/draft-card.test.tsx",
+        "docs/features/ai-assistant/contracts/server-actions.md"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t36-outdated-successor-and-card-lock.md"
+    },
+    {
+      "id": "T37",
+      "title": "Answer an MCP repeat from the stored invoice and refuse a read-only key before validating input",
+      "layer": "ports",
+      "deps": [
+        "T21",
+        "T26"
+      ],
+      "acs": [
+        "AC-29",
+        "AC-32"
+      ],
+      "dod": "A fingerprint-equal repeat within 24 h answers from the stored invoice (id, number, link, current rows and status) without re-resolving, even after data changed; a read-only key gets the AC-29 refusal before any argument validation.",
+      "files_hint": [
+        "lib/services/assistant-drafts/create-for-key.ts",
+        "lib/mcp/server.ts",
+        "lib/mcp/draft-tool.ts",
+        "tests/integration/services/assistant-drafts/create-for-key.test.ts",
+        "tests/contract/mcp-tools-list.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t37-mcp-repeat-and-permission-order.md"
+    },
+    {
+      "id": "T38",
+      "title": "Offer no Draft card from stored-text injection and add injection cases to the no-guessing evaluation",
+      "layer": "app",
+      "deps": [
+        "T27",
+        "T29",
+        "T32",
+        "T34"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "Stored-text injection cases are in the no-guessing evaluation set and assert zero cards; a code-level guard keeps propose_draft from producing a card unless the Freelancer's own message carries drafting intent; chat-injection.test.ts asserts no card.",
+      "files_hint": [
+        "lib/ai/agent.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "evals/assistant/",
+        "tests/integration/api/chat-injection.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t38-injection-no-card-guard.md"
+    },
+    {
+      "id": "T39",
+      "title": "Fix the chat island: real 429 body, late data-conversation, one announcement per reply, scroll to newest",
+      "layer": "ui",
+      "deps": [
+        "T33"
+      ],
+      "acs": [
+        "AC-10",
+        "AC-10b",
+        "AC-11",
+        "AC-35"
+      ],
+      "dod": "On a contract 429 the island shows used-up and disables the composer; a failed first message shows the could-not-complete/ai-unavailable alert, keeps /ai and retries with no conversationId; the id is adopted only from the late data-conversation; the finished reply is announced once via a separate live region; the list scrolls to the newest message on load and while streaming.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "components/ai/message-list.tsx",
+        "tests/component/ai-chat-island.test.tsx",
+        "tests/component/ai-conversation-page.test.tsx"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t39-chat-island-review-fixes.md"
+    },
+    {
+      "id": "T40",
+      "title": "Fix the AI section layout and reuse: list column on /ai/{id}, phone order, subtitles, ContentArea, dialog close, link styles",
+      "layer": "ui",
+      "deps": [
+        "T18",
+        "T22",
+        "T23",
+        "T30"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-33",
+        "AC-35",
+        "AC-37"
+      ],
+      "dod": "At lg /ai/{id} shows the Conversation list column as SCR-01; below lg /ai stacks the start panel above the list with the Recent conversations heading; start-panel subtitles render verbatim; the section uses ContentArea; the delete dialog closes on FAILED; links use buttonVariants and the start=draft route comes from protectedRoutes; screens.md Registered column updated.",
+      "files_hint": [
+        "app/(protected)/ai/",
+        "components/ai/start-panel.tsx",
+        "components/ai/conversation-header.tsx",
+        "components/ai/use-delete-conversations.ts",
+        "components/ai/chat-link.tsx",
+        "components/ai/draft-card.tsx",
+        "app/(protected)/invoices/layout.tsx",
+        "config/",
+        "tests/component/",
+        "docs/features/ai-assistant/screens.md"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t40-ai-layout-and-reuse-fixes.md"
+    },
+    {
+      "id": "T41",
+      "title": "Add the missing test-plan e2e flows (AC-25, AC-34, AC-35) and the SCR-01 / SCR-03 visual baselines",
+      "layer": "tests",
+      "deps": [
+        "T35",
+        "T39",
+        "T40"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-34",
+        "AC-35"
+      ],
+      "dod": "Playwright flows: create a key with Draft permission; no messages left then Create with AI; reopen a past Conversation and continue; visual baselines for SCR-01 default and SCR-03 live and created.",
+      "files_hint": [
+        "tests/e2e/ai-assistant.spec.ts",
+        "tests/e2e/support/"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t41-e2e-missing-flows.md"
     }
   ]
 }
