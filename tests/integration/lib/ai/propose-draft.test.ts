@@ -121,7 +121,10 @@ describe.runIf(containerRuntimeAvailable)('propose_draft tool (T27)', () => {
 
   it('the tool input takes every field spec.md §1 lets a request set (R-06, R-09)', async () => {
     const { tool } = await setup();
-    const keys = Object.keys(tool.inputSchema._def.schema?.shape ?? tool.inputSchema.shape ?? {});
+    // The input schema is wrapped (refine; the line-currency preprocess of fix 2026-10-12): unwrap to the object.
+    let schema = tool.inputSchema;
+    while (schema._def?.schema) schema = schema._def.schema;
+    const keys = Object.keys(schema.shape ?? {});
     for (const key of ['bankAccount', 'taxRate', 'discount', 'shipping', 'poNumber', 'paymentTerms', 'notes', 'terms']) {
       expect(keys).toContain(key);
     }
