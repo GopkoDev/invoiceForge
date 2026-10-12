@@ -4,6 +4,7 @@
 import 'server-only';
 import { prisma } from '@/prisma';
 import { lineAmount } from '@/lib/helpers/invoice-calculations';
+import { foldName } from '@/lib/services/assistant-drafts/match-name';
 import type {
   DraftIssue,
   DraftProposal,
@@ -26,7 +27,7 @@ function pickProduct(
   needle: string,
 ): { product?: ProductRow; ambiguous: boolean } {
   if (matches.length === 1) return { product: matches[0], ambiguous: false };
-  const exact = matches.filter((p) => p.name.toLowerCase() === needle);
+  const exact = matches.filter((p) => foldName(p.name) === needle);
   if (exact.length === 1) return { product: exact[0], ambiguous: false };
   return { ambiguous: matches.length > 1 };
 }
@@ -40,8 +41,8 @@ function productsNamed(
     const byId = products.find((p) => p.id === line.productId);
     return byId ? [byId] : 'NOT_FOUND';
   }
-  const needle = line.description.trim().toLowerCase();
-  return products.filter((p) => p.name.toLowerCase().includes(needle));
+  const needle = foldName(line.description);
+  return products.filter((p) => foldName(p.name).includes(needle));
 }
 
 function resolveOne(
@@ -57,7 +58,7 @@ function resolveOne(
   }
   // A product in another currency is never linked (AC-16b); with no known currency none is excluded.
   const sameCurrency = matches.filter((p) => ctx.currency === undefined || p.currency === ctx.currency);
-  const { product, ambiguous } = pickProduct(sameCurrency, line.description.trim().toLowerCase());
+  const { product, ambiguous } = pickProduct(sameCurrency, foldName(line.description));
   const named = line.price !== undefined;
 
   // Several products match: the Freelancer is asked which one, never a pick (spec.md §1, R-11).

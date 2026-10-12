@@ -383,6 +383,17 @@ describe.runIf(containerRuntimeAvailable)('resolveDraftRequest (T16)', () => {
   });
 
   // spec.md §1 "An external Assistant may name the exact ... product it found through the read questions".
+  // fix 2026-10-12 (spec.md §1 "Matching names", AC-16): a product name matches across look-alike Latin and
+  // Cyrillic letters and stray spaces, like a Customer name.
+  it('fix 2026-10-12: "web dev" finds the product stored as "WЕB DEV " (Cyrillic "Е", trailing space)', async () => {
+    const { user, actor } = await setup();
+    const product = await createProduct(prisma, user.id, { name: 'W\u0415B DEV ', price: 33, currency: 'USD' });
+
+    const proposal = await proposalOf(resolve(actor, { lines: [{ description: ' web  dev', quantity: '176' }] }));
+
+    expect(proposal.lines[0]).toMatchObject({ productId: product.id, rate: '33.00', rateSource: 'CATALOGUE' });
+  });
+
   describe('a line naming the product by id (R-09)', () => {
     it('links that product with its catalogue price', async () => {
       const { user, actor } = await setup();

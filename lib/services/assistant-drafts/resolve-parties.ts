@@ -8,6 +8,7 @@ import { newInvoiceDefaults } from '@/lib/services/invoices/editor-data';
 import { bankAccountSelect } from '@/lib/services/invoices/select-queries';
 import { addDaysToDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
+import { foldName } from '@/lib/services/assistant-drafts/match-name';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
 export type ResolvedParties = Pick<
@@ -63,20 +64,20 @@ async function resolveCustomer(
     return row ? found(row) : { issue: { kind: 'CUSTOMER_NOT_FOUND', written: request.customerId } };
   }
   const written = request.customer ?? '';
-  const needle = written.trim().toLowerCase();
+  const needle = foldName(written);
   const rows = await prisma.customer.findMany({
     where: { userId: actor.userId },
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });
-  const matches = rows.filter((c) => c.name.toLowerCase().includes(needle));
-  const exact = matches.filter((c) => c.name.toLowerCase() === needle);
+  const matches = rows.filter((c) => foldName(c.name).includes(needle));
+  const exact = matches.filter((c) => foldName(c.name) === needle);
   if (exact.length === 1) return found(exact[0]);
   if (matches.length === 1) return found(matches[0]);
   if (matches.length > 1) {
     return { issue: { kind: 'CUSTOMER_AMBIGUOUS', written, candidates: candidatesOf(matches) } };
   }
-  const near = rows.filter((c) => withinOneEdit(c.name.toLowerCase(), needle));
+  const near = rows.filter((c) => withinOneEdit(foldName(c.name), needle));
   if (near.length > 0) {
     return { issue: { kind: 'CUSTOMER_NEAR_MISS', written, candidates: candidatesOf(near) } };
   }
@@ -94,12 +95,12 @@ const accountWithCurrency = (a: Account) => ({ ...accountOption(a), currency: a.
 function matchAccount(written: string, accounts: Account[]): { account: Account } | { issue: DraftIssue } {
   const byId = accounts.find((a) => a.id === written);
   if (byId) return { account: byId };
-  const needle = written.trim().toLowerCase();
+  const needle = foldName(written);
   const matches = accounts.filter((a) =>
-    [a.bankName, a.accountName, a.accountNumber, accountLabel(a)].some((t) => t.toLowerCase().includes(needle))
+    [a.bankName, a.accountName, a.accountNumber, accountLabel(a)].some((t) => foldName(t).includes(needle))
   );
   if (matches.length === 1) return { account: matches[0] };
-  const exact = matches.filter((a) => a.bankName.toLowerCase() === needle || accountLabel(a).toLowerCase() === needle);
+  const exact = matches.filter((a) => foldName(a.bankName) === needle || foldName(accountLabel(a)) === needle);
   if (exact.length === 1) return { account: exact[0] };
   if (matches.length > 1) {
     return { issue: { kind: 'BANK_ACCOUNT_AMBIGUOUS', written, accounts: matches.map(accountOption) } };
@@ -121,10 +122,10 @@ function resolveSenderAndAccount(
   let profile: Profile | undefined;
   let profileSource: 'REQUEST' | 'DEFAULT' = 'DEFAULT';
   if (request.senderProfile !== undefined) {
-    const needle = request.senderProfile.trim().toLowerCase();
-    profile = profiles.find((p) => p.name.toLowerCase() === needle);
+    const needle = foldName(request.senderProfile);
+    profile = profiles.find((p) => foldName(p.name) === needle);
     if (!profile) {
-      const partial = profiles.filter((p) => p.name.toLowerCase().includes(needle));
+      const partial = profiles.filter((p) => foldName(p.name).includes(needle));
       if (partial.length === 1) profile = partial[0];
     }
     if (!profile) {

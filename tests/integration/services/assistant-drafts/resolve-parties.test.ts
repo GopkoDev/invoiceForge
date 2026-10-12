@@ -547,6 +547,49 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
     });
   });
 
+  // fix 2026-10-12 (spec.md §1 "Matching names", AC-20, AC-21): the owner's Customer is stored as "Оohn Doe "
+  // with a Cyrillic "О" and a trailing space; the model writes "Oohn Doe" in Latin letters. Look-alike letters
+  // and stray spaces are folded on both sides for the comparison only; the stored name is shown as it is.
+  describe('fix 2026-10-12: names match across look-alike letters and stray spaces', () => {
+    const STORED = '\u041eohn Doe '; // "Оohn Doe " - Cyrillic capital O, trailing space
+
+    it('the Latin "Oohn Doe" finds the Customer stored as "Оohn Doe ", showing the stored name', async () => {
+      const { user, actor } = await freelancer();
+      await usdProfile(user.id);
+      const owner = await createCustomer(prisma, user.id, { name: STORED });
+
+      const p = await okParties(resolve(actor, { customer: 'Oohn  Doe' }));
+
+      expect(p.customer.customerId).toBe(owner.id);
+      expect(p.customer.name.freelancerText).toBe(STORED);
+    });
+
+    it('"John Doe" is a near miss of "Оohn Doe ": offered as a question, never filled in', async () => {
+      const { user, actor } = await freelancer();
+      await usdProfile(user.id);
+      const owner = await createCustomer(prisma, user.id, { name: STORED });
+
+      const issues = await issuesOf(resolve(actor, { customer: 'John Doe' }));
+
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ kind: 'CUSTOMER_NEAR_MISS', written: 'John Doe' });
+      expect((issues[0].candidates as { customerId: string }[]).map((c) => c.customerId)).toEqual([owner.id]);
+    });
+
+    it('a sender profile and a bank account written with look-alike letters are found', async () => {
+      const { user, actor } = await freelancer();
+      await usdProfile(user.id);
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+      const studio = await createSenderProfile(prisma, user.id, { name: 'Dmytro Hopko ' });
+      const privat = await createBankAccount(prisma, studio.id, { currency: 'USD', bankName: '\u0420rivat' }); // Cyrillic "Р"
+
+      const p = await okParties(resolve(actor, { customer: 'Acme', senderProfile: 'Dmytrо Hopko', bankAccount: 'Privat' })); // Cyrillic "о"
+
+      expect(p.senderProfile).toMatchObject({ senderProfileId: studio.id, source: 'REQUEST' });
+      expect(p.bankAccount).toMatchObject({ bankAccountId: privat.id, source: 'REQUEST' });
+    });
+  });
+
   it('several issues at once are all returned, in request order (customer, then currency)', async () => {
     const { user, actor } = await freelancer();
     await usdProfile(user.id);
