@@ -68,6 +68,9 @@ describe('part 2: every business function has request-free and foreign-record te
     // Adapter-only functions (server-actions.md): they run before an actor exists or on its behalf.
     /personal-keys\/authenticate\.ts$/,
     /personal-keys\/usage\.ts$/,
+    // Cron-only retention sweeps: system-wide, no acting Freelancer (ai-assistant T14).
+    /conversations\/purge\.ts$/,
+    /assistant-usage\/purge\.ts$/,
   ];
   const NOT_BUSINESS_NAMES = new Set(['resolveManualOrAllocatedNumber', 'invoiceNumberConflict']);
 

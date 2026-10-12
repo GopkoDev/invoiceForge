@@ -479,6 +479,19 @@ components:
               type: integer
               minimum: 0
               description: Number of `LimitEvent` rows deleted (`at` < now − 24 h)
+            steps:
+              type: array
+              description: |
+                ai-assistant AC-38: the four independent retention steps (`conversations`, `repeatMarks`,
+                `traces`, `turnsAndCounters`). A failed step has `ok: false` and `deleted: null`; the run stays 200.
+              items:
+                type: object
+                required: [step, deleted, ok]
+                additionalProperties: false
+                properties:
+                  step: { type: string }
+                  deleted: { type: [integer, "null"], minimum: 0 }
+                  ok: { type: boolean }
 
     UserDataExport:
       type: object
