@@ -1,0 +1,570 @@
+---
+status: draft
+feature_size: "L"
+tool: "code"
+updated_at: "2026-10-12"
+---
+
+# Screens — ai-chat-v2
+
+> The canonical **screen manifest** — every screen in every state — produced by `screens` (between
+> `api` and `tasks`) and read by `tasks` (each `ui` task cites SCR ids + states), `implement`
+> (builds the screen to the declared states) and `review` (the built screen must match this).
+> Downstream stages reference **only this manifest** — never the raw Figma / `.pen` file.
+
+## Source
+
+- **Tool:** code, from `docs/design-system.md` (a code-only canon). This is the canon's tool, not a degradation.
+- **File:** the wireframes are inline below.
+- **Inventory:** `ux-flows.md` §Screen inventory, SCR-01 to SCR-15. Every row has a section below. SCR-10 to SCR-12, SCR-14 and SCR-15 are existing screens whose UI does not change. Their sections only record what this feature touches.
+- **Extends:** [`ai-assistant/screens.md`](../ai-assistant/screens.md). Its rules for reply rendering (plain text, `whitespace-pre-wrap`, links only from structured parts), strings, dates, error routing and live regions stay in force and are not repeated. Where a state below says "as the parent", the parent manifest's row applies unchanged. That includes copy taken verbatim from the contract.
+- **Component inventory:** the canon (`docs/design-system.md`) registers `LoadError`, `ConfirmationModal`, `CopyButton`, `IssuedDetailsCard`, `AmountInput`, `PdfPreparingStatus`, `ConversationList`, `AssistantMark`, `AllowanceNotice`, `StartPanel`, `ChatIsland`, `Composer`, `ChatLink` (with `MessageList`, `ConversationHeader`), `DraftCard`, `AiWorkspace` and `NewConversationProvider`. Everything else is named from the code's de-facto inventory:
+  - the `components/ui/*` primitives: `Alert`, `Badge`, `Button` / `buttonVariants`, `Card`, `DropdownMenu`, `Empty`, `Field` / `FieldError`, `InputGroup`, `Item`, `ScrollArea`, `Separator`, `Sheet`, `Sidebar`, `Skeleton`, `Spinner`, `Textarea`, `Tooltip`, `Sonner` toasts;
+  - the app components `AppSidebar` (driven by `config/navigation-menu.config.ts`), `DashboardHeader`, `DashboardBanners`, `InvoiceStatusBadge`, `PDFPreviewPanel` (`components/invoice-editor/pdf-preview-panel.tsx`, the editor's and the list modal's preview), `InvoiceEditor`, `GdprSettings`, `LoginForm`, and each route's existing `loading.tsx` / `error.tsx` / `not-found.tsx`.
+- **Visual reference:** the owner's brief names the shadcn UI Kit "AI Chat V2" layout. The section fills the height and never scrolls the page. The Conversation list sits on the left with its own scroll area (groups, search, New chat at the bottom). The messages sit on the right with their own scroll, and the message box stays at the bottom. The empty state shows a greeting with the box in the middle. Offered choices sit under the reply, and the preview is a side panel or sheet. The wireframes follow that layout with this app's primitives. No kit code is imported.
+- **Layout and breakpoints** (spec §1, sad.md §5 "Full-height workspace"). `/ai/layout.tsx` drops the scrolling `ContentArea`. `AiWorkspace` (changed) owns the grid: the workspace is a grid of height `calc(100dvh - var(--header-height))` with `overflow-hidden`. Every pane is `min-h-0` with its own `overflow-y-auto` (`ScrollArea`). Breakpoints move from `lg` to `md` (768 px) and `xl` (1280 px):
+
+  | Width | Preview closed | Preview open |
+  |---|---|---|
+  | `< md` (phone) | chat only; the list opens as a left `Sheet` from a header button | chat; the preview is a full-screen `Sheet` |
+  | `md`–`xl` (768–1279) | list (18rem) \| chat | chat \| preview; the list is behind a header toggle that opens it as a left `Sheet` |
+  | `≥ xl` (1280+) | list (18rem) \| chat | list (18rem) \| chat \| preview (`minmax(26rem, 40%)`) |
+
+- **Addresses** (ADR-0005): a new Conversation is `/ai` (plus `?start=draft&from=…` or `?handoff={id}`). A saved one is `/ai/{id}`. An open preview adds `?preview={cardId}` with `history.pushState`, so Back closes it. Nothing inside the workspace is a route navigation, so the island never remounts.
+- **Invoice states** (ADR-0008): the card, its links and the preview panel read one workspace store (`InvoiceStateProvider`). Page loads, `loadInvoicePreview`, `createDraftFromCard` and `issueFromPreview` results feed it. There is no push, so a change made in another tab shows on the next preview load, issue attempt or reopen (sad.md §11 accepted debt).
+- **Motion:** two motions exist. The composer moves from the middle to the bottom on the first send (a `transform`/`translate` CSS transition, about 250 ms ease-out, with `motion-reduce:transition-none`, AC-18). Scrolling to the latest message uses `behavior: 'smooth'`, or `'auto'` under reduced motion. Nothing else animates beyond the primitives' defaults (`Sheet` slide, `Dialog` fade).
+- **Copy:** where a contract fixes a message (`contracts/openapi.yaml` `/api/chat` 409, `contracts/server-actions.md` `loadInvoicePreview`, `issueFromPreview`, dashboard prompt validation), the UI shows the result's `error` **verbatim**. The rest of the copy below belongs to this manifest, and `implement` uses it as written.
+
+## Screens
+
+### SCR-01 — Conversation list (pane on a desktop, sheet on a phone)
+
+`ConversationList` changes (sad.md §5). It reads `listConversationSummaries(actor)` (every summary plus `timeZone`, no paging, server-actions.md), groups the rows on the client by the last message's local day, and filters with the shared `foldName` (ADR-0004). Structure, top to bottom: a header with "Conversations" and the "Conversation actions" `DropdownMenu` (Delete all, as the parent), a search `InputGroup` (search icon, placeholder "Search conversations", `aria-label` "Search conversations", a clear `×` button while it has text), the scroll area with the groups, and a footer that is always visible: a full-width "New chat" `Button` (plus icon, links to `/ai`) above the parent's retention notice. The `?page=N` links and the `Pagination` are removed. Each row is the parent's `Item` (title truncated, full title in `title`, last-message day "d MMM yyyy", delete icon button). The open Conversation's row carries `aria-current="page"` and the accent background. Opening, listing and searching write and count nothing (Flow 8).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| loading | The page request is in flight: the existing `ai/loading.tsx` is redrawn as the full-height grid, with a search skeleton, two group-heading skeletons and six row skeletons in the list pane | `Skeleton` | wireframe below |
+| default | Signed in with at least one Conversation (AC-15, AC-17; Flow 8). Rows sit under the headings "Today", "Yesterday", "Previous 7 days" (2–7 days before today) and "Older" (8+), in the Freelancer time zone, newest first inside each group. A group with no rows is not rendered. Only the list scrolls; the header, the search and the footer stay put | `ConversationList` (changed), `InputGroup`, `ScrollArea`, `Item`, `DropdownMenu`, `Button` | wireframe below |
+| searching | The search has text: the rows whose folded title contains the folded query (case, extra spaces and look-alike letters ignored, AC-17). The grouping is kept and empty groups are hidden. Filtering is instant (client-side), with no debounce and no request | `InputGroup`, `Item` | wireframe below |
+| search no match | No title matches: `Empty` (compact, no icon) "No conversation matches "{query}"." with a "Clear search" link button. The footer stays (AC-17) | `Empty`, `Button` (link) | wireframe below |
+| empty | The Freelancer has no Conversations: the parent's `Empty` "No conversations yet" / "Ask a question to start one." The search is disabled. "Delete all" is hidden. New chat and the retention notice stay | `Empty`, `Button` | wireframe below |
+| new row | The first reply of a new Conversation is saved: `NewConversationProvider` merges `{ id, title }` at the head of "Today" until the server list includes it (Flow 9). The row becomes the current one | `NewConversationProvider` | — |
+| phone sheet | `< md`: the same list inside a left `Sheet` (`side="left"`, full height, width `min(20rem, 85vw)`), titled "Conversations". It opens from the list button in the SCR-03 / SCR-02 header. Picking a row or New chat closes it; so do `×`, Escape and the overlay (AC-19; Flow US-06) | `Sheet`, `ConversationList` | wireframe below |
+| behind toggle | `md`–`xl` with the preview open: the list pane is not rendered, and the same left `Sheet` opens from the header toggle (spec §1). Picking a row closes the sheet and the preview, because the address changes | `Sheet`, `Button` (icon) | SCR-06 wireframe |
+| deleted | As the parent (SCR-04 dialog → toast → refresh). Deleting the open Conversation also navigates to `/ai` (SCR-02) | `ConfirmationModal`, `Sonner` | — |
+| error | `listConversationSummaries` or `getAllowanceState` fails → `unwrapPageResult` → the existing `(protected)/error.tsx` (`LoadError`) | `LoadError` | existing |
+| signed out | A Visitor → proxy → SCR-12; nothing processed or counted (AC-36) | — | SCR-12 |
+
+```text
+default (md and wider: the left pane, full height; only the middle scrolls)
++------------------------------+
+| Conversations           [⋯]  |   ⋯ = Conversation actions: Delete all
+| [🔍 Search conversations   ] |
+|------------------------------|
+| Today                        | ^
+| ▌Invoice Acme for 20 h  [🗑] | |  current row: accent bg, aria-current
+|   12 Oct 2026                | |
+|  Who owes me money?     [🗑] | |
+|   12 Oct 2026                | |  ScrollArea (own scroll)
+| Yesterday                    | |
+|  Bank accounts in EUR   [🗑] | |
+|   11 Oct 2026                | |
+| Previous 7 days              | |
+|  Logo on invoices       [🗑] | |
+|   5 Oct 2026                 | |
+| Older                        | |
+|  Overdue in September   [🗑] | v
+|------------------------------|
+| [+ New chat               ]  |   footer, always visible
+| Kept for 90 days after the   |
+| last message.                |
++------------------------------+
+```
+
+```text
+searching ("inv")                   search no match ("zzz")            empty
+| [🔍 inv                  ×] |      | [🔍 zzz                  ×] |     | [🔍 Search (disabled)    ] |
+| Today                       |      |                             |     |      [chat icon]            |
+|  Invoice Acme for 20 h [🗑] |      | No conversation matches     |     |  No conversations yet       |
+| Older                       |      | "zzz".                      |     |  Ask a question to start    |
+|  Invoices due in Sept  [🗑] |      | Clear search                |     |  one.                       |
+|-----------------------------|      |-----------------------------|     |-----------------------------|
+| [+ New chat              ]  |      | [+ New chat              ]  |     | [+ New chat              ]  |
+
+loading (list pane)                 phone sheet (< md)
+| [▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭] |      +------------------------------+--------+
+| ▭▭▭▭                        |      | Conversations            [×] |░░░░░░░░|
+| [▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭     ] |      | [🔍 Search conversations   ] |░ chat ░|
+| [▭▭▭▭▭▭▭▭▭▭▭▭▭▭        ] |      | Today ...rows as default...  |░overlay|
+| ▭▭▭▭▭▭                      |      |------------------------------|░░░░░░░░|
+| [▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭     ] |      | [+ New chat               ]  |░░░░░░░░|
+                                    +------------------------------+--------+
+```
+
+### SCR-02 — New Conversation (empty state)
+
+`/ai` (`app/(protected)/ai/page.tsx`), rendered by `ChatIsland` until the first send. `StartPanel` changes from a `Card` to the kit's empty state: the right pane centres, vertically and horizontally, a greeting, a max-`2xl` composer and the suggested requests, with the `AllowanceNotice` counter under the composer. Nothing is saved until the first message (AC-18). The header shows only the list button (`< md`) and no title. The start point comes from the address (server-actions.md "Addresses and start points").
+
+Suggested requests (spec §1: at least three, fixed, including drafting and who owes money), as outline `Button`s in a wrapping row under the composer:
+1. "Invoice Acme for 20 hours of consulting at $50"
+2. "Who owes me money right now?"
+3. "What's overdue today?"
+4. "Which bank accounts do I have?"
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| loading | The page request is in flight: the grid loading skeleton (SCR-01 `loading`) with a centred greeting line and a composer-sized skeleton in the right pane | `Skeleton` | — |
+| default | `/ai` with messages left (AC-18; Flow 9). Greeting "Hi! What can I help you with?" and below it "Ask about your invoices, Customers and payments, or describe an invoice to draft." Centred composer (placeholder "Ask a question or describe an invoice"), "Send", the counter "{left} of 30 messages left today", and the four suggestions | `StartPanel` (changed), `Composer`, `AllowanceNotice` (counter), `Button` (outline) | wireframe below |
+| suggestion picked | Pressing a suggestion puts its text in the composer and focuses it. Nothing is sent, saved or counted (AC-18) | `Composer` | — |
+| start=draft | `/ai?start=draft&from=invoices` or `&from=dashboard` with messages left (ai-assistant AC-33, spec AC-30). Greeting "Draft an invoice", sub-line "Describe it in one sentence. You'll see a card to check before anything is created." Placeholder `e.g. "Invoice Acme for 20 hours of consulting at $50"`. Suggestion 1 only. The first message is sent with `startedFrom` from the address | `StartPanel`, `Composer` | wireframe below |
+| too-long | As the parent: a `FieldError` with the contract message verbatim and "{n} / 2,000". Send is disabled and the text is kept | `Composer`, `FieldError` | — |
+| sending (composer moves) | The first message is sent (AC-18; Flow 9). At once, the greeting and suggestions fade out, the composer moves to the bottom with the translate transition, and the message appears above it in SCR-03 `waiting`. Under `prefers-reduced-motion` the composer jumps to the bottom with no transition. The island does not remount. The address stays `/ai` until `data-conversation`, then `history.replaceState` → `/ai/{id}` | `ChatIsland` (changed), `Composer` | wireframe below |
+| handoff | `/ai?handoff={id}` with a matching `sessionStorage` entry (ADR-0009; critical flow 3). The island takes and deletes the entry, drops `handoff` from the address with `replaceState`, and sends the prompt with `origin: 'DASHBOARD'`, `startedFrom: 'DASHBOARD_PROMPT'`. The default layout never shows: the island opens directly in `sending` (no animation, since nothing moved), with the reply being written (AC-29) | `ChatIsland` | SCR-03 `waiting` |
+| handoff missing | `?handoff={id}` with no entry (reload, Back, another tab, storage blocked): `handoff` is dropped from the address and `default` shows. Nothing is sent or counted (sad.md §11) | `StartPanel` | — |
+| used-up | `left = 0` on `/ai` (parent AC-10): the composer and the suggestions are replaced by `AllowanceNotice` (used-up mode), still centred under the greeting. The list stays usable | `AllowanceNotice` (used-up) | wireframe below |
+| used-up from Create with AI | `?start=draft…` with `left = 0` (ai-assistant AC-34, spec AC-32 path): `AllowanceNotice` (used-up) with `handMadeLink` "Create it by hand →" to `/invoices/new` (SCR-10) | `AllowanceNotice`, `buttonVariants` link | wireframe below |
+| used-up on send | `429` on the first message: the composer returns to the middle without animation, the optimistic message is removed, and `used-up` shows with the result's `error` verbatim. No Conversation is saved | `AllowanceNotice` | — |
+| could-not-complete / ai-unavailable on first send | As the parent's SCR-02 rows, shown in the Conversation layout (the composer stays at the bottom). No Conversation exists until a reply is saved, so the address stays `/ai` | `Alert`, `Button` | SCR-03 |
+| left without sending | Picking another Conversation or leaving the page saves nothing, and the list is unchanged (AC-18) | — | — |
+| error | `getAllowanceState` or the list read fails → `LoadError` (existing `error.tsx`) | `LoadError` | existing |
+| signed out | A Visitor → SCR-12 (AC-36) | — | SCR-12 |
+| empty | N/A: this screen *is* the empty state of a Conversation | — | — |
+
+```text
+default (≥ xl shown; md–xl identical; < md has no list pane)
++------------------------------+------------------------------------------------------+
+| Conversations           [⋯]  |                                                      |
+| [🔍 Search conversations   ] |                                                      |
+| Today                        |            Hi! What can I help you with?             |
+|  Who owes me money?     [🗑] |   Ask about your invoices, Customers and payments,   |
+|   12 Oct 2026                |          or describe an invoice to draft.            |
+| Yesterday                    |                                                      |
+|  Bank accounts in EUR   [🗑] |  +------------------------------------------------+  |
+|   11 Oct 2026                |  | Ask a question or describe an invoice          |  |
+|                              |  |                                         [Send] |  |
+|                              |  +------------------------------------------------+  |
+|                              |  29 of 30 messages left today                        |
+|                              |                                                      |
+|                              |  [Invoice Acme for 20 hours of consulting at $50]   |
+|                              |  [Who owes me money right now?] [What's overdue      |
+|------------------------------|   today?] [Which bank accounts do I have?]           |
+| [+ New chat               ]  |                                                      |
+| Kept for 90 days after the   |                                                      |
+| last message.                |                                                      |
++------------------------------+------------------------------------------------------+
+
+phone (< md): header row  [☰ Conversations]            (list button opens SCR-01 sheet)
+              then the same centred block, full width with a 16 px gutter.
+```
+
+```text
+start=draft (right pane)                         used-up / used-up from Create with AI
+|          Draft an invoice                  |   |          Hi! What can I help you with?            |
+|  Describe it in one sentence. You'll see a |   |  (i) You've used today's 30 messages              |
+|  card to check before anything is created. |   |      They renew at 00:00 your time. An AI client  |
+|  [ e.g. "Invoice Acme for 20 hours..."   ] |   |      connected with a Personal key isn't          |
+|                                    [Send]  |   |      affected, and your conversations stay        |
+|  29 of 30 messages left today              |   |      readable.                                    |
+|  [Invoice Acme for 20 hours of consulting  |   |      Connect your own AI client →                 |
+|   at $50]                                  |   |      [Create it by hand →]   <- start=draft only  |
+
+sending: the composer moves from the middle to the bottom (≈250 ms, none under reduced motion)
+|                                            |        |                Who owes me money?          |
+|  [ Who owes me money?            ] [Send]  |  ===>  | (◌) Thinking…                              |
+|                                            |        |--------------------------------------------|
+|                                            |        | [ composer, disabled             ] [Send]  |
+```
+
+### SCR-03 — Conversation
+
+`/ai/{id}` (`[conversationId]/page.tsx` reads `getConversation`, which now returns `offers` and message `origin`). The right pane is a column: a header (title, the "Conversation actions" menu as the parent; `< md` and the `md`–`xl` preview layout add the list button on the left), the messages in their own `ScrollArea` (`flex-1 min-h-0`, max-`3xl` content width, centred), and the composer docked at the bottom, outside the scroll area, with the counter. Freelancer messages are right-aligned bubbles. A pressed choice shows its stored label like any typed message. Assistant replies are left-aligned plain text with their `ChatLink`s, Draft cards (SCR-05) and Offered choices (SCR-04) in part order.
+
+**Following new text** (AC-16, spec §6). A small in-house hook watches the scroll area. While the end of the messages is within 48 px of view, each new delta scrolls to the bottom within 100 ms. Further up, nothing moves, and a floating "Jump to latest" `Button` (secondary, `size="sm"`, arrow-down icon, centred 12 px above the composer) appears. Pressing it scrolls to the bottom and hides it. It also hides when the Freelancer scrolls back within 48 px. Sending a message always scrolls to the bottom.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| loading | Page request in flight: the existing `[conversationId]/loading.tsx` redrawn inside the grid: three alternating message skeletons and a composer skeleton docked at the bottom | `Skeleton` | — |
+| default | `getConversation` → `ok` (AC-15; Flow 7). Saved replies are shown whole (AC-33). Offers are restored from `offers` (SCR-04). Card and link states come from the store. Scrolled to the newest message on open. Only the messages scroll; the page never scrolls, and the composer stays visible at every height from 360 × 640 up (spec §6) | `ChatIsland`, `MessageList`, `ScrollArea`, `ChatLink`, `DraftCard`, `NEW: OfferedChoices`, `Composer`, `AllowanceNotice`, `ConversationHeader` | wireframe below |
+| waiting | As the parent: the message appears at once, then `Spinner` "Thinking…", and Send and Enter are disabled until the reply completes | `Spinner` | wireframe SCR-02 |
+| streaming | Text deltas render word by word, about 20 ms apart, with the first word not held back (AC-33, spec §6). Never revealed as one block. While streaming, the reply's live region stays silent (parent rule) | `MessageList` | — |
+| following | Streaming while the end is within 48 px: the view keeps the newest text in view (AC-16) | — | — |
+| scrolled up | Streaming or idle while the end is more than 48 px out of view: the view stays put, and "Jump to latest" floats above the composer (AC-16) | `Button` | wireframe below |
+| answered — reads | Read answers (AC-01–AC-03): profiles with their accounts as "Monobank ••••4821 · USD (default)", prices "50.00 USD · 45.00 EUR, custom price for Acme Corp 40.00 USD", Customer names as saved. All are the Assistant's own plain text; the UI adds nothing. No full account number exists in any part (spec §6) | `MessageList` | wireframe below |
+| answered — nothing matches | AC-05: the reply says nothing matches, with a page `ChatLink` "Add a Customer →" (`/customers/new`) or "Add a product →" (`/products/new`) from the fixed app map (SCR-15) | `ChatLink` | wireframe below |
+| answered — own profile named | AC-05b: an explanation plus a question about which Customer to invoice. No card and no buttons. Text only | — | — |
+| answered — too many | AC-14: "12 Customers match "Studio". Type a more exact name." No buttons | — | — |
+| answered — only you can issue | AC-24: the parent answer. The invoice `ChatLink` opens the editor, and the card's Preview (SCR-05) stays the way to issue | `ChatLink` | — |
+| choice unavailable | `/api/chat` `409` `CHOICE_UNAVAILABLE` after a press (AC-12b, AC-13). The optimistic pressed message is removed. In the reply position, a non-destructive inline `Alert` (info icon) shows the contract sentence verbatim: "This option is no longer available. Choose again or type your request." The buttons stay exactly as they were, and the counter is unchanged (not counted). Nothing is saved, so a reload drops the notice | `Alert` | wireframe below |
+| could-not-complete / ai-unavailable | As the parent, for a typed message and a press alike. After a failed press, the offer is released (ADR-0003), so its buttons are pressable again with nothing marked. "Try again" re-sends the same thing: the text, or the same `{ offerId, optionId }` | `Alert`, `Button` | parent |
+| too-long | As the parent (`FieldError`, count, Send disabled) | `Composer`, `FieldError` | parent |
+| used-up | As the parent: `left = 0` on load, or `429` on a typed message **or a press** (AC-11). On a refused press, the optimistic message is removed and nothing is marked chosen (SCR-04 stays `pressable`). The composer is replaced by `AllowanceNotice` (used-up), docked at the bottom. Draft cards, Preview and Issue keep working (AC-27) | `AllowanceNotice` (used-up) | parent |
+| preview open | `?preview={cardId}`: SCR-06 opens beside the messages (`≥ md`) or as a sheet (`< md`). At `md`–`xl` the list pane is hidden and the header gains the list toggle. The messages stay visible and scrollable on a desktop (AC-20) | `NEW: InvoicePreviewPanel`, `Sheet` | SCR-06 |
+| conversation-gone | As the parent (`404` mid-session) | `Alert`, `buttonVariants` link | parent |
+| not-found | As the parent → existing not-found screen (ai-assistant AC-41) | — | parent |
+| deleted | As the parent | `DropdownMenu`, `Sonner` | parent |
+| error | `getConversation` fails → `LoadError` | `LoadError` | existing |
+| signed out | A Visitor → SCR-12. `401` on send → `goToSignIn()` (AC-36) | — | SCR-12 |
+| empty | N/A: a Conversation exists only from its first saved exchange (AC-18) | — | — |
+
+```text
+default (≥ xl, preview closed)
++------------------------------+------------------------------------------------------+
+| Conversations           [⋯]  | Invoice Acme for 20 h                          [⋯]   |
+| [🔍 Search conversations   ] |------------------------------------------------------|
+| Today                        |                     invoice Acme for 20 hours at $50 | ^
+| ▌Invoice Acme for 20 h  [🗑] | Two Customers match "Acme". Which one do you mean?   | |
+|   12 Oct 2026                | [Acme Corp] [Acme GmbH]           <- SCR-04          | |
+|  Who owes me money?     [🗑] |                                          Acme GmbH   | | messages
+|   12 Oct 2026                | Acme GmbH has two USD accounts on Studio. Which one? | | scroll on
+| Yesterday                    | [Monobank ••••4821 · USD] [Wise ••••7710 · USD]      | | their own
+|  ...                         |                              Monobank ••••4821 · USD | |
+|                              | Here is the draft for Acme GmbH.                     | |
+|                              | +--------------------------------------------------+ | |
+|                              | | Draft card (SCR-05)                              | | v
+|------------------------------|------------------------------------------------------|
+| [+ New chat               ]  | [ Ask a question or describe an invoice      ][Send]| docked,
+| Kept for 90 days after ...   | 26 of 30 messages left today                         | never scrolls
++------------------------------+------------------------------------------------------+
+
+phone (< md): [☰] Invoice Acme for 20 h [⋯] header; messages full width; composer docked.
+```
+
+```text
+scrolled up (AC-16)                              choice unavailable (AC-12b, AC-13)
+| ...older messages in view...               |   | Which account? [Monobank ••••4821 · USD]       |
+|                                            |   |                [Wise ••••7710 · USD]           |
+|            [↓ Jump to latest]              |   | (i) This option is no longer available.        |
+|--------------------------------------------|   |     Choose again or type your request.         |
+| [ Ask a question or describe...    ] [Send]|   | 27 of 30 messages left today   <- unchanged    |
+
+answered — reads (AC-01)                         answered — nothing matches (AC-05)
+| You have two sender profiles:              |   | No Customer matches "Globex". I never use a    |
+| - Studio (default)                         |   | Customer that isn't saved.                     |
+|   Monobank ••••4821 · USD (default)        |   | Add a Customer →                               |
+| - Consulting FOP                           |   |                                                |
+|   PrivatBank ••••0915 · UAH                |   |                                                |
+```
+
+### SCR-04 — Offered choices (inline under a reply in SCR-03)
+
+`NEW: OfferedChoices` (`components/ai/offered-choices.tsx`, sad.md §5). It renders one `OfferView` (`contracts/server-actions.md`) for each `data-offer` part, directly under the reply's text and before any card. The buttons are a wrapping row (`flex-wrap gap-2`) of outline `Button`s, `size="sm"`, inside a `role="group"` with an `aria-label` by kind: "Choose a Customer", "Choose a bank account", "Choose a product", "Choose a sender profile" or "Choose a currency". There are 1 to 8 buttons, each with the server's stored `label` verbatim (spec §1 "What a button shows"). Look-alike Customers carry their email in the label ("Acme Corp · billing@acme.com" or "Аcme Corp · no email", AC-10). The UI never builds or edits a label. A press sends `{ conversationId, message: label, choice: { offerId, optionId } }` with no `origin` (openapi.yaml `ChatRequest`). On a phone the buttons wrap. A label longer than the row truncates with its full text in `title`.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| labels loading | A `data-offer` part streamed with only `offerId`. Its `OfferView` arrives through `loadConversationCards` after `finish` (ADR-0001 Neutral). Until then, a row of three button-sized `Skeleton`s | `Skeleton` | — |
+| pressable | `state = OPEN` and the reply is the latest one (AC-08, AC-08b, AC-13). Every button is enabled and keyboard-reachable in order. This also applies with no allowance left (AC-11: the press is refused by the server, not disabled) | `NEW: OfferedChoices`, `Button` (outline) | wireframe below |
+| pressing | A button pressed: its label appears at once as the Freelancer's message (optimistic). The pressed button shows a `Spinner`, and the whole group plus the composer are disabled until the turn resolves. The state is not yet chosen; the mark comes from the server | `Spinner` | wireframe below |
+| chosen | `state = CHOSEN` from `loadConversationCards` or on reopen (AC-08, AC-12, AC-13). The chosen button is `variant="secondary"` with a check icon and sr-only "(chosen)". All buttons are disabled (`aria-disabled`, still readable in the a11y tree) | `Button` (secondary + check), `Button` (outline, disabled) | wireframe below |
+| inactive | `state = CLOSED` (a newer typed or dashboard message, AC-12), or the reply is not the latest. All buttons are disabled, none marked, at the muted opacity. They stay visible on reopen (AC-13) | `Button` (disabled) | wireframe below |
+| refused — unavailable | `409` (AC-12b, AC-13): back to `pressable`, nothing marked. SCR-03 `choice unavailable` shows the sentence | `Alert` | SCR-03 |
+| refused — used up | `429` (AC-11): back to `pressable`, nothing marked. SCR-03 `used-up` | `AllowanceNotice` | SCR-03 |
+| failed | `COULD_NOT_COMPLETE` / `AI_UNAVAILABLE` after the claim: released, so back to `pressable` (SCR-03 row) | — | SCR-03 |
+| no offer | More than 8 options (AC-14), a value to type, or a non-offer issue: no group is rendered (text only, SCR-03) | — | — |
+| empty | N/A: an offer always has 1..8 options (openapi.yaml `OfferView`) | — | — |
+| error | N/A: the component makes no request of its own. Press outcomes route to the SCR-03 states above | — | — |
+
+```text
+pressable (AC-08)                                pressable, look-alike Customers (AC-10)
+| Two Customers match "Acme". Which one?     |   | Two Customers look alike. Which one?           |
+| [Acme Corp] [Acme GmbH]                    |   | [Acme Corp · billing@acme.com]                 |
+                                                 | [Аcme Corp · no email]                         |
+pressing                                         chosen (after the press, and on reopen)
+|                                  Acme GmbH |   | [Acme Corp] [✓ Acme GmbH]      (all disabled)  |
+| [Acme Corp] [(◌) Acme GmbH]   (disabled)  |
+                                                 inactive (a newer typed message)
+labels by kind (stored, verbatim):               | [Acme Corp] [Acme GmbH]   (disabled, muted,    |
+| Bank account: [Monobank ••••4821 · USD]    |   |                            none marked)        |
+| Product:      [Consulting · hours · 50.00 USD]
+| Sender prof.: [Consulting FOP]             |
+| Currency:     [USD] [UAH]                  |
+```
+
+### SCR-05 — Draft card (inline in SCR-03, existing, extended)
+
+`DraftCard` keeps every parent state (ai-assistant screens.md SCR-03: live, creating, replaced, outdated, needs-answers, not-found, create-failed, rejected). The changes:
+- Once the card is created, it gets a **"Preview"** `Button` (outline, eye icon) beside the editor link. Preview pushes `?preview={cardId}` (ADR-0005).
+- The created states read the invoice's status from the workspace store (ADR-0008) instead of only the page load.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| live / creating / replaced / outdated / needs-answers / create-failed / not-found / rejected | As the parent. No Preview: no invoice exists yet | `DraftCard` | parent |
+| created (draft) | Store state `DRAFT` (AC-20). "Draft {number} created." with `ChatLink` "Open in editor →" (the parent's "Open draft →" is renamed, to match the panel) and "Preview" | `DraftCard`, `ChatLink`, `Button` (outline) | wireframe below |
+| preview open | This card's preview is the open one: Preview is `aria-expanded="true"` and `variant="secondary"`. Pressing it again closes the panel | `Button` | — |
+| created, issued | Store state issued: from the page load, an `issueFromPreview` success, or `ALREADY_ISSUED` (AC-23, AC-26). "Invoice {number}" with `InvoiceStatusBadge`. "Open in editor →" and "Preview" stay (the preview shows the issued invoice with no Issue). The Assistant mark shows nowhere in the card | `ChatLink`, `InvoiceStatusBadge`, `Button` | wireframe below |
+| created, no longer available | Store state `UNAVAILABLE`: from the load, or a `loadInvoicePreview` → `UNAVAILABLE` / `issueFromPreview` → `NOT_FOUND` (AC-21). "This draft is no longer available." No link and no Preview | `ChatLink` | wireframe below |
+| at zero allowance | Create and Preview work as normal (AC-27, parent AC-11c) | — | — |
+| loading | As the parent (card `Skeleton` until the `DraftCardView` arrives) | `Skeleton` | parent |
+| empty | N/A (as the parent) | — | — |
+
+```text
+created (draft) (AC-20)
+| Draft invoice                                  [Created] |
+| ...content as the parent's live card...                  |
+| Draft INV-0043 created.     Open in editor →  [👁 Preview]|
+
+created, issued (AC-23, AC-26)                   created, no longer available (AC-21)
+| Draft invoice                     [Created]  |   | Draft invoice                     [Created]  |
+| Invoice INV-0043 [Pending]                   |   | This draft is no longer available.           |
+|              Open in editor →  [👁 Preview]  |   |                                              |
+```
+
+### SCR-06 — Invoice preview panel (side panel on a desktop, full-screen sheet on a phone)
+
+`NEW: InvoicePreviewPanel` (`components/ai/invoice-preview-panel.tsx`). It opens from `?preview={cardId}` and calls `loadInvoicePreview(cardId)` (ADR-0006) on open, on a reload with the parameter, and after `CHANGED_ELSEWHERE`. At `≥ md` it is a grid column (not a modal) with a left border, its own header and its own scroll. At `< md` it renders inside a `Sheet` (`side="bottom"`, `h-dvh`, full width). Back closes it (pushState), and so do `×` and Escape. Inside:
+- a header: "{invoiceNumber}" (or "Invoice preview" before load), the status (`Badge` "Draft" or `InvoiceStatusBadge`), and a close `×` button (`aria-label` "Close preview");
+- the body: `PDFPreviewPanel` with `source = { kind: 'issued', invoice }` and the invoice's sender profile, the same as the list's preview modal, with zoom controls (spec AC-20 "the same invoice preview the editor shows");
+- a footer, always visible: "Open in editor" (outline link to `/invoices/{id}/edit`) and, only while the invoice is a draft, "Issue invoice" (primary).
+
+Opening the preview and issuing are never messages and never count (AC-27). The panel moves focus to its heading on open and returns focus to the card's Preview button on close.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| loading | The `loadInvoicePreview` call is in flight: header "Invoice preview", an A4-ratio page `Skeleton`, and the footer buttons disabled. Rendered within 1.5 s p95 (spec §6) | `Skeleton` (plus an sr-only `role="status"` "Loading preview…") | wireframe below |
+| draft | `AVAILABLE` + `DRAFT` (AC-20). Header "INV-0043" `Badge` "Draft". The document. Footer: "Open in editor" and "Issue invoice" | `NEW: InvoicePreviewPanel`, `PDFPreviewPanel`, `Badge`, `Button`, `buttonVariants` link | wireframe below |
+| issued | `AVAILABLE` + an issued status (opened after issuing, or issued elsewhere): `InvoiceStatusBadge`, the document, and only "Open in editor". No Issue | `InvoiceStatusBadge`, `PDFPreviewPanel` | wireframe below |
+| issuing | Confirm pressed in SCR-07: handled by the dialog (spinner, buttons locked). The panel's Issue is disabled | `ConfirmationModal` | SCR-07 |
+| issued now | `issueFromPreview` → `ok` (AC-23): the dialog closes, `toast.success` "Invoice {number} issued.", and the store updates the card and links (SCR-05 `created, issued`). The panel calls `loadInvoicePreview` again, so the document and badge show the issued invoice, with the number kept. Issue disappears | `Sonner`, `InvoiceStatusBadge` | — |
+| already issued | `CONFLICT` + `ALREADY_ISSUED` (AC-26): the dialog closes. An info `Alert` at the top of the body shows the contract text verbatim "This invoice has already been issued." The store applies `details.invoice`, the panel switches to `issued`, and nothing is issued again | `Alert`, `InvoiceStatusBadge` | wireframe below |
+| reloaded (outdated) | `CONFLICT` + `CHANGED_ELSEWHERE` (AC-26b): the dialog closes, the panel shows `loading`, then calls `loadInvoicePreview` again and renders the current draft. A warning `Alert` above the document shows the contract text verbatim "This draft was changed after you opened the preview. Check it and issue again." Nothing was issued. The Freelancer must press Issue again, and SCR-07 then names the current figures. The alert clears on the next Issue press | `Alert`, `PDFPreviewPanel` | wireframe below |
+| blocked | `VALIDATION` (AC-25): the dialog closes, and a destructive `Alert` "Can't issue this invoice" shows the result's `error` verbatim (the editor's message) and lists `fieldErrors` messages, if any, as a list. It stays a draft. "Open in editor" becomes the primary footer button and Issue becomes outline | `Alert`, `Button` | wireframe below |
+| issue failed | `FAILED`: the dialog closes, `toast.error` "The invoice couldn't be issued. Try again." verbatim, and the panel stays `draft`, so Issue is available again | `Sonner` | — |
+| no longer available | `loadInvoicePreview` → `UNAVAILABLE`, or `issueFromPreview` → `NOT_FOUND` (AC-21): `Empty` (file-x icon) "This invoice is no longer available." with no document, no Issue and no editor link. Only `×`. The store marks the card the same (SCR-05) | `Empty` | wireframe below |
+| not found | `loadInvoicePreview` → `NOT_FOUND` (AC-22; another Freelancer's card, an unknown id, or a card not created): `Empty` "This invoice can't be found." verbatim, the same for every cause. Only `×`. The card is not changed (it may not be this Conversation's) | `Empty` | wireframe below |
+| load failed | `loadInvoicePreview` → `FAILED`: a destructive `Alert` "The preview couldn't be loaded. Try again." verbatim with "Try again" (re-calls the action; `Spinner` while pending) | `Alert`, `Button`, `Spinner` | — |
+| logo warning | `PDFPreviewPanel`'s own logo-warning alert (existing behaviour) | `PDFPreviewPanel` | existing |
+| rejected | `UNAUTHORIZED` or a rejected call → `goToSignIn()` | — | SCR-12 |
+| phone sheet | `< md` (AC-19): the same header, body and footer inside a full-screen `Sheet`. The footer buttons are full width and stacked, Issue on top | `Sheet` | wireframe below |
+| md–xl layout | `md`–`xl`: the grid is chat \| preview. The list pane is hidden, and the SCR-03 header gains the "Show conversations" toggle (`☰`), which opens SCR-01 as a left `Sheet` (spec §1) | `Sheet`, `Button` (icon) | wireframe below |
+| empty | N/A: an available invoice always has a document. The no-invoice cases are `no longer available` / `not found` | — | — |
+
+```text
+draft, ≥ xl (three panes; AC-20)
++----------------------+-------------------------------------+-------------------------------+
+| Conversations   [⋯]  | Invoice Acme for 20 h          [⋯]  | INV-0043  [Draft]         [×] |
+| [🔍 Search        ]  |-------------------------------------|-------------------------------|
+| Today                | ...messages, own scroll...          |  [-] [+] [fit]                |
+| ▌Invoice Acme   [🗑] |                                     |  +-------------------------+  |
+|  Who owes me    [🗑] | | Draft INV-0043 created.         | |  |  INVOICE INV-0043       |  |
+| ...                  | |  Open in editor → [👁 Preview]* | |  |  Studio → Acme GmbH     |  |
+|                      |                                     |  |  Consulting 20 h ...    |  |
+|----------------------|-------------------------------------|  |  Total 1,000.00 USD     |  |
+| [+ New chat       ]  | [ Ask a question...        ] [Send] |  +-------------------------+  |
+| Kept for 90 days...  | 26 of 30 messages left today        |-------------------------------|
++----------------------+-------------------------------------+ [Open in editor] [Issue invoice]
+                                                              +-------------------------------+
+  * Preview pressed state (secondary, aria-expanded)
+
+md–xl (768–1279): the list pane is hidden; the header gets a toggle
++---------------------------------------+-------------------------------+
+| [☰] Invoice Acme for 20 h       [⋯]   | INV-0043  [Draft]         [×] |
+| ...messages...                        | ...document...                |
+| [ Ask a question...          ] [Send] | [Open in editor] [Issue invoice]
++---------------------------------------+-------------------------------+
+  [☰] opens SCR-01 as a left Sheet over both panes.
+```
+
+```text
+loading                     issued                       reloaded (AC-26b)
+| Invoice preview     [×] | | INV-0043 [Pending]  [×] | | INV-0043  [Draft]          [×] |
+| ▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭ |  | ...document...          | | (!) This draft was changed     |
+| ▭  page skeleton    ▭ |  |                         | |     after you opened the       |
+| ▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭▭ |  |                         | |     preview. Check it and      |
+| [Open in editor][Issue]| | [Open in editor]        | |     issue again.               |
+   (disabled)                                         | ...current document...         |
+                                                      | [Open in editor] [Issue invoice]
+
+already issued (AC-26)              blocked (AC-25)
+| INV-0043 [Pending]          [×] | | INV-0043  [Draft]                     [×] |
+| (i) This invoice has already    | | (x) Can't issue this invoice              |
+|     been issued.                | |     <the editor's message, verbatim,      |
+| ...document...                  | |      e.g. a currency-mismatch rule>       |
+| [Open in editor]                | | ...document...                            |
+                                    | [Issue invoice]  [Open in editor]  <- primary
+
+no longer available (AC-21)        not found (AC-22)                phone sheet (< md, AC-19)
+| Invoice preview         [×] |    | Invoice preview         [×] |  +-----------------------------+
+|      [file-x icon]          |    |      [file-x icon]          |  | INV-0043  [Draft]       [×] |
+|  This invoice is no longer  |    |  This invoice can't be      |  | ...document, own scroll...  |
+|  available.                 |    |  found.                     |  |-----------------------------|
+                                                                    | [      Issue invoice      ] |
+                                                                    | [     Open in editor      ] |
+                                                                    +-----------------------------+
+```
+
+### SCR-07 — Issue confirmation dialog
+
+The existing `ConfirmationModal` (canon) opened from SCR-06's "Issue invoice", with a `NEW: IssueConfirmation` body. Title "Issue invoice {number}?". The body names, from the preview the panel shows (the loaded `invoice`, never a cached card):
+- "Customer: {Customer name}"
+- "Total: {total} {currency}"
+- the sentence "Once it's issued, its lines and amounts can no longer change."
+
+Confirm is "Issue invoice" and Cancel is "Cancel". `onConfirm` returns the `issueFromPreview(invoiceId, version)` promise. The modal locks both buttons while it is pending and never closes itself. The caller closes it once the promise settles, for every outcome (canon note, F-40), and routes the outcome to SCR-06.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default | Issue pressed on a draft (AC-23). The figures are the ones loaded with this preview's `version` | `ConfirmationModal`, `NEW: IssueConfirmation` | wireframe below |
+| issuing | Confirm pressed: `Spinner` in Confirm, both buttons disabled (canon behaviour). Two quick presses issue once (row lock + the modal's busy state) | `ConfirmationModal`, `Spinner` | — |
+| cancelled | Cancel, Escape or the overlay: closes. Nothing is called, and the panel stays `draft` | — | SCR-06 |
+| settled | Every result closes the dialog and goes to SCR-06: `issued now`, `already issued`, `reloaded (outdated)`, `blocked`, `issue failed`, `no longer available`. A rejected promise → `goToSignIn()` (canon behaviour) | — | SCR-06 |
+| at zero allowance | Same as `default`. Issuing is never a message (AC-27) | — | — |
+| validation | N/A: the dialog has no input | — | — |
+| empty | N/A: it opens only for a loaded draft | — | — |
+
+```text
+default (AC-23)
++------------------------------------------------+
+| Issue invoice INV-0043?                        |
+|                                                |
+| Customer   Acme Corp                           |
+| Total      1,000.00 USD                        |
+|                                                |
+| Once it's issued, its lines and amounts can no |
+| longer change.                                 |
+|                                                |
+|                      [Cancel] [Issue invoice]  |
++------------------------------------------------+
+  issuing: [Cancel](disabled) [(◌) Issue invoice](disabled)
+```
+
+### SCR-08 — Navigation "AI" group
+
+`config/navigation-menu.config.ts`: the single main item "AI" is removed. A new `type: 'group'` section with `label: 'AI'` is placed between the main section and "Management", rendered by the existing `AppSidebar` group (the same style as "Management"). Its items are "AI chat" (`/ai`, icon `ai`) and "Connect your AI" (`/settings/assistants`, a plug icon; `implement` adds the icon key if the icon map has none).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default | Signed in (AC-28). The group label "AI" with the two items | `AppSidebar`, `Sidebar` group | wireframe below |
+| active | The current path is under `/ai` → "AI chat" is active. Under `/settings/assistants` → "Connect your AI" is active (`isActive`, existing matching) | `Sidebar` menu button | — |
+| collapsed | The sidebar is collapsed to icons: the existing icon-only rendering with a `Tooltip` per item; the group label is hidden as for "Management" | `Sidebar`, `Tooltip` | existing |
+| phone | The existing mobile sidebar `Sheet` holds the same group | `Sidebar` | existing |
+| empty / error / loading | N/A: static config, rendered with the app shell | — | — |
+
+```text
+| ▣ Dashboard            |
+| ▣ Invoices             |
+|                        |
+| AI                     |   <- group label, styled like "Management"
+| ✦ AI chat         ◀ active on /ai and /ai/{id}
+| ⌁ Connect your AI      |
+|                        |
+| Management             |
+| ▣ Customers            |
+| ...                    |
+```
+
+### SCR-09 — Dashboard AI block (existing dashboard, extended)
+
+Two additions to the existing dashboard:
+1. **`DashboardHeader`:** a "Create invoice with AI" `buttonVariants({ variant: 'outline' })` link (sparkles icon) placed just before the existing "Create Invoice" button, linking to `/ai?start=draft&from=dashboard` (AC-30). On a phone both buttons wrap under the filters.
+2. **`NEW: DashboardAiBlock`** (`components/dashboard/ai-block.tsx`): an RSC section in its own `Suspense`, placed after `DashboardBanners` and before the stats. It reads `getAllowanceState` and `listLatestConversations(actor, 3)`. It is a `Card` titled "Ask AI" with two columns at `lg` (stacked below):
+   - **left:** a client prompt box, an `InputGroup` with a 2-row auto-growing `Textarea` (placeholder "Ask about your invoices or describe one to draft", `aria-label` "Message to AI") and a send icon `Button` (`aria-label` "Send to AI"), plus the `AllowanceNotice` counter. Enter sends and Shift+Enter is a newline, as in `Composer`;
+   - **right:** "Recent conversations", up to 3 `Item` links (title, last-message day) to `/ai/{id}`, and "All conversations →" to `/ai`.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| loading | The Suspense fallback: a card with a textarea skeleton and three row skeletons | `Skeleton`, `Card` | — |
+| default | Messages left and ≥ 1 Conversation (AC-30): up to 3 latest by last message, the prompt box, the counter, "All conversations →", and "Create invoice with AI" in the header | `NEW: DashboardAiBlock`, `InputGroup`, `Textarea`, `Button`, `AllowanceNotice`, `Item`, `buttonVariants` link | wireframe below |
+| none yet | No Conversations (AC-30): the right column reads "No conversations yet. Your chats with AI will show here." and keeps "All conversations →" (it opens SCR-02 with SCR-01) | `Item` / muted text | wireframe below |
+| validation — empty | Send with an empty or whitespace prompt (AC-31): `FieldError` "Type a message first." verbatim. Nothing is stored, sent or created. Focus stays in the box | `Field`, `FieldError` | wireframe below |
+| validation — too long | Over 2,000 characters after trimming (AC-31): `FieldError` "Messages can be at most 2,000 characters. Shorten it and send again." verbatim plus "{n} / 2,000". Send is refused. Nothing is created | `Field`, `FieldError` | wireframe below |
+| sending | A valid prompt: the send button shows a `Spinner` and the box is read-only while the hand-off entry is written and the router navigates to `/ai?handoff={id}` (same tab, ADR-0009). Continues in SCR-02 `handoff` → SCR-03 (AC-29) | `Spinner` | — |
+| used-up | `left = 0` (AC-32): the prompt box is replaced by `AllowanceNotice` (used-up mode) with `handMadeLink` "Create it by hand →" to `/invoices/new` (SCR-10). Nothing can be sent. The latest links and "All conversations →" stay usable. "Create invoice with AI" stays and leads to SCR-02 `used-up from Create with AI` | `AllowanceNotice` (used-up) | wireframe below |
+| error | A failed read → `unwrapPageResult`, as every other dashboard section (the segment's `error.tsx`, `LoadError`) | `LoadError` | existing |
+| signed out | N/A: the dashboard is signed-in only. A Visitor is sent to SCR-12 by the proxy before the block renders (AC-36) | — | SCR-12 |
+
+```text
+default (lg and wider)
++------------------------------------------------------------------------------------+
+| ✦ Ask AI                                                                           |
+| +--------------------------------------------+  Recent conversations                |
+| | Ask about your invoices or describe one to |  Invoice Acme for 20 h    12 Oct 2026|
+| | draft                                  [➤] |  Who owes me money?       12 Oct 2026|
+| +--------------------------------------------+  Bank accounts in EUR     11 Oct 2026|
+| 29 of 30 messages left today                    All conversations →                 |
++------------------------------------------------------------------------------------+
+  header row: [filters]                  [USD|EUR]  [✦ Create invoice with AI] [+ Create Invoice]
+  below lg: the recent list stacks under the prompt box.
+```
+
+```text
+none yet (right column)                          validation (AC-31)
+| Recent conversations                       |   | [                                    ] [➤]  |
+| No conversations yet. Your chats with AI   |   | ! Type a message first.                     |
+| will show here.                            |   |
+| All conversations →                        |   | [ ...2,140 characters...             ] [➤]  |
+                                                 | ! Messages can be at most 2,000 characters. |
+used-up (AC-32; replaces the prompt box)         |   Shorten it and send again.   2,140 / 2,000|
+| (i) You've used today's 30 messages                                   |
+|     They renew at 00:00 your time. ...                                |
+|     Connect your own AI client →    [Create it by hand →]             |
+```
+
+### SCR-10 — Invoice editor (existing)
+
+The UI is unchanged. It is reached from "Open in editor" (SCR-05, SCR-06) and "Create it by hand →" (SCR-02, SCR-09). An invoice issued from the chat shows in the editor's `issued` mode, with no Assistant mark (AC-23, ai-assistant ADR-0013).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default / loading / error / not-found | Existing editor states, unchanged | `InvoiceEditor` | existing |
+| empty | N/A: no change in this feature | — | — |
+
+### SCR-11 — Connect your AI page (existing)
+
+The UI is unchanged (ai-assistant SCR-07). Only the entry moves into the SCR-08 group, which marks "Connect your AI" active here. The three new read questions need no new key setting (spec §1).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default / loading / empty / error | Existing states, unchanged | existing | existing |
+
+### SCR-12 — Sign-in (existing)
+
+The UI is unchanged. A Visitor reaching `/ai`, `/ai/{id}` or the dashboard is redirected by the proxy, and nothing is processed or counted (AC-36).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default / error | Existing states, unchanged | `LoginForm` | existing |
+| empty | N/A: no change in this feature | — | — |
+
+### SCR-13 — Privacy page (existing, public, AI section updated)
+
+`app/(public)/privacy/` keeps its layout. Only the text of its AI section changes (AC-35). The section must state, in the page's existing heading and paragraph style:
+1. **What is stored:** Conversations with their messages and draft cards; the options the chat offered as buttons and the one chosen; prompts sent from the dashboard (stored as the first message of the Conversation they start); whether each message was typed, pressed or sent from the dashboard; and where each Conversation was started.
+2. **How long:** 90 days after the last message of a Conversation, or until the Freelancer deletes it or the account.
+3. **Who processes message text:** the model provider through its gateway, as already named on the page. There is no new processor.
+4. **What the reads share with an AI client connected through a Personal key:** sender profile names and defaults; bank name, last four digits and currency of each account, never a full account number; products with their prices and Custom prices; and Customers found by name.
+
+The final legal wording is `implement`'s, reviewed by the owner before ship. The terms page changes only if it contradicts the chat (spec §8).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default | A Visitor or a Freelancer opens `/privacy`: the updated AI section among the existing sections | existing page markup | — |
+| loading / empty / error | N/A: a static public page | — | — |
+
+### SCR-14 — Privacy settings (existing)
+
+The UI is unchanged. Only the export file and the deletion scope change (Flow 11, AC-34).
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| export downloaded | The existing download flow. The file is `exportVersion` `2.3`: every Conversation gains `startedFrom`, every message gains `origin` and its reply's `offer` (labels, state, chosen option), and invoices gain `issuedFromChat` | `GdprSettings` | existing |
+| account deleted | The existing confirmation. Offers, origins and start points go with their Conversations (cascade) | `ConfirmationModal` | existing |
+| default / loading / export error / account-delete error | Existing states, unchanged | `GdprSettings`, `Sonner` | existing |
+| empty | N/A: the export always holds the account itself | — | — |
+
+### SCR-15 — Add Customer / Add product pages (existing)
+
+The UI is unchanged. They are reached from the "Add a Customer →" / "Add a product →" page links in a "nothing matches" reply (SCR-03, AC-05), which the app map routes to `/customers/new` and `/products/new`.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| default / validation / error | Existing form states, unchanged | existing forms | existing |
+| empty | N/A: no change in this feature | — | — |
+
+## New components
+
+| Component | Why no existing primitive fits | Registered in design-system |
+|---|---|---|
+| `OfferedChoices` | No component renders a server-built set of 1..8 options with a server-owned state (pressable / chosen / inactive), an optimistic pressing state and a structured press `{ offerId, optionId }` rather than text. A `ButtonGroup` or plain `Button`s carry no offer state, chosen mark or kind-based group label. Contract: props `offer: OfferView \| undefined` (undefined → skeleton), `isLatest: boolean`, `pendingOptionId: number \| null`, `onPress(offerId, optionId, label)`; pressable only when `offer.state = 'OPEN' && isLatest`; labels verbatim; `role="group"` with a kind-based `aria-label`; the chosen button secondary + check + sr-only "(chosen)" (SCR-04) | pending |
+| `InvoicePreviewPanel` | The existing `InvoicePdfPreviewModal` is a modal `Dialog` from the global modal store. It would cover the messages (AC-20 needs them visible) and has Download/Print instead of Open in editor / Issue, plus none of the unavailable / not-found / outdated / blocked states. `PDFPreviewPanel` (the document) is reused inside. Contract: props `cardId`, `onClose`; loads with `loadInvoicePreview`, renders as a grid column at `≥ md` and a full-screen `Sheet` below, feeds the invoice-state store, opens SCR-07, and renders every SCR-06 state | pending |
+| `IssueConfirmation` | `ConfirmationModal` takes a `body` slot. This is that body: Customer, total and currency from the loaded preview plus the fixed "can no longer change" sentence, so every issue path shows the same figures (AC-23, AC-26b). Contract: props `customerName`, `total`, `currency` | pending |
+| `InvoiceStateProvider` | Non-visual (ADR-0008). The card, the chat links and the panel are siblings in the island and must show one invoice status fed by loads and action results. `NewConversationProvider` carries Conversation rows only. Contract: `useInvoiceState(invoiceId)` → `LinkedInvoiceState \| undefined`; `apply(invoiceId, state)` from loads, `createDraftFromCard`, `loadInvoicePreview` and `issueFromPreview` results | pending |
+| `DashboardAiBlock` | The dashboard has no chat entry. `StartPanel` is the AI section's centred empty state and sends through the chat island. The dashboard box must validate, write the one-time hand-off and navigate (ADR-0009), with the latest 3 Conversations beside it. Contract: RSC `DashboardAiBlock({ allowance, latest: ConversationSummary[], timeZone })` with a client prompt box that validates with the chat message rule and hands off; renders every SCR-09 state | pending |
