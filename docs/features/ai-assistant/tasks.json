@@ -953,6 +953,83 @@
         "tests/e2e/support/"
       ],
       "file": "docs/features/ai-assistant/tasks/t41-e2e-missing-flows.md"
+    },
+    {
+      "id": "T42",
+      "title": "Answer an MCP repeat with the first answer's stored proposal and the invoice's current status",
+      "layer": "ports",
+      "deps": [
+        "T37"
+      ],
+      "acs": [
+        "AC-30",
+        "AC-32"
+      ],
+      "dod": "McpDraftRepeat stores the first answer's DraftProposal (new nullable JSON column, staged + live migration with rollback); a repeat returns that proposal (true sources, defaultsUsed, rate sources) with the stored invoice's current status and number; rows written before the column existed fall back to the stored invoice in INVOICE_ITEM_ORDER, documented in openapi.",
+      "files_hint": [
+        "prisma/schema/auth.prisma",
+        "prisma/migrations/",
+        "docs/features/ai-assistant/migrations/",
+        "docs/features/ai-assistant/data-model.md",
+        "lib/services/assistant-drafts/create-for-key.ts",
+        "lib/services/assistant-drafts/repeat-marks.ts",
+        "docs/features/ai-assistant/contracts/openapi.yaml",
+        "tests/integration/services/assistant-drafts/create-for-key.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t42-mcp-repeat-stored-proposal.md"
+    },
+    {
+      "id": "T43",
+      "title": "Make the drafting-intent gate robust: default a missing intent to read, prove isolation with drafting on, test agent-phase SYSTEM faults, evaluate intent",
+      "layer": "app",
+      "deps": [
+        "T38"
+      ],
+      "acs": [
+        "AC-06b",
+        "AC-11",
+        "AC-14b",
+        "AC-15",
+        "AC-19",
+        "AC-40"
+      ],
+      "dod": "A verdict missing or with an invalid intent answers the question with no card instead of failing; the cross-tenant propose_draft cases run with intent draft and assert CUSTOMER_NOT_FOUND; a non-model error thrown in the agent phase ends SYSTEM / COULD_NOT_COMPLETE; the eval sets carry multi-turn drafting follow-ups (AC-14b, AC-19), a MIXED drafting row (AC-06b) and an intent label + score in the topic set.",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "tests/support/ai-stub-model.ts",
+        "tests/integration/api/chat-isolation.test.ts",
+        "tests/unit/lib/ai/",
+        "tests/integration/lib/ai/run-turn.test.ts",
+        "evals/assistant/",
+        "tests/unit/evals/assistant-eval.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t43-intent-gate-robustness.md"
+    },
+    {
+      "id": "T44",
+      "title": "Align the AI workspace with SCR-01/SCR-02: list row after save, conversation-only below lg, keyboard order, delete-all count, design-system rows",
+      "layer": "ui",
+      "deps": [
+        "T40"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-11",
+        "AC-35",
+        "AC-37"
+      ],
+      "dod": "The new row heads the list once data-conversation arrives in contract order (after save) and screens.md says so; below lg /ai/{id} shows only the Conversation with \"← All conversations\"; DOM order matches visual order at every breakpoint; Delete all counts the merged list; docs/design-system.md lists DraftCard cards prop, AiWorkspace and NewConversationProvider.",
+      "files_hint": [
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "app/(protected)/ai/",
+        "tests/component/ai-layout-reuse-t40.test.tsx",
+        "docs/features/ai-assistant/screens.md",
+        "docs/design-system.md",
+        "tests/e2e/"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t44-ai-workspace-alignment.md"
     }
   ]
 }
