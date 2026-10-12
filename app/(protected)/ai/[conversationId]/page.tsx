@@ -1,9 +1,8 @@
-import { DraftCard } from '@/components/ai/draft-card';
+import { ChatIsland } from '@/components/ai/chat-island';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
-import { MessageList } from '@/components/ai/message-list';
 import { unwrapPageResult } from '@/components/layout/content-area';
-import { Skeleton } from '@/components/ui/skeleton';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
+import { getAllowanceState } from '@/lib/services/assistant-usage';
 import { getConversation } from '@/lib/services/conversations';
 
 interface ConversationPageProps {
@@ -15,13 +14,17 @@ export default async function ConversationPage({ params }: ConversationPageProps
   const actor = unwrapPageResult(await actingFreelancerFromSession());
   const { conversation, messages, invoiceLinks, cards } = unwrapPageResult(await getConversation(actor, conversationId));
 
+  const allowance = unwrapPageResult(await getAllowanceState(actor));
+
   return (
     <div className="flex flex-col gap-4">
       <ConversationHeaderClient conversationId={conversationId} title={conversation.title} />
-      <MessageList
-        messages={messages}
+      <ChatIsland
+        conversationId={conversationId}
+        initialMessages={messages}
         invoiceLinks={invoiceLinks}
-        renderCard={(id) => (cards[id] ? <DraftCard card={cards[id]} /> : <Skeleton className="h-64 w-full" />)}
+        cards={cards}
+        allowance={allowance}
       />
     </div>
   );

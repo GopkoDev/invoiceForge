@@ -1,4 +1,4 @@
-import { StartPanelClient } from '@/components/ai/start-panel-client';
+import { ChatIsland } from '@/components/ai/chat-island';
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
 import { unwrapPageResult } from '@/components/layout/content-area';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
@@ -26,7 +26,14 @@ export default async function AiPage({ searchParams }: AiPageProps) {
         <ConversationListClient conversations={conversations} timeZone={actor.timeZone} />
       </aside>
       <section className="min-w-0">
-        <StartPanelClient state={allowance} start={start} />
+        <ChatIsland
+          conversationId={null}
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance}
+          start={start}
+        />
       </section>
     </div>
   );
