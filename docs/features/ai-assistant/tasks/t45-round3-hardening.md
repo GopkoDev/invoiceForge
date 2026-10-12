@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/create-for-key.ts", "evals/assistant
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12 round 3"
 ---
 

@@ -49,6 +49,6 @@
 | T42 | [Answer an MCP repeat with the first answer's stored proposal and the invoice's current status](./t42-mcp-repeat-stored-proposal.md) | ports | Dmytro Hopko | M | T37 | done |
 | T43 | [Make the drafting-intent gate robust: default a missing intent to read, prove isolation with drafting on, test agent-phase SYSTEM faults, evaluate intent](./t43-intent-gate-robustness.md) | app | Dmytro Hopko | M | T38 | done |
 | T44 | [Align the AI workspace with SCR-01/SCR-02: list row after save, conversation-only below lg, keyboard order, delete-all count, design-system rows](./t44-ai-workspace-alignment.md) | ui | Dmytro Hopko | M | T40 | done |
-| T45 | [Schema-check the stored repeat proposal, make the AC-19 eval row real, and tighten the round-2 tests and docs](./t45-round3-hardening.md) | app | Dmytro Hopko | S | T42, T43, T44 | todo |
+| T45 | [Schema-check the stored repeat proposal, make the AC-19 eval row real, and tighten the round-2 tests and docs](./t45-round3-hardening.md) | app | Dmytro Hopko | S | T42, T43, T44 | done |
 
 **Total:** 45 tasks, ~30.5 person-days (S = ½ day, M = 1 day).

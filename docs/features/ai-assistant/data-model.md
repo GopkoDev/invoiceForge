@@ -26,7 +26,7 @@ feature_size: "L"
 > - JSON is `Json` (`JSONB`), as ADR-0008 Neutral states. It is the repo's first JSON column, flagged in the audit.
 > - Idempotent DDL (`IF NOT EXISTS`, `DO $$ … IF NOT EXISTS` for enums and FKs). A `CONCURRENTLY` index on the existing `Invoice` table sits alone in its file, as `20261007100100_create_invoice_bank_account_id_index`.
 >
-> **Staged migrations:** `docs/features/ai-assistant/migrations/01_*` … `10_*` (`.up.sql` + `.down.sql`). They are **not** in the live `prisma/migrations/` tree. `implement` promotes them. The SQL body of every up matches `prisma migrate diff` for the schema in §Prisma schema edits, made idempotent.
+> **Staged migrations:** `docs/features/ai-assistant/migrations/01_*` … `11_*` (`.up.sql` + `.down.sql`). They are **not** in the live `prisma/migrations/` tree. `implement` promotes them. The SQL body of every up matches `prisma migrate diff` for the schema in §Prisma schema edits, made idempotent.
 >
 > **Out of scope:** Mastra's own trace tables in the `mastra` schema (ADR-0004). Mastra creates and owns them with `pnpm mastra:migrate` (SAD §7). Prisma does not manage them, and they hold metadata only.
 
