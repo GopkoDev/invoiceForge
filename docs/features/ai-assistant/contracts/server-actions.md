@@ -93,7 +93,7 @@ Reads today's `MessageAllowanceDay`, applying the time-zone rule (data-model). W
 
 | Outcome | Result |
 |---|---|
-| found | `ok(…)`: messages in `position` order. Every `data-draft-card` part has its `DraftCardView` in `cards`. Every invoice link and card invoice is resolved to its current `LinkedInvoiceState` in one owner-scoped read (AC-36) |
+| found | `ok(…)`: messages in `position` order. Every `data-draft-card` part has its `DraftCardView` in `cards`, and so does the whole successor chain of an `OUTDATED` card (its `replacedById` card, and that card's own if it is `OUTDATED` too), though a successor has no part of its own (AC-18, AC-35); the chain is read owner-scoped, so a pointer to another Freelancer's card surfaces nothing. Every invoice link and card invoice is resolved to its current `LinkedInvoiceState` in one owner-scoped read (AC-36) |
 | unknown id, or another Freelancer's | `fail('NOT_FOUND', "This conversation can't be found.")`. The page renders the existing not-found screen (SCR-12), with the same wording for both cases (AC-41) |
 
 "Create with AI" (AC-33) is the route `/ai?start=draft`. It needs no server call beyond `getAllowanceState`. When `left = 0` the page shows the used-up state with a link to the hand-made editor (AC-34).
@@ -115,7 +115,7 @@ type CreateFromCardResult =
 
 | Outcome | Result | Notes |
 |---|---|---|
-| live, content matches | `ok({ kind: 'CREATED', … })` | In one transaction: lock the card by id and owner, re-resolve the stored `request` with today's data, create the Draft invoice with the card's content, set `assistantOrigin = CHAT`, a system-assigned number, and mark the card `CREATED` with `invoiceId`. Nothing is issued or sent. ≤ 2 s p95 (spec §6) |
+| live, content matches | `ok({ kind: 'CREATED', … })` | In one transaction: lock the Conversation row, then the card by id and owner (the saveTurn order), re-resolve the stored `request` with today's data, create the Draft invoice with the card's content, set `assistantOrigin = CHAT`, a system-assigned number, and mark the card `CREATED` with `invoiceId`. Nothing is issued or sent. ≤ 2 s p95 (spec §6) |
 | already `CREATED` | `ok({ kind: 'ALREADY_CREATED', … })` | A second press, or a reconnect repeating the press, creates nothing (AC-14). The row lock makes concurrent presses wait and see `CREATED` |
 | `REPLACED` | `ok({ kind: 'REPLACED', … })` | Only the newer card can create (AC-14b) |
 | live, content differs (price, Customer renamed, profile, account, or "today") | `ok({ kind: 'OUTDATED', card })` | Marks this card `OUTDATED`, stores the updated `LIVE` card in the same Conversation, and returns it. Nothing is created (AC-18). Time alone never outdates a card |

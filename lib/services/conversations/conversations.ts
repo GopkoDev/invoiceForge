@@ -133,13 +133,35 @@ export async function getConversation(
       }
     }
 
+    const cardSelect = { id: true, state: true, proposal: true, replacedById: true, invoiceId: true } as const;
     const cardRows =
       cardIds.size === 0
         ? []
         : await prisma.draftCard.findMany({
             where: { id: { in: [...cardIds] }, userId: actor.userId },
-            select: { id: true, state: true, proposal: true, replacedById: true, invoiceId: true },
+            select: cardSelect,
           });
+    // An OUTDATED card's successor never got a part of its own: follow the chain, owner-scoped.
+    const seen = new Set(cardRows.map((c) => c.id));
+    let frontier = cardRows;
+    while (frontier.length > 0) {
+      const wanted = [
+        ...new Set(
+          frontier
+            .filter((c) => c.state === 'OUTDATED' && c.replacedById && !seen.has(c.replacedById))
+            .map((c) => c.replacedById as string)
+        ),
+      ];
+      if (wanted.length === 0) break;
+      frontier = await prisma.draftCard.findMany({
+        where: { id: { in: wanted }, userId: actor.userId },
+        select: cardSelect,
+      });
+      for (const c of frontier) {
+        seen.add(c.id);
+        cardRows.push(c);
+      }
+    }
     for (const c of cardRows) if (c.invoiceId) invoiceIds.add(c.invoiceId);
 
     const invoiceLinks = await readInvoiceStates(actor, [...invoiceIds]);

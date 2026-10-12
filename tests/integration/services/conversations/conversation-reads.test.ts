@@ -315,6 +315,60 @@ describe.runIf(containerRuntimeAvailable)('Conversation reads (T10)', () => {
     expect(data.invoiceLinks[inv.id]).toMatchObject({ state: 'ISSUED' });
   });
 
+  it('AC-18, AC-36 (R-03): an OUTDATED card brings its successor chain without a part; never another Freelancer card', async () => {
+    const a = await freelancer();
+    const b = await freelancer('t10-b@example.com');
+    const p = await parties(a.user.id);
+    const pb = await parties(b.user.id);
+    const prop = proposal(p.customer.id, p.senderProfile.id, p.bankAccount.id);
+    const conv = await createConversation(prisma, { userId: a.user.id, messages: [{ role: 'USER' }] });
+    const third = await createDraftCard(prisma, { userId: a.user.id, conversationId: conv.id, state: 'LIVE', proposal: prop });
+    const second = await createDraftCard(prisma, {
+      userId: a.user.id,
+      conversationId: conv.id,
+      state: 'OUTDATED',
+      proposal: prop,
+      replacedById: third.id,
+    });
+    const first = await createDraftCard(prisma, {
+      userId: a.user.id,
+      conversationId: conv.id,
+      state: 'OUTDATED',
+      proposal: prop,
+      replacedById: second.id,
+    });
+    // A tampered pointer to another Freelancer's card must never surface that card.
+    const foreignConv = await createConversation(prisma, { userId: b.user.id });
+    const foreign = await createDraftCard(prisma, {
+      userId: b.user.id,
+      conversationId: foreignConv.id,
+      state: 'LIVE',
+      proposal: proposal(pb.customer.id, pb.senderProfile.id, pb.bankAccount.id),
+    });
+    const tampered = await createDraftCard(prisma, {
+      userId: a.user.id,
+      conversationId: conv.id,
+      state: 'OUTDATED',
+      proposal: prop,
+      replacedById: foreign.id,
+    });
+    await prisma.conversationMessage.create({
+      data: {
+        conversationId: conv.id,
+        position: 1,
+        role: 'ASSISTANT',
+        parts: [first.id, tampered.id].map((cardId) => ({ type: 'data-draft-card', id: cardId, data: { cardId } })),
+      },
+    });
+
+    const data = await opened(a.actor, conv.id);
+
+    expect(Object.keys(data.cards).sort()).toEqual([first.id, second.id, third.id, tampered.id].sort());
+    expect(data.cards[second.id]).toMatchObject({ state: 'OUTDATED', replacedById: third.id });
+    expect(data.cards[third.id]).toMatchObject({ state: 'LIVE', invoice: null });
+    expect(data.cards[foreign.id]).toBeUndefined();
+  });
+
   it('malformed stored parts fail with FAILED, never raw JSON', async () => {
     const a = await freelancer();
     const conv = await createConversation(prisma, {

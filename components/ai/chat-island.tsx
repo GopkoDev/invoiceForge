@@ -224,7 +224,7 @@ export function ChatIsland({
       <MessageList
         messages={visible}
         invoiceLinks={invoiceLinks}
-        renderCard={(id) => (cards[id] ? <DraftCard card={cards[id]} /> : <Skeleton className="h-64 w-full" />)}
+        renderCard={(id) => (cards[id] ? <DraftCard card={cards[id]} cards={cards} /> : <Skeleton className="h-64 w-full" />)}
       />
       {waiting ? (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">

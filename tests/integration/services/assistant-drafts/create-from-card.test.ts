@@ -43,6 +43,14 @@ describe.runIf(containerRuntimeAvailable)('Draft cards and the Create press (T20
   let db: TestDatabase;
   let prisma: PrismaClient;
   let svc: Svc;
+  let reads: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    getConversation: (actor: unknown, id: string) => Promise<any>;
+  };
+  let turns: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    saveTurn: (actor: unknown, input: Record<string, unknown>) => Promise<any>;
+  };
   let resolver: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
     resolveDraftRequest: (a: unknown, r: unknown, today: string) => Promise<any>;
@@ -56,6 +64,10 @@ describe.runIf(containerRuntimeAvailable)('Draft cards and the Create press (T20
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
     resolver = (await import('@/lib/services/assistant-drafts/resolve')) as any;
     svc = (await import('@/lib/services/assistant-drafts/cards')) as unknown as Svc;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    reads = (await import('@/lib/services/conversations')) as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    turns = (await import('@/lib/services/conversations')) as any;
   }, 60_000);
 
   afterAll(async () => {
@@ -343,6 +355,113 @@ describe.runIf(containerRuntimeAvailable)('Draft cards and the Create press (T20
       expect(old.replacedById).toBeNull();
       expect(await live(s.conversation.id)).toHaveLength(0);
     });
+
+    it('AC-18, AC-35, AC-36 (R-03): reopening after OUTDATED presses carries every successor in its current state', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+      // The proposing turn stored a part for the first card only; successors never get a part of their own.
+      await prisma.conversationMessage.create({
+        data: {
+          conversationId: s.conversation.id,
+          position: 0,
+          role: 'ASSISTANT',
+          parts: [{ type: 'data-draft-card', id: 'p1', data: { cardId: card.id } }],
+        },
+      });
+
+      const first = await svc.createFromCard(s.actor, card.id, NEXT_DAY);
+      expect(first.success && first.data.kind).toBe('OUTDATED');
+      if (!first.success) return;
+      const successorId: string = first.data.card.id;
+
+      const reopened = await reads.getConversation(s.actor, s.conversation.id);
+      expect(reopened.success).toBe(true);
+      expect(reopened.data.cards[card.id]).toMatchObject({ state: 'OUTDATED', replacedById: successorId });
+      expect(reopened.data.cards[successorId]).toEqual(first.data.card);
+
+      // A second outdating press and a confirm: the chain keeps going and the last card shows its invoice.
+      const DAY_AFTER = new Date('2026-03-17T10:00:00Z');
+      const second = await svc.createFromCard(s.actor, successorId, DAY_AFTER);
+      expect(second.success && second.data.kind).toBe('OUTDATED');
+      if (!second.success) return;
+      const thirdId: string = second.data.card.id;
+      const confirm = await svc.createFromCard(s.actor, thirdId, DAY_AFTER);
+      expect(confirm.success && confirm.data.kind).toBe('CREATED');
+      if (!confirm.success) return;
+
+      const again = await reads.getConversation(s.actor, s.conversation.id);
+      expect(Object.keys(again.data.cards).sort()).toEqual([card.id, successorId, thirdId].sort());
+      expect(again.data.cards[successorId]).toMatchObject({ state: 'OUTDATED', replacedById: thirdId });
+      expect(again.data.cards[thirdId]).toMatchObject({
+        state: 'CREATED',
+        invoice: { state: 'DRAFT', invoiceId: confirm.data.invoiceId, invoiceNumber: confirm.data.invoiceNumber },
+      });
+    });
+
+    it('AC-14b, AC-18 (R-04): the OUTDATED successor insert waits for the Conversation row lock (same order as saveTurn)', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      let locked!: () => void;
+      const hasLock = new Promise<void>((r) => (locked = r));
+      const holder = prisma.$transaction(
+        async (tx) => {
+          // NO KEY UPDATE still conflicts with saveTurn's FOR UPDATE, but not with the foreign-key share lock an
+          // insert takes - so only a press that locks the Conversation row itself waits here.
+          await tx.$queryRaw`SELECT "id" FROM "Conversation" WHERE "id" = ${s.conversation.id} FOR NO KEY UPDATE`;
+          locked();
+          await held;
+        },
+        { timeout: 30_000 }
+      );
+      await hasLock;
+
+      let settled = false;
+      const press = svc.createFromCard(s.actor, card.id, NEXT_DAY).finally(() => (settled = true));
+      await new Promise((r) => setTimeout(r, 1500));
+      const settledWhileLocked = settled;
+      release();
+      await holder;
+      const res = await press;
+
+      expect(settledWhileLocked).toBe(false);
+      expect(res.success && res.data.kind).toBe('OUTDATED');
+    });
+
+    it('AC-14b, AC-18 (R-04): a Create press that outdates a card and a turn proposing a card at once leave exactly one LIVE card', async () => {
+      const s = await setup();
+      const request = REQUEST;
+      for (let round = 0; round < 8; round++) {
+        const card = await storeCard(s);
+        const resolved = await resolver.resolveDraftRequest(s.actor, request, TODAY);
+        const proposal = resolved.data.proposal;
+        const [press, saved] = await Promise.all([
+          svc.createFromCard(s.actor, card.id, NEXT_DAY),
+          turns.saveTurn(s.actor, {
+            conversation: { id: s.conversation.id, isNew: false },
+            userText: `racer ${round}`,
+            assistantParts: [{ type: 'text', text: 'ok' }],
+            turn: {
+              topic: 'IN_SCOPE',
+              outcome: 'ANSWERED',
+              counted: false,
+              steps: 1,
+              toolNames: [],
+              durationMs: 1,
+              inputTokens: null,
+              outputTokens: null,
+              costUsd: null,
+            },
+            proposedCard: { id: `race_${round}`, request, proposal },
+          }),
+        ]);
+
+        expect(saved.success, JSON.stringify(saved)).toBe(true);
+        expect(press.success, JSON.stringify(press)).toBe(true);
+        expect((await live(s.conversation.id)).length).toBe(1);
+      }
+    }, 60_000);
 
     it("another Freelancer's card and an unknown id are NOT_FOUND; the foreign card is untouched", async () => {
       const owner = await setup('t20-owner@example.com');

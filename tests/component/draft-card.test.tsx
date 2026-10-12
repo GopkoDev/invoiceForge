@@ -491,6 +491,56 @@ describe('Conversation page - card slot (SCR-02, SCR-03 loading, AC-11c)', () =>
     expect(await screen.findByText('Draft INV-0043 created.')).toBeInTheDocument();
   });
 
+  it('after reload, an OUTDATED card in the slot renders its stored successor under it: the scroll target exists and Create works (AC-18, AC-35, R-03)', async () => {
+    getConversation.mockResolvedValue({
+      success: true,
+      data: {
+        conversation,
+        messages,
+        cards: { card1: card({ state: 'OUTDATED', replacedById: 'card2' }), card2: card({ id: 'card2' }) },
+        invoiceLinks: {},
+      },
+    });
+    createDraftFromCard.mockResolvedValue(ok({ kind: 'CREATED', invoiceId: 'inv51', invoiceNumber: 'INV-0051' }));
+    const { container } = render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
+    const old = container.querySelector('#draft-card-card1') as HTMLElement;
+    const fresh = container.querySelector('#draft-card-card2') as HTMLElement;
+    expect(within(old).getByText('Outdated')).toBeInTheDocument();
+    expect(fresh).not.toBeNull();
+    expect(old.compareDocumentPosition(fresh) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Create draft' })).toHaveLength(1);
+    await userEvent.click(within(old).getByText('Go to the newer card ↓'));
+    expect(scrollIntoView).toHaveBeenCalled();
+    await userEvent.click(within(fresh).getByRole('button', { name: 'Create draft' }));
+    expect(createDraftFromCard).toHaveBeenCalledWith('card2');
+    expect(await screen.findByText('Draft INV-0051 created.')).toBeInTheDocument();
+  });
+
+  it('after reload, a successor created since shows its invoice state under the outdated card (AC-36, R-03)', async () => {
+    getConversation.mockResolvedValue({
+      success: true,
+      data: {
+        conversation,
+        messages,
+        cards: {
+          card1: card({ state: 'OUTDATED', replacedById: 'card2' }),
+          card2: card({
+            id: 'card2',
+            state: 'CREATED',
+            invoice: { state: 'ISSUED', invoiceId: 'inv50', invoiceNumber: 'INV-0050', status: 'paid' },
+          }),
+        },
+        invoiceLinks: {},
+      },
+    });
+    const { container } = render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
+    const fresh = container.querySelector('#draft-card-card2') as HTMLElement;
+    expect(fresh).not.toBeNull();
+    expect(within(fresh).getByText('Created')).toBeInTheDocument();
+    expect(text(fresh)).toContain('Invoice INV-0050');
+    expect(createBtn()).not.toBeInTheDocument();
+  });
+
   it('shows a card-sized skeleton, not a Create button, while the card has not arrived (loading)', async () => {
     getConversation.mockResolvedValue({
       success: true,

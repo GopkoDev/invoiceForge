@@ -209,6 +209,7 @@ erDiagram
 
   The order matters: inserting first would hit the partial unique index. If two turns race, the loser gets P2002. The Conversation row lock taken by the append (above) makes that rare.
 - **Create press (flow 2), in one transaction:**
+  0. `SELECT … FROM "Conversation"` of the card (by the card's id and owner) `FOR UPDATE`, the same first lock as the turn save, so a Create press that outdates a card and a turn that proposes one never run the LIVE-card swap at once.
   1. `SELECT … FROM "DraftCard" WHERE "id" = $1 AND "userId" = $actor FOR UPDATE` → PK.
   2. Then, by state:
      - `CREATED` → return the `invoiceId` link.

@@ -42,7 +42,7 @@ const DEFAULT_LABELS: Record<string, string> = {
   dueDate: 'due date',
 };
 
-function initialView(card: DraftCardView): View {
+function initialView(card: DraftCardView, cards?: Record<string, DraftCardView>): View {
   switch (card.state) {
     case 'CREATED':
       return { kind: 'created', invoice: card.invoice ?? { state: 'UNAVAILABLE' } };
@@ -50,7 +50,7 @@ function initialView(card: DraftCardView): View {
       return card.replacedById ? { kind: 'replaced', newerId: card.replacedById } : { kind: 'stale' };
     case 'OUTDATED':
       return card.replacedById
-        ? { kind: 'outdated', newerId: card.replacedById, successor: null }
+        ? { kind: 'outdated', newerId: card.replacedById, successor: cards?.[card.replacedById] ?? null }
         : { kind: 'stale' };
     default:
       return { kind: 'live' };
@@ -164,8 +164,9 @@ function CreatedLine({ invoice }: { invoice: LinkedInvoiceState }) {
   );
 }
 
-export function DraftCard({ card }: { card: DraftCardView }) {
-  const [view, setView] = useState<View>(() => initialView(card));
+/** `cards` is the page's loaded set: an OUTDATED card finds its stored successor there after a reload. */
+export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record<string, DraftCardView> }) {
+  const [view, setView] = useState<View>(() => initialView(card, cards));
   const [pending, setPending] = useState(false);
   const firing = useRef(false);
   const { proposal } = card;
@@ -238,7 +239,7 @@ export function DraftCard({ card }: { card: DraftCardView }) {
             {view.kind === 'outdated' && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <p className="text-muted-foreground text-sm">{OUTDATED_COPY}</p>
-                {view.newerId && !view.successor && (
+                {view.newerId && (
                   <Button type="button" variant="link" size="xs" onClick={() => goToNewer(view.newerId!)}>
                     Go to the newer card ↓
                   </Button>
@@ -264,7 +265,7 @@ export function DraftCard({ card }: { card: DraftCardView }) {
             )}
           </CardContent>
         </Card>
-        {view.kind === 'outdated' && view.successor && <DraftCard card={view.successor} />}
+        {view.kind === 'outdated' && view.successor && <DraftCard card={view.successor} cards={cards} />}
       </>
     );
   }

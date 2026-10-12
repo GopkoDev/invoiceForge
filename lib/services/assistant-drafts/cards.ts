@@ -94,6 +94,12 @@ export async function createFromCard(
 ): Promise<ActionResult<CreateFromCardResult>> {
   try {
     const outcome = await prisma.$transaction(async (tx): Promise<Outcome> => {
+      // Same lock order as saveTurn: the Conversation row first, then the card, so a concurrent turn and a
+      // press never wait on each other's second lock.
+      const [owned] = await tx.$queryRaw<{ id: string }[]>`SELECT c."id" FROM "Conversation" c
+        JOIN "DraftCard" d ON d."conversationId" = c."id"
+        WHERE d."id" = ${cardId} AND d."userId" = ${actor.userId} FOR UPDATE OF c`;
+      if (!owned) return { done: fail('NOT_FOUND', NOT_FOUND_MESSAGE) };
       const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "DraftCard"
         WHERE "id" = ${cardId} AND "userId" = ${actor.userId} FOR UPDATE`;
       if (!locked) return { done: fail('NOT_FOUND', NOT_FOUND_MESSAGE) };
