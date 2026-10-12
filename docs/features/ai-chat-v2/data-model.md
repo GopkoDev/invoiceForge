@@ -65,7 +65,7 @@ erDiagram
         enum kind "ChoiceOfferKind"
         int lineIndex "PRODUCT only"
         json request "stored DraftRequest"
-        json options "2 to 8 frozen options"
+        json options "1 to 8 frozen options"
         enum state "OPEN, CHOSEN, CLOSED"
         int chosenOptionId
         datetime createdAt
@@ -105,7 +105,7 @@ erDiagram
 | `kind` | `ChoiceOfferKind` | NOT NULL | `CUSTOMER` / `SENDER_PROFILE` / `CURRENCY` / `BANK_ACCOUNT` / `PRODUCT`, mapped from the resolver issue (ADR-0002 table) |
 | `lineIndex` | INTEGER | NULL | the slot the choice fills when it is per line (`PRODUCT`); NULL for the other kinds, whose slot is the kind itself |
 | `request` | JSONB | NOT NULL | the stored `DraftRequest` the offer continues. A press pins the chosen record id into a copy of it and re-resolves in code (ADR-0003). Shape owned by the `assistant-drafts` zod schema |
-| `options` | JSONB | NOT NULL | 2…8 frozen options `{ optionId, label, ref }`: `optionId` is the option's position (SAD §8 IDs), `label` is built from the stored record per spec §1 "What a button shows" (email or "no email" for look-alike Customers), `ref` is the record reference (`customerId` / `senderProfileId` / `bankAccountId` / `productId` / currency code). Never model text (ADR-0002). The 2…8 bound is the builder's rule (no offer above 8, AC-14), validated by zod, not the DB |
+| `options` | JSONB | NOT NULL | 1…8 frozen options `{ optionId, label, ref }`: `optionId` is the option's position (SAD §8 IDs), `label` is built from the stored record per spec §1 "What a button shows" (email or "no email" for look-alike Customers), `ref` is the record reference (`customerId` / `senderProfileId` / `bankAccountId` / `productId` / currency code). Never model text (ADR-0002). The 1…8 bound is the builder's rule (no offer above 8, AC-14; a single option is a valid offer, for example the near-miss Customer or the one other sender profile of spec §1), validated by zod, not the DB |
 | `state` | `ChoiceOfferState` | NOT NULL DEFAULT `'OPEN'` | `OPEN` → `CHOSEN` on a press claim; `CHOSEN` → `OPEN` on a non-counted failure (release); `OPEN` → `CLOSED` when a newer typed or dashboard message is saved (AC-12). `CHOSEN` and `CLOSED` are final otherwise |
 | `chosenOptionId` | INTEGER | NULL | set together with `CHOSEN`, cleared on release; NULL while `OPEN` or `CLOSED`. Shown as the chosen mark on reopen (AC-13) and exported (AC-34) |
 | `createdAt` | TIMESTAMP(3) | NOT NULL DEFAULT CURRENT_TIMESTAMP | |
@@ -115,9 +115,9 @@ erDiagram
 
 **Access patterns (from SAD §5 and §6):**
 - **Press check (Critical flow 1, AC-12b):** `SELECT … WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'` → PK. "Latest" holds by construction: the only `OPEN` row in the Conversation is the latest offering reply's, because any newer typed or dashboard message closed it. Not found, foreign, not open or option missing → one `CHOICE_UNAVAILABLE` outcome, nothing written.
-- **Claim (Critical flow 1, step 4):** `UPDATE … SET "state" = 'CHOSEN', "chosenOptionId" = $n WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'`, 1 row = claimed, 0 rows = lost the race → unavailable. Same transaction as the pressed message and the allowance slot.
+- **Claim (Critical flow 1, step 3):** `UPDATE … SET "state" = 'CHOSEN', "chosenOptionId" = $n WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'`, 1 row = claimed, 0 rows = lost the race → unavailable (the slot is released). Same transaction as the allowance slot reservation, and nothing else: the pressed message is saved by `saveTurn` at the end of the turn (parent rule), and a failed turn saves only its metadata and releases the claim together with the slot.
 - **Release (Critical flow 1, system-side failure):** `UPDATE … SET "state" = 'OPEN', "chosenOptionId" = NULL WHERE "id" = $offerId AND "state" = 'CHOSEN'`. Safe against the partial index: the turn's next offer is stored only on success, so no second `OPEN` row exists when a release runs.
-- **Close on a typed or dashboard message (Flows 4, 6, Critical flow 3):** `UPDATE … SET "state" = 'CLOSED' WHERE "conversationId" = $c AND "state" = 'OPEN'` → `ChoiceOffer_conversationId_open_key`. Runs before the turn's own offer is inserted (SAD §6 Flags: "the partial unique index never sees two open rows").
+- **Close on a typed or dashboard message (Flows 4, 6, Critical flow 3):** `UPDATE … SET "state" = 'CLOSED' WHERE "conversationId" = $c AND "state" = 'OPEN'` → `ChoiceOffer_conversationId_open_key`. Runs inside `saveTurn` at the end of the turn, before the turn's own offer is inserted; a failed turn closes nothing (SAD §6 Flags: "the partial unique index never sees two open rows").
 - **Store the next offer (Flow 6):** `INSERT` in `saveTurn` after the messages; the partial unique index is the backstop for two concurrent turns in one Conversation (those are already serialized by the Conversation row lock).
 - **Reopen (Flow 7, AC-13):** `WHERE "conversationId" = $c` (owner-checked via the Conversation) → `ChoiceOffer_conversationId_idx`; joined to messages by `messageId`.
 - **Export (Flow 11, AC-34):** by Conversation, as above. **Account deletion / purge / Conversation delete:** FK cascades via `ChoiceOffer_userId_idx`, `ChoiceOffer_conversationId_idx`, `ChoiceOffer_messageId_key`.
@@ -230,7 +230,7 @@ model ChoiceOffer {
     kind           ChoiceOfferKind
     lineIndex      Int? // the invoice line the choice fills (PRODUCT only); NULL for the other kinds
     request        Json // the stored DraftRequest the offer continues; the chosen record is pinned into it (ADR-0003)
-    options        Json // 2..8 frozen options: { optionId (position), label, ref }; never model text (ADR-0002)
+    options        Json // 1..8 frozen options: { optionId (position), label, ref }; never model text (ADR-0002)
     state          ChoiceOfferState @default(OPEN)
     chosenOptionId Int? // set with CHOSEN, cleared on release; NULL while OPEN or CLOSED
 

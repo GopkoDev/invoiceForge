@@ -230,10 +230,10 @@ Result: 1 core ✗ (point 3), resolved in the contract with an upstream OQ, plus
 
 ## D. Open questions
 
-| # | Question | Owner | Due |
-|---|---|---|---|
-| OQ-B1 | Align the "2…8 options" bound in data-model.md (`ChoiceOffer.options`), ux-flows.md (US-03 flow) and sad.md §6 flow 6 to the contract's 1..8 (spec §1 near-miss and single other sender profile). No DDL impact. Or veto: the owner may keep 2..8 and drop single-option offers from spec §1 | `data-model` (Dmytro Hopko) | before `tasks` |
-| OQ-B2 | Reword the persist notes in sad.md critical flow 1, flows 4 and 9, and data-model's Claim access pattern: the claim (and nothing else) commits with the slot; the user message and the close of the open offer are written by `saveTurn` at the end (F-1, D-7) | `sequences` (Dmytro Hopko) | before `tasks` |
+| # | Question | Owner | Due | Status |
+|---|---|---|---|---|
+| OQ-B1 | Align the "2…8 options" bound in data-model.md (`ChoiceOffer.options`), ux-flows.md (US-03 flow) and sad.md §6 flow 6 to the contract's 1..8 (spec §1 near-miss and single other sender profile). No DDL impact. Or veto: the owner may keep 2..8 and drop single-option offers from spec §1 | `data-model` (Dmytro Hopko) | before `tasks` | **Resolved 2026-10-12**: 1..8 adopted (no veto). data-model.md, ux-flows.md (US-03) and sad.md flow 6 + AC-08 coverage now say 1..8. Migrations had no bound (zod-only), unchanged |
+| OQ-B2 | Reword the persist notes in sad.md critical flow 1, flows 4 and 9, and data-model's Claim access pattern: the claim (and nothing else) commits with the slot; the user message and the close of the open offer are written by `saveTurn` at the end (F-1, D-7) | `sequences` (Dmytro Hopko) | before `tasks` | **Resolved 2026-10-12**: parent rule kept. sad.md (§4 choice 2, §5 offer + press order, critical flow 1, flows 4, 6, 9, §6 flags) and data-model's Claim/Close patterns now commit only the claim with the slot. Messages, close and next offer are written by `saveTurn` at the end |
 
 ## E. Lint
 

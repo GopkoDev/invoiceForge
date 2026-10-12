@@ -126,7 +126,7 @@ No worker: offers are deleted with their Conversation, so retention needs no new
 1. **Code builds the choices; the model only words them** (ADR-0001, ADR-0002). After every `propose_draft` step, code maps the resolver's typed issue to at most one **offer**: up to 8 options with fixed labels and record references. The offer is stored as a server-side row tied to the reply and streamed as a `data-offer` part. The model's text has no path into an offer, so AC-09 and the stored-text injection case hold by construction. This mirrors how ai-assistant ADR-0007 keeps Draft cards server-side.
 2. **A press is a structured reference, resolved and pinned by code** (ADR-0003). The browser sends `{ offerId, optionId }` beside the message.
    - The chat route checks the reference against the Freelancer's own latest open offer, and the record against current data, **before** any allowance reservation or model call. A failed check gets one fixed "no longer available" outcome.
-   - A valid press is saved with the stored label as its text, counted like any message, and claimed together with the allowance slot.
+   - A valid press claims the offer together with the allowance slot (one transaction, and nothing else in it), is counted like any message, and is saved with the stored label as its text at the end of the turn, as every message is.
    - The chosen record id is pinned into the offer's stored draft request, and the resolver runs in code. The model then writes the reply around that result, so it cannot re-match the record by name (AC-10).
 3. **One name-folding rule, applied in the app** (ADR-0004). The existing `foldName` becomes the single shared normalizer (isomorphic, no `server-only`). It serves the resolver, the Customer search, the product read and the Conversation title search. Matching runs in the app over the owner's rows, which are bounded by the spec's sizing (2,000 Customers, 500 products). No stored search key, and no second implementation in SQL.
 4. **The chat issues through the invoice service's own status path, guarded by the version the preview showed** (ADR-0006, ADR-0007).
@@ -213,7 +213,7 @@ prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; Conversat
   - the options as JSON (`optionId`, label, record reference);
   - `state` (`OPEN` | `CHOSEN` | `CLOSED`) and `chosenOptionId`.
 
-  A partial unique index keeps at most one `OPEN` offer per Conversation. **A press claims the offer by moving it `OPEN` → `CHOSEN`** (a conditional update, in the same transaction that saves the pressed message), and a non-counted system-side failure releases it `CHOSEN` → `OPEN`. So the next offer of that turn can be stored as the one `OPEN` row, and a refused press marks nothing (AC-11). Saving any newer **typed or dashboard** Freelancer message moves the open offer to `CLOSED` with no choice (AC-12). The press's own message never closes the offer it claims. The row is deleted with its Conversation (cascade), so the 90-day purge and account deletion cover it unchanged. `data-model` fixes the columns.
+  A partial unique index keeps at most one `OPEN` offer per Conversation. **A press claims the offer by moving it `OPEN` → `CHOSEN`** (a conditional update, committed together with the allowance reservation and nothing else; the pressed message is saved at the end of the turn with the reply, parent rule), and a non-counted system-side failure releases it `CHOSEN` → `OPEN`. So the next offer of that turn can be stored as the one `OPEN` row, and a refused press marks nothing (AC-11). Saving any newer **typed or dashboard** Freelancer message (at the end of its turn, before that turn's own offer is stored) moves the open offer to `CLOSED` with no choice (AC-12); a failed turn closes nothing. The press's own message never closes the offer it claims. The row is deleted with its Conversation (cascade), so the 90-day purge and account deletion cover it unchanged. `data-model` fixes the columns.
 - **Which issues become offers** (ADR-0002). `offerFromIssue` maps resolver issue kinds to offer kinds:
 
   | Resolver issue kinds | Offer kind |
@@ -238,14 +238,12 @@ prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; Conversat
 - **Press handling in the chat route** (ADR-0003). The order is:
   1. session and body;
   2. the choice check (owner, latest open offer, option present, record still fits);
-  3. allowance reservation;
-  4. claim the offer;
-  5. save the user message with the stored label and origin `PRESSED`;
-  6. the pinned resolution;
-  7. the agent turn;
-  8. persist.
+  3. allowance reservation and the claim of the offer, in one transaction (a claim that loses a race releases the slot and answers unavailable);
+  4. the pinned resolution;
+  5. the agent turn;
+  6. persist at the end of the turn (`saveTurn`): the user message with the stored label and origin `PRESSED`, the reply, the next offer if any, and the turn metadata.
 
-  A system-side failure releases the slot and the claim together. A press with no allowance left is refused like a typed message and claims nothing (AC-11).
+  A system-side failure saves only the turn metadata and releases the slot and the claim together. A press with no allowance left is refused like a typed message and claims nothing (AC-11).
 - **Three read questions in the shared registry** (ai-assistant ADR-0010, inline):
   - `sender_profiles` (new);
   - `products` (new; with a `customerId`, it adds that Customer's Custom prices);
@@ -328,17 +326,18 @@ sequenceDiagram
             S-->>C: allowance used up, renewal time
             C-->>W: used-up notice, nothing marked as chosen
         else slot reserved
-            C->>S: claim the offer (open to chosen) and save the label as a pressed message
+            C->>S: claim the offer (open to chosen), committed with the reserved slot
             C->>S: pin the chosen record into the stored draft request and resolve it
             S-->>C: a Draft card, or the next single offer, or a question
             C->>A: run the turn with the pinned result already in its context
             A->>G: write the reply around the result
             G-->>A: text deltas
             A-->>C: streamed text
-            C-->>W: text, then the card or the next offer as data parts
-            C->>S: save the reply and the turn metadata
-            opt system-side failure before the reply completes
-                C->>S: release the slot and the claim (chosen back to open)
+            alt reply completes
+                C-->>W: text, then the card or the next offer as data parts
+                C->>S: save the label as a pressed message, the reply, the next offer and the turn metadata
+            else system-side failure before the reply completes
+                C->>S: release the slot and the claim (chosen back to open), save only the turn metadata
                 C-->>W: could not complete, try again
             end
         end
@@ -429,8 +428,8 @@ sequenceDiagram
     Note over U,S: Precondition: a signed-in Freelancer in a Conversation with messages left today (used up and too long are as in ai-assistant Flow 1 and Flow 5)
     U->>UI: asks about their sender profiles and accounts, a product's price for a Customer, or a Customer by name
     UI->>S: message text and Conversation id, no choice
-    S->>D: reserve one slot, save the message with origin typed, close the open offer of this Conversation with no choice
-    Note over S,D: persists allowance day row, Conversation message (origin typed) and the open offer's state closed
+    S->>D: reserve one slot of today's allowance
+    Note over S,D: persists allowance day row only, the message is saved at the end of the turn
     S->>X: run the turn with the read questions offered
     loop at most 8 tool steps
         X-->>S: call sender profiles, products (a name, and a Customer id taken from a Customer search answer) or Customers by name
@@ -441,7 +440,7 @@ sequenceDiagram
         S-->>X: answer with record ids and names as stored, no full account number
     end
     alt model provider unavailable
-        S->>D: release the reserved slot
+        S->>D: release the reserved slot, save only the turn metadata, close nothing
         S-->>UI: AI is temporarily unavailable, try again, not counted
     else reply written
         X-->>S: reply text
@@ -454,8 +453,8 @@ sequenceDiagram
         else answer found
             S-->>UI: profiles with the defaults marked, accounts by bank name, last four digits and currency, prices exactly as stored, or the Customer named as saved
         end
-        S->>D: save the reply and the turn metadata
-        Note over S,D: persists Conversation message (reply) and turn metadata row (no text)
+        S->>D: save the message with origin typed and the reply, close the open offer of this Conversation with no choice, save the turn metadata
+        Note over S,D: persists Conversation messages (origin typed, reply), the open offer's state closed and turn metadata row (no text)
         UI-->>U: streamed reply
     end
     Note over U,D: Postcondition: counted once unless the provider failed, only this Freelancer's records were read, no full account number left the service
@@ -507,7 +506,7 @@ sequenceDiagram
     participant X as <external-system>
     participant D as <data-store>
 
-    Note over U,S: Precondition: a slot is reserved for this typed message, and saving it closed the earlier open offer with no choice (as in Flow 4)
+    Note over U,S: Precondition: a slot is reserved for this typed message (as in Flow 4), the message is saved, and the earlier open offer closed with no choice, at the end of the turn
     U->>UI: describes an invoice, for example invoice Acme for 20 hours at 50 dollars
     UI->>S: message text and Conversation id
     S->>X: run the agent with propose_draft and the read questions offered
@@ -523,9 +522,8 @@ sequenceDiagram
             S->>D: store the Draft card, mark the earlier live card replaced
             Note over S,D: persists Draft card (stored request, proposal, named sender profile and account)
             S-->>UI: card with every value and its source, a profile and account taken from the request named as such, Create button
-        else an offer-able issue with 2 to 8 options
-            S->>D: store the offer, open, tied to this reply, with the frozen labels, record references, the slot and the draft request it continues
-            Note over S,D: persists offer row (owner, Conversation, reply message, kind, slot, request, options, state open), at most one open per Conversation
+        else an offer-able issue with 1 to 8 options
+            S->>S: build the offer, open, tied to this reply, with the frozen labels, record references, the slot and the draft request it continues
             S->>X: write the question around the issue
             X-->>S: question text, its words never become a button
             S-->>UI: the question, then the buttons as a data part, look-alike Customer names with their email or no email
@@ -535,8 +533,8 @@ sequenceDiagram
             S-->>UI: asks for the amount, quantity or price, or explains with a link (no Customer, no profile with an account, account in another currency), no offer
         end
     end
-    S->>D: save the reply and the turn metadata
-    Note over S,D: persists Conversation message (reply, card or offer reference) and turn metadata row
+    S->>D: save the message and the reply, close the earlier open offer with no choice, store this reply's offer if any, save the turn metadata
+    Note over S,D: persists Conversation messages (origin typed, reply with card or offer reference), the earlier offer's state closed, offer row (owner, Conversation, reply message, kind, slot, request, options, state open, at most one open per Conversation) and turn metadata row
     UI-->>U: streamed question with its buttons, a card, or an explanation
     Note over U,D: Postcondition: every button is an option the resolver found, at most one open offer exists in the Conversation, no invoice exists
 ```
@@ -654,8 +652,6 @@ sequenceDiagram
         alt no slot left
             S-->>UI: allowance used up and when it renews, nothing saved
         else slot reserved
-            S->>D: create the Conversation with its start point and save the message
-            Note over S,D: persists Conversation (owner, start point, title, last message time) and Conversation message (origin typed)
             S->>X: run the turn
             UI-->>U: the message box moves to the bottom, animated unless reduced motion is asked for
             loop while the model writes
@@ -667,8 +663,8 @@ sequenceDiagram
                     UI-->>U: the view stays put, a jump-to-latest control appears
                 end
             end
-            S->>D: save the reply and the turn metadata
-            Note over S,D: persists Conversation message (reply) and turn metadata row
+            S->>D: create the Conversation with its start point, save the message and the reply and the turn metadata
+            Note over S,D: persists Conversation (owner, start point, title, last message time), Conversation messages (origin typed, reply) and turn metadata row
             S-->>UI: the new Conversation id
             UI->>UI: switch the address to the saved Conversation and add it to the list under Today
         end
@@ -773,7 +769,7 @@ Critical flows 1–3 are the design-seeded flows above, drawn with the §5 conta
 | AC-05b | Flow 6, the name given as the Customer is the Freelancer's own sender profile |
 | AC-06 | Flow 5, key valid with or without Draft permission, found |
 | AC-07 | Flow 4 (this Freelancer's rows only) and Flow 5 (key owner's rows only, a foreign Customer id answered as not existing) |
-| AC-08 | Flow 6, an offer-able issue with 2 to 8 options, then Critical flow 1, option valid, a Draft card |
+| AC-08 | Flow 6, an offer-able issue with 1 to 8 options, then Critical flow 1, option valid, a Draft card |
 | AC-08b | Flow 6, one offer from the first offer-able issue, then Critical flow 1, the next single offer, and Critical flow 1 again |
 | AC-09 | Flow 6, the offer built in code and the question's words never becoming a button |
 | AC-10 | Flow 6, look-alike Customer names with their email, and Critical flow 1, the chosen record pinned into the stored draft request |
@@ -809,10 +805,10 @@ Critical flows 1–3 are the design-seeded flows above, drawn with the §5 conta
 ### Flags for design and data-model
 
 - **Critical flows 1–3 keep the §5 container names** and are left as drawn by `design`. The details they leave out are listed here rather than redrawn:
-  - Critical flow 1 has no persist notes. It writes the allowance day row, the offer's state `OPEN` to `CHOSEN` with `chosenOptionId`, the pressed message with origin `PRESSED` and the stored label, the next offer or Draft card, and the reply. A release puts the offer back to `OPEN`.
+  - Critical flow 1 has no persist notes. The allowance day row and the offer's state `OPEN` to `CHOSEN` with `chosenOptionId` commit together, and nothing else does. The pressed message with origin `PRESSED` and the stored label, the reply, the next offer and the turn metadata are written at the end of the turn (`saveTurn`, parent rule); the Draft card is stored as in the parent. A failure saves only the turn metadata, and a release puts the offer back to `OPEN`.
   - Critical flow 2's issuing write also sets the write-once `Invoice.issuedFromChat` flag (§7 *Monitoring*). On "changed elsewhere", the reload is a second preview load through the same path. `data-model` fixes the column.
   - Critical flow 3's first message records origin `DASHBOARD` and start point "dashboard prompt", as Flow 9 does for the other start points.
-- **The order of offer writes keeps "one open offer per Conversation"**: a typed or dashboard message closes the open offer when it is saved (Flows 4 and 6), and a press claims its offer before the next offer of that turn is stored (Critical flow 1). The partial unique index never sees two open rows.
+- **The order of offer writes keeps "one open offer per Conversation"**: a typed or dashboard message closes the open offer when it is saved at the end of its turn, before that turn's own offer is stored (Flows 4 and 6), and a press claims its offer before the next offer of that turn is stored (Critical flow 1). The partial unique index never sees two open rows.
 - **AC-05b depends on the model** following the chat instructions and the sender-profile read (Flow 6). There is no resolver rule for "this Customer name is your own sender profile". Candidate for §11 with an eval fixture in `plan-tests`. Alternative for `tasks`: a resolver hint on `CUSTOMER_NOT_FOUND` when the folded name equals a sender profile.
 - **No async flow.** The dashboard hand-off is a browser-only step, and §8 *Events* is N/A. So there is no idempotency key, retry or dead-letter branch, and no `<message-bus>`.
 - **No new participants**: every generic participant maps to a §5 container or an existing external system.

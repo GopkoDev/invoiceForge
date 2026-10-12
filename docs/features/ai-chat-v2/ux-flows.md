@@ -64,7 +64,7 @@ The Freelancer asks in the Conversation about their own records. Asking which se
 ```mermaid
 flowchart TD
     A["SCR-03 Conversation"] -->|"drafting request that needs a choice"| B{"What did the draft action find?"}
-    B -->|"2 to 8 options for one choice"| C["SCR-04 buttons under the reply, for one open choice only"]
+    B -->|"1 to 8 options for one choice"| C["SCR-04 buttons under the reply, for one open choice only"]
     B -->|"more than 8 options"| D["SCR-03 reply: how many match, type a more exact name; no buttons"]
     D -->|"types a more exact name"| A
     B -->|"a value to type, e.g. an amount"| E["SCR-03 reply asks for the value; no buttons"]
