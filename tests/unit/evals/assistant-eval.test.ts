@@ -15,7 +15,7 @@ import {
   TOPIC_MIN_SIZE,
 } from '@/evals/assistant/dataset';
 import { scoreNoGuessing, scoreTopicBoundary } from '@/evals/assistant/score';
-import { runTopicBoundary, evaluateRun } from '@/evals/assistant/run';
+import { runTopicBoundary, evaluateRun, findUngroundedValues } from '@/evals/assistant/run';
 
 const ROOT = process.cwd();
 
@@ -379,5 +379,65 @@ describe('the no-guessing runner replays item history (N-6)', () => {
   it('does not pass an empty history to the turn', () => {
     expect(run).not.toMatch(/history:\s*\[\s*\]/);
     expect(run).toMatch(/history:\s*[^,\n]*item\.history|item\.history/);
+  });
+});
+
+// T46 (ai-assistant, Q-1; AC-12, AC-14b, AC-16, AC-19): values are grounded against the whole Freelancer
+// conversation (item.text + the USER turns of item.history) and the customer is matched the way the
+// resolver does (the written name is contained in the stored name). Expected signature:
+//   findUngroundedValues(message, proposal, knownRates, history?: Array<{ role: 'user' | 'assistant'; text: string }>): string[]
+describe('findUngroundedValues grounds against the whole conversation (Q-1)', () => {
+  type Hist = Array<{ role: 'user' | 'assistant'; text: string }>;
+  const line = (quantity: string, rate: string, quantitySource = 'REQUEST', rateSource = 'REQUEST') => ({
+    quantity, rate, quantitySource, rateSource,
+  });
+  const proposal = (lines: ReturnType<typeof line>[], stored = 'Acme Corp') => ({
+    customer: { name: { freelancerText: stored } },
+    lines,
+  });
+  const KNOWN = [50, 45];
+  const find = (message: string, p: ReturnType<typeof proposal>, history?: Hist) =>
+    (findUngroundedValues as (...a: unknown[]) => string[])(message, p, KNOWN, history);
+
+  it('AC-12 single turn: "Acme" in the message grounds the stored "Acme Corp"; request values and the catalogue default are grounded', () => {
+    const msg = 'invoice Acme for 20 hours of consulting at $50';
+    expect(find(msg, proposal([line('20', '50')]))).toEqual([]);
+    expect(find('invoice Acme for 20 hours of consulting', proposal([line('20', '45', 'REQUEST', 'CUSTOM_PRICE')]))).toEqual([]);
+  });
+
+  it('AC-19 follow-up: "use Revolut" is grounded by the user history turn (Acme, 600 EUR)', () => {
+    const history: Hist = [
+      { role: 'user', text: 'invoice Acme 600 EUR for the logo design' },
+      { role: 'assistant', text: 'You have several EUR accounts: Revolut and Wise. Which one should the invoice use?' },
+    ];
+    expect(find('use Revolut', proposal([line('1', '600')]), history)).toEqual([]);
+  });
+
+  it('AC-14b follow-up: "make it 25 hours" grounds the quantity; customer and rate come from the user history turn', () => {
+    const history: Hist = [
+      { role: 'user', text: 'invoice Acme for 20 hours of consulting at $50' },
+      { role: 'assistant', text: 'I prepared a draft invoice for Acme Corp: 20 hours at $50.00, total $1,000.00.' },
+    ];
+    expect(find('make it 25 hours', proposal([line('25', '50')]), history)).toEqual([]);
+  });
+
+  it('flags a genuinely invented value (rate 999 in no message, user turn or default)', () => {
+    const history: Hist = [{ role: 'user', text: 'invoice Acme for 20 hours at $50' }];
+    const found = find('make it 25 hours', proposal([line('25', '999')]), history);
+    expect(found.join(' ')).toContain('999');
+    expect(find('invoice Acme for 20 hours at $50', proposal([line('20', '999')]))).not.toEqual([]);
+  });
+
+  it('flags a customer named nowhere in the message or user turns', () => {
+    expect(find('invoice Acme for 20 hours at $50', proposal([line('20', '50')], 'Globex Ltd')).join(' ')).toContain('Globex');
+  });
+
+  it('an ASSISTANT history turn is not grounding: a value only the assistant said is still flagged', () => {
+    const history: Hist = [
+      { role: 'user', text: 'invoice Acme for 20 hours' },
+      { role: 'assistant', text: 'Your usual rate is $777 per hour, shall I use it?' },
+    ];
+    const found = find('yes', proposal([line('20', '777')]), history);
+    expect(found.join(' ')).toContain('777');
   });
 });
