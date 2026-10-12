@@ -84,7 +84,7 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     }
   );
 
-  it.each(['/api/convert-image', '/api/user/export'])(
+  it.each(['/api/convert-image', '/api/user/export', '/api/chat'])(
     'refuses %s with 401 NotSignedIn and no data (AC-02)',
     async (path) => {
       const res = await callProxy(buildRequest(path, { method: 'POST' }));

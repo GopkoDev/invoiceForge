@@ -13,6 +13,7 @@ import addFormats from 'ajv-formats';
 const SPEC_PATHS = [
   'docs/features/architecture-hardening/contracts/openapi.yaml',
   'docs/features/security-patch/contracts/openapi.yaml',
+  'docs/features/ai-assistant/contracts/openapi.yaml',
 ].map((p) => path.resolve(process.cwd(), p));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
