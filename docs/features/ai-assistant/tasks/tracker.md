@@ -41,7 +41,7 @@
 | T34 | [Prove provider-fault handling, the stored-text injection guard and cross-tenant silence through the chat route](./t34-chat-resilience-injection-and-tenancy.md) | tests | Dmytro Hopko | M | T31 | done |
 | T35 | [Add Playwright flows: open the AI section, draft and create from a card, Create with AI, and the Assistant mark](./t35-e2e-ai-flows.md) | tests | Dmytro Hopko | M | T19, T28, T33 | done |
 | T36 | [Show an OUTDATED card's successor on reload and lock the Conversation before inserting it](./t36-outdated-successor-and-card-lock.md) | app | Dmytro Hopko | M | T20, T25, T28 | done |
-| T37 | [Answer an MCP repeat from the stored invoice and refuse a read-only key before validating input](./t37-mcp-repeat-and-permission-order.md) | ports | Dmytro Hopko | M | T21, T26 | todo |
+| T37 | [Answer an MCP repeat from the stored invoice and refuse a read-only key before validating input](./t37-mcp-repeat-and-permission-order.md) | ports | Dmytro Hopko | M | T21, T26 | done |
 | T38 | [Offer no Draft card from stored-text injection and add injection cases to the no-guessing evaluation](./t38-injection-no-card-guard.md) | app | Dmytro Hopko | M | T27, T29, T32, T34 | todo |
 | T39 | [Fix the chat island: real 429 body, late data-conversation, one announcement per reply, scroll to newest](./t39-chat-island-review-fixes.md) | ui | Dmytro Hopko | M | T33 | todo |
 | T40 | [Fix the AI section layout and reuse: list column on /ai/{id}, phone order, subtitles, ContentArea, dialog close, link styles](./t40-ai-layout-and-reuse-fixes.md) | ui | Dmytro Hopko | M | T18, T22, T23, T30 | todo |

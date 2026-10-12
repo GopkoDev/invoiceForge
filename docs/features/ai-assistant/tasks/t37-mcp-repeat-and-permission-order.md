@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/create-for-key.ts", "lib/mcp/server.
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12"
 ---
 
