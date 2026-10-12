@@ -33,6 +33,9 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
+// The page's card slot renders DraftCard (T28), which imports the Create action.
+vi.mock('@/lib/actions/assistant-actions', () => ({ createDraftFromCard: vi.fn() }));
+
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
