@@ -123,6 +123,25 @@ const NAME_SUFFIXES = new Set([
   'ag',
   'bv',
 ]);
+/** Request filler that is never a distinctive part of a name ("and", "for", "invoice", ...). */
+const STOPWORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'of',
+  'for',
+  'to',
+  'in',
+  'on',
+  'at',
+  'with',
+  'invoice',
+  'bill',
+  'create',
+  'make',
+  'please',
+]);
 const words = (t: string): string[] =>
   t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
@@ -137,7 +156,8 @@ function customerNamedIn(text: string, stored: string): boolean {
   for (let i = 0; i < textWords.length; i++) {
     for (let j = i + 1; j <= textWords.length; j++) {
       const run = textWords.slice(i, j);
-      if (run.every((w) => NAME_SUFFIXES.has(w))) continue;
+      // A run needs at least one distinctive word, not only suffixes / filler.
+      if (run.every((w) => NAME_SUFFIXES.has(w) || STOPWORDS.has(w))) continue;
       for (let k = 0; k + run.length <= storedWords.length; k++) {
         if (run.every((w, n) => storedWords[k + n] === w)) return true;
       }
