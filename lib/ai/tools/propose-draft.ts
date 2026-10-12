@@ -48,7 +48,7 @@ function liftLineCurrency(raw: unknown): unknown {
 }
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
-function linksFor(issues: DraftIssue[]): AppLink[] {
+export function linksFor(issues: DraftIssue[]): AppLink[] {
   const links: AppLink[] = [];
   const add = (link: AppLink) => {
     const key = JSON.stringify(link);

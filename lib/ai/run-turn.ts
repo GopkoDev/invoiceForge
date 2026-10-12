@@ -5,7 +5,8 @@ import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
-import { createTurnContext } from '@/lib/ai/turn-context';
+import { createTurnContext, type PinnedResolution } from '@/lib/ai/turn-context';
+import { linksFor } from '@/lib/ai/tools/propose-draft';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
@@ -62,6 +63,11 @@ export interface RunTurnInput {
   message: string;
   signal: AbortSignal;
   origin?: string;
+  /**
+   * ai-chat-v2 (ADR-0003, AC-10): a pressed choice already pinned and resolved in code. Its result reaches the
+   * model as a prior propose_draft step, and a PROPOSAL is the pending card without any name match.
+   */
+  pinned?: PinnedResolution;
 }
 
 const EMPTY_USAGE = { inputTokens: null, outputTokens: null };
@@ -117,6 +123,33 @@ function chunkStream(run: (emit: (chunk: UIMessageChunk) => void) => Promise<voi
   }) as unknown as AsyncIterable<UIMessageChunk>;
 }
 
+const PINNED_CALL_ID = 'pinned-choice';
+
+/**
+ * The pinned result as the propose_draft step the model would have taken (sad §11, approach A): an assistant
+ * tool call followed by its tool result. The result is data only, in the tool's own answer shape plus the
+ * resolution the press produced.
+ */
+function pinnedStep(pinned: PinnedResolution, cardId: string | undefined): ModelMessage[] {
+  const { resolution } = pinned;
+  const value =
+    resolution.kind === 'PROPOSAL'
+      ? { kind: 'CARD', cardId, resolution }
+      : { kind: 'ISSUES', issues: resolution.issues, links: linksFor(resolution.issues), resolution };
+  return [
+    {
+      role: 'assistant',
+      content: [{ type: 'tool-call', toolCallId: PINNED_CALL_ID, toolName: 'propose_draft', input: pinned.request }],
+    },
+    {
+      role: 'tool',
+      content: [
+        { type: 'tool-result', toolCallId: PINNED_CALL_ID, toolName: 'propose_draft', output: { type: 'json', value: value as any } },
+      ],
+    },
+  ];
+}
+
 function failed(failure: 'PROVIDER' | 'SYSTEM', topic: RouterTopic | null, partial?: Partial<TurnResult>): TurnResult {
   return { outcome: 'FAILED', failure, topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, costUsd: 0, links: [], text: '', ...partial };
 }
@@ -141,7 +174,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   } catch (error) {
     return { stream: emptyStream(), result: Promise.resolve(failed(failureOf(error), null)) };
   }
-  const topic = verdict.topic;
+  // A press is never refused as off-topic: the Freelancer chose an option the chat offered (the label is data).
+  const topic: RouterTopic = input.pinned && verdict.topic === 'OFF_TOPIC' ? 'IN_SCOPE' : verdict.topic;
   const routerCost = verdict.costUsd ?? 0;
 
   if (topic === 'OFF_TOPIC') {
@@ -164,7 +198,13 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     return { stream, result: Promise.resolve(result) };
   }
 
-  const turn = createTurnContext({ actor: input.actor, today: input.today, origin: input.origin, draftIntent: verdict.intent === 'draft' });
+  const turn = createTurnContext({
+    actor: input.actor,
+    today: input.today,
+    origin: input.origin,
+    draftIntent: verdict.intent === 'draft',
+    pinned: input.pinned,
+  });
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 
@@ -172,6 +212,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     ...(topic === 'MIXED' ? [{ role: 'system' as const, content: MIXED_INSTRUCTION }] : []),
     ...history,
     { role: 'user' as const, content: input.message },
+    ...(input.pinned ? pinnedStep(input.pinned, turn.pending.card?.id) : []),
   ];
 
   let resolveResult!: (r: TurnResult) => void;
@@ -191,7 +232,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     let usage = EMPTY_USAGE as TurnResult['usage'];
     let openText: string | null = null;
     // The last propose_draft ISSUES answer, for the fallback words when the model writes none.
-    let draftIssues: DraftIssue[] = [];
+    let draftIssues: DraftIssue[] = input.pinned?.resolution.kind === 'ISSUES' ? input.pinned.resolution.issues : [];
+    if (draftIssues.length > 0) pushUnique(links, linksFor(draftIssues));
 
     const closeText = () => {
       if (openText) emit({ type: 'text-end', id: openText });
