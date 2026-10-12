@@ -145,7 +145,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     return { stream, result: Promise.resolve(result) };
   }
 
-  const turn = createTurnContext({ actor: input.actor, today: input.today, origin: input.origin });
+  const turn = createTurnContext({ actor: input.actor, today: input.today, origin: input.origin, draftIntent: verdict.intent === 'draft' });
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 

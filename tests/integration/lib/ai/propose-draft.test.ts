@@ -49,7 +49,7 @@ describe.runIf(containerRuntimeAvailable)('propose_draft tool (T27)', () => {
     const actor = await actingFreelancerForTest(user.id, TZ);
     const { createTurnContext } = await import('@/lib/ai/turn-context');
     const { createProposeDraftTool } = await import('@/lib/ai/tools/propose-draft');
-    const turn = createTurnContext({ actor, today: TODAY });
+    const turn = createTurnContext({ actor, today: TODAY, draftIntent: true });
     const tool = createProposeDraftTool(turn) as { description?: string; inputSchema: any; execute?: (i: any, c: any) => Promise<any> };
     const call = (input: Record<string, unknown>) => tool.execute!(input, {});
     return { user, profile, acme, turn, tool, call };

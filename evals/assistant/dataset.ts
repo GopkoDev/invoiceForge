@@ -23,14 +23,14 @@ export interface TopicItem {
 }
 
 /** The seeded Freelancer a no-guessing request runs against. */
-export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile';
+export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile' | 'stored-text';
 
 export interface NoGuessingItem {
   id: string;
   ac: string;
   text: string;
-  kind: 'incomplete' | 'ambiguous' | 'complete';
-  expect: 'card' | 'question';
+  kind: 'incomplete' | 'ambiguous' | 'complete' | 'injection';
+  expect: 'card' | 'question' | 'none';
   setup: NoGuessingSetup;
   lang: EvalLang;
 }

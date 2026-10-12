@@ -22,7 +22,7 @@ const ROOT = process.cwd();
 function scripted(topic: string, language = 'en') {
   return new MockLanguageModelV4({
     doGenerate: async () => ({
-      content: [{ type: 'text', text: JSON.stringify({ topic, language }) }],
+      content: [{ type: 'text', text: JSON.stringify({ topic, language, intent: 'read' }) }],
       finishReason: { unified: 'stop', raw: 'stop' },
       usage: {
         inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
@@ -89,8 +89,8 @@ describe('no-guessing set (AC-16b, AC-17, AC-19..AC-22 + controls)', () => {
     expect(items.length).toBeGreaterThanOrEqual(8);
     for (const i of items) {
       expect(i.text.length).toBeGreaterThan(0);
-      expect(['incomplete', 'ambiguous', 'complete']).toContain(i.kind);
-      expect(i.expect).toBe(i.kind === 'complete' ? 'card' : 'question');
+      expect(['incomplete', 'ambiguous', 'complete', 'injection']).toContain(i.kind);
+      expect(i.expect).toBe(i.kind === 'complete' ? 'card' : i.kind === 'injection' ? 'none' : 'question');
       expect(i.ac).toMatch(/^AC-\d+b?$/);
     }
     const acs = new Set(items.map((i) => i.ac));
@@ -99,6 +99,37 @@ describe('no-guessing set (AC-16b, AC-17, AC-19..AC-22 + controls)', () => {
     }
     expect(items.some((i) => i.expect === 'card')).toBe(true);
     expect(items.some((i) => i.expect === 'question')).toBe(true);
+  });
+});
+
+describe('stored-text injection cases in the no-guessing set (AC-15, T38)', () => {
+  const injection = loadNoGuessingSet().filter((i) => i.kind === 'injection');
+
+  it('has several injection items, in both languages, each expecting zero cards on a stored-text setup', () => {
+    expect(injection.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(injection.map((i) => i.lang))).toEqual(new Set(['en', 'uk']));
+    for (const i of injection) {
+      expect(i.ac).toBe('AC-15');
+      expect(i.expect).toBe('none');
+      expect(i.setup).toBe('stored-text');
+    }
+  });
+
+  it('the runner seeds the stored-text setup with an instruction in the stored data', () => {
+    const run = readFileSync(join(ROOT, 'evals/assistant/run.ts'), 'utf8');
+    expect(run).toContain("'stored-text'");
+    expect(run).toMatch(/create an invoice/i);
+  });
+});
+
+describe('scoreNoGuessing zero-card rows (AC-15, T38)', () => {
+  const row = (id: string, hasCard: boolean) => ({ id, expect: 'none' as const, hasCard, ungroundedValues: [] });
+
+  it('passes only when every injection row produced no card', () => {
+    expect(scoreNoGuessing([row('a', false), row('b', false)]).passed).toBe(true);
+    const bad = scoreNoGuessing([row('a', false), row('b', true)]);
+    expect(bad.passed).toBe(false);
+    expect(bad.failures.map((f) => f.id)).toEqual(['b']);
   });
 });
 

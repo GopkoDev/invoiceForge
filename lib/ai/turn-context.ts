@@ -13,6 +13,8 @@ export interface TurnContext {
   /** Today as `YYYY-MM-DD` in the Freelancer's time zone. */
   today: string;
   origin: string;
+  /** True only when the router judged the Freelancer's own message to ask for a draft; propose_draft parks no card otherwise (AC-15). */
+  draftIntent: boolean;
   pending: { card: { id: string; request: DraftRequest; proposal: DraftProposal } | null };
 }
 
@@ -20,11 +22,13 @@ export function createTurnContext(input: {
   actor: ActingFreelancer;
   today: string;
   origin?: string;
+  draftIntent?: boolean;
 }): TurnContext {
   return {
     actor: input.actor,
     today: input.today,
     origin: input.origin ?? DEFAULT_ORIGIN,
+    draftIntent: input.draftIntent ?? false,
     pending: { card: null },
   };
 }

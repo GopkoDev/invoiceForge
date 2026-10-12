@@ -68,7 +68,7 @@ export function createE2eStubModel() {
     modelId: E2E_STUB_MODEL_ID,
     // The topic router asks for a JSON verdict.
     doGenerate: async () => ({
-      content: [{ type: 'text', text: JSON.stringify({ topic: 'in_scope', language: 'en' }) }],
+      content: [{ type: 'text', text: JSON.stringify({ topic: 'in_scope', language: 'en', intent: 'draft' }) }],
       finishReason: stop,
       usage: USAGE,
       warnings: [],

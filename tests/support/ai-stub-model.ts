@@ -25,7 +25,7 @@ export type StubStep =
 
 export interface StubOptions {
   /** The topic router's verdict, or an error it throws. */
-  verdict?: { topic: string; language: string } | Error;
+  verdict?: { topic: string; language: string; intent?: string } | Error;
   /** Step `i` of the agent (0-based); `prompt` is the prompt the model is called with, tool results included. */
   steps: (i: number, prompt: unknown) => StubStep;
 }
@@ -41,7 +41,7 @@ export function scriptedModel(opts: StubOptions) {
     doGenerate: async () => {
       if (opts.verdict instanceof Error) throw opts.verdict;
       return {
-        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en' }) }],
+        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en', intent: 'read' }) }],
         finishReason: { unified: 'stop', raw: 'stop' },
         usage,
         warnings: [],

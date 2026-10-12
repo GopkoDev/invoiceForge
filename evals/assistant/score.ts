@@ -40,7 +40,7 @@ export function scoreTopicBoundary(rows: TopicRow[]): TopicScore {
 
 export interface NoGuessingRow {
   id: string;
-  expect: 'card' | 'question';
+  expect: 'card' | 'question' | 'none';
   hasCard: boolean;
   ungroundedValues: string[];
 }
@@ -63,7 +63,7 @@ export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
   );
   const failing = rows.filter(
     (r) =>
-      (r.expect === 'question' ? r.hasCard : !r.hasCard) ||
+      (r.expect === 'card' ? !r.hasCard : r.hasCard) ||
       r.ungroundedValues.length > 0
   );
   const passed =

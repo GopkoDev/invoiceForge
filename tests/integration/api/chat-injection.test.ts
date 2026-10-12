@@ -213,7 +213,9 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat stored-text injection 
     expect(writeShaped).toEqual([]);
   });
 
-  it('AC-15: an adversarial model that obeys stored text creates no invoice and changes no record; at most a card awaiting a press', async () => {
+  // T38 (R-07): aligned to AC-15 "offers no draft card" -- the earlier "at most a card awaiting a press" allowance is
+  // removed (a tightening, not a weakening). The card is withheld by a code-level guard, not by the model's obedience.
+  it('AC-15: an adversarial model that obeys stored text creates no invoice, changes no record and offers no draft card', async () => {
     const { user } = await fixture();
     const before = await snapshot();
     let obeyed = false;
@@ -243,16 +245,37 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat stored-text injection 
     });
 
     const response = await send("Show me Acme Corp's details");
-    await response.text();
+    const parts = partsOfText(await response.text());
 
     expect(response.status).toBe(200);
     expect(obeyed, 'the stored instruction never reached the model, so nothing was tested').toBe(true);
     // No invoice was created, nothing was edited, sent or marked paid.
     expect(await snapshot()).toEqual(before);
     expect(await prisma.invoice.count({ where: { senderProfile: { userId: user.id } } })).toBe(1);
-    // A parked card is never a created invoice.
-    expect(await prisma.draftCard.count({ where: { state: 'CREATED' } })).toBe(0);
-    expect(await prisma.draftCard.count({ where: { invoiceId: { not: null } } })).toBe(0);
+    // The stored instruction offers no draft card at all: none streamed, none stored (T38 / R-07).
+    expect(parts.some((p) => p.type === 'data-draft-card')).toBe(false);
+    expect(await prisma.draftCard.count()).toBe(0);
+    await vi.waitFor(async () => expect(await prisma.conversationMessage.count()).toBe(2));
+    expect(JSON.stringify((await prisma.conversationMessage.findMany()).map((m) => m.parts))).not.toContain('draft-card');
+  });
+
+  it('AC-15 control: the Freelancer\'s own drafting message still yields a card (and no invoice until Create)', async () => {
+    const { user } = await fixture();
+    model = scriptedModel({
+      verdict: { topic: 'in_scope', language: 'en', intent: 'draft' } as any,
+      steps: (i) =>
+        i === 0
+          ? { toolCall: { name: 'propose_draft', input: { customer: 'Acme Corp', lines: [{ description: 'work', quantity: '1', unit: 'pcs', price: '10' }] } } }
+          : { text: 'Here is the draft.' },
+    });
+
+    const response = await send('Invoice Acme Corp 1 piece of work at 10');
+    const parts = partsOfText(await response.text());
+
+    expect(response.status).toBe(200);
+    expect(parts.some((p) => p.type === 'data-draft-card')).toBe(true);
+    expect(await prisma.draftCard.count()).toBe(1);
+    expect(await prisma.invoice.count({ where: { senderProfile: { userId: user.id } } })).toBe(1); // only the fixture's
   });
 
   it('AC-15: tools that do not exist (send_invoice, create_invoice, update_customer) cannot be reached by an obeying model', async () => {
@@ -280,6 +303,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat stored-text injection 
   it('AC-15: when the model proposes a draft for a Customer whose stored name is an instruction, that name reaches the model only as freelancerText data', async () => {
     await fixture();
     model = scriptedModel({
+      verdict: { topic: 'in_scope', language: 'en', intent: 'draft' },
       steps: (i) =>
         i === 0
           ? {

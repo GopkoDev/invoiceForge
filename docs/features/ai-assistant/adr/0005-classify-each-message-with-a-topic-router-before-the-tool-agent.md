@@ -44,6 +44,7 @@ The chat answers only three kinds of requests — the Freelancer's own data, dra
 - The router sees a few previous turns so follow-ups like "make it 25 hours" stay in scope; a too-short window would misclassify them.
 
 **Neutral**
+- The verdict also carries `intent` (`read` or `draft`; T38, R-07). It is set from the Freelancer's own message only, and code lets `propose_draft` park a card only when it is `draft` (AC-15), so stored text cannot yield a card even if the model obeys it.
 - Moving to option 2 later is a change of the agent's input processors only.
 
 ## Links

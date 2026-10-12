@@ -48,7 +48,7 @@ type Step = { text?: string; toolCall?: { name: string; input: Record<string, un
 const gatewayMetadata = (cost?: string) => (cost === undefined ? {} : { providerMetadata: { gateway: { cost } } });
 
 function scriptedModel(opts: {
-  verdict?: { topic: string; language: string } | Error;
+  verdict?: { topic: string; language: string; intent?: string } | Error;
   verdictCost?: string;
   steps: (i: number) => Step;
 }) {
@@ -57,7 +57,7 @@ function scriptedModel(opts: {
     doGenerate: async () => {
       if (opts.verdict instanceof Error) throw opts.verdict;
       return {
-        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en' }) }],
+        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en', intent: 'draft' }) }],
         finishReason: { unified: 'stop', raw: 'stop' },
         usage,
         warnings: [],
@@ -413,7 +413,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
     });
 
     it('AC-06: an off-topic message streams the refusal as ANSWERED and counts once', async () => {
-      model = scriptedModel({ verdict: { topic: 'off_topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
+      model = scriptedModel({ verdict: { topic: 'off_topic', language: 'en', intent: 'read' }, steps: () => ({ text: 'must not run' }) });
       const { OFF_TOPIC_REFUSAL } = await import('@/lib/ai/instructions/refusal');
       const user = await signedIn();
 
@@ -491,7 +491,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
 
     it('AC-11: a system-side failure before the reply ends COULD_NOT_COMPLETE, releases the slot and saves only metadata', async () => {
       // A router verdict that does not parse is our side, not the provider's (a provider fault is AI_UNAVAILABLE).
-      model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
+      model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en', intent: 'read' }, steps: () => ({ text: 'must not run' }) });
       const user = await signedIn();
 
       const parts = await readParts(await send(chatBody('Who owes me money?')));
@@ -562,7 +562,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
   describe('route-level acceptance (R-17)', () => {
     it('AC-06b: a mixed message shows the draft card and refuses the other part, counts once and records topic MIXED', async () => {
       model = scriptedModel({
-        verdict: { topic: 'mixed', language: 'en' },
+        verdict: { topic: 'mixed', language: 'en', intent: 'draft' },
         steps: (i) =>
           i === 0
             ? {

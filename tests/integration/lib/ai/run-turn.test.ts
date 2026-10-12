@@ -37,7 +37,7 @@ const gatewayMetadata = (cost?: string) => (cost === undefined ? {} : { provider
 
 /** One model for both stages: doGenerate answers the router, doStream plays the agent's steps in order. */
 function scriptedModel(opts: {
-  verdict?: { topic: string; language: string } | Error;
+  verdict?: { topic: string; language: string; intent?: string } | Error;
   verdictCost?: string;
   steps: (i: number) => Step;
 }) {
@@ -46,7 +46,7 @@ function scriptedModel(opts: {
     doGenerate: async () => {
       if (opts.verdict instanceof Error) throw opts.verdict;
       return {
-        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en' }) }],
+        content: [{ type: 'text', text: JSON.stringify(opts.verdict ?? { topic: 'in_scope', language: 'en', intent: 'draft' }) }],
         finishReason: { unified: 'stop', raw: 'stop' },
         usage,
         warnings: [],
@@ -161,7 +161,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
   });
 
   it('AC-06 / ADR-0005: an off-topic message ends with the fixed refusal, no agent step, no tools, ANSWERED', async () => {
-    model = scriptedModel({ verdict: { topic: 'off_topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
+    model = scriptedModel({ verdict: { topic: 'off_topic', language: 'en', intent: 'read' }, steps: () => ({ text: 'must not run' }) });
     const { OFF_TOPIC_REFUSAL } = await import('@/lib/ai/instructions/refusal');
     const { run } = await setup();
 
@@ -177,7 +177,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
   });
 
   it('a mixed message passes the mixed instruction to the agent, which gets its tools', async () => {
-    model = scriptedModel({ verdict: { topic: 'mixed', language: 'en' }, steps: () => ({ text: 'Done the in-scope part.' }) });
+    model = scriptedModel({ verdict: { topic: 'mixed', language: 'en', intent: 'read' }, steps: () => ({ text: 'Done the in-scope part.' }) });
     const { MIXED_INSTRUCTION } = await import('@/lib/ai/instructions/refusal');
     const { run } = await setup();
 
@@ -315,7 +315,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
   });
 
   it('a system-side router failure (a verdict that does not parse) ends FAILED with failure SYSTEM and starts no agent step', async () => {
-    model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
+    model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en', intent: 'read' }, steps: () => ({ text: 'must not run' }) });
     const { run } = await setup();
 
     const { result } = await run('Who owes me money?');

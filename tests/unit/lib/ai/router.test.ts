@@ -8,7 +8,7 @@ vi.mock('@/lib/ai/model', () => ({ getChatModel: () => model }));
 import { classifyMessage } from '@/lib/ai/router';
 import { MIXED_INSTRUCTION, OFF_TOPIC_REFUSAL } from '@/lib/ai/instructions/refusal';
 
-function scripted(verdict: { topic: string; language: string }) {
+function scripted(verdict: { topic: string; language: string; intent?: string }) {
   return new MockLanguageModelV4({
     doGenerate: async () => ({
       content: [{ type: 'text', text: JSON.stringify(verdict) }],
@@ -24,7 +24,7 @@ function scripted(verdict: { topic: string; language: string }) {
 
 describe('topic router (ADR-0005)', () => {
   beforeEach(() => {
-    model = scripted({ topic: 'in_scope', language: 'en' });
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
   });
 
   it('fixed refusal is the spec sentence in English and a non-empty single Ukrainian sentence', () => {
@@ -37,7 +37,7 @@ describe('topic router (ADR-0005)', () => {
   });
 
   it('AC-06: an entirely off-topic message returns OFF_TOPIC with the fixed English refusal and no tools sent', async () => {
-    model = scripted({ topic: 'off_topic', language: 'en' });
+    model = scripted({ topic: 'off_topic', language: 'en', intent: 'read' });
     const r = await classifyMessage({
       message: 'Should I charge VAT to a client abroad?',
       recentTurns: [],
@@ -51,7 +51,7 @@ describe('topic router (ADR-0005)', () => {
   });
 
   it('AC-06: a Ukrainian off-topic message gets the Ukrainian refusal', async () => {
-    model = scripted({ topic: 'off_topic', language: 'uk' });
+    model = scripted({ topic: 'off_topic', language: 'uk', intent: 'read' });
     const r = await classifyMessage({ message: 'Чи треба нараховувати ПДВ клієнту за кордоном?', recentTurns: [] });
     expect(r.topic).toBe('OFF_TOPIC');
     expect(r.language).toBe('uk');
@@ -59,7 +59,7 @@ describe('topic router (ADR-0005)', () => {
   });
 
   it('AC-06b: a mixed message returns MIXED with the refuse-the-rest instruction and no refusal short-circuit', async () => {
-    model = scripted({ topic: 'mixed', language: 'en' });
+    model = scripted({ topic: 'mixed', language: 'en', intent: 'read' });
     const r = await classifyMessage({
       message: 'invoice Acme for 20 hours at $50 and tell me if I need to charge VAT',
       recentTurns: [],
