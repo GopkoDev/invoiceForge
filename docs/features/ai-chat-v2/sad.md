@@ -413,6 +413,417 @@ sequenceDiagram
     Note over W,C: a reload or Back finds no entry, so the prompt is never sent twice
 ```
 
+### Flow 4: Ask a read question in the chat
+
+Covers US-01 (sender profiles, accounts, products, look-alike Customer search) and the chat side of AC-07. It extends ai-assistant Flow 5 with the three new read questions. UI path: SCR-03, with a link to SCR-15 when nothing matches (`ux-flows.md` Flow US-01).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a signed-in Freelancer in a Conversation with messages left today (used up and too long are as in ai-assistant Flow 1 and Flow 5)
+    U->>UI: asks about their sender profiles and accounts, a product's price for a Customer, or a Customer by name
+    UI->>S: message text and Conversation id, no choice
+    S->>D: reserve one slot, save the message with origin typed, close the open offer of this Conversation with no choice
+    Note over S,D: persists allowance day row, Conversation message (origin typed) and the open offer's state closed
+    S->>X: run the turn with the read questions offered
+    loop at most 8 tool steps
+        X-->>S: call sender profiles, products (a name, and a Customer id taken from a Customer search answer) or Customers by name
+        S->>S: fold the asked name with the shared fold
+        S->>D: read this Freelancer's rows only
+        D-->>S: profiles with accounts, products with prices and custom prices, or Customers by current or invoice-copied name
+        S->>S: build account summaries from the last four digits, keep at most 20 rows and the total match count
+        S-->>X: answer with record ids and names as stored, no full account number
+    end
+    alt model provider unavailable
+        S->>D: release the reserved slot
+        S-->>UI: AI is temporarily unavailable, try again, not counted
+    else reply written
+        X-->>S: reply text
+        alt nothing matches the asked Customer or product
+            S-->>UI: nothing matches, link to add a Customer or a product, no record named
+        else more than 20 records match
+            S-->>UI: the first 20, said to be partial, the total count and an offer to narrow
+        else asked in words to issue a draft
+            S-->>UI: only you can issue an invoice, link to the draft's preview or editor, nothing issued
+        else answer found
+            S-->>UI: profiles with the defaults marked, accounts by bank name, last four digits and currency, prices exactly as stored, or the Customer named as saved
+        end
+        S->>D: save the reply and the turn metadata
+        Note over S,D: persists Conversation message (reply) and turn metadata row (no text)
+        UI-->>U: streamed reply
+    end
+    Note over U,D: Postcondition: counted once unless the provider failed, only this Freelancer's records were read, no full account number left the service
+```
+
+### Flow 5: Read questions through a Personal key (MCP)
+
+Covers US-02 and the Personal-key side of AC-07. No UI (`ux-flows.md` lists US-02 as out of scope). The MCP draft action itself is unchanged and stays ai-assistant Flow 3.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as <client>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over C,S: Precondition: an external Assistant holds a Personal key, with or without Draft permission
+    C->>S: call sender profiles, products (a name, an optional Customer id) or Customers (a name) with the key
+    S->>D: authenticate the Personal key
+    D-->>S: the key and its Freelancer, or nothing
+    alt key unknown or revoked
+        S-->>C: not authorized, nothing read
+    else key valid, with or without Draft permission
+        S->>S: fold the name with the shared fold
+        S->>D: read the key owner's rows only
+        D-->>S: rows of this Freelancer
+        S->>S: build account summaries from the last four digits, keep at most 20 rows and the total match count
+        alt the Customer id for custom prices is not this Freelancer's
+            S-->>C: answers as for a Customer that does not exist, no hint about other accounts
+        else nothing matches
+            S-->>C: no records, total zero
+        else found
+            S-->>C: the same answer the chat gets, with record ids for a draft request, no full account number
+        end
+    end
+    Note over C,D: Postcondition: nothing written, every read question's output shape has no field for a full account number
+```
+
+### Flow 6: A drafting message that ends in an Offered choice
+
+Covers US-03 up to the buttons, and the drafting parts of US-01 (AC-04, AC-05b). It extends ai-assistant Flow 6: where that flow only asked "which one", code now turns the resolver's issue into one stored offer. Pressing a button is Critical flow 1. UI path: SCR-03 to SCR-04 or SCR-05 (`ux-flows.md` Flow US-03).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,S: Precondition: a slot is reserved for this typed message, and saving it closed the earlier open offer with no choice (as in Flow 4)
+    U->>UI: describes an invoice, for example invoice Acme for 20 hours at 50 dollars
+    UI->>S: message text and Conversation id
+    S->>X: run the agent with propose_draft and the read questions offered
+    alt the name given as the Customer is the Freelancer's own sender profile
+        X-->>S: reads the sender profiles, as the chat instructions say
+        S-->>UI: explains sender profile versus Customer, asks which Customer to invoice, no card, no offer
+    else the Freelancer's message asks for a draft
+        X-->>S: propose_draft with the request's own words, a sender profile if one was named
+        S->>D: resolve as the acting Freelancer, names folded
+        D-->>S: this Freelancer's records only
+        S->>S: build at most one offer from the first offer-able issue (Customer, sender profile, currency, bank account, product)
+        alt request complete
+            S->>D: store the Draft card, mark the earlier live card replaced
+            Note over S,D: persists Draft card (stored request, proposal, named sender profile and account)
+            S-->>UI: card with every value and its source, a profile and account taken from the request named as such, Create button
+        else an offer-able issue with 2 to 8 options
+            S->>D: store the offer, open, tied to this reply, with the frozen labels, record references, the slot and the draft request it continues
+            Note over S,D: persists offer row (owner, Conversation, reply message, kind, slot, request, options, state open), at most one open per Conversation
+            S->>X: write the question around the issue
+            X-->>S: question text, its words never become a button
+            S-->>UI: the question, then the buttons as a data part, look-alike Customer names with their email or no email
+        else more than 8 options
+            S-->>UI: says how many match and asks for a more exact name, no offer
+        else an issue that needs a typed value or a link
+            S-->>UI: asks for the amount, quantity or price, or explains with a link (no Customer, no profile with an account, account in another currency), no offer
+        end
+    end
+    S->>D: save the reply and the turn metadata
+    Note over S,D: persists Conversation message (reply, card or offer reference) and turn metadata row
+    UI-->>U: streamed question with its buttons, a card, or an explanation
+    Note over U,D: Postcondition: every button is an option the resolver found, at most one open offer exists in the Conversation, no invoice exists
+```
+
+### Flow 7: Reopen a Conversation, its buttons, cards and preview address
+
+Covers US-03 after a reload (AC-12, AC-13), US-11 for a saved reply (AC-33) and the preview address. It extends ai-assistant Flow 7. UI path: SCR-01 to SCR-03, with SCR-06 when the address carries a preview (`ux-flows.md` Flow US-03, reopen).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: a signed-in Freelancer opens a saved Conversation from the list, a dashboard link or its address
+    U->>UI: opens the Conversation, possibly with a preview in the address
+    UI->>S: load the Conversation as the acting Freelancer
+    S->>D: read the Conversation, its messages in order, its offers and its Draft cards with their invoices
+    alt not this Freelancer's Conversation, or none
+        S-->>UI: not found, same as for one that never existed
+        UI-->>U: not found page
+    else found
+        D-->>S: messages, offers with state and chosen option, cards with invoice status, number and availability
+        S-->>UI: messages, offers, cards, the invoice states
+        UI->>UI: seed the workspace invoice-state store from the load
+        UI-->>U: saved replies shown whole, past buttons inactive with the chosen one marked, the latest reply's open buttons pressable
+        opt the address carries a preview of a card
+            UI->>S: load the preview for that card (Critical flow 2)
+            S-->>UI: the preview, deleted since, or cannot be found
+            UI-->>U: SCR-06 opened as before the reload
+        end
+        opt the Freelancer presses an open button whose record was deleted since
+            UI->>S: the press, as in Critical flow 1
+            S-->>UI: this option is no longer available, not counted, nothing marked
+        end
+    end
+    Note over U,D: Postcondition: nothing written or counted by reopening
+```
+
+### Flow 8: Open the AI workspace and find a Conversation
+
+Covers US-04 (AC-15, AC-17, AC-36) and US-06 (AC-19). The scrolling itself is layout, not a request, and is shown as notes. UI path: SCR-08 to SCR-01 with SCR-02 or SCR-03 (`ux-flows.md` Flows US-04 and US-06).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: the Freelancer opens the AI section from the navigation, a dashboard link or an address
+    U->>UI: opens the AI section
+    UI->>S: load the workspace for the current session
+    alt no signed-in session
+        S-->>UI: not signed in
+        UI-->>U: sent to sign in, nothing processed or counted
+    else signed in
+        S->>D: read today's allowance and every Conversation summary of this Freelancer
+        D-->>S: messages used today, and id, title and last message time per Conversation
+        Note over S,D: read path: Conversations by owner and last message time, empty Conversations never exist
+        S-->>UI: messages left, renewal time, summaries, the Freelancer time zone
+        UI->>UI: group by last message day in the Freelancer time zone (Today, Yesterday, Previous 7 days, Older)
+        alt screen narrower than 768 px
+            UI-->>U: chat fills the screen, the list opens as a sheet and closes on a pick
+        else 768 px and wider
+            UI-->>U: list pane beside the chat, New chat at the list's bottom
+        end
+        Note over UI: the page never scrolls, the list and the messages scroll on their own, the message box stays visible
+        opt types into the Conversation search
+            U->>UI: types inv
+            UI->>UI: fold the query and the titles with the shared fold, filter in the browser
+            alt no title matches
+                UI-->>U: says no Conversation matches
+            else matches
+                UI-->>U: only the matching Conversations
+            end
+        end
+        opt picks a Conversation
+            UI-->>U: that Conversation (Flow 7)
+        end
+    end
+    Note over U,D: Postcondition: nothing written or counted by opening, listing or searching
+```
+
+### Flow 9: Start a new Conversation and watch the first reply
+
+Covers US-05 (AC-18), US-11 (AC-33), the follow-to-latest rule of US-04 (AC-16), and the start points of US-10 (AC-30 "Create invoice with AI"). The dashboard prompt start is Critical flow 3. UI path: SCR-02 to SCR-03 (`ux-flows.md` Flows US-05 and US-11).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: the Freelancer pressed New chat, AI chat, or a Create invoice with AI action, which carries its start point in the address
+    UI-->>U: greeting, message box in the middle, at least three suggested requests, messages left today
+    opt opened from a Create invoice with AI action while the allowance is used up
+        UI-->>U: allowance used up and when it renews, a link to create the invoice by hand (ai-assistant AC-34)
+    end
+    opt presses a suggested request
+        UI-->>U: the message box is filled, nothing sent, saved or counted
+    end
+    alt leaves without sending
+        UI-->>U: nothing saved, the list unchanged
+    else sends the first message
+        U->>UI: sends it
+        UI->>S: first message with no Conversation id, origin typed, the start point
+        S->>D: reserve one slot of today's allowance
+        alt no slot left
+            S-->>UI: allowance used up and when it renews, nothing saved
+        else slot reserved
+            S->>D: create the Conversation with its start point and save the message
+            Note over S,D: persists Conversation (owner, start point, title, last message time) and Conversation message (origin typed)
+            S->>X: run the turn
+            UI-->>U: the message box moves to the bottom, animated unless reduced motion is asked for
+            loop while the model writes
+                X-->>S: text deltas
+                S-->>UI: words paced 20 to 50 ms apart, the first word not held back
+                alt end of the messages within 48 px of view
+                    UI-->>U: the view follows the new text
+                else scrolled further up
+                    UI-->>U: the view stays put, a jump-to-latest control appears
+                end
+            end
+            S->>D: save the reply and the turn metadata
+            Note over S,D: persists Conversation message (reply) and turn metadata row
+            S-->>UI: the new Conversation id
+            UI->>UI: switch the address to the saved Conversation and add it to the list under Today
+        end
+    end
+    Note over U,D: Postcondition: a Conversation exists only from its first message, and its start point never changes
+```
+
+### Flow 10: Open the dashboard AI block
+
+Covers US-10 up to the hand-off (AC-30, AC-32, AC-36). Sending the prompt is Critical flow 3. UI path: SCR-09 (`ux-flows.md` Flow US-10).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: the Freelancer opens the dashboard
+    U->>UI: opens the dashboard
+    UI->>S: load the dashboard for the current session
+    alt no signed-in session
+        S-->>UI: not signed in
+        UI-->>U: sent to sign in, the prompt box is never reached
+    else signed in
+        S->>D: read today's allowance and the 3 latest Conversations by last message time
+        D-->>S: messages used today and up to 3 summaries
+        S-->>UI: messages left, renewal time, the latest Conversations
+        alt no Conversations yet
+            UI-->>U: says there are none yet, prompt box and Create invoice with AI
+        else some Conversations
+            UI-->>U: up to 3 links that reopen them, a link to all Conversations, prompt box, Create invoice with AI next to the invoice action
+        end
+        alt allowance used up
+            UI-->>U: prompt box says used up and when it renews, offers to create the invoice by hand, latest links stay usable
+        end
+    end
+    Note over U,D: Postcondition: nothing written or counted by opening the dashboard
+```
+
+### Flow 11: Data export and account deletion
+
+Covers US-12 (AC-34). It extends ai-assistant Flow 12 with the new stored data. UI path: SCR-14 (`ux-flows.md` Flow US-12).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant D as <data-store>
+
+    Note over U,UI: Precondition: a signed-in Freelancer in privacy settings
+    alt downloads the data export
+        U->>UI: downloads the export
+        UI->>S: build the export as the acting Freelancer
+        S->>D: read every Conversation with its messages, offers, Draft cards, message origins and start points
+        D-->>S: this Freelancer's rows only
+        S-->>UI: export with each offer's options and the chosen one, each message's origin and each Conversation's start point
+        UI-->>U: the export file
+    else deletes the account and confirms
+        U->>UI: confirms account deletion
+        UI->>S: delete the account
+        S->>D: delete the account in the existing transaction, Conversations cascade to messages, offers and Draft cards
+        Note over S,D: deletes Conversations, messages, offer rows, Draft cards with the account
+        alt deletion fails
+            S-->>UI: nothing deleted, try again
+        else deleted
+            S-->>UI: signed out, all chat data gone
+        end
+    end
+    Note over U,D: Postcondition: the 90-day purge removes offers with their Conversation, no separate step
+```
+
+### Coverage: user stories and acceptance criteria
+
+Critical flows 1–3 are the design-seeded flows above, drawn with the §5 container names. Flows 4–11 use the generic participants: `<user>` is the Freelancer, `<client>` is the external Assistant, `<external-system>` is the model provider, `<service>` is the chat route, server actions, MCP server, agent and service layer together, and `<data-store>` is the database.
+
+| User story | Flows |
+|---|---|
+| US-01 Find my profiles, accounts and products | 4, 6 |
+| US-02 Same reads in my own AI client | 5 |
+| US-03 Pick an option with one press | 6, 1, 7 |
+| US-04 Work in a full-height chat | 8, 9 |
+| US-05 Start from a clear empty state | 9 |
+| US-06 Use the AI on my phone | 8, 2 (the preview as a full-screen sheet is the same flow at a narrow width) |
+| US-07 Preview a created draft | 2, 7 |
+| US-08 Issue a checked draft from the chat | 2 |
+| US-09 Find the AI in the navigation | 8 (entered from the "AI chat" item). The group itself is static navigation, see AC-28 |
+| US-10 Start a chat from the dashboard | 10, 3, 9 |
+| US-11 Watch the reply being written | 9, 7 |
+| US-12 Know what the chat keeps about me | 11. The privacy page is static text, see AC-35 |
+
+| AC | Where it is shown |
+|---|---|
+| AC-01 | Flow 4, answer found (profiles with defaults, accounts by bank name, last four digits, currency) |
+| AC-02 | Flow 4, the read loop (Customer search, then products with that Customer id) and answer found |
+| AC-03 | Flow 4, the name folded with the shared fold, the Customer named as saved |
+| AC-04 | Flow 6, request complete (profile and account named as taken from the request) |
+| AC-05 | Flow 4, nothing matches |
+| AC-05b | Flow 6, the name given as the Customer is the Freelancer's own sender profile |
+| AC-06 | Flow 5, key valid with or without Draft permission, found |
+| AC-07 | Flow 4 (this Freelancer's rows only) and Flow 5 (key owner's rows only, a foreign Customer id answered as not existing) |
+| AC-08 | Flow 6, an offer-able issue with 2 to 8 options, then Critical flow 1, option valid, a Draft card |
+| AC-08b | Flow 6, one offer from the first offer-able issue, then Critical flow 1, the next single offer, and Critical flow 1 again |
+| AC-09 | Flow 6, the offer built in code and the question's words never becoming a button |
+| AC-10 | Flow 6, look-alike Customer names with their email, and Critical flow 1, the chosen record pinned into the stored draft request |
+| AC-11 | Critical flow 1, no slot left (nothing marked as chosen) |
+| AC-12 | Flow 4 and Flow 6, a newer typed message closes the open offer with no choice, and Flow 7, past buttons inactive with the chosen one marked |
+| AC-12b | Critical flow 1, offer not found, not latest, not open, option missing, or record gone |
+| AC-13 | Flow 7, the same options with the chosen one marked, and the open button whose record was deleted since (Critical flow 1, unavailable) |
+| AC-14 | Flow 6, more than 8 options |
+| AC-15 | Flow 8, the note that the page never scrolls (a layout rule, verified by the e2e layout check) |
+| AC-16 | Flow 9, the follow loop (within 48 px, or scrolled further up with a jump-to-latest control) |
+| AC-17 | Flow 8, grouping in the Freelancer time zone and the search (matches, or none) |
+| AC-18 | Flow 9, suggested request, leaves without sending, and the message box move with reduced motion |
+| AC-19 | Flow 8, screen narrower than 768 px, and Critical flow 2 for the preview (shown as a full-screen sheet at that width) |
+| AC-20 | Critical flow 2, found |
+| AC-21 | Critical flow 2, card created but its invoice was deleted since |
+| AC-22 | Critical flow 2, card not this Freelancer's, or never existed |
+| AC-23 | Critical flow 2, passes, and Flow 7, the workspace invoice-state store that the card and links read |
+| AC-24 | Flow 4, asked in words to issue a draft |
+| AC-25 | Critical flow 2, draft rules fail |
+| AC-26 | Critical flow 2, no longer a draft |
+| AC-26b | Critical flow 2, version differs |
+| AC-27 | Critical flow 2, the closing note (never a message, never counted) |
+| AC-28 | N/A, non-runtime: the "AI" group is static navigation config, and the active item is marked by the current path when the page renders |
+| AC-29 | Critical flow 3, valid |
+| AC-30 | Flow 10, latest Conversations or none yet, and Flow 9, started from "Create invoice with AI" |
+| AC-31 | Critical flow 3, empty or over 2,000 characters |
+| AC-32 | Flow 10, allowance used up, and Critical flow 3, allowance used up |
+| AC-33 | Flow 9, words paced 20 to 50 ms apart, and Flow 7, saved replies shown whole |
+| AC-34 | Flow 11 |
+| AC-35 | N/A, non-runtime: static privacy page text, checked by a page test |
+| AC-36 | Flow 8 and Flow 10, no signed-in session (the proxy also refuses anonymous chat requests and server actions, §8) |
+
+### Flags for design and data-model
+
+- **Critical flows 1–3 keep the §5 container names** and are left as drawn by `design`. The details they leave out are listed here rather than redrawn:
+  - Critical flow 1 has no persist notes. It writes the allowance day row, the offer's state `OPEN` to `CHOSEN` with `chosenOptionId`, the pressed message with origin `PRESSED` and the stored label, the next offer or Draft card, and the reply. A release puts the offer back to `OPEN`.
+  - Critical flow 2's issuing write also sets the write-once `Invoice.issuedFromChat` flag (§7 *Monitoring*). On "changed elsewhere", the reload is a second preview load through the same path. `data-model` fixes the column.
+  - Critical flow 3's first message records origin `DASHBOARD` and start point "dashboard prompt", as Flow 9 does for the other start points.
+- **The order of offer writes keeps "one open offer per Conversation"**: a typed or dashboard message closes the open offer when it is saved (Flows 4 and 6), and a press claims its offer before the next offer of that turn is stored (Critical flow 1). The partial unique index never sees two open rows.
+- **AC-05b depends on the model** following the chat instructions and the sender-profile read (Flow 6). There is no resolver rule for "this Customer name is your own sender profile". Candidate for §11 with an eval fixture in `plan-tests`. Alternative for `tasks`: a resolver hint on `CUSTOMER_NOT_FOUND` when the folded name equals a sender profile.
+- **No async flow.** The dashboard hand-off is a browser-only step, and §8 *Events* is N/A. So there is no idempotency key, retry or dead-letter branch, and no `<message-bus>`.
+- **No new participants**: every generic participant maps to a §5 container or an existing external system.
+- **Index hints for data-model, taken from the persist and read notes:**
+  - offer rows: partial unique by Conversation where the state is open; by Conversation for the reopen load and the cascade; by reply message;
+  - Conversation by owner and last message time, for the full summary list, the dashboard's 3 latest and the 90-day purge (existing);
+  - messages by Conversation in order (existing), now with the origin column;
+  - Draft card by Conversation (existing), joined to its invoice for the status and version;
+  - Customers, products and sender profiles by owner (existing). Name matching runs in the app over the owner's rows (ADR-0004), so no name index;
+  - `Invoice.issuedFromChat` needs no index (KPI reads only).
+
 ## 7. Deployment view
 
 Nothing new to deploy. The feature ships inside the existing Vercel deployable (region `fra1`), with no new runtime unit, setting, cron step or external service.
