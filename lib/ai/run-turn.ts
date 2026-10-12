@@ -7,9 +7,10 @@ import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createTurnContext } from '@/lib/ai/turn-context';
 import { isProviderFault } from '@/lib/ai/provider-fault';
+import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import type { DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 import type { ConversationMessageView } from '@/types/assistant/types';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 
@@ -171,6 +172,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     const costs = [routerCost];
     let usage = EMPTY_USAGE as TurnResult['usage'];
     let openText: string | null = null;
+    // The last propose_draft ISSUES answer, for the fallback words when the model writes none.
+    let draftIssues: DraftIssue[] = [];
 
     const closeText = () => {
       if (openText) emit({ type: 'text-end', id: openText });
@@ -203,6 +206,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
             break;
           case 'tool-result':
             pushUnique(links, linksFromToolResult(p.toolName, p.result));
+            if (p.toolName === 'propose_draft' && p.result?.kind === 'ISSUES') draftIssues = p.result.issues;
             break;
           case 'step-finish':
             closeText();
@@ -234,6 +238,15 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     if (fault !== null) {
       resolveResult(failed(failureOf(fault), topic, { steps, toolNames, usage, costUsd, text }));
       return;
+    }
+
+    if (text.trim() === '' && draftIssues.length > 0) {
+      // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).
+      const fallback = issuesText(draftIssues, verdict.language);
+      emit({ type: 'text-start', id: 'issues' });
+      emit({ type: 'text-delta', id: 'issues', delta: fallback });
+      emit({ type: 'text-end', id: 'issues' });
+      text = fallback;
     }
 
     const capped = steps >= MAX_STEPS && lastFinish === 'tool-calls';

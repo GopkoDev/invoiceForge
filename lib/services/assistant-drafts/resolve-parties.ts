@@ -84,6 +84,7 @@ async function resolveCustomer(
 }
 
 const accountOption = (a: Account) => ({ bankAccountId: a.id, label: accountLabel(a) });
+const accountWithCurrency = (a: Account) => ({ ...accountOption(a), currency: a.currency });
 
 /**
  * AC-19 (review-2026-10-12 R-06): the bank account the request names, matched within the chosen
@@ -167,9 +168,30 @@ function resolveSenderAndAccount(
     }
     currency = reading.currency as Currency;
   }
+  if (currency !== undefined && request.bankAccount !== undefined) {
+    // A named account in another currency is never used, and the answer says why (fix 2026-10-12).
+    const named = matchAccount(request.bankAccount, profile.bankAccounts);
+    if ('account' in named && named.account.currency !== currency) {
+      return {
+        issue: {
+          kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
+          written: request.bankAccount,
+          currency,
+          account: accountWithCurrency(named.account),
+        },
+      };
+    }
+  }
   const inCurrency = profile.bankAccounts.filter((a) => currency === undefined || a.currency === currency);
   if (currency !== undefined && inCurrency.length === 0) {
-    return { issue: { kind: 'NO_ACCOUNT_IN_CURRENCY', currency, senderProfileId: profile.id } };
+    return {
+      issue: {
+        kind: 'NO_ACCOUNT_IN_CURRENCY',
+        currency,
+        senderProfileId: profile.id,
+        accounts: profile.bankAccounts.map(accountWithCurrency),
+      },
+    };
   }
 
   let account = defaultAccount;

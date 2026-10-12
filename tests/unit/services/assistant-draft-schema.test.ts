@@ -205,7 +205,19 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
     { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 1, currency: 'EUR' },
     { kind: 'CURRENCY_UNCLEAR', written: '$', options: ['USD', 'UAH'] },
     { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Nope', options: ['Test Sender'] },
-    { kind: 'NO_ACCOUNT_IN_CURRENCY', currency: 'PLN', senderProfileId: 'sp1' },
+    {
+      kind: 'NO_ACCOUNT_IN_CURRENCY',
+      currency: 'PLN',
+      senderProfileId: 'sp1',
+      accounts: [{ bankAccountId: 'ba1', label: 'Bank ••0000', currency: 'USD' }],
+    },
+    // fix 2026-10-12
+    {
+      kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
+      written: 'Privat',
+      currency: 'USD',
+      account: { bankAccountId: 'ba1', label: 'Privat ••1234', currency: 'UAH' },
+    },
     {
       kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
       currency: 'USD',

@@ -127,6 +127,7 @@ const productCandidates = z
   .array(z.object({ productId: recordId, name: freelancerText }))
   .max(50);
 const accounts = z.array(z.object({ bankAccountId: recordId, label: z.string() }));
+const accountInCurrency = z.object({ bankAccountId: recordId, label: z.string(), currency });
 
 export const draftIssueSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('NO_SENDER_PROFILE_WITH_ACCOUNT') }),
@@ -154,10 +155,19 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     kind: z.literal('NO_ACCOUNT_IN_CURRENCY'),
     currency,
     senderProfileId: recordId,
+    // The accounts the profile does have, so the chat can say which currencies are available.
+    accounts: z.array(accountInCurrency),
   }),
   z.object({ kind: z.literal('SEVERAL_ACCOUNTS_IN_CURRENCY'), currency, accounts }),
   z.object({ kind: z.literal('BANK_ACCOUNT_NOT_FOUND'), written: z.string(), accounts }),
   z.object({ kind: z.literal('BANK_ACCOUNT_AMBIGUOUS'), written: z.string(), accounts }),
+  // The named account exists but is in another currency than the one asked for: an invoice and its account share one.
+  z.object({
+    kind: z.literal('BANK_ACCOUNT_CURRENCY_MISMATCH'),
+    written: z.string(),
+    currency,
+    account: accountInCurrency,
+  }),
   z.object({ kind: z.literal('LINE_QUANTITY_MISSING'), lineIndex, description: z.string() }),
   z.object({
     kind: z.literal('PRODUCT_AMBIGUOUS'),

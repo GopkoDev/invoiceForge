@@ -318,7 +318,15 @@ No draft exists yet.
 
 **Given** a Freelancer whose default bank account is in USD and who also has a bank account in EUR
 **When** they write "invoice Acme 600 EUR for the logo design"
-**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. The card has one line "Logo design" of 1 item × 600.00 EUR, and names quantity 1 and the unit "item" as defaults used. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so and links to adding one, instead of producing a card in a different currency.
+**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. The card has one line "Logo design" of 1 item × 600.00 EUR, and names quantity 1 and the unit "item" as defaults used. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so in words, names the accounts the profile does have with their currencies, and links to adding one, instead of producing a card in a different currency. A reply is never a link alone. <!-- patched-by-fix: 2026-10-12 -->
+
+### AC-19b (US-05) — domain invariant
+
+<!-- added-by-fix: 2026-10-12 -->
+
+**Given** a default sender profile with a bank account "Privat" in UAH and none in USD
+**When** the Freelancer writes "invoice Acme 1660 dollars, use Privat"
+**Then** no card is shown; the chat says Privat is in UAH while the invoice is in USD, and offers to draft in UAH or to add a USD account. It never uses Privat for a USD invoice and never picks another account itself. MCP refuses the same request the same way.
 
 ### AC-20 (US-06) — error
 

@@ -215,13 +215,19 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
 
     it('"£" means GBP: no GBP account gives NO_ACCOUNT_IN_CURRENCY, never a USD card', async () => {
       const { user, actor } = await freelancer();
-      const { profile } = await usdProfile(user.id);
+      const { profile, usd } = await usdProfile(user.id);
       await createCustomer(prisma, user.id, { name: 'Acme Corp' });
 
       const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: '£' }));
 
       expect(issues).toEqual([
-        { kind: 'NO_ACCOUNT_IN_CURRENCY', currency: 'GBP', senderProfileId: profile.id },
+        {
+          kind: 'NO_ACCOUNT_IN_CURRENCY',
+          currency: 'GBP',
+          senderProfileId: profile.id,
+          // fix 2026-10-12: the accounts the profile does have, with their currencies, so the chat can say so.
+          accounts: [{ bankAccountId: usd.id, label: expect.any(String), currency: 'USD' }],
+        },
       ]);
     });
 
@@ -242,7 +248,7 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
 
     it('a EUR account in another Freelancer\'s profile is not used', async () => {
       const { user, actor } = await freelancer();
-      const { profile } = await usdProfile(user.id);
+      const { profile, usd } = await usdProfile(user.id);
       await createCustomer(prisma, user.id, { name: 'Acme Corp' });
       const b = await createFreelancer(prisma, { email: 't07-b@example.com' });
       const bp = await createSenderProfile(prisma, b.id, { name: 'B' });
@@ -251,7 +257,13 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
       const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'EUR' }));
 
       expect(issues).toEqual([
-        { kind: 'NO_ACCOUNT_IN_CURRENCY', currency: 'EUR', senderProfileId: profile.id },
+        {
+          kind: 'NO_ACCOUNT_IN_CURRENCY',
+          currency: 'EUR',
+          senderProfileId: profile.id,
+          // fix 2026-10-12: the accounts the profile does have, with their currencies, so the chat can say so.
+          accounts: [{ bankAccountId: usd.id, label: expect.any(String), currency: 'USD' }],
+        },
       ]);
     });
 
@@ -351,13 +363,38 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
       expect(accounts.map((a) => a.bankAccountId).sort()).toEqual([wise.id, revolut.id].sort());
     });
 
-    it('an account in another currency than the one named is not used', async () => {
+    it('an account in another currency than the one named is not used: BANK_ACCOUNT_CURRENCY_MISMATCH names its currency', async () => {
       const { user, actor } = await freelancer();
-      await twoEur(user.id);
+      const { wise } = await twoEur(user.id);
 
       const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Wise' }));
 
-      expect(issues.map((i) => i.kind)).toEqual(['BANK_ACCOUNT_NOT_FOUND']);
+      expect(issues).toEqual([
+        {
+          kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
+          written: 'Wise',
+          currency: 'USD',
+          account: { bankAccountId: wise.id, label: expect.stringContaining('Wise'), currency: 'EUR' },
+        },
+      ]);
+    });
+
+    it('fix 2026-10-12: a named account in another currency when the profile has none in the asked one is still a mismatch, not NO_ACCOUNT_IN_CURRENCY', async () => {
+      const { user, actor } = await freelancer();
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      const privat = await createBankAccount(prisma, profile.id, { currency: 'UAH', bankName: 'Privat' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Privat' }));
+
+      expect(issues).toEqual([
+        {
+          kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
+          written: 'Privat',
+          currency: 'USD',
+          account: { bankAccountId: privat.id, label: expect.stringContaining('Privat'), currency: 'UAH' },
+        },
+      ]);
     });
 
     it('a name matching several accounts: BANK_ACCOUNT_AMBIGUOUS, never a pick', async () => {

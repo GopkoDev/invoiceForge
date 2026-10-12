@@ -273,6 +273,65 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect((result.pendingCard as any).proposal.total).toBe('1000.00');
   });
 
+  describe('fix 2026-10-12: an ISSUES answer the model leaves without words still says what is missing (AC-19)', () => {
+    const askEur = (language: string) =>
+      scriptedModel({
+        verdict: { topic: 'in_scope', language, intent: 'draft' },
+        steps: (i) =>
+          i === 0
+            ? {
+                toolCall: {
+                  name: 'propose_draft',
+                  input: { customer: 'Acme', currency: 'EUR', lines: [{ description: 'logo', quantity: '1', price: '600' }] },
+                },
+              }
+            : {},
+      });
+
+    it('English: the reply names the missing EUR account and the account the profile has', async () => {
+      model = askEur('en');
+      const { run } = await setup();
+
+      const { chunks, result } = await run('Invoice Acme 600 EUR for the logo');
+
+      expect(result.outcome).toBe('ANSWERED');
+      expect(result.text).toContain('EUR');
+      expect(result.text).toContain('USD');
+      const streamed = chunks.filter((c) => c.type === 'text-delta').map((c) => c.delta).join('');
+      expect(streamed).toBe(result.text);
+      expect(result.links).toEqual([expect.objectContaining({ page: 'sender-profile-bank-accounts' })]);
+    });
+
+    it('Ukrainian: the fallback follows the language of the message', async () => {
+      model = askEur('uk');
+      const { run } = await setup();
+
+      const { result } = await run('Створи інвойс для Acme на 600 EUR за логотип');
+
+      expect(result.text).toMatch(/[а-яіїєґ]/i);
+      expect(result.text).toContain('EUR');
+    });
+
+    it('a reply the model did write is left as it is', async () => {
+      model = scriptedModel({
+        steps: (i) =>
+          i === 0
+            ? {
+                toolCall: {
+                  name: 'propose_draft',
+                  input: { customer: 'Acme', currency: 'EUR', lines: [{ description: 'logo', quantity: '1', price: '600' }] },
+                },
+              }
+            : { text: 'You have no EUR account yet.' },
+      });
+      const { run } = await setup();
+
+      const { result } = await run('Invoice Acme 600 EUR for the logo');
+
+      expect(result.text).toBe('You have no EUR account yet.');
+    });
+  });
+
   it('AC-11: a provider error ends FAILED with failure PROVIDER, not counted as a answer', async () => {
     model = scriptedModel({ steps: () => ({ error: new Error('upstream down') }) });
     const { run } = await setup();

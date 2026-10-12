@@ -95,6 +95,8 @@ function issueCopy(issue: DraftIssue): string {
       return `${issue.written} is no longer among this sender profile's bank accounts.`;
     case 'BANK_ACCOUNT_AMBIGUOUS':
       return `${issue.written} no longer matches exactly one of your bank accounts.`;
+    case 'BANK_ACCOUNT_CURRENCY_MISMATCH':
+      return `${issue.account.label} is in ${issue.account.currency}, not ${issue.currency}.`;
     case 'LINE_QUANTITY_MISSING':
       return `${issue.description} has no quantity.`;
     case 'PRODUCT_AMBIGUOUS':

@@ -659,9 +659,13 @@ components:
             written: { type: string }
             options: { type: array, items: { type: string } }
         - type: object
-          description: No bank account in the currency (AC-19).
-          required: [kind, currency, senderProfileId]
-          properties: { kind: { const: NO_ACCOUNT_IN_CURRENCY }, currency: { $ref: "#/components/schemas/Currency" }, senderProfileId: { $ref: "#/components/schemas/RecordId" } }
+          description: No bank account in the currency (AC-19). `accounts` lists the accounts the profile does have, with their currencies (fix 2026-10-12).
+          required: [kind, currency, senderProfileId, accounts]
+          properties:
+            kind: { const: NO_ACCOUNT_IN_CURRENCY }
+            currency: { $ref: "#/components/schemas/Currency" }
+            senderProfileId: { $ref: "#/components/schemas/RecordId" }
+            accounts: { type: array, items: { $ref: "#/components/schemas/BankAccountInCurrency" } }
         - type: object
           description: Several bank accounts in the currency and none named (AC-19). Answered by naming one in `bankAccount`.
           required: [kind, currency, accounts]
@@ -678,6 +682,16 @@ components:
             kind: { type: string, enum: [BANK_ACCOUNT_NOT_FOUND, BANK_ACCOUNT_AMBIGUOUS] }
             written: { type: string }
             accounts: { $ref: "#/components/schemas/BankAccountOptions" }
+        - type: object
+          description: |
+            The named `bankAccount` exists but is in another currency than the one asked for (AC-19b, fix 2026-10-12).
+            An invoice and its bank account share one currency, so it is never used. Never picks another account.
+          required: [kind, written, currency, account]
+          properties:
+            kind: { const: BANK_ACCOUNT_CURRENCY_MISMATCH }
+            written: { type: string }
+            currency: { $ref: "#/components/schemas/Currency" }
+            account: { $ref: "#/components/schemas/BankAccountInCurrency" }
         - type: object
           description: A line that matches a catalogue product but names neither a quantity nor a price (spec.md §1 defaults, review R-10).
           required: [kind, lineIndex, description]
@@ -716,6 +730,11 @@ components:
         type: object
         required: [bankAccountId, label]
         properties: { bankAccountId: { $ref: "#/components/schemas/RecordId" }, label: { type: string } }
+
+    BankAccountInCurrency:
+      type: object
+      required: [bankAccountId, label, currency]
+      properties: { bankAccountId: { $ref: "#/components/schemas/RecordId" }, label: { type: string }, currency: { $ref: "#/components/schemas/Currency" } }
 
     # ---------- MCP tool ----------
     CreateDraftInvoiceInput:
