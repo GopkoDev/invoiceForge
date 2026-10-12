@@ -5,11 +5,12 @@ import '@/components/ai/zod-csp-safe';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
+import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
 import { MessageList } from '@/components/ai/message-list';
@@ -19,6 +20,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { protectedRoutes } from '@/config/routes.config';
+import { loadConversationCards } from '@/lib/actions/assistant-actions';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { AllowanceState, AppLink } from '@/lib/validations/assistant-chat';
 import type {
@@ -122,21 +124,34 @@ function toView(message: ChatMessage): ConversationMessageView {
   };
 }
 
-export function ChatIsland({
-  conversationId,
-  initialMessages,
-  invoiceLinks,
-  cards,
-  allowance: initialAllowance,
-  start,
-}: {
+interface ChatIslandProps {
   conversationId: string | null;
   initialMessages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   cards: Record<string, DraftCardView>;
   allowance: AllowanceState;
   start?: 'draft';
-}) {
+}
+
+export function ChatIsland(props: ChatIslandProps) {
+  // On /ai the island becomes the new Conversation in place, so going back to /ai (the sidebar, "New
+  // conversation") reaches the same mounted page: a fresh chat starts whenever the address returns to /ai.
+  const pathname = usePathname();
+  const [seen, setSeen] = useState({ pathname, chat: 0 });
+  if (seen.pathname !== pathname) {
+    setSeen({ pathname, chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat });
+  }
+  return <ChatSession key={seen.chat} {...props} />;
+}
+
+function ChatSession({
+  conversationId,
+  initialMessages,
+  invoiceLinks: initialInvoiceLinks,
+  cards: initialCards,
+  allowance: initialAllowance,
+  start,
+}: ChatIslandProps) {
   const router = useRouter();
   const newConversation = useNewConversation();
   // Mutable request bookkeeping read by the transport and SDK callbacks, never during render.
@@ -147,6 +162,14 @@ export function ChatIsland({
   const [started, setStarted] = useState(false);
   const [text, setText] = useState('');
   const [replyDone, setReplyDone] = useState(false);
+  // Only on /ai: the Conversation the first reply saved, and its cards and link states once read.
+  const [saved, setSaved] = useState<{ id: string; title: string } | null>(null);
+  const [loaded, setLoaded] = useState<{
+    cards: Record<string, DraftCardView>;
+    invoiceLinks: Record<string, LinkedInvoiceState>;
+  } | null>(null);
+  const cards = loaded?.cards ?? initialCards;
+  const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
   const listRef = useRef<HTMLDivElement>(null);
   const [transport] = useState(
     () =>
@@ -170,6 +193,7 @@ export function ChatIsland({
     onData: (part) => {
       if (part.type === 'data-conversation') {
         live.setConversationId(part.data.conversationId);
+        if (conversationId === null) setSaved({ id: part.data.conversationId, title: part.data.title });
         newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
         window.history.replaceState(
           window.history.state,
@@ -240,11 +264,20 @@ export function ChatIsland({
         });
     },
     onFinish: () => {
-      router.refresh();
-      // The island was mounted by /ai (no cards, no link states) and only the address was swapped, so
-      // a refresh alone keeps serving that page. Open the saved Conversation to bring them in.
+      // The island was mounted by /ai (no cards, no link states) and only the address was swapped, so a refresh
+      // keeps serving that page, and a navigation to /ai/{id} would show its loading skeleton and remount the
+      // chat (fix 2026-10-12). Read the saved Conversation's cards and link states instead.
       const savedId = live.getConversationId();
-      if (conversationId === null && savedId) router.replace(`/ai/${savedId}`);
+      if (conversationId === null && savedId) {
+        void loadConversationCards(savedId).then(
+          (result) => {
+            if (result.success) setLoaded(result.data);
+          },
+          () => undefined
+        );
+        return;
+      }
+      router.refresh();
     },
   });
 
@@ -305,6 +338,7 @@ export function ChatIsland({
 
   return (
     <div className="flex flex-col gap-4">
+      {saved ? <ConversationHeaderClient conversationId={saved.id} title={saved.title} /> : null}
       <div ref={listRef}>
         <MessageList
           messages={visible}

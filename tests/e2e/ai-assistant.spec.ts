@@ -60,12 +60,31 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
     await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue(
       'Where do I change the logo on my invoices?'
     );
+    // Fix 2026-10-12 (chat-reloads-on-send): the reply is appended in place. Count loading skeletons added and
+    // messages removed: a navigation to /ai/{id} shows the route's skeleton and remounts (removes) the chat.
+    await page.evaluate(() => {
+      const w = window as unknown as { __chat?: { skeletons: number; removed: number } };
+      const chat = { skeletons: 0, removed: 0 };
+      w.__chat = chat;
+      const has = (n: Node, selector: string) =>
+        n instanceof Element && (n.matches(selector) || n.querySelector(selector) !== null);
+      new MutationObserver((records) => {
+        for (const r of records) {
+          for (const n of Array.from(r.addedNodes)) if (has(n, '[data-slot="skeleton"]')) chat.skeletons += 1;
+          for (const n of Array.from(r.removedNodes)) if (has(n, '[data-role]')) chat.removed += 1;
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    });
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
     // The bubble only: the chat also keeps a screen-reader live region ("Assistant replied: ...").
     await expect(
       page.getByText('You can set the logo on your sender profile.', { exact: true })
     ).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+    await page.waitForLoadState('networkidle');
+    const chat = await page.evaluate(() => (window as unknown as { __chat?: unknown }).__chat);
+    expect(chat).toEqual({ skeletons: 0, removed: 0 });
     await expect(
       page.getByRole('main').getByRole('link', { name: /sender profile/i }).first()
     ).toBeVisible();

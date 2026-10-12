@@ -127,6 +127,15 @@ The action never touches the Daily message allowance and never calls the model. 
 
 ## Conversations — `lib/actions/assistant-actions.ts` ★ (flow 8; AC-37)
 
+### `loadConversationCards(id: string)` → `ActionResult<{ cards: Record<string, DraftCardView>; invoiceLinks: Record<string, LinkedInvoiceState> }>` (added by fix 2026-10-12; AC-35, AC-36)
+
+The chat started on `/ai` stays mounted while its address becomes `/ai/{id}` (`history.replaceState`), so after each finished reply it reads the saved Conversation's Draft cards and invoice-link states here instead of navigating (a navigation shows the route's loading skeleton and remounts the chat). A read over `getConversation`, never a model call, never counted.
+
+| Outcome | Result |
+|---|---|
+| found | `ok({ cards, invoiceLinks })`, exactly as `getConversation` returns them |
+| unknown id, or another Freelancer's | `fail('NOT_FOUND', "This conversation can't be found.")` |
+
 ### `deleteConversation(id: string)` → `ActionResult<void>`
 
 | Outcome | Result |

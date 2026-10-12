@@ -30,9 +30,10 @@ const refresh = vi.fn();
 const push = vi.fn();
 const replace = vi.fn();
 const router = { push, refresh, replace };
+let pathname = '/ai';
 vi.mock('next/navigation', () => ({
   useRouter: () => router,
-  usePathname: () => '/ai',
+  usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -47,7 +48,9 @@ vi.mock('@/lib/helpers/client-session-redirect', () => ({
   redirectIfUnauthorized: () => false,
 }));
 
+const loadConversationCards = vi.fn();
 vi.mock('@/lib/actions/assistant-actions', () => ({
+  loadConversationCards: (...a: unknown[]) => loadConversationCards(...a),
   createDraftFromCard: vi.fn(),
   deleteConversation: vi.fn(),
   deleteAllConversations: vi.fn(),
@@ -184,6 +187,9 @@ beforeEach(() => {
   replace.mockReset();
   goToSignIn.mockReset();
   replaceState.mockClear();
+  pathname = '/ai';
+  loadConversationCards.mockReset();
+  loadConversationCards.mockResolvedValue({ success: true, data: { cards: {}, invoiceLinks: {} } });
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
@@ -515,7 +521,7 @@ describe('T33 ChatIsland - SCR-01 sending the first message', () => {
     expect(push).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
     // not remounted: the user message and the streaming reply are both still on screen
-    expect(screen.getByText('Who owes me money right now?')).toBeTruthy();
+    expect(screen.getByText('Who owes me money right now?', { selector: 'p' })).toBeTruthy();
     expect(await screen.findByText(/Nobody yet\./)).toBeTruthy();
     expect(screen.getByText('29 of 30 messages left today')).toBeTruthy();
 
@@ -626,7 +632,6 @@ describe('T39 R-02 - first message on /ai', () => {
     await waitFor(() =>
       expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cLate'))).toBe(true)
     );
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/ai/cLate'));
     expect(replaceState.mock.calls.every((c) => !String(c[2]).endsWith('/ai/null'))).toBe(true);
 
     fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
@@ -634,6 +639,64 @@ describe('T39 R-02 - first message on /ai', () => {
     await send(user, 'and Globex?');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).conversationId).toBe('cLate');
+  });
+
+  // Fix 2026-10-12 (chat-reloads-on-send): the first reply on /ai used to end with router.replace('/ai/{id}'),
+  // a navigation that showed the route's loading skeleton and remounted the chat.
+  it('the first reply on /ai is appended in place: no navigation, the card comes from the saved Conversation', async () => {
+    const card = { id: 'card1' } as unknown as DraftCardView;
+    loadConversationCards.mockResolvedValue({ success: true, data: { cards: { card1: card }, invoiceLinks: {} } });
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        allowanceChunk(29),
+        START,
+        ...textChunks('Here is the draft.'),
+        { type: 'data-draft-card', id: 'card1', data: { cardId: 'card1' } },
+        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Invoice Acme' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    startPanelIsland();
+    await send(user, 'Invoice Acme for 20 hours at $50');
+    const sent = await screen.findByText('Invoice Acme for 20 hours at $50');
+    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await act(async () => {});
+
+    expect(replace).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
+    expect(loadConversationCards).toHaveBeenCalledWith('cNew');
+    expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cNew'))).toBe(true);
+    // not remounted: the very same message element is still on screen, under the Conversation's header
+    expect(screen.getByText('Invoice Acme for 20 hours at $50')).toBe(sent);
+    expect(screen.getByRole('heading', { name: 'Invoice Acme' })).toBeTruthy();
+  });
+
+  it('going back to /ai from the new Conversation starts a fresh chat', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Nobody yet.'),
+        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('Nobody yet.');
+    const props = { conversationId: null, initialMessages: [], invoiceLinks: {}, cards: {}, allowance: allowance(29) };
+    pathname = '/ai/cNew';
+    view.rerender(<ChatIsland {...props} />);
+    expect(screen.getByText('Nobody yet.')).toBeTruthy();
+
+    pathname = '/ai';
+    view.rerender(<ChatIsland {...props} />);
+    expect(await screen.findByText('Ask about your invoices')).toBeTruthy();
+    expect(screen.queryByText('Nobody yet.')).toBeNull();
   });
 });
 
