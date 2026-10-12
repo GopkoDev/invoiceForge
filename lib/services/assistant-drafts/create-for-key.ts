@@ -2,12 +2,13 @@
 // Personal key creates a Draft invoice. Order: permission, repeat mark, resolver, then one transaction
 // (key slot, invoice, repeat row). The Assistant never issues, sends, edits or deletes.
 import 'server-only';
-import type { BankAccount, Invoice, InvoiceItem, InvoiceStatus } from '@prisma/client';
+import type { Prisma, BankAccount, Invoice, InvoiceItem, InvoiceStatus } from '@prisma/client';
 import { prisma } from '@/prisma';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed, isUniqueConstraintError } from '@/lib/services/_shared/result-helpers';
 import { todayInZone, utcDateToDay } from '@/lib/helpers/calendar-day';
+import { INVOICE_ITEM_ORDER } from '@/lib/services/invoices/helpers';
 import { createInvoice } from '@/lib/services/invoices/invoices';
 import { takeKeyDraftSlot } from '@/lib/services/assistant-usage/key-drafts';
 import { fingerprintRequest } from '@/lib/services/assistant-drafts/fingerprint';
@@ -117,17 +118,19 @@ export async function createDraftForKey(
       const invoice = mark.invoiceId
         ? await prisma.invoice.findFirst({
             where: { id: mark.invoiceId, customer: { userId: actor.userId } },
-            include: { items: { orderBy: { createdAt: 'asc' } }, bankAccount: true },
+            include: { items: { orderBy: INVOICE_ITEM_ORDER }, bankAccount: true },
           })
         : null;
       if (!invoice) return fail('NOT_FOUND', GONE_MESSAGE);
-      // review-2026-10-12 R-12: a repeat reports what was stored, never a fresh resolution of today's data.
+      // N-1 / N-10: a repeat returns the first answer's stored proposal (true sources, defaultsUsed) with the
+      // invoice's current number and status; a mark written before the column existed is rebuilt from the invoice.
+      const stored = mark.proposal as DraftProposal | null;
       return ok({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         status: invoice.status,
         link: linkTo(invoice.id),
-        draft: proposalFromStored(invoice),
+        draft: stored ? { ...stored, invoiceNumber: invoice.invoiceNumber } : proposalFromStored(invoice),
         repeated: true,
       });
     };
@@ -161,10 +164,17 @@ export async function createDraftForKey(
           tx
         );
         if (!created.success) throw new Error(`createInvoice refused: ${created.code}`);
+        const answerProposal: DraftProposal = { ...proposal, invoiceNumber: created.data.invoiceNumber };
         if (repeatKey !== undefined) {
           await writeRepeatMark(
             tx,
-            { keyId: key.id, repeatKey, fingerprint, invoiceId: created.data.id },
+            {
+              keyId: key.id,
+              repeatKey,
+              fingerprint,
+              invoiceId: created.data.id,
+              proposal: answerProposal as unknown as Prisma.InputJsonValue,
+            },
             now
           );
         }
@@ -173,7 +183,7 @@ export async function createDraftForKey(
           invoiceNumber: created.data.invoiceNumber,
           status: 'DRAFT',
           link: linkTo(created.data.id),
-          draft: { ...proposal, invoiceNumber: created.data.invoiceNumber },
+          draft: answerProposal,
           repeated: false,
         });
       });

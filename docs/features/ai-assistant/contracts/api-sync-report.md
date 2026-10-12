@@ -193,3 +193,7 @@ The `$ref`s into `../../mcp-server/contracts/openapi.yaml` resolve. The repo has
 ## F. Review 2026-10-12 sync (T37, R-12)
 
 `DraftCreatedAnswer.status` widened from `const DRAFT` to the invoice status enum (`DRAFT | PENDING | PAID | OVERDUE | CANCELLED`): a repeat within 24 h is answered from the stored invoice (rows, amounts, current status), so the invoice may have left DRAFT. A first call still answers `DRAFT`. `lib/mcp/draft-tool.ts` output schema matches. No other contract change; R-13 (permission refusal before argument validation) matches the existing ADR-0011 behaviour.
+
+## G. Review 2026-10-12 round 2 sync (T42, N-1, N-10)
+
+`DraftCreatedAnswer.repeated` description: a repeat returns the first answer's stored proposal (`McpDraftRepeat.proposal`, migration 11) with the invoice's current `invoiceNumber` and `status`. Rows without a stored proposal fall back to a rebuild from the stored invoice (items in `INVOICE_ITEM_ORDER`, sources `REQUEST`, `defaultsUsed` empty). Shape unchanged; no schema, required-field or status-enum change.

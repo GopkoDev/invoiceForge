@@ -740,7 +740,7 @@ components:
         status: { type: string, enum: [DRAFT, PENDING, PAID, OVERDUE, CANCELLED], description: "The invoice's current status: DRAFT on a first call; a repeat reports the stored invoice as it is now (R-12)." }
         link: { type: string, format: uri, description: "The editor URL /invoices/{id}/edit (mcp-server D-7)." }
         draft: { $ref: "#/components/schemas/DraftProposal" }
-        repeated: { type: boolean, description: "true when a repeat within 24 h returned the first draft, answered from the stored invoice (its rows and current status), not a fresh resolution; nothing new was created." }
+        repeated: { type: boolean, description: "true when a repeat within 24 h returned the first draft; nothing new was created. A repeat returns the FIRST answer's stored proposal (true field sources, defaultsUsed, rate sources) with the invoice's CURRENT invoiceNumber and status. A mark written before the proposal was stored (null) falls back to a rebuild from the stored invoice (items in creation order, sources REQUEST, defaultsUsed empty)." }
       example:
         invoiceId: "clx0inv00000000000000001"
         invoiceNumber: "INV-2026-0042"

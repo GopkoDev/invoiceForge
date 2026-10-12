@@ -183,6 +183,7 @@ model McpDraftRepeat {
     repeatKey     String
     fingerprint   String // sha256 hex of the canonical request; the same mark with other content is refused
     invoiceId     String? // the first draft; NULL once that invoice is deleted
+    proposal      Json? // the first answer's DraftProposal (11); NULL on rows written before it
 
     personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
     invoice     Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)

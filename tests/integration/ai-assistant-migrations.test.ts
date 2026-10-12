@@ -37,6 +37,7 @@ const NAMES = [
   '08_add_invoice_assistant_origin',
   '09_add_invoice_issued_at',
   '10_create_invoice_assistant_key_id_index',
+  '11_add_mcp_draft_repeat_proposal',
 ];
 const UP = NAMES.map((n) => staged(`${n}.up.sql`));
 const DOWN = NAMES.map((n) => staged(`${n}.down.sql`));

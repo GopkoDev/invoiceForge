@@ -120,6 +120,7 @@ erDiagram
         string repeatKey PK
         string fingerprint "sha256 of the request"
         string invoiceId FK
+        json proposal "11, first answer, nullable"
         datetime createdAt
     }
     Invoice {
@@ -309,6 +310,7 @@ erDiagram
 | `repeatKey` | TEXT | PK (2) | the client's optional repeat mark, ≤ 200 characters (zod) |
 | `fingerprint` | TEXT | NOT NULL | lower-case hex SHA-256 of the canonical request. The same mark with another fingerprint is refused |
 | `invoiceId` | TEXT | NULL, FK → `Invoice(id)` ON DELETE SET NULL | the first draft. NULL = "no longer available" (ADR-0012 Neutral) |
+| `proposal` | JSONB | NULL | (11, T42; review-2026-10-12 N-1, N-10) the first answer's `DraftProposal`, written in the invoice's transaction. A repeat returns it with its true field sources, `defaultsUsed` and rate sources, plus the invoice's current number and status. NULL on rows written before the column existed: the service then rebuilds the proposal from the stored invoice (items in `INVOICE_ITEM_ORDER`). No backfill; marks live 24 hours |
 | `createdAt` | TIMESTAMP(3) | NOT NULL DEFAULT CURRENT_TIMESTAMP | starts the 24-hour window |
 
 **Access patterns:**
@@ -536,6 +538,7 @@ model McpDraftRepeat {
     repeatKey     String
     fingerprint   String // sha256 hex of the canonical request; the same mark with other content is refused
     invoiceId     String? // the first draft; NULL once that invoice is deleted
+    proposal      Json? // the first answer's DraftProposal (11); NULL on rows written before it
 
     personalKey PersonalKey @relation(fields: [personalKeyId], references: [id], onDelete: Cascade)
     invoice     Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)

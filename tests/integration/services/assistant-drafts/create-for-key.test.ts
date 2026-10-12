@@ -15,6 +15,7 @@ import { truncateAllTables } from '../../../support/db/truncate';
 import { createFreelancer } from '../../../support/factories/user';
 import { createProduct } from '../../../support/factories/product';
 import { createCustomer } from '../../../support/factories/customer';
+import { createCustomPrice } from '../../../support/factories/custom-price';
 import { createSenderProfile } from '../../../support/factories/sender-profile';
 import { createBankAccount } from '../../../support/factories/bank-account';
 import { createPersonalKey } from '../../../support/factories/personal-key';
@@ -408,6 +409,148 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
 
       expect(again).toMatchObject({ success: false, code: 'NOT_FOUND' });
       expect(await prisma.invoice.count()).toBe(0);
+    });
+  });
+  // review-2026-10-12 N-1 / N-10 (T42, AC-30, AC-32): a repeat returns the FIRST answer's stored proposal
+  // (true sources, defaultsUsed) with the invoice's current status and number.
+  describe('T42: the repeat answer is the first answer\'s stored proposal', () => {
+    const LATER = new Date(NOW.getTime() + HOUR);
+
+    // Assumed column name: McpDraftRepeat."proposal" (nullable JSON). Until the migration exists the UPDATE
+    // fails with "column does not exist"; that is swallowed so the row is already in the legacy (no proposal) shape.
+    async function clearStoredProposal() {
+      try {
+        await prisma.$executeRawUnsafe('UPDATE "McpDraftRepeat" SET "proposal" = NULL');
+      } catch (error) {
+        if (!String(error).includes('proposal')) throw error;
+      }
+    }
+
+    it('N-1: a repeat after issuing reports the first answer\'s DEFAULT dates and CATALOGUE rate source, with status PENDING', async () => {
+      const s = await setup();
+      await createProduct(prisma, s.user.id, { name: 'Widget', price: 30, currency: 'USD' });
+      const request = { customer: 'Acme', lines: [{ description: 'Widget', quantity: '2' }], repeatKey: 'n1a' };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      expect(first.data.draft.issueDate.source).toBe('DEFAULT');
+      expect(first.data.draft.dueDate.source).toBe('DEFAULT');
+      expect(first.data.draft.lines[0].rateSource).toBe('CATALOGUE');
+      expect(first.data.draft.defaultsUsed).toContain('issueDate');
+      await prisma.invoice.update({ where: { id: first.data.invoiceId }, data: { status: 'PENDING' } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({
+        invoiceId: first.data.invoiceId,
+        invoiceNumber: first.data.invoiceNumber,
+        status: 'PENDING',
+        repeated: true,
+      });
+      expect(again.data.draft).toEqual(first.data.draft);
+    });
+
+    it('N-1: a repeat keeps the CUSTOM_PRICE rate source of the first answer', async () => {
+      const s = await setup();
+      const product = await createProduct(prisma, s.user.id, { name: 'Widget', price: 30, currency: 'USD' });
+      await createCustomPrice(prisma, product.id, s.acme.id, { price: 25 });
+      const request = { customer: 'Acme', lines: [{ description: 'Widget', quantity: '2' }], repeatKey: 'n1b' };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      expect(first.data.draft.lines[0].rateSource).toBe('CUSTOM_PRICE');
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data.draft.lines[0].rateSource).toBe('CUSTOM_PRICE');
+      expect(again.data.draft).toEqual(first.data.draft);
+    });
+
+    it('N-1: after the Freelancer edits a line, the repeat still reports the first answer\'s proposal; status and number are current', async () => {
+      const s = await setup();
+      const request = { ...REQUEST, repeatKey: 'n1c' };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      await prisma.invoiceItem.updateMany({
+        where: { invoiceId: first.data.invoiceId },
+        data: { name: 'edited by hand', quantity: 3, amount: 150 },
+      });
+      await prisma.invoice.update({
+        where: { id: first.data.invoiceId },
+        data: { status: 'PENDING', invoiceNumber: 'INV-RENUMBERED' },
+      });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({ status: 'PENDING', invoiceNumber: 'INV-RENUMBERED', repeated: true });
+      const { invoiceNumber: _firstNumber, ...firstRest } = first.data.draft;
+      const { invoiceNumber: repeatNumber, ...againRest } = again.data.draft;
+      expect(againRest).toEqual(firstRest);
+      expect(repeatNumber).toBe('INV-RENUMBERED');
+      expect(again.data.draft.lines[0].name).not.toBe('edited by hand');
+    });
+
+    // Legacy fallback (assumed shape per the task DoD): a row with no stored proposal is answered from the
+    // stored invoice, items in INVOICE_ITEM_ORDER (createdAt asc, then id asc), sources REQUEST, defaultsUsed [].
+    async function threeTiedItems(s: Awaited<ReturnType<typeof setup>>, repeatKey: string) {
+      const request = {
+        customer: 'Acme',
+        lines: [
+          { description: 'first', quantity: '1', unit: 'hours', price: '10' },
+          { description: 'second', quantity: '1', unit: 'hours', price: '20' },
+          { description: 'third', quantity: '1', unit: 'hours', price: '30' },
+        ],
+        repeatKey,
+      };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      const items = await prisma.invoiceItem.findMany({
+        where: { invoiceId: first.data.invoiceId },
+        orderBy: { createdAt: 'asc' },
+      });
+      const tied = new Date('2026-01-01T00:00:00.000Z');
+      // Re-key in insertion order so the id order is the reverse of the physical order.
+      const ids = ['item-c', 'item-b', 'item-a'];
+      for (const [i, item] of items.entries()) {
+        await prisma.invoiceItem.update({ where: { id: item.id }, data: { id: `${ids[i]}-${item.id}`, createdAt: tied } });
+      }
+      await clearStoredProposal();
+      return { request, first, expectedNames: ['third', 'second', 'first'] };
+    }
+
+    it('N-10: a repeat over items sharing createdAt lists the lines in INVOICE_ITEM_ORDER (createdAt, then id)', async () => {
+      const s = await setup();
+      const { request, expectedNames } = await threeTiedItems(s, 'n10');
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data.draft.lines.map((l: { name: string }) => l.name)).toEqual(expectedNames);
+    });
+
+    it('legacy: a repeat row without a stored proposal is answered from the stored invoice with current status', async () => {
+      const s = await setup();
+      const { request, first } = await threeTiedItems(s, 'legacy');
+      await prisma.invoice.update({ where: { id: first.data.invoiceId }, data: { status: 'PENDING' } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({
+        invoiceId: first.data.invoiceId,
+        invoiceNumber: first.data.invoiceNumber,
+        status: 'PENDING',
+        repeated: true,
+      });
+      expect(again.data.draft.lines).toHaveLength(3);
+      expect(again.data.draft.defaultsUsed).toEqual([]);
+      expect(again.data.draft.lines.every((l: { rateSource: string }) => l.rateSource === 'REQUEST')).toBe(true);
     });
   });
 });

@@ -6,7 +6,12 @@ import { prisma } from '@/prisma';
 
 export const REPEAT_WINDOW_MS = 24 * 3_600_000;
 
-export type RepeatMark = { fingerprint: string; invoiceId: string | null };
+/** `proposal` is the first answer's DraftProposal as JSON; null on rows written before the column existed. */
+export type RepeatMark = {
+  fingerprint: string;
+  invoiceId: string | null;
+  proposal: Prisma.JsonValue | null;
+};
 
 /** The live mark for the key and repeat key, or null (none, or older than 24 h). */
 export async function readRepeatMark(
@@ -16,16 +21,22 @@ export async function readRepeatMark(
 ): Promise<RepeatMark | null> {
   const mark = await prisma.mcpDraftRepeat.findUnique({
     where: { personalKeyId_repeatKey: { personalKeyId: keyId, repeatKey } },
-    select: { fingerprint: true, invoiceId: true, createdAt: true },
+    select: { fingerprint: true, invoiceId: true, proposal: true, createdAt: true },
   });
   if (!mark || now.getTime() - mark.createdAt.getTime() >= REPEAT_WINDOW_MS) return null;
-  return { fingerprint: mark.fingerprint, invoiceId: mark.invoiceId };
+  return { fingerprint: mark.fingerprint, invoiceId: mark.invoiceId, proposal: mark.proposal };
 }
 
 /** Writes the mark in the caller's transaction, replacing a stale one (older than 24 h, not yet purged). */
 export async function writeRepeatMark(
   tx: Prisma.TransactionClient,
-  mark: { keyId: string; repeatKey: string; fingerprint: string; invoiceId: string },
+  mark: {
+    keyId: string;
+    repeatKey: string;
+    fingerprint: string;
+    invoiceId: string;
+    proposal: Prisma.InputJsonValue;
+  },
   now: Date
 ): Promise<void> {
   await tx.mcpDraftRepeat.deleteMany({
@@ -41,6 +52,7 @@ export async function writeRepeatMark(
       repeatKey: mark.repeatKey,
       fingerprint: mark.fingerprint,
       invoiceId: mark.invoiceId,
+      proposal: mark.proposal,
     },
   });
 }

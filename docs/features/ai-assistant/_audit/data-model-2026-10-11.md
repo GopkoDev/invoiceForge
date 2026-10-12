@@ -18,6 +18,7 @@
 | 08 | `…/08_add_invoice_assistant_origin.{up,down}.sql` | new enum + three nullable columns + FK on `Invoice` | the origin task (ADR-0013) |
 | 09 | `…/09_add_invoice_issued_at.{up,down}.sql` | nullable column on `Invoice` | the issue-time task (ADR-0013) |
 | 10 | `…/10_create_invoice_assistant_key_id_index.{up,down}.sql` | `CREATE INDEX CONCURRENTLY` on an existing table. **Single statement: keep it alone in its migration** | with 08 |
+| 11 | `…/11_add_mcp_draft_repeat_proposal.{up,down}.sql` | `ADD COLUMN IF NOT EXISTS "proposal" JSONB` on `McpDraftRepeat` (T42, N-1, N-10). Nullable, catalog-only. Promoted as `20261010101000_add_mcp_draft_repeat_proposal`. Added after the audit | after 07 |
 
 **Promote-time convention hint.**
 - The repo uses `prisma migrate` with timestamped folders `YYYYMMDDhhmmss_snake_case/migration.sql`. The latest live folder is `20261007100300_single_default_bank_account`.
