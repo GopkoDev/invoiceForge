@@ -17,6 +17,7 @@ const protectedRoutesBase = {
   customers: '/customers',
   products: '/products',
   settings: '/settings',
+  ai: '/ai',
 } as const;
 
 /** The root of every private section; each one and everything under it needs a session. */
