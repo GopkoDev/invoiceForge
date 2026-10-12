@@ -1,5 +1,5 @@
 import 'server-only';
-import { randomUUID } from 'node:crypto';
+import { createId } from '@paralleldrive/cuid2';
 import { createTool } from '@mastra/core/tools';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
@@ -65,7 +65,7 @@ export function createProposeDraftTool(turn: TurnContext) {
         return { kind: 'ISSUES', issues, links: linksFor(issues) };
       }
       const { proposal } = resolved.data;
-      const cardId = randomUUID();
+      const cardId = createId();
       turn.pending.card = { id: cardId, request, proposal };
       return { kind: 'CARD', cardId, summary: summarize(proposal) };
     },

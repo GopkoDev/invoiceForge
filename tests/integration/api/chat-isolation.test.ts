@@ -119,6 +119,8 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
       .replaceAll(echoed, '<NAME>')
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<ID>')
       .replace(/c[a-z0-9]{24}/g, '<ID>')
+      // cuid2 ids (Conversation, DraftCard) as they appear quoted in JSON.
+      .replace(/"[a-z][a-z0-9]{23}"/g, '"<ID>"')
       .replace(/"messageId":"[^"]*"/g, '"messageId":"<ID>"')
       .replace(/"createdAt":\d+/g, '"createdAt":0');
 
@@ -200,7 +202,9 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
       const response = await send('Look this up for me');
       const text = await response.text();
       expect(response.status).toBe(200);
-      expect(partsOfText(text).some((p) => p.type === 'tool-output-available')).toBe(true);
+      // The tool ran and its answer reached the model, but never the browser (R-14).
+      expect((model.doStreamCalls.at(-1)!.prompt as Array<{ role: string }>).some((m) => m.role === 'tool')).toBe(true);
+      expect(partsOfText(text).filter((p) => String(p.type).startsWith('tool-'))).toEqual([]);
       await vi.waitFor(async () => expect(await prisma.assistantTurn.count({ where: { userId: ctx.a.id } })).toBe(1));
 
       const surfaces = {

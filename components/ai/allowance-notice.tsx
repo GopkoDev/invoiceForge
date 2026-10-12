@@ -2,32 +2,8 @@ import Link from 'next/link';
 
 import { buttonVariants } from '@/components/ui/button';
 import { protectedRoutes } from '@/config/routes.config';
+import { renewalWhen } from '@/lib/helpers/allowance-renewal';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
-
-function zoneParts(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  return {
-    day: `${get('year')}-${get('month')}-${get('day')}`,
-    time: `${get('hour')}:${get('minute')}`,
-  };
-}
-
-// "at 00:00" at a local midnight, "tomorrow at HH:mm" on a later local day, else "at HH:mm".
-function renewalWhen(renewsAt: string, timeZone: string, now: Date): string {
-  const renew = zoneParts(new Date(renewsAt), timeZone);
-  if (renew.time === '00:00') return 'at 00:00';
-  const today = zoneParts(now, timeZone);
-  return renew.day > today.day ? `tomorrow at ${renew.time}` : `at ${renew.time}`;
-}
 
 // Isolated so the render stays readable; the notice only needs minute precision.
 function currentTime(): Date {

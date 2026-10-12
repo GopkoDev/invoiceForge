@@ -174,19 +174,22 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat provider faults (T34)'
     expect(await usedToday(user.id)).toBe(30);
   }, 40_000);
 
-  it('AC-11: a router (classifier) provider failure ends without a counted message and with metadata only', async () => {
-    model = scriptedModel({ verdict: apiError(429, true), steps: () => ({ text: 'must not run' }) });
+  // R-05: the topic router calls the same provider first; a fault there is the same outage, not a system failure.
+  const routerFaults = faults.filter((f): f is [string, { error: Error }] => 'error' in f[1]);
+
+  it.each(routerFaults)('AC-11: %s at the topic router ends AI_UNAVAILABLE within 10 s, releases the slot and saves only metadata', async (_label, step) => {
+    model = scriptedModel({ verdict: step.error, steps: () => ({ text: 'must not run' }) });
     const user = await signedIn();
+    const startedAt = Date.now();
 
-    const { text } = await readWithin(await send(QUESTION), DEADLINE_MS + 5_000);
+    const response = await send(QUESTION);
+    const { text, elapsedMs } = await readWithin(response, DEADLINE_MS + 5_000);
 
-    expect(text).not.toBe('__TIMED_OUT__');
-    const outcome = partsOfText(text).findLast((p) => p.type === 'data-outcome').data;
-    expect(outcome.counted).toBe(false);
-    expect(['AI_UNAVAILABLE', 'COULD_NOT_COMPLETE']).toContain(outcome.outcome);
-    expect(text).not.toContain(SECRET);
-    expect(await usedToday(user.id)).toBe(12);
-    expect(await prisma.conversationMessage.count()).toBe(0);
+    expect(response.status).toBe(200);
+    expect(text, 'the turn did not end in time').not.toBe('__TIMED_OUT__');
+    expect(elapsedMs).toBeLessThan(DEADLINE_MS);
+    expect(model.doStreamCalls).toHaveLength(0);
+    await expectCostNothing(user.id, 12, startedAt, text);
   }, 30_000);
 
   // A provider that never answers is not covered: the owner decided on no turn deadlines in the chat

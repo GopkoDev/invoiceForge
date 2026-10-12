@@ -1,6 +1,8 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { getChatModel } from '@/lib/ai/model';
+import { gatewayCostOf } from '@/lib/ai/gateway-cost';
+import { withProviderFaults } from '@/lib/ai/provider-fault';
 import { MIXED_INSTRUCTION, OFF_TOPIC_REFUSAL, type RouterLanguage } from '@/lib/ai/instructions/refusal';
 
 export type RouterTopic = 'IN_SCOPE' | 'MIXED' | 'OFF_TOPIC';
@@ -15,6 +17,8 @@ export interface RouterVerdict {
   language: string;
   refusal?: string;
   instruction?: string;
+  /** The gateway-reported USD cost of the classification call (0 when none is reported). */
+  costUsd?: number;
 }
 
 const verdictSchema = z.object({
@@ -35,18 +39,19 @@ export async function classifyMessage({
   message: string;
   recentTurns: RouterTurn[];
 }): Promise<RouterVerdict> {
-  const { output } = await generateText({
-    model: await getChatModel(),
+  const { output, providerMetadata } = await generateText({
+    model: withProviderFaults(await getChatModel()),
     system: SYSTEM,
     messages: [...recentTurns, { role: 'user' as const, content: message }],
     output: Output.object({ schema: verdictSchema }),
   });
 
   const language = output.language;
+  const costUsd = gatewayCostOf(providerMetadata);
   if (output.topic === 'off_topic') {
     const refusal = OFF_TOPIC_REFUSAL[language as RouterLanguage] ?? OFF_TOPIC_REFUSAL.en;
-    return { topic: 'OFF_TOPIC', language, refusal };
+    return { topic: 'OFF_TOPIC', language, refusal, costUsd };
   }
-  if (output.topic === 'mixed') return { topic: 'MIXED', language, instruction: MIXED_INSTRUCTION };
-  return { topic: 'IN_SCOPE', language };
+  if (output.topic === 'mixed') return { topic: 'MIXED', language, instruction: MIXED_INSTRUCTION, costUsd };
+  return { topic: 'IN_SCOPE', language, costUsd };
 }

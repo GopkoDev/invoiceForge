@@ -12,7 +12,6 @@ export type ChatOutcome =
 
 export const TOO_LONG_MESSAGE =
   'Messages can be at most 2,000 characters. Shorten it and send again.';
-export const CONVERSATION_TITLE_LENGTH = 80;
 
 /** The chat outcome the client sees for a finished turn, and whether it counted. */
 export function chatOutcomeOf(result: TurnResult): {

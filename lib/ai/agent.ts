@@ -1,6 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
 import { getChatModel } from '@/lib/ai/model';
+import { withProviderFaults } from '@/lib/ai/provider-fault';
 import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
 import { createProposeDraftTool } from '@/lib/ai/tools/propose-draft';
 import { createReadTools } from '@/lib/ai/tools/read-tools';
@@ -24,12 +25,13 @@ export function createChatTools(turn: TurnContext) {
   };
 }
 
-// The model is resolved per call so the AI_CHAT_MODEL setting is read at run time. The tools close
-// over the acting Freelancer, so they are built per turn from the request context.
+// The model is resolved per call so the AI_CHAT_MODEL setting is read at run time, and wrapped so its faults
+// are told apart from ours (R-05). The tools close over the acting Freelancer, so they are built per turn from
+// the request context. These instructions are the only copy the model gets (run-turn adds none, R-19).
 export const chatAgent = new Agent({
   id: 'chat-agent',
   name: 'Chat Assistant',
   instructions: CHAT_INSTRUCTIONS,
-  model: async () => getChatModel(),
+  model: async () => withProviderFaults(await getChatModel()),
   tools: ({ requestContext }) => createChatTools(requestContext.get(TURN_CONTEXT_KEY) as TurnContext),
 });

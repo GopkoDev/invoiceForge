@@ -4,9 +4,10 @@ import { RequestContext } from '@mastra/core/request-context';
 import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
-import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createTurnContext } from '@/lib/ai/turn-context';
+import { isProviderFault } from '@/lib/ai/provider-fault';
+import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import type { DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 import type { ConversationMessageView } from '@/types/assistant/types';
@@ -31,6 +32,8 @@ export interface TurnResult {
   steps: number;
   toolNames: string[];
   usage: { inputTokens: number | null; outputTokens: number | null };
+  /** Gateway-reported USD cost of every model call of the turn, router included; 0 when none is reported. */
+  costUsd: number;
   pendingCard?: { id: string; request: DraftRequest; proposal: DraftProposal };
   links: AppLink[];
   text: string;
@@ -96,8 +99,11 @@ function chunkStream(run: (emit: (chunk: UIMessageChunk) => void) => Promise<voi
 }
 
 function failed(failure: 'PROVIDER' | 'SYSTEM', topic: RouterTopic | null, partial?: Partial<TurnResult>): TurnResult {
-  return { outcome: 'FAILED', failure, topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, links: [], text: '', ...partial };
+  return { outcome: 'FAILED', failure, topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, costUsd: 0, links: [], text: '', ...partial };
 }
+
+/** A fault of the model provider is PROVIDER (AI_UNAVAILABLE); anything else is ours, SYSTEM (R-05). */
+const failureOf = (error: unknown): 'PROVIDER' | 'SYSTEM' => (isProviderFault(error) ? 'PROVIDER' : 'SYSTEM');
 
 function emptyStream(): AsyncIterable<UIMessageChunk> {
   return chunkStream(async () => {});
@@ -113,10 +119,11 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   let verdict;
   try {
     verdict = await classifyMessage({ message: input.message, recentTurns: history.slice(-ROUTER_TURNS) });
-  } catch {
-    return { stream: emptyStream(), result: Promise.resolve(failed('SYSTEM', null)) };
+  } catch (error) {
+    return { stream: emptyStream(), result: Promise.resolve(failed(failureOf(error), null)) };
   }
   const topic = verdict.topic;
+  const routerCost = verdict.costUsd ?? 0;
 
   if (topic === 'OFF_TOPIC') {
     const refusal = verdict.refusal ?? '';
@@ -125,7 +132,16 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       emit({ type: 'text-delta', id: 'refusal', delta: refusal });
       emit({ type: 'text-end', id: 'refusal' });
     });
-    const result: TurnResult = { outcome: 'ANSWERED', topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, links: [], text: refusal };
+    const result: TurnResult = {
+      outcome: 'ANSWERED',
+      topic,
+      steps: 0,
+      toolNames: [],
+      usage: EMPTY_USAGE,
+      costUsd: sumCosts([routerCost]),
+      links: [],
+      text: refusal,
+    };
     return { stream, result: Promise.resolve(result) };
   }
 
@@ -150,7 +166,9 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     let steps = 0;
     let lastFinish: string | undefined;
     let text = '';
-    let error = false;
+    // The first fault seen; `true` when the stream reports one without an error value (a tripwire).
+    let fault: unknown = null;
+    const costs = [routerCost];
     let usage = EMPTY_USAGE as TurnResult['usage'];
     let openText: string | null = null;
 
@@ -160,10 +178,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     };
 
     try {
-      const output = await chatAgent.stream(
-        [{ role: 'system', content: CHAT_INSTRUCTIONS }, ...messages],
-        { maxSteps: MAX_STEPS, abortSignal: input.signal, requestContext }
-      );
+      // The chat instructions come from the agent itself; only per-turn additions travel here (R-19).
+      const output = await chatAgent.stream(messages, { maxSteps: MAX_STEPS, abortSignal: input.signal, requestContext });
       const reader = output.fullStream.getReader();
       for (;;) {
         const { done, value } = await reader.read();
@@ -179,23 +195,26 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
             text += p.text;
             emit({ type: 'text-delta', id: openText, delta: p.text });
             break;
+          // Tool calls and raw tool answers stay on the server: the client gets the text, the links and the
+          // card (openapi /api/chat 200, R-14).
           case 'tool-call':
             closeText();
             toolNames.push(p.toolName);
-            emit({ type: 'tool-input-available', toolCallId: p.toolCallId, toolName: p.toolName, input: p.args });
             break;
           case 'tool-result':
             pushUnique(links, linksFromToolResult(p.toolName, p.result));
-            emit({ type: 'tool-output-available', toolCallId: p.toolCallId, output: p.result });
             break;
           case 'step-finish':
             closeText();
             steps += 1;
             lastFinish = p.stepResult?.reason ?? p.output?.reason ?? p.reason;
+            costs.push(gatewayCostOf(p.metadata?.providerMetadata));
             break;
           case 'error':
+            fault ??= p.error ?? true;
+            break;
           case 'tripwire':
-            error = true;
+            fault ??= true;
             break;
         }
       }
@@ -206,13 +225,14 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       } catch {
         // usage is optional metadata
       }
-      if (output.error) error = true;
-    } catch {
-      error = true;
+      if (output.error) fault ??= output.error;
+    } catch (error) {
+      fault ??= error ?? true;
     }
 
-    if (error) {
-      resolveResult(failed('PROVIDER', topic, { steps, toolNames, usage, text }));
+    const costUsd = sumCosts(costs);
+    if (fault !== null) {
+      resolveResult(failed(failureOf(fault), topic, { steps, toolNames, usage, costUsd, text }));
       return;
     }
 
@@ -231,6 +251,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       steps,
       toolNames,
       usage,
+      costUsd,
       pendingCard: turn.pending.card ?? undefined,
       links,
       text,

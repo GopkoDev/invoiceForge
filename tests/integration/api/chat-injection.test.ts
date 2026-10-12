@@ -159,7 +159,9 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat stored-text injection 
 
     expect(response.status).toBe(200);
     expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'ANSWERED', counted: true });
-    expect(parts.some((p) => p.type === 'tool-output-available')).toBe(true);
+    // The tool ran and its answer reached the model, but never the browser (R-14).
+    expect((model.doStreamCalls.at(-1)!.prompt as any[]).some((m: any) => m.role === 'tool')).toBe(true);
+    expect(parts.filter((p) => String(p.type).startsWith('tool-'))).toEqual([]);
     await expectNoCardAndNoInvoice(before, parts);
     await vi.waitFor(async () => expect(await prisma.conversationMessage.count()).toBe(2));
     const saved = JSON.stringify((await prisma.conversationMessage.findMany()).map((m) => m.parts));

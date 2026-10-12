@@ -34,7 +34,7 @@ feature_size: "L"
 
 **Decisions taken at `api` (2026-10-11, with the owner):**
 - **D-1.** `ActionErrorCode` gains `FORBIDDEN` ("known caller, no right"), first used by AC-29. `tasks` adds a task to update every exhaustive switch over the codes.
-- **D-2.** A new Conversation gets its id from the server. The first `POST /api/chat` carries `conversationId: null`. The server creates the Conversation with the saved turn and announces it in the first stream part (`data-conversation`). The client never chooses a primary key.
+- **D-2.** A new Conversation gets its id from the server. The first `POST /api/chat` carries `conversationId: null`. The server creates the Conversation with the saved turn and announces it (`data-conversation`) only once that turn is saved, right before `data-outcome` (review R-02). The client never chooses a primary key.
 - **D-3.** A Create press whose re-resolve yields issues (Customer, profile or account gone) returns `ok({ kind: 'NEEDS_ANSWERS', issues })` and marks the card `OUTDATED` with no successor. sad.md §6 flow 2 gets the branch later, through OQ-A1.
 
 ## A. Field origins

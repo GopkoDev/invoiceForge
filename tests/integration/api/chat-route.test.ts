@@ -20,7 +20,9 @@ import { createSenderProfile } from '../../support/factories/sender-profile';
 import { createBankAccount } from '../../support/factories/bank-account';
 import { createConversation } from '../../support/factories/conversation';
 import { createMessageAllowanceDay } from '../../support/factories/message-allowance-day';
+import { createInvoice } from '../../support/factories/invoice';
 import { assertMatchesContract } from '../../support/contract/validate';
+import { isCuid } from '@paralleldrive/cuid2';
 
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
@@ -40,9 +42,16 @@ const usage = {
 };
 const finish = (unified: 'stop' | 'tool-calls') => ({ type: 'finish' as const, finishReason: { unified, raw: unified }, usage });
 
-type Step = { text?: string; toolCall?: { name: string; input: Record<string, unknown> } } | { error: Error };
+/** `cost` is the USD cost the AI Gateway reports for the call, in its provider metadata. */
+type Step = { text?: string; toolCall?: { name: string; input: Record<string, unknown> }; cost?: string } | { error: Error };
 
-function scriptedModel(opts: { verdict?: { topic: string; language: string } | Error; steps: (i: number) => Step }) {
+const gatewayMetadata = (cost?: string) => (cost === undefined ? {} : { providerMetadata: { gateway: { cost } } });
+
+function scriptedModel(opts: {
+  verdict?: { topic: string; language: string } | Error;
+  verdictCost?: string;
+  steps: (i: number) => Step;
+}) {
   let streamCall = 0;
   return new MockLanguageModelV4({
     doGenerate: async () => {
@@ -52,6 +61,7 @@ function scriptedModel(opts: { verdict?: { topic: string; language: string } | E
         finishReason: { unified: 'stop', raw: 'stop' },
         usage,
         warnings: [],
+        ...gatewayMetadata(opts.verdictCost),
       } as any;
     },
     doStream: async () => {
@@ -71,7 +81,7 @@ function scriptedModel(opts: { verdict?: { topic: string; language: string } | E
           input: JSON.stringify(step.toolCall.input),
         });
       }
-      chunks.push(finish(step.toolCall ? 'tool-calls' : 'stop'));
+      chunks.push({ ...finish(step.toolCall ? 'tool-calls' : 'stop'), ...gatewayMetadata(step.cost) });
       return {
         stream: new ReadableStream({
           start(controller) {
@@ -322,7 +332,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
   });
 
   describe('the stream', () => {
-    it('a new Conversation: 200 event-stream with data-conversation first, then data-allowance, the answer and data-outcome last; the turn is saved and counted', async () => {
+    it('a new Conversation: 200 event-stream with data-allowance, the answer, then data-conversation once the turn is saved, and data-outcome last; the turn is saved and counted', async () => {
       const user = await signedIn();
 
       const response = await send(chatBody('Who owes me money?'));
@@ -335,9 +345,12 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       const conversationAt = types.indexOf('data-conversation');
       const allowanceAt = types.indexOf('data-allowance');
       const outcomeAt = types.lastIndexOf('data-outcome');
-      expect(conversationAt).toBe(types.findIndex((t) => t.startsWith('data-')));
-      expect(conversationAt).toBeLessThan(allowanceAt);
+      // R-02: the id is announced only after the Conversation row is saved, right before the outcome.
+      expect(allowanceAt).toBe(types.findIndex((t) => t.startsWith('data-')));
       expect(allowanceAt).toBeLessThan(types.indexOf('text-delta'));
+      expect(types.lastIndexOf('text-delta')).toBeLessThan(conversationAt);
+      expect(conversationAt).toBe(outcomeAt - 1);
+      expect(types.filter((t) => t === 'data-conversation')).toHaveLength(1);
       expect(types.indexOf('text-delta')).toBeLessThan(outcomeAt);
       expect(types.slice(outcomeAt + 1).some((t) => t.startsWith('data-'))).toBe(false);
       const conversationPart = parts[conversationAt];
@@ -349,6 +362,8 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       await vi.waitFor(async () => expect(await prisma.conversation.count()).toBe(1));
       const saved = await prisma.conversation.findFirstOrThrow({ include: { messages: { orderBy: { position: 'asc' } } } });
       expect(saved.id).toBe(conversationPart.data.conversationId);
+      // R-18: ids are cuids, like every other record id (data-model.md).
+      expect(isCuid(saved.id)).toBe(true);
       expect(saved.userId).toBe(user.id);
       expect(saved.messages.map((m) => m.role)).toEqual(['USER', 'ASSISTANT']);
       expect(JSON.stringify(saved.messages[0].parts)).toContain('Who owes me money?');
@@ -436,6 +451,10 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       const cardPart = parts.find((p) => p.type === 'data-draft-card');
       expect(cardPart).toBeDefined();
       expect(cardPart.data.cardId).toBe(cardPart.id);
+      expect(isCuid(cardPart.id)).toBe(true);
+      // R-14: tool calls and raw tool answers never reach the browser (openapi /api/chat 200).
+      expect(parts.filter((p) => String(p.type).startsWith('tool-'))).toEqual([]);
+      expect(JSON.stringify(parts)).not.toContain('"kind":"CARD"');
       await vi.waitFor(async () => expect(await prisma.draftCard.count()).toBe(1));
       const card = await prisma.draftCard.findFirstOrThrow();
       expect(card.id).toBe(cardPart.data.cardId);
@@ -471,7 +490,8 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
     });
 
     it('AC-11: a system-side failure before the reply ends COULD_NOT_COMPLETE, releases the slot and saves only metadata', async () => {
-      model = scriptedModel({ verdict: new Error('router blew up'), steps: () => ({ text: 'must not run' }) });
+      // A router verdict that does not parse is our side, not the provider's (a provider fault is AI_UNAVAILABLE).
+      model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
       const user = await signedIn();
 
       const parts = await readParts(await send(chatBody('Who owes me money?')));
@@ -496,6 +516,163 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       expect(await usedToday(user.id)).toBe(1);
       await vi.waitFor(async () => expect(await prisma.assistantTurn.count()).toBe(1));
       expect(await prisma.assistantTurn.findFirstOrThrow()).toMatchObject({ outcome: 'CAPPED', counted: true });
+    });
+  });
+
+  describe('a new Conversation that does not count is never announced (R-02)', () => {
+    it('AC-11: AI_UNAVAILABLE on the first message sends no data-conversation; a retry without an id starts and saves the Conversation', async () => {
+      let providerDown = true;
+      model = scriptedModel({ steps: () => (providerDown ? { error: new Error('upstream down') } : { text: 'Back again.' }) });
+      const user = await signedIn();
+
+      const first = await readParts(await send(chatBody('Who owes me money?')));
+
+      expect(first.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'AI_UNAVAILABLE', counted: false });
+      expect(first.some((p) => p.type === 'data-conversation')).toBe(false);
+      expect(await prisma.conversation.count()).toBe(0);
+
+      providerDown = false;
+      const retry = await send(chatBody('Who owes me money?'));
+      expect(retry.status).toBe(200);
+      const parts = await readParts(retry);
+
+      expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'ANSWERED', counted: true });
+      const announced = parts.filter((p) => p.type === 'data-conversation');
+      expect(announced).toHaveLength(1);
+      const saved = await prisma.conversation.findFirstOrThrow();
+      expect(saved.id).toBe(announced[0].data.conversationId);
+      expect(saved.userId).toBe(user.id);
+      expect(await usedToday(user.id)).toBe(1);
+    });
+
+    it('AC-11: a save that fails on the first message ends COULD_NOT_COMPLETE with no data-conversation and nothing saved', async () => {
+      const user = await signedIn();
+      vi.spyOn(appPrisma, '$transaction').mockRejectedValueOnce(new Error('db down'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const parts = await readParts(await send(chatBody('Who owes me money?')));
+
+      expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'COULD_NOT_COMPLETE', counted: false });
+      expect(parts.some((p) => p.type === 'data-conversation')).toBe(false);
+      expect(await prisma.conversation.count()).toBe(0);
+      expect(await usedToday(user.id)).toBe(0);
+    });
+  });
+
+  describe('route-level acceptance (R-17)', () => {
+    it('AC-06b: a mixed message shows the draft card and refuses the other part, counts once and records topic MIXED', async () => {
+      model = scriptedModel({
+        verdict: { topic: 'mixed', language: 'en' },
+        steps: (i) =>
+          i === 0
+            ? {
+                toolCall: {
+                  name: 'propose_draft',
+                  input: { customer: 'Acme', lines: [{ description: 'consulting', quantity: '20', unit: 'hours', price: '50' }] },
+                },
+              }
+            : { text: "Here is the draft. I can't advise on VAT." },
+      });
+      const user = await signedIn();
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const parts = await readParts(await send(chatBody('invoice Acme for 20 hours at $50 and tell me if I need to charge VAT')));
+
+      const cardPart = parts.find((p) => p.type === 'data-draft-card');
+      expect(cardPart).toBeDefined();
+      expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'ANSWERED', counted: true });
+      const { MIXED_INSTRUCTION } = await import('@/lib/ai/instructions/refusal');
+      expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain(MIXED_INSTRUCTION);
+      expect(await usedToday(user.id)).toBe(1);
+      expect(await prisma.draftCard.findFirstOrThrow()).toMatchObject({ id: cardPart.data.cardId, userId: user.id });
+      const turns = await prisma.assistantTurn.findMany({ where: { userId: user.id } });
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toMatchObject({ topic: 'MIXED', outcome: 'ANSWERED', counted: true });
+    });
+
+    it('AC-24: asked to send or issue a draft, the chat answers with a link to the draft and the draft stays a draft', async () => {
+      model = scriptedModel({
+        steps: (i) =>
+          i === 0
+            ? { toolCall: { name: 'get_invoice', input: { invoiceNumber: 'INV-0042' } } }
+            : { text: 'Only you can issue an invoice. Open the draft to issue and send it.' },
+      });
+      const user = await signedIn();
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      const account = await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      const customer = await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+      const draft = await createInvoice(prisma, {
+        senderProfile: profile,
+        customer,
+        bankAccount: account,
+        overrides: { invoiceNumber: 'INV-0042', status: 'DRAFT' },
+      });
+
+      const parts = await readParts(await send(chatBody('Send INV-0042 to the customer and mark it as issued')));
+
+      const text = parts.filter((p) => p.type === 'text-delta').map((p) => p.delta).join('');
+      expect(text).toMatch(/only you can issue/i);
+      const links = parts.filter((p) => p.type === 'data-link').map((p) => p.data);
+      expect(links).toContainEqual(expect.objectContaining({ kind: 'invoice', invoiceId: draft.id }));
+      expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'ANSWERED', counted: true });
+      const after = await prisma.invoice.findUniqueOrThrow({ where: { id: draft.id } });
+      expect(after.status).toBe('DRAFT');
+      expect(after.updatedAt.getTime()).toBe(draft.updatedAt.getTime());
+      expect(await prisma.invoice.count()).toBe(1);
+    });
+  });
+
+  describe('the used-up sentence names the real renewal time (R-15)', () => {
+    it("AC-10: after a time-zone change the 429 text names renewsAt in the Freelancer's zone, not 00:00", async () => {
+      const user = await signedIn();
+      // The latest allowance day was opened yesterday in another zone; it renews 24 h after its first message.
+      const mark = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      mark.setUTCMinutes(37, 0, 0);
+      const yesterday = new Date(localToday().getTime() - 24 * 60 * 60 * 1000);
+      await createMessageAllowanceDay(prisma, {
+        userId: user.id,
+        day: yesterday,
+        used: 30,
+        timeZone: 'America/Los_Angeles',
+        firstMessageAt: new Date(mark.getTime() - 24 * 60 * 60 * 1000),
+      });
+
+      const response = await send(chatBody('one more'));
+      const body = await response.json();
+
+      expect(response.status).toBe(429);
+      expect(body.details.renewsAt).toBe(mark.toISOString());
+      const kyiv = (d: Date, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, ...opts }).format(d);
+      const hour = kyiv(mark, { hour: '2-digit', hourCycle: 'h23' });
+      const day = { year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+      const when = kyiv(mark, day) > kyiv(new Date(), day) ? `tomorrow at ${hour}:37` : `at ${hour}:37`;
+      expect(body.error).toBe(
+        `You've used today's 30 messages. They renew ${when} your time. An AI client connected with a Personal key isn't affected.`
+      );
+      await assertMatchesContract({ operationId: 'sendChatMessage', status: 429, body });
+    });
+  });
+
+  describe('the turn records its cost (R-16)', () => {
+    it('writes the gateway-reported cost of the router call and the agent steps to costUsd', async () => {
+      model = scriptedModel({ verdictCost: '0.000020', steps: () => ({ text: 'Here is your answer.', cost: '0.000150' }) });
+      await signedIn();
+
+      await readParts(await send(chatBody('Who owes me money?')));
+
+      const turn = await prisma.assistantTurn.findFirstOrThrow();
+      expect(turn.costUsd?.toString()).toBe('0.00017');
+    });
+
+    it('writes 0 when the gateway reports no cost (the free-tier key)', async () => {
+      await signedIn();
+
+      await readParts(await send(chatBody('Who owes me money?')));
+
+      const turn = await prisma.assistantTurn.findFirstOrThrow();
+      expect(turn.costUsd?.toString()).toBe('0');
     });
   });
 });

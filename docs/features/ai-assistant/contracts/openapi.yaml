@@ -124,6 +124,9 @@ paths:
         its link and card parts. A turn that ends `COULD_NOT_COMPLETE` or `AI_UNAVAILABLE` saves nothing
         but its metadata row.
 
+        Tool calls and raw tool answers stay on the server: besides text, the stream carries only the
+        `ChatDataPart` variants (review R-14).
+
         Not idempotency-keyed: a retry is a new message. The UI never retries on its own.
       requestBody:
         required: true
@@ -169,13 +172,13 @@ paths:
                 draftCard:
                   summary: A draft card in a new Conversation (AC-12)
                   value: |
-                    data: {"type":"data-conversation","data":{"conversationId":"clx0conv0000000000000001","title":"invoice Acme for 20 hours of consulting at $50"}}
                     data: {"type":"data-allowance","transient":true,"data":{"limit":30,"used":1,"left":29,"renewsAt":"2026-10-11T21:00:00.000Z","timeZone":"Europe/Kyiv"}}
                     data: {"type":"start","messageId":"msg_srv_01"}
                     data: {"type":"text-start","id":"t1"}
                     data: {"type":"text-delta","id":"t1","delta":"Here is the draft for Acme Corp."}
                     data: {"type":"text-end","id":"t1"}
                     data: {"type":"data-draft-card","id":"clx0card0000000000000001","data":{"cardId":"clx0card0000000000000001"}}
+                    data: {"type":"data-conversation","data":{"conversationId":"clx0conv0000000000000001","title":"invoice Acme for 20 hours of consulting at $50"}}
                     data: {"type":"data-outcome","data":{"outcome":"ANSWERED","counted":true}}
                     data: {"type":"finish"}
                     data: [DONE]
@@ -332,7 +335,12 @@ components:
           data-link: "#/components/schemas/LinkPart"
           data-outcome: "#/components/schemas/OutcomePart"
     ConversationPart:
-      description: Sent first when the request had `conversationId = null`; the UI moves to /ai/{conversationId}. Transient.
+      description: >-
+        Sent when the request had `conversationId = null` and the turn was saved: after the reply and its
+        link and card parts, right before `data-outcome`; the UI moves to /ai/{conversationId}. A turn that
+        ends `COULD_NOT_COMPLETE` or `AI_UNAVAILABLE` saves no Conversation and sends no `data-conversation`,
+        so the client never holds an id that does not exist; its retry is again `conversationId = null`
+        (review R-02). Transient.
       type: object
       required: [type, data]
       properties:

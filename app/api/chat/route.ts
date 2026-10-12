@@ -1,7 +1,9 @@
 // T31 (ai-assistant, AC-06, AC-09, AC-10, AC-10b, AC-11, AC-42; sad.md critical flow 1, ADR-0002): POST /api/chat.
 // Fixed order: session, body, Conversation, allowance; then the turn streams, is saved, and a failure gives
-// the slot back. Every refusal before the stream is a JSON ActionFailure and nothing is counted.
-import { randomUUID } from 'node:crypto';
+// the slot back. A new Conversation is announced (data-conversation) only after its row is saved, so a turn
+// that does not count never hands the client an id that does not exist (R-02). Every refusal before the
+// stream is a JSON ActionFailure and nothing is counted.
+import { createId } from '@paralleldrive/cuid2';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   createUIMessageStream,
@@ -10,6 +12,7 @@ import {
 } from 'ai';
 import { actingFreelancerForRoute } from '@/lib/helpers/session-actor';
 import { todayInZone } from '@/lib/helpers/calendar-day';
+import { renewalWhen } from '@/lib/helpers/allowance-renewal';
 import { chatRequestSchema } from '@/lib/validations/assistant-chat';
 import { reserveMessageSlot } from '@/lib/services/assistant-usage/allowance';
 import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
@@ -20,7 +23,6 @@ import {
   assistantPartsOf,
   chatOutcomeOf,
   chatValidationFailure,
-  CONVERSATION_TITLE_LENGTH,
 } from '@/lib/ai/stream';
 // Registers the chat agent with Mastra, so its runs are traced through the metadata-only processor (ADR-0004).
 import '@/lib/ai/mastra';
@@ -41,8 +43,9 @@ const FAILED = {
   code: 'FAILED',
   error: "The reply couldn't be completed. Try again.",
 } as const;
-const USED_UP_TEXT =
-  "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected.";
+/** The 429 sentence, with the renewal time in the Freelancer's own zone (AC-10, spec §8 time-zone rule). */
+const usedUpText = (renewsAt: string, timeZone: string, now: Date) =>
+  `You've used today's 30 messages. They renew ${renewalWhen(renewsAt, timeZone, now)} your time. An AI client connected with a Personal key isn't affected.`;
 
 const failedTurn = (startedAt: number): AssistantTurnMetadata => ({
   topic: null,
@@ -109,13 +112,14 @@ export async function POST(request: NextRequest) {
         durationMs: Date.now() - startedAt,
         inputTokens: null,
         outputTokens: null,
-        costUsd: null,
+        // No model call was made.
+        costUsd: 0,
       });
       return NextResponse.json(
         {
           success: false,
           code: 'RATE_LIMITED',
-          error: USED_UP_TEXT,
+          error: usedUpText(reservation.usedUp.renewsAt, actor.timeZone, new Date()),
           details: reservation.usedUp,
         },
         { status: 429 }
@@ -125,8 +129,9 @@ export async function POST(request: NextRequest) {
   }
 
   const slot = reservation;
+  // A new Conversation's id (a cuid, like every record id) is announced only once its row is saved (R-02).
   const conversation = {
-    id: conversationId ?? randomUUID(),
+    id: conversationId ?? createId(),
     isNew: conversationId === null,
   };
 
@@ -158,16 +163,6 @@ export async function POST(request: NextRequest) {
 
   async function produce(writer: { write: (chunk: UIMessageChunk) => void }) {
     const write = (chunk: unknown) => writer.write(chunk as UIMessageChunk);
-    if (conversation.isNew) {
-      write({
-        type: 'data-conversation',
-        data: {
-          conversationId: conversation.id,
-          title: userText.trim().slice(0, CONVERSATION_TITLE_LENGTH).trim(),
-        },
-        transient: true,
-      });
-    }
     write({ type: 'data-allowance', data: slot.state, transient: true });
 
     const { stream: turnStream, result: resultPromise } = await runTurn({
@@ -202,7 +197,7 @@ export async function POST(request: NextRequest) {
       durationMs: Date.now() - startedAt,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
-      costUsd: null,
+      costUsd: result.costUsd,
     };
 
     if (counted) {
@@ -217,6 +212,13 @@ export async function POST(request: NextRequest) {
       if (!saved.success) {
         outcome = 'COULD_NOT_COMPLETE';
         counted = false;
+      } else if (conversation.isNew) {
+        // Only now does the row exist: a turn that does not count never hands the client an unsaved id.
+        write({
+          type: 'data-conversation',
+          data: { conversationId: saved.data.conversationId, title: saved.data.title },
+          transient: true,
+        });
       }
     }
     if (!counted) {

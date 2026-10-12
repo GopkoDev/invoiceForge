@@ -3,6 +3,7 @@
 // through getChatModel(); the real model and network are never used.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
@@ -29,10 +30,17 @@ const usage = {
 };
 const finish = (unified: 'stop' | 'tool-calls') => ({ type: 'finish' as const, finishReason: { unified, raw: unified }, usage });
 
-type Step = { text?: string; toolCall?: { name: string; input: Record<string, unknown> } } | { error: Error };
+/** `cost` is the USD cost the AI Gateway reports for the call, in its provider metadata. */
+type Step = { text?: string; toolCall?: { name: string; input: Record<string, unknown> }; cost?: string } | { error: Error };
+
+const gatewayMetadata = (cost?: string) => (cost === undefined ? {} : { providerMetadata: { gateway: { cost } } });
 
 /** One model for both stages: doGenerate answers the router, doStream plays the agent's steps in order. */
-function scriptedModel(opts: { verdict?: { topic: string; language: string } | Error; steps: (i: number) => Step }) {
+function scriptedModel(opts: {
+  verdict?: { topic: string; language: string } | Error;
+  verdictCost?: string;
+  steps: (i: number) => Step;
+}) {
   let streamCall = 0;
   return new MockLanguageModelV4({
     doGenerate: async () => {
@@ -42,6 +50,7 @@ function scriptedModel(opts: { verdict?: { topic: string; language: string } | E
         finishReason: { unified: 'stop', raw: 'stop' },
         usage,
         warnings: [],
+        ...gatewayMetadata(opts.verdictCost),
       } as any;
     },
     doStream: async () => {
@@ -61,7 +70,7 @@ function scriptedModel(opts: { verdict?: { topic: string; language: string } | E
           input: JSON.stringify(step.toolCall.input),
         });
       }
-      chunks.push(finish(step.toolCall ? 'tool-calls' : 'stop'));
+      chunks.push({ ...finish(step.toolCall ? 'tool-calls' : 'stop'), ...gatewayMetadata(step.cost) });
       return {
         stream: new ReadableStream({
           start(controller) {
@@ -275,7 +284,6 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
   });
 
   it('a provider 429 ends FAILED with failure PROVIDER', async () => {
-    const { APICallError } = await import('ai');
     model = scriptedModel({
       steps: () => ({
         error: new APICallError({ message: 'Too Many Requests', url: 'https://gateway', requestBodyValues: {}, statusCode: 429 }),
@@ -289,8 +297,25 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.failure).toBe('PROVIDER');
   });
 
-  it('a router failure ends FAILED with failure SYSTEM and starts no agent step', async () => {
-    model = scriptedModel({ verdict: new Error('router blew up'), steps: () => ({ text: 'must not run' }) });
+  // R-05: a provider fault is PROVIDER wherever it happens, the topic router included.
+  it.each([
+    ['a thrown error', () => new Error('upstream down')],
+    ['a 429', () => new APICallError({ message: 'Too Many Requests', url: 'https://gateway', requestBodyValues: {}, statusCode: 429, isRetryable: false })],
+    ['a 503', () => new APICallError({ message: 'Unavailable', url: 'https://gateway', requestBodyValues: {}, statusCode: 503, isRetryable: false })],
+    ['a timeout', () => Object.assign(new Error('timed out'), { name: 'TimeoutError' })],
+  ])('a provider fault at the topic router (%s) ends FAILED with failure PROVIDER and starts no agent step', async (_label, error) => {
+    model = scriptedModel({ verdict: error(), steps: () => ({ text: 'must not run' }) });
+    const { run } = await setup();
+
+    const { result } = await run('Who owes me money?');
+
+    expect(result.outcome).toBe('FAILED');
+    expect(result.failure).toBe('PROVIDER');
+    expect(model.doStreamCalls).toHaveLength(0);
+  });
+
+  it('a system-side router failure (a verdict that does not parse) ends FAILED with failure SYSTEM and starts no agent step', async () => {
+    model = scriptedModel({ verdict: { topic: 'not-a-topic', language: 'en' }, steps: () => ({ text: 'must not run' }) });
     const { run } = await setup();
 
     const { result } = await run('Who owes me money?');
@@ -298,5 +323,53 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.outcome).toBe('FAILED');
     expect(result.failure).toBe('SYSTEM');
     expect(model.doStreamCalls).toHaveLength(0);
+  });
+
+  // R-14: tool calls and raw tool answers stay on the server; the client stream carries only text.
+  it('streams only text chunks to the client, never tool inputs or tool answers', async () => {
+    model = scriptedModel({
+      steps: (i) => (i === 0 ? { toolCall: { name: 'list_customers', input: {} } } : { text: 'You have one Customer.' }),
+    });
+    const { run } = await setup();
+
+    const { chunks, result } = await run('Who are my customers?');
+
+    expect(result.toolNames).toEqual(['list_customers']);
+    expect(new Set(chunks.map((c) => c.type))).toEqual(new Set(['text-start', 'text-delta', 'text-end']));
+    expect(JSON.stringify(chunks)).not.toContain('Acme Corp');
+  });
+
+  // R-19: the chat instructions reach the model once, from the agent's own instructions.
+  it('sends the chat instructions to the model exactly once', async () => {
+    const { CHAT_INSTRUCTIONS } = await import('@/lib/ai/instructions/chat');
+    const { run } = await setup();
+
+    await run('Who owes me money?');
+
+    const prompt = JSON.stringify(model.doStreamCalls[0].prompt);
+    const needle = JSON.stringify(CHAT_INSTRUCTIONS.slice(0, 80)).slice(1, -1);
+    expect(prompt.split(needle)).toHaveLength(2);
+  });
+
+  // R-16: the cost the AI Gateway reports, summed over the router call and every agent step.
+  it('adds up the gateway-reported cost of the router call and every agent step', async () => {
+    model = scriptedModel({
+      verdictCost: '0.000020',
+      steps: (i) =>
+        i === 0 ? { toolCall: { name: 'find_in_app', input: { topic: 'logo' } }, cost: '0.000100' } : { text: 'On the profile.', cost: '0.000050' },
+    });
+    const { run } = await setup();
+
+    const { result } = await run('Where do I set my logo?');
+
+    expect(result.costUsd).toBeCloseTo(0.00017, 9);
+  });
+
+  it('a turn with no gateway-reported cost (the free-tier key) costs 0', async () => {
+    const { run } = await setup();
+
+    const { result } = await run('Who owes me money?');
+
+    expect(result.costUsd).toBe(0);
   });
 });
