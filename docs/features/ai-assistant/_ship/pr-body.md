@@ -27,6 +27,7 @@ Spec: [`docs/features/ai-assistant/spec.md`](docs/features/ai-assistant/spec.md)
 - AC-11 — a system-side failure says so, invites a retry, and does not count ✓
 - AC-11b — a question past the 8-step cap gets a partial answer, says so, and counts ✓
 - AC-11c — Create works with no messages left ✓
+- AC-11d — a reply is never empty: with no words and no card, the chat asks to rephrase in one sentence (added by fix 2026-10-12) ✓
 - AC-12 — the draft card: Customer, 20 × 50.00 USD, named defaults, today + 30 days, no tax/discount/shipping, number on creation ✓
 - AC-13 — Create makes exactly the card's Draft invoice and links to it; nothing is issued or sent ✓
 - AC-14 — a second Create, or a reconnect repeat, creates nothing and links to the first draft ✓

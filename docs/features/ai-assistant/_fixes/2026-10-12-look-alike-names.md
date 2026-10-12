@@ -40,7 +40,7 @@ The fix adds `foldName` (`lib/services/assistant-drafts/match-name.ts`). It appl
 
 None needed. Spec §1 "Matching names" says a name matches "when its name contains the word the Freelancer used, ignoring case". The tests above re-verify AC-20 and AC-21 with the stored name. Folding invisible differences is how this code implements "ignoring case": a Freelancer cannot see a Cyrillic "О" or a trailing space, so they cannot be expected to type them. Folding only widens matches between letters that look identical. "Several matches → asked" and "near miss → asked, never filled in" still apply.
 
-Optional clarification, proposed and awaiting the owner, not applied:
+Clarification confirmed by the owner and applied to spec.md §1 on 2026-10-12:
 
 - Before: "A Customer or catalogue product matches when its name contains the word the Freelancer used, ignoring case."
 - After: "A Customer or catalogue product matches when its name contains the word the Freelancer used, ignoring case, extra spaces and letters that look the same in Latin and Cyrillic (a Customer saved as "Оohn Doe" with a Cyrillic "О" matches "Oohn Doe")."

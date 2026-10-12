@@ -57,14 +57,14 @@ The key decisions:
 - **Model terms:** the free-tier Gemini key lets Google use content to improve its products (ADR-0003); the Privacy page says so. Review the 14-day cost data against the allowance (spec §8).
 - **Rollback:** redeploy the previous build. The new tables and columns are unused by the old code and can stay. To remove them, run the down scripts in reverse order (11 → 01); `08_add_invoice_assistant_origin.down.sql` drops the origin record of existing Assistant drafts.
 
-**Acceptance criteria delivered:** AC-01 – AC-42, including AC-06b, AC-10b, AC-11b, AC-11c, AC-14b, AC-16b and AC-19b (49 criteria).
+**Acceptance criteria delivered:** AC-01 – AC-42, including AC-06b, AC-10b, AC-11b, AC-11c, AC-11d, AC-14b, AC-16b and AC-19b (50 criteria).
 
 | ACs | What they guarantee |
 |---|---|
 | AC-01, AC-33 – AC-34 | The AI section and "Create with AI" work with nothing to set up, and say up front when the allowance is used up |
 | AC-02 – AC-05, AC-08 | Read answers equal the dashboard, partial lists are called partial, one time zone and one overdue rule |
 | AC-06 – AC-07 | Off-topic requests get a one-sentence refusal; mixed requests keep the in-scope part; app help links only to real pages |
-| AC-09 – AC-11c | An honest Daily message allowance, exact under concurrency; system failures and Create presses are not counted |
+| AC-09 – AC-11d | An honest Daily message allowance, exact under concurrency; system failures and Create presses are not counted |
 | AC-12 – AC-19b | A draft card from one sentence with named defaults, created only on Create, never twice, never from an outdated or replaced card, never from stored text; a missing or mismatched bank account is explained in words |
 | AC-20 – AC-22 | Ambiguous or missing values are asked, never guessed; no Customer is ever created |
 | AC-23 – AC-24 | Assistant drafts are marked, and only the Freelancer issues them |

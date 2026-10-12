@@ -49,7 +49,7 @@ The fix:
 - `propose_draft`'s description now names the sender profile. The `senderProfile` field carries the openapi description.
 - The contract (`contracts/openapi.yaml` DraftIssue) and the schema test fixtures are updated. MCP shares the resolver and gets the same issues.
 
-## Spec patch (proposed, awaiting owner)
+## Spec patch (confirmed by the owner, applied 2026-10-12)
 
 The new fields add information and contradict no AC. AC-16b's "asks for the EUR price" and AC-17's "never picks the other profile itself" still hold. The owner was not available to confirm, so spec.md is **not** changed. Proposed wording:
 

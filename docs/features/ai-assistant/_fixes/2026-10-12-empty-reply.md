@@ -30,7 +30,7 @@ The fix adds one step, after the ISSUES fallback. When the turn still has no tex
 
 **Counting.** The turn stays ANSWERED and counted. Spec §1 D2 counts "every message the chat accepts" and exempts "only messages whose reply failed on the system's side". AC-11 makes the same exemption. The model ending its turn is not a system-side fault: the provider answered without error. The system now produces a reply that tells the Freelancer what to do next. This is the same reasoning as the ISSUES fallback, which is also counted.
 
-## Spec patch (proposed, awaiting owner)
+## Spec patch (confirmed by the owner, applied 2026-10-12)
 
 No AC covers a reply with no words outside the bank-account case of AC-19 ("A reply is never a link alone"). This is a gap. The owner was not available to confirm, so spec.md is **not** changed. Proposed new AC for §5:
 

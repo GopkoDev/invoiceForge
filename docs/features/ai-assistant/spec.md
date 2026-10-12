@@ -53,7 +53,7 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
   Every default used is named back to the Freelancer.
 - **What a request may set.** The Freelancer's words may set any field the editor has: Customer, sender profile, bank account, currency, lines, issue and due dates, tax, discount, shipping, PO number, payment terms, notes and terms. Each such value is shown on the card as taken from the request. Values are never copied from an earlier invoice ("same as last month"). The chat asks the Freelancer to name them instead. The same applies to MCP.
 - **Words win over the catalogue.** A price the Freelancer names is used even when a catalogue or custom price exists, and the card shows the catalogue or custom price beside it. A catalogue product in a different currency from the invoice is not linked. The line is free text, its catalogue price is not used, and the chat asks for a price when none was named.
-- **Matching names.** A Customer or catalogue product matches when its name contains the word the Freelancer used, ignoring case. Exactly one match is used, and the card shows its full name. Several matches → the Freelancer is asked which one. No match → no Customer (AC-21) or a free-text line that needs an amount (AC-22). A near miss such as a typo may be offered as a question ("did you mean Acme Corp?") but is never filled in. An external Assistant may name the exact Customer or product it found through the read questions instead of a name.
+- **Matching names.** A Customer or catalogue product matches when its name contains the word the Freelancer used, ignoring case, extra spaces and letters that look the same in Latin and Cyrillic (a Customer saved as "Оohn Doe" with a Cyrillic "О" matches "Oohn Doe"). <!-- patched-by-fix: 2026-10-12 --> Exactly one match is used, and the card shows its full name. Several matches → the Freelancer is asked which one. No match → no Customer (AC-21) or a free-text line that needs an amount (AC-22). A near miss such as a typo may be offered as a question ("did you mean Acme Corp?") but is never filled in. An external Assistant may name the exact Customer or product it found through the read questions instead of a name.
 - **Currency symbols.** "$" means USD, "€" EUR and "£" GBP. When the default bank account is in another dollar currency (such as CAD or AUD), "$" is ambiguous and the Freelancer is asked which currency they mean. A currency word reads like its symbol or code: "dollars" / "доларів" like "$", "euro" / "євро" like "€", "pounds" like "£", "гривень" UAH, "złoty" PLN. <!-- patched-by-fix: 2026-10-12 (review R6-4) -->
 - **Debugging traces hold metadata only** (tools called, steps, duration, cost, outcome), never message text or tool answers. The Conversation stays the only copy of the content, so deleting it really deletes it.
 - **Stack preferences** the owner named in the idea brief are carried to `design` as preferences, not decided here.
@@ -251,6 +251,14 @@ Decisions taken during the interview and deep-dive, recorded for traceability:
 **When** they press Create on that card
 **Then** the Draft invoice is created as in AC-13, because a Create press is not a message
 
+### AC-11d (US-04) — error
+
+<!-- added-by-fix: 2026-10-12 -->
+
+**Given** a Freelancer with messages left today
+**When** they send a message and the Assistant's reply would hold no words and no draft card
+**Then** the chat says in one sentence, in the Freelancer's language, that it could not answer and asks them to rephrase or add the missing detail. A reply is never empty. The message counts toward the allowance, because the reply did not fail on the system's side.
+
 ### AC-12 (US-05) — happy path
 
 **Given** a Freelancer whose default sender profile has a default bank account in USD, and a Customer named Acme Corp
@@ -300,7 +308,7 @@ No draft exists yet.
 
 **Given** the catalogue product "Consulting" from AC-16, priced only in USD
 **When** the Freelancer writes "invoice Acme for 20 hours of consulting at $60", or "invoice Acme for 20 hours of consulting in EUR"
-**Then** in the first case the card uses 60.00 USD, the price they named, keeps the line linked to "Consulting" and shows the agreed custom price of 45.00 USD beside it. In the second case the line is free text, not linked to the USD product. The chat asks for the EUR price and fills in no price of its own.
+**Then** in the first case the card uses 60.00 USD, the price they named, keeps the line linked to "Consulting" and shows the agreed custom price of 45.00 USD beside it. In the second case the line is free text, not linked to the USD product. The chat says that "Consulting" is priced in USD, asks for the EUR price and fills in no price of its own. <!-- patched-by-fix: 2026-10-12 -->
 
 ### AC-17 (US-05) — cross-context
 
@@ -318,7 +326,7 @@ No draft exists yet.
 
 **Given** a Freelancer whose default bank account is in USD and who also has a bank account in EUR
 **When** they write "invoice Acme 600 EUR for the logo design"
-**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. The card has one line "Logo design" of 1 item × 600.00 EUR, and names quantity 1 and the unit "item" as defaults used. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so in words, names the accounts the profile does have with their currencies, and links to adding one, instead of producing a card in a different currency. A reply is never a link alone. <!-- patched-by-fix: 2026-10-12 -->
+**Then** the draft card uses the EUR bank account and names it, because an invoice and its bank account share one currency. The card has one line "Logo design" of 1 item × 600.00 EUR, and names quantity 1 and the unit "item" as defaults used. If the default sender profile has several EUR bank accounts, the chat asks which one to use before showing a card. If it has no EUR bank account, the chat says so in words, names the accounts the profile does have with their currencies, and links to adding one, instead of producing a card in a different currency. When another of the Freelancer's sender profiles has an account in that currency, the chat names that profile and offers to draft under it if the Freelancer names it; it never picks it itself. A reply is never a link alone. <!-- patched-by-fix: 2026-10-12 -->
 
 ### AC-19b (US-05) — domain invariant
 
