@@ -69,28 +69,43 @@ type ScrubbableRequest = {
   };
 };
 
-/** /api/mcp: never report the Authorization header, any other header, or a body (sad.md §8). */
-export function scrubMcpRequest<T extends ScrubbableRequest>(event: T): T {
+/**
+ * /api/mcp: never report the Authorization header, any other header, or a body (sad.md §8).
+ * /api/chat: never report the message body or the session cookie (ai-assistant spec §6.1).
+ */
+export function scrubPrivateRequest<T extends ScrubbableRequest>(event: T): T {
   const request = event.request;
   if (!request || typeof request.url !== 'string') return event;
-  if (!isMcpUrl(request.url)) return event;
-  delete request.headers;
+  const path = privatePathOf(request.url);
+  if (path === null) return event;
+  if (path === MCP_PATH) delete request.headers;
   delete request.data;
   delete request.cookies;
   return event;
 }
 
-export function isMcpUrl(url: string): boolean {
+const MCP_PATH = '/api/mcp';
+const CHAT_PATH = '/api/chat';
+
+/** The private-body route a URL reaches, or null; an undecodable path counts as /api/mcp. */
+function privatePathOf(url: string): string | null {
   try {
     // A leading slash run must stay a path ('//api/mcp' would parse as a host), so join it to the base.
     const target = /^[/\\]/.test(url) ? `http://localhost${url}` : url;
     // Next matches the percent-decoded path in production ('/api/%6Dcp' reaches the handler).
-    const path = decodeURIComponent(new URL(target, 'http://localhost').pathname).replace(/[/\\]+/g, '/');
-    return path.replace(/\/$/, '') === '/api/mcp';
+    const path = decodeURIComponent(new URL(target, 'http://localhost').pathname)
+      .replace(/[/\\]+/g, '/')
+      .replace(/\/$/, '');
+    return path === MCP_PATH || path === CHAT_PATH ? path : null;
   } catch {
     // A path that fails to decode is treated as MCP: scrub rather than leak.
-    return true;
+    return MCP_PATH;
   }
+}
+
+/** Requests whose incoming body Sentry must never attach: /api/mcp and /api/chat. */
+export function hasPrivateBody(url: string): boolean {
+  return privatePathOf(url) !== null;
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -116,17 +131,17 @@ if (sentryEnabled && process.env.SENTRY_DSN) {
     // Configuration for production environment
     environment: process.env.NODE_ENV,
 
-    // Node's HTTP integration would attach the incoming body to the transaction; never for /api/mcp.
+    // Node's HTTP integration would attach the incoming body to the transaction; never for /api/mcp or /api/chat.
     // Replaces the @sentry/nextjs default, so it keeps that default's disabled request spans.
     integrations: [
       Sentry.httpIntegration({
         disableIncomingRequestSpans: true,
-        ignoreIncomingRequestBody: isMcpUrl,
+        ignoreIncomingRequestBody: hasPrivateBody,
       }),
     ],
     beforeSend: (event, hint) =>
-      scrubMcpRequest(scrubPrismaEvent(event, hint)),
-    beforeSendTransaction: (event) => scrubMcpRequest(event),
+      scrubPrivateRequest(scrubPrismaEvent(event, hint)),
+    beforeSendTransaction: (event) => scrubPrivateRequest(event),
     beforeBreadcrumb: (crumb) => scrubPrismaBreadcrumb(crumb),
   });
 }

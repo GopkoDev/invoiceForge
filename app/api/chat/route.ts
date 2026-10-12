@@ -210,8 +210,12 @@ export async function POST(request: NextRequest) {
         proposedCard: result.pendingCard,
       });
       if (!saved.success) {
-        outcome = 'COULD_NOT_COMPLETE';
-        counted = false;
+        // NOT_FOUND: the Freelancer deleted the Conversation while the answer streamed. The answer was
+        // delivered and saveTurn already recorded the counted turn, so the slot is kept (security M-01).
+        if (saved.code !== 'NOT_FOUND') {
+          outcome = 'COULD_NOT_COMPLETE';
+          counted = false;
+        }
       } else if (conversation.isNew) {
         // Only now does the row exist: a turn that does not count never hands the client an unsaved id.
         write({

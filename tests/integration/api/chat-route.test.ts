@@ -519,6 +519,37 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
     });
   });
 
+  describe('a Conversation deleted during its own turn (security review M-01)', () => {
+    it('the streamed answer still counts: the slot is kept, one counted metadata row, no FAILED row', async () => {
+      const user = await signedIn();
+      const existing = await createConversation(prisma, {
+        userId: user.id,
+        messages: [
+          { role: 'USER', text: 'earlier question' },
+          { role: 'ASSISTANT', text: 'earlier answer' },
+        ],
+      });
+      const answering = scriptedModel({ steps: () => ({ text: 'Here is your answer.' }) });
+      const doStream = answering.doStream.bind(answering);
+      // The Freelancer deletes the Conversation while the answer streams.
+      answering.doStream = async (options) => {
+        await prisma.conversation.delete({ where: { id: existing.id } });
+        return doStream(options);
+      };
+      model = answering;
+
+      const parts = await readParts(await send(chatBody('Who owes me money?', existing.id)));
+
+      expect(parts.some((p) => p.type === 'text-delta')).toBe(true);
+      expect(parts.findLast((p) => p.type === 'data-outcome').data).toEqual({ outcome: 'ANSWERED', counted: true });
+      expect(parts.some((p) => p.type === 'data-conversation')).toBe(false);
+      expect(await usedToday(user.id)).toBe(1);
+      await vi.waitFor(async () => expect(await prisma.assistantTurn.count()).toBe(1));
+      expect(await prisma.assistantTurn.findFirstOrThrow()).toMatchObject({ counted: true });
+      expect(await prisma.conversation.count()).toBe(0);
+    });
+  });
+
   describe('a new Conversation that does not count is never announced (R-02)', () => {
     it('AC-11: AI_UNAVAILABLE on the first message sends no data-conversation; a retry without an id starts and saves the Conversation', async () => {
       let providerDown = true;
