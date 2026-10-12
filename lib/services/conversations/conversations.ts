@@ -71,7 +71,7 @@ export async function listConversations(
   }
 }
 
-async function readInvoiceStates(
+export async function readInvoiceStates(
   actor: ActingFreelancer,
   ids: string[]
 ): Promise<Record<string, LinkedInvoiceState>> {

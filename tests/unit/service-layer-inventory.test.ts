@@ -74,7 +74,12 @@ describe('part 2: every business function has request-free and foreign-record te
     // Internal line step of resolveDraftRequest (covered through it, ai-assistant T16).
     /assistant-drafts\/resolve-lines\.ts$/,
   ];
-  const NOT_BUSINESS_NAMES = new Set(['resolveManualOrAllocatedNumber', 'invoiceNumberConflict']);
+  const NOT_BUSINESS_NAMES = new Set([
+    'resolveManualOrAllocatedNumber',
+    'invoiceNumberConflict',
+    // Internal link-state read shared by getConversation and createFromCard (ai-assistant T20).
+    'readInvoiceStates',
+  ]);
 
   type Fn = { name: string; file: string; takesId: boolean };
   const functions: Fn[] = walk(join(root, 'lib/services'))

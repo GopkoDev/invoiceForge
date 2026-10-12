@@ -1,0 +1,340 @@
+// T20 (ai-assistant; spec.md §5 AC-11c, AC-13, AC-14, AC-14b, AC-18): storing a Draft card keeps one LIVE card per
+// Conversation, and the Create press (createFromCard) is the only way a chat draft comes into existence.
+// Expected production module: lib/services/assistant-drafts/cards.ts exporting
+//   insertLiveCard(tx, { userId, conversationId, id?, request, proposal }) -> Promise<{ id: string }>
+//   createFromCard(actor, cardId, now: Date) -> Promise<ActionResult<CreateFromCardResult>>
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '@prisma/client';
+import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
+import { startTestDatabase, type TestDatabase } from '../../../support/db/container';
+import { createTestPrismaClient } from '../../../support/db/client';
+import { truncateAllTables } from '../../../support/db/truncate';
+import { createFreelancer } from '../../../support/factories/user';
+import { createCustomer } from '../../../support/factories/customer';
+import { createSenderProfile } from '../../../support/factories/sender-profile';
+import { createBankAccount } from '../../../support/factories/bank-account';
+import { createProduct } from '../../../support/factories/product';
+import { createCustomPrice } from '../../../support/factories/custom-price';
+import { createConversation } from '../../../support/factories/conversation';
+import { createMessageAllowanceDay } from '../../../support/factories/message-allowance-day';
+import { actingFreelancerForTest } from '../../../support/acting-freelancer';
+
+const containerRuntimeAvailable = await isContainerRuntimeAvailable();
+
+const TZ = 'Europe/Kyiv';
+const NOW = new Date('2026-03-15T10:00:00Z');
+const SAME_DAY_LATER = new Date('2026-03-15T19:30:00Z');
+const NEXT_DAY = new Date('2026-03-16T10:00:00Z');
+const TODAY = '2026-03-15';
+
+type Result =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+  | { success: true; data: Record<string, any> }
+  | { success: false; code: string; error?: string };
+type Svc = {
+  insertLiveCard: (
+    tx: unknown,
+    input: { userId: string; conversationId: string; id?: string; request: unknown; proposal: unknown }
+  ) => Promise<{ id: string }>;
+  createFromCard: (actor: unknown, cardId: string, now: Date) => Promise<Result>;
+};
+
+describe.runIf(containerRuntimeAvailable)('Draft cards and the Create press (T20)', () => {
+  let db: TestDatabase;
+  let prisma: PrismaClient;
+  let svc: Svc;
+  let resolver: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    resolveDraftRequest: (a: unknown, r: unknown, today: string) => Promise<any>;
+  };
+
+  beforeAll(async () => {
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.connectionString;
+    vi.resetModules();
+    prisma = createTestPrismaClient(db.connectionString);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result shapes are read loosely across outcomes
+    resolver = (await import('@/lib/services/assistant-drafts/resolve')) as any;
+    svc = (await import('@/lib/services/assistant-drafts/cards')) as unknown as Svc;
+  }, 60_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+    await db?.stop();
+  });
+
+  afterEach(async () => {
+    await truncateAllTables(prisma);
+  });
+
+  const REQUEST = {
+    customer: 'Acme',
+    lines: [{ description: 'consulting', quantity: '20', unit: 'hours', price: '50' }],
+  };
+
+  async function setup(email = 't20-a@example.com') {
+    const user = await createFreelancer(prisma, { email, timeZone: TZ });
+    const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+    await createBankAccount(prisma, profile.id, { currency: 'USD' });
+    const acme = await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+    const conversation = await createConversation(prisma, { userId: user.id });
+    return { user, acme, conversation, actor: await actingFreelancerForTest(user.id, TZ) };
+  }
+
+  /** Resolves the request as propose_draft would, then stores it as the Conversation's LIVE card. */
+  async function storeCard(
+    s: { user: { id: string }; conversation: { id: string }; actor: unknown },
+    request: Record<string, unknown> = REQUEST,
+    today = TODAY
+  ) {
+    const res = await resolver.resolveDraftRequest(s.actor, request, today);
+    if (!res.success || res.data.kind !== 'PROPOSAL') throw new Error('request did not resolve');
+    return prisma.$transaction((tx) =>
+      svc.insertLiveCard(tx, {
+        userId: s.user.id,
+        conversationId: s.conversation.id,
+        request,
+        proposal: res.data.proposal,
+      })
+    );
+  }
+
+  const live = (conversationId: string) =>
+    prisma.draftCard.findMany({ where: { conversationId, state: 'LIVE' } });
+
+  describe('storing a card (one LIVE card per Conversation)', () => {
+    it('AC-14b: a new card makes the previous one REPLACED, pointing to the newer; nothing is written to invoices', async () => {
+      const s = await setup();
+      const first = await storeCard(s);
+      const second = await storeCard(s, {
+        ...REQUEST,
+        lines: [{ description: 'consulting', quantity: '25', unit: 'hours', price: '50' }],
+      });
+
+      const old = await prisma.draftCard.findUniqueOrThrow({ where: { id: first.id } });
+      expect(old.state).toBe('REPLACED');
+      expect(old.replacedById).toBe(second.id);
+      const liveCards = await live(s.conversation.id);
+      expect(liveCards.map((c) => c.id)).toEqual([second.id]);
+      expect(await prisma.invoice.count()).toBe(0);
+    });
+  });
+
+  describe('createFromCard', () => {
+    it('AC-13: creates one Draft invoice with the card content, origin CHAT, a system number; card CREATED', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+
+      const res = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(res.success).toBe(true);
+      if (!res.success) return;
+      expect(res.data.kind).toBe('CREATED');
+      const invoices = await prisma.invoice.findMany({ include: { items: true } });
+      expect(invoices).toHaveLength(1);
+      const inv = invoices[0];
+      expect(res.data.invoiceId).toBe(inv.id);
+      expect(res.data.invoiceNumber).toBe(inv.invoiceNumber);
+      expect(inv.invoiceNumber).toBeTruthy();
+      expect(inv.status).toBe('DRAFT');
+      expect(inv.assistantOrigin).toBe('CHAT');
+      expect(inv.customerId).toBe(s.acme.id);
+      expect(inv.currency).toBe('USD');
+      expect(Number(inv.total)).toBe(1000);
+      expect(inv.items).toHaveLength(1);
+      expect(inv.items[0]).toMatchObject({ name: 'consulting', unit: 'hours' });
+      expect(Number(inv.items[0].quantity)).toBe(20);
+      expect(Number(inv.items[0].rate)).toBe(50);
+      expect(Number(inv.items[0].amount)).toBe(1000);
+
+      const stored = await prisma.draftCard.findUniqueOrThrow({ where: { id: card.id } });
+      expect(stored.state).toBe('CREATED');
+      expect(stored.invoiceId).toBe(inv.id);
+    });
+
+    it('AC-11c: creates normally with the Daily message allowance used up, and never touches it', async () => {
+      const s = await setup();
+      const day = new Date(Date.UTC(2026, 2, 15));
+      await createMessageAllowanceDay(prisma, { userId: s.user.id, day, used: 30, timeZone: TZ });
+      const card = await storeCard(s);
+
+      const res = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(res.success && res.data.kind).toBe('CREATED');
+      expect(await prisma.invoice.count()).toBe(1);
+      const rows = await prisma.messageAllowanceDay.findMany();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].used).toBe(30);
+    });
+
+    it('same local day, only hours later: still creates (time alone never outdates a card)', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+
+      const res = await svc.createFromCard(s.actor, card.id, SAME_DAY_LATER);
+
+      expect(res.success && res.data.kind).toBe('CREATED');
+    });
+
+    it('AC-14: a repeated press creates no second draft and returns the link to the first', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+      const first = await svc.createFromCard(s.actor, card.id, NOW);
+      if (!first.success) throw new Error('first press failed');
+
+      const again = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data.kind).toBe('ALREADY_CREATED');
+      expect(again.data.invoice).toMatchObject({
+        state: 'DRAFT',
+        invoiceId: first.data.invoiceId,
+        invoiceNumber: first.data.invoiceNumber,
+      });
+      expect(await prisma.invoice.count()).toBe(1);
+    });
+
+    it('AC-14: two concurrent presses create exactly one invoice', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+
+      const [a, b] = await Promise.all([
+        svc.createFromCard(s.actor, card.id, NOW),
+        svc.createFromCard(s.actor, card.id, NOW),
+      ]);
+
+      expect(a.success && b.success).toBe(true);
+      const kinds = [a, b].map((r) => (r.success ? r.data.kind : r.code)).sort();
+      expect(kinds).toEqual(['ALREADY_CREATED', 'CREATED']);
+      expect(await prisma.invoice.count()).toBe(1);
+      const stored = await prisma.draftCard.findUniqueOrThrow({ where: { id: card.id } });
+      expect(stored.state).toBe('CREATED');
+    });
+
+    it('a pressed card whose invoice was deleted since: ALREADY_CREATED with UNAVAILABLE, nothing new created', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+      const first = await svc.createFromCard(s.actor, card.id, NOW);
+      if (!first.success) throw new Error('first press failed');
+      await prisma.invoice.delete({ where: { id: first.data.invoiceId } });
+
+      const again = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({ kind: 'ALREADY_CREATED', invoice: { state: 'UNAVAILABLE' } });
+      expect(await prisma.invoice.count()).toBe(0);
+    });
+
+    it('AC-14b: pressing the replaced first card creates nothing and names the newer card', async () => {
+      const s = await setup();
+      const first = await storeCard(s);
+      const second = await storeCard(s, {
+        ...REQUEST,
+        lines: [{ description: 'consulting', quantity: '25', unit: 'hours', price: '50' }],
+      });
+
+      const res = await svc.createFromCard(s.actor, first.id, NOW);
+
+      expect(res).toEqual({ success: true, data: { kind: 'REPLACED', newerCardId: second.id } });
+      expect(await prisma.invoice.count()).toBe(0);
+      expect((await live(s.conversation.id)).map((c) => c.id)).toEqual([second.id]);
+    });
+
+    it('AC-18: a changed custom price returns OUTDATED with an updated LIVE card; nothing is created', async () => {
+      const s = await setup();
+      const product = await createProduct(prisma, s.user.id, {
+        name: 'Consulting',
+        price: 50,
+        currency: 'USD',
+        unit: 'hour',
+      });
+      const cp = await createCustomPrice(prisma, product.id, s.acme.id, { price: 45 });
+      const request = { customer: 'Acme', lines: [{ description: 'consulting', quantity: '20' }] };
+      const card = await storeCard(s, request);
+      await prisma.customPrice.update({ where: { id: cp.id }, data: { price: 40 } });
+
+      const res = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(res.success).toBe(true);
+      if (!res.success) return;
+      expect(res.data.kind).toBe('OUTDATED');
+      expect(res.data.card.state).toBe('LIVE');
+      expect(res.data.card.proposal.lines[0]).toMatchObject({ rate: '40.00', amount: '800.00' });
+      expect(res.data.card.id).not.toBe(card.id);
+      expect(await prisma.invoice.count()).toBe(0);
+
+      const old = await prisma.draftCard.findUniqueOrThrow({ where: { id: card.id } });
+      expect(old.state).toBe('OUTDATED');
+      expect(old.replacedById).toBe(res.data.card.id);
+      expect((await live(s.conversation.id)).map((c) => c.id)).toEqual([res.data.card.id]);
+
+      // Pressing the outdated card again returns its successor, like REPLACED.
+      const again = await svc.createFromCard(s.actor, card.id, NOW);
+      expect(again).toEqual({
+        success: true,
+        data: { kind: 'REPLACED', newerCardId: res.data.card.id },
+      });
+
+      // The updated card, confirmed again, creates the draft at the new price.
+      const confirm = await svc.createFromCard(s.actor, res.data.card.id, NOW);
+      expect(confirm.success && confirm.data.kind).toBe('CREATED');
+      const inv = await prisma.invoice.findFirstOrThrow({});
+      expect(Number(inv.total)).toBe(800);
+    });
+
+    it('AC-18: a card pressed on a later local day is OUTDATED (the issue date changed)', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+
+      const res = await svc.createFromCard(s.actor, card.id, NEXT_DAY);
+
+      expect(res.success).toBe(true);
+      if (!res.success) return;
+      expect(res.data.kind).toBe('OUTDATED');
+      expect(res.data.card.proposal.issueDate.value).toBe('2026-03-16');
+      expect(res.data.card.state).toBe('LIVE');
+      expect(await prisma.invoice.count()).toBe(0);
+    });
+
+    it('a vanished Customer returns NEEDS_ANSWERS: card OUTDATED with no successor, nothing created', async () => {
+      const s = await setup();
+      const card = await storeCard(s);
+      await prisma.customer.delete({ where: { id: s.acme.id } });
+
+      const res = await svc.createFromCard(s.actor, card.id, NOW);
+
+      expect(res.success).toBe(true);
+      if (!res.success) return;
+      expect(res.data.kind).toBe('NEEDS_ANSWERS');
+      expect(res.data.issues).toEqual(
+        expect.arrayContaining([expect.objectContaining({ kind: 'CUSTOMER_NOT_FOUND' })])
+      );
+      expect(await prisma.invoice.count()).toBe(0);
+      const old = await prisma.draftCard.findUniqueOrThrow({ where: { id: card.id } });
+      expect(old.state).toBe('OUTDATED');
+      expect(old.replacedById).toBeNull();
+      expect(await live(s.conversation.id)).toHaveLength(0);
+    });
+
+    it("another Freelancer's card and an unknown id are NOT_FOUND; the foreign card is untouched", async () => {
+      const owner = await setup('t20-owner@example.com');
+      const card = await storeCard(owner);
+      const other = await setup('t20-other@example.com');
+
+      const foreign = await svc.createFromCard(other.actor, card.id, NOW);
+      const unknown = await svc.createFromCard(other.actor, 'no-such-card', NOW);
+
+      expect(foreign).toEqual({
+        success: false,
+        code: 'NOT_FOUND',
+        error: 'This draft card is no longer available.',
+      });
+      expect(unknown).toMatchObject({ success: false, code: 'NOT_FOUND' });
+      expect(await prisma.invoice.count()).toBe(0);
+      const stored = await prisma.draftCard.findUniqueOrThrow({ where: { id: card.id } });
+      expect(stored.state).toBe('LIVE');
+    });
+  });
+});

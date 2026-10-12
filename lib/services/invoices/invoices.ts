@@ -427,17 +427,19 @@ function inOutcomeSpan<T>(
 export async function createInvoice(
   actor: ActingFreelancer,
   data: InvoiceFormInput,
-  origin?: InvoiceOrigin
+  origin?: InvoiceOrigin,
+  tx?: Prisma.TransactionClient
 ) {
   return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'create' } }, () =>
-    createInvoiceUnspanned(actor, data, origin)
+    createInvoiceUnspanned(actor, data, origin, tx)
   );
 }
 
 async function createInvoiceUnspanned(
   actor: ActingFreelancer,
   data: InvoiceFormInput,
-  origin?: InvoiceOrigin
+  origin?: InvoiceOrigin,
+  outerTx?: Prisma.TransactionClient
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -462,7 +464,11 @@ async function createInvoiceUnspanned(
       });
     }
 
-    const invoice = await prisma.$transaction(async (tx) => {
+    // With an outer transaction (T20: the Create press) the insert joins it; a failure is returned as a
+    // result and the caller rolls its transaction back.
+    const runInTx = <R,>(fn: (tx: Prisma.TransactionClient) => Promise<R>) =>
+      outerTx ? fn(outerTx) : prisma.$transaction(fn);
+    const invoice = await runInTx(async (tx) => {
       // T26 (review F7, ADR-0005): the sender-profile lock first, so an account's currency can't
       // change between the draft rules and the insert; the rules then run on the locked state.
       await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
