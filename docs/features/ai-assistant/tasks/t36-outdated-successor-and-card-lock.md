@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/cards.ts", "lib/services/conversatio
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12"
 ---
 
