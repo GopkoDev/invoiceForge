@@ -9,7 +9,7 @@ files_hint: ["components/ai/ai-workspace.tsx", "components/ai/conversation-list-
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12 round 2"
 ---
 
