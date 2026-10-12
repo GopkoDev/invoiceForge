@@ -9,7 +9,7 @@ files_hint: ["evals/assistant/run.ts", "evals/assistant/score.ts", "tests/unit/e
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12 round 4"
 ---
 
