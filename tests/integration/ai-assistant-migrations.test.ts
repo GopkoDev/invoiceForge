@@ -42,6 +42,19 @@ const NAMES = [
 const UP = NAMES.map((n) => staged(`${n}.up.sql`));
 const DOWN = NAMES.map((n) => staged(`${n}.down.sql`));
 
+// ai-chat-v2 (T02) builds on these tables (ChoiceOffer references Conversation and ConversationMessage): a full
+// revert takes the later feature's migrations down first and puts them back last, as a real rollback would.
+const LATER_DIR = path.resolve(process.cwd(), 'docs/features/ai-chat-v2/migrations');
+const LATER_NAMES = [
+  '01_create_choice_offer',
+  '02_add_conversation_message_origin',
+  '03_backfill_conversation_message_origin',
+  '04_add_conversation_started_from',
+  '05_add_invoice_issued_from_chat',
+];
+const LATER_UP = LATER_NAMES.map((n) => fs.readFileSync(path.join(LATER_DIR, `${n}.up.sql`), 'utf8'));
+const LATER_DOWN = LATER_NAMES.map((n) => fs.readFileSync(path.join(LATER_DIR, `${n}.down.sql`), 'utf8'));
+
 const AI_TABLES = [
   'Conversation',
   'ConversationMessage',
@@ -143,6 +156,7 @@ describe.runIf(containerRuntimeAvailable)('ai-assistant migrations (T01, AC-26, 
   });
 
   it('applies, reverts and re-applies cleanly: down 11 → 01 removes everything, up 01 → 11 restores it, re-running is a no-op', async () => {
+    for (const sql of [...LATER_DOWN].reverse()) await psql(sql);
     for (const sql of [...DOWN].reverse()) await psql(sql);
     expect(await tablesPresent()).toEqual([]);
     expect(await columnNames('PersonalKey')).not.toContain('canCreateDrafts');
@@ -157,6 +171,8 @@ describe.runIf(containerRuntimeAvailable)('ai-assistant migrations (T01, AC-26, 
 
     for (const sql of UP) await psql(sql); // idempotent DDL
     expect((await tablesPresent()).sort()).toEqual([...AI_TABLES].sort());
+
+    for (const sql of LATER_UP) await psql(sql); // restore the later feature's schema for the next tests
   });
 
   it('a key created before migration 05 reads canCreateDrafts = false; Invoice origin columns and issuedAt stay NULL (AC-26)', async () => {

@@ -214,6 +214,9 @@ model Invoice {
     // Issue tracking (ADR-0013): written once, when the invoice first leaves DRAFT
     issuedAt DateTime?
 
+    // ai-chat-v2 (SAD §7 Monitoring): set once by issueFromPreview, never cleared or copied
+    issuedFromChat Boolean @default(false)
+
     // Assistant origin (ADR-0013): written once at creation, never copied or rewritten
     assistantOrigin  AssistantOrigin?
     assistantKeyName String? // the key's name at creation (PERSONAL_KEY only)

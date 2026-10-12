@@ -11,6 +11,7 @@ const APP_TABLES = [
   'PersonalKeyDraftDay',
   'AssistantTurn',
   'DraftCard',
+  'ChoiceOffer',
   'ConversationMessage',
   'Conversation',
   'MessageAllowanceDay',
