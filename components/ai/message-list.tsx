@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
 import { ChatLink } from '@/components/ai/chat-link';
 import { cn } from '@/lib/utils';
-import type { ConversationMessageView, LinkedInvoiceState } from '@/types/assistant/types';
+import type {
+  ConversationMessageView,
+  LinkedInvoiceState,
+} from '@/types/assistant/types';
 
 interface MessageListProps {
   messages: ConversationMessageView[];
@@ -11,13 +14,21 @@ interface MessageListProps {
 
 // Message text is always plain text with line breaks kept: never Markdown, HTML or an anchor
 // (AC-07). Links come only from data-link parts; cards from data-draft-card parts.
-export function MessageList({ messages, invoiceLinks, renderCard }: MessageListProps) {
+export function MessageList({
+  messages,
+  invoiceLinks,
+  renderCard,
+}: MessageListProps) {
   return (
-    <div aria-live="polite" className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {messages.map((m) => {
         const isUser = m.role === 'user';
         return (
-          <div key={m.id} data-role={m.role} className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+          <div
+            key={m.id}
+            data-role={m.role}
+            className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
+          >
             <div
               className={cn(
                 'flex max-w-[85%] min-w-0 flex-col gap-2 rounded-lg px-3 py-2',
@@ -27,13 +38,19 @@ export function MessageList({ messages, invoiceLinks, renderCard }: MessageListP
               {m.parts.map((part, i) => {
                 if (part.type === 'text') {
                   return (
-                    <p key={i} className="text-sm break-words whitespace-pre-wrap">
+                    <p
+                      key={i}
+                      className="text-sm break-words whitespace-pre-wrap"
+                    >
                       {part.text}
                     </p>
                   );
                 }
                 if (part.type === 'data-link') {
-                  const state = part.data.kind === 'invoice' ? invoiceLinks[part.data.invoiceId] : undefined;
+                  const state =
+                    part.data.kind === 'invoice'
+                      ? invoiceLinks[part.data.invoiceId]
+                      : undefined;
                   return (
                     <div key={i}>
                       <ChatLink link={part.data} state={state} />

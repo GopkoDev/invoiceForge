@@ -172,9 +172,9 @@ describe('MessageList - SCR-02 default', () => {
     expect(text.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('has a polite live region for finished replies', () => {
+  it('has no live region of its own (R-22: the island announces the finished reply once)', () => {
     const { container } = render(<MessageList messages={MESSAGES} invoiceLinks={LINKS} />);
-    expect(container.querySelector('[aria-live="polite"]')).not.toBeNull();
+    expect(container.querySelector('[aria-live]')).toBeNull();
   });
 });
 

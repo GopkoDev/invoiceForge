@@ -413,7 +413,13 @@ describe('T33 ChatIsland - used-up (AC-10b)', () => {
 
   it('the losing tab: 429 removes the unsent message and shows the server text, composer replaced', async () => {
     fetchMock.mockResolvedValue(
-      json(429, { success: false, code: 'RATE_LIMITED', error: USED_UP_TEXT, details: allowance(0) })
+      // R-01: the contract 429 body (openapi /api/chat 429: AllowanceUsedUpDetails), not an AllowanceState
+      json(429, {
+        success: false,
+        code: 'RATE_LIMITED',
+        error: USED_UP_TEXT,
+        details: { kind: 'ALLOWANCE_USED_UP', limit: 30, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+      })
     );
     const user = userEvent.setup();
     island({ allowance: allowance(1) });
@@ -551,5 +557,168 @@ describe('T33 page wiring', () => {
     expect(screen.getByText('Who owes me money?', { selector: 'p' })).toBeTruthy();
     expect(box()).toBeTruthy();
     expect(screen.getByText('18 of 30 messages left today')).toBeTruthy();
+  });
+});
+
+const startPanelIsland = () =>
+  render(
+    <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+  );
+
+describe('T39 R-01 - contract 429 body', () => {
+  it('shows the used-up message and disables (removes) the composer for the contract body', async () => {
+    fetchMock.mockResolvedValue(
+      json(429, {
+        success: false,
+        code: 'RATE_LIMITED',
+        error: USED_UP_TEXT,
+        details: { kind: 'ALLOWANCE_USED_UP', limit: 30, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+      })
+    );
+    const user = userEvent.setup();
+    island({ allowance: allowance(5) });
+    await send(user, 'one too many');
+    expect(await screen.findByText(USED_UP_TEXT)).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+    expect(screen.queryByText('one too many')).toBeNull();
+  });
+});
+
+describe('T39 R-02 - first message on /ai', () => {
+  it.each([
+    ['AI_UNAVAILABLE', UNAVAILABLE],
+    ['COULD_NOT_COMPLETE', COULD_NOT],
+  ])('%s with no data-conversation: alert, URL stays /ai, Try again posts conversationId null', async (kind, text) => {
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome(kind, false), FINISH]));
+    const user = userEvent.setup();
+    startPanelIsland();
+    await send(user, 'first question');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(text);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(replace).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(replaceState).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(bodyOf(1).conversationId).toBeNull();
+    expect(bodyOf(1).message.parts[0].text).toBe('first question');
+  });
+
+  it('adopts the id only from the late data-conversation (after text) and ends on /ai/{id}', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        allowanceChunk(29),
+        START,
+        ...textChunks('Nobody yet.'),
+        { type: 'data-conversation', data: { conversationId: 'cLate', title: 'Who owes me?' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    startPanelIsland();
+    await send(user, 'Who owes me?');
+    await waitFor(() =>
+      expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cLate'))).toBe(true)
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/ai/cLate'));
+    expect(replaceState.mock.calls.every((c) => !String(c[2]).endsWith('/ai/null'))).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await send(user, 'and Globex?');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(bodyOf(1).conversationId).toBe('cLate');
+  });
+});
+
+describe('T39 R-22 - live regions', () => {
+  it('no aria-live around the message list; the finished reply is announced once, after the outcome', async () => {
+    const stream = openStream();
+    fetchMock.mockResolvedValue(stream.response);
+    const user = userEvent.setup();
+    const { container } = island();
+    const announced = () =>
+      Array.from(container.querySelectorAll('[aria-live]')).map((el) => el.textContent ?? '');
+
+    for (const el of Array.from(container.querySelectorAll('[data-role]'))) {
+      expect(el.closest('[aria-live]')).toBeNull();
+    }
+
+    await send(user, 'status?');
+    await act(async () => {
+      stream.push(START);
+      stream.push({ type: 'text-start', id: 't1' });
+      stream.push({ type: 'text-delta', id: 't1', delta: 'Two invoices ' });
+    });
+    expect(await screen.findByText(/Two invoices/)).toBeTruthy();
+    expect(announced().some((t) => t.includes('Two invoices'))).toBe(false);
+    for (const el of Array.from(container.querySelectorAll('[data-role]'))) {
+      expect(el.closest('[aria-live]')).toBeNull();
+    }
+
+    await act(async () => {
+      stream.push({ type: 'text-delta', id: 't1', delta: 'are overdue.' });
+      stream.push({ type: 'text-end', id: 't1' });
+      stream.push(outcome('ANSWERED', true));
+      stream.push(FINISH);
+      stream.end();
+    });
+    await waitFor(() =>
+      expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain('Two invoices are overdue.')
+    );
+    expect(announced().filter((t) => t.includes('Two invoices are overdue.'))).toHaveLength(1);
+    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
+  });
+});
+
+describe('T39 R-23 - scroll to the newest message', () => {
+  const scrollIntoView = vi.fn();
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+  const lastTarget = () =>
+    scrollIntoView.mock.contexts[scrollIntoView.mock.contexts.length - 1] as HTMLElement | undefined;
+
+  it('scrolls the newest message into view on mount of a long history', () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: `h${i}`,
+      role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant',
+      parts: [{ type: 'text' as const, text: `history ${i}` }],
+      createdAt: '2026-10-12T10:00:00.000Z',
+    }));
+    island({ initialMessages: many });
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('history 39');
+  });
+
+  it('scrolls again when a new message is sent and when the reply streams in', async () => {
+    const stream = openStream();
+    fetchMock.mockResolvedValue(stream.response);
+    const user = userEvent.setup();
+    island();
+    await send(user, 'brand new question');
+    await screen.findByText('brand new question');
+    await waitFor(() => expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('brand new question'));
+
+    await act(async () => {
+      stream.push(START);
+      stream.push({ type: 'text-start', id: 't1' });
+      stream.push({ type: 'text-delta', id: 't1', delta: 'streamed answer' });
+    });
+    await screen.findByText(/streamed answer/);
+    await waitFor(() => expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('streamed answer'));
+    await act(async () => {
+      stream.push({ type: 'text-end', id: 't1' });
+      stream.push(outcome('ANSWERED', true));
+      stream.push(FINISH);
+      stream.end();
+    });
   });
 });
