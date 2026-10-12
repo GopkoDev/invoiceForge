@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { protectedRoutes } from '@/config/routes.config';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
@@ -16,6 +16,8 @@ const QUESTION_EXAMPLES = [
   'How much did I invoice this month?',
   'Where do I change the logo on my invoices?',
 ];
+const QUESTION_SUBTITLE = 'Answers come from your own invoices, Customers and figures.';
+const DRAFT_SUBTITLE = "Describe it in one sentence. You'll see a card to check before anything is created.";
 const DRAFT_EXAMPLE = 'Invoice Acme for 20 hours of consulting at $50';
 
 export function StartPanel({
@@ -48,6 +50,7 @@ export function StartPanel({
         <CardTitle role="heading" aria-level={2}>
           {isDraft ? 'Draft an invoice' : 'Ask about your invoices'}
         </CardTitle>
+        <CardDescription>{isDraft ? DRAFT_SUBTITLE : QUESTION_SUBTITLE}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {state.left === 0 ? (

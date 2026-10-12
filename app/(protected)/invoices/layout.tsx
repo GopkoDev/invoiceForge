@@ -17,7 +17,7 @@ function InvoicesLayout({ children }: { children: React.ReactNode }) {
           rightContent={
             <div className="flex items-center gap-2">
               <Link
-                href="/ai?start=draft"
+                href={protectedRoutes.aiStartDraft}
                 className={cn(buttonVariants({ variant: 'outline' }))}
               >
                 <Sparkles />

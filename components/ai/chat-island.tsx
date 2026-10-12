@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
+import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
 import { MessageList } from '@/components/ai/message-list';
 import { StartPanel } from '@/components/ai/start-panel';
@@ -135,6 +136,7 @@ export function ChatIsland({
   start?: 'draft';
 }) {
   const router = useRouter();
+  const newConversation = useNewConversation();
   // Mutable request bookkeeping read by the transport and SDK callbacks, never during render.
   const [live] = useState(() => createRequestState(conversationId));
   const [allowance, setAllowance] = useState(initialAllowance);
@@ -166,6 +168,7 @@ export function ChatIsland({
     onData: (part) => {
       if (part.type === 'data-conversation') {
         live.setConversationId(part.data.conversationId);
+        newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
         window.history.replaceState(
           window.history.state,
           '',

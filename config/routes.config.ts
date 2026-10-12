@@ -26,6 +26,7 @@ export const privateSectionRoots = Object.values(protectedRoutesBase);
 export const protectedRoutes = {
   ...protectedRoutesBase,
 
+  aiStartDraft: `${protectedRoutesBase.ai}?start=draft` as const,
   aiConversation: (id: string) => `${protectedRoutesBase.ai}/${id}` as const,
 
   settingsProfile: '/settings/profile',

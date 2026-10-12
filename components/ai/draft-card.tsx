@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
@@ -32,8 +32,7 @@ type View =
 const OUTDATED_COPY =
   'Something changed since this card was made: a price, the Customer, the sender profile, the bank account or the date. Check the updated card below.';
 
-const linkClass =
-  'inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline focus-visible:underline outline-none';
+const linkClass = buttonVariants({ variant: 'link' });
 
 const DEFAULT_LABELS: Record<string, string> = {
   senderProfile: 'sender profile',

@@ -1,5 +1,5 @@
 import { ChatIsland } from '@/components/ai/chat-island';
-import { ConversationListClient } from '@/components/ai/conversation-list-client';
+import { AiWorkspace } from '@/components/ai/ai-workspace';
 import { unwrapPageResult } from '@/components/layout/content-area';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import { getAllowanceState } from '@/lib/services/assistant-usage';
@@ -21,20 +21,15 @@ export default async function AiPage({ searchParams }: AiPageProps) {
   const allowance = unwrapPageResult(await getAllowanceState(actor));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-      <aside className="min-w-0 lg:order-first">
-        <ConversationListClient conversations={conversations} timeZone={actor.timeZone} />
-      </aside>
-      <section className="min-w-0">
-        <ChatIsland
-          conversationId={null}
-          initialMessages={[]}
-          invoiceLinks={{}}
-          cards={{}}
-          allowance={allowance}
-          start={start}
-        />
-      </section>
-    </div>
+    <AiWorkspace conversations={conversations} timeZone={actor.timeZone}>
+      <ChatIsland
+        conversationId={null}
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance}
+        start={start}
+      />
+    </AiWorkspace>
   );
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { buttonVariants } from '@/components/ui/button';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { protectedRoutes } from '@/config/routes.config';
 import { APP_MAP, appPageRoute } from '@/lib/ai/app-map';
@@ -11,8 +12,7 @@ interface ChatLinkProps {
   state?: LinkedInvoiceState;
 }
 
-const linkClass =
-  'inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline focus-visible:underline outline-none';
+const linkClass = buttonVariants({ variant: 'link' });
 
 // A link the Assistant attached to a reply. Targets come only from the fixed app map or the
 // invoice's current state, never from model-written text (AC-07, AC-36).

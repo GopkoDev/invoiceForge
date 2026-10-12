@@ -44,6 +44,7 @@ export function useDeleteConversations({ onGone }: DeleteHandlers) {
           onGone();
           return;
         }
+        confirmationModal.close();
         toast.error(result.error);
       },
     });

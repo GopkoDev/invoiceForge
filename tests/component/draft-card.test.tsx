@@ -42,6 +42,8 @@ vi.mock('next/navigation', () => ({
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
+  // T40 (R-20): the conversation page also reads the list column.
+  listConversations: async () => ({ success: true, data: { items: [], total: 0, page: 1, pageSize: 20, totalPages: 1, hasMore: false } }),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
   actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),

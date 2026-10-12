@@ -89,6 +89,7 @@ export function ConversationList({
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
+      <h2 className="text-sm font-medium lg:sr-only">Recent conversations</h2>
       <div className="flex items-center justify-between gap-2">
         <Link
           href={protectedRoutes.ai}
