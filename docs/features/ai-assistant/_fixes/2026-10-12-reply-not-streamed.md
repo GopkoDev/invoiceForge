@@ -3,7 +3,7 @@ slug: ai-assistant
 date: 2026-10-12
 triage: gap
 acs: []
-commit: pending
+commit: a15c673
 recurrence_of: none
 ---
 
