@@ -73,6 +73,8 @@ describe('part 2: every business function has request-free and foreign-record te
     /assistant-usage\/purge\.ts$/,
     // Internal line step of resolveDraftRequest (covered through it, ai-assistant T16).
     /assistant-drafts\/resolve-lines\.ts$/,
+    // Mark storage used by createDraftForKey only (ai-assistant T21).
+    /assistant-drafts\/repeat-marks\.ts$/,
   ];
   const NOT_BUSINESS_NAMES = new Set([
     'resolveManualOrAllocatedNumber',
