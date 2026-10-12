@@ -3,7 +3,7 @@ slug: ai-assistant
 date: 2026-10-12
 triage: regression (AC-19) + gap (AC-19b)
 acs: [AC-19, AC-19b]
-commit: <filled after the fix commit lands>
+commit: 16e5c92
 recurrence_of: none
 ---
 
