@@ -6,6 +6,8 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 import { localDayRange } from '@/lib/services/_shared/time-zone';
 import { dayToUtcDate, todayInZone, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
+import { failed } from '@/lib/services/_shared/result-helpers';
+import type { ActionResult } from '@/types/result';
 
 export const ALLOWANCE_LIMIT = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -73,15 +75,14 @@ const latestRow = async (userId: string) =>
 /** Read-only: how much of today's allowance is used. Writes nothing. */
 export async function getAllowanceState(
   actor: ActingFreelancer
-): Promise<{ success: true; data: AllowanceState } | { success: false; error: string }> {
+): Promise<ActionResult<AllowanceState>> {
   try {
     const latest = await latestRow(actor.userId);
     const cur = currentAllowanceDay(latest, actor.timeZone, new Date());
     const used = latest && !cur.isNew ? latest.used : 0;
     return { success: true, data: stateOf(used, cur.renewsAt, actor.timeZone) };
   } catch (error) {
-    console.error('[getAllowanceState] failed:', redactError(error));
-    return { success: false, error: 'Could not read the daily message allowance' };
+    return failed('[getAllowanceState] failed:', error, 'Could not read the daily message allowance');
   }
 }
 

@@ -26,7 +26,7 @@
 | T19 | [Add "Create with AI" to the invoice list header and the AssistantMark to draft rows and the editor header](./t19-create-with-ai-entry-and-assistant-mark.md) | ui | Dmytro Hopko | S | T06 | done |
 | T20 | [Store Draft cards with one live card per Conversation and create the Draft invoice only from the Create press](./t20-draft-cards-and-create-press.md) | app | Dmytro Hopko | M | T06, T10, T16 | done |
 | T21 | [Create a Draft invoice for a Personal key: permission, repeat mark, resolver, key slot, invoice and repeat row in one transaction](./t21-create-draft-for-key.md) | app | Dmytro Hopko | M | T06, T16, T17 | done |
-| T22 | [Build the AI start panel with example prompts, the start=draft variant and the AllowanceNotice counter and used-up modes](./t22-ai-start-panel-and-allowance-notice.md) | ui | Dmytro Hopko | M | T08, T18 | todo |
+| T22 | [Build the AI start panel with example prompts, the start=draft variant and the AllowanceNotice counter and used-up modes](./t22-ai-start-panel-and-allowance-notice.md) | ui | Dmytro Hopko | M | T08, T18 | done |
 | T23 | [Render a saved Conversation with ChatLink invoice states, the not-found page and the loading skeleton](./t23-conversation-page-and-chat-links.md) | ui | Dmytro Hopko | M | T10, T18 | todo |
 | T24 | [Add the Draft permission choice, the permission badges, the read-only explanation and the lift action to Connect your AI](./t24-connect-your-ai-draft-permission-ui.md) | ui | Dmytro Hopko | M | T17 | todo |
 | T25 | [Save each turn under the Conversation row lock with its card and metadata, and delete one or all Conversations](./t25-conversation-writes-and-deletes.md) | app | Dmytro Hopko | M | T10, T20 | todo |

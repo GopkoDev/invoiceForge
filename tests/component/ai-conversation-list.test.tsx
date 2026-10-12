@@ -27,6 +27,13 @@ const listConversations = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   listConversations: (...a: unknown[]) => listConversations(...a),
 }));
+// T22: the page also reads the allowance for the start panel; a fixed state keeps these list tests unchanged.
+vi.mock('@/lib/services/assistant-usage', () => ({
+  getAllowanceState: async () => ({
+    success: true,
+    data: { limit: 30, used: 1, left: 29, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+  }),
+}));
 vi.mock('@/lib/helpers/session-actor', () => ({
   actingFreelancerFromSession: async () => ({
     success: true,
