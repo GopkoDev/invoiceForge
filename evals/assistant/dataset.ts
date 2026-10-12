@@ -16,14 +16,19 @@ export const NO_GUESSING_THRESHOLDS = {
 export type TopicLabel = 'in_scope' | 'mixed' | 'off_topic';
 export type EvalLang = 'en' | 'uk';
 
+/** What the router must report for the message: 'draft' only when it asks to create or draft an invoice. */
+export type EvalIntent = 'read' | 'draft';
+
 export interface TopicItem {
   text: string;
   label: TopicLabel;
   lang: EvalLang;
+  /** Every shipped item carries one; an unlabelled item is expected to read. */
+  intent?: EvalIntent;
 }
 
 /** The seeded Freelancer a no-guessing request runs against. */
-export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile' | 'stored-text';
+export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile' | 'stored-text' | 'several-usd';
 
 export interface NoGuessingItem {
   id: string;
@@ -33,6 +38,8 @@ export interface NoGuessingItem {
   expect: 'card' | 'question' | 'none';
   setup: NoGuessingSetup;
   lang: EvalLang;
+  /** Earlier turns replayed before `text`, for follow-ups (AC-14b, AC-19). */
+  history?: Array<{ role: 'user' | 'assistant'; text: string }>;
 }
 
 const DIR = join(process.cwd(), 'evals/assistant');

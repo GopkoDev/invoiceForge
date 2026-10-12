@@ -4,6 +4,7 @@
 // started with the test harness (needs Docker); it never touches the .env / .env.prod database.
 // Importing this module has no side effects; only the eval entry (ASSISTANT_EVAL=1) starts the run.
 import { classifyMessage } from '@/lib/ai/router';
+import type { ConversationMessageView } from '@/types/assistant/types';
 import {
   loadNoGuessingSet,
   loadTopicSet,
@@ -58,6 +59,8 @@ export async function runTopicBoundary(
       text: item.text,
       label: item.label,
       refused: verdict.topic === 'OFF_TOPIC',
+      intent: item.intent ?? 'read',
+      verdictIntent: verdict.intent,
     });
   }
   return rows;
@@ -80,7 +83,7 @@ export function evaluateRun({
     `  in-scope refused  ${pct(topic.inScopeRefusedRate)} (need <= ${pct(TOPIC_THRESHOLDS.inScopeRefusedMax)})`,
     ...topic.failures.map(
       (f) =>
-        `  - ${f.label === 'off_topic' ? 'answered, should refuse' : 'refused, should answer'} [${f.label}]: ${f.text}`
+        `  - ${f.verdictIntent !== (f.intent ?? 'read') ? `intent ${f.verdictIntent}, should be ${f.intent ?? 'read'}` : f.label === 'off_topic' ? 'answered, should refuse' : 'refused, should answer'} [${f.label}]: ${f.text}`
     ),
     `No-guessing guard: ${noGuessing.passed ? 'PASS' : 'FAIL'}`,
     `  incomplete/ambiguous ending in a question ${pct(noGuessing.questionRate)} (need ${pct(NO_GUESSING_THRESHOLDS.questionRateMin)})`,
@@ -151,6 +154,15 @@ export function findUngroundedValues(
   return found;
 }
 
+function toView(turn: { role: 'user' | 'assistant'; text: string }, index: number): ConversationMessageView {
+  return {
+    id: `eval-history-${index}`,
+    role: turn.role,
+    parts: [{ type: 'text', text: turn.text }],
+    createdAt: new Date().toISOString(),
+  };
+}
+
 const TODAY = new Date().toISOString().slice(0, 10);
 const TIME_ZONE = 'Europe/Kyiv';
 // Prices the seeded Freelancer actually has: the catalogue 50 USD and the custom price 45 USD.
@@ -188,7 +200,7 @@ async function runNoGuessing(
       NoGuessingSetup,
       Awaited<ReturnType<typeof actingFreelancerForTest>>
     >();
-    for (const setup of ['base', 'two-acme', 'no-profile', 'stored-text'] as const) {
+    for (const setup of ['base', 'two-acme', 'no-profile', 'stored-text', 'several-usd'] as const) {
       const user = await createFreelancer(prisma, {
         email: `eval-${setup}@example.com`,
         timeZone: TIME_ZONE,
@@ -200,12 +212,21 @@ async function runNoGuessing(
         await createBankAccount(prisma, profile.id, {
           currency: 'USD',
           isDefault: true,
+          ...(setup === 'several-usd' ? { bankName: 'Revolut' } : {}),
         });
         if (setup === 'base')
           await createBankAccount(prisma, profile.id, {
             currency: 'EUR',
             isDefault: false,
           });
+        // AC-19: several accounts in one currency, so the assistant must ask which one to use.
+        if (setup === 'several-usd')
+          for (const bankName of ['Monobank', 'Wise'])
+            await createBankAccount(prisma, profile.id, {
+              currency: 'USD',
+              isDefault: false,
+              bankName,
+            });
       }
       // AC-15 (T38): stored text that reads like an instruction. No request in the set asks to draft, so
       // none of it may ever produce a card.
@@ -248,7 +269,7 @@ async function runNoGuessing(
         const turn = await runTurn({
           actor,
           today: TODAY,
-          history: [],
+          history: (item.history ?? []).map(toView),
           message: item.text,
           signal: new AbortController().signal,
         });

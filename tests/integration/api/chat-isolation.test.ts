@@ -29,6 +29,14 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 const TZ = 'Europe/Kyiv';
 
+/** A drafting request: propose_draft only runs its lookup when the router reads the message as intent draft (AC-15). */
+const DRAFT_VERDICT = { topic: 'in_scope', language: 'en', intent: 'draft' };
+
+/** The text of the tool message(s) the agent model received, i.e. what the tools answered. */
+function toolAnswerOf(prompt: unknown): string {
+  return JSON.stringify((prompt as Array<{ role: string }>).filter((m) => m.role === 'tool'));
+}
+
 describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (T34)', () => {
   let db: TestDatabase;
   let prisma: PrismaClient;
@@ -140,7 +148,11 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
     ];
 
     async function ask(name: string, userId: string) {
-      model = scriptedModel({ steps: (i) => (i === 0 ? { toolCalls: lookups(name) } : { text: 'I cannot find that customer.' }) });
+      // intent draft: without it propose_draft answers NOT_REQUESTED and the cross-tenant case proves nothing (N-4).
+      model = scriptedModel({
+        verdict: DRAFT_VERDICT,
+        steps: (i) => (i === 0 ? { toolCalls: lookups(name) } : { text: 'I cannot find that customer.' }),
+      });
       await prisma.messageAllowanceDay.deleteMany({ where: { userId } });
       await prisma.conversation.deleteMany({ where: { userId } });
       await prisma.draftCard.deleteMany({ where: { userId } });
@@ -149,10 +161,11 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
       const text = await response.text();
       await vi.waitFor(async () => expect(await prisma.conversationMessage.count({ where: { conversation: { userId } } })).toBe(2));
       const lastPrompt = JSON.stringify(model.doStreamCalls.at(-1)!.prompt);
+      const proposeAnswer = toolAnswerOf(model.doStreamCalls.at(-1)!.prompt);
       const turns = (await prisma.assistantTurn.findMany({ where: { userId } })).map((t) => ({
         topic: t.topic, outcome: t.outcome, counted: t.counted, steps: t.steps, toolNames: t.toolNames,
       }));
-      return { status: response.status, text, lastPrompt, saved: await everythingSavedFor(userId), turns };
+      return { status: response.status, text, lastPrompt, proposeAnswer, saved: await everythingSavedFor(userId), turns };
     }
 
     it('answers about Globex exactly as about a Customer that does not exist (stream, tool answers, saved turn, metadata)', async () => {
@@ -165,6 +178,11 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
       expect(firstDifference(normalise(foreign.text, 'Globex'), normalise(unknown.text, 'Zzyzxq'))).toBe('identical');
       expect(firstDifference(normalise(foreign.lastPrompt, 'Globex'), normalise(unknown.lastPrompt, 'Zzyzxq'))).toBe('identical');
       expect(foreign.turns).toEqual(unknown.turns);
+      // propose_draft really ran (drafting intent on) and answered the same CUSTOMER_NOT_FOUND for both.
+      expect(foreign.proposeAnswer).toContain('CUSTOMER_NOT_FOUND');
+      expect(unknown.proposeAnswer).toContain('CUSTOMER_NOT_FOUND');
+      expect(foreign.proposeAnswer).not.toContain('NOT_REQUESTED');
+      expect(normalise(foreign.proposeAnswer, 'Globex')).toBe(normalise(unknown.proposeAnswer, 'Zzyzxq'));
       // No hint that it exists for someone else: none of B's details are anywhere in A's turn.
       for (const text of [foreign.text, foreign.lastPrompt, foreign.saved]) {
         expect(text).not.toContain('Globex Holdings');
@@ -197,7 +215,7 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
     it.each(cases)('%s', async (_label, build) => {
       const ctx = await twoFreelancers();
       const call = build(ctx);
-      model = scriptedModel({ steps: (i) => (i === 0 ? { toolCall: call } : { text: 'Nothing found.' }) });
+      model = scriptedModel({ verdict: DRAFT_VERDICT, steps: (i) => (i === 0 ? { toolCall: call } : { text: 'Nothing found.' }) });
 
       const response = await send('Look this up for me');
       const text = await response.text();
@@ -217,6 +235,11 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat cross-tenant silence (
         const own = JSON.stringify(call.input);
         for (const marker of ctx.markers.filter((m) => !own.includes(m)))
           expect(content, `${where} leaks ${marker}`).not.toContain(marker);
+      }
+      if (call.name === 'propose_draft') {
+        const answer = toolAnswerOf(model.doStreamCalls.at(-1)!.prompt);
+        expect(answer).toContain('CUSTOMER_NOT_FOUND');
+        expect(answer).not.toContain('NOT_REQUESTED');
       }
       // B's own data is untouched.
       expect(await prisma.draftCard.count({ where: { userId: ctx.b.id } })).toBe(0);

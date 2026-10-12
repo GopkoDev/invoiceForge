@@ -8,7 +8,7 @@ vi.mock('@/lib/ai/model', () => ({ getChatModel: () => model }));
 import { classifyMessage } from '@/lib/ai/router';
 import { MIXED_INSTRUCTION, OFF_TOPIC_REFUSAL } from '@/lib/ai/instructions/refusal';
 
-function scripted(verdict: { topic: string; language: string; intent?: string }) {
+function scripted(verdict: { topic: string; language: string; intent?: string | null }) {
   return new MockLanguageModelV4({
     doGenerate: async () => ({
       content: [{ type: 'text', text: JSON.stringify(verdict) }],
@@ -88,6 +88,30 @@ describe('topic router (ADR-0005)', () => {
     const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
     expect(sent).toContain('the second one');
     expect(sent).toContain('zzmarker-earlier-turn');
+  });
+
+  // N-5: a model that leaves intent out, or invents a value, must not fail the turn; it reads as no drafting request.
+  it.each([
+    ['missing', { topic: 'in_scope', language: 'en' }],
+    ['invalid', { topic: 'in_scope', language: 'en', intent: 'create' }],
+    ['null', { topic: 'in_scope', language: 'en', intent: null }],
+  ])('a verdict with a %s intent classifies as intent read, not a failure', async (_label, verdict) => {
+    model = scripted(verdict as never);
+    const r = await classifyMessage({ message: 'how much did Acme pay me this year?', recentTurns: [] });
+    expect(r.topic).toBe('IN_SCOPE');
+    expect(r.intent).toBe('read');
+  });
+
+  it('a verdict without intent keeps its topic handling (off-topic refusal, mixed instruction)', async () => {
+    model = scripted({ topic: 'off_topic', language: 'uk' } as never);
+    const off = await classifyMessage({ message: 'x', recentTurns: [] });
+    expect(off.topic).toBe('OFF_TOPIC');
+    expect(off.intent).toBe('read');
+    expect(off.refusal).toBe(OFF_TOPIC_REFUSAL.uk);
+    model = scripted({ topic: 'mixed', language: 'en' } as never);
+    const mixed = await classifyMessage({ message: 'x', recentTurns: [] });
+    expect(mixed.topic).toBe('MIXED');
+    expect(mixed.intent).toBe('read');
   });
 
   it('a failing classification call rejects so the turn fails system-side (no silent verdict)', async () => {

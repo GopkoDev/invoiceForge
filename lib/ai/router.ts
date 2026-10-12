@@ -1,4 +1,4 @@
-import { generateText, Output } from 'ai';
+import { generateText, jsonSchema, Output, zodSchema } from 'ai';
 import { z } from 'zod';
 import { getChatModel } from '@/lib/ai/model';
 import { gatewayCostOf } from '@/lib/ai/gateway-cost';
@@ -25,10 +25,23 @@ export interface RouterVerdict {
   costUsd?: number;
 }
 
-const verdictSchema = z.object({
+const verdictFields = {
   topic: z.enum(['in_scope', 'mixed', 'off_topic']),
   language: z.string(),
-  intent: z.enum(['read', 'draft']),
+};
+
+// What the model is asked for: intent is required.
+const generationSchema = z.object({ ...verdictFields, intent: z.enum(['read', 'draft']) });
+
+// What is accepted back: a verdict with intent missing or invalid degrades to 'read' (no card, the answer
+// continues) instead of failing the turn.
+const parseSchema = z.object({ ...verdictFields, intent: z.enum(['read', 'draft']).catch('read') });
+
+const verdictSchema = jsonSchema<z.infer<typeof parseSchema>>(zodSchema(generationSchema).jsonSchema, {
+  validate: (value) => {
+    const parsed = parseSchema.safeParse(value);
+    return parsed.success ? { success: true, value: parsed.data } : { success: false, error: parsed.error };
+  },
 });
 
 const SYSTEM = `Classify the latest user message of an Invoice Forge assistant chat.

@@ -487,7 +487,8 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
       expect(again.success).toBe(true);
       if (!again.success) return;
       expect(again.data).toMatchObject({ status: 'PENDING', invoiceNumber: 'INV-RENUMBERED', repeated: true });
-      const { invoiceNumber: _firstNumber, ...firstRest } = first.data.draft;
+      const { invoiceNumber: firstNumber, ...firstRest } = first.data.draft;
+      void firstNumber; // the first answer's number is dropped on purpose: the repeat carries the renumbered one
       const { invoiceNumber: repeatNumber, ...againRest } = again.data.draft;
       expect(againRest).toEqual(firstRest);
       expect(repeatNumber).toBe('INV-RENUMBERED');

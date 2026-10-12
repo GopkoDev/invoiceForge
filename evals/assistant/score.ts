@@ -1,6 +1,7 @@
 import {
   NO_GUESSING_THRESHOLDS,
   TOPIC_THRESHOLDS,
+  type EvalIntent,
   type TopicLabel,
 } from './dataset';
 
@@ -8,7 +9,12 @@ export interface TopicRow {
   text: string;
   label: TopicLabel;
   refused: boolean;
+  /** The expected intent label and the intent the router returned. */
+  intent?: EvalIntent;
+  verdictIntent?: EvalIntent;
 }
+
+const intentMatches = (r: TopicRow) => (r.intent ?? 'read') === (r.verdictIntent ?? 'read');
 
 export interface TopicScore {
   passed: boolean;
@@ -17,7 +23,7 @@ export interface TopicScore {
   failures: TopicRow[];
 }
 
-/** Off-topic must be refused; in-scope and mixed (its in-scope part is answered) must not be. */
+/** Off-topic must be refused; in-scope and mixed (its in-scope part is answered) must not be. The intent must match its label on every row. */
 export function scoreTopicBoundary(rows: TopicRow[]): TopicScore {
   const off = rows.filter((r) => r.label === 'off_topic');
   const inScope = rows.filter((r) => r.label !== 'off_topic');
@@ -31,9 +37,10 @@ export function scoreTopicBoundary(rows: TopicRow[]): TopicScore {
     off.length > 0 &&
     inScope.length > 0 &&
     offTopicRefusedRate >= TOPIC_THRESHOLDS.offTopicRefusedMin - EPS &&
-    inScopeRefusedRate <= TOPIC_THRESHOLDS.inScopeRefusedMax + EPS;
-  const failures = rows.filter((r) =>
-    r.label === 'off_topic' ? !r.refused : r.refused
+    inScopeRefusedRate <= TOPIC_THRESHOLDS.inScopeRefusedMax + EPS &&
+    rows.every(intentMatches);
+  const failures = rows.filter(
+    (r) => (r.label === 'off_topic' ? !r.refused : r.refused) || !intentMatches(r)
   );
   return { passed, offTopicRefusedRate, inScopeRefusedRate, failures };
 }

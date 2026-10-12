@@ -241,3 +241,121 @@ describe('wiring', () => {
     expect(pkg.scripts['test']).not.toContain('eval:assistant');
   });
 });
+
+// T43 (ai-assistant, N-6; AC-06b, AC-14b, AC-15, AC-19): the evals measure the drafting intent and the
+// multi-turn drafting follow-ups, not only single-message requests.
+describe('multi-turn and MIXED drafting rows in the no-guessing set (N-6)', () => {
+  const items = loadNoGuessingSet();
+  const withHistory = items.filter((i) => Array.isArray((i as { history?: unknown }).history) && (i as { history: unknown[] }).history.length > 0);
+  type Turn = { role: string; text: string };
+  const historyOf = (i: unknown) => (i as { history: Turn[] }).history;
+
+  it('has an AC-14b follow-up ("make it 25 hours") after a proposed card, with history, expecting a card', () => {
+    const row = items.find((i) => i.ac === 'AC-14b' && /25 hours/i.test(i.text));
+    expect(row, 'AC-14b follow-up row').toBeDefined();
+    expect(row!.expect).toBe('card');
+    const history = historyOf(row);
+    expect(history.length).toBeGreaterThanOrEqual(2);
+    expect(history[0].role).toBe('user');
+    expect(history.at(-1)!.role).toBe('assistant');
+    for (const t of history) expect(t.text.trim().length).toBeGreaterThan(0);
+    expect(history.some((t) => t.role === 'user' && /acme/i.test(t.text))).toBe(true);
+  });
+
+  it('has an AC-19 follow-up ("use Revolut") after SEVERAL_ACCOUNTS_IN_CURRENCY, with history, expecting a card', () => {
+    const row = items.find((i) => i.ac === 'AC-19' && /revolut/i.test(i.text));
+    expect(row, 'AC-19 follow-up row').toBeDefined();
+    expect(row!.expect).toBe('card');
+    const history = historyOf(row);
+    expect(history.length).toBeGreaterThanOrEqual(2);
+    expect(history.at(-1)!.role).toBe('assistant');
+    expect(history.at(-1)!.text).toMatch(/revolut/i); // the earlier question named the accounts to choose from
+  });
+
+  it('has an AC-06b MIXED drafting row (a drafting request plus an out-of-scope part) expecting a card', () => {
+    const row = items.find((i) => i.ac === 'AC-06b');
+    expect(row, 'AC-06b row').toBeDefined();
+    expect(row!.expect).toBe('card');
+    expect(row!.kind).toBe('complete');
+    expect(row!.text).toMatch(/vat|tax|legal/i);
+  });
+
+  it('every row with a history is a card-expecting follow-up in a known language', () => {
+    expect(withHistory.length).toBeGreaterThanOrEqual(2);
+    for (const i of withHistory) {
+      expect(i.expect).toBe('card');
+      for (const t of historyOf(i)) expect(['user', 'assistant']).toContain(t.role);
+    }
+  });
+});
+
+describe('intent label and score in the topic set (N-6)', () => {
+  const items = loadTopicSet() as Array<ReturnType<typeof loadTopicSet>[number] & { intent?: string }>;
+
+  it('every topic item carries an intent label, read or draft', () => {
+    for (const i of items) expect(['read', 'draft'], i.text).toContain(i.intent);
+  });
+
+  it('labels both intents, and a mixed drafting request as draft while plain questions stay read', () => {
+    expect(items.filter((i) => i.intent === 'draft').length).toBeGreaterThanOrEqual(5);
+    expect(items.filter((i) => i.intent === 'read').length).toBeGreaterThanOrEqual(40);
+    expect(items.filter((i) => i.label === 'off_topic').every((i) => i.intent === 'read')).toBe(true);
+    const spec = items.find((i) => i.text.toLowerCase().includes('tell me if i need to charge vat'));
+    expect(spec?.intent).toBe('draft');
+    expect(items.find((i) => /paid this year/i.test(i.text))?.intent).toBe('read');
+  });
+
+  // Row contract: `intent` is the expected label, `verdictIntent` is what the router returned.
+  const row = (text: string, intent: 'read' | 'draft', verdictIntent: 'read' | 'draft', label: 'in_scope' | 'off_topic' = 'in_scope') => ({
+    text, label, refused: label === 'off_topic', intent, verdictIntent,
+  });
+  const score = (rows: unknown[]) => scoreTopicBoundary(rows as Parameters<typeof scoreTopicBoundary>[0]);
+  const passing = [
+    ...Array.from({ length: 20 }, (_, k) => row(`off-${k}`, 'read', 'read', 'off_topic')),
+    ...Array.from({ length: 20 }, (_, k) => row(`in-${k}`, 'read', 'read')),
+  ];
+
+  it('passes when every verdict intent matches its label', () => {
+    expect(score([...passing, row('draft-ok', 'draft', 'draft')]).passed).toBe(true);
+  });
+
+  it('fails, naming the row, when a drafting request is read as read (a missed card)', () => {
+    const r = score([...passing, row('draft-missed', 'draft', 'read')]);
+    expect(r.passed).toBe(false);
+    expect(r.failures.map((f) => f.text)).toContain('draft-missed');
+  });
+
+  it('fails when a plain question is read as draft (a card that must not appear)', () => {
+    const r = score([...passing, row('read-as-draft', 'read', 'draft')]);
+    expect(r.passed).toBe(false);
+    expect(r.failures.map((f) => f.text)).toContain('read-as-draft');
+  });
+});
+
+describe('runTopicBoundary carries the intent (N-6)', () => {
+  it('returns each item intent label and the verdict intent', async () => {
+    model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: JSON.stringify({ topic: 'in_scope', language: 'en', intent: 'draft' }) }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+        warnings: [],
+      }),
+    });
+    const rows = (await runTopicBoundary([
+      { text: 'invoice Acme for 20 hours at $50', label: 'in_scope', lang: 'en', intent: 'draft' },
+      { text: 'How much did Acme pay me?', label: 'in_scope', lang: 'en', intent: 'read' },
+    ] as never)) as unknown as Array<{ intent: string; verdictIntent: string }>;
+    expect(rows.map((r) => r.intent)).toEqual(['draft', 'read']);
+    expect(rows.map((r) => r.verdictIntent)).toEqual(['draft', 'draft']);
+  });
+});
+
+describe('the no-guessing runner replays item history (N-6)', () => {
+  const run = readFileSync(join(ROOT, 'evals/assistant/run.ts'), 'utf8');
+
+  it('does not pass an empty history to the turn', () => {
+    expect(run).not.toMatch(/history:\s*\[\s*\]/);
+    expect(run).toMatch(/history:\s*[^,\n]*item\.history|item\.history/);
+  });
+});

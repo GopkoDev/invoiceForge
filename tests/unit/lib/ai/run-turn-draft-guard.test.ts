@@ -61,6 +61,17 @@ describe('propose_draft drafting-intent guard (AC-15)', () => {
     expect(result.pendingCard).toBeUndefined();
   });
 
+  // N-5: the router's intent is lenient; a verdict without it answers the question and parks no card.
+  it.each([
+    ['missing', { topic: 'in_scope', language: 'en' }],
+    ['invalid', { topic: 'in_scope', language: 'en', intent: 'create' }],
+  ])('a verdict with a %s intent answers with no card and no failure', async (_label, verdict) => {
+    const result = await run("Show me Acme Corp's details", verdict);
+    expect(result.outcome).toBe('ANSWERED');
+    expect(result.failure).toBeUndefined();
+    expect(result.pendingCard).toBeUndefined();
+  });
+
   it('positive control: the Freelancer asking to draft an invoice still gets the card', async () => {
     const result = await run('Invoice Acme Corp 1 piece of work at 10', { topic: 'in_scope', language: 'en', intent: 'draft' });
     expect(result.pendingCard?.id).toBeTruthy();
