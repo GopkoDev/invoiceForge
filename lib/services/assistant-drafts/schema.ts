@@ -22,7 +22,8 @@ export const draftRequestLineSchema = z
     unit: z.string().max(20).optional(),
     price: amountInput.optional(),
   })
-  .strict();
+  // The words the model reads when it puts another key, typically `currency`, in a line (fix 2026-10-12).
+  .strict('A line takes only description, productId, quantity, unit and price. Pass currency once for the whole request, never in a line.');
 
 // spec.md §1 "What a request may set": every field the editor has. The invoice domain's rules (tax 0-100 %,
 // discount cap, amount bounds, due >= issue) are checked by the resolver, which reuses the editor's own.
