@@ -1030,6 +1030,36 @@
         "tests/e2e/"
       ],
       "file": "docs/features/ai-assistant/tasks/t44-ai-workspace-alignment.md"
+    },
+    {
+      "id": "T45",
+      "title": "Schema-check the stored repeat proposal, make the AC-19 eval row real, and tighten the round-2 tests and docs",
+      "layer": "app",
+      "deps": [
+        "T42",
+        "T43",
+        "T44"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-19",
+        "AC-30",
+        "AC-32",
+        "AC-35"
+      ],
+      "dod": "A malformed stored proposal falls back to the stored invoice (integration case); the AC-19 eval row triggers SEVERAL_ACCOUNTS_IN_CURRENCY and the follow-up picks a non-default account; slot tests pin one copy per slot; a bad topic still rejects; the migration test asserts McpDraftRepeat.proposal after deploy and re-up with a correct title; data-model says 01_*…11_*.",
+      "files_hint": [
+        "lib/services/assistant-drafts/create-for-key.ts",
+        "evals/assistant/",
+        "tests/unit/evals/assistant-eval.test.ts",
+        "tests/component/ai-conversation-list.test.tsx",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/unit/lib/ai/router.test.ts",
+        "tests/integration/ai-assistant-migrations.test.ts",
+        "tests/integration/services/assistant-drafts/create-for-key.test.ts",
+        "docs/features/ai-assistant/data-model.md"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t45-round3-hardening.md"
     }
   ]
 }
