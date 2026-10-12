@@ -19,6 +19,14 @@ export const HISTORY_LIMIT = 40;
 /** The router sees only the last few turns, enough to resolve a short follow-up. */
 const ROUTER_TURNS = 6;
 
+/**
+ * The model writes a short reply in one burst of ~0.2 s at the end of the turn, so the chat would show it all at
+ * once (fix 2026-10-12). Its text is written out word by word, this many milliseconds apart.
+ */
+export const WORD_DELAY_MS = 20;
+const WORDS = /\S+\s*|\s+/g;
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 const TOO_BROAD: Record<string, string> = {
   en: 'That question was too broad to answer in full in one message. Please ask a narrower one, for example about a single customer or period.',
   uk: 'Це запитання надто широке, щоб відповісти на нього повністю в одному повідомленні. Поставте, будь ласка, вужче, наприклад про одного клієнта або період.',
@@ -206,7 +214,10 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
               emit({ type: 'text-start', id: openText });
             }
             text += p.text;
-            emit({ type: 'text-delta', id: openText, delta: p.text });
+            for (const [i, word] of (p.text.match(WORDS) ?? []).entries()) {
+              if (i > 0) await pause(WORD_DELAY_MS);
+              emit({ type: 'text-delta', id: openText, delta: word });
+            }
             break;
           // Tool calls and raw tool answers stay on the server: the client gets the text, the links and the
           // card (openapi /api/chat 200, R-14).

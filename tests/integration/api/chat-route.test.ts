@@ -686,6 +686,72 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
     });
   });
 
+  describe('the reply streams (fix 2026-10-12, SCR-02 streaming)', () => {
+    it('sends the first text-delta before the model has finished generating', async () => {
+      // The model writes its first words, then holds the rest until the gate opens.
+      let openGate!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        openGate = resolve;
+      });
+      let calls = 0;
+      model = new MockLanguageModelV4({
+        doGenerate: async () =>
+          ({
+            content: [{ type: 'text', text: JSON.stringify({ topic: 'in_scope', language: 'en', intent: 'answer' }) }],
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage,
+            warnings: [],
+          }) as any,
+        doStream: async () =>
+          ({
+            stream: new ReadableStream({
+              async start(controller) {
+                controller.enqueue({ type: 'stream-start', warnings: [] });
+                if (++calls === 1) {
+                  controller.enqueue({ type: 'tool-call', toolCallId: 'c1', toolName: 'find_in_app', input: JSON.stringify({ topic: 'logo' }) });
+                  controller.enqueue(finish('tool-calls'));
+                  controller.close();
+                  return;
+                }
+                controller.enqueue({ type: 'text-start', id: 't1' });
+                controller.enqueue({ type: 'text-delta', id: 't1', delta: 'First words.' });
+                await gate;
+                controller.enqueue({ type: 'text-delta', id: 't1', delta: ' The rest.' });
+                controller.enqueue({ type: 'text-end', id: 't1' });
+                controller.enqueue(finish('stop'));
+                controller.close();
+              },
+            }),
+          }) as any,
+      });
+      await signedIn();
+
+      const response = await send(chatBody('Who owes me money?'));
+      expect(response.status).toBe(200);
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let received = '';
+      const firstDelta = (async () => {
+        while (!received.includes('"type":"text-delta"')) {
+          const { done, value } = await reader.read();
+          if (done) return 'ended';
+          received += decoder.decode(value, { stream: true });
+        }
+        return 'first words';
+      })();
+      const timedOut = new Promise<string>((resolve) => setTimeout(() => resolve('still waiting'), 3_000));
+
+      const seen = await Promise.race([firstDelta, timedOut]);
+      openGate();
+      await firstDelta;
+      while (!(await reader.read()).done);
+
+      expect(seen).toBe('first words');
+      expect(received).toContain('"delta":"First '); // the turn writes the reply out word by word
+      expect(received).not.toContain('rest.');
+    });
+  });
+
   describe('the turn records its cost (R-16)', () => {
     it('writes the gateway-reported cost of the router call and the agent steps to costUsd', async () => {
       model = scriptedModel({ verdictCost: '0.000020', steps: () => ({ text: 'Here is your answer.', cost: '0.000150' }) });
