@@ -33,3 +33,16 @@ export type ConversationMessageView = {
   >;
   createdAt: string;
 };
+
+/** The AssistantTurn row without ids: metadata only, never text (AC-35). */
+export type AssistantTurnMetadata = {
+  topic: 'IN_SCOPE' | 'MIXED' | 'OFF_TOPIC' | null;
+  outcome: 'ANSWERED' | 'CAPPED' | 'FAILED' | 'ALLOWANCE_USED_UP';
+  counted: boolean;
+  steps: number;
+  toolNames: string[];
+  durationMs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costUsd: number | null;
+};

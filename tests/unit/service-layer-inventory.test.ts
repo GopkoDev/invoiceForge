@@ -75,6 +75,8 @@ describe('part 2: every business function has request-free and foreign-record te
     /assistant-drafts\/resolve-lines\.ts$/,
     // Mark storage used by createDraftForKey only (ai-assistant T21).
     /assistant-drafts\/repeat-marks\.ts$/,
+    // Turn-row writer shared by saveTurn and recordTurnMetadata (ai-assistant T25).
+    /assistant-usage\/turn-row\.ts$/,
   ];
   const NOT_BUSINESS_NAMES = new Set([
     'resolveManualOrAllocatedNumber',
