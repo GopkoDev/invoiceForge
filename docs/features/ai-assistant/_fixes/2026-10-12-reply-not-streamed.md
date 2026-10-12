@@ -36,7 +36,7 @@ Unit, `tests/unit/lib/ai/run-turn-paced-text.test.ts`, "a reply the model sends 
 
 Regression guard, integration, `tests/integration/api/chat-route.test.ts` "the reply streams (fix 2026-10-12, SCR-02 streaming) › sends the first text-delta before the model has finished generating". A scripted model writes its first words, a tool step comes first, and the model then waits on a gate. The route's response body must yield the first `text-delta` before the gate opens. It passes at HEAD and fails if anything between the model and the response buffers the turn.
 
-## Spec patch (proposed, awaiting owner)
+## Spec patch (owner: carry into ai-chat-v2, not ai-assistant)
 
 No AC says how a reply appears. Spec §6 only measures the first visible words (≤ 3 s p95) and the full reply (≤ 12 s p95). screens.md SCR-02 asks for progressive text, but a provider that writes a reply in 0.2 s meets both NFRs while showing it all at once. This is a gap. The owner could not be asked, so spec.md is **not** changed. Proposed new row for the §6 NFR table, after "Chat, time to the first visible words of a reply, p95":
 
