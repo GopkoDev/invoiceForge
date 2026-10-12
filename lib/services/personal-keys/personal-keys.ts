@@ -12,20 +12,23 @@ import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result'
 import { failed, isUniqueConstraintError } from '@/lib/services/_shared/result-helpers';
 import { notFoundIfNoneAffected } from '@/lib/services/_shared/owner-scope';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import { dayToUtcDate, todayInZone } from '@/lib/helpers/calendar-day';
 import { generatePersonalKey } from './key-format';
 import type {
+  CreatedPersonalKey,
+  DraftsToday,
   PersonalKeyList,
   PersonalKeySummary,
   RevokedPersonalKeySummary,
 } from '@/types/personal-key/types';
 
-export type { PersonalKeySummary, RevokedPersonalKeySummary, PersonalKeyList };
+export type { CreatedPersonalKey, PersonalKeySummary, RevokedPersonalKeySummary, PersonalKeyList };
 
 const KEY_NOT_FOUND = 'Key not found.';
 const nameRefusal = () => fail('VALIDATION', KEY_NAME_MESSAGE, { fieldErrors: { name: [KEY_NAME_MESSAGE] } });
 
 // digest and activeNameKey never leave this module.
-function summarize(row: PersonalKey): PersonalKeySummary {
+function summarize(row: PersonalKey): CreatedPersonalKey {
   return {
     id: row.id,
     name: row.name,
@@ -39,7 +42,7 @@ function summarize(row: PersonalKey): PersonalKeySummary {
 export async function createPersonalKey(
   actor: ActingFreelancer,
   input: { name: string; canCreateDrafts?: boolean },
-): Promise<ActionResult<{ key: PersonalKeySummary; fullKey: string }>> {
+): Promise<ActionResult<{ key: CreatedPersonalKey; fullKey: string }>> {
   try {
     const parsed = personalKeyNameSchema.safeParse(input?.name);
     if (!parsed.success) return nameRefusal();
@@ -87,17 +90,56 @@ export async function revokePersonalKey(actor: ActingFreelancer, id: string): Pr
   }
 }
 
+const DAILY_KEY_DRAFTS = 50;
+
+/** Today's counts per key in the owner's zone; no row today means 0 of 50 with the latest earlier lift. */
+async function draftsTodayFor(
+  keyIds: string[],
+  zone: string,
+  now: Date
+): Promise<Map<string, DraftsToday>> {
+  const result = new Map<string, DraftsToday>();
+  if (keyIds.length === 0) return result;
+  const day = dayToUtcDate(todayInZone(zone, now));
+  const [todayRows, lifts] = await Promise.all([
+    prisma.personalKeyDraftDay.findMany({ where: { personalKeyId: { in: keyIds }, day } }),
+    prisma.personalKeyDraftDay.findMany({
+      where: { personalKeyId: { in: keyIds }, lastLiftedAt: { not: null } },
+      orderBy: { lastLiftedAt: 'desc' },
+      select: { personalKeyId: true, lastLiftedAt: true },
+    }),
+  ]);
+  const latestLift = new Map<string, Date>();
+  for (const l of lifts) if (l.lastLiftedAt && !latestLift.has(l.personalKeyId)) latestLift.set(l.personalKeyId, l.lastLiftedAt);
+  const todayBy = new Map(todayRows.map((r) => [r.personalKeyId, r]));
+  for (const id of keyIds) {
+    const row = todayBy.get(id);
+    const lifted = row?.lastLiftedAt ?? latestLift.get(id) ?? null;
+    result.set(id, {
+      created: row?.created ?? 0,
+      allowance: row?.allowance ?? DAILY_KEY_DRAFTS,
+      lastLiftedAt: lifted ? lifted.toISOString() : null,
+    });
+  }
+  return result;
+}
+
 export async function listPersonalKeys(actor: ActingFreelancer): Promise<ActionResult<PersonalKeyList>> {
   try {
     const rows = await prisma.personalKey.findMany({
       where: { userId: actor.userId },
       orderBy: { createdAt: 'desc' },
     });
+    const drafts = await draftsTodayFor(
+      rows.filter((r) => !r.revokedAt && r.canCreateDrafts).map((r) => r.id),
+      actor.timeZone,
+      new Date(),
+    );
     const active: PersonalKeySummary[] = [];
     const revoked: RevokedPersonalKeySummary[] = [];
     for (const row of rows) {
       if (row.revokedAt) revoked.push({ ...summarize(row), revokedAt: row.revokedAt.toISOString() });
-      else active.push(summarize(row));
+      else active.push({ ...summarize(row), draftsToday: drafts.get(row.id) ?? null });
     }
     return ok({ active, revoked });
   } catch (error) {

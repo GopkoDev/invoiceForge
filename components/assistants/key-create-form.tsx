@@ -18,10 +18,10 @@ import {
   KEY_NAME_MESSAGE,
   personalKeyNameSchema,
 } from '@/lib/validations/personal-key';
-import type { PersonalKeySummary } from '@/types/personal-key/types';
+import type { CreatedPersonalKey } from '@/types/personal-key/types';
 
 interface KeyCreateFormProps {
-  onCreated: (key: PersonalKeySummary, fullKey: string) => void;
+  onCreated: (key: CreatedPersonalKey, fullKey: string) => void;
   /** Message of a limit refusal, owned by the parent so a revoke can clear it. */
   limitMessage: string | null;
   onLimit: (message: string | null) => void;

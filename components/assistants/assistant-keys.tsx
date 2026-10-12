@@ -13,6 +13,7 @@ import { redirectIfUnauthorized } from '@/lib/helpers/client-session-redirect';
 import { useModal } from '@/store/use-modal-store';
 import type {
   PersonalKeyList,
+  CreatedPersonalKey,
   PersonalKeySummary,
 } from '@/types/personal-key/types';
 
@@ -55,9 +56,9 @@ export function AssistantKeys({ origin, timeZone, keys }: AssistantKeysProps) {
     setList(keys);
   }
 
-  function handleCreated(key: PersonalKeySummary, fullKey: string) {
+  function handleCreated(key: CreatedPersonalKey, fullKey: string) {
     setReveal({ id: key.id, name: key.name, fullKey });
-    setList((prev) => ({ ...prev, active: [key, ...prev.active] }));
+    setList((prev) => ({ ...prev, active: [{ ...key, draftsToday: null }, ...prev.active] }));
     router.refresh();
   }
 
