@@ -172,7 +172,6 @@ export function findUngroundedValues(
   proposal.lines.forEach((line, i) => {
     if (
       line.quantitySource === 'REQUEST' &&
-      Number(line.quantity) !== 1 && // a lump-sum request ("600 EUR for the logo") is one unit, written or not
       !inMessage.includes(Number(line.quantity))
     ) {
       found.push(`line ${i + 1} quantity ${line.quantity}`);

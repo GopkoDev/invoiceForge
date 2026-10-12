@@ -410,7 +410,7 @@ describe('findUngroundedValues grounds against the whole conversation (Q-1)', ()
       { role: 'user', text: 'invoice Acme 600 EUR for the logo design' },
       { role: 'assistant', text: 'You have several EUR accounts: Revolut and Wise. Which one should the invoice use?' },
     ];
-    expect(find('use Revolut', proposal([line('1', '600')]), history)).toEqual([]);
+    expect(find('use Revolut', proposal([line('1.00', '600', 'DEFAULT')]), history)).toEqual([]);
   });
 
   it('AC-14b follow-up: "make it 25 hours" grounds the quantity; customer and rate come from the user history turn', () => {
