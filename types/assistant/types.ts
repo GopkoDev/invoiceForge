@@ -23,13 +23,36 @@ export type DraftCardView = {
 
 export type ConversationSummary = { id: string; title: string; lastMessageAt: string };
 
+// ai-chat-v2 (contracts/server-actions.md §Shared types): Offered choices, message origin, start point.
+export type ChoiceOfferKind = 'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT';
+export type ChoiceOfferState = 'OPEN' | 'CHOSEN' | 'CLOSED';
+/** Who or what sent a Freelancer message; NULL on Assistant replies. Set by the server only. */
+export type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD';
+export type ConversationStartPoint = 'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE';
+
+/**
+ * Offered choices as the browser sees them: 1..8 options of position + label only. No record reference and no
+ * stored request ever leave the server (ADR-0001, ADR-0003).
+ */
+export type OfferView = {
+  offerId: string;
+  kind: ChoiceOfferKind;
+  state: ChoiceOfferState;
+  chosenOptionId: number | null;
+  options: Array<{ optionId: number; label: string }>;
+};
+
 export type ConversationMessageView = {
   id: string;
   role: 'user' | 'assistant';
+  /** ai-chat-v2: TYPED / PRESSED / DASHBOARD on Freelancer messages; null on Assistant replies. */
+  origin: MessageOrigin | null;
   parts: Array<
     | { type: 'text'; text: string }
     | { type: 'data-link'; data: AppLink }
     | { type: 'data-draft-card'; id: string; data: { cardId: string } }
+    /** ai-chat-v2: the reply's Offered choices, by offer id only (ADR-0001). */
+    | { type: 'data-offer'; id: string; data: { offerId: string } }
   >;
   createdAt: string;
 };

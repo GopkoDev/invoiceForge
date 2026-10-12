@@ -12,6 +12,7 @@ import { appLinkSchema } from '@/lib/validations/assistant-chat';
 import { toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
 import type {
   ConversationMessageView,
+  MessageOrigin,
   ConversationSummary,
   DraftCardView,
   LinkedInvoiceState,
@@ -31,7 +32,13 @@ const partSchema = z.discriminatedUnion('type', [
 ]);
 const partsSchema = z.array(partSchema);
 
-type MessageRow = { id: string; role: 'USER' | 'ASSISTANT'; parts: unknown; createdAt: Date };
+type MessageRow = {
+  id: string;
+  role: 'USER' | 'ASSISTANT';
+  origin: MessageOrigin | null;
+  parts: unknown;
+  createdAt: Date;
+};
 
 const toSummary = (c: { id: string; title: string; lastMessageAt: Date }): ConversationSummary => ({
   id: c.id,
@@ -42,6 +49,8 @@ const toSummary = (c: { id: string; title: string; lastMessageAt: Date }): Conve
 const toMessageView = (m: MessageRow): ConversationMessageView => ({
   id: m.id,
   role: m.role === 'USER' ? 'user' : 'assistant',
+  // ai-chat-v2 (data-model.md): a USER row with no origin (written before the backfill) was typed.
+  origin: m.role === 'USER' ? (m.origin ?? 'TYPED') : null,
   parts: partsSchema.parse(m.parts),
   createdAt: m.createdAt.toISOString(),
 });
@@ -117,7 +126,7 @@ export async function getConversation(
         lastMessageAt: true,
         messages: {
           orderBy: { position: 'asc' },
-          select: { id: true, role: true, parts: true, createdAt: true },
+          select: { id: true, role: true, origin: true, parts: true, createdAt: true },
         },
       },
     });
@@ -189,7 +198,7 @@ export async function loadHistory(
       where: { conversationId },
       orderBy: { position: 'desc' },
       take: HISTORY_LIMIT,
-      select: { id: true, role: true, parts: true, createdAt: true },
+      select: { id: true, role: true, origin: true, parts: true, createdAt: true },
     });
     return ok(rows.reverse().map(toMessageView));
   } catch (error) {

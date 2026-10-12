@@ -9,6 +9,7 @@
 import type { InvoiceStatus } from '@prisma/client';
 
 import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
+import type { LinkedInvoiceState } from '@/types/assistant/types';
 
 export type ActionErrorCode =
   | 'UNAUTHORIZED'
@@ -55,7 +56,17 @@ export type ActionErrorDetails =
       kind: 'AMBIGUOUS_REFERENCE';
       reference: 'invoice' | 'customer' | 'senderProfile';
       candidates: AmbiguousCandidate[];
-    };
+    }
+  /**
+   * ai-chat-v2 (AC-12b, AC-13): a pressed option is not one of the latest reply's open Offered choices - outdated,
+   * another Freelancer's, or never offered. One outcome and one sentence for all (CHOICE_UNAVAILABLE_MESSAGE).
+   */
+  | { kind: 'CHOICE_UNAVAILABLE' }
+  /** ai-chat-v2 (AC-26): issueFromPreview found the draft already issued; the panel and card show this state. */
+  | { kind: 'ALREADY_ISSUED'; invoice: LinkedInvoiceState };
+
+/** ai-chat-v2 (AC-12b; openapi sendChatMessage 409): the same words whatever made the option unavailable. */
+export const CHOICE_UNAVAILABLE_MESSAGE = 'This option is no longer available. Choose again or type your request.';
 
 export type AmbiguousCandidate = {
   id: string;

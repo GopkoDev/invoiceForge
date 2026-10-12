@@ -65,12 +65,14 @@ const MESSAGES: ConversationMessageView[] = [
   {
     id: 'm1',
     role: 'user',
+    origin: 'TYPED',
     parts: [{ type: 'text', text: 'Who owes me money right now?' }],
     createdAt: '2026-10-10T09:00:00.000Z',
   },
   {
     id: 'm2',
     role: 'assistant',
+    origin: null,
     parts: [
       { type: 'text', text: 'Two Customers owe you money.\nSee https://evil.example/pay now.' },
       { type: 'data-link', data: { kind: 'invoice', invoiceId: 'inv42', label: 'INV-0042' } },
@@ -83,12 +85,14 @@ const MESSAGES: ConversationMessageView[] = [
   {
     id: 'm3',
     role: 'user',
+    origin: 'TYPED',
     parts: [{ type: 'text', text: 'make a draft for Acme GmbH' }],
     createdAt: '2026-10-10T09:01:00.000Z',
   },
   {
     id: 'm4',
     role: 'assistant',
+    origin: null,
     parts: [
       { type: 'text', text: 'Here is the draft for Acme GmbH.' },
       { type: 'data-draft-card', id: 'p1', data: { cardId: 'card1' } },
@@ -154,6 +158,7 @@ describe('MessageList - SCR-02 default', () => {
       {
         id: 'x',
         role: 'assistant',
+        origin: null,
         parts: [{ type: 'text', text: '**bold** <b>html</b> [x](https://evil.example)' }],
         createdAt: '2026-10-10T09:00:00.000Z',
       },

@@ -57,7 +57,11 @@ export function MessageList({
                     </div>
                   );
                 }
-                return <div key={i}>{renderCard?.(part.data.cardId)}</div>;
+                if (part.type === 'data-draft-card') {
+                  return <div key={i}>{renderCard?.(part.data.cardId)}</div>;
+                }
+                // ai-chat-v2: data-offer parts are rendered by the Offered choices UI (T22).
+                return null;
               })}
             </div>
           </div>

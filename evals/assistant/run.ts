@@ -219,6 +219,7 @@ function toView(
   return {
     id: `eval-history-${index}`,
     role: turn.role,
+    origin: turn.role === 'user' ? 'TYPED' : null,
     parts: [{ type: 'text', text: turn.text }],
     createdAt: new Date().toISOString(),
   };

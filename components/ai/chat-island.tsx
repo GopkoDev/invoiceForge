@@ -119,6 +119,8 @@ function toView(message: ChatMessage): ConversationMessageView {
   return {
     id: message.id,
     role: message.role === 'user' ? 'user' : 'assistant',
+    // The server sets the stored origin; on the client a Freelancer message is shown as typed (T22 adds presses).
+    origin: message.role === 'user' ? 'TYPED' : null,
     parts,
     createdAt: '',
   };

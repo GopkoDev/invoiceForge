@@ -154,12 +154,14 @@ function island(over: Partial<Parameters<typeof ChatIsland>[0]> = {}) {
         {
           id: 'm1',
           role: 'user',
+          origin: 'TYPED',
           parts: [{ type: 'text', text: 'Who owes me money?' }],
           createdAt: '2026-10-12T10:00:00.000Z',
         },
         {
           id: 'm2',
           role: 'assistant',
+          origin: null,
           parts: [{ type: 'text', text: 'Acme owes you 100.' }],
           createdAt: '2026-10-12T10:00:01.000Z',
         },
@@ -551,6 +553,7 @@ describe('T33 page wiring', () => {
           {
             id: 'm1',
             role: 'user',
+            origin: 'TYPED',
             parts: [{ type: 'text', text: 'Who owes me money?' }],
             createdAt: '2026-10-12T10:00:00.000Z',
           },
@@ -753,6 +756,7 @@ describe('T39 R-23 - scroll to the newest message', () => {
     const many = Array.from({ length: 40 }, (_, i) => ({
       id: `h${i}`,
       role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant',
+      origin: (i % 2 ? null : 'TYPED') as 'TYPED' | null,
       parts: [{ type: 'text' as const, text: `history ${i}` }],
       createdAt: '2026-10-12T10:00:00.000Z',
     }));
