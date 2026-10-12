@@ -13,6 +13,7 @@ import { startTestDatabase, type TestDatabase } from '../../../support/db/contai
 import { createTestPrismaClient } from '../../../support/db/client';
 import { truncateAllTables } from '../../../support/db/truncate';
 import { createFreelancer } from '../../../support/factories/user';
+import { createProduct } from '../../../support/factories/product';
 import { createCustomer } from '../../../support/factories/customer';
 import { createSenderProfile } from '../../../support/factories/sender-profile';
 import { createBankAccount } from '../../../support/factories/bank-account';
@@ -270,6 +271,68 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
       expect(marks).toHaveLength(1);
       expect(marks[0]).toMatchObject({ personalKeyId: s.key.id, repeatKey: 'r5', invoiceId: first.data.invoiceId });
       expect(marks[0].fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    // review-2026-10-12 R-12 (AC-32): a repeat is answered from the stored invoice, never by re-resolving.
+    it('R-12: a repeat after a second matching Customer appeared still points to the first draft, not CONFLICT', async () => {
+      const s = await setup();
+      const first = await svc.createDraftForKey(s.actor, s.key, { ...REQUEST, repeatKey: 'r10' }, NOW);
+      if (!first.success) throw new Error('first create failed');
+      await createCustomer(prisma, s.user.id, { name: 'Acme Ltd', email: 'ltd@example.com' });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, { ...REQUEST, repeatKey: 'r10' }, new Date(NOW.getTime() + HOUR));
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({ invoiceId: first.data.invoiceId, repeated: true });
+      expect(await prisma.invoice.count()).toBe(1);
+    });
+
+    it('R-12: a repeat after the named product was removed still points to the first draft', async () => {
+      const s = await setup();
+      const product = await createProduct(prisma, s.user.id, { name: 'Widget', price: 30, currency: 'USD' });
+      const request = { customer: 'Acme', lines: [{ description: 'Widget', quantity: '2' }], repeatKey: 'r11' };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      await prisma.product.update({ where: { id: product.id }, data: { isActive: false, name: 'Renamed' } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, new Date(NOW.getTime() + HOUR));
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({ invoiceId: first.data.invoiceId, repeated: true });
+    });
+
+    it('R-12: the repeat answer shows the stored invoice rows, not today\'s product price', async () => {
+      const s = await setup();
+      const product = await createProduct(prisma, s.user.id, { name: 'Widget', price: 30, currency: 'USD' });
+      const request = { customer: 'Acme', lines: [{ description: 'Widget', quantity: '2' }], repeatKey: 'r12' };
+      const first = await svc.createDraftForKey(s.actor, s.key, request, NOW);
+      if (!first.success) throw new Error('first create failed');
+      await prisma.product.update({ where: { id: product.id }, data: { price: 99 } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, new Date(NOW.getTime() + HOUR));
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data.draft.lines).toHaveLength(1);
+      expect(Number(again.data.draft.lines[0].rate)).toBe(30);
+      expect(Number(again.data.draft.lines[0].amount)).toBe(60);
+      expect(Number(again.data.draft.total)).toBe(60);
+      expect(again.data.draft.invoiceNumber).toBe(first.data.invoiceNumber);
+    });
+
+    it('R-12: the repeat answer carries the invoice\'s current status, not a hard-coded DRAFT', async () => {
+      const s = await setup();
+      const first = await svc.createDraftForKey(s.actor, s.key, { ...REQUEST, repeatKey: 'r13' }, NOW);
+      if (!first.success) throw new Error('first create failed');
+      await prisma.invoice.update({ where: { id: first.data.invoiceId }, data: { status: 'PENDING' } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, { ...REQUEST, repeatKey: 'r13' }, new Date(NOW.getTime() + HOUR));
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({ invoiceId: first.data.invoiceId, status: 'PENDING', repeated: true });
     });
 
     it('the same mark with different content is CONFLICT and nothing is created', async () => {

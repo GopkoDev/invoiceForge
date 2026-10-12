@@ -2,11 +2,12 @@
 // Personal key creates a Draft invoice. Order: permission, repeat mark, resolver, then one transaction
 // (key slot, invoice, repeat row). The Assistant never issues, sends, edits or deletes.
 import 'server-only';
+import type { BankAccount, Invoice, InvoiceItem, InvoiceStatus } from '@prisma/client';
 import { prisma } from '@/prisma';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed, isUniqueConstraintError } from '@/lib/services/_shared/result-helpers';
-import { todayInZone } from '@/lib/helpers/calendar-day';
+import { todayInZone, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { createInvoice } from '@/lib/services/invoices/invoices';
 import { takeKeyDraftSlot } from '@/lib/services/assistant-usage/key-drafts';
 import { fingerprintRequest } from '@/lib/services/assistant-drafts/fingerprint';
@@ -17,7 +18,7 @@ import type { CreateDraftInvoiceInput, DraftProposal } from '@/lib/services/assi
 export type DraftCreatedAnswer = {
   invoiceId: string;
   invoiceNumber: string;
-  status: 'DRAFT';
+  status: InvoiceStatus;
   link: string;
   draft: DraftProposal;
   repeated: boolean;
@@ -33,6 +34,62 @@ class Refusal extends Error {
   constructor(readonly result: ActionResult<never>) {
     super('refused');
   }
+}
+
+type StoredInvoice = Invoice & { items: InvoiceItem[]; bankAccount: BankAccount };
+
+const money = (value: { toFixed(digits: number): string }) => value.toFixed(2);
+const requested = (value: string | null | undefined) =>
+  value ? { value, source: 'REQUEST' as const } : undefined;
+const requestedAmount = (value: { toFixed(digits: number): string; isZero(): boolean }) =>
+  value.isZero() ? undefined : { value: money(value), source: 'REQUEST' as const };
+
+/** The proposal as stored on the invoice: the snapshot rows, amounts and status, not a new resolution. */
+function proposalFromStored(invoice: StoredInvoice): DraftProposal {
+  return {
+    customer: {
+      customerId: invoice.customerId,
+      name: { freelancerText: invoice.customerName },
+      source: 'REQUEST',
+    },
+    senderProfile: {
+      senderProfileId: invoice.senderProfileId,
+      name: { freelancerText: invoice.senderName },
+      source: 'REQUEST',
+    },
+    bankAccount: {
+      bankAccountId: invoice.bankAccountId,
+      label: `${invoice.bankName} ••${invoice.bankAccountNumber.slice(-4)}`,
+      currency: invoice.bankAccount.currency,
+      source: 'REQUEST',
+    },
+    currency: invoice.currency,
+    issueDate: { value: utcDateToDay(invoice.issueDate), source: 'REQUEST' },
+    dueDate: { value: utcDateToDay(invoice.dueDate), source: 'REQUEST' },
+    lines: invoice.items.map((item) => ({
+      name: item.name,
+      productId: item.productId,
+      quantity: money(item.quantity),
+      unit: item.unit,
+      rate: money(item.rate),
+      amount: money(item.amount),
+      quantitySource: 'REQUEST' as const,
+      unitSource: 'REQUEST' as const,
+      rateSource: 'REQUEST' as const,
+    })),
+    subtotal: money(invoice.subtotal),
+    taxRate: requestedAmount(invoice.taxRate),
+    taxAmount: invoice.taxRate.isZero() ? undefined : money(invoice.taxAmount),
+    discount: requestedAmount(invoice.discount),
+    shipping: requestedAmount(invoice.shipping),
+    total: money(invoice.total),
+    poNumber: requested(invoice.poNumber),
+    paymentTerms: requested(invoice.paymentTerms),
+    notes: requested(invoice.notes),
+    terms: requested(invoice.terms),
+    invoiceNumber: invoice.invoiceNumber,
+    defaultsUsed: [],
+  };
 }
 
 const linkTo = (invoiceId: string) =>
@@ -60,19 +117,17 @@ export async function createDraftForKey(
       const invoice = mark.invoiceId
         ? await prisma.invoice.findFirst({
             where: { id: mark.invoiceId, customer: { userId: actor.userId } },
-            select: { id: true, invoiceNumber: true },
+            include: { items: { orderBy: { createdAt: 'asc' } }, bankAccount: true },
           })
         : null;
       if (!invoice) return fail('NOT_FOUND', GONE_MESSAGE);
-      const resolved = await resolveDraftRequest(actor, request, today);
-      if (!resolved.success) return resolved;
-      if (resolved.data.kind === 'ISSUES') return fail('CONFLICT', CHANGED_MESSAGE);
+      // review-2026-10-12 R-12: a repeat reports what was stored, never a fresh resolution of today's data.
       return ok({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        status: 'DRAFT',
+        status: invoice.status,
         link: linkTo(invoice.id),
-        draft: { ...resolved.data.proposal, invoiceNumber: invoice.invoiceNumber },
+        draft: proposalFromStored(invoice),
         repeated: true,
       });
     };

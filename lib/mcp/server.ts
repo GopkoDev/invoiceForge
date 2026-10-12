@@ -10,7 +10,7 @@ import {
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import type { z } from 'zod';
 import type { McpServerContext } from '@/lib/mcp/context';
-import type { ActionResult } from '@/types/result';
+import { fail, type ActionResult } from '@/types/result';
 import { createDraftHandler, createDraftTool } from '@/lib/mcp/draft-tool';
 import {
   recordPersonalKeyUsage,
@@ -69,6 +69,8 @@ interface RegisteredTool {
   };
   annotations: ToolAnnotations;
   handler: (args: never, context: McpServerContext) => Promise<ActionResult<Record<string, unknown>>>;
+  /** The writing tool: a key without Draft permission is refused before its arguments are read. */
+  requiresDraftPermission?: boolean;
 }
 
 const registries = new WeakMap<Server, { context: McpServerContext; tools: Map<string, RegisteredTool> }>();
@@ -127,6 +129,13 @@ async function runTool(
   rawArgs: unknown,
   context: McpServerContext
 ): Promise<{ result: CallToolResult; outcome: PersonalKeyUsageOutcome }> {
+  // AC-29 / ADR-0011: a read-only key gets the can-only-read refusal before its arguments are validated.
+  if (tool.requiresDraftPermission && !context.key.canCreateDrafts) {
+    return {
+      result: toolErrorResult(toToolError(fail('FORBIDDEN', 'This key can only read.'))),
+      outcome: 'assistant_error',
+    };
+  }
   const parsed = tool.definition.inputSchema.safeParse(rawArgs ?? {});
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
@@ -207,5 +216,6 @@ export function registerDraftTool(
     definition,
     annotations: definition.annotations,
     handler: handler as RegisteredTool['handler'],
+    requiresDraftPermission: true,
   });
 }

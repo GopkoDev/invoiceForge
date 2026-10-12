@@ -1,5 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
+import { InvoiceStatus } from '@prisma/client';
 import { createDraftForKey } from '@/lib/services/assistant-drafts/create-for-key';
 import {
   createDraftInvoiceInputSchema,
@@ -13,7 +14,7 @@ import type { McpServerContext } from '@/lib/mcp/context';
 const output = z.object({
   invoiceId: z.string(),
   invoiceNumber: z.string(),
-  status: z.literal('DRAFT'),
+  status: z.nativeEnum(InvoiceStatus),
   link: z.string().describe("The invoice's editor in Invoice Forge, for the Freelancer to review."),
   draft: draftProposalSchema,
   repeated: z.boolean().describe('True when the repeatKey matched an earlier call and its draft is returned.'),

@@ -189,3 +189,7 @@ Result: 0 core ✗, 3 supporting notes (≥ 3 flags). The run paused on them, an
 - 3 "unused" schemas referenced only from the `x-mcp-tools` and `x-chunk-schema` extensions, as in the mcp-server contract.
 
 The `$ref`s into `../../mcp-server/contracts/openapi.yaml` resolve. The repo has no lint target for contracts yet. Suggested: `pnpm dlx @redocly/cli lint docs/features/*/contracts/openapi.yaml`.
+
+## F. Review 2026-10-12 sync (T37, R-12)
+
+`DraftCreatedAnswer.status` widened from `const DRAFT` to the invoice status enum (`DRAFT | PENDING | PAID | OVERDUE | CANCELLED`): a repeat within 24 h is answered from the stored invoice (rows, amounts, current status), so the invoice may have left DRAFT. A first call still answers `DRAFT`. `lib/mcp/draft-tool.ts` output schema matches. No other contract change; R-13 (permission refusal before argument validation) matches the existing ADR-0011 behaviour.

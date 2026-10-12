@@ -737,10 +737,10 @@ components:
       properties:
         invoiceId: { $ref: "#/components/schemas/RecordId" }
         invoiceNumber: { type: string }
-        status: { const: DRAFT }
+        status: { type: string, enum: [DRAFT, PENDING, PAID, OVERDUE, CANCELLED], description: "The invoice's current status: DRAFT on a first call; a repeat reports the stored invoice as it is now (R-12)." }
         link: { type: string, format: uri, description: "The editor URL /invoices/{id}/edit (mcp-server D-7)." }
         draft: { $ref: "#/components/schemas/DraftProposal" }
-        repeated: { type: boolean, description: "true when a repeat within 24 h returned the first draft; nothing new was created." }
+        repeated: { type: boolean, description: "true when a repeat within 24 h returned the first draft, answered from the stored invoice (its rows and current status), not a fresh resolution; nothing new was created." }
       example:
         invoiceId: "clx0inv00000000000000001"
         invoiceNumber: "INV-2026-0042"

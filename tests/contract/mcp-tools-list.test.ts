@@ -290,6 +290,24 @@ describe('create_draft_invoice (T26; AC-17, AC-29; contract x-mcp-tools)', () =>
     expect(recordUsage).toHaveBeenCalledWith('k1', 'success', expect.any(Date));
   });
 
+  // review-2026-10-12 R-13 (AC-29, ADR-0011): permission is checked before the arguments are validated.
+  it('AC-29: a read-only key sending invalid arguments gets the can-only-read refusal, not VALIDATION', async () => {
+    createDraftForKey.mockResolvedValue({
+      success: false,
+      code: 'FORBIDDEN',
+      error: 'This key can only read. Create a key with Draft permission to draft invoices.',
+    });
+    const client = await connect(async () => ok({ value: 1 }), { canCreateDrafts: false });
+    const result = await client.callTool({ name: 'create_draft_invoice', arguments: { customer: 'Acme', lines: [] } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({
+      code: 'FORBIDDEN',
+      message:
+        'This key can only read. To create drafts, the Freelancer can create a new key with Draft permission on the Connect your AI page.',
+    });
+    expect(recordUsage).toHaveBeenCalledWith('k1', 'assistant_error', expect.any(Date));
+  });
+
   it('refuses arguments failing the schema before the service runs', async () => {
     const client = await connect(async () => ok({ value: 1 }), { canCreateDrafts: true });
     const result = await client.callTool({ name: 'create_draft_invoice', arguments: { customer: 'Acme', lines: [] } });
