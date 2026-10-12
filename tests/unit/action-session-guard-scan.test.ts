@@ -14,7 +14,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const SOURCE_FILE = /\.(tsx?|jsx?|mjs)$/;
 // Never source the app ships: dependencies, build output, VCS and tool state (.claude holds other
 // worktrees' checkouts), at any depth...
-const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude']);
+const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude', '.mastra']);
 // ...and the repo-root folders of docs, tests and test/report output.
 const SKIP_AT_ROOT = new Set([
   'docs',
