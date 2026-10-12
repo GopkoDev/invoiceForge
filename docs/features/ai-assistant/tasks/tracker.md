@@ -47,7 +47,7 @@
 | T40 | [Fix the AI section layout and reuse: list column on /ai/{id}, phone order, subtitles, ContentArea, dialog close, link styles](./t40-ai-layout-and-reuse-fixes.md) | ui | Dmytro Hopko | M | T18, T22, T23, T30 | done |
 | T41 | [Add the missing test-plan e2e flows (AC-25, AC-34, AC-35) and the SCR-01 / SCR-03 visual baselines](./t41-e2e-missing-flows.md) | tests | Dmytro Hopko | M | T35, T39, T40 | done |
 | T42 | [Answer an MCP repeat with the first answer's stored proposal and the invoice's current status](./t42-mcp-repeat-stored-proposal.md) | ports | Dmytro Hopko | M | T37 | done |
-| T43 | [Make the drafting-intent gate robust: default a missing intent to read, prove isolation with drafting on, test agent-phase SYSTEM faults, evaluate intent](./t43-intent-gate-robustness.md) | app | Dmytro Hopko | M | T38 | todo |
+| T43 | [Make the drafting-intent gate robust: default a missing intent to read, prove isolation with drafting on, test agent-phase SYSTEM faults, evaluate intent](./t43-intent-gate-robustness.md) | app | Dmytro Hopko | M | T38 | done |
 | T44 | [Align the AI workspace with SCR-01/SCR-02: list row after save, conversation-only below lg, keyboard order, delete-all count, design-system rows](./t44-ai-workspace-alignment.md) | ui | Dmytro Hopko | M | T40 | todo |
 
 **Total:** 44 tasks, ~30.5 person-days (S = ½ day, M = 1 day).

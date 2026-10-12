@@ -9,7 +9,7 @@ files_hint: ["lib/ai/router.ts", "lib/ai/run-turn.ts", "tests/support/ai-stub-mo
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12 round 2"
 ---
 
