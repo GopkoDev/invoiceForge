@@ -178,7 +178,13 @@ export function ChatIsland({
       }
       if (sent) setFailure({ kind: 'COULD_NOT_COMPLETE', userMessageId: sent.id, text: sent.text });
     },
-    onFinish: () => router.refresh(),
+    onFinish: () => {
+      router.refresh();
+      // The island was mounted by /ai (no cards, no link states) and only the address was swapped, so
+      // a refresh alone keeps serving that page. Open the saved Conversation to bring them in.
+      const savedId = live.getConversationId();
+      if (conversationId === null && savedId) router.replace(`/ai/${savedId}`);
+    },
   });
 
   const inFlight = status === 'submitted' || status === 'streaming';

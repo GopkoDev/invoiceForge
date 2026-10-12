@@ -30,6 +30,6 @@ export const chatAgent = new Agent({
   id: 'chat-agent',
   name: 'Chat Assistant',
   instructions: CHAT_INSTRUCTIONS,
-  model: () => getChatModel(),
+  model: async () => getChatModel(),
   tools: ({ requestContext }) => createChatTools(requestContext.get(TURN_CONTEXT_KEY) as TurnContext),
 });

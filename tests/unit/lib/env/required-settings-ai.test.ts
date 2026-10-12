@@ -64,15 +64,41 @@ describe('getChatModel', () => {
   it('defaults to a Gemini Flash-Lite model when AI_CHAT_MODEL is unset', async () => {
     delete process.env.AI_CHAT_MODEL;
     const { getChatModel } = await import('@/lib/ai/model');
-    const model = getChatModel() as { modelId: string };
+    const model = (await getChatModel()) as { modelId: string };
     expect(model.modelId).toMatch(/gemini.*flash-lite/i);
   });
 
   it('resolves the model id from AI_CHAT_MODEL when set', async () => {
     process.env.AI_CHAT_MODEL = 'google/gemini-2.5-flash';
     const { getChatModel } = await import('@/lib/ai/model');
-    const model = getChatModel() as { modelId: string };
+    const model = (await getChatModel()) as { modelId: string };
     expect(model.modelId).toBe('google/gemini-2.5-flash');
+  });
+
+  it('ignores the e2e stub id without E2E=1', async () => {
+    delete process.env.E2E;
+    process.env.AI_CHAT_MODEL = 'stub:e2e';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.modelId).toBe('stub:e2e');
+    expect(model.provider).toMatch(/gateway/i);
+  });
+
+  it('ignores E2E=1 when the model id is not the stub id', async () => {
+    process.env.E2E = '1';
+    process.env.AI_CHAT_MODEL = 'google/gemini-2.5-flash';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.modelId).toBe('google/gemini-2.5-flash');
+    expect(model.provider).toMatch(/gateway/i);
+  });
+
+  it('selects the scripted stub only with E2E=1 and AI_CHAT_MODEL=stub:e2e', async () => {
+    process.env.E2E = '1';
+    process.env.AI_CHAT_MODEL = 'stub:e2e';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.provider).not.toMatch(/gateway/i);
   });
 });
 

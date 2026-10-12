@@ -36,7 +36,7 @@ export async function classifyMessage({
   recentTurns: RouterTurn[];
 }): Promise<RouterVerdict> {
   const { output } = await generateText({
-    model: getChatModel(),
+    model: await getChatModel(),
     system: SYSTEM,
     messages: [...recentTurns, { role: 'user' as const, content: message }],
     output: Output.object({ schema: verdictSchema }),

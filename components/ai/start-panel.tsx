@@ -45,7 +45,9 @@ export function StartPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isDraft ? 'Draft an invoice' : 'Ask about your invoices'}</CardTitle>
+        <CardTitle role="heading" aria-level={2}>
+          {isDraft ? 'Draft an invoice' : 'Ask about your invoices'}
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {state.left === 0 ? (
