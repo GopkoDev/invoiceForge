@@ -135,7 +135,8 @@ test('AC-35: a past Conversation reopens from the list and continues in the same
     // Leave, then reopen from the Conversations list.
     await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
     const id = conversationUrl.split('/ai/')[1];
-    const rows = page.locator(`a[href="/ai/${id}"]`);
+    // T44: the list renders in two slots; only the one shown at this breakpoint counts.
+    const rows = page.locator(`a[href="/ai/${id}"]:visible`);
     await expect(rows).toHaveCount(1);
     await rows.click();
     await expect(page).toHaveURL(conversationUrl);
@@ -156,7 +157,7 @@ test('AC-35: a past Conversation reopens from the list and continues in the same
     await expect(sent.filter({ hasText: SECOND })).toHaveCount(1);
     await expect(replies).toHaveCount(2);
     await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
-    await expect(page.locator('a[href^="/ai/"]:not([href="/ai/"])')).toHaveCount(1);
+    await expect(page.locator('a[href^="/ai/"]:not([href="/ai/"]):visible')).toHaveCount(1);
   } finally {
     await f.context.close();
   }

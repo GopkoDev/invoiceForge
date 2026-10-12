@@ -187,8 +187,9 @@ describe('AI page (SCR-01 reads)', () => {
     const ui = await AiPage({ searchParams: Promise.resolve({ page: '2' }) });
     expect(listConversations).toHaveBeenCalledWith({ userId: 'u1', timeZone: 'UTC' }, 2);
     render(ui);
-    expect(screen.getByText('Who owes me money?')).toBeInTheDocument();
-    expect(screen.getByText(RETENTION)).toBeInTheDocument();
+    // T44: the list renders in two slots (lg and phone), so each text appears once per slot.
+    expect(screen.getAllByText('Who owes me money?').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(RETENTION).length).toBeGreaterThanOrEqual(1);
   });
 
   it('routes a FAILED read to the segment error boundary by throwing (not an empty list)', async () => {

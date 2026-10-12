@@ -205,7 +205,10 @@ describe('AI page wiring', () => {
     });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText("You've used today's 30 messages")).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Who owes me money\?/ })).toHaveAttribute('href', '/ai/c1');
+    // T44: the list renders in two slots (lg and phone); every copy must link to the Conversation.
+    const rows = screen.getAllByRole('link', { name: /Who owes me money\?/ });
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    rows.forEach((row) => expect(row).toHaveAttribute('href', '/ai/c1'));
     expect(screen.queryByRole('link', { name: 'Create it by hand →' })).not.toBeInTheDocument();
   });
 

@@ -112,10 +112,13 @@ describe('R-21: below lg the start panel comes first, then "Recent conversations
   it('orders the panel before the list in the DOM and gives the list lg ordering', async () => {
     listConversations.mockResolvedValue({ success: true, data: page(['Draft for Acme']) });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
+    // T44 N-7: the list is rendered in two slots (lg before the chat, phones after it), so DOM order
+    // matches visual order; lg:order-first reordering is gone.
     const panel = screen.getByRole('heading', { name: 'Ask about your invoices' });
-    const heading = screen.getByRole('heading', { name: 'Recent conversations' });
-    expect(panel.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(heading.closest('[class*="lg:order-first"]')).not.toBeNull();
+    const headings = screen.getAllByRole('heading', { name: 'Recent conversations' });
+    const phoneHeading = headings[headings.length - 1];
+    expect(panel.compareDocumentPosition(phoneHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector('[class*="lg:order-first"]')).toBeNull();
   });
 });
 
@@ -215,8 +218,11 @@ describe('R-28: shared link style and route', () => {
   });
 });
 
-describe('R-20: the new title heads the list while the first message streams (SCR-01 sending first message)', () => {
-  it('shows the Conversation in the list as soon as data-conversation arrives, before the reply finishes', async () => {
+// T44 N-2: aligned to the contract order (ConversationPart: data-conversation arrives after the turn is
+// saved, right before data-outcome) - the route never sends it first. This aligns the test to the contract,
+// it does not weaken it: the row must be absent until data-conversation, then head the list.
+describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 sending first message)', () => {
+  it('has no row while the reply streams, and heads the list when data-conversation arrives', async () => {
     const enc = new TextEncoder();
     let ctrl!: ReadableStreamDefaultController<Uint8Array>;
     const body = new ReadableStream<Uint8Array>({
@@ -242,20 +248,29 @@ describe('R-20: the new title heads the list while the first message streams (SC
       await user.click(screen.getByRole('button', { name: 'Send' }));
 
       await act(async () => {
-        push({
-          type: 'data-conversation',
-          data: { conversationId: 'cNew', title: 'Who owes me money right now?' },
-        });
         push({ type: 'start', messageId: 'msg1' });
         push({ type: 'text-start', id: 't1' });
         push({ type: 'text-delta', id: 't1', delta: 'Nobody yet.' });
       });
+      await screen.findByText('Nobody yet.');
+      // Streaming, turn not saved yet: no row for the new Conversation.
+      expect(screen.queryByRole('link', { name: /Who owes me money right now\?/ })).toBeNull();
 
-      // The reply is still streaming (no finish yet), so no refresh can have supplied the row.
-      const older = await screen.findByRole('link', { name: /Older chat/ });
-      const fresh = await screen.findByRole('link', { name: /Who owes me money right now\?/ });
-      expect(fresh.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(fresh).toHaveAttribute('href', '/ai/cNew');
+      await act(async () => {
+        push({
+          type: 'data-conversation',
+          data: { conversationId: 'cNew', title: 'Who owes me money right now?' },
+        });
+        push({ type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } });
+      });
+
+      const fresh = await screen.findAllByRole('link', { name: /Who owes me money right now\?/ });
+      const older = screen.getAllByRole('link', { name: /Older chat/ });
+      expect(fresh.length).toBe(older.length);
+      fresh.forEach((row, i) => {
+        expect(row).toHaveAttribute('href', '/ai/cNew');
+        expect(row.compareDocumentPosition(older[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      });
     } finally {
       vi.unstubAllGlobals();
     }

@@ -21,7 +21,7 @@ export default async function AiPage({ searchParams }: AiPageProps) {
   const allowance = unwrapPageResult(await getAllowanceState(actor));
 
   return (
-    <AiWorkspace conversations={conversations} timeZone={actor.timeZone}>
+    <AiWorkspace conversations={conversations} timeZone={actor.timeZone} phoneList>
       <ChatIsland
         conversationId={null}
         initialMessages={[]}

@@ -35,7 +35,7 @@ export function ConversationListClient(props: {
       conversations={listed}
       onDelete={(target) =>
         target.kind === 'all'
-          ? deleteAll(props.conversations.total)
+          ? deleteAll(listed.total)
           : deleteOne(target.id, target.title)
       }
     />
