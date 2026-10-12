@@ -21,6 +21,7 @@ vi.mock('next/navigation', () => ({
 const deleteConversationMock = vi.fn();
 vi.mock('@/lib/actions/assistant-actions', () => ({
   createDraftFromCard: vi.fn(),
+  loadConversationCards: async () => ({ success: true, data: { cards: {}, invoiceLinks: {} } }),
   deleteConversation: (...a: unknown[]) => deleteConversationMock(...a),
   deleteAllConversations: vi.fn(),
 }));
