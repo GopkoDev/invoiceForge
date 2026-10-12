@@ -3,7 +3,7 @@ slug: ai-assistant
 date: 2026-10-12
 triage: regression
 acs: [AC-20, AC-21, AC-16]
-commit: pending
+commit: ff78924, eed7410
 recurrence_of: none
 ---
 

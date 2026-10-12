@@ -3,7 +3,7 @@ slug: ai-assistant
 date: 2026-10-12
 triage: no-spec
 acs: []
-commit: pending
+commit: d496c54
 recurrence_of: none
 ---
 

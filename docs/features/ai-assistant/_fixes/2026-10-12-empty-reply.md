@@ -3,7 +3,7 @@ slug: ai-assistant
 date: 2026-10-12
 triage: gap
 acs: [AC-19, AC-11]
-commit: pending
+commit: 541c065
 recurrence_of: _fixes/2026-10-12-bank-account-currency.md
 ---
 
