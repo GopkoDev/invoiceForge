@@ -1,6 +1,7 @@
 import { Mastra } from '@mastra/core/mastra';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { PostgresStore } from '@mastra/pg';
+import { chatAgent } from '@/lib/ai/agent';
 import { metadataOnlyProcessor } from '@/lib/ai/observability/metadata-only-processor';
 
 // Mastra storage lives in its own `mastra` schema, outside Prisma (sad.md §7, §11).
@@ -26,5 +27,6 @@ export const mastra = new Mastra({
     schemaName: MASTRA_SCHEMA,
     disableInit: true,
   }),
+  agents: { chatAgent },
   observability,
 });

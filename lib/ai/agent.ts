@@ -1,0 +1,35 @@
+import { Agent } from '@mastra/core/agent';
+import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
+import { getChatModel } from '@/lib/ai/model';
+import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
+import { createProposeDraftTool } from '@/lib/ai/tools/propose-draft';
+import { createReadTools } from '@/lib/ai/tools/read-tools';
+import type { TurnContext } from '@/lib/ai/turn-context';
+
+/** The per-message work cap (spec §6): at most 8 agent steps. */
+export const MAX_STEPS = 8;
+
+/** Request-context key under which the route-bound turn travels to the agent's tools. */
+export const TURN_CONTEXT_KEY = 'turn';
+
+/**
+ * The tools of one turn in a fixed order (the read questions, find_in_app, propose_draft) so the
+ * prompt prefix is stable. No tool here can issue, send, edit or delete (AC-24).
+ */
+export function createChatTools(turn: TurnContext) {
+  return {
+    ...createReadTools(turn),
+    find_in_app: createFindInAppTool(),
+    propose_draft: createProposeDraftTool(turn),
+  };
+}
+
+// The model is resolved per call so the AI_CHAT_MODEL setting is read at run time. The tools close
+// over the acting Freelancer, so they are built per turn from the request context.
+export const chatAgent = new Agent({
+  id: 'chat-agent',
+  name: 'Chat Assistant',
+  instructions: CHAT_INSTRUCTIONS,
+  model: () => getChatModel(),
+  tools: ({ requestContext }) => createChatTools(requestContext.get(TURN_CONTEXT_KEY) as TurnContext),
+});

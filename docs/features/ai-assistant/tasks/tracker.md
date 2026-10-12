@@ -33,7 +33,7 @@
 | T26 | [Register create_draft_invoice through registerDraftTool for every key and map its results to the MCP tool answer](./t26-mcp-create-draft-tool.md) | ports | Dmytro Hopko | S | T02, T21 | done |
 | T27 | [Add the propose_draft tool that resolves the Freelancer's own words into a pending Draft card or into questions](./t27-propose-draft-tool.md) | app | Dmytro Hopko | M | T04, T20 | done |
 | T28 | [Build the DraftCard component in every SCR-03 state and wire Create to createDraftFromCard](./t28-draft-card-component.md) | ui | Dmytro Hopko | M | T20, T23 | done |
-| T29 | [Define the chat agent: instructions, tool set, 8-step cap, 40-message history and the turn runner the route calls](./t29-chat-agent.md) | app | Dmytro Hopko | M | T11, T12, T13, T27 | todo |
+| T29 | [Define the chat agent: instructions, tool set, 8-step cap, 40-message history and the turn runner the route calls](./t29-chat-agent.md) | app | Dmytro Hopko | M | T11, T12, T13, T27 | done |
 | T30 | [Mount the AI-section modal container and confirm deleting one or all Conversations from the list and the Conversation header](./t30-delete-conversations-dialog.md) | ui | Dmytro Hopko | S | T18, T23, T25 | todo |
 | T31 | [Serve POST /api/chat: validate, check the Conversation, reserve a slot, stream the turn, save it, release on failure](./t31-chat-route.md) | ports | Dmytro Hopko | M | T08, T25, T29 | todo |
 | T32 | [Add the labelled topic-boundary set and the no-guessing set as a Mastra evaluation run that blocks a failing change](./t32-evaluation-sets.md) | tests | Dmytro Hopko | M | T29 | todo |
