@@ -70,11 +70,11 @@ Spec: [`docs/features/ai-assistant/spec.md`](docs/features/ai-assistant/spec.md)
 - Data model + migrations: `docs/features/ai-assistant/data-model.md` (`prisma/migrations/20261010100000_create_conversation` … `20261010101000_add_mcp_draft_repeat_proposal`)
 - API: `docs/features/ai-assistant/contracts/openapi.yaml` (`POST /api/chat`, MCP `create_draft_invoice`) and `contracts/server-actions.md`
 - Test plan: `docs/features/ai-assistant/test-plan.md`
-- Review: `docs/features/ai-assistant/_review/review-2026-10-12.md` — **PASS** after five rounds
+- Review: `docs/features/ai-assistant/_review/review-2026-10-12.md` — **PASS** after six rounds (round 6 re-reviewed the security fixes, the ship docs and the bank-account fix)
 
 ## Tasks (SDD-Task trailers)
 
-All 46 tasks in `tasks.json`, T01 – T46, are committed with `SDD-Task` trailers in 52 commits (`git log --grep SDD-Task cfa67f0..HEAD`). They cover the data layer and migrations, the shared read-tool registry, the draft resolver, the allowance, Draft permission and the per-key cap, the chat agent, router and route, the UI, the evaluation sets, the e2e flows, and the fault, injection and isolation tests. Review fixes carry `SDD-Review` trailers (R-01 … R5-2), and the security fixes carry `SDD-Review: SEC-M-01` / `SEC-L-01`.
+All 46 tasks in `tasks.json`, T01 – T46, are committed with `SDD-Task` trailers in 52 commits (`git log --grep SDD-Task cfa67f0..HEAD`). They cover the data layer and migrations, the shared read-tool registry, the draft resolver, the allowance, Draft permission and the per-key cap, the chat agent, router and route, the UI, the evaluation sets, the e2e flows, and the fault, injection and isolation tests. Review fixes carry `SDD-Review` trailers (R-01 … R6-9), and the security fixes carry `SDD-Review: SEC-M-01` / `SEC-L-01`.
 
 ## Verification
 

@@ -47,7 +47,7 @@ The owner confirmed the patch on 2026-10-12.
 
 ## Review round 6 (same day)
 
-An independent re-review of `1339607..HEAD` requested changes. All of them are fixed in a follow-up commit, which carries the `SDD-Review: R6-n` trailers:
+An independent re-review of `1339607..HEAD` requested changes. All of them except R6-5 (an accepted residual, see Follow-ups) are fixed in a follow-up commit, which carries the `SDD-Review: R6-n` trailers:
 
 - **R6-1:** `BANK_ACCOUNT_CURRENCY_MISMATCH` now carries `senderProfileId`, and the chat adds the link to add a bank account.
 - **R6-2:** a later CARD in the same turn clears earlier issues, and no fallback words are written next to a card.
