@@ -31,7 +31,7 @@
 | T24 | [Add the Draft permission choice, the permission badges, the read-only explanation and the lift action to Connect your AI](./t24-connect-your-ai-draft-permission-ui.md) | ui | Dmytro Hopko | M | T17 | done |
 | T25 | [Save each turn under the Conversation row lock with its card and metadata, and delete one or all Conversations](./t25-conversation-writes-and-deletes.md) | app | Dmytro Hopko | M | T10, T20 | done |
 | T26 | [Register create_draft_invoice through registerDraftTool for every key and map its results to the MCP tool answer](./t26-mcp-create-draft-tool.md) | ports | Dmytro Hopko | S | T02, T21 | done |
-| T27 | [Add the propose_draft tool that resolves the Freelancer's own words into a pending Draft card or into questions](./t27-propose-draft-tool.md) | app | Dmytro Hopko | M | T04, T20 | todo |
+| T27 | [Add the propose_draft tool that resolves the Freelancer's own words into a pending Draft card or into questions](./t27-propose-draft-tool.md) | app | Dmytro Hopko | M | T04, T20 | done |
 | T28 | [Build the DraftCard component in every SCR-03 state and wire Create to createDraftFromCard](./t28-draft-card-component.md) | ui | Dmytro Hopko | M | T20, T23 | todo |
 | T29 | [Define the chat agent: instructions, tool set, 8-step cap, 40-message history and the turn runner the route calls](./t29-chat-agent.md) | app | Dmytro Hopko | M | T11, T12, T13, T27 | todo |
 | T30 | [Mount the AI-section modal container and confirm deleting one or all Conversations from the list and the Conversation header](./t30-delete-conversations-dialog.md) | ui | Dmytro Hopko | S | T18, T23, T25 | todo |
