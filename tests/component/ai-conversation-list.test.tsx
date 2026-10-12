@@ -86,6 +86,11 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+vi.mock('@/lib/actions/assistant-actions', () => ({
+  deleteConversation: vi.fn(),
+  deleteAllConversations: vi.fn(),
+}));
+
 describe('ConversationList - default (AC-35, AC-38)', () => {
   it('lists each conversation, in the given (newest first) order, with title, date and a link to it', () => {
     render(<ConversationList conversations={pageOf(THREE)} timeZone="UTC" onDelete={() => {}} />);

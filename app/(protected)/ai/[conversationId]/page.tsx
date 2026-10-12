@@ -17,7 +17,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
 
   return (
     <div className="flex flex-col gap-4">
-      <ConversationHeaderClient title={conversation.title} />
+      <ConversationHeaderClient conversationId={conversationId} title={conversation.title} />
       <MessageList
         messages={messages}
         invoiceLinks={invoiceLinks}

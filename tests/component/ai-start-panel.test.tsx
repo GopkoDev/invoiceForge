@@ -77,6 +77,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+vi.mock('@/lib/actions/assistant-actions', () => ({
+  deleteConversation: vi.fn(),
+  deleteAllConversations: vi.fn(),
+}));
+
 describe('StartPanel - default (AC-01)', () => {
   it('shows the heading, four examples, composer, Send, counter and the connect link', () => {
     render(<StartPanel state={state()} onSend={() => {}} />);
