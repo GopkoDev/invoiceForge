@@ -1,0 +1,4 @@
+{
+  "Draft request (router said draft)": { "draftIntent": true },
+  "Read question (router said read)": { "draftIntent": false }
+}

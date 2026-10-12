@@ -54,3 +54,6 @@ next-env.d.ts
 # vitepress docs site
 /docs/.vitepress/cache
 /docs/.vitepress/dist
+
+# Mastra Studio: local build output and the full-text trace store (mastra/index.ts)
+.mastra/
