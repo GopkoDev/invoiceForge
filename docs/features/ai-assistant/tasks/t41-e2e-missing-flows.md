@@ -9,7 +9,7 @@ files_hint: ["tests/e2e/ai-assistant.spec.ts", "tests/e2e/support/"]
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12"
 ---
 
