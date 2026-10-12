@@ -1060,6 +1060,27 @@
         "docs/features/ai-assistant/data-model.md"
       ],
       "file": "docs/features/ai-assistant/tasks/t45-round3-hardening.md"
+    },
+    {
+      "id": "T46",
+      "title": "Ground no-guessing eval values against the whole Freelancer conversation and match names the way the resolver does",
+      "layer": "tests",
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-14b",
+        "AC-16",
+        "AC-19"
+      ],
+      "dod": "findUngroundedValues grounds against item.text plus the user turns of item.history and matches the customer as the resolver does (written name contained in the stored name); unit tests cover the AC-19 follow-up, AC-14b follow-up and AC-12 single-turn cases (no false ungrounded values) and a genuinely invented value (still flagged).",
+      "files_hint": [
+        "evals/assistant/run.ts",
+        "evals/assistant/score.ts",
+        "tests/unit/evals/assistant-eval.test.ts"
+      ],
+      "file": "docs/features/ai-assistant/tasks/t46-eval-grounding.md"
     }
   ]
 }
