@@ -9,7 +9,7 @@ files_hint: ["prisma/schema/auth.prisma", "prisma/migrations/", "docs/features/a
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 origin: "review-2026-10-12 round 2"
 ---
 
