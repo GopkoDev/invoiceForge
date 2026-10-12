@@ -73,7 +73,10 @@ function linksFromToolResult(toolName: string, result: unknown): AppLink[] {
   if (toolName === 'find_in_app' && Array.isArray(answer.pages)) {
     for (const p of answer.pages) {
       const page = (p as { page?: unknown }).page;
-      if (typeof page === 'string') links.push({ kind: 'page', page } as AppLink);
+      // find_in_app knows no sender profile, and the bank-accounts page needs one: link the profiles list
+      // instead, where every profile's accounts are (fix 2026-10-12, AC-07).
+      if (page === 'sender-profile-bank-accounts') links.push({ kind: 'page', page: 'sender-profiles' });
+      else if (typeof page === 'string') links.push({ kind: 'page', page } as AppLink);
     }
   }
   return links;

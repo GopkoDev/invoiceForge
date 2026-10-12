@@ -18,9 +18,12 @@ const linkClass = buttonVariants({ variant: 'link' });
 // invoice's current state, never from model-written text (AC-07, AC-36).
 export function ChatLink({ link, state }: ChatLinkProps) {
   if (link.kind === 'page') {
-    const title = APP_MAP.find((e) => e.page === link.page)?.title ?? link.page;
+    // A bank-accounts link stored without its profile id (before fix 2026-10-12) opens the profiles list.
+    const page =
+      link.page === 'sender-profile-bank-accounts' && !link.senderProfileId ? 'sender-profiles' : link.page;
+    const title = APP_MAP.find((e) => e.page === page)?.title ?? page;
     return (
-      <Link href={appPageRoute(link.page, link.senderProfileId)} className={linkClass}>
+      <Link href={appPageRoute(page, link.senderProfileId)} className={linkClass}>
         {title} →
       </Link>
     );

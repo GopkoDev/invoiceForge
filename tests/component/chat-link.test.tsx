@@ -82,3 +82,12 @@ describe('ChatLink - page links from the app map (AC-07)', () => {
     expect(screen.getByRole('link', { name: 'New invoice →' })).toHaveAttribute('href', '/invoices/new');
   });
 });
+
+// fix 2026-10-12 (AC-07, AC-35): a link stored without the profile id, as find_in_app once produced, must
+// still render when the Conversation is reopened; it opens the sender profiles list instead of crashing.
+describe('ChatLink - a stored bank-accounts link without a sender profile id', () => {
+  it('links to the sender profiles page instead of throwing', () => {
+    render(<ChatLink link={{ kind: 'page', page: 'sender-profile-bank-accounts' }} />);
+    expect(screen.getByRole('link', { name: 'Sender profiles →' })).toHaveAttribute('href', appPageRoute('sender-profiles'));
+  });
+});
