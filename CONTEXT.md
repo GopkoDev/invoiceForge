@@ -1,6 +1,6 @@
 ---
 status: Living
-updated_at: "2026-10-11"
+updated_at: "2026-10-12"
 ---
 
 # Domain Context — Invoice Forge
@@ -35,6 +35,7 @@ lives in spec.md.
 - Invoice sequence — the per-sender-profile running count the system uses to propose the next invoice number; only system-assigned numbers advance it. NOT the invoice number itself (manual numbers do not move the sequence).
 - Issued details — the copy of the sender profile's, Customer's and bank account's details that an invoice keeps and prints; refreshed from the current records while the invoice is a draft and fixed from the moment it is issued. NOT the current sender profile, Customer or bank account (changing those never changes an issued invoice).
 - Issued invoice — an invoice that has left draft and was not cancelled: pending, overdue or paid; the default scope whenever invoices are listed, counted or summed. NOT a draft (never sent to the Customer) and NOT a cancelled invoice (no longer owed).
+- Offered choice — an option the draft action itself found (a Customer, bank account, product, sender profile or currency) that the in-app chat shows as a button under its reply for the Freelancer to pick; pressing it sends exactly that option as an ordinary message, which counts toward the Daily message allowance, and it is saved with the Conversation. NOT a suggestion written by the model (the model can never add an option) and NOT a draft card (choosing an option never creates a draft).
 - Off-topic request — a message to the in-app Assistant that asks for anything other than the Freelancer's own data in the app, creating a Draft invoice, or where something is in the app — for example tax, legal or general invoicing advice, wording a reminder, or general chat; it is answered with a one-sentence refusal. NOT a request the Assistant cannot complete yet for missing details (that gets a follow-up question, not a refusal).
 - Overdue invoice — an issued, unpaid invoice that the Freelancer marked overdue or whose due date (a calendar day) is before today's date in the Freelancer time zone; every surface (dashboard, invoice list, Assistant) applies this one rule. NOT a pending invoice that is not yet due, and NOT dependent on the Freelancer marking it by hand.
 - Personal key — a named secret a Freelancer creates in the app and gives to one Assistant so it can read that Freelancer's data — and, when its Draft permission is on, create Draft invoices — without a browser session; shown in full only once, revocable at any time, and removed with the account. NOT Sign-in link (a Personal key never creates a browser session) and NOT the Freelancer's account (revoking a key leaves the account untouched).
