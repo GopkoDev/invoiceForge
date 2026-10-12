@@ -16,7 +16,7 @@
 | T09 | [Set Draft permission only when a Personal key is created and return it from the key list and the key check](./t09-personal-key-draft-permission.md) | app | Dmytro Hopko | S | T01 | done |
 | T10 | [List and open Conversations owner-scoped, with Draft card views and the current state of every linked invoice](./t10-conversation-reads.md) | app | Dmytro Hopko | M | T01, T03 | done |
 | T11 | [Strip every text-bearing attribute from Mastra spans before export and pin it with a span contract test](./t11-metadata-only-span-processor.md) | infra | Dmytro Hopko | S | T04 | done |
-| T12 | [Classify every chat message as in_scope, mixed or off_topic before the agent and end off-topic turns with the fixed refusal](./t12-topic-router.md) | app | Dmytro Hopko | M | T04 | todo |
+| T12 | [Classify every chat message as in_scope, mixed or off_topic before the agent and end off-topic turns with the fixed refusal](./t12-topic-router.md) | app | Dmytro Hopko | M | T04 | done |
 | T13 | [Wrap the shared read questions as chat tools bound to the acting Freelancer and add find_in_app over a fixed app map](./t13-chat-read-tools-and-app-map.md) | app | Dmytro Hopko | M | T02, T04 | todo |
 | T14 | [Add the four independent AI retention steps to the daily purge cron](./t14-daily-clean-up-steps.md) | wiring | Dmytro Hopko | S | T01, T04 | todo |
 | T15 | [Add Conversations and the AI counters to the data export 2.2 and prove account deletion leaves no AI row](./t15-data-export-and-account-deletion.md) | ports | Dmytro Hopko | S | T01 | todo |
