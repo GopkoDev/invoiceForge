@@ -44,7 +44,7 @@
 | T37 | [Answer an MCP repeat from the stored invoice and refuse a read-only key before validating input](./t37-mcp-repeat-and-permission-order.md) | ports | Dmytro Hopko | M | T21, T26 | done |
 | T38 | [Offer no Draft card from stored-text injection and add injection cases to the no-guessing evaluation](./t38-injection-no-card-guard.md) | app | Dmytro Hopko | M | T27, T29, T32, T34 | done |
 | T39 | [Fix the chat island: real 429 body, late data-conversation, one announcement per reply, scroll to newest](./t39-chat-island-review-fixes.md) | ui | Dmytro Hopko | M | T33 | done |
-| T40 | [Fix the AI section layout and reuse: list column on /ai/{id}, phone order, subtitles, ContentArea, dialog close, link styles](./t40-ai-layout-and-reuse-fixes.md) | ui | Dmytro Hopko | M | T18, T22, T23, T30 | todo |
+| T40 | [Fix the AI section layout and reuse: list column on /ai/{id}, phone order, subtitles, ContentArea, dialog close, link styles](./t40-ai-layout-and-reuse-fixes.md) | ui | Dmytro Hopko | M | T18, T22, T23, T30 | done |
 | T41 | [Add the missing test-plan e2e flows (AC-25, AC-34, AC-35) and the SCR-01 / SCR-03 visual baselines](./t41-e2e-missing-flows.md) | tests | Dmytro Hopko | M | T35, T39, T40 | todo |
 
 **Total:** 41 tasks, ~30.5 person-days (S = ½ day, M = 1 day).
