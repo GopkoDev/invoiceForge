@@ -648,9 +648,24 @@ components:
           required: [kind, lineIndex, description]
           properties: { kind: { const: LINE_AMOUNT_MISSING }, lineIndex: { type: integer, minimum: 0 }, description: { type: string } }
         - type: object
-          description: A catalogue product with no price in the invoice currency and none named (AC-16b).
-          required: [kind, lineIndex, currency]
-          properties: { kind: { const: LINE_PRICE_MISSING_IN_CURRENCY }, lineIndex: { type: integer, minimum: 0 }, currency: { $ref: "#/components/schemas/Currency" } }
+          description: |
+            A catalogue product with no price in the invoice currency and none named (AC-16b). `products` lists the
+            products the line matched, each with its own currency, so the chat can say why none is used (fix 2026-10-12).
+          required: [kind, lineIndex, currency, products]
+          properties:
+            kind: { const: LINE_PRICE_MISSING_IN_CURRENCY }
+            lineIndex: { type: integer, minimum: 0 }
+            currency: { $ref: "#/components/schemas/Currency" }
+            products:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                required: [productId, name, currency]
+                properties:
+                  productId: { $ref: "#/components/schemas/RecordId" }
+                  name: { $ref: "#/components/schemas/FreelancerText" }
+                  currency: { $ref: "#/components/schemas/Currency" }
         - type: object
           description: A symbol that fits several currencies, or a sender profile named that does not exist.
           required: [kind, written, options]
@@ -659,13 +674,22 @@ components:
             written: { type: string }
             options: { type: array, items: { type: string } }
         - type: object
-          description: No bank account in the currency (AC-19). `accounts` lists the accounts the profile does have, with their currencies (fix 2026-10-12).
-          required: [kind, currency, senderProfileId, accounts]
+          description: |
+            No bank account in the currency (AC-19). `accounts` lists the accounts the profile does have, with their
+            currencies (fix 2026-10-12). `otherProfiles` lists the Freelancer's other sender profiles that have an
+            account in the currency, to offer, never to pick (AC-17; fix 2026-10-12).
+          required: [kind, currency, senderProfileId, accounts, otherProfiles]
           properties:
             kind: { const: NO_ACCOUNT_IN_CURRENCY }
             currency: { $ref: "#/components/schemas/Currency" }
             senderProfileId: { $ref: "#/components/schemas/RecordId" }
             accounts: { type: array, items: { $ref: "#/components/schemas/BankAccountInCurrency" } }
+            otherProfiles:
+              type: array
+              items:
+                type: object
+                required: [senderProfileId, name]
+                properties: { senderProfileId: { $ref: "#/components/schemas/RecordId" }, name: { $ref: "#/components/schemas/FreelancerText" } }
         - type: object
           description: Several bank accounts in the currency and none named (AC-19). Answered by naming one in `bankAccount`.
           required: [kind, currency, accounts]

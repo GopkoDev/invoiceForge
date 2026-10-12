@@ -30,7 +30,12 @@ export const draftRequestLineSchema = z
 const draftRequestShape = {
   customer: z.string().min(1).max(200).optional(),
   customerId: recordId.optional(),
-  senderProfile: z.string().min(1).max(200).optional(),
+  senderProfile: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('A sender profile the Freelancer named (AC-17). Absent → the default profile.'),
   bankAccount: z
     .string()
     .min(1)
@@ -141,7 +146,13 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('CUSTOMER_AMBIGUOUS'), written: z.string(), candidates }),
   z.object({ kind: z.literal('CUSTOMER_NEAR_MISS'), written: z.string(), candidates }),
   z.object({ kind: z.literal('LINE_AMOUNT_MISSING'), lineIndex, description: z.string() }),
-  z.object({ kind: z.literal('LINE_PRICE_MISSING_IN_CURRENCY'), lineIndex, currency }),
+  z.object({
+    kind: z.literal('LINE_PRICE_MISSING_IN_CURRENCY'),
+    lineIndex,
+    currency,
+    // The products the line matched, each in another currency, so the chat can say why none is used (fix 2026-10-12).
+    products: z.array(z.object({ productId: recordId, name: freelancerText, currency })).max(50),
+  }),
   z.object({
     kind: z.literal('CURRENCY_UNCLEAR'),
     written: z.string(),
@@ -158,6 +169,8 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     senderProfileId: recordId,
     // The accounts the profile does have, so the chat can say which currencies are available.
     accounts: z.array(accountInCurrency),
+    // The other sender profiles with an account in the currency, to offer, never pick (fix 2026-10-12, AC-17).
+    otherProfiles: z.array(z.object({ senderProfileId: recordId, name: freelancerText })),
   }),
   z.object({ kind: z.literal('SEVERAL_ACCOUNTS_IN_CURRENCY'), currency, accounts }),
   z.object({ kind: z.literal('BANK_ACCOUNT_NOT_FOUND'), written: z.string(), accounts }),

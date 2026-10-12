@@ -74,7 +74,16 @@ function resolveOne(
   }
   if (!product && !named) {
     if (matches.length > 0 && ctx.currency !== undefined) {
-      return { issue: { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: index, currency: ctx.currency } };
+      return {
+        issue: {
+          kind: 'LINE_PRICE_MISSING_IN_CURRENCY',
+          lineIndex: index,
+          currency: ctx.currency,
+          products: matches
+            .slice(0, 50)
+            .map((p) => ({ productId: p.id, name: { freelancerText: p.name }, currency: p.currency })),
+        },
+      };
     }
     return { issue: { kind: 'LINE_AMOUNT_MISSING', lineIndex: index, description: line.description } };
   }

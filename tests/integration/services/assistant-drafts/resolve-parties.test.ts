@@ -227,6 +227,7 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
           senderProfileId: profile.id,
           // fix 2026-10-12: the accounts the profile does have, with their currencies, so the chat can say so.
           accounts: [{ bankAccountId: usd.id, label: expect.any(String), currency: 'USD' }],
+          otherProfiles: [],
         },
       ]);
     });
@@ -263,7 +264,33 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
           senderProfileId: profile.id,
           // fix 2026-10-12: the accounts the profile does have, with their currencies, so the chat can say so.
           accounts: [{ bankAccountId: usd.id, label: expect.any(String), currency: 'USD' }],
+          otherProfiles: [],
         },
+      ]);
+    });
+
+    // fix 2026-10-12: the owner's default profile has only a EUR account and another profile, "Dmytro Hopko", has a
+    // USD one. The answer names that profile so the chat can offer it (AC-17 "offers to draft under another
+    // profile if the Freelancer names it"); it is never picked.
+    it('fix 2026-10-12: no account in the currency names the other sender profiles that have one, picks none', async () => {
+      const { user, actor } = await freelancer();
+      const main = await createSenderProfile(prisma, user.id, { name: 'Dima Gopko' });
+      await createBankAccount(prisma, main.id, { currency: 'EUR', bankName: 'Privat' });
+      const other = await createSenderProfile(prisma, user.id, { name: 'Dmytro Hopko', isDefault: false });
+      await createBankAccount(prisma, other.id, { currency: 'USD', bankName: 'Mono' });
+      const third = await createSenderProfile(prisma, user.id, { name: 'Side', isDefault: false });
+      await createBankAccount(prisma, third.id, { currency: 'PLN' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD' }));
+
+      expect(issues).toEqual([
+        expect.objectContaining({
+          kind: 'NO_ACCOUNT_IN_CURRENCY',
+          currency: 'USD',
+          senderProfileId: main.id,
+          otherProfiles: [{ senderProfileId: other.id, name: { freelancerText: 'Dmytro Hopko' } }],
+        }),
       ]);
     });
 

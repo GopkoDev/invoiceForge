@@ -283,7 +283,15 @@ describe.runIf(containerRuntimeAvailable)('resolveDraftRequest (T16)', () => {
         resolve(actor, { currency: 'EUR', lines: [{ description: 'consulting', quantity: '20' }] })
       );
 
-      expect(issues).toEqual([{ kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 0, currency: 'EUR' }]);
+      expect(issues).toEqual([
+        {
+          kind: 'LINE_PRICE_MISSING_IN_CURRENCY',
+          lineIndex: 0,
+          currency: 'EUR',
+          // fix 2026-10-12: the product that matched, with its currency, so the chat can say why it is not used.
+          products: [{ productId: product.id, name: { freelancerText: 'Consulting' }, currency: 'USD' }],
+        },
+      ]);
     });
 
     it('"in EUR" with a named price: free text, not linked, the USD prices unused', async () => {

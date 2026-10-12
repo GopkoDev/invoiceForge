@@ -32,7 +32,12 @@ const ISSUES: DraftIssue[] = [
     candidates: [{ customerId: 'c1', name: name('Acme Corp') }],
   },
   { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0, description: 'website' },
-  { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 0, currency: 'EUR' },
+  {
+    kind: 'LINE_PRICE_MISSING_IN_CURRENCY',
+    lineIndex: 0,
+    currency: 'EUR',
+    products: [{ productId: 'p1', name: name('WEB DEV'), currency: 'USD' }],
+  },
   { kind: 'CURRENCY_UNCLEAR', written: 'bucks', options: ['USD', 'UAH'] },
   { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Side', options: ['Main'] },
   {
@@ -40,6 +45,7 @@ const ISSUES: DraftIssue[] = [
     currency: 'USD',
     senderProfileId: 'sp1',
     accounts: [{ ...account, currency: 'UAH' }],
+    otherProfiles: [{ senderProfileId: 'sp2', name: name('Dmytro Hopko') }],
   },
   {
     kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
@@ -101,6 +107,21 @@ describe('issuesText (fix 2026-10-12)', () => {
     expect(text).toContain(
       'Privat ••1234 is in UAH, but the invoice is in USD'
     );
+  });
+
+  // fix 2026-10-12 (bug 5): the product in another currency and the other profile with an account are named.
+  it('names a matching product in another currency, and another sender profile with an account in the currency', () => {
+    const price = issuesText(
+      [ISSUES.find((i) => i.kind === 'LINE_PRICE_MISSING_IN_CURRENCY')!],
+      'en'
+    );
+    const account = issuesText(
+      [ISSUES.find((i) => i.kind === 'NO_ACCOUNT_IN_CURRENCY')!],
+      'uk'
+    );
+    expect(price).toContain('WEB DEV (USD)');
+    expect(price).toContain('price in EUR');
+    expect(account).toContain('Dmytro Hopko');
   });
 
   it('any language other than Ukrainian falls back to English, and several issues join into one paragraph', () => {

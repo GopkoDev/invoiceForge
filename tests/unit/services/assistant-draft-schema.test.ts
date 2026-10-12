@@ -202,7 +202,12 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
     { kind: 'CUSTOMER_AMBIGUOUS', written: 'Acme', candidates: [cus(1), cus(2)] },
     { kind: 'CUSTOMER_NEAR_MISS', written: 'Acm', candidates: [cus(1)] },
     { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0, description: 'logo design' },
-    { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 1, currency: 'EUR' },
+    {
+      kind: 'LINE_PRICE_MISSING_IN_CURRENCY',
+      lineIndex: 1,
+      currency: 'EUR',
+      products: [{ productId: 'p1', name: { freelancerText: 'Consulting' }, currency: 'USD' }],
+    },
     { kind: 'CURRENCY_UNCLEAR', written: '$', options: ['USD', 'UAH'] },
     { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Nope', options: ['Test Sender'] },
     {
@@ -210,6 +215,7 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
       currency: 'PLN',
       senderProfileId: 'sp1',
       accounts: [{ bankAccountId: 'ba1', label: 'Bank ••0000', currency: 'USD' }],
+      otherProfiles: [{ senderProfileId: 'sp2', name: { freelancerText: 'Studio' } }],
     },
     // fix 2026-10-12
     {
@@ -269,7 +275,7 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
     ],
     ['LINE_AMOUNT_MISSING with a negative lineIndex', { kind: 'LINE_AMOUNT_MISSING', lineIndex: -1, description: 'x' }],
     ['LINE_AMOUNT_MISSING without description', { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0 }],
-    ['an unknown currency', { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 0, currency: 'XXX' }],
+    ['an unknown currency', { kind: 'LINE_PRICE_MISSING_IN_CURRENCY', lineIndex: 0, currency: 'XXX', products: [] }],
     ['PRODUCT_AMBIGUOUS without candidates', { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'x' }],
     ['PRODUCT_AMBIGUOUS with a customer candidate', { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'x', candidates: [cus(1)] }],
     ['LINE_QUANTITY_MISSING without lineIndex', { kind: 'LINE_QUANTITY_MISSING', description: 'x' }],

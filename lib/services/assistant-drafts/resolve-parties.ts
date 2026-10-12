@@ -196,6 +196,9 @@ function resolveSenderAndAccount(
         currency,
         senderProfileId: profile.id,
         accounts: profile.bankAccounts.map(accountWithCurrency),
+        otherProfiles: profiles
+          .filter((p) => p.id !== profile.id && p.bankAccounts.some((a) => a.currency === currency))
+          .map((p) => ({ senderProfileId: p.id, name: { freelancerText: p.name } })),
       },
     };
   }

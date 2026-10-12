@@ -8,6 +8,11 @@ const list = (items: string[]) => items.join(', ');
 const accountsWithCurrency = (
   accounts: { label: string; currency: string }[]
 ) => list(accounts.map((a) => `${a.label} (${a.currency})`));
+const namesOf = (rows: { name: { freelancerText: string } }[]) =>
+  list(rows.map((r) => r.name.freelancerText));
+const productsWithCurrency = (
+  products: { name: { freelancerText: string }; currency: string }[]
+) => list(products.map((p) => `${p.name.freelancerText} (${p.currency})`));
 
 const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
   en: (issue) => {
@@ -27,15 +32,22 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
       case 'LINE_QUANTITY_MISSING':
         return `What is the quantity for "${issue.description}"?`;
       case 'LINE_PRICE_MISSING_IN_CURRENCY':
-        return `What is the price in ${issue.currency} for line ${issue.lineIndex + 1}?`;
+        return issue.products.length > 0
+          ? `The matching catalogue product is priced in another currency than the invoice (${issue.currency}): ${productsWithCurrency(issue.products)}. What is the price in ${issue.currency} for line ${issue.lineIndex + 1}? Or draft the invoice in the product's currency.`
+          : `What is the price in ${issue.currency} for line ${issue.lineIndex + 1}?`;
       case 'CURRENCY_UNCLEAR':
         return `Which currency do you mean by ${issue.written}: ${list(issue.options)}?`;
       case 'SENDER_PROFILE_NOT_FOUND':
         return `You have no sender profile called ${issue.written}. Your sender profiles: ${list(issue.options)}.`;
       case 'NO_ACCOUNT_IN_CURRENCY':
-        return issue.accounts.length > 0
-          ? `This sender profile has no bank account in ${issue.currency}. Its accounts: ${accountsWithCurrency(issue.accounts)}. Add a ${issue.currency} account, or draft the invoice in the currency of one of these.`
-          : `This sender profile has no bank account in ${issue.currency}. Add one first.`;
+        return (
+          (issue.accounts.length > 0
+            ? `This sender profile has no bank account in ${issue.currency}. Its accounts: ${accountsWithCurrency(issue.accounts)}. Add a ${issue.currency} account, or draft the invoice in the currency of one of these.`
+            : `This sender profile has no bank account in ${issue.currency}. Add one first.`) +
+          (issue.otherProfiles.length > 0
+            ? ` Your sender profile ${namesOf(issue.otherProfiles)} has a ${issue.currency} account: name it to draft from it.`
+            : '')
+        );
       case 'SEVERAL_ACCOUNTS_IN_CURRENCY':
         return `You have several bank accounts in ${issue.currency}: ${list(issue.accounts.map((a) => a.label))}. Which one should the invoice use?`;
       case 'BANK_ACCOUNT_NOT_FOUND':
@@ -69,15 +81,22 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
       case 'LINE_QUANTITY_MISSING':
         return `Яка кількість для «${issue.description}»?`;
       case 'LINE_PRICE_MISSING_IN_CURRENCY':
-        return `Яка ціна в ${issue.currency} для рядка ${issue.lineIndex + 1}?`;
+        return issue.products.length > 0
+          ? `Відповідний продукт із каталогу має ціну в іншій валюті, ніж інвойс (${issue.currency}): ${productsWithCurrency(issue.products)}. Яка ціна в ${issue.currency} для рядка ${issue.lineIndex + 1}? Або створіть інвойс у валюті продукту.`
+          : `Яка ціна в ${issue.currency} для рядка ${issue.lineIndex + 1}?`;
       case 'CURRENCY_UNCLEAR':
         return `Яку валюту ви маєте на увазі під ${issue.written}: ${list(issue.options)}?`;
       case 'SENDER_PROFILE_NOT_FOUND':
         return `Профілю відправника ${issue.written} немає. Ваші профілі: ${list(issue.options)}.`;
       case 'NO_ACCOUNT_IN_CURRENCY':
-        return issue.accounts.length > 0
-          ? `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Його рахунки: ${accountsWithCurrency(issue.accounts)}. Додайте рахунок у ${issue.currency} або створіть інвойс у валюті одного з цих рахунків.`
-          : `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Спершу додайте його.`;
+        return (
+          (issue.accounts.length > 0
+            ? `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Його рахунки: ${accountsWithCurrency(issue.accounts)}. Додайте рахунок у ${issue.currency} або створіть інвойс у валюті одного з цих рахунків.`
+            : `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Спершу додайте його.`) +
+          (issue.otherProfiles.length > 0
+            ? ` Рахунок у ${issue.currency} є у вашого профілю відправника ${namesOf(issue.otherProfiles)}: назвіть його, щоб створити інвойс від нього.`
+            : '')
+        );
       case 'SEVERAL_ACCOUNTS_IN_CURRENCY':
         return `У вас кілька рахунків у ${issue.currency}: ${list(issue.accounts.map((a) => a.label))}. Який використати для інвойсу?`;
       case 'BANK_ACCOUNT_NOT_FOUND':
