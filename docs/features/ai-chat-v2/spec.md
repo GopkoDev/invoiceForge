@@ -31,16 +31,27 @@ Easy-depth run: no competitive research or failure-mode analysis was dispatched;
 Decisions taken during the interview, recorded for traceability:
 - **Issuing from the chat asks for one confirmation** (owner, 2026-10-12): the dialog names the Customer, total, currency and that lines and amounts can no longer change once issued. Issuing in the editor keeps its current behaviour.
 - **Which options become buttons:** every case in which the chat asks the Freelancer to choose among records or currencies it found — several matching Customers or products, a near-miss Customer ("did you mean…"), several bank accounts in a currency, a named bank account or sender profile that matched none or several, another sender profile that has an account in the wanted currency, and an unclear currency. Questions that need a value typed in (a missing amount or quantity) get no buttons.
+- **One choice at a time.** A reply offers buttons for one open choice only, even when the request is unclear in several ways; the next choice is asked after the Freelancer answers this one. A currency choice offers the currencies the draft action found for what was written (for example USD or the default account's currency for "$").
 - **At most 8 buttons per reply.** When there are more options, the reply says how many there are and asks the Freelancer to type a more exact name.
-- **A pressed choice is exact.** The message sent by a button refers to exactly the option pressed; the chat never matches it again to another record with a similar name.
+- **What a button shows.** A Customer button shows the saved name; when two offered Customers' names look the same once case, spaces and look-alike letters are ignored, each also shows the Customer's email, or "no email" when it has none. A bank account button shows bank name, last four digits and currency; a product button shows name, unit and the price in the invoice currency; a sender profile button shows its name; a currency button shows its code. The label is fixed when the option is offered, and the Freelancer's sent message shows that label.
+- **A pressed choice is exact.** A press is told apart from typed text: it refers to exactly the option pressed among those stored for that reply, and the chat never matches it again to another record with a similar name.
+- **A press that cannot be applied is turned down before it is processed.** When the pressed option is not among the latest reply's stored options, belongs to another Freelancer, or its record was deleted or no longer fits (for example an account moved to another currency), the press is not sent to the model, is not counted, and no option is marked as chosen; the chat says that this option is no longer available and asks the Freelancer to choose again or type the request. The same words are used in every one of these cases.
 - **Only the latest reply's buttons can be pressed.** Once the Freelancer sends any newer message, earlier buttons stay visible but inactive, showing which option was chosen, if any.
-- **A button press is a message:** it counts toward the allowance and is blocked when the allowance is used up, like any message (ai-assistant §1 D2). Opening a preview and issuing from it are not messages and never count.
+- **A button press is a message:** it counts toward the allowance and is refused when the allowance is used up, like any message (ai-assistant §1 D2). Buttons stay pressable while the allowance is used up; a refused press marks no option as chosen. Opening a preview and issuing from it are not messages and never count.
+- **The reads search by name.** The Customer search and the product read both take a name and match it ignoring case, extra spaces and look-alike letters, like the draft action; the product read without a name lists the catalogue. Each answer holds at most 20 records and says how many matched in all. The Customer for custom prices is named by its id from a Customer search answer.
+- **Where a message came from is saved.** Each Freelancer message records whether it was typed, sent by a button press or sent from the dashboard prompt, and each Conversation records where it was started (the AI section, the invoice list, the dashboard prompt or the dashboard's "Create invoice with AI"). Both are kept, exported and deleted with the Conversation.
+- **A Conversation exists from its first message.** New chat and the "Create … with AI" actions open an empty Conversation that is saved only when the first message is sent; empty Conversations are never listed.
+- **Phone and desktop layouts.** Below 768 px of screen width the phone layout applies: the Conversation list opens as a sheet and the preview as a full-screen sheet. From 768 px the desktop layout applies; from 768 to 1279 px opening the preview hides the Conversation list behind a toggle, and from 1280 px the list, the messages and the preview sit side by side.
+- **Following new text.** The messages count as "at the bottom" while their end is no more than 48 px out of view; further up, the Freelancer has scrolled up.
+- **Suggested requests** on an empty Conversation are fixed examples, at least three, including drafting an invoice and asking who owes money. Pressing one puts its text into the message box without sending it, so it never counts.
+- **Live invoice status** covers the draft card and its system-made links (Preview, "Open in editor"), as in ai-assistant AC-36. Invoice names in reply text written by the model are not updated.
 - **The new reads are open to every Personal key,** like the existing read questions; they add no write capability and need no Draft permission.
 - **The sender-profile read returns** each profile's name, which one is the default, and its bank accounts with bank name, last four digits of the account number, currency and the default mark. It returns no full account number, no other bank detail and no tax or registration number.
 - **The product read returns** each product's name, unit and prices per currency; when a Customer is named, it also returns that Customer's custom prices.
-- **Conversation groups** are by the date of the last message in the Freelancer time zone: Today, Yesterday, Previous 7 days, Older. The search filters the list by Conversation title, ignoring case and look-alike letters.
-- **The dashboard shows the 3 latest Conversations.** A prompt sent from the dashboard is an ordinary first message of a new Conversation and counts toward the allowance.
-- **"Create invoice with AI" on the dashboard** opens a new Conversation ready to draft, as "Create with AI" does on the invoice list (ai-assistant AC-33).
+- **Conversation groups** are by the date of the last message in the Freelancer time zone: Today, Yesterday, Previous 7 days (2 to 7 days before today), Older (8 or more days before today). The search filters the list by Conversation title, ignoring case, extra spaces and look-alike letters.
+- **The dashboard shows the 3 latest Conversations.** With fewer, it shows those; with none, it says there are no Conversations yet. A prompt sent from the dashboard is an ordinary first message of a new Conversation and counts toward the allowance. The latest-Conversation links stay usable when the allowance is used up.
+- **"Create invoice with AI" on the dashboard** opens a new Conversation ready to draft, as "Create with AI" does on the invoice list (ai-assistant AC-33); when the allowance is used up it behaves as ai-assistant AC-34.
+- **An outdated preview** is one whose draft was saved again after the preview was loaded, whatever changed. The check runs when the Freelancer confirms; an outdated preview reloads, and the Freelancer presses Issue and confirms again.
 - **The navigation "AI" group** replaces the current single "AI" item; the "Connect your AI" item opens the existing page where Personal keys are managed.
 - **The legal update covers the privacy page only;** the terms page is checked and changed only if it contradicts the chat (§8).
 
@@ -189,6 +200,12 @@ Decisions taken during the interview, recorded for traceability:
 **When** they write "invoice Acme for 20 hours at $50"
 **Then** the chat asks which Customer they mean and shows two buttons, "Acme Corp" and "Acme GmbH", under its reply; pressing "Acme GmbH" sends that choice as their message and the chat continues with a draft card for Acme GmbH
 
+### AC-08b (US-03) — happy path
+
+**Given** a Freelancer with Customers Acme Corp and Acme GmbH, and two USD bank accounts on their default sender profile
+**When** they write "invoice Acme for 20 hours at $50"
+**Then** the reply offers buttons for the Customer only; after they press "Acme GmbH", the next reply offers the two USD accounts as buttons, and after they press one, the chat shows a draft card for Acme GmbH with that account
+
 ### AC-09 (US-03) — domain invariant
 
 **Given** a reply asking the Freelancer to choose among accounts, where the model's text names an account that is not among the options the draft action found
@@ -199,13 +216,13 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** Customers "Acme Corp" and "Аcme Corp" (the second with a Cyrillic "А"), offered as two buttons
 **When** the Freelancer presses the second button
-**Then** the draft continues with exactly the Customer they pressed, never the look-alike one
+**Then** each button also shows its Customer's email so the two can be told apart, and the draft continues with exactly the Customer they pressed, never the look-alike one
 
 ### AC-11 (US-03) — domain invariant
 
 **Given** a Freelancer with one message left today and a reply offering two buttons
 **When** they press a button, and then press an Offered choice in the chat's next reply
-**Then** the first press is sent and counts as a message; the second is not processed and the chat says today's allowance is used up and when it renews, exactly as for a typed message
+**Then** the first press is sent and counts as a message; the second is not processed, no option of that reply is marked as chosen, and the chat says today's allowance is used up and when it renews, exactly as for a typed message
 
 ### AC-12 (US-03) — domain invariant
 
@@ -217,13 +234,13 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Conversation whose latest reply offered Acme Corp and Acme GmbH
 **When** a message arrives presented as a pressed option for a record that is not among that reply's Offered choices — an option from an older reply, or a Customer of another Freelancer
-**Then** it is never applied as a choice; a record of another Freelancer is answered exactly as one that does not exist, and the draft never moves toward that record
+**Then** it is never applied as a choice and never reaches the model; it does not count toward the allowance, and the chat says that this option is no longer available, in the same words whether the option was outdated, belongs to another Freelancer or never existed; the draft never moves toward that record
 
 ### AC-13 (US-03) — cross-context
 
 **Given** a past Conversation in which the chat offered three bank accounts as buttons and the Freelancer pressed one
 **When** they reopen that Conversation days later
-**Then** the reply shows the same three options, with the pressed one marked as chosen; when the reply was the latest one and nothing was pressed, its buttons can still be pressed
+**Then** the reply shows the same three options, with the pressed one marked as chosen; when the reply was the latest one and nothing was pressed, its buttons can still be pressed, and pressing one whose account has since been deleted is turned down as an option that is no longer available, without counting
 
 ### AC-14 (US-03) — error
 
@@ -241,23 +258,23 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer reading the latest reply at the bottom of the messages
 **When** a new reply is being written
-**Then** the messages follow the new text; when they have scrolled up to read an earlier message, the view stays where they are and a control lets them jump back to the latest message
+**Then** the messages follow the new text while their end is no more than 48 px out of view; when they have scrolled further up to read an earlier message, the view stays where they are and a control lets them jump back to the latest message
 
 ### AC-17 (US-04) — happy path
 
-**Given** a Freelancer with Conversations from today, yesterday, four days ago and last month
+**Given** a Freelancer with Conversations whose last messages were today, yesterday, 7 days ago and 8 days ago
 **When** they open the AI section, and then type "inv" into the Conversation search
-**Then** the list is grouped under Today, Yesterday, Previous 7 days and Older, with a New chat button at its bottom; the search shows only the Conversations whose titles contain "inv", ignoring case and look-alike letters, and says so when none match
+**Then** the list is grouped under Today, Yesterday, Previous 7 days (the one from 7 days ago) and Older (the one from 8 days ago), with a New chat button at its bottom; the search shows only the Conversations whose titles contain "inv", ignoring case, extra spaces and look-alike letters, and says so when none match
 
 ### AC-18 (US-05) — happy path
 
 **Given** a Freelancer who opens a new Conversation
 **When** the page appears, and then they send the first message
-**Then** they first see a greeting, the message box in the middle and suggested requests; after sending, the message box moves to the bottom with an animation and the reply appears above it. A Freelancer whose device asks for reduced motion sees the move without animation.
+**Then** they first see a greeting, the message box in the middle and suggested requests; after sending, the message box moves to the bottom with an animation and the reply appears above it. A Freelancer whose device asks for reduced motion sees the move without animation. Pressing a suggested request only fills the message box. A new Conversation left without a message is not saved and never appears in the Conversation list.
 
 ### AC-19 (US-06) — happy path
 
-**Given** a Freelancer on a phone
+**Given** a Freelancer on a phone (a screen narrower than 768 px)
 **When** they open the AI section, switch Conversations, and open a draft's preview
 **Then** the chat fills the screen with the message box at the bottom; the Conversation list opens as its own screen or sheet and closes when they pick one; the preview opens as a full-screen sheet with the same actions as on a desktop
 
@@ -306,8 +323,8 @@ Decisions taken during the interview, recorded for traceability:
 ### AC-26b (US-08) — domain invariant
 
 **Given** a preview opened on a draft, after which the Freelancer changed that draft's lines in the editor in another tab
-**When** they press Issue in the chat's preview
-**Then** nothing is issued from the outdated view; the preview reloads with the draft as it is now, and the confirmation names its current Customer, total and currency, so the Freelancer never issues an invoice they did not see
+**When** they press Issue in the chat's preview and confirm
+**Then** nothing is issued from the outdated view; the preview reloads with the draft as it is now, and the Freelancer must press Issue and confirm again in a dialog that names its current Customer, total and currency, so they never issue an invoice they did not see. Any saved change to the draft makes the preview outdated, not only a change of lines.
 
 ### AC-27 (US-08) — domain invariant
 
@@ -331,7 +348,7 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a Freelancer with five Conversations
 **When** they open the dashboard
-**Then** they see the three latest Conversations by last message, each a link that reopens it, a link to all Conversations, and a "Create invoice with AI" action next to the dashboard's existing invoice action that opens a new Conversation ready to draft
+**Then** they see the three latest Conversations by last message, each a link that reopens it, a link to all Conversations, and a "Create invoice with AI" action next to the dashboard's existing invoice action that opens a new Conversation ready to draft. A Freelancer with no Conversations sees that there are none yet instead of the list.
 
 ### AC-31 (US-10) — error
 
@@ -349,19 +366,19 @@ Decisions taken during the interview, recorded for traceability:
 
 **Given** a reply of several sentences
 **When** the chat writes it
-**Then** the Freelancer sees its words appear progressively, never the whole text at once after it is complete
+**Then** the Freelancer sees its words appear progressively, never the whole text at once after it is complete; when they reopen the Conversation later, the saved reply is shown whole at once
 
 ### AC-34 (US-12) — cross-context
 
 **Given** a Freelancer who used the chat, pressed offered buttons and sent a prompt from the dashboard
 **When** they download their data export, and later delete their account
-**Then** the export includes every Conversation with its messages, the Offered choices and the ones chosen, and the dashboard prompt as the first message of its Conversation; deleting the account deletes all of it with the rest of their data
+**Then** the export includes every Conversation with its messages, the Offered choices and the ones chosen, whether each message was typed, pressed or sent from the dashboard, and where each Conversation was started; deleting the account deletes all of it with the rest of their data
 
 ### AC-35 (US-12) — happy path
 
 **Given** a Visitor or a Freelancer reading the privacy page
 **When** they read its AI section
-**Then** it says which chat data is stored (Conversations with their messages, draft cards, Offered choices and the ones chosen, prompts sent from the dashboard), how long it is kept (90 days after the last message, or until deleted), who processes message text (the model provider through its gateway), and what the sender-profile and product reads share with an AI client connected through a Personal key (bank name, last four digits, currency — never a full account number)
+**Then** it says which chat data is stored (Conversations with their messages, draft cards, Offered choices and the ones chosen, prompts sent from the dashboard, where each message and Conversation came from), how long it is kept (90 days after the last message, or until deleted), who processes message text (the model provider through its gateway), and what the sender-profile and product reads share with an AI client connected through a Personal key (bank name, last four digits, currency — never a full account number)
 
 ### AC-36 (US-04) — authorization
 
@@ -373,9 +390,9 @@ Decisions taken during the interview, recorded for traceability:
 
 | Aspect | Target | Measurement |
 |---|---|---|
-| Chat, a reply's text appears progressively, word by word, never as one block once it is complete | written out at no less than 20 ms per word | e2e / component check of the streamed deltas (a scripted model with pauses) |
+| Chat, a reply's text appears progressively, word by word, never as one block once it is complete | consecutive words shown 20–50 ms apart once the model has sent them; the first word is never held back (time to the first visible words stays as in ai-assistant §6, p95 ≤ 3 s) | e2e / component check of the streamed deltas (a scripted model with pauses) |
 | AI section page scroll | 0 px of page-level scroll on viewports from 360 × 640 to 2560 × 1440; the message box fully visible at every size | e2e layout check at 360 × 640, 768 × 1024, 1440 × 900 |
-| Follow-to-latest | the newest text is in view within 100 ms of arriving while the Freelancer is at the bottom; 0 jumps while they have scrolled up | component test with a scripted stream |
+| Follow-to-latest | the newest text is in view within 100 ms of arriving while the end of the messages is no more than 48 px out of view; 0 jumps while they have scrolled further up | component test with a scripted stream |
 | New read questions, response time p95 | ≤ 800 ms server-side for a Freelancer with 20 sender profiles, 500 products and 2,000 Customers | integration test timing + per-tool spans |
 | Offered choices | 100 % of buttons match options the draft action found; 0 buttons from model text | contract test of the stream + injection fixture |
 | Look-alike name search | 100 % of the look-alike fixture set (Latin/Cyrillic pairs, extra spaces, case) matches in the chat, MCP and the Conversation search | unit + contract tests |
@@ -391,6 +408,7 @@ Decisions taken during the interview, recorded for traceability:
 - **Personal data touched:**
   - **Offered choices** (names of the offered Customers, accounts, products, profiles or currencies, and the one chosen), stored with the Conversation message, kept and deleted with it, included in the export.
   - **Dashboard prompts** are ordinary chat messages, stored in the Conversation they start.
+  - **Message and Conversation origin** (typed, pressed or dashboard prompt; where the Conversation was started), stored, exported and deleted with the Conversation.
   - **Bank-account summaries** (bank name, last four digits, currency, default mark) in read answers to the chat and to Personal-key Assistants. The full account number is never returned.
   - No new processor: message text keeps going to the model provider named on the privacy page.
 - **AuthZ/AuthN impact:**
@@ -416,3 +434,25 @@ Decisions taken during the interview, recorded for traceability:
 ## 8. Open questions
 
 - [ ] Does the terms page need an AI clause (for example that the Freelancer reviews and issues every Assistant draft)? Default now: no change unless the terms page contradicts the chat; the check runs with the privacy update. — owner: Dmytro Hopko, due: before `sdd:ship`
+
+## Clarifications
+
+Clarify sweep 2026-10-12 (medium depth, devil's-advocate subagent + self-sweep; answered for the owner, who can veto any line). 17 resolved, 0 deferred.
+
+- conflicting-requirement · §1, AC-12b · resolved · a press is told apart from typed text and checked against the latest reply's stored options; a press that cannot be applied never reaches the model, does not count, and gets one uniform "no longer available" answer.
+- under-specified-AC · §1, AC-08b · resolved · one choice at a time per reply; the 8-button cap is per reply; new AC-08b for a request unclear in two ways (matches the draft action, which reports one issue per call).
+- under-specified-AC · §1, AC-26b · resolved · any saved change makes a preview outdated; checked on confirm; the Freelancer presses Issue and confirms again after the reload.
+- unstated-assumption · §1 · resolved · Customer search and product read take a name with look-alike matching, at most 20 records per answer plus the total; custom prices take a Customer id from a Customer search.
+- under-specified-AC · §1, AC-10 · resolved · button labels per option type; look-alike Customer names also show the email; label fixed when offered.
+- under-specified-AC · §1, AC-13 · resolved · an old latest-reply button whose record is gone or no longer fits is turned down as no longer available, not counted.
+- under-specified-AC · §1, AC-11 · resolved · buttons stay pressable with no allowance left (AC-11 as written); a refused press marks nothing as chosen.
+- unstated-assumption · §1, AC-18 · resolved · a Conversation is saved on its first message; empty ones are never listed.
+- vague-term · §1, AC-19 · resolved · phone = narrower than 768 px (the app's existing mobile breakpoint); 768–1279 px hides the list behind a toggle while the preview is open; from 1280 px three panes side by side.
+- unmeasured-NFR · §6, AC-33 · resolved · consecutive words 20–50 ms apart (the shipped pacing is 20 ms); first word never held back; reopened replies are shown whole.
+- unstated-assumption · §1, §6.1, AC-34, AC-35 · resolved · message origin and Conversation start point are stored domain data (KPIs in §7 need them), exported and deleted with the Conversation.
+- scope-ambiguity · §1 · resolved · live invoice status covers the draft card and its system-made links only, as in ai-assistant AC-36.
+- under-specified-AC · §1 · resolved · currency options are the currencies the draft action found for what was written.
+- vague-term · §1, AC-17 · resolved · Previous 7 days = 2–7 days before today, Older = 8+; title search also ignores extra spaces (aligned with the §6 look-alike row).
+- vague-term · §1, AC-16, §6 · resolved · "at the bottom" = the end of the messages no more than 48 px out of view.
+- under-specified-AC · §1, AC-30 · resolved · dashboard with no Conversations says so; latest links stay usable with no allowance left; "Create invoice with AI" behaves as ai-assistant AC-34 when the allowance is used up.
+- vague-term · §1, AC-18 · resolved (self-sweep) · suggested requests are at least three fixed examples; pressing one only fills the message box and never counts.
