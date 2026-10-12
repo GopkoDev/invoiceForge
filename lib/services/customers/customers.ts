@@ -13,6 +13,7 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 import { notFoundOnMiss } from '@/lib/services/_shared/owner-scope';
 import { escapeLike, ilikeAny, paginate, parseListQuery, type ListQuery, type Page } from '@/lib/services/_shared/list-query';
 import { z } from 'zod';
+import { foldName } from '@/lib/helpers/fold-name';
 import type { Currency, Prisma } from '@prisma/client';
 import {
   isPageOutOfRange,
@@ -139,6 +140,8 @@ export async function deleteCustomer(actor: ActingFreelancer, id: string): Promi
 // Freelancer's Customers are ever scanned, so another Freelancer's is answered like a missing one.
 
 const MAX_CANDIDATES = 50;
+/** ai-chat-v2 (ListCustomersInputV2): at most 20 Customers per page. */
+export const CUSTOMERS_PAGE_CAP = 20;
 const MAX_INT = 2 ** 31 - 1;
 
 function nameMatchWhere(actor: ActingFreelancer, text: string): Prisma.CustomerWhereInput {
@@ -208,15 +211,39 @@ export async function listCustomersForAssistant(
 ): Promise<ActionResult<CustomersAnswer>> {
   const parsed = listCustomersInput.safeParse(input ?? {});
   if (!parsed.success) return zodValidationFailure(parsed.error, 'Invalid list request.');
-  const where: Prisma.CustomerWhereInput = parsed.data.name
-    ? nameMatchWhere(actor, parsed.data.name)
-    : { userId: actor.userId };
   try {
-    const plan = strictPage(parsed.data);
-    const total = await prisma.customer.count({ where });
+    const plan = strictPage(parsed.data, CUSTOMERS_PAGE_CAP);
+    const wanted = parsed.data.name ? foldName(parsed.data.name) : '';
+    let pageIds: string[] | undefined;
+    let total: number;
+    if (wanted) {
+      // ai-chat-v2 T07 (ADR-0004): folded in the app over the current name and every name copied onto an invoice;
+      // no name index. The order is the database's (name, then id), as without a filter.
+      const [all, copied] = await Promise.all([
+        prisma.customer.findMany({
+          where: { userId: actor.userId },
+          select: { id: true, name: true },
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        }),
+        prisma.invoice.findMany({
+          where: { customer: { userId: actor.userId } },
+          select: { customerId: true, customerName: true },
+          distinct: ['customerId', 'customerName'],
+        }),
+      ]);
+      const viaInvoice = new Set(copied.filter((i) => foldName(i.customerName).includes(wanted)).map((i) => i.customerId));
+      const matched = all.filter((c) => viaInvoice.has(c.id) || foldName(c.name).includes(wanted)).map((c) => c.id);
+      total = matched.length;
+      pageIds = matched.slice(plan.offset, plan.offset + plan.limit);
+    } else {
+      total = await prisma.customer.count({ where: { userId: actor.userId } });
+    }
     if (isPageOutOfRange(plan.page, total, plan.pageSize)) return pageOutOfRange(total, plan.pageSize);
+    const where: Prisma.CustomerWhereInput = pageIds
+      ? { userId: actor.userId, id: { in: pageIds } }
+      : { userId: actor.userId };
     const rows =
-      total === 0
+      total === 0 || pageIds?.length === 0
         ? []
         : await prisma.customer.findMany({
             where,
@@ -234,8 +261,7 @@ export async function listCustomersForAssistant(
               defaultCurrency: true,
             },
             orderBy: [{ name: 'asc' }, { id: 'asc' }],
-            skip: plan.offset,
-            take: plan.limit,
+            ...(pageIds ? {} : { skip: plan.offset, take: plan.limit }),
           });
     return ok({
       rows: rows.map(({ id, ...rest }): CustomerDetails => ({ customerId: id, ...rest })),
