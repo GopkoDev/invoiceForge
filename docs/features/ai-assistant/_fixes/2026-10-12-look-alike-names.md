@@ -32,7 +32,7 @@ A Cyrillic "о" is a different code point from the Latin "o", so "Oohn Doe" is n
   - ""John Doe" is a near miss of "Оohn Doe ": offered as a question, never filled in". Before the fix it failed with `expected { kind: 'CUSTOMER_NOT_FOUND', …(1) } to match object { kind: 'CUSTOMER_NEAR_MISS', …(1) }`.
   - "a sender profile and a bank account written with look-alike letters are found". Before the fix it failed with `expected false to be true`.
 - Integration, `tests/integration/services/assistant-drafts/resolve-draft-request.test.ts`, "fix 2026-10-12: "web dev" finds the product stored as "WЕB DEV " (Cyrillic "Е", trailing space)". Before the fix it failed with `Error: [{"kind":"LINE_AMOUNT_MISSING","lineIndex":0,"description":" web  dev"}]`.
-- Unit, `tests/unit/lib/services/assistant-drafts/match-name.test.ts`, covers the folding itself. It shows that Cyrillic names still match each other and that different names stay different.
+- Unit, `tests/unit/services/assistant-drafts/match-name.test.ts`, covers the folding itself. It shows that Cyrillic names still match each other and that different names stay different.
 
 The fix adds `foldName` (`lib/services/assistant-drafts/match-name.ts`). It applies NFKC, lower case, the Cyrillic letters that look like Latin ones mapped to Latin, and whitespace collapsed and trimmed. It is applied to both sides of every comparison in the Customer, near-miss, sender profile, bank account and product matching. Stored data is never changed, and the card shows the name as stored. MCP shares the resolver, so `create_draft_invoice` matches the same way.
 

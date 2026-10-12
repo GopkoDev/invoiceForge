@@ -2,6 +2,7 @@
 // case" also ignores what the eye cannot see: stray spaces and Cyrillic letters that look like Latin ones
 // ("Оohn Doe " stored with a Cyrillic О matches "Oohn Doe"). Both sides are folded for the comparison only;
 // a stored name is never changed and is always shown as stored.
+import 'server-only';
 
 // Cyrillic letters (after lower-casing) that look like a Latin letter in print, upper or lower case.
 const LOOK_ALIKE: Record<string, string> = {
