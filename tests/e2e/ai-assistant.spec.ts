@@ -62,8 +62,9 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
     );
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
+    // The bubble only: the chat also keeps a screen-reader live region ("Assistant replied: ...").
     await expect(
-      page.getByText('You can set the logo on your sender profile.')
+      page.getByText('You can set the logo on your sender profile.', { exact: true })
     ).toBeVisible();
     await expect(
       page.getByRole('main').getByRole('link', { name: /sender profile/i }).first()

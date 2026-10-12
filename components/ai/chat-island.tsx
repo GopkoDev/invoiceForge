@@ -1,5 +1,7 @@
 'use client';
 
+import '@/components/ai/zod-csp-safe';
+
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
 import Link from 'next/link';
