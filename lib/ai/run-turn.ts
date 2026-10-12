@@ -24,6 +24,13 @@ const TOO_BROAD: Record<string, string> = {
   uk: 'Це запитання надто широке, щоб відповісти на нього повністю в одному повідомленні. Поставте, будь ласка, вужче, наприклад про одного клієнта або період.',
 };
 
+// The model ended the turn with no words, no card and no draft issues to explain (fix 2026-10-12): the reply
+// is never empty. It is a reply the system produced, so it counts (spec §1 D2); only system-side failures do not.
+const NO_WORDS: Record<string, string> = {
+  en: 'I could not answer that. Please rephrase your message or add the missing detail, for example which Customer, invoice or amount you mean.',
+  uk: 'Я не зміг на це відповісти. Перефразуйте, будь ласка, повідомлення або додайте деталь, якої бракує, наприклад, якого клієнта, який інвойс чи яку суму ви маєте на увазі.',
+};
+
 export type TurnOutcome = 'ANSWERED' | 'CAPPED' | 'FAILED';
 
 export interface TurnResult {
@@ -254,6 +261,13 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     }
 
     const capped = steps >= MAX_STEPS && lastFinish === 'tool-calls';
+    if (text.trim() === '' && !turn.pending.card && !capped) {
+      const sentence = NO_WORDS[verdict.language] ?? NO_WORDS.en;
+      emit({ type: 'text-start', id: 'no-words' });
+      emit({ type: 'text-delta', id: 'no-words', delta: sentence });
+      emit({ type: 'text-end', id: 'no-words' });
+      text = sentence;
+    }
     if (capped) {
       const sentence = TOO_BROAD[verdict.language] ?? TOO_BROAD.en;
       const addition = `${text ? '\n\n' : ''}${sentence}`;
