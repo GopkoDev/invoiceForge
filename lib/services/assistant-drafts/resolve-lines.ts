@@ -4,7 +4,7 @@
 import 'server-only';
 import { prisma } from '@/prisma';
 import { lineAmount } from '@/lib/helpers/invoice-calculations';
-import { foldName } from '@/lib/services/assistant-drafts/match-name';
+import { foldName } from '@/lib/helpers/fold-name';
 import type {
   DraftIssue,
   DraftProposal,

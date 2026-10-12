@@ -1,8 +1,8 @@
-// fix 2026-10-12 (ai-assistant; spec.md §1 "Matching names"): the comparison form of a name. "Ignoring
-// case" also ignores what the eye cannot see: stray spaces and Cyrillic letters that look like Latin ones
-// ("Оohn Doe " stored with a Cyrillic О matches "Oohn Doe"). Both sides are folded for the comparison only;
-// a stored name is never changed and is always shown as stored.
-import 'server-only';
+// ai-chat-v2 T03 (ADR-0004; moved from lib/services/assistant-drafts/match-name.ts, fix 2026-10-12): the comparison
+// form of a name, shared by the draft resolver, the three read questions and the Conversation title search.
+// "Ignoring case" also ignores what the eye cannot see: stray spaces and Cyrillic letters that look like Latin ones
+// ("Оohn Doe " stored with a Cyrillic О matches "Oohn Doe"). Both sides are folded for the comparison only; a
+// stored name is never changed and is always shown as stored. Isomorphic: no server-only, no Node-only API.
 
 // Cyrillic letters (after lower-casing) that look like a Latin letter in print, upper or lower case.
 const LOOK_ALIKE: Record<string, string> = {

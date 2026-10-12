@@ -8,7 +8,7 @@ import { newInvoiceDefaults } from '@/lib/services/invoices/editor-data';
 import { bankAccountSelect } from '@/lib/services/invoices/select-queries';
 import { addDaysToDay, utcDateToDay } from '@/lib/helpers/calendar-day';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
-import { foldName } from '@/lib/services/assistant-drafts/match-name';
+import { foldName } from '@/lib/helpers/fold-name';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
 export type ResolvedParties = Pick<
