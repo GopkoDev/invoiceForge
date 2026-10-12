@@ -192,7 +192,7 @@ paths:
               schema: { $ref: "#/components/schemas/UserDataExport" }
               example:
                 exportDate: "2026-10-02T10:00:00.000Z"
-                exportVersion: "2.1"
+                exportVersion: "2.2"
                 user: { id: "clx0000000000000000000001", name: "Test User", email: "user-1@example.test", emailVerified: null, image: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", timeZone: null, overdueNoticeDismissedAt: null }
                 accounts: [{ provider: "google", type: "oidc", createdAt: "2026-01-01T00:00:00.000Z" }]
                 emailHistory: []
@@ -201,6 +201,8 @@ paths:
                 products: []
                 invoices: []
                 personalKeys: []
+                conversations: []
+                messageAllowanceDays: []
         "401":
           $ref: "#/components/responses/NotSignedIn"
         "429":
@@ -496,15 +498,18 @@ components:
     UserDataExport:
       type: object
       description: |
-        `exportVersion` 2.1 (mcp-server): architecture-hardening's 2.0 body plus `personalKeys`,
+        `exportVersion` 2.2 (ai-assistant): the 2.1 body plus `conversations`, `messageAllowanceDays`
+        and, on each Personal key, `canCreateDrafts` and `draftDays`. Invoices carry
+        `assistantOrigin`, `assistantKeyName` and `issuedAt`, never `assistantKeyId`.
+        2.1 (mcp-server): architecture-hardening's 2.0 body plus `personalKeys`,
         `user.timeZone` and `user.overdueNoticeDismissedAt`. `LimitEvent` rows are **not**
         exported: they are short-lived security records, and address rows hold only a keyed
         digest that the Freelancer couldn't read anyway (api-sync-report D-6).
-      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices, personalKeys]
+      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices, personalKeys, conversations, messageAllowanceDays]
       additionalProperties: false
       properties:
         exportDate: { type: string, format: date-time }
-        exportVersion: { const: "2.1" }
+        exportVersion: { const: "2.2" }
         user:
           type: object
           required: [id, email]
@@ -538,12 +543,24 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [name, createdAt, lastUsedAt, revokedAt, usageWeeks]
+            required: [name, createdAt, lastUsedAt, revokedAt, canCreateDrafts, draftDays, usageWeeks]
             properties:
               name: { type: string }
               createdAt: { type: string, format: date-time }
               lastUsedAt: { type: [string, "null"], format: date-time }
               revokedAt: { type: [string, "null"], format: date-time }
+              canCreateDrafts: { type: boolean }
+              draftDays:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [day, created, allowance, lastLiftedAt]
+                  properties:
+                    day: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+                    created: { type: integer }
+                    allowance: { type: integer }
+                    lastLiftedAt: { type: [string, "null"], format: date-time }
               usageWeeks:
                 type: array
                 items:
@@ -555,3 +572,47 @@ components:
                     attempts: { type: integer }
                     successes: { type: integer }
                     assistantErrors: { type: integer }
+        conversations:
+          type: array
+          description: The Freelancer's own Conversations; never AssistantTurn rows (ai-assistant AC-39).
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, createdAt, lastMessageAt, messages, draftCards]
+            properties:
+              title: { type: string }
+              createdAt: { type: string, format: date-time }
+              lastMessageAt: { type: string, format: date-time }
+              messages:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [role, createdAt, text, links, draftCardIds]
+                  properties:
+                    role: { type: string, enum: [user, assistant] }
+                    createdAt: { type: string, format: date-time }
+                    text: { type: string }
+                    links: { type: array, items: { type: object } }
+                    draftCardIds: { type: array, items: { type: string } }
+              draftCards:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, state, createdAt, proposal, invoiceId]
+                  properties:
+                    id: { type: string }
+                    state: { type: string, enum: [LIVE, REPLACED, OUTDATED, CREATED] }
+                    createdAt: { type: string, format: date-time }
+                    proposal: { type: object }
+                    invoiceId: { type: [string, "null"] }
+        messageAllowanceDays:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, used]
+            properties:
+              day: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+              used: { type: integer }

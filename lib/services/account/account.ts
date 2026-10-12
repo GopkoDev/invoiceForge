@@ -84,6 +84,8 @@ async function readExport(userId: string) {
     products,
     invoices,
     personalKeys,
+    conversationRows,
+    allowanceRows,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -127,6 +129,8 @@ async function readExport(userId: string) {
     prisma.invoice.findMany({
       where: { senderProfile: { userId } },
       include: { items: true },
+      // A Personal key's id never leaves the database (mcp-server AC-25).
+      omit: { assistantKeyId: true },
     }),
     // Explicit select: digest, lastFour, activeNameKey and id never leave the database (AC-25).
     prisma.personalKey.findMany({
@@ -137,6 +141,16 @@ async function readExport(userId: string) {
         createdAt: true,
         lastUsedAt: true,
         revokedAt: true,
+        canCreateDrafts: true,
+        draftDays: {
+          orderBy: { day: 'asc' },
+          select: {
+            day: true,
+            created: true,
+            allowance: true,
+            lastLiftedAt: true,
+          },
+        },
         usageWeeks: {
           orderBy: { weekStart: 'asc' },
           select: {
@@ -148,7 +162,49 @@ async function readExport(userId: string) {
         },
       },
     }),
+    prisma.conversation.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        title: true,
+        createdAt: true,
+        lastMessageAt: true,
+        messages: {
+          orderBy: { position: 'asc' },
+          select: { role: true, createdAt: true, parts: true },
+        },
+        draftCards: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            state: true,
+            createdAt: true,
+            proposal: true,
+            invoiceId: true,
+          },
+        },
+      },
+    }),
+    prisma.messageAllowanceDay.findMany({
+      where: { userId },
+      orderBy: { day: 'asc' },
+      select: { day: true, used: true },
+    }),
   ]);
+  const conversations = conversationRows.map((c) => ({
+    title: c.title,
+    createdAt: c.createdAt.toISOString(),
+    lastMessageAt: c.lastMessageAt.toISOString(),
+    messages: c.messages.map((m) => exportMessage(m)),
+    draftCards: c.draftCards.map((card) => ({
+      ...card,
+      createdAt: card.createdAt.toISOString(),
+    })),
+  }));
+  const messageAllowanceDays = allowanceRows.map((r) => ({
+    day: dayString(r.day),
+    used: r.used,
+  }));
   return {
     user,
     accounts,
@@ -157,7 +213,52 @@ async function readExport(userId: string) {
     customers,
     products,
     invoices,
-    personalKeys,
+    personalKeys: personalKeys.map((k) => ({
+      ...k,
+      draftDays: k.draftDays.map((d) => ({
+        ...d,
+        day: dayString(d.day),
+        lastLiftedAt: d.lastLiftedAt?.toISOString() ?? null,
+      })),
+    })),
+    conversations,
+    messageAllowanceDays,
+  };
+}
+
+/** A stored local calendar day (00:00 UTC) as yyyy-MM-dd. */
+function dayString(day: Date): string {
+  return day.toISOString().slice(0, 10);
+}
+
+type StoredPart = { type?: unknown; text?: unknown; data?: unknown };
+
+/** Flattens stored UI-message parts into text, links and Draft card ids (ADR-0008). */
+function exportMessage(m: {
+  role: 'USER' | 'ASSISTANT';
+  createdAt: Date;
+  parts: unknown;
+}) {
+  const parts = (Array.isArray(m.parts) ? m.parts : []) as StoredPart[];
+  const links: unknown[] = [];
+  const draftCardIds: string[] = [];
+  let text = '';
+  for (const part of parts) {
+    if (part.type === 'text' && typeof part.text === 'string') {
+      text += part.text;
+    } else if (part.type === 'data-link') {
+      links.push(part.data);
+    } else if (part.type === 'data-draft-card') {
+      const cardId = (part.data as { cardId?: unknown } | undefined)?.cardId;
+      if (typeof cardId === 'string') draftCardIds.push(cardId);
+    }
+  }
+  return {
+    role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
+    createdAt: m.createdAt.toISOString(),
+    text,
+    links,
+    draftCardIds,
   };
 }
 
@@ -165,7 +266,7 @@ type ExportRead = Awaited<ReturnType<typeof readExport>>;
 
 export type AccountExport = Omit<ExportRead, 'user'> & {
   exportDate: string;
-  exportVersion: '2.1';
+  exportVersion: '2.2';
   user: NonNullable<ExportRead['user']>;
 };
 
@@ -174,7 +275,7 @@ const EXPORT_RATE_LIMITED =
   "You've reached the export limit. You can export again later.";
 
 /**
- * Every category the account owns, scoped by actor.userId (exportVersion 2.1: Personal keys with weekly usage, time zone).
+ * Every category the account owns, scoped by actor.userId (exportVersion 2.2: Personal keys with weekly usage and draft counts, time zone, Conversations, daily message counts).
  * A place is reserved in the limit store before any read (ADR-0005); a system-side failure
  * releases it, a limit-store failure refuses the export (never unlimited). An account that is
  * gone is NOT_FOUND: nothing is recorded, and a place
@@ -243,7 +344,7 @@ export async function getAccountExport(
 
     return ok({
       exportDate: new Date().toISOString(),
-      exportVersion: '2.1',
+      exportVersion: '2.2',
       user,
       ...rest,
     });

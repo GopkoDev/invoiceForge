@@ -60,6 +60,12 @@ import {
 } from '../../support/contract/validate';
 import { createLimitEvent } from '../../support/factories/limit-event';
 import { createPersonalKeyUsageWeek } from '../../support/factories/personal-key-usage-week';
+import { createPersonalKey } from '../../support/factories/personal-key';
+import { createPersonalKeyDraftDay } from '../../support/factories/personal-key-draft-day';
+import { createConversation } from '../../support/factories/conversation';
+import { createDraftCard } from '../../support/factories/draft-card';
+import { createAssistantTurn } from '../../support/factories/assistant-turn';
+import { createMessageAllowanceDay } from '../../support/factories/message-allowance-day';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -173,7 +179,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(response.status).toBe(200);
       expect(body).toEqual({
         exportDate: expect.any(String),
-        exportVersion: '2.1',
+        exportVersion: '2.2',
         user: expect.objectContaining({
           id: freelancer.id,
           email: freelancer.email,
@@ -181,6 +187,8 @@ describe.runIf(containerRuntimeAvailable)(
           overdueNoticeDismissedAt: null,
         }),
         personalKeys: [],
+        conversations: [],
+        messageAllowanceDays: [],
         accounts: [],
         emailHistory: [],
         senderProfiles: [],
@@ -266,7 +274,7 @@ describe.runIf(containerRuntimeAvailable)(
       // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
       // enforces this above, but assert it explicitly too since it's the AC's own wording.
       expect(body).not.toHaveProperty('sessions');
-      expect(body.exportVersion).toBe('2.1');
+      expect(body.exportVersion).toBe('2.2');
 
       // Scoped to the caller only — another Freelancer's data never appears.
       const bodyText = JSON.stringify(body);
@@ -345,7 +353,7 @@ describe.runIf(containerRuntimeAvailable)(
       const body = JSON.parse(text);
 
       expect(response.status).toBe(200);
-      expect(body.exportVersion).toBe('2.1');
+      expect(body.exportVersion).toBe('2.2');
       expect(body.user.timeZone).toBe('Europe/Kyiv');
       expect(body.user.overdueNoticeDismissedAt).toBe(
         '2026-09-01T10:00:00.000Z'
@@ -366,6 +374,8 @@ describe.runIf(containerRuntimeAvailable)(
         createdAt: active.createdAt.toISOString(),
         lastUsedAt: lastUsedAt.toISOString(),
         revokedAt: null,
+        canCreateDrafts: false,
+        draftDays: [],
         usageWeeks: [
           {
             weekStart: week.toISOString(),
@@ -380,6 +390,8 @@ describe.runIf(containerRuntimeAvailable)(
         createdAt: revoked.createdAt.toISOString(),
         lastUsedAt: null,
         revokedAt: revokedAt.toISOString(),
+        canCreateDrafts: false,
+        draftDays: [],
         usageWeeks: [],
       });
       for (const key of body.personalKeys) {
@@ -392,6 +404,245 @@ describe.runIf(containerRuntimeAvailable)(
       expect(text).not.toContain(active.id);
       expect(text).not.toContain('Stranger key');
       expect(text).not.toContain('"aaaa"');
+    });
+
+    it("AC-39: exports the Freelancer's Conversations with messages and cards, the daily counts and key draft counts; never assistantKeyId, AssistantTurn rows or repeat marks; no other Freelancer's rows", async () => {
+      const owner = await createFreelancer(factoryPrisma);
+      const stranger = await createFreelancer(factoryPrisma);
+      const t0 = new Date('2026-09-10T09:00:00Z');
+      const t1 = new Date('2026-09-10T09:05:00Z');
+
+      const profile = await createSenderProfile(factoryPrisma, owner.id);
+      const bank = await createBankAccount(factoryPrisma, profile.id);
+      const customer = await createCustomer(factoryPrisma, owner.id);
+      const { row: draftKey } = await createPersonalKey(
+        factoryPrisma,
+        owner.id,
+        {
+          name: 'Drafting key',
+          canCreateDrafts: true,
+        }
+      );
+      const { row: readKey } = await createPersonalKey(
+        factoryPrisma,
+        owner.id,
+        {
+          name: 'Read key',
+        }
+      );
+      const draftInvoice = await createInvoice(factoryPrisma, {
+        senderProfile: profile,
+        customer,
+        bankAccount: bank,
+        overrides: {
+          assistantOrigin: 'PERSONAL_KEY',
+          assistantKeyName: 'Drafting key',
+          assistantKeyId: draftKey.id,
+        },
+      });
+
+      const liftedAt = new Date('2026-09-10T12:00:00Z');
+      await createPersonalKeyDraftDay(factoryPrisma, {
+        personalKeyId: draftKey.id,
+        day: new Date('2026-09-10T00:00:00Z'),
+        created: 7,
+        allowance: 100,
+        lastLiftedAt: liftedAt,
+      });
+      await factoryPrisma.mcpDraftRepeat.create({
+        data: {
+          personalKeyId: draftKey.id,
+          repeatKey: 'repeat-mark-secret-xyz',
+          fingerprint: 'f'.repeat(64),
+          invoiceId: draftInvoice.id,
+        },
+      });
+
+      const conversation = await createConversation(factoryPrisma, {
+        userId: owner.id,
+        title: 'Invoice Acme for consulting',
+        lastMessageAt: t1,
+      });
+      await factoryPrisma.conversation.update({
+        where: { id: conversation.id },
+        data: { createdAt: t0 },
+      });
+      const card = await createDraftCard(factoryPrisma, {
+        userId: owner.id,
+        conversationId: conversation.id,
+        state: 'CREATED',
+        invoiceId: draftInvoice.id,
+      });
+      const orphanedCard = await createDraftCard(factoryPrisma, {
+        userId: owner.id,
+        conversationId: conversation.id,
+        state: 'REPLACED',
+        invoiceId: null,
+      });
+      const link = {
+        kind: 'invoice',
+        invoiceId: draftInvoice.id,
+        label: draftInvoice.invoiceNumber,
+      };
+      await factoryPrisma.conversationMessage.createMany({
+        data: [
+          {
+            conversationId: conversation.id,
+            position: 0,
+            role: 'USER',
+            createdAt: t0,
+            parts: [{ type: 'text', text: 'Please invoice Acme Corp' }],
+          },
+          {
+            conversationId: conversation.id,
+            position: 1,
+            role: 'ASSISTANT',
+            createdAt: t1,
+            parts: [
+              { type: 'text', text: 'Here is your draft' },
+              { type: 'data-link', data: link },
+              {
+                type: 'data-draft-card',
+                id: 'part-1',
+                data: { cardId: card.id },
+              },
+            ],
+          },
+        ],
+      });
+      await createAssistantTurn(factoryPrisma, {
+        userId: owner.id,
+        conversationId: conversation.id,
+      });
+      await createMessageAllowanceDay(factoryPrisma, {
+        userId: owner.id,
+        day: new Date('2026-09-10T00:00:00Z'),
+        used: 3,
+      });
+
+      // Another Freelancer's AI rows must never appear.
+      const strangerConversation = await createConversation(factoryPrisma, {
+        userId: stranger.id,
+        title: 'Stranger private chat',
+        messages: [{ role: 'USER', text: 'Stranger secret message' }],
+      });
+      await createDraftCard(factoryPrisma, {
+        userId: stranger.id,
+        conversationId: strangerConversation.id,
+      });
+      await createMessageAllowanceDay(factoryPrisma, {
+        userId: stranger.id,
+        day: new Date('2026-09-10T00:00:00Z'),
+        used: 41,
+      });
+      const { row: strangerKey } = await createPersonalKey(
+        factoryPrisma,
+        stranger.id,
+        { name: 'Stranger drafting key', canCreateDrafts: true }
+      );
+      await createPersonalKeyDraftDay(factoryPrisma, {
+        personalKeyId: strangerKey.id,
+        day: new Date('2026-09-10T00:00:00Z'),
+        created: 49,
+      });
+      authMock.mockResolvedValue({ user: { id: owner.id } });
+
+      const response = await GET();
+      const text = await response.text();
+      const body = JSON.parse(text);
+
+      expect(response.status).toBe(200);
+      expect(body.exportVersion).toBe('2.2');
+      await assertMatchesContract({
+        operationId: 'exportUserData',
+        status: 200,
+        body,
+        specPath: SECURITY_PATCH_SPEC_PATH,
+      });
+
+      expect(body.conversations).toHaveLength(1);
+      const [exported] = body.conversations;
+      expect(exported.title).toBe('Invoice Acme for consulting');
+      expect(exported.createdAt).toBe(t0.toISOString());
+      expect(exported.lastMessageAt).toBe(t1.toISOString());
+      expect(exported.messages).toEqual([
+        {
+          role: 'user',
+          createdAt: t0.toISOString(),
+          text: 'Please invoice Acme Corp',
+          links: [],
+          draftCardIds: [],
+        },
+        {
+          role: 'assistant',
+          createdAt: t1.toISOString(),
+          text: 'Here is your draft',
+          links: [link],
+          draftCardIds: [card.id],
+        },
+      ]);
+      expect(exported.draftCards).toHaveLength(2);
+      const cardsById = Object.fromEntries(
+        exported.draftCards.map((c: { id: string }) => [c.id, c])
+      );
+      expect(cardsById[card.id]).toEqual({
+        id: card.id,
+        state: 'CREATED',
+        createdAt: card.createdAt.toISOString(),
+        proposal: card.proposal,
+        invoiceId: draftInvoice.id,
+      });
+      expect(cardsById[orphanedCard.id]).toEqual({
+        id: orphanedCard.id,
+        state: 'REPLACED',
+        createdAt: orphanedCard.createdAt.toISOString(),
+        proposal: orphanedCard.proposal,
+        invoiceId: null,
+      });
+
+      expect(body.messageAllowanceDays).toEqual([
+        { day: '2026-09-10', used: 3 },
+      ]);
+
+      const keysByName = Object.fromEntries(
+        body.personalKeys.map((k: { name: string }) => [k.name, k])
+      );
+      expect(keysByName['Drafting key'].canCreateDrafts).toBe(true);
+      expect(keysByName['Drafting key'].draftDays).toEqual([
+        {
+          day: '2026-09-10',
+          created: 7,
+          allowance: 100,
+          lastLiftedAt: liftedAt.toISOString(),
+        },
+      ]);
+      expect(keysByName['Read key'].canCreateDrafts).toBe(false);
+      expect(keysByName['Read key'].draftDays).toEqual([]);
+      void readKey;
+
+      // The invoice carries the origin fields but never the key id.
+      expect(body.invoices).toHaveLength(1);
+      expect(body.invoices[0]).toMatchObject({
+        assistantOrigin: 'PERSONAL_KEY',
+        assistantKeyName: 'Drafting key',
+      });
+      expect(body.invoices[0]).toHaveProperty('issuedAt');
+      expect(body.invoices[0]).not.toHaveProperty('assistantKeyId');
+      expect(text).not.toContain(draftKey.id);
+
+      // No AssistantTurn rows, no repeat marks.
+      expect(body).not.toHaveProperty('assistantTurns');
+      expect(body).not.toHaveProperty('turns');
+      expect(text).not.toContain('repeat-mark-secret-xyz');
+      expect(text).not.toContain('fingerprint');
+      expect(text).not.toContain('toolNames');
+      expect(text).not.toContain('costUsd');
+
+      // Owner-only.
+      expect(text).not.toContain('Stranger private chat');
+      expect(text).not.toContain('Stranger secret message');
+      expect(text).not.toContain('Stranger drafting key');
+      expect(text).not.toContain(stranger.id);
     });
 
     it('AC-24: the 4th export in the hour is 429 RATE_LIMITED with retryAt and Retry-After (T13)', async () => {

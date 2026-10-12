@@ -61,6 +61,12 @@ import { createProduct } from '../../support/factories/product';
 import { createCustomPrice } from '../../support/factories/custom-price';
 import { createInvoice as seedInvoiceRow } from '../../support/factories/invoice';
 import { createLogoFetchWindow } from '../../support/factories/logo-fetch-window';
+import { createPersonalKey } from '../../support/factories/personal-key';
+import { createPersonalKeyDraftDay } from '../../support/factories/personal-key-draft-day';
+import { createConversation } from '../../support/factories/conversation';
+import { createDraftCard } from '../../support/factories/draft-card';
+import { createAssistantTurn } from '../../support/factories/assistant-turn';
+import { createMessageAllowanceDay } from '../../support/factories/message-allowance-day';
 import { addressLimitKey } from '@/lib/security/limits/keys';
 import {
   createLimitEvent,
@@ -366,6 +372,118 @@ describe.runIf(containerRuntimeAvailable)(
           },
         })
       ).toBe(1);
+    });
+
+    /** Seeds every AI table for one seeded account (AC-39). */
+    async function seedAiRows(account: Awaited<ReturnType<typeof seedFullAccount>>) {
+      const userId = account.freelancer.id;
+      const { row: key } = await createPersonalKey(prisma, userId, {
+        canCreateDrafts: true,
+      });
+      await createPersonalKeyDraftDay(prisma, { personalKeyId: key.id, created: 2 });
+      const draftInvoice = await seedInvoiceRow(prisma, {
+        senderProfile: account.profileA,
+        customer: account.customer,
+        bankAccount: account.bankA,
+        overrides: {
+          invoiceNumber: 'AI-0001',
+          assistantOrigin: 'PERSONAL_KEY',
+          assistantKeyName: key.name,
+          assistantKeyId: key.id,
+        },
+      });
+      await prisma.mcpDraftRepeat.create({
+        data: {
+          personalKeyId: key.id,
+          repeatKey: `repeat-${userId}`,
+          fingerprint: 'a'.repeat(64),
+          invoiceId: draftInvoice.id,
+        },
+      });
+      const conversation = await createConversation(prisma, {
+        userId,
+        messages: [{ role: 'USER' }, { role: 'ASSISTANT' }],
+      });
+      await createDraftCard(prisma, {
+        userId,
+        conversationId: conversation.id,
+        state: 'CREATED',
+        invoiceId: draftInvoice.id,
+      });
+      await createAssistantTurn(prisma, {
+        userId,
+        conversationId: conversation.id,
+      });
+      await createMessageAllowanceDay(prisma, { userId, used: 4 });
+      return { keyId: key.id };
+    }
+
+    async function aiRowCountsFor(userId: string) {
+      return {
+        conversation: await prisma.conversation.count({ where: { userId } }),
+        conversationMessage: await prisma.conversationMessage.count({
+          where: { conversation: { userId } },
+        }),
+        draftCard: await prisma.draftCard.count({ where: { userId } }),
+        assistantTurn: await prisma.assistantTurn.count({ where: { userId } }),
+        messageAllowanceDay: await prisma.messageAllowanceDay.count({
+          where: { userId },
+        }),
+        personalKey: await prisma.personalKey.count({ where: { userId } }),
+        personalKeyDraftDay: await prisma.personalKeyDraftDay.count({
+          where: { personalKey: { userId } },
+        }),
+        mcpDraftRepeat: await prisma.mcpDraftRepeat.count({
+          where: { personalKey: { userId } },
+        }),
+      };
+    }
+
+    it('AC-39: deleteUserAccount leaves no AI row of the Freelancer and keeps every AI row of another Freelancer', async () => {
+      const owner = await seedFullAccount('ai-owner');
+      const other = await seedFullAccount('ai-other');
+      const ownerAi = await seedAiRows(owner);
+      await seedAiRows(other);
+      expect(await aiRowCountsFor(owner.freelancer.id)).toEqual({
+        conversation: 1,
+        conversationMessage: 2,
+        draftCard: 1,
+        assistantTurn: 1,
+        messageAllowanceDay: 1,
+        personalKey: 1,
+        personalKeyDraftDay: 1,
+        mcpDraftRepeat: 1,
+      });
+      authMock.mockResolvedValue({ user: { id: owner.freelancer.id } });
+
+      const result = await deleteUserAccount();
+
+      expect(result.success).toBe(true);
+      expect(await aiRowCountsFor(owner.freelancer.id)).toEqual({
+        conversation: 0,
+        conversationMessage: 0,
+        draftCard: 0,
+        assistantTurn: 0,
+        messageAllowanceDay: 0,
+        personalKey: 0,
+        personalKeyDraftDay: 0,
+        mcpDraftRepeat: 0,
+      });
+      expect(
+        await prisma.personalKeyDraftDay.count({
+          where: { personalKeyId: ownerAi.keyId },
+        })
+      ).toBe(0);
+      expect(await aiRowCountsFor(other.freelancer.id)).toEqual({
+        conversation: 1,
+        conversationMessage: 2,
+        draftCard: 1,
+        assistantTurn: 1,
+        messageAllowanceDay: 1,
+        personalKey: 1,
+        personalKeyDraftDay: 1,
+        mcpDraftRepeat: 1,
+      });
     });
 
     it('AC-20: deleteUserAccount returns UNAUTHORIZED without a live session, and deletes nothing', async () => {
