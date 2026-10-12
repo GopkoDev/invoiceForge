@@ -1,0 +1,17 @@
+{"id":"AC-12-complete","ac":"AC-12","text":"invoice Acme for 20 hours of consulting at $50","kind":"complete","expect":"card","setup":"base","lang":"en"}
+{"id":"AC-12-complete-uk","ac":"AC-12","text":"Виставити рахунок Acme на 20 годин консультації по 50 доларів","kind":"complete","expect":"card","setup":"base","lang":"uk"}
+{"id":"AC-16-custom-price","ac":"AC-16","text":"invoice Acme for 20 hours of consulting","kind":"complete","expect":"card","setup":"base","lang":"en"}
+{"id":"AC-16b-named-price","ac":"AC-16b","text":"invoice Acme for 20 hours of consulting at $60","kind":"complete","expect":"card","setup":"base","lang":"en"}
+{"id":"AC-16b-other-currency","ac":"AC-16b","text":"invoice Acme for 20 hours of consulting in EUR","kind":"incomplete","expect":"question","setup":"base","lang":"en"}
+{"id":"AC-16b-other-currency-uk","ac":"AC-16b","text":"Виставити рахунок Acme за 20 годин консультації в євро","kind":"incomplete","expect":"question","setup":"base","lang":"uk"}
+{"id":"AC-17-no-profile","ac":"AC-17","text":"invoice Acme for 20 hours at $50","kind":"incomplete","expect":"question","setup":"no-profile","lang":"en"}
+{"id":"AC-17-no-profile-uk","ac":"AC-17","text":"Створи рахунок для Acme на 20 годин по 50 доларів","kind":"incomplete","expect":"question","setup":"no-profile","lang":"uk"}
+{"id":"AC-19-eur-complete","ac":"AC-19","text":"invoice Acme 600 EUR for the logo design","kind":"complete","expect":"card","setup":"base","lang":"en"}
+{"id":"AC-19-no-amount","ac":"AC-19","text":"invoice Acme for the logo design","kind":"incomplete","expect":"question","setup":"base","lang":"en"}
+{"id":"AC-20-two-acme","ac":"AC-20","text":"invoice Acme for 20 hours at $50","kind":"ambiguous","expect":"question","setup":"two-acme","lang":"en"}
+{"id":"AC-20-two-acme-uk","ac":"AC-20","text":"Виставити рахунок Acme на 20 годин по 50 доларів","kind":"ambiguous","expect":"question","setup":"two-acme","lang":"uk"}
+{"id":"AC-21-unknown-customer","ac":"AC-21","text":"invoice Globex for 3 days at 450 USD a day","kind":"incomplete","expect":"question","setup":"base","lang":"en"}
+{"id":"AC-21-unknown-customer-uk","ac":"AC-21","text":"Виставити рахунок Globex за 3 дні по 450 USD на день","kind":"incomplete","expect":"question","setup":"base","lang":"uk"}
+{"id":"AC-22-no-amount","ac":"AC-22","text":"invoice Acme for the website","kind":"incomplete","expect":"question","setup":"base","lang":"en"}
+{"id":"AC-22-no-amount-uk","ac":"AC-22","text":"Виставити рахунок Acme за сайт","kind":"incomplete","expect":"question","setup":"base","lang":"uk"}
+{"id":"AC-22-no-price","ac":"AC-22","text":"invoice Acme for 5 hours of copywriting","kind":"incomplete","expect":"question","setup":"base","lang":"en"}

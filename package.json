@@ -21,6 +21,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "eval:assistant": "ASSISTANT_EVAL=1 node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run -c evals/assistant/vitest.config.ts evals/assistant/run.ts",
     "check:pdf-chunks": "node scripts/check-pdf-chunks.ts",
     "mastra:migrate": "node --env-file-if-exists=.env scripts/mastra-migrate.ts",
     "report:invoice-integrity": "node --env-file-if-exists=.env scripts/invoice-integrity-report.ts"
