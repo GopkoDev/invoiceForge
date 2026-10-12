@@ -28,7 +28,7 @@ export interface TopicItem {
 }
 
 /** The seeded Freelancer a no-guessing request runs against. */
-export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile' | 'stored-text' | 'several-usd';
+export type NoGuessingSetup = 'base' | 'two-acme' | 'no-profile' | 'stored-text' | 'several-eur';
 
 export interface NoGuessingItem {
   id: string;

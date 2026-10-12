@@ -137,11 +137,12 @@ describe.runIf(containerRuntimeAvailable)('ai-assistant migrations (T01, AC-26, 
     expect(await columnNames('Invoice')).toEqual(
       expect.arrayContaining(['assistantOrigin', 'assistantKeyName', 'assistantKeyId', 'issuedAt'])
     );
+    expect(await columnNames('McpDraftRepeat')).toContain('proposal'); // T45 (P-5)
     expect(await indexValid(LIVE_INDEX)).toEqual([true]);
     expect(await indexValid(KEY_INDEX)).toEqual([true]);
   });
 
-  it('applies, reverts and re-applies cleanly: down 10 → 01 removes everything, up 01 → 10 restores it, re-running is a no-op', async () => {
+  it('applies, reverts and re-applies cleanly: down 11 → 01 removes everything, up 01 → 11 restores it, re-running is a no-op', async () => {
     for (const sql of [...DOWN].reverse()) await psql(sql);
     expect(await tablesPresent()).toEqual([]);
     expect(await columnNames('PersonalKey')).not.toContain('canCreateDrafts');
@@ -150,6 +151,7 @@ describe.runIf(containerRuntimeAvailable)('ai-assistant migrations (T01, AC-26, 
 
     for (const sql of UP) await psql(sql);
     expect((await tablesPresent()).sort()).toEqual([...AI_TABLES].sort());
+    expect(await columnNames('McpDraftRepeat')).toContain('proposal'); // T45 (P-5)
     expect(await indexValid(LIVE_INDEX)).toEqual([true]);
     expect(await indexValid(KEY_INDEX)).toEqual([true]);
 

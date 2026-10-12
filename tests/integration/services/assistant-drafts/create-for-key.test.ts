@@ -553,5 +553,27 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
       expect(again.data.draft.defaultsUsed).toEqual([]);
       expect(again.data.draft.lines.every((l: { rateSource: string }) => l.rateSource === 'REQUEST')).toBe(true);
     });
+
+    it('P-1: a repeat row with a malformed stored proposal is rebuilt from the stored invoice, not returned as-is', async () => {
+      const s = await setup();
+      const { request, first } = await threeTiedItems(s, 'p1');
+      await prisma.$executeRawUnsafe('UPDATE "McpDraftRepeat" SET "proposal" = \'{"bogus":true}\'::jsonb');
+      await prisma.invoice.update({ where: { id: first.data.invoiceId }, data: { status: 'PENDING' } });
+
+      const again = await svc.createDraftForKey(s.actor, s.key, request, LATER);
+
+      expect(again.success).toBe(true);
+      if (!again.success) return;
+      expect(again.data).toMatchObject({
+        invoiceId: first.data.invoiceId,
+        invoiceNumber: first.data.invoiceNumber,
+        status: 'PENDING',
+        repeated: true,
+      });
+      expect(again.data.draft).not.toHaveProperty('bogus');
+      expect(again.data.draft.lines).toHaveLength(3);
+      expect(again.data.draft.defaultsUsed).toEqual([]);
+      expect(again.data.draft.lines.every((l: { rateSource: string }) => l.rateSource === 'REQUEST')).toBe(true);
+    });
   });
 });

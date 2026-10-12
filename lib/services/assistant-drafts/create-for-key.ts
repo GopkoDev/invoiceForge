@@ -14,7 +14,11 @@ import { takeKeyDraftSlot } from '@/lib/services/assistant-usage/key-drafts';
 import { fingerprintRequest } from '@/lib/services/assistant-drafts/fingerprint';
 import { resolveDraftRequest, toInvoiceFormInput } from '@/lib/services/assistant-drafts/resolve';
 import { readRepeatMark, writeRepeatMark } from '@/lib/services/assistant-drafts/repeat-marks';
-import type { CreateDraftInvoiceInput, DraftProposal } from '@/lib/services/assistant-drafts/schema';
+import {
+  draftProposalSchema,
+  type CreateDraftInvoiceInput,
+  type DraftProposal,
+} from '@/lib/services/assistant-drafts/schema';
 
 export type DraftCreatedAnswer = {
   invoiceId: string;
@@ -124,13 +128,15 @@ export async function createDraftForKey(
       if (!invoice) return fail('NOT_FOUND', GONE_MESSAGE);
       // N-1 / N-10: a repeat returns the first answer's stored proposal (true sources, defaultsUsed) with the
       // invoice's current number and status; a mark written before the column existed is rebuilt from the invoice.
-      const stored = mark.proposal as DraftProposal | null;
+      const parsed = draftProposalSchema.safeParse(mark.proposal);
       return ok({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         status: invoice.status,
         link: linkTo(invoice.id),
-        draft: stored ? { ...stored, invoiceNumber: invoice.invoiceNumber } : proposalFromStored(invoice),
+        draft: parsed.success
+          ? { ...parsed.data, invoiceNumber: invoice.invoiceNumber }
+          : proposalFromStored(invoice),
         repeated: true,
       });
     };

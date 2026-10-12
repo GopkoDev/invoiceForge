@@ -187,9 +187,14 @@ describe('AI page (SCR-01 reads)', () => {
     const ui = await AiPage({ searchParams: Promise.resolve({ page: '2' }) });
     expect(listConversations).toHaveBeenCalledWith({ userId: 'u1', timeZone: 'UTC' }, 2);
     render(ui);
-    // T44: the list renders in two slots (lg and phone), so each text appears once per slot.
-    expect(screen.getAllByText('Who owes me money?').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(RETENTION).length).toBeGreaterThanOrEqual(1);
+    // T44/T45 (P-3): the list renders in exactly two slots (lg and phone): one copy in each, no more.
+    expect(screen.getAllByText('Who owes me money?')).toHaveLength(2);
+    expect(screen.getAllByText(RETENTION)).toHaveLength(2);
+    for (const text of ['Who owes me money?', RETENTION]) {
+      const copies = screen.getAllByText(text);
+      expect(copies.filter((el) => el.closest('.hidden.lg\\:block'))).toHaveLength(1);
+      expect(copies.filter((el) => el.closest('.lg\\:hidden'))).toHaveLength(1);
+    }
   });
 
   it('routes a FAILED read to the segment error boundary by throwing (not an empty list)', async () => {

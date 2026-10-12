@@ -200,7 +200,7 @@ async function runNoGuessing(
       NoGuessingSetup,
       Awaited<ReturnType<typeof actingFreelancerForTest>>
     >();
-    for (const setup of ['base', 'two-acme', 'no-profile', 'stored-text', 'several-usd'] as const) {
+    for (const setup of ['base', 'two-acme', 'no-profile', 'stored-text', 'several-eur'] as const) {
       const user = await createFreelancer(prisma, {
         email: `eval-${setup}@example.com`,
         timeZone: TIME_ZONE,
@@ -212,18 +212,17 @@ async function runNoGuessing(
         await createBankAccount(prisma, profile.id, {
           currency: 'USD',
           isDefault: true,
-          ...(setup === 'several-usd' ? { bankName: 'Revolut' } : {}),
         });
         if (setup === 'base')
           await createBankAccount(prisma, profile.id, {
             currency: 'EUR',
             isDefault: false,
           });
-        // AC-19: several accounts in one currency, so the assistant must ask which one to use.
-        if (setup === 'several-usd')
-          for (const bankName of ['Monobank', 'Wise'])
+        // AC-19: the default account is USD and there are several EUR accounts, so a 600 EUR request must ask which.
+        if (setup === 'several-eur')
+          for (const bankName of ['Revolut', 'Wise'])
             await createBankAccount(prisma, profile.id, {
-              currency: 'USD',
+              currency: 'EUR',
               isDefault: false,
               bankName,
             });

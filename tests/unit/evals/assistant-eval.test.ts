@@ -262,14 +262,36 @@ describe('multi-turn and MIXED drafting rows in the no-guessing set (N-6)', () =
     expect(history.some((t) => t.role === 'user' && /acme/i.test(t.text))).toBe(true);
   });
 
-  it('has an AC-19 follow-up ("use Revolut") after SEVERAL_ACCOUNTS_IN_CURRENCY, with history, expecting a card', () => {
-    const row = items.find((i) => i.ac === 'AC-19' && /revolut/i.test(i.text));
+  // T45 (P-2): AC-19 is "default USD account + several EUR accounts, a 600 EUR request": the assistant asks
+  // which EUR account, and the follow-up picks a NON-default one by name. The setup must really seed that.
+  it('has an AC-19 follow-up picking a non-default EUR account by name after the assistant asked which EUR account, expecting a card', () => {
+    const row = items.find((i) => i.ac === 'AC-19' && Array.isArray((i as { history?: unknown }).history));
     expect(row, 'AC-19 follow-up row').toBeDefined();
     expect(row!.expect).toBe('card');
+    expect(row!.kind).toBe('complete');
     const history = historyOf(row);
     expect(history.length).toBeGreaterThanOrEqual(2);
+    expect(history[0].role).toBe('user');
+    expect(history[0].text).toMatch(/600\s*EUR/i);
     expect(history.at(-1)!.role).toBe('assistant');
-    expect(history.at(-1)!.text).toMatch(/revolut/i); // the earlier question named the accounts to choose from
+    expect(history.at(-1)!.text).toMatch(/EUR/);
+    expect(history.at(-1)!.text).toMatch(/which/i);
+    const picked = ['Revolut', 'Wise'].find((n) => new RegExp(n, 'i').test(row!.text));
+    expect(picked, 'the follow-up names one of the non-default EUR accounts').toBeDefined();
+    expect(history.at(-1)!.text).toMatch(/revolut/i);
+    expect(history.at(-1)!.text).toMatch(/wise/i);
+
+    // The row's setup seeds a DEFAULT USD account plus two non-default EUR accounts (Revolut, Wise) in run.ts.
+    const run = readFileSync(join(ROOT, 'evals/assistant/run.ts'), 'utf8');
+    const setup = row!.setup as string;
+    expect(setup).not.toBe('base');
+    expect(run).toContain(`'${setup}'`);
+    const eurBlock = run.slice(run.indexOf(`setup === '${setup}'`));
+    expect(eurBlock, 'seeding branch for the AC-19 setup').toContain("currency: 'EUR'");
+    expect(eurBlock).toMatch(/Revolut/);
+    expect(eurBlock).toMatch(/Wise/);
+    expect(run).toMatch(/currency: 'USD',\s*isDefault: true/); // the default account stays USD
+    expect(run.slice(run.indexOf(`setup === '${setup}'`), run.indexOf(`setup === '${setup}'`) + 600)).toMatch(/isDefault: false/);
   });
 
   it('has an AC-06b MIXED drafting row (a drafting request plus an out-of-scope part) expecting a card', () => {

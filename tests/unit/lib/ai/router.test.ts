@@ -114,6 +114,12 @@ describe('topic router (ADR-0005)', () => {
     expect(mixed.intent).toBe('read');
   });
 
+  // T45 (P-4): intent is lenient, topic is not; a topic outside the enum still fails the turn.
+  it('a verdict with an unknown topic rejects (no silent verdict)', async () => {
+    model = scripted({ topic: 'bogus', language: 'en', intent: 'read' });
+    await expect(classifyMessage({ message: 'hello', recentTurns: [] })).rejects.toThrow();
+  });
+
   it('a failing classification call rejects so the turn fails system-side (no silent verdict)', async () => {
     model = new MockLanguageModelV4({
       doGenerate: async () => {
