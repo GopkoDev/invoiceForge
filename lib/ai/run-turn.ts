@@ -206,7 +206,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
             break;
           case 'tool-result':
             pushUnique(links, linksFromToolResult(p.toolName, p.result));
-            if (p.toolName === 'propose_draft' && p.result?.kind === 'ISSUES') draftIssues = p.result.issues;
+            // Only the last propose_draft answer counts: a later CARD clears earlier issues (review R6-2).
+            if (p.toolName === 'propose_draft') draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
             break;
           case 'step-finish':
             closeText();
@@ -240,7 +241,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       return;
     }
 
-    if (text.trim() === '' && draftIssues.length > 0) {
+    if (text.trim() === '' && draftIssues.length > 0 && !turn.pending.card) {
       // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).
       const fallback = issuesText(draftIssues, verdict.language);
       emit({ type: 'text-start', id: 'issues' });

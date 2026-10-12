@@ -686,11 +686,12 @@ components:
           description: |
             The named `bankAccount` exists but is in another currency than the one asked for (AC-19b, fix 2026-10-12).
             An invoice and its bank account share one currency, so it is never used. Never picks another account.
-          required: [kind, written, currency, account]
+          required: [kind, written, currency, senderProfileId, account]
           properties:
             kind: { const: BANK_ACCOUNT_CURRENCY_MISMATCH }
             written: { type: string }
             currency: { $ref: "#/components/schemas/Currency" }
+            senderProfileId: { $ref: "#/components/schemas/RecordId" }
             account: { $ref: "#/components/schemas/BankAccountInCurrency" }
         - type: object
           description: A line that matches a catalogue product but names neither a quantity nor a price (spec.md §1 defaults, review R-10).

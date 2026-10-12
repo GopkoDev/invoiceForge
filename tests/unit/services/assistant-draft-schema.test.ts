@@ -216,6 +216,7 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
       kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
       written: 'Privat',
       currency: 'USD',
+      senderProfileId: 'sp1',
       account: { bankAccountId: 'ba1', label: 'Privat ••1234', currency: 'UAH' },
     },
     {

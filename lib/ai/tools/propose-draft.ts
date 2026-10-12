@@ -34,7 +34,7 @@ function linksFor(issues: DraftIssue[]): AppLink[] {
       add({ kind: 'page', page: 'new-sender-profile' });
     } else if (issue.kind === 'DEFAULT_PROFILE_WITHOUT_ACCOUNT') {
       add({ kind: 'page', page: 'sender-profile-bank-accounts', senderProfileId: issue.defaultSenderProfileId });
-    } else if (issue.kind === 'NO_ACCOUNT_IN_CURRENCY') {
+    } else if (issue.kind === 'NO_ACCOUNT_IN_CURRENCY' || issue.kind === 'BANK_ACCOUNT_CURRENCY_MISMATCH') {
       add({ kind: 'page', page: 'sender-profile-bank-accounts', senderProfileId: issue.senderProfileId });
     }
   }

@@ -203,6 +203,20 @@ describe.runIf(containerRuntimeAvailable)('createDraftForKey (T21)', () => {
       expect(await prisma.personalKeyDraftDay.count()).toBe(0);
     });
 
+    it('AC-19b: a named account in another currency -> DRAFT_ISSUES with BANK_ACCOUNT_CURRENCY_MISMATCH, nothing created', async () => {
+      const s = await setup();
+
+      const res = await svc.createDraftForKey(s.actor, s.key, { ...REQUEST, currency: 'EUR', bankAccount: 'Bank' }, NOW);
+
+      expect(res).toMatchObject({ success: false, code: 'VALIDATION', details: { kind: 'DRAFT_ISSUES' } });
+      if (res.success) return;
+      expect(res.details?.issues).toEqual([
+        expect.objectContaining({ kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH', currency: 'EUR', account: expect.objectContaining({ currency: 'USD' }) }),
+      ]);
+      expect(await prisma.invoice.count()).toBe(0);
+      expect(await prisma.personalKeyDraftDay.count()).toBe(0);
+    });
+
     it('AC-17: a Freelancer with no sender profile and bank account -> DRAFT_ISSUES, nothing created', async () => {
       const s = await setup({ withProfile: false });
 

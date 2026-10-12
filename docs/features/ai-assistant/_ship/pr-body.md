@@ -37,6 +37,7 @@ Spec: [`docs/features/ai-assistant/spec.md`](docs/features/ai-assistant/spec.md)
 - AC-17 — no sender profile or bank account → explained with a link, no card; MCP is refused the same way ✓
 - AC-18 — an outdated card is rebuilt and must be confirmed again ✓
 - AC-19 — "600 EUR" uses the EUR bank account and names quantity 1 and unit "item" as defaults ✓
+- AC-19b — a named bank account in another currency is never used; the chat says why and links to adding an account (added by fix 2026-10-12) ✓
 - AC-20 — two matching Customers → the chat asks which, naming both ✓
 - AC-21 — no matching Customer → a link to add one; no Customer is created ✓
 - AC-22 — a line without an amount → the chat asks for quantity and price ✓
@@ -77,9 +78,9 @@ All 46 tasks in `tasks.json`, T01 – T46, are committed with `SDD-Task` trailer
 
 ## Verification
 
-- Unit: **2458 passed** (after the security fixes).
-- Integration (Docker-backed Postgres): **1235 passed / 51 skipped** for the full suite before the security fixes, then **71 / 71** for the five chat-route files after them. The only code changed in between is the chat route and the Sentry config.
-- E2E (local production build, `CI=1 pnpm test:e2e`): **122 passed / 4 skipped / 0 failed**, including the AI section, draft → Create → mark → issue, Create with AI, used-up notice, Draft-permission key, Conversation reopen, and the SCR-01/SCR-03 baselines.
+- Unit: **2480 passed** (at the final commit, after the security and bank-account fixes).
+- Integration (Docker-backed Postgres): **1250 passed / 51 skipped**, full suite at the final commit.
+- E2E (local production build, `CI=1 pnpm test:e2e`): **122 passed / 4 skipped / 0 failed** at the final commit, including the AI section, draft → Create → mark → issue, Create with AI, used-up notice, Draft-permission key, Conversation reopen, and the SCR-01/SCR-03 baselines.
 - Lint: 0 errors (4 warnings that were already there). Typecheck: clean.
 - Ran the feature (production build on :4311, real Postgres, real HTTP):
   - **AC-29**: a read-only key calling `create_draft_invoice` → `FORBIDDEN`, "This key can only read…", and 0 invoices.
@@ -88,6 +89,7 @@ All 46 tasks in `tasks.json`, T01 – T46, are committed with `SDD-Task` trailer
   - **AC-31**: with "Acme GmbH" added → `CUSTOMER_AMBIGUOUS` listing both. A line "website" without an amount → `LINE_AMOUNT_MISSING`. Still 1 invoice.
   - **AC-42**: anonymous `POST /api/chat` → 401. Anonymous `GET /ai` → 307 to `/login?callbackUrl=%2Fai`.
 - **Deferred:** replies from the real model. There is no `AI_GATEWAY_API_KEY` in local `.env`, so the chat ran on the scripted e2e model and `pnpm eval:assistant` (topic-boundary and no-guessing sets) was not re-run here. Run both on preview with the gateway key before promoting.
+- Bank-account fix (owner testing with the real model, 2026-10-12): a missing or mismatched bank account is now explained in words, never a link alone. AC-19 is patched and AC-19b added; see `_fixes/2026-10-12-bank-account-currency.md`. Re-review round 6 findings fixed with RED → GREEN tests.
 - Security review (spec §6.1): one MEDIUM and one LOW finding, both fixed in b0b88fd with RED → GREEN tests. Everything else checked was sound.
 
 ## Operational notes

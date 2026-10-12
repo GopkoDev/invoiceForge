@@ -27,7 +27,7 @@
 - **Draft permission for MCP.**
   - A new Personal key can be created with Draft permission; an existing key can never gain it.
   - The new MCP tool `create_draft_invoice` applies the same no-guessing rule as the chat and refuses with what to ask instead.
-  - Each key may create 50 drafts a day; the Freelancer can lift that cap for today from Settings → Assistants, once it is reached.
+  - Each key may create 50 drafts a day; the Freelancer can lift that cap for today on the Connect your AI page (settings), once it is reached.
   - A request sent with a `repeatKey` is safe to retry for 24 hours: it returns the first draft instead of creating a second one.
 - **Privacy.** The public Privacy page names the Vercel AI Gateway and Google as processors of chat text and states the 90-day retention. Debugging traces keep metadata only (tools, steps, duration, cost, outcome), never message text. The data export includes Conversations, and deleting the account deletes them.
 
@@ -46,7 +46,7 @@ The key decisions:
 - [ADR-0012](../adr/0012-keep-mcp-repeat-keys-in-their-own-table-purged-after-24-hours.md): MCP repeat keys live in their own table, purged after 24 hours.
 - [ADR-0013](../adr/0013-record-the-assistant-origin-as-write-once-columns-on-the-invoice.md): the Assistant origin is recorded as write-once columns on the invoice.
 
-**How to use:** Open **AI** in the navigation, or **Create with AI** on the invoice list, and write *"invoice Acme for 20 hours of consulting at $50"*. Check the card and press **Create**. For an external client, create a new key with Draft permission in Settings → Assistants and ask it to create a draft. The chat route and the MCP tool are in [openapi.yaml](../contracts/openapi.yaml); the web actions are in [server-actions.md](../contracts/server-actions.md).
+**How to use:** Open **AI** in the navigation, or **Create with AI** on the invoice list, and write *"invoice Acme for 20 hours of consulting at $50"*. Check the card and press **Create**. For an external client, create a new key with Draft permission on the Connect your AI page (settings) and ask it to create a draft. The chat route and the MCP tool are in [openapi.yaml](../contracts/openapi.yaml); the web actions are in [server-actions.md](../contracts/server-actions.md).
 
 **Operational notes:**
 - **Settings (required before deploy):** `AI_GATEWAY_API_KEY` and `GOOGLE_GENERATIVE_AI_API_KEY` (the Google AI Studio key registered with the gateway as bring-your-own-key). Both are in the required-settings list, so `pnpm build` fails without them. Optional: `AI_CHAT_MODEL` (default `google/gemini-2.5-flash-lite`). Never set `E2E` or `AI_CHAT_MODEL=stub:e2e` in a real deployment.
@@ -57,7 +57,7 @@ The key decisions:
 - **Model terms:** the free-tier Gemini key lets Google use content to improve its products (ADR-0003); the Privacy page says so. Review the 14-day cost data against the allowance (spec §8).
 - **Rollback:** redeploy the previous build. The new tables and columns are unused by the old code and can stay. To remove them, run the down scripts in reverse order (11 → 01); `08_add_invoice_assistant_origin.down.sql` drops the origin record of existing Assistant drafts.
 
-**Acceptance criteria delivered:** AC-01 – AC-42, including AC-06b, AC-10b, AC-11b, AC-11c, AC-14b and AC-16b (48 criteria).
+**Acceptance criteria delivered:** AC-01 – AC-42, including AC-06b, AC-10b, AC-11b, AC-11c, AC-14b, AC-16b and AC-19b (49 criteria).
 
 | ACs | What they guarantee |
 |---|---|
@@ -65,7 +65,7 @@ The key decisions:
 | AC-02 – AC-05, AC-08 | Read answers equal the dashboard, partial lists are called partial, one time zone and one overdue rule |
 | AC-06 – AC-07 | Off-topic requests get a one-sentence refusal; mixed requests keep the in-scope part; app help links only to real pages |
 | AC-09 – AC-11c | An honest Daily message allowance, exact under concurrency; system failures and Create presses are not counted |
-| AC-12 – AC-19 | A draft card from one sentence with named defaults, created only on Create, never twice, never from an outdated or replaced card, never from stored text |
+| AC-12 – AC-19b | A draft card from one sentence with named defaults, created only on Create, never twice, never from an outdated or replaced card, never from stored text; a missing or mismatched bank account is explained in words |
 | AC-20 – AC-22 | Ambiguous or missing values are asked, never guessed; no Customer is ever created |
 | AC-23 – AC-24 | Assistant drafts are marked, and only the Freelancer issues them |
 | AC-25 – AC-32 | Draft permission only on new keys, 50 drafts a day per key with a web lift, the same no-guessing refusals through MCP, safe repeats |

@@ -168,21 +168,26 @@ function resolveSenderAndAccount(
     }
     currency = reading.currency as Currency;
   }
+  const inCurrency = profile.bankAccounts.filter((a) => currency === undefined || a.currency === currency);
   if (currency !== undefined && request.bankAccount !== undefined) {
-    // A named account in another currency is never used, and the answer says why (fix 2026-10-12).
-    const named = matchAccount(request.bankAccount, profile.bankAccounts);
-    if ('account' in named && named.account.currency !== currency) {
+    // A named account that matches nothing in the asked currency but one account in another is never
+    // used, and the answer says why (fix 2026-10-12; in-currency matches first, review R6-3).
+    const inAsked = matchAccount(request.bankAccount, inCurrency);
+    const elsewhere = 'issue' in inAsked && inAsked.issue.kind === 'BANK_ACCOUNT_NOT_FOUND'
+      ? matchAccount(request.bankAccount, profile.bankAccounts)
+      : null;
+    if (elsewhere && 'account' in elsewhere) {
       return {
         issue: {
           kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
           written: request.bankAccount,
           currency,
-          account: accountWithCurrency(named.account),
+          senderProfileId: profile.id,
+          account: accountWithCurrency(elsewhere.account),
         },
       };
     }
   }
-  const inCurrency = profile.bankAccounts.filter((a) => currency === undefined || a.currency === currency);
   if (currency !== undefined && inCurrency.length === 0) {
     return {
       issue: {

@@ -312,6 +312,48 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
       expect(result.text).toContain('EUR');
     });
 
+    it('review R6-2: an ISSUES answer followed by a CARD in the same turn gets no fallback words', async () => {
+      model = scriptedModel({
+        steps: (i) =>
+          i === 0
+            ? { toolCall: { name: 'propose_draft', input: { customer: 'Acme', lines: [{ description: 'website' }] } } }
+            : i === 1
+              ? {
+                  toolCall: {
+                    name: 'propose_draft',
+                    input: { customer: 'Acme', lines: [{ description: 'website', quantity: '1', price: '900' }] },
+                  },
+                }
+              : {},
+      });
+      const { run } = await setup();
+
+      const { result } = await run('Invoice Acme for the website, 900');
+
+      expect(result.pendingCard).toBeDefined();
+      expect(result.text).toBe('');
+    });
+
+    it('review R6-1 / R6-6: a named account in another currency is explained in words, with the link to add an account', async () => {
+      model = scriptedModel({
+        steps: (i) =>
+          i === 0
+            ? {
+                toolCall: {
+                  name: 'propose_draft',
+                  input: { customer: 'Acme', currency: 'EUR', bankAccount: 'Bank', lines: [{ description: 'logo', quantity: '1', price: '600' }] },
+                },
+              }
+            : {},
+      });
+      const { run } = await setup();
+
+      const { result } = await run('Invoice Acme 600 EUR for the logo, use the Bank account');
+
+      expect(result.text).toMatch(/is in USD, but the invoice is in EUR/);
+      expect(result.links).toEqual([expect.objectContaining({ page: 'sender-profile-bank-accounts' })]);
+    });
+
     it('a reply the model did write is left as it is', async () => {
       model = scriptedModel({
         steps: (i) =>

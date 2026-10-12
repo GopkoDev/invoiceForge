@@ -166,6 +166,7 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     kind: z.literal('BANK_ACCOUNT_CURRENCY_MISMATCH'),
     written: z.string(),
     currency,
+    senderProfileId: recordId,
     account: accountInCurrency,
   }),
   z.object({ kind: z.literal('LINE_QUANTITY_MISSING'), lineIndex, description: z.string() }),

@@ -267,6 +267,24 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
       ]);
     });
 
+    it.each([
+      ['dollars', 'USD'],
+      ['доларів', 'USD'],
+      ['euro', 'EUR'],
+      ['євро', 'EUR'],
+      ['гривень', 'UAH'],
+      ['pounds', 'GBP'],
+    ])('review R6-4: the currency word "%s" reads as %s, like its symbol', async (word, code) => {
+      const { user, actor } = await freelancer();
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: code as 'USD' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const p = await okParties(resolve(actor, { customer: 'Acme', currency: word }));
+
+      expect(p.currency).toBe(code);
+    });
+
     it('an unreadable currency word is CURRENCY_UNCLEAR', async () => {
       const { user, actor } = await freelancer();
       await usdProfile(user.id);
@@ -374,6 +392,7 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
           kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
           written: 'Wise',
           currency: 'USD',
+          senderProfileId: expect.any(String),
           account: { bankAccountId: wise.id, label: expect.stringContaining('Wise'), currency: 'EUR' },
         },
       ]);
@@ -385,16 +404,30 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
       const privat = await createBankAccount(prisma, profile.id, { currency: 'UAH', bankName: 'Privat' });
       await createCustomer(prisma, user.id, { name: 'Acme Corp' });
 
-      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Privat' }));
+      // AC-19b's own words: "1660 dollars" (review R6-4), passed as the Freelancer wrote them.
+      const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'dollars', bankAccount: 'Privat' }));
 
       expect(issues).toEqual([
         {
           kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
           written: 'Privat',
           currency: 'USD',
+          senderProfileId: profile.id,
           account: { bankAccountId: privat.id, label: expect.stringContaining('Privat'), currency: 'UAH' },
         },
       ]);
+    });
+
+    it('review R6-3: an exact name in another currency does not hide an in-currency account that contains the name', async () => {
+      const { user, actor } = await freelancer();
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'UAH', bankName: 'Privat' });
+      const privatUsd = await createBankAccount(prisma, profile.id, { currency: 'USD', bankName: 'PrivatBank' });
+      await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+
+      const p = await okParties(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Privat' }));
+
+      expect(p.bankAccount.bankAccountId).toBe(privatUsd.id);
     });
 
     it('a name matching several accounts: BANK_ACCOUNT_AMBIGUOUS, never a pick', async () => {

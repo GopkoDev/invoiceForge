@@ -45,7 +45,20 @@ The owner confirmed the patch on 2026-10-12.
 - **AC-19** (patched): "the chat says so" now reads "the chat says so in words, names the accounts the profile does have with their currencies, and links to adding one … A reply is never a link alone."
 - **AC-19b** (added, `added-by-fix: 2026-10-12`): when the named account "Privat" is in UAH and the invoice is in USD, no card is shown. The chat explains the currency mismatch and offers two options: draft in UAH, or add a USD account. It never uses Privat and never picks another account. MCP refuses the same way.
 
+## Review round 6 (same day)
+
+An independent re-review of `1339607..HEAD` requested changes. All of them are fixed in a follow-up commit, which carries the `SDD-Review: R6-n` trailers:
+
+- **R6-1:** `BANK_ACCOUNT_CURRENCY_MISMATCH` now carries `senderProfileId`, and the chat adds the link to add a bank account.
+- **R6-2:** a later CARD in the same turn clears earlier issues, and no fallback words are written next to a card.
+- **R6-3:** the named account is matched inside the asked currency first. A same-named account in another currency no longer hides an in-currency one.
+- **R6-4:** currency words ("dollars", "доларів", "euro", "євро", "гривень", "pounds", "złoty") read like their symbol. Spec §1 "Currency symbols" is patched to match.
+- **R6-6:** the tests now cover the mismatch fallback sentence, the MCP refusal, and every issue kind in `issue-text.ts`.
+- **R6-7…R6-9:** the ship docs and the traceability rows (test plan, sad Flow 6, ux-flows) are updated.
+
 ## Follow-ups
+
+- Accepted residual (review R6-5): in a MIXED draft turn, the model may write only the one-sentence refusal and leave the draft issue unexplained. The fallback fires only when the model wrote no text at all. Watch for this in real conversations before adding a heuristic.
 
 - Add a no-guessing eval case for an account named in another currency ("invoice Acme 1660 dollars, use Privat" with only a UAH Privat). Run it with `pnpm eval:assistant` once a model key is available.
 - The fallback covers only ISSUES turns. A turn where the model calls a read tool and then writes nothing still shows an empty reply. Watch `AssistantTurn` for this and decide whether a general fallback is needed.

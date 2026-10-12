@@ -7,7 +7,7 @@ import type {
 import { freelancerText } from '@/lib/assistant-tools/freelancer-text';
 
 // The one place that turns service results into MCP answers: Freelancer-entered
-// text marking (AC-19b) and tool errors. Pure; no I/O.
+// text marking (mcp-server AC-19b) and tool errors. Pure; no I/O.
 
 const MAX_CANDIDATES = 50;
 

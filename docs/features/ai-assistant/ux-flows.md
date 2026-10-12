@@ -260,6 +260,7 @@ A signed-out Visitor who reaches the AI section or tries to send a message goes 
 | AC-17 | Flow US-05 → no profile/account branches → SCR-09 | |
 | AC-18 | Flow US-05 → card still current? → updated card | |
 | AC-19 | Flow US-05 → currency account branches | |
+| AC-19b | Flow US-05 → currency account branches (named account in another currency) | added-by-fix 2026-10-12; message + link, no new screen |
 | AC-20 | Flow US-06 → several Customers branch | |
 | AC-21 | Flow US-06 → no Customer branch → SCR-10 | |
 | AC-22 | Flow US-06 → no amount branch | |

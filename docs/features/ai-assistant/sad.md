@@ -500,7 +500,9 @@ sequenceDiagram
         else a line has no amount and matches no catalogue product
             S-->>UI: asks for the quantity and the price, fills in no value
         else currency unclear, or no bank account in it, or several
-            S-->>UI: asks the currency or which account, or says none exists with a link to add one
+            S-->>UI: asks the currency or which account, or says none exists (naming the accounts there are) with a link to add one
+        else the named bank account is in another currency (AC-19b)
+            S-->>UI: says the account's currency differs from the invoice's, with a link to add an account, no card
         else the product has no price in the invoice currency and none was named
             S-->>UI: free-text line, asks the price in the invoice currency
         else request complete
@@ -788,6 +790,7 @@ Flows 1–3 are the design-seeded flows above. Flows 4–12 use the generic part
 | AC-17 | Flow 6, no sender profile with a bank account, and default profile without one. External Assistant: Flow 3, ambiguous or missing values |
 | AC-18 | Flow 2, content differs |
 | AC-19 | Flow 6, currency branch and request complete |
+| AC-19b | Flow 6, named bank account in another currency. External Assistant: Flow 3, ambiguous or missing values |
 | AC-20 | Flow 6, several Customers match |
 | AC-21 | Flow 6, no Customer matches |
 | AC-22 | Flow 6, a line has no amount |

@@ -1,4 +1,4 @@
-// Freelancer-entered text marking (AC-19b): shared by every channel that answers from the read tools.
+// Freelancer-entered text marking (mcp-server AC-19b): shared by every channel that answers from the read tools.
 
 export type FreelancerText = { freelancerText: string };
 
