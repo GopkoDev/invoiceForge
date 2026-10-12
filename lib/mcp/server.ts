@@ -9,6 +9,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import type { z } from 'zod';
+import type { McpServerContext } from '@/lib/mcp/context';
+import type { ActionResult } from '@/types/result';
+import { createDraftHandler, createDraftTool } from '@/lib/mcp/draft-tool';
 import {
   recordPersonalKeyUsage,
   type PersonalKeyUsageOutcome,
@@ -42,19 +45,40 @@ export const SERVER_INSTRUCTIONS =
 
 type ZodObject = z.ZodObject<z.ZodRawShape>;
 
+type ToolAnnotations = {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+};
+
+const READ_ONLY_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
 interface RegisteredTool {
-  definition: ReadOnlyToolDefinition<ZodObject, ZodObject>;
-  handler: ReadOnlyToolHandler<ZodObject, ZodObject>;
+  definition: {
+    name: string;
+    title: string;
+    description: string;
+    inputSchema: z.ZodTypeAny;
+    outputSchema: ZodObject;
+  };
+  annotations: ToolAnnotations;
+  handler: (args: never, context: McpServerContext) => Promise<ActionResult<Record<string, unknown>>>;
 }
 
-const registries = new WeakMap<Server, { context: McpCallContext; tools: Map<string, RegisteredTool> }>();
+const registries = new WeakMap<Server, { context: McpServerContext; tools: Map<string, RegisteredTool> }>();
 
 /**
  * A fresh, stateless server per POST (ADR-0002). Only `tools/call` is counted. Tools are
  * read-only by construction: there is no write capability to register (AC-10). The context is
  * what every tool receives, never anything from the request body.
  */
-export function createMcpServer(context: McpCallContext): Server {
+export function createMcpServer(context: McpServerContext): Server {
   const server = new Server(
     { name: 'invoice-forge', title: 'Invoice Forge', version: '1.0.0' },
     {
@@ -65,21 +89,17 @@ export function createMcpServer(context: McpCallContext): Server {
   const tools = new Map<string, RegisteredTool>();
   registries.set(server, { context, tools });
   for (const { definition, handler } of READ_QUESTIONS) registerReadOnlyTool(server, definition, handler);
+  registerDraftTool(server, createDraftTool, createDraftHandler);
 
   server.setRequestHandler(ListToolsRequestSchema, () =>
     Sentry.startSpan({ name: 'mcp.tools/list', op: 'mcp.server' }, () => ({
-      tools: [...tools.values()].map(({ definition }) => ({
+      tools: [...tools.values()].map(({ definition, annotations }) => ({
         name: definition.name,
         title: definition.title,
         description: `${definition.description} ${DATA_NOT_INSTRUCTIONS}`,
         inputSchema: toJsonSchemaCompat(definition.inputSchema, { pipeStrategy: 'input' }),
         outputSchema: toJsonSchemaCompat(definition.outputSchema, { pipeStrategy: 'output' }),
-        annotations: {
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        },
+        annotations,
       })),
     }))
   );
@@ -105,7 +125,7 @@ export function createMcpServer(context: McpCallContext): Server {
 async function runTool(
   tool: RegisteredTool,
   rawArgs: unknown,
-  context: McpCallContext
+  context: McpServerContext
 ): Promise<{ result: CallToolResult; outcome: PersonalKeyUsageOutcome }> {
   const parsed = tool.definition.inputSchema.safeParse(rawArgs ?? {});
   if (!parsed.success) {
@@ -124,7 +144,10 @@ async function runTool(
     };
   }
   try {
-    const outcome = await tool.handler(parsed.data, context);
+    const outcome = await (tool.handler as (a: unknown, c: McpServerContext) => ReturnType<RegisteredTool['handler']>)(
+      parsed.data,
+      context
+    );
     if (outcome.success) {
       return { result: toolAnswer(outcome.data), outcome: 'success' };
     }
@@ -164,6 +187,25 @@ export function registerReadOnlyTool<I extends ZodObject, O extends ZodObject>(
   if (!registry) throw new Error('registerReadOnlyTool needs a server from createMcpServer');
   registry.tools.set(definition.name, {
     definition: definition as unknown as RegisteredTool['definition'],
+    annotations: READ_ONLY_ANNOTATIONS,
     handler: handler as unknown as RegisteredTool['handler'],
+  });
+}
+
+/**
+ * Registers the one writing tool (ADR-0011). It is listed to every key with its own annotations
+ * and the same description suffix; the handler's service refuses a key without Draft permission.
+ */
+export function registerDraftTool(
+  server: Server,
+  definition: RegisteredTool['definition'] & { annotations: ToolAnnotations },
+  handler: (args: unknown, context: McpServerContext) => Promise<ActionResult<Record<string, unknown>>>
+): void {
+  const registry = registries.get(server);
+  if (!registry) throw new Error('registerDraftTool needs a server from createMcpServer');
+  registry.tools.set(definition.name, {
+    definition,
+    annotations: definition.annotations,
+    handler: handler as RegisteredTool['handler'],
   });
 }

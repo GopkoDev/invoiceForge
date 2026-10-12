@@ -30,6 +30,7 @@ export async function POST(request: Request): Promise<Response> {
     const server = createMcpServer({
       actor: pipeline.actor,
       keyId: pipeline.keyId,
+      key: pipeline.key,
       origin: requestOrigin(request),
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
