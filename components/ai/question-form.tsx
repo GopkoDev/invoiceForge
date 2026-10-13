@@ -4,6 +4,7 @@ import { useId, useState, type KeyboardEvent } from 'react';
 import {
   ArrowRightIcon,
   CalendarIcon,
+  CornerDownLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   Loader2Icon,
@@ -45,7 +46,7 @@ function toAnswer(questionId: number, pick: Pick): FormAnswer {
 }
 
 const rowBase =
-  'group/row flex min-h-12 w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-checked:bg-muted/60 disabled:cursor-default';
+  'group/row flex min-h-12 w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-ring/40 focus-visible:ring-1 focus-visible:ring-inset aria-checked:bg-muted disabled:cursor-default';
 const badgeClass =
   'bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md text-xs tabular-nums';
 
@@ -188,29 +189,38 @@ export function QuestionForm({
   const decimal = q.input === 'AMOUNT' || q.input === 'RATE' || q.input === 'DISCOUNT';
   const rovingAt = focusAt[qid] ?? Math.max(0, q.options.findIndex((o) => pick?.kind === 'option' && pick.optionId === o.optionId));
 
+  const placeholder = !inputOnly
+    ? t.other
+    : q.input === 'DATE'
+      ? 'YYYY-MM-DD'
+      : decimal
+        ? 'Type an amount'
+        : 'Type your answer';
+  const confirm = () => draft.trim() !== '' && commitText(draft);
+
   const inputRow = (
     <div className="flex min-w-0 flex-1 items-center gap-3 px-2">
       <span className={badgeClass}>
         <PencilIcon className="size-3.5" aria-hidden />
       </span>
       <Input
+        key={qid}
         id={inputId}
         value={draft}
-        autoFocus={!inputOnly}
+        autoFocus
         disabled={locked}
         inputMode={decimal ? 'decimal' : undefined}
         aria-label={inputOnly ? title : t.other}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        placeholder={t.other}
+        placeholder={placeholder}
         className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
         onChange={(e) => setDrafts((prev) => ({ ...prev, [qid]: e.target.value }))}
         onBlur={() => draft !== '' && setTouched((prev) => ({ ...prev, [qid]: true }))}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            if (draft.trim() === '') return;
-            commitText(draft);
+            confirm();
           } else if (e.key === 'Escape' && hasOptions) {
             e.stopPropagation();
             setOtherOpen((prev) => ({ ...prev, [qid]: false }));
@@ -223,6 +233,16 @@ export function QuestionForm({
           }
         }}
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Confirm answer"
+        disabled={locked || draft.trim() === ''}
+        onClick={confirm}
+      >
+        <CornerDownLeftIcon aria-hidden />
+      </Button>
       {q.input === 'DATE' ? (
         <Popover>
           <PopoverTrigger

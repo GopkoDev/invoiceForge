@@ -209,6 +209,19 @@ describe('Something else and typed answers (AC-38, AC-14)', () => {
     expect(onSend).toHaveBeenCalledWith('f1', [{ questionId: 1, text: '40' }], 'What is the hourly rate for web dev? — 40');
   });
 
+  it('input-only question: the input is already active with a plain placeholder, not "Something else"', () => {
+    renderForm(makeForm([priceQ()]));
+    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Type an amount');
+    expect(screen.queryByText('Something else')).toBeNull();
+  });
+
+  it('the Confirm answer button does what Enter does', async () => {
+    const { user, onSend } = renderForm(makeForm([priceQ()]));
+    await user.type(screen.getByRole('textbox'), '40');
+    await user.click(screen.getByRole('button', { name: 'Confirm answer' }));
+    expect(onSend).toHaveBeenCalledWith('f1', [{ questionId: 1, text: '40' }], 'What is the hourly rate for web dev? — 40');
+  });
+
   it('shows the input directly with the match helper for an input-only question', () => {
     renderForm(makeForm([customerQ({ options: [], matchCount: 12 })]));
     expect(screen.queryByRole('radiogroup')).toBeNull();
