@@ -9,7 +9,7 @@ files_hint: ["app/(protected)/ai/[conversationId]/loading.tsx", "app/(protected)
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T42 — Redraw the Conversation page loading skeleton inside the workspace container (review R16-1)

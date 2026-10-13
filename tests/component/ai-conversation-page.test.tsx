@@ -396,11 +396,34 @@ describe('SCR-12 not-found page', () => {
   });
 });
 
-describe('Conversation loading (SCR-02 loading)', () => {
+describe('Conversation loading (SCR-03 loading)', () => {
   it('renders three message skeletons and a composer skeleton', () => {
     const { container } = render(<ConversationLoading />);
     expect(
       container.querySelectorAll('[data-slot="skeleton"]').length
     ).toBeGreaterThanOrEqual(4);
+  });
+
+  // Review R16-1 / T42: the boundary every Conversation switch shows draws the same workspace container as /ai.
+  it('draws the bordered 16rem workspace container, the plain list rows, the h-12 header and the centred column', () => {
+    const { container } = render(<ConversationLoading />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toMatch(/md:grid-cols-\[16rem_minmax\(0,1fr\)\]/);
+    expect(root.className).toMatch(/md:rounded-xl/);
+    expect(root.className).toMatch(/md:border(\s|$)/);
+    expect(root.className).toMatch(/bg-background/);
+    expect(root.className).not.toMatch(/18rem/);
+    const skeletons = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-slot="skeleton"]')
+    );
+    expect(skeletons.some((s) => /(^|\s)h-14(\s|$)/.test(s.className))).toBe(
+      false
+    );
+    expect(
+      skeletons.filter((s) => /(^|\s)h-9(\s|$)/.test(s.className)).length
+    ).toBeGreaterThanOrEqual(6);
+    expect(container.querySelector('.h-12.border-b')).not.toBeNull();
+    expect(container.querySelector('.max-w-3xl')).not.toBeNull();
+    expect(skeletons.some((s) => /rounded-2xl/.test(s.className))).toBe(true);
   });
 });
