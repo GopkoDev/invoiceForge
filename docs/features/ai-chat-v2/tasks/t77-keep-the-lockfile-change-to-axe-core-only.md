@@ -9,7 +9,7 @@ files_hint: ["pnpm-lock.yaml", "package.json"]
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T77 — Keep the axe-core lockfile change to axe-core only: restore next's @babel/core 7.29.7 peer resolution (review R21-3)
