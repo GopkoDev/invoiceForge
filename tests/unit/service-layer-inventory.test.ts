@@ -83,11 +83,7 @@ describe('part 2: every business function has request-free and foreign-record te
     'invoiceNumberConflict',
     // Internal link-state read shared by getConversation and createFromCard (ai-assistant T20).
     'readInvoiceStates',
-    // Transaction steps of the press path (server-actions.md §Chat route internals): they take the route's
-    // transaction, not an actor-first call; covered by tests/integration/ai-chat-v2-choice-check.test.ts (ai-chat-v2 T12).
-    'claimOffer',
-    'releaseOffer',
-    // The same steps for a Question form, and the record re-check shared by both checks (ai-chat-v2 T56); covered by
+    // Transaction steps of a Question form (they take the route's transaction, not an actor-first call), and the record re-check shared by both checks (ai-chat-v2 T56); covered by
     // tests/integration/services/assistant-drafts/form-check.test.ts.
     'claimForm',
     'releaseForm',

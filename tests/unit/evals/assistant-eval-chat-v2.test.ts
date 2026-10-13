@@ -282,10 +282,12 @@ describe('harness: the own-profile-name setup and the press path', () => {
     expect(run).toMatch(/currency: 'UAH'/);
   });
 
-  it('sends a press through the chat route as a choice, never as typed text, and never sends an origin', () => {
+  it('sends a press through the chat route as a form Send (T57), never as a choice or typed text, and never sends an origin', () => {
     expect(run).toContain('@/app/api/chat/route');
-    expect(run).toMatch(/choice: \{ offerId, optionId \}/);
+    expect(run).toMatch(/form: \{ formId, answers/);
+    expect(run).not.toMatch(/choice: \{ offerId, optionId \}/);
     expect(run).not.toMatch(/origin: 'PRESSED'/);
+    expect(run).not.toMatch(/origin: 'FORM'/);
   });
 
   it('finds the option to press by its label, with or without the email part', () => {

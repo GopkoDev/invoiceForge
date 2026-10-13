@@ -63,7 +63,7 @@
 | T54 | [Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels](./t54-add-the-chat-only-ask-user-tool.md) | app | Dmytro Hopko | M | T52 | done |
 | T55 | [Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen](./t55-compose-the-turn-s-one-form-stream.md) | app | Dmytro Hopko | L | T52, T54 | done |
 | T56 | [Check a sent form before any count and claim or release it with the allowance slot](./t56-check-a-sent-form-before-any-count.md) | infra | Dmytro Hopko | M | T53, T55 | done |
-| T57 | [Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM](./t57-run-the-form-path-in-the-chat.md) | ports | Dmytro Hopko | L | T56 | todo |
+| T57 | [Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM](./t57-run-the-form-path-in-the-chat.md) | ports | Dmytro Hopko | L | T56 | done |
 | T58 | [Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans](./t58-prove-the-form-safety-properties-injection-and.md) | tests | Dmytro Hopko | M | T57 | todo |
 | T59 | [Build the QuestionForm component with every SCR-04 revision state](./t59-build-the-questionform-component-with-every-scr.md) | ui | Dmytro Hopko | L | T51, T53 | todo |
 | T60 | [Wire QuestionForm into the chat island, send forms, remove OfferedChoices](./t60-wire-questionform-into-the-chat-island-send.md) | ui | Dmytro Hopko | M | T57, T59 | todo |

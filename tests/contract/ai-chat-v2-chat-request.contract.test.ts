@@ -112,18 +112,45 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
     expect(fieldsOf(base({ form }))).not.toEqual({});
   });
 
-  it('AC-08: accepts a choice in a saved Conversation', () => {
-    expect(chatRequestSchema.safeParse(base({ choice: CHOICE })).success).toBe(true);
+  // ---------- T57: `choice` is removed; a form replaces it (ADR-0011). The choice cases are now refusal cases. ----------
+  const refusedAsUnknownChoice = (input: unknown) => {
+    const r = chatRequestSchema.safeParse(input);
+    expect(r.success, 'expected the request to be refused').toBe(false);
+    if (r.success) return;
+    expect(r.error.issues.some((i) => i.code === 'unrecognized_keys' && (i as any).keys.includes('choice'))).toBe(true);
+  };
+
+  it('AC-08 / AC-12b: a choice in a saved Conversation is refused as an unknown key (it was accepted before T57)', () => {
+    refusedAsUnknownChoice(base({ choice: CHOICE }));
   });
 
-  it('AC-12b: refuses a choice with conversationId null, with the exact sentence on `choice`', () => {
-    expect(fieldsOf(base({ choice: CHOICE }, null)).choice).toEqual(['A choice can only be sent in a saved conversation.']);
+  it('AC-12b: a choice with conversationId null is refused as an unknown key', () => {
+    refusedAsUnknownChoice(base({ choice: CHOICE }, null));
   });
 
-  it('refuses a choice together with an origin', () => {
-    const f = fieldsOf(base({ choice: CHOICE, origin: 'DASHBOARD' }));
-    expect(Object.keys(f).length).toBeGreaterThan(0);
-    expect(f.choice ?? f.origin).toBeDefined();
+  it('a choice together with an origin is refused as an unknown key', () => {
+    refusedAsUnknownChoice(base({ choice: CHOICE, origin: 'DASHBOARD' }, null));
+  });
+
+  it.each([
+    ['an empty offerId', { offerId: '', optionId: 1 }],
+    ['an offerId over 64 characters', { offerId: 'x'.repeat(65), optionId: 1 }],
+    ['a non-integer optionId', { offerId: CHOICE.offerId, optionId: 1.5 }],
+    ['a negative optionId', { offerId: CHOICE.offerId, optionId: -1 }],
+    ['an extra key in the choice', { ...CHOICE, label: 'Acme GmbH' }],
+    ['a choice without optionId', { offerId: CHOICE.offerId }],
+    ['a choice shape that used to be valid (64-character offerId, optionId 7)', { offerId: 'x'.repeat(64), optionId: 7 }],
+  ])('refuses %s', (_label, choice) => {
+    refusedAsUnknownChoice(base({ choice }));
+  });
+
+  it('a request with both a form and a choice is refused (the choice is unknown)', () => {
+    refusedAsUnknownChoice(base({ form: FORM, choice: CHOICE }));
+  });
+
+  it('the schema no longer exports a choice schema', async () => {
+    const mod = (await import('@/lib/validations/assistant-chat')) as Record<string, unknown>;
+    expect(mod.chatChoiceSchema).toBeUndefined();
   });
 
   it('refuses origin or startedFrom on a saved Conversation', () => {
@@ -150,24 +177,6 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
 
   it('refuses origin PRESSED from the client', () => {
     expect(fieldsOf(base({ origin: 'PRESSED' }, null))).not.toEqual({});
-  });
-
-  it.each([
-    ['an empty offerId', { offerId: '', optionId: 1 }],
-    ['an offerId over 64 characters', { offerId: 'x'.repeat(65), optionId: 1 }],
-    ['a non-integer optionId', { offerId: CHOICE.offerId, optionId: 1.5 }],
-    ['a string optionId', { offerId: CHOICE.offerId, optionId: '1' }],
-    ['a negative optionId', { offerId: CHOICE.offerId, optionId: -1 }],
-    ['an optionId above 7', { offerId: CHOICE.offerId, optionId: 8 }],
-    ['an extra key in the choice', { ...CHOICE, label: 'Acme GmbH' }],
-    ['a choice without optionId', { offerId: CHOICE.offerId }],
-  ])('refuses %s', (_label, choice) => {
-    expect(fieldsOf(base({ choice }))).not.toEqual({});
-  });
-
-  it('accepts optionId 0 and 7 and an offerId of 64 characters', () => {
-    for (const optionId of [0, 7]) expect(chatRequestSchema.safeParse(base({ choice: { ...CHOICE, optionId } })).success).toBe(true);
-    expect(chatRequestSchema.safeParse(base({ choice: { offerId: 'x'.repeat(64), optionId: 0 } })).success).toBe(true);
   });
 
   it('refuses an unknown extra key', () => {

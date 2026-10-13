@@ -59,6 +59,17 @@ describe('pinAnswers', () => {
     });
   });
 
+  it('a pick over a request that already carries customerId re-pins it; a profile pick keeps the Customer and lines', () => {
+    const out = pinAnswers({ customerId: 'c1', lines: base().lines! }, form, [{ questionId: id('CUSTOMER'), optionId: 1 }], ctx);
+    expect(out.customerId).toBe('c2');
+    expect(out).not.toHaveProperty('customer');
+    expect(out.lines).toEqual(base().lines);
+    const profile = pinAnswers(base(), form, [{ questionId: id('SENDER_PROFILE'), optionId: 0 }], ctx);
+    expect(profile.senderProfileId).toBe('s2');
+    expect(profile).not.toHaveProperty('senderProfile');
+    expect(profile.customer).toBe('Acme');
+  });
+
   it('AC-38: an "Other…" Customer is pinned as the typed name, never an id', () => {
     const out = pinAnswers({ ...base(), customer: undefined, customerId: 'c1' }, form, [{ questionId: id('CUSTOMER'), text: 'Оohn  Doe' }], ctx);
     expect(out.customer).toBe('Оohn  Doe');

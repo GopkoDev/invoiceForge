@@ -9,7 +9,7 @@ files_hint: ["app/api/chat/route.ts", "lib/ai/run-turn.ts", "lib/services/conver
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T57 — Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM

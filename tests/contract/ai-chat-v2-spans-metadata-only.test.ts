@@ -62,15 +62,6 @@ vi.mock('@/lib/services/sender-profiles/sender-profiles', () => ({
 const actor = { userId: 'u-canary-owner', timeZone: 'UTC' } as any;
 const context = { actor, keyId: 'k', origin: 'http://localhost' } as any;
 
-const offerRow = {
-  id: OFFER_ID,
-  conversationId: 'conv1',
-  kind: 'BANK_ACCOUNT',
-  lineIndex: null,
-  request: { customer: NAME, currency: 'USD', lines: [] },
-  options: [{ optionId: 0, label: LABEL, ref: { bankAccountId: ACCOUNT_ID } }],
-};
-
 function expectMetadataOnly(name: string) {
   const spans = recorded.filter((s) => s.name === name);
   expect(spans, `no span named ${name}`).toHaveLength(1);
@@ -92,39 +83,49 @@ describe('the ai-chat-v2 spans carry metadata only', () => {
     vi.clearAllMocks();
   });
 
-  it('chat.choice-check (ok): the only attribute is outcome=ok', async () => {
-    const { checkChoice } = await import('@/lib/services/assistant-drafts/offers');
-    prismaFake.choiceOffer.findFirst.mockResolvedValue(offerRow);
-    prismaFake.bankAccount.findFirst.mockResolvedValue({ senderProfileId: 's1', currency: 'USD' });
-    // The request names no profile: the account must be in the current default one (R12-1).
-    prismaFake.senderProfile.findMany.mockResolvedValue([{ id: 's1', name: 'Main', isDefault: true }]);
+  // T57: the chat.choice-check cases (ok, unavailable, store failure) were deleted with checkChoice; these are their form
+  // counterparts.
+  const formRow = {
+    id: OFFER_ID,
+    conversationId: 'conv1',
+    kind: 'FORM',
+    lineIndex: null,
+    request: null,
+    options: [],
+    questions: [
+      { questionId: 0, field: 'FREE', lineIndex: null, heading: 'Note', prompt: null, options: [], input: 'TEXT', required: true, skippable: false, matchCount: null, source: 'CHAT' },
+    ],
+  };
 
-    const result = await checkChoice(actor, { conversationId: 'conv1', offerId: OFFER_ID, optionId: 0 });
+  it('chat.form-check (ok): the only attribute is outcome=ok', async () => {
+    const { checkForm } = await import('@/lib/services/assistant-drafts/forms');
+    prismaFake.choiceOffer.findFirst.mockResolvedValue(formRow);
+
+    const result = await checkForm(actor, { conversationId: 'conv1', form: { formId: OFFER_ID, answers: [{ questionId: 0, text: NAME }] } });
 
     expect(result.ok).toBe(true);
-    expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'ok']]);
+    expect(expectMetadataOnly('chat.form-check')).toEqual([['outcome', 'ok']]);
   });
 
-  it('chat.choice-check (unavailable): the only attribute is outcome=unavailable', async () => {
-    const { checkChoice } = await import('@/lib/services/assistant-drafts/offers');
+  it('chat.form-check (unavailable): the only attribute is outcome=unavailable', async () => {
+    const { checkForm } = await import('@/lib/services/assistant-drafts/forms');
     prismaFake.choiceOffer.findFirst.mockResolvedValue(null);
 
-    const result = await checkChoice(actor, { conversationId: 'conv1', offerId: OFFER_ID, optionId: 0 });
+    const result = await checkForm(actor, { conversationId: 'conv1', form: { formId: OFFER_ID, answers: [{ questionId: 0, optionId: 0 }] } });
 
     expect(result.ok).toBe(false);
-    expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'unavailable']]);
+    expect(expectMetadataOnly('chat.form-check')).toEqual([['outcome', 'unavailable']]);
   });
 
-  // Review 2026-10-13 R1-S3: a store failure is its own outcome (the route answers 503, not 409).
-  it('chat.choice-check (store failure): outcome=failed, no error text in the span', async () => {
-    const { checkChoice } = await import('@/lib/services/assistant-drafts/offers');
+  it('chat.form-check (store failure): outcome=failed, no error text in the span', async () => {
+    const { checkForm } = await import('@/lib/services/assistant-drafts/forms');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     prismaFake.choiceOffer.findFirst.mockRejectedValue(new Error(`boom ${LABEL}`));
 
-    const result = await checkChoice(actor, { conversationId: 'conv1', offerId: OFFER_ID, optionId: 0 });
+    const result = await checkForm(actor, { conversationId: 'conv1', form: { formId: OFFER_ID, answers: [{ questionId: 0, optionId: 0 }] } });
 
-    expect(result).toEqual({ ok: false, failed: true });
-    expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'failed']]);
+    expect(result).toEqual({ ok: false, kind: 'FAILED' });
+    expect(expectMetadataOnly('chat.form-check')).toEqual([['outcome', 'failed']]);
   });
 
   it.each([

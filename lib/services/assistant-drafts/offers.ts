@@ -3,13 +3,9 @@
 // always give the same options (AC-09); labels are fixed when offered (spec §1 "What a button shows").
 import 'server-only';
 import { z } from 'zod';
-import { startSpan } from '@sentry/nextjs';
-import type { Prisma, PrismaClient } from '@prisma/client';
 import { foldName } from '@/lib/helpers/fold-name';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
-import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import { reserveMessageSlot, type ReserveResult } from '@/lib/services/assistant-usage/allowance';
 import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormView } from '@/types/assistant/types';
 import { formHeading } from '@/lib/services/assistant-drafts/form-headings';
 import type { DraftRequest } from '@/lib/services/assistant-drafts/schema';
@@ -127,22 +123,10 @@ export function offerRowToFormView(row: {
 
 // ---------- ai-chat-v2 T12: the press check, claim and release (server-actions.md §Chat route internals) ----------
 
-type Tx = Prisma.TransactionClient | PrismaClient;
 
 // Lazy: the pure builder above must load without DATABASE_URL (unit tests).
 export const db = async () => (await import('@/prisma')).prisma;
 
-export type CheckedChoice =
-  | {
-      ok: true;
-      offer: { id: string; kind: ChoiceOfferKind; lineIndex: number | null; request: DraftRequest };
-      option: StoredOfferOption;
-    }
-  | { ok: false; failed?: true };
-
-const UNAVAILABLE = { ok: false } as const;
-/** A system failure while checking: the route answers "couldn't be completed", not "no longer available". */
-const CHECK_FAILED = { ok: false, failed: true } as const;
 /**
  * Whether a record priced in `code` fits the request's currency. The stored request keeps the currency as the
  * Freelancer wrote it ("$", "€", "dollars"), so it is read the way the resolver read it (review 2026-10-13 R1-B1);
@@ -152,21 +136,6 @@ function currencyFits(code: string, written: string | undefined): boolean {
   if (written === undefined) return true;
   const reading = interpretCurrency(written, code);
   return reading.kind === 'RESOLVED' && reading.currency === code.trim().toUpperCase();
-}
-
-const REF_KEY: Record<ChoiceOfferKind, string> = {
-  CUSTOMER: 'customerId',
-  SENDER_PROFILE: 'senderProfileId',
-  CURRENCY: 'currency',
-  BANK_ACCOUNT: 'bankAccountId',
-  PRODUCT: 'productId',
-  FORM: '', // a Question form is checked by checkForm (ADR-0011), never as a single offer
-};
-
-function refFitsKind(ref: OfferOptionRef, kind: ChoiceOfferKind, lineIndex: number | null, request: DraftRequest) {
-  if (!(REF_KEY[kind] in ref)) return false;
-  if (kind !== 'PRODUCT') return true;
-  return lineIndex !== null && lineIndex >= 0 && lineIndex < (request.lines?.length ?? 0);
 }
 
 /** The sender profile a stored request drafts under, as the resolver picks it; null when it names none that exists. */
@@ -238,98 +207,4 @@ export async function stillFits(
   // names (folded name), or the current default (review 2026-10-13 R12-1). Otherwise the pinned turn could not use it.
   if (account.senderProfileId !== (await requestProfileId(userId, request))) return false;
   return currencyFits(account.currency, request.currency);
-}
-
-/**
- * A press refers to an option of the Conversation's open offer, never to a record id (ADR-0003). Every cause of a
- * refusal answers the same `{ ok: false }` (AC-12b); a system failure answers `{ ok: false, failed: true }`. Writes nothing;
- * span `chat.choice-check` carries the outcome only.
- */
-export function checkChoice(
-  actor: ActingFreelancer,
-  input: { conversationId: string; offerId: string; optionId: number }
-): Promise<CheckedChoice> {
-  return startSpan({ name: 'chat.choice-check', op: 'function' }, async (span) => {
-    let result: CheckedChoice = UNAVAILABLE;
-    try {
-      result = await check(actor, input);
-    } catch (error) {
-      console.error('[checkChoice] failed:', redactError(error));
-      result = CHECK_FAILED;
-    }
-    span?.setAttribute('outcome', result.ok ? 'ok' : 'failed' in result ? 'failed' : 'unavailable');
-    return result;
-  });
-}
-
-async function check(
-  actor: ActingFreelancer,
-  input: { conversationId: string; offerId: string; optionId: number }
-): Promise<CheckedChoice> {
-  const row = await (await db()).choiceOffer.findFirst({
-    where: { id: input.offerId, userId: actor.userId, state: 'OPEN' },
-    select: { id: true, conversationId: true, kind: true, lineIndex: true, request: true, options: true },
-  });
-  if (!row || row.conversationId !== input.conversationId) return UNAVAILABLE;
-  const options = storedOfferOptionsSchema.safeParse(row.options);
-  if (!options.success) return UNAVAILABLE;
-  // Written by saveTurn from the resolver's own request (ADR-0003), never from the client.
-  const request = row.request as DraftRequest;
-  const option = options.data.find((o) => o.optionId === input.optionId);
-  // The option must fit the slot it fills, so pinning it can never fail (pinChoice throws on a mismatch).
-  if (!option || !refFitsKind(option.ref, row.kind, row.lineIndex, request)) return UNAVAILABLE;
-  if (!(await stillFits(actor, option.ref, request))) return UNAVAILABLE;
-  return {
-    ok: true,
-    offer: { id: row.id, kind: row.kind, lineIndex: row.lineIndex, request },
-    option,
-  };
-}
-
-/** OPEN → CHOSEN; false when another press claimed it first or it is not the actor's open offer. */
-export async function claimOffer(tx: Tx, actor: ActingFreelancer, offerId: string, optionId: number): Promise<boolean> {
-  const { count } = await tx.choiceOffer.updateMany({
-    where: { id: offerId, userId: actor.userId, state: 'OPEN' },
-    data: { state: 'CHOSEN', chosenOptionId: optionId },
-  });
-  return count === 1;
-}
-
-/**
- * CHOSEN → OPEN after a press that was not counted; a no-op for any other state. When a newer message was saved
- * meanwhile (a typed turn in another tab, with or without its own offer), the released offer ends CLOSED and
- * unmarked instead: its reply is no longer the latest, so its buttons must not become pressable again, and there is
- * at most one OPEN offer per Conversation (review 2026-10-13 R1-B2, R2-B1). The Conversation row is locked first,
- * the same lock saveTurn takes, so no message appears between the check and the update.
- */
-export async function releaseOffer(tx: Tx, offerId: string): Promise<void> {
-  const claimed = await tx.choiceOffer.findFirst({
-    where: { id: offerId, state: 'CHOSEN' },
-    select: { conversationId: true, message: { select: { position: true } } },
-  });
-  if (!claimed) return;
-  await tx.$queryRaw`SELECT 1 FROM "Conversation" WHERE id = ${claimed.conversationId} FOR UPDATE`;
-  const newer = await tx.conversationMessage.count({
-    where: { conversationId: claimed.conversationId, position: { gt: claimed.message.position } },
-  });
-  await tx.choiceOffer.updateMany({
-    where: { id: offerId, state: 'CHOSEN' },
-    data: { state: newer > 0 ? 'CLOSED' : 'OPEN', chosenOptionId: null },
-  });
-}
-
-/**
- * A valid press takes one slot of today's allowance and claims its offer in one transaction (Critical flow 1,
- * AC-11): no slot left → nothing claimed; a lost claim → the slot is not taken. `release` gives both back together.
- */
-export function reserveAndClaim(
-  actor: ActingFreelancer,
-  now: Date,
-  offerId: string,
-  optionId: number
-): Promise<ReserveResult> {
-  return reserveMessageSlot(actor, now, {
-    claim: (tx) => claimOffer(tx, actor, offerId, optionId),
-    release: (tx) => releaseOffer(tx, offerId),
-  });
 }

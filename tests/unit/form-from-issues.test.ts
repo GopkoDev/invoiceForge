@@ -418,7 +418,7 @@ describe('storedOfferOptionSchema', () => {
 });
 
 describe('no model path', () => {
-  it.each(['offers.ts', 'pin.ts', 'forms.ts'])('%s imports no AI SDK or model code', (file) => {
+  it.each(['offers.ts', 'form-pin.ts', 'forms.ts'])('%s imports no AI SDK or model code', (file) => {
     const src = readFileSync(`lib/services/assistant-drafts/${file}`, 'utf8');
     expect(src).not.toMatch(/from\s+['"](@mastra|ai|@ai-sdk)[/'"]/);
     expect(src).not.toMatch(/from\s+['"]@\/lib\/ai/);

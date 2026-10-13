@@ -3,10 +3,11 @@
 // the slot back. A new Conversation is announced (data-conversation) only after its row is saved, so a turn
 // that does not count never hands the client an id that does not exist (R-02). Every refusal before the
 // stream is a JSON ActionFailure and nothing is counted.
-// ai-chat-v2 T14 (critical flow 1, ADR-0003; AC-08, AC-08b, AC-10, AC-11, AC-12b, AC-29): a press is checked against
-// its stored offer after the owner check and before the allowance; a valid one reserves the slot and claims the
-// offer in one transaction, is pinned and resolved in code, and is saved with the stored label and origin PRESSED.
-// A system-side failure gives the slot and the claim back together.
+// ai-chat-v2 T57 (critical flow 1, ADR-0011 "Submit"; AC-08, AC-10, AC-11, AC-12b, AC-38): a sent Question form is
+// checked (checkForm) after the owner check and before the allowance; a valid one reserves the slot and claims the
+// form with its answers in one transaction, its message is composed from the stored labels (the client text is
+// ignored), the draft answers are pinned and resolved in code, and it is saved with origin FORM. A form with no draft
+// action to run reaches the turn as a prior ask_user step. A system-side failure gives the slot and the claim back.
 import { createId } from '@paralleldrive/cuid2';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
@@ -20,8 +21,10 @@ import { renewalWhen } from '@/lib/helpers/allowance-renewal';
 import { chatRequestSchema } from '@/lib/validations/assistant-chat';
 import { CHOICE_UNAVAILABLE_MESSAGE } from '@/types/result';
 import { reserveMessageSlot } from '@/lib/services/assistant-usage/allowance';
-import { checkChoice, reserveAndClaim, type CheckedChoice } from '@/lib/services/assistant-drafts/offers';
-import { pinChoice } from '@/lib/services/assistant-drafts/pin';
+import { checkForm, reserveAndClaimForm, type CheckedForm } from '@/lib/services/assistant-drafts/forms';
+import { pinAnswers } from '@/lib/services/assistant-drafts/form-pin';
+import { draftRequestSchema } from '@/lib/services/assistant-drafts/schema';
+import { composeAnswerMessage } from '@/lib/validations/form-answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
 import { loadHistory } from '@/lib/services/conversations/conversations';
@@ -101,11 +104,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(chatValidationFailure(parsed.error), {
       status: 400,
     });
-  const { conversationId, choice, origin, startedFrom } = parsed.data;
-  // A press is saved with the offer's stored label; the client's text is ignored (ADR-0003).
+  const { conversationId, form, origin, startedFrom } = parsed.data;
+  // A form Send is saved with the message composed from the stored labels; the client's text is ignored (ADR-0003).
   let userText = parsed.data.message.parts[0].text;
-  // The server sets the origin: PRESSED only from a valid choice; DASHBOARD only on a first message (schema).
-  const userOrigin: MessageOrigin = choice ? 'PRESSED' : origin === 'DASHBOARD' ? 'DASHBOARD' : 'TYPED';
+  // The server sets the origin: FORM only from a valid form; DASHBOARD only on a first message (schema).
+  const userOrigin: MessageOrigin = form ? 'FORM' : origin === 'DASHBOARD' ? 'DASHBOARD' : 'TYPED';
 
   // Owner check (and the history, read server-side): unknown and foreign answer alike.
   let history: ConversationMessageView[] = [];
@@ -119,25 +122,34 @@ export async function POST(request: NextRequest) {
     history = loaded.data;
   }
 
-  // Checked before the allowance: an invalid press is unavailable even with the allowance used up.
-  let checked: CheckedChoice | null = null;
-  if (choice && conversationId) {
-    checked = await checkChoice(actor, { conversationId, ...choice });
+  // Checked before the allowance: an invalid form is unavailable even with the allowance used up.
+  let checked: CheckedForm | null = null;
+  if (form && conversationId) {
+    checked = await checkForm(actor, { conversationId, form });
     if (!checked.ok) {
       // A system failure is "couldn't be completed", never "no longer available" (review 2026-10-13 R1-S3).
-      return 'failed' in checked
-        ? NextResponse.json(FAILED, { status: 503 })
-        : NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
+      if (checked.kind === 'FAILED') return NextResponse.json(FAILED, { status: 503 });
+      if (checked.kind === 'INVALID')
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'VALIDATION',
+            error: 'Please fix the highlighted fields.',
+            fieldErrors: checked.fieldErrors,
+          },
+          { status: 400 }
+        );
+      return NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
     }
-    userText = checked.option.label;
+    userText = composeAnswerMessage(checked.form.questions, checked.answers);
   }
 
   const startedAt = Date.now();
-  const reservation = choice
-    ? await reserveAndClaim(actor, new Date(startedAt), choice.offerId, choice.optionId)
+  const reservation = form
+    ? await reserveAndClaimForm(actor, new Date(startedAt), form.formId, form.answers)
     : await reserveMessageSlot(actor, new Date(startedAt));
   if (!reservation.ok) {
-    // Another press claimed the offer first; the transaction took no slot.
+    // Another Send claimed the form first; the transaction took no slot.
     if ('claimLost' in reservation) return NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
     if ('usedUp' in reservation) {
       await recordTurnMetadata(actor, {
@@ -167,18 +179,34 @@ export async function POST(request: NextRequest) {
 
   const slot = reservation;
 
-  // The chosen record is pinned into the offer's request and resolved in code before the model writes (AC-10).
+  // The picked records are pinned into the form's request and resolved in code before the model writes (AC-10). A
+  // form that holds no complete draft request reaches the turn as a prior ask_user step with the answers as data.
   let pinned: PinnedResolution | undefined;
+  let priorAnswers: Array<{ heading: string; answer: string }> | undefined;
   if (checked?.ok) {
-    const { offer, option } = checked;
-    const request = pinChoice(offer.request, offer.kind, offer.lineIndex, option.ref);
-    const resolved = await resolveDraftRequest(actor, request, todayInZone(actor.timeZone)).catch(() => null);
-    if (!resolved?.success) {
-      await slot.release().catch(() => null);
-      await recordTurnMetadata(actor, failedTurn(startedAt)).catch(() => undefined);
-      return NextResponse.json(FAILED, { status: 503 });
+    const { form: stored, answers } = checked;
+    const today = todayInZone(actor.timeZone);
+    if (stored.request) {
+      const request = pinAnswers(stored.request, stored.questions, answers, { today });
+      const complete = draftRequestSchema.safeParse(request);
+      if (complete.success) {
+        const resolved = await resolveDraftRequest(actor, complete.data, today).catch(() => null);
+        if (!resolved?.success) {
+          await slot.release().catch(() => null);
+          await recordTurnMetadata(actor, failedTurn(startedAt)).catch(() => undefined);
+          return NextResponse.json(FAILED, { status: 503 });
+        }
+        pinned = { request: complete.data, resolution: resolved.data };
+      }
     }
-    pinned = { request, resolution: resolved.data };
+    if (!pinned) {
+      priorAnswers = stored.questions
+        .filter((q) => answers.some((a) => a.questionId === q.questionId))
+        .map((q) => ({
+          heading: q.heading,
+          answer: composeAnswerMessage([q], answers).slice(q.heading.length + 2),
+        }));
+    }
   }
   // A new Conversation's id (a cuid, like every record id) is announced only once its row is saved (R-02).
   const conversation = {
@@ -226,6 +254,8 @@ export async function POST(request: NextRequest) {
       signal: new AbortController().signal,
       origin: request.nextUrl.origin,
       pinned,
+      ...(priorAnswers ? { priorAnswers } : {}),
+      ...(checked?.ok && checked.form.request ? { draftForm: true } : {}),
     });
     for await (const chunk of turnStream) write(chunk);
     const result = await resultPromise;

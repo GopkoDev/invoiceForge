@@ -42,17 +42,13 @@ export const allowanceStateSchema = z
   })
   .strict();
 
-// ai-chat-v2 (openapi ChatRequest, ChatChoice): a press refers to an option of a stored offer, never a record id.
-export const chatChoiceSchema = z
-  .object({ offerId: recordId, optionId: z.number().int().min(0).max(7) })
-  .strict();
 /** ai-chat-v2 T17 (contracts/server-actions.md §issueFromPreview): the invoice and the version the preview showed. */
 export const issueFromPreviewInputSchema = z
   .object({ invoiceId: recordId, expectedVersion: z.number().int().min(0) })
   .strict();
 
 export const conversationStartPointSchema = z.enum(['AI_SECTION', 'INVOICE_LIST', 'DASHBOARD_PROMPT', 'DASHBOARD_CREATE']);
-/** The origins a client may ask for; PRESSED is set by the server from a valid choice only. */
+/** The origins a client may ask for; FORM is set by the server from a valid form Send only. */
 export const requestMessageOriginSchema = z.enum(['TYPED', 'DASHBOARD']);
 
 // ai-chat-v2 revision 2026-10-13 (ADR-0011; openapi ChatForm, FormAnswer): a sent Question form. Answers name a question
@@ -77,8 +73,6 @@ export type ChatForm = z.infer<typeof chatFormSchema>;
 
 export const FORM_NEEDS_CONVERSATION = 'A form can only be sent in a saved conversation.';
 const FORM_WITH_ORIGIN = 'A form is sent without an origin.';
-export const CHOICE_NEEDS_CONVERSATION = 'A choice can only be sent in a saved conversation.';
-const CHOICE_WITH_ORIGIN = 'A choice is sent without an origin.';
 const FIRST_MESSAGE_ONLY = "This can only be sent with a new conversation's first message.";
 const DASHBOARD_TOGETHER = 'The dashboard prompt sends origin DASHBOARD with start point DASHBOARD_PROMPT.';
 
@@ -101,7 +95,6 @@ export const chatRequestSchema = z
           .length(1),
       })
       .strict(),
-    choice: chatChoiceSchema.optional(),
     form: chatFormSchema.optional(),
     origin: requestMessageOriginSchema.optional(),
     startedFrom: conversationStartPointSchema.optional(),
@@ -110,8 +103,6 @@ export const chatRequestSchema = z
   // Field combinations (openapi ChatRequest): each violation is keyed by its field.
   .superRefine((v, ctx) => {
     const issue = (field: string, message: string) => ctx.addIssue({ code: 'custom', path: [field], message });
-    if (v.choice && v.conversationId === null) issue('choice', CHOICE_NEEDS_CONVERSATION);
-    if (v.choice && v.origin !== undefined) issue('origin', CHOICE_WITH_ORIGIN);
     if (v.form && v.conversationId === null) issue('form', FORM_NEEDS_CONVERSATION);
     if (v.form && v.origin !== undefined) issue('origin', FORM_WITH_ORIGIN);
     if (v.conversationId !== null) {

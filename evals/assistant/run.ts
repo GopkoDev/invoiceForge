@@ -326,7 +326,7 @@ async function runNoGuessing(
 
   /**
    * Replays the row's typed history through the chat route, then presses the option with the row's label through
-   * the route's press path: a `choice`, never typed text, and no `origin` (the server sets PRESSED).
+   * the route's form path: a `form` Send with one answer, never typed text, and no `origin` (the server sets FORM).
    */
   async function runPress(item: NoGuessingItem, userId: string) {
     sessionUserId = userId;
@@ -350,18 +350,21 @@ async function runNoGuessing(
     const offer = await prisma.choiceOffer.findUniqueOrThrow({
       where: { id: offerId },
     });
-    const optionId = optionIdForLabel(
-      (offer.kind === 'FORM'
-        ? (offer.questions as Array<{ options: Array<{ optionId: number; label: string }> }>).flatMap(
-            (q) => q.options
-          )
-        : offer.options) as Array<{ optionId: number; label: string }>,
-      item.press!.label
+    // A stored form (T57); a legacy offer row reads as one question holding its options.
+    type Options = Array<{ optionId: number; label: string }>;
+    const questions: Array<{ questionId: number; options: Options }> =
+      offer.kind === 'FORM'
+        ? (offer.questions as unknown as Array<{ questionId: number; options: Options }>)
+        : [{ questionId: 0, options: offer.options as unknown as Options }];
+    const target = questions.find(
+      (q) => optionIdForLabel(q.options, item.press!.label) !== undefined
     );
-    if (optionId === undefined)
+    const optionId = target ? optionIdForLabel(target.options, item.press!.label) : undefined;
+    if (!target || optionId === undefined)
       throw new Error(
         `${item.id}: no offered option is labelled ${item.press!.label}`
       );
+    const formId = offerId;
     const reply = await postChat({
       conversationId,
       message: {
@@ -369,7 +372,7 @@ async function runNoGuessing(
         role: 'user',
         parts: [{ type: 'text', text: item.press!.label }],
       },
-      choice: { offerId, optionId },
+      form: { formId, answers: [{ questionId: target.questionId, optionId }] },
     });
     const card = reply.cardId
       ? await prisma.draftCard.findUniqueOrThrow({
