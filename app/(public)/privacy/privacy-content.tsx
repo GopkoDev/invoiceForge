@@ -530,11 +530,13 @@ export function PrivacyPolicyContent() {
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>
                   <strong>What we store:</strong> Your Conversations with their
-                  messages and draft cards; the options the chat offered as
-                  buttons and the one you chose; prompts you send from the
-                  dashboard (saved as the first message of the Conversation
-                  they start); whether each message was typed, pressed or sent
-                  from the dashboard; and where each Conversation was started.
+                  messages and draft cards; Question forms with their options
+                  and the answers you sent, including text you typed; the
+                  options the chat offered as buttons and the one you chose;
+                  prompts you send from the dashboard (saved as the first
+                  message of the Conversation they start); whether each message
+                  was typed, pressed, sent from a form or sent from the
+                  dashboard; and where each Conversation was started.
                 </li>
                 <li>
                   <strong>Retention:</strong> A Conversation is kept for 90
@@ -549,9 +551,10 @@ export function PrivacyPolicyContent() {
                 </li>
                 <li>
                   <strong>Your control:</strong> You can delete a Conversation
-                  at any time. Conversations, the options offered and chosen,
-                  and where each message came from are included in your data
-                  export and are removed when you delete your account.
+                  at any time. Conversations, Question forms and your answers, the
+                  options offered and chosen, and where each message came from
+                  are included in your data export and are removed when you
+                  delete your account.
                 </li>
                 <li>
                   <strong>Connected AI clients:</strong> If you connect your

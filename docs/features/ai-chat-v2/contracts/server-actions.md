@@ -200,7 +200,7 @@ The prompt box validates with the chat's own message rule (`chatRequestSchema`'s
 
 ## Data export — `getAccountExport` / `GET /api/user/export` ✎ (flow 11; AC-34)
 
-`exportVersion` goes from `'2.2'` to `'2.3'` (additive only):
+`exportVersion` goes from `'2.2'` to `'2.3'` (additive only). Revision 2026-10-13 (T61) bumps it to `'2.4'`: each message also carries `form` (null, or `{ state, questions[{questionId, field, lineIndex, heading, prompt, options[{optionId,label}], input, required, skippable}], answers }`), origin may be `FORM`, and a FORM row exports `offer: null`:
 
 ```ts
 conversations: Array</* parent */ & {

@@ -9,7 +9,7 @@ files_hint: ["lib/services/account/", "constants/public-pages-content.ts"]
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T61 — Cover forms, answers and origin FORM in the data export, account deletion and the privacy page

@@ -67,7 +67,7 @@
 | T58 | [Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans](./t58-prove-the-form-safety-properties-injection-and.md) | tests | Dmytro Hopko | M | T57 | done |
 | T59 | [Build the QuestionForm component with every SCR-04 revision state](./t59-build-the-questionform-component-with-every-scr.md) | ui | Dmytro Hopko | L | T51, T53 | done |
 | T60 | [Wire QuestionForm into the chat island, send forms, remove OfferedChoices](./t60-wire-questionform-into-the-chat-island-send.md) | ui | Dmytro Hopko | M | T57, T59 | done |
-| T61 | [Cover forms, answers and origin FORM in the data export, account deletion and the privacy page](./t61-cover-forms-answers-and-origin-form-in.md) | app | Dmytro Hopko | S | T55 | todo |
+| T61 | [Cover forms, answers and origin FORM in the data export, account deletion and the privacy page](./t61-cover-forms-answers-and-origin-form-in.md) | app | Dmytro Hopko | S | T55 | done |
 | T62 | [Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist](./t62-render-replies-as-safe-markdown-with-react.md) | ui | Dmytro Hopko | L | — | todo |
 | T63 | [Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links](./t63-tell-the-model-today-and-the-time.md) | app | Dmytro Hopko | M | T54, T64 | todo |
 | T64 | [Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels](./t64-add-created-date-filters-a-created-date.md) | app | Dmytro Hopko | M | — | todo |

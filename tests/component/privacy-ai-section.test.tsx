@@ -30,9 +30,32 @@ describe('privacy page — AI section for the chat (ai-chat-v2 T28, AC-35)', () 
     );
     expect(text).toMatch(/prompts? (you )?sen[dt] from the dashboard/i);
     expect(text).toMatch(
-      /whether each message was typed, pressed or sent from the dashboard/i
+      /whether each message was typed, pressed, sent from a form or sent from the dashboard/i
     );
     expect(text).toMatch(/where each Conversation was started/i);
+  });
+
+  it('1b. names Question forms with their options and the answers sent including typed text, and where each message came from (T61, AC-35)', () => {
+    const text = aiSection();
+    expect(text).toMatch(
+      /Question forms with their options and the answers you sent,? including (any )?(text|answers) you typed/i
+    );
+    // Offered choices and the ones chosen stay named alongside the forms.
+    expect(text).toMatch(/Offered choices|options the chat offered as buttons/i);
+    expect(text).toMatch(/the one you chose|the ones you chose/i);
+    // Message origin names all four ways, including a form.
+    expect(text).toMatch(/typed/i);
+    expect(text).toMatch(/pressed/i);
+    expect(text).toMatch(/sent from a form/i);
+    expect(text).toMatch(/sent from the dashboard/i);
+    expect(text).toMatch(/where each (message|Conversation)/i);
+  });
+
+  it('1c. says forms and their answers are in the data export and removed with the account (T61, AC-34)', () => {
+    const text = aiSection();
+    expect(text).toMatch(/Question forms/i);
+    expect(text).toMatch(/included in your data export/i);
+    expect(text).toMatch(/removed when you delete your account/i);
   });
 
   it('2. says how long it is kept: 90 days after the last message, or until deleted', () => {

@@ -179,7 +179,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(response.status).toBe(200);
       expect(body).toEqual({
         exportDate: expect.any(String),
-        exportVersion: '2.3',
+        exportVersion: '2.4',
         user: expect.objectContaining({
           id: freelancer.id,
           email: freelancer.email,
@@ -274,7 +274,7 @@ describe.runIf(containerRuntimeAvailable)(
       // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
       // enforces this above, but assert it explicitly too since it's the AC's own wording.
       expect(body).not.toHaveProperty('sessions');
-      expect(body.exportVersion).toBe('2.3');
+      expect(body.exportVersion).toBe('2.4');
 
       // Scoped to the caller only — another Freelancer's data never appears.
       const bodyText = JSON.stringify(body);
@@ -353,7 +353,7 @@ describe.runIf(containerRuntimeAvailable)(
       const body = JSON.parse(text);
 
       expect(response.status).toBe(200);
-      expect(body.exportVersion).toBe('2.3');
+      expect(body.exportVersion).toBe('2.4');
       expect(body.user.timeZone).toBe('Europe/Kyiv');
       expect(body.user.overdueNoticeDismissedAt).toBe(
         '2026-09-01T10:00:00.000Z'
@@ -552,7 +552,7 @@ describe.runIf(containerRuntimeAvailable)(
       const body = JSON.parse(text);
 
       expect(response.status).toBe(200);
-      expect(body.exportVersion).toBe('2.3');
+      expect(body.exportVersion).toBe('2.4');
       await assertMatchesContract({
         operationId: 'exportUserData',
         status: 200,
@@ -576,6 +576,7 @@ describe.runIf(containerRuntimeAvailable)(
           // TYPED, as everywhere else (data-model.md ConversationMessage.origin; review 2026-10-13 R1-S4).
           origin: 'TYPED',
           offer: null,
+          form: null,
         },
         {
           role: 'assistant',
@@ -585,6 +586,7 @@ describe.runIf(containerRuntimeAvailable)(
           draftCardIds: [card.id],
           origin: null,
           offer: null,
+          form: null,
         },
       ]);
       expect(exported.draftCards).toHaveLength(2);
