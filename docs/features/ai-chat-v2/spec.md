@@ -246,7 +246,7 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 ### AC-08 (US-03) — happy path
 
-*Amended 2026-10-14: the form shows one question at a time above the message box (AC-55); "press Send" reads "pick the answer to the last question".*
+*Amended 2026-10-14: the form shows one question at a time above the message box (AC-55); "press Send" reads "pick the answer to the last question", and the message reads "<question> — Acme GmbH" (AC-56).*
 
 *Changed by owner feedback 2026-10-13 (F1, F5): buttons became a Question form answered with Send.*
 
@@ -622,14 +622,16 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 **Given** a reply whose form has four questions (refs: `ref/form-wanted-claude.png`, `ref/form-wanted-series.png`)
 **When** the Freelancer answers it
-**Then** the form sits directly above the message box (the reply text stays in the message stream) and shows one question at a time: the question on the left of its header and, on the right, a pager "‹ 1 of 4 ›" and a close ×; the options are numbered rows (number, label, muted second line), the focused row is highlighted with an → arrow, arrow keys move between rows, Enter or a number key 1–9 picks; a last row "Other…" with a pencil turns into an inline input; optional questions have Skip; picking an answer moves to the next question and the pager keeps earlier picks; answering the last question sends all answers as one message (one counted message, as AC-11); × closes the form without sending, and typing in the message box instead stays allowed (AC-40); a sent or closed form shows in the history only as the compact answer message
+**Then** the form sits directly above the message box (the reply text stays in the message stream) and shows one question at a time: the question on the left of its header and, on the right, a pager "‹ 1 of 4 ›" and a close ×; the options are numbered rows (number, label, muted second line), the focused row is highlighted with an → arrow, arrow keys move between rows, Enter or a number key 1–9 picks; a last row "Something else" with a pencil turns into an inline input; optional questions have Skip; picking an answer moves to the next question and the pager keeps earlier picks; answering the last question sends all answers as one message (one counted message, as AC-11); × closes the form without sending, and typing in the message box instead stays allowed (AC-40); a sent or closed form shows in the history only as the compact answer message
 
 ### AC-56 (US-03) — happy path
 <!-- added-by-fix: 2026-10-14 -->
 
-**Given** a Freelancer writing in Ukrainian, today being 14 October 2026
-**When** the chat shows a form asking for the Customer, the issue date and the due date
-**Then** the headings, the date options ("Сьогодні · 14 жовт. 2026", "7 днів після дати виставлення"), the pager, "Щось інше", "Пропустити", "Назад" and the sent state are in Ukrainian; in a conversation written in English they are in English
+*Owner decision 2026-10-14: the form has no per-field headings and no language switching.*
+
+**Given** a reply whose form asks for the Customer (no question text from the chat), the issue date and the due date, today being 14 October 2026
+**When** the Freelancer looks at it and answers
+**Then** each question shows only its question text — the chat's, or the system's default English question (e.g. "Which Customer is this invoice for?") — and no field heading such as "CUSTOMER"; dates and amounts in the options are formatted as everywhere else in the app ("Today · <the app's date format>", "7 days after the issue date"); the form's own words ("1 of 3", "Something else", "Skip") are English like the rest of the interface; the sent message shows one line per answer, "<question> — <answer>"
 
 ## 6. Non-functional requirements
 
