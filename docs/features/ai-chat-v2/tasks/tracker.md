@@ -77,6 +77,13 @@
 | T68 | [Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines](./t68-add-e2e-through-ui-tests-for-forms.md) | tests | Dmytro Hopko | L | T60, T62, T67 | done |
 | T69 | [Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form](./t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md) | docs | Dmytro Hopko | S | T60, T62, T66 | done |
 
-**Total:** 69 tasks, ~33 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013).
+| T70 | [A sent form checks a picked record only for still existing, being the actor's and unchanged, not for fitting the stored request (review R20-1)](./t70-form-answers-fit-check-by-record-not-stored-request.md) | domain | Dmytro Hopko | M | T56 | todo |
+| T71 | [Carry each picked record's id and the pinned partial request into the prior ask_user step so no picked record is matched again by name (review R20-3)](./t71-carry-picked-record-ids-into-the-prior-ask-step.md) | app | Dmytro Hopko | M | T57 | todo |
+| T72 | [Give resolver-raised questions chat-written question text and fix the instructions' tool sentence (review R20-11, R20-9)](./t72-question-text-for-resolver-questions-and-instructions-wording.md) | app | Dmytro Hopko | S | T63 | todo |
+| T73 | [Render Freelancer messages as plain pre-wrapped text, keep single line breaks in replies, trim the Markdown subset to ADR-0012 and fix stale plain-text docs (review R20-2, R20-8, R20-10)](./t73-user-bubbles-plain-text-and-markdown-subset-per-adr-0012.md) | ui | Dmytro Hopko | M | T62 | todo |
+| T74 | [QuestionForm: show the sending state, name every input, show the currency unit, and never drop a form 400 silently (review R20-4, R20-6, R20-7, R20-13)](./t74-question-form-sending-state-labels-unit-and-validation-fallback.md) | ui | Dmytro Hopko | M | T60 | todo |
+| T75 | [The Conversation list marks and deletes a just-created Conversation correctly, and a saved turn no longer refetches the list (review R20-5, R20-12)](./t75-list-active-row-after-first-send-and-no-per-turn-list-refetch.md) | ui | Dmytro Hopko | M | T66 | todo |
+
+**Total:** 75 tasks, ~36 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013; T70–T75 are its review round 20 follow-ups).
 
 **Owner gates outside `implement`:** T28 privacy wording review and the spec §8 terms-page question (before `ship`); the real-model evaluation run (T29 rows) and the read/issue load scenarios (pre-release).

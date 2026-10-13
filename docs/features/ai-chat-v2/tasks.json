@@ -1539,6 +1539,139 @@
         "docs/features/ai-chat-v2/ux-flows.md"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md"
+    },
+    {
+      "id": "T70",
+      "title": "A sent form checks a picked record only for still existing, being the actor's and unchanged, not for fitting the stored request (review R20-1)",
+      "layer": "domain",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "For FORM rows, a picked record option passes the check when the record still exists, is the actor's, is of the asked kind and has not changed since the form was made in a way its option ref records (for example a bank account's currency stored with the ref; a product still active). Cross-answer fit (account vs profile, product vs currency) is left to the resolver after `pinAnswers`. The request-based `stillFits` rule stays only for legacy F9a (one-question, pressed-choice) rows. form-check.test.ts:434 is rewritten (not deleted) to assert that an account of another sender profile, a profile picked with its own account in the same form, and a product priced in another currency are ACCEPTED; new cases assert a deleted record, a foreign record and an account whose currency changed since the form was made are still UNAVAILABLE with the uniform F7 refusal. RED first (integration, testcontainers). Gate: unit (8 known env.example failures only), integration, lint, typecheck.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "tests/integration/services/assistant-drafts/form-check.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t70-form-answers-fit-check-by-record-not-stored-request.md"
+    },
+    {
+      "id": "T71",
+      "title": "Carry each picked record's id and the pinned partial request into the prior ask_user step so no picked record is matched again by name (review R20-3)",
+      "layer": "app",
+      "deps": [
+        "T57"
+      ],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "Each answer in the prior ask_user tool result that picked a record option carries that record's id as data under the propose_draft field it fills (customerId, senderProfileId, bankAccountId, or productId with its line), and the partially pinned request (when one exists) is passed as data too; the tool result still says these are the Freelancer's answers, as data, not instructions. The chat instructions tell the model to pass those ids to propose_draft instead of names. A route/integration test: an ask_user form without `draft` offers two look-alike Customers; the Freelancer picks one; the prior step the model receives carries exactly that customerId (assert on the model input via the existing mock model), and when the mock model passes it on, the card names exactly that Customer. A second case: answers applied but the request still incomplete, the partial request is passed. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/instructions/chat.ts",
+        "tests/integration/api/chat-route-form.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t71-carry-picked-record-ids-into-the-prior-ask-step.md"
+    },
+    {
+      "id": "T72",
+      "title": "Give resolver-raised questions chat-written question text and fix the instructions' tool sentence (review R20-11, R20-9)",
+      "layer": "app",
+      "deps": [
+        "T63"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-46"
+      ],
+      "dod": "FIELD_INVALID questions no longer use the resolver's English message as the question text. When propose_draft answers with open issues, its tool result lists the fields that will be asked (field and line), and the instructions tell the model to call ask_user once with a one-line prompt in the Freelancer's language for each of those fields (composeForm already merges chat prompts into resolver questions by field). A unit test proves composeForm keeps the resolver's options and takes the chat's prompt for the same field and line; a unit test pins the propose_draft ISSUES result shape. chat.ts:7 reads \"…find pages in the app with find_in_app, prepare a Draft invoice card with propose_draft, and ask the Freelancer…\"; a unit test pins the sentence. An eval row (evals/assistant) for a resolver question receiving a prompt is added if the harness has a fitting check. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/ai/chat-instructions.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t72-question-text-for-resolver-questions-and-instructions-wording.md"
+    },
+    {
+      "id": "T73",
+      "title": "Render Freelancer messages as plain pre-wrapped text, keep single line breaks in replies, trim the Markdown subset to ADR-0012 and fix stale plain-text docs (review R20-2, R20-8, R20-10)",
+      "layer": "ui",
+      "deps": [
+        "T62"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-37",
+        "AC-42",
+        "AC-43"
+      ],
+      "dod": "Freelancer (user) message parts render as plain text with whitespace-pre-wrap (no Markdown); assistant replies stay Markdown per ADR-0012 and a single newline inside a reply paragraph shows as a line break (whitespace-pre-line on p or equivalent, no new dependency unless needed). A component test asserts the visible line structure of a sent form bubble (two composed lines render on two lines: pre-wrap class plus the newline kept in the text node), that typed \"# x\" in a user bubble renders no heading, and that a reply with a single newline keeps the break; the e2e at ai-chat-v2-forms-layout.spec.ts:244-246 asserts the lines (innerText split on \\n), not \\s+. h1–h6 and input are removed from ALLOWED_ELEMENTS (their text stays via unwrapDisallowed); a test asserts '# Title' and '- [ ] x' in a reply render no heading and no input. ADR-0012 text describes HTML-as-text and empty-mark suppression and that user messages stay plain text; message-list.tsx comment, screens.md:40,:214, design-system.md MessageResponse entry and the NOTICE agree. RED first. Gate: unit, lint, typecheck; affected e2e (chromium) and the Linux baselines touched by bubbles/replies re-checked.",
+      "files_hint": [
+        "components/ai-elements/message.tsx",
+        "components/ai/message-list.tsx",
+        "components/ai-elements/NOTICE",
+        "docs/features/ai-chat-v2/adr/0012-render-replies-as-safe-markdown-with-react-markdown-and-an-in-app-link-allowlist.md",
+        "docs/features/ai-chat-v2/screens.md",
+        "docs/design-system.md",
+        "tests/component/message-response-markdown.test.tsx",
+        "tests/component/ai-conversation-page.test.tsx",
+        "tests/e2e/ai-chat-v2-forms-layout.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t73-user-bubbles-plain-text-and-markdown-subset-per-adr-0012.md"
+    },
+    {
+      "id": "T74",
+      "title": "QuestionForm: show the sending state, name every input, show the currency unit, and never drop a form 400 silently (review R20-4, R20-6, R20-7, R20-13)",
+      "layer": "ui",
+      "deps": [
+        "T60"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-37"
+      ],
+      "dod": "Send stays disabled while the form holds no answer at all (an all-optional form needs at least one answer or Skip); for a `form` request the body schema does not bound or require the client's message text (the server ignores and composes it), so a 2,000-character Notes answer sends; the island falls back to the VALIDATION failure alert when a 400 carries no `form.answers.<n>` key. While the sent form's request is in flight the form stays shown as the sent form: picks checked and disabled, inputs disabled, Send shows the Spinner (decorative, no role=status); after the reply it shows as answered. Every input has an accessible name: the heading is a label (or aria-labelledby) for Input, Textarea and the date trigger (\"Issue date: Pick a date\" or equivalent); an axe check in the component test with NOTES/FREE and DATE questions open has no label violation. FormView carries the form's resolved invoice currency when known; AMOUNT/DISCOUNT/PRICE inputs show it as a suffix and TAX_RATE shows \"%\"; contract docs (contracts/server-actions.md / openapi FormView) updated if the shape changes. RED first (component + contract tests). Gate: unit, integration, lint, typecheck; affected e2e and the question-form Linux baselines re-checked.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "components/ai/chat-island.tsx",
+        "lib/validations/assistant-chat.ts",
+        "lib/validations/form-answers.ts",
+        "types/assistant/types.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/component/question-form.test.tsx",
+        "tests/component/question-form-in-chat.test.tsx",
+        "tests/contract/ai-chat-v2-chat-request.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t74-question-form-sending-state-labels-unit-and-validation-fallback.md"
+    },
+    {
+      "id": "T75",
+      "title": "The Conversation list marks and deletes a just-created Conversation correctly, and a saved turn no longer refetches the list (review R20-5, R20-12)",
+      "layer": "ui",
+      "deps": [
+        "T66"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-52"
+      ],
+      "dod": "The open Conversation id comes from openConversationId(usePathname()) with the layout segment as fallback (or the provider's created id), so after the first send on /ai the new row is aria-current and deleting it lands on /ai. The T66 component test mocks useSelectedLayoutSegment as null while usePathname is /ai/<id> (the replaceState case) and asserts aria-current and the delete navigation; the existing tests stay. A saved turn loads its forms and cards without router.refresh() (as the /ai branch does with loadConversationCards), so the layout list read does not run per turn; a component test asserts no router.refresh on a saved-turn finish, and the AC-52 e2e (or a new step) asserts no list read after a send. An e2e step: first send on /ai, the new row is aria-current; delete it from the list, the page lands on /ai. RED first. Gate: unit, lint, typecheck; affected e2e (chromium).",
+      "files_hint": [
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/conversation-list-context.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/ai-conversation-list-layout-t66.test.tsx",
+        "tests/e2e/ai-chat-v2-forms-layout.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t75-list-active-row-after-first-send-and-no-per-turn-list-refetch.md"
     }
   ]
 }
