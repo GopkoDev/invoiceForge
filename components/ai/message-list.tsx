@@ -10,6 +10,8 @@ interface MessageListProps {
   messages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   renderCard?: (cardId: string) => ReactNode;
+  /** ai-chat-v2 T22: renders a reply's Offered choices (SCR-04) for a data-offer part. */
+  renderOffer?: (offerId: string, messageId: string) => ReactNode;
 }
 
 // Message text is always plain text with line breaks kept: never Markdown, HTML or an anchor
@@ -18,6 +20,7 @@ export function MessageList({
   messages,
   invoiceLinks,
   renderCard,
+  renderOffer,
 }: MessageListProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -60,7 +63,9 @@ export function MessageList({
                 if (part.type === 'data-draft-card') {
                   return <div key={i}>{renderCard?.(part.data.cardId)}</div>;
                 }
-                // ai-chat-v2: data-offer parts are rendered by the Offered choices UI (T22).
+                if (part.type === 'data-offer') {
+                  return <div key={i}>{renderOffer?.(part.data.offerId, m.id)}</div>;
+                }
                 return null;
               })}
             </div>

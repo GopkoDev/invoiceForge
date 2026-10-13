@@ -4,7 +4,7 @@ import '@/components/ai/zod-csp-safe';
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
-import { ArrowDownIcon } from 'lucide-react';
+import { ArrowDownIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ import { ConversationHeaderClient } from '@/components/ai/conversation-header-cl
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
 import { MessageList } from '@/components/ai/message-list';
+import { OfferedChoices } from '@/components/ai/offered-choices';
 import { StartPanel } from '@/components/ai/start-panel';
 import { useFollowLatest } from '@/components/ai/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -31,6 +32,7 @@ import type {
   ConversationStartPoint,
   DraftCardView,
   LinkedInvoiceState,
+  OfferView,
 } from '@/types/assistant/types';
 
 const COULD_NOT_COMPLETE = "The reply couldn't be completed. Try again.";
@@ -51,18 +53,28 @@ type ChatMessage = UIMessage<
     allowance: AllowanceState;
     'draft-card': { cardId: string };
     link: AppLink;
+    offer: { offerId: string };
     outcome: { outcome: OutcomeName; counted: boolean };
   }
 >;
+
+/** A press (ADR-0003): an option inside a stored offer, never a record id. */
+type Choice = { offerId: string; optionId: number };
+
+/** What the island sent last: the optimistic message id, its text and, for a press, the choice. */
+type Pending = { id: string; text: string; choice?: Choice };
 
 type Failure =
   | {
       kind: 'COULD_NOT_COMPLETE' | 'AI_UNAVAILABLE';
       userMessageId: string;
       text: string;
+      choice?: Choice;
     }
   | { kind: 'GONE' }
-  | { kind: 'VALIDATION'; message: string };
+  | { kind: 'VALIDATION'; message: string }
+  /** 409 CHOICE_UNAVAILABLE after a press (AC-12b, AC-13): the contract sentence, verbatim. */
+  | { kind: 'CHOICE_UNAVAILABLE'; message: string };
 
 class ChatHttpError extends Error {
   constructor(
@@ -92,14 +104,14 @@ async function chatFetch(
 // the component so those callbacks always see the latest value, never a stale closure.
 function createRequestState(initialConversationId: string | null) {
   let conversationId = initialConversationId;
-  let pending: { id: string; text: string } | null = null;
+  let pending: Pending | null = null;
   return {
     getConversationId: () => conversationId,
     setConversationId: (id: string) => {
       conversationId = id;
     },
     getPending: () => pending,
-    setPending: (next: { id: string; text: string }) => {
+    setPending: (next: Pending) => {
       pending = next;
     },
   };
@@ -118,12 +130,14 @@ function toView(message: ChatMessage): ConversationMessageView {
         id: part.id ?? part.data.cardId,
         data: part.data,
       });
+    } else if (part.type === 'data-offer') {
+      parts.push({ type: 'data-offer', id: part.id ?? part.data.offerId, data: part.data });
     }
   }
   return {
     id: message.id,
     role: message.role === 'user' ? 'user' : 'assistant',
-    // The server sets the stored origin; on the client a Freelancer message is shown as typed (T22 adds presses).
+    // The server sets the stored origin; the client never sends one for a press (PRESSED is server-only).
     origin: message.role === 'user' ? 'TYPED' : null,
     parts,
     createdAt: '',
@@ -135,6 +149,8 @@ interface ChatIslandProps {
   initialMessages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   cards: Record<string, DraftCardView>;
+  /** ai-chat-v2 T22: the Conversation's Offered choices by offer id (getConversation), restored on reopen (AC-13). */
+  offers?: Record<string, OfferView>;
   allowance: AllowanceState;
   start?: 'draft';
   /** ai-chat-v2 T20: where a new Conversation was opened from; sent with its first message only (AI_SECTION is omitted). */
@@ -157,11 +173,14 @@ export function ChatIsland(props: ChatIslandProps) {
   return <ChatSession key={seen.chat} {...props} />;
 }
 
+const NO_OFFERS: Record<string, OfferView> = {};
+
 function ChatSession({
   conversationId,
   initialMessages,
   invoiceLinks: initialInvoiceLinks,
   cards: initialCards,
+  offers: initialOffers = NO_OFFERS,
   allowance: initialAllowance,
   start,
   startedFrom = 'AI_SECTION',
@@ -181,9 +200,11 @@ function ChatSession({
   const [loaded, setLoaded] = useState<{
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
+    offers: Record<string, OfferView>;
   } | null>(null);
   const cards = loaded?.cards ?? initialCards;
   const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
+  const offers = loaded?.offers ?? initialOffers;
   // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
   // screen to the bottom (FLIP over a translate transition), or jumps there under reduced motion.
   const startRef = useRef<HTMLDivElement>(null);
@@ -197,12 +218,15 @@ function ChatSession({
         fetch: chatFetch,
         prepareSendMessagesRequest: ({ messages }) => {
           const savedId = live.getConversationId();
+          const choice = live.getPending()?.choice;
           return {
             body: {
               conversationId: savedId,
               message: messages[messages.length - 1],
+              // openapi ChatRequest: a press carries its choice and never an origin or a start point.
+              ...(choice ? { choice } : {}),
               // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-              ...(savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
+              ...(!choice && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
             },
           };
         },
@@ -238,6 +262,7 @@ function ChatSession({
             kind: outcome,
             userMessageId: sent.id,
             text: sent.text,
+            choice: sent.choice,
           });
         }
       }
@@ -277,10 +302,17 @@ function ChatSession({
           setFailure({ kind: 'GONE' });
           return;
         }
+        if (error.status === 409) {
+          // AC-12b, AC-13: the press is not applied; drop the optimistic message, leave the buttons as they were.
+          if (sent) setMessages((current) => current.filter((m) => m.id !== sent.id));
+          setFailure({ kind: 'CHOICE_UNAVAILABLE', message: error.message });
+          return;
+        }
         if (error.status === 400) {
           if (sent) {
             setMessages((current) => current.filter((m) => m.id !== sent.id));
-            setText(sent.text);
+            // A press's label is never put into the box: only typed text is given back.
+            if (!sent.choice) setText(sent.text);
           }
           setFailure({ kind: 'VALIDATION', message: error.message });
           return;
@@ -291,6 +323,7 @@ function ChatSession({
           kind: 'COULD_NOT_COMPLETE',
           userMessageId: sent.id,
           text: sent.text,
+          choice: sent.choice,
         });
     },
     onFinish: () => {
@@ -301,7 +334,7 @@ function ChatSession({
       if (conversationId === null && savedId) {
         void loadConversationCards(savedId).then(
           (result) => {
-            if (result.success) setLoaded(result.data);
+            if (result.success) setLoaded({ ...result.data, offers: result.data.offers ?? {} });
           },
           () => undefined
         );
@@ -313,9 +346,9 @@ function ChatSession({
 
   const inFlight = status === 'submitted' || status === 'streaming';
 
-  function send(raw: string) {
+  function send(raw: string, choice?: Choice) {
     const id = generateId();
-    live.setPending({ id, text: raw });
+    live.setPending({ id, text: raw, choice });
     setReplyDone(false);
     setFailure(null);
     if (!started && conversationId === null) {
@@ -339,7 +372,12 @@ function ChatSession({
       const index = current.findIndex((m) => m.id === failed.userMessageId);
       return index === -1 ? current : current.slice(0, index);
     });
-    send(failed.text);
+    send(failed.text, failed.choice);
+  }
+
+  // SCR-04: a press sends the stored label as the optimistic message plus { offerId, optionId }.
+  function press(offerId: string, optionId: number, label: string) {
+    send(label, { offerId, optionId });
   }
 
   // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
@@ -388,6 +426,11 @@ function ChatSession({
       : '';
   const waiting =
     inFlight && !(failedIndex !== -1) && last?.role !== 'assistant';
+  // SCR-04: only the newest reply's choices can be pressed, and not while a turn is in flight. A failed message
+  // left in view (could-not-complete) does not count as newer: the offer was released, so it is pressable again.
+  const tail = failedIndex !== -1 ? visible[visible.length - 2] : last;
+  const latestReplyId = !inFlight && tail?.role === 'assistant' ? tail.id : null;
+  const sentChoice = inFlight ? live.getPending()?.choice : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -398,6 +441,14 @@ function ChatSession({
         <MessageList
           messages={visible}
           invoiceLinks={invoiceLinks}
+          renderOffer={(offerId, messageId) => (
+            <OfferedChoices
+              offer={offers[offerId]}
+              isLatest={messageId === latestReplyId}
+              pendingOptionId={sentChoice?.offerId === offerId ? sentChoice.optionId : null}
+              onPress={press}
+            />
+          )}
           renderCard={(id) =>
             cards[id] ? (
               <DraftCard card={cards[id]} cards={cards} />
@@ -436,6 +487,13 @@ function ChatSession({
                 Try again
               </Button>
             </div>
+          </Alert>
+        ) : null}
+        {failure?.kind === 'CHOICE_UNAVAILABLE' ? (
+          // SCR-03 "choice unavailable": a non-destructive notice in the reply position.
+          <Alert>
+            <InfoIcon aria-hidden />
+            <AlertDescription>{failure.message}</AlertDescription>
           </Alert>
         ) : null}
         {failure?.kind === 'GONE' ? (
