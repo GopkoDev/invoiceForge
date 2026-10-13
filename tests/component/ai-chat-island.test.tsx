@@ -779,3 +779,101 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+// Review 2026-10-13 R1-U2 (the trade-off of the T31 router fix): the router knows /ai/{id} once the first reply
+// saved the Conversation, so its first revalidating server action (normally Create draft) re-renders the address
+// as the Conversation page, which mounts a new island. The live chat is handed over to it: an in-flight reply keeps
+// streaming, the exchange stays on screen, unsent composer text stays, and nothing is sent again.
+describe('the one-time swap to the Conversation page keeps the live chat', () => {
+  const conversationPage = () => (
+    <div key="conversation-page">
+      <ChatIsland conversationId="cNew" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+    </div>
+  );
+
+  async function firstReply(user: ReturnType<typeof userEvent.setup>) {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('First answer.'),
+        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('First answer.');
+    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    pathname = '/ai/cNew';
+    return view;
+  }
+
+  it('a reply in flight during the swap keeps streaming into the new island; nothing is re-sent', async () => {
+    const user = userEvent.setup();
+    const view = await firstReply(user);
+    const stream = openStream();
+    fetchMock.mockResolvedValueOnce(stream.response);
+    await send(user, 'And Globex?');
+    stream.push({ type: 'start', messageId: 'msg_srv_2' });
+    stream.push({ type: 'text-start', id: 't2' });
+    stream.push({ type: 'text-delta', id: 't2', delta: 'Globex owes' });
+    await screen.findByText(/Globex owes/);
+
+    view.rerender(conversationPage());
+
+    expect(screen.getByText('First answer.')).toBeTruthy();
+    expect(screen.getByText('And Globex?')).toBeTruthy();
+    stream.push({ type: 'text-delta', id: 't2', delta: ' 250 EUR.' });
+    stream.push({ type: 'text-end', id: 't2' });
+    stream.push(outcome('ANSWERED', true));
+    stream.push(FINISH);
+    stream.end();
+    expect(await screen.findByText('Globex owes 250 EUR.')).toBeTruthy();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('unsent composer text and the next send carry over; the next send goes to the saved Conversation', async () => {
+    const user = userEvent.setup();
+    const view = await firstReply(user);
+    await user.type(box(), 'unsent words');
+
+    view.rerender(conversationPage());
+
+    expect((box() as HTMLTextAreaElement).value).toBe('unsent words');
+    expect(screen.getByText('First answer.')).toBeTruthy();
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    await user.click(sendBtn());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(bodyOf(1).conversationId).toBe('cNew');
+    expect(bodyOf(1).message.parts[0].text).toBe('unsent words');
+  });
+
+  it('a Conversation page opened later (not the swap) starts from the server messages, not a stale live chat', async () => {
+    const user = userEvent.setup();
+    const view = await firstReply(user);
+    // Leave for another Conversation, then come back: the first island is gone for good.
+    view.rerender(
+      <div key="other">
+        <ChatIsland conversationId="cOther" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    view.rerender(
+      <div key="back">
+        <ChatIsland
+          conversationId="cNew"
+          initialMessages={[
+            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'From the server' }], createdAt: '' },
+          ]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
+      </div>
+    );
+    expect(screen.getByText('From the server')).toBeTruthy();
+    expect(screen.queryByText('First answer.')).toBeNull();
+  });
+});

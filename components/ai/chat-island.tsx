@@ -2,8 +2,8 @@
 
 import '@/components/ai/zod-csp-safe';
 
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
+import { Chat, useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, generateId, type ChatInit, type UIMessage } from 'ai';
 import { ArrowDownIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -124,6 +124,99 @@ function createRequestState(initialConversationId: string | null) {
   };
 }
 
+type RequestState = ReturnType<typeof createRequestState>;
+type ChatHandlers = Pick<ChatInit<ChatMessage>, 'onData' | 'onError' | 'onFinish'>;
+
+/** What the island shows besides the messages, carried to the island that takes the live chat over. */
+interface SessionUi {
+  text: string;
+  failure: Failure | null;
+  allowance: AllowanceState;
+  usedUpMessage?: string;
+  replyDone: boolean;
+}
+
+/**
+ * One live chat: the SDK's Chat (messages, status, the stream in flight), the request bookkeeping, and the handlers
+ * of the island showing it now. Review 2026-10-13 R1-U2: once the first reply saved a Conversation the router knows
+ * /ai/{id}, so its first revalidating server action (normally Create draft) re-renders the address as the
+ * Conversation page, which mounts a new island. That island takes this session over instead of starting from the
+ * server's messages: a reply in flight keeps streaming, and unsent text and an open alert stay.
+ */
+interface LiveSession {
+  chat: Chat<ChatMessage>;
+  live: RequestState;
+  handlers: { current: ChatHandlers };
+  /** Set by every render of the island showing it; null until the first. */
+  ui: SessionUi | null;
+  /** Islands showing it now; when none is left after a commit, the session ends (its stream is stopped). */
+  mounted: number;
+}
+
+/** Live sessions by the Conversation they saved, for the island the router mounts at that Conversation's address. */
+const liveSessions = new Map<string, LiveSession>();
+
+function createLiveSession(
+  conversationId: string | null,
+  initialMessages: ConversationMessageView[],
+  startedFrom: ConversationStartPoint
+): LiveSession {
+  const live = createRequestState(conversationId);
+  const handlers: { current: ChatHandlers } = { current: {} };
+  const transport = new DefaultChatTransport<ChatMessage>({
+    api: '/api/chat',
+    fetch: chatFetch,
+    prepareSendMessagesRequest: ({ messages }) => {
+      const savedId = live.getConversationId();
+      const sent = live.getPending();
+      const choice = sent?.choice;
+      // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
+      const dashboard = !choice && savedId === null && sent?.origin === 'DASHBOARD';
+      return {
+        body: {
+          conversationId: savedId,
+          message: messages[messages.length - 1],
+          // openapi ChatRequest: a press carries its choice and never an origin or a start point.
+          ...(choice ? { choice } : {}),
+          ...(dashboard ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' } : {}),
+          // openapi ChatRequest: the start point goes with a new Conversation's first message only.
+          ...(!choice && !dashboard && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
+        },
+      };
+    },
+  });
+  const chat = new Chat<ChatMessage>({
+    transport,
+    messages: initialMessages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage),
+    onData: (part) => handlers.current.onData?.(part),
+    onError: (error) => handlers.current.onError?.(error),
+    onFinish: (finished) => handlers.current.onFinish?.(finished),
+  });
+  return { chat, live, handlers, ui: null, mounted: 0 };
+}
+
+/** The island showing `session` now: its handlers answer the Chat, and what it shows is kept for a hand-over. */
+function showSession(session: LiveSession, handlers: ChatHandlers, ui: SessionUi): void {
+  session.handlers.current = handlers;
+  session.ui = ui;
+}
+
+/**
+ * An island holds `session` while mounted. The session ends with the last island showing it, after the commit that
+ * may hand it to the next one: its stream is stopped and it is no longer offered at any address.
+ */
+function holdSession(session: LiveSession): () => void {
+  session.mounted += 1;
+  return () => {
+    session.mounted -= 1;
+    setTimeout(() => {
+      if (session.mounted > 0) return;
+      session.chat.stop();
+      for (const [id, held] of liveSessions) if (held === session) liveSessions.delete(id);
+    }, 0);
+  };
+}
+
 function toView(message: ChatMessage): ConversationMessageView {
   const parts: ConversationMessageView['parts'] = [];
   for (const part of message.parts) {
@@ -212,14 +305,21 @@ function ChatSession({
 }: ChatIslandProps) {
   const router = useRouter();
   const newConversation = useNewConversation();
+  // The live chat this island shows: the one handed over at this Conversation's address, or a new one.
+  const [session] = useState<LiveSession>(
+    () =>
+      (conversationId !== null ? liveSessions.get(conversationId) : undefined) ??
+      createLiveSession(conversationId, initialMessages, startedFrom)
+  );
   // Mutable request bookkeeping read by the transport and SDK callbacks, never during render.
-  const [live] = useState(() => createRequestState(conversationId));
-  const [allowance, setAllowance] = useState(initialAllowance);
-  const [usedUpMessage, setUsedUpMessage] = useState<string>();
-  const [failure, setFailure] = useState<Failure | null>(null);
+  const { live } = session;
+  const [handedOver] = useState(session.ui);
+  const [allowance, setAllowance] = useState(handedOver?.allowance ?? initialAllowance);
+  const [usedUpMessage, setUsedUpMessage] = useState<string | undefined>(handedOver?.usedUpMessage);
+  const [failure, setFailure] = useState<Failure | null>(handedOver?.failure ?? null);
   const [started, setStarted] = useState(false);
-  const [text, setText] = useState('');
-  const [replyDone, setReplyDone] = useState(false);
+  const [text, setText] = useState(handedOver?.text ?? '');
+  const [replyDone, setReplyDone] = useState(handedOver?.replyDone ?? false);
   // Only on /ai: the Conversation the first reply saved, and its cards and link states once read.
   const [saved, setSaved] = useState<{ id: string; title: string } | null>(null);
   const [loaded, setLoaded] = useState<{
@@ -238,40 +338,14 @@ function ChatSession({
   const dockRef = useRef<HTMLDivElement>(null);
   const moveFrom = useRef<number | null>(null);
   const [composerMove, setComposerMove] = useState<'animated' | 'none'>();
-  const [transport] = useState(
-    () =>
-      new DefaultChatTransport<ChatMessage>({
-        api: '/api/chat',
-        fetch: chatFetch,
-        prepareSendMessagesRequest: ({ messages }) => {
-          const savedId = live.getConversationId();
-          const sent = live.getPending();
-          const choice = sent?.choice;
-          // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
-          const dashboard = !choice && savedId === null && sent?.origin === 'DASHBOARD';
-          return {
-            body: {
-              conversationId: savedId,
-              message: messages[messages.length - 1],
-              // openapi ChatRequest: a press carries its choice and never an origin or a start point.
-              ...(choice ? { choice } : {}),
-              ...(dashboard ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' } : {}),
-              // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-              ...(!choice && !dashboard && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
-            },
-          };
-        },
-      })
-  );
+  const { messages, setMessages, sendMessage, status } = useChat<ChatMessage>({ chat: session.chat });
 
-  const { messages, setMessages, sendMessage, status } = useChat<ChatMessage>({
-    transport,
-    messages: initialMessages.map(
-      (m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage
-    ),
+  // The handlers of the island showing the session now (the Chat calls them), and what it shows besides the messages.
+  const handlers: ChatHandlers = {
     onData: (part) => {
       if (part.type === 'data-conversation') {
         live.setConversationId(part.data.conversationId);
+        liveSessions.set(part.data.conversationId, session);
         if (conversationId === null) setSaved({ id: part.data.conversationId, title: part.data.title });
         newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
         replaceAddress(`/ai/${part.data.conversationId}`);
@@ -371,7 +445,11 @@ function ChatSession({
       }
       router.refresh();
     },
+  };
+  useLayoutEffect(() => {
+    showSession(session, handlers, { text, failure, allowance, usedUpMessage, replyDone });
   });
+  useEffect(() => holdSession(session), [session]);
 
   const inFlight = status === 'submitted' || status === 'streaming';
 
