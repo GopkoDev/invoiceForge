@@ -44,6 +44,7 @@ let pathname = '/ai/c1';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => pathname,
+  useSelectedLayoutSegment: () => pathname.split('/')[2] ?? null,
   useSearchParams: () => search,
 }));
 const goToSignIn = vi.fn();

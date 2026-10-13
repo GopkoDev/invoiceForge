@@ -4,13 +4,14 @@ import { toast } from 'sonner';
 import { deleteAllConversations, deleteConversation } from '@/lib/actions/assistant-actions';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import { useModal } from '@/store/use-modal-store';
+import { useOptionalConversationList } from '@/components/ai/conversation-list-context';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import type { ActionResult } from '@/types/result';
 
 export type DeletedTarget = { kind: 'one'; id: string } | { kind: 'all' };
 
 interface DeleteHandlers {
-  /** Runs after the Conversation is gone (deleted now, or already gone): refresh the list or leave the page. */
+  /** Runs after the Conversation is gone (deleted now, or already gone): leave the page if it was the open one. */
   onGone: (target: DeletedTarget) => void;
 }
 
@@ -19,8 +20,13 @@ export function useDeleteConversations({ onGone }: DeleteHandlers) {
   const confirmationModal = useModal('confirmationModal');
   // Every delete path forgets a Conversation started in place, so it never comes back as a ghost row (R2-U2, R3-U1).
   const newConversation = useNewConversation();
+  const list = useOptionalConversationList();
   const gone = (target: DeletedTarget) => {
     newConversation?.forget(target);
+    // ADR-0013: the rows leave the list in place, with no refresh.
+    list?.conversationsDeleted(
+      target.kind === 'one' ? [target.id] : list.conversations.map((c) => c.id)
+    );
     onGone(target);
   };
 

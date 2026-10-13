@@ -19,6 +19,7 @@ import { fail } from '@/types/actions';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
   usePathname: () => '/ai',
+  useSelectedLayoutSegment: () => null,
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -131,9 +132,12 @@ describe('R-20: /ai/{id} keeps the Conversation list column (AC-35)', () => {
         invoiceLinks: {},
       },
     });
+    // ai-chat-v2 T66 (ADR-0013): the list column is the layout's; the page renders inside it.
     render(
-      await ConversationPage({
-        params: Promise.resolve({ conversationId: 'c1' }),
+      await AiLayout({
+        children: await ConversationPage({
+          params: Promise.resolve({ conversationId: 'c1' }),
+        }),
       })
     );
     expect(
@@ -145,7 +149,12 @@ describe('R-20: /ai/{id} keeps the Conversation list column (AC-35)', () => {
 describe('R-21 (reworked by ai-chat-v2 T19): the list pane precedes the chat in DOM and visual order (AC-01)', () => {
   it('puts the md+ list pane before the start panel, with no CSS reordering', async () => {
     listConversationSummaries.mockResolvedValue(summaries(['Draft for Acme']));
-    render(await AiPage({ searchParams: Promise.resolve({}) }));
+    // ai-chat-v2 T66 (ADR-0013): the list pane is the layout's.
+    render(
+      await AiLayout({
+        children: await AiPage({ searchParams: Promise.resolve({}) }),
+      })
+    );
     const panel = screen.getByRole('heading', {
       level: 1,
       name: /How can I help with your invoices today\?/,
@@ -201,12 +210,10 @@ describe('R-24: start panel subtitles (AC-01, AC-33)', () => {
 });
 
 describe('R-26 (reworked by ai-chat-v2 T19): the AI section sits in a viewport-height shell, not ContentArea', () => {
-  it('wraps children in the full-height shell', () => {
-    const { container } = render(
-      <AiLayout>
-        <p>child</p>
-      </AiLayout>
-    );
+  it('wraps children in the full-height shell', async () => {
+    // ai-chat-v2 T66 (ADR-0013): the layout is async (it loads the list once for its provider).
+    listConversationSummaries.mockResolvedValue(summaries([]));
+    const { container } = render(await AiLayout({ children: <p>child</p> }));
     expect(container.querySelector('div.container.mx-auto')).toBeNull();
     const shell = container.firstElementChild as HTMLElement;
     expect(shell.className).toMatch(/overflow-hidden/);
@@ -357,7 +364,12 @@ describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 
     try {
       listConversationSummaries.mockResolvedValue(summaries(['Older chat']));
       const user = userEvent.setup();
-      render(await AiPage({ searchParams: Promise.resolve({}) }));
+      // ai-chat-v2 T66 (ADR-0013): the list is the layout's; the page renders inside it.
+      render(
+        await AiLayout({
+          children: await AiPage({ searchParams: Promise.resolve({}) }),
+        })
+      );
       await user.type(
         screen.getByRole('textbox', { name: 'Message' }),
         'Who owes me money right now?'

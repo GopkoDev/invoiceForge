@@ -1,7 +1,8 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
-import { ConversationList, openConversationId } from '@/components/ai/conversation-list';
+import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
+import { useOptionalConversationList } from '@/components/ai/conversation-list-context';
+import { ConversationList } from '@/components/ai/conversation-list';
 import { protectedRoutes } from '@/config/routes.config';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { useDeleteConversations } from '@/components/ai/use-delete-conversations';
@@ -15,14 +16,18 @@ export function ConversationListClient(props: {
   onPick?: () => void;
 }) {
   const router = useRouter();
-  const openId = openConversationId(usePathname());
+  const openId = useSelectedLayoutSegment();
+  const layoutList = useOptionalConversationList();
   const newConversation = useNewConversation();
   // SCR-01 "deleted": when the open Conversation is among the deleted, leave for /ai; otherwise refresh the list.
   const { deleteOne, deleteAll } = useDeleteConversations({
     onGone: (target) => {
-      const openGone = openId !== null && (target.kind === 'all' || target.id === openId);
+      const openGone =
+        openId !== null && (target.kind === 'all' || target.id === openId);
+      // ADR-0013: the delete hook removed the rows from the layout's list; only leaving an open Conversation is left.
       if (openGone) router.push(protectedRoutes.ai);
-      else router.refresh();
+      // Outside the layout's provider nobody holds the rows: re-read them.
+      else if (!layoutList) router.refresh();
     },
   });
 
@@ -31,14 +36,25 @@ export function ConversationListClient(props: {
   const { conversations } = props;
   const listed =
     created && !conversations.some((c) => c.id === created.id)
-      ? [{ id: created.id, title: created.title, lastMessageAt: new Date().toISOString() }, ...conversations]
+      ? [
+          {
+            id: created.id,
+            title: created.title,
+            lastMessageAt: new Date().toISOString(),
+          },
+          ...conversations,
+        ]
       : conversations;
 
   return (
     <ConversationList
       {...props}
       conversations={listed}
-      onDelete={(target) => (target.kind === 'all' ? deleteAll(listed.length) : deleteOne(target.id, target.title))}
+      onDelete={(target) =>
+        target.kind === 'all'
+          ? deleteAll(listed.length)
+          : deleteOne(target.id, target.title)
+      }
     />
   );
 }

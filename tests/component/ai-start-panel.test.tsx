@@ -23,6 +23,7 @@ import userEvent from '@testing-library/user-event';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
   usePathname: () => '/ai',
+  useSelectedLayoutSegment: () => null,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -47,6 +48,7 @@ vi.mock('@/lib/helpers/session-actor', () => ({
 
 import { StartPanel } from '@/components/ai/start-panel';
 import AiPage from '@/app/(protected)/ai/page';
+import AiLayout from '@/app/(protected)/ai/layout';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 
 // ai-chat-v2 T20 (screens.md §SCR-02): the fixed suggested requests, incl. drafting and who owes money.
@@ -390,7 +392,12 @@ describe('AI page wiring', () => {
         ],
       },
     });
-    render(await AiPage({ searchParams: Promise.resolve({}) }));
+    // ai-chat-v2 T66 (ADR-0013): the list is the layout's; the page renders inside it.
+    render(
+      await AiLayout({
+        children: await AiPage({ searchParams: Promise.resolve({}) }),
+      })
+    );
     expect(
       screen.getByText("You've used today's 30 messages")
     ).toBeInTheDocument();

@@ -1,13 +1,11 @@
 import { HANDOFF_PARAM } from '@/components/ai/ai-handoff';
 import { ChatIsland } from '@/components/ai/chat-island';
-import { AiWorkspace } from '@/components/ai/ai-workspace';
 import { startPointFromAddress } from '@/components/ai/start-point';
 import { unwrapPageResult } from '@/components/layout/content-area';
 import { sessionAccountName } from '@/lib/helpers/account-name';
 import { greetingLine } from '@/lib/helpers/greeting';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import { getAllowanceState } from '@/lib/services/assistant-usage';
-import { listConversationSummaries } from '@/lib/services/conversations';
 
 interface AiPageProps {
   searchParams: Promise<{
@@ -28,7 +26,6 @@ export default async function AiPage({ searchParams }: AiPageProps) {
     : handoffParam;
 
   const actor = unwrapPageResult(await actingFreelancerFromSession());
-  const summaries = unwrapPageResult(await listConversationSummaries(actor));
   const allowance = unwrapPageResult(await getAllowanceState(actor));
   // ai-chat-v2 T37 (SCR-02 «Greeting»): computed here, in the Freelancer time zone, so the client renders the same text.
   const greeting = greetingLine(
@@ -38,18 +35,16 @@ export default async function AiPage({ searchParams }: AiPageProps) {
   );
 
   return (
-    <AiWorkspace conversations={summaries.items} timeZone={summaries.timeZone}>
-      <ChatIsland
-        conversationId={null}
-        initialMessages={[]}
-        invoiceLinks={{}}
-        cards={{}}
-        allowance={allowance}
-        start={start}
-        startedFrom={startedFrom}
-        handoffId={handoffId}
-        greeting={greeting}
-      />
-    </AiWorkspace>
+    <ChatIsland
+      conversationId={null}
+      initialMessages={[]}
+      invoiceLinks={{}}
+      cards={{}}
+      allowance={allowance}
+      start={start}
+      startedFrom={startedFrom}
+      handoffId={handoffId}
+      greeting={greeting}
+    />
   );
 }

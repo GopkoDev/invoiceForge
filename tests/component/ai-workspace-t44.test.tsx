@@ -19,6 +19,7 @@ let mockPathname = '/ai/c1';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
   usePathname: () => mockPathname,
+  useSelectedLayoutSegment: () => mockPathname.split('/')[2] ?? null,
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -107,16 +108,24 @@ async function renderConversationPage() {
       forms: {},
     },
   });
+  // ai-chat-v2 T66 (ADR-0013): the list belongs to the layout, so the page is rendered inside it.
   return render(
-    await ConversationPage({
-      params: Promise.resolve({ conversationId: 'c1' }),
+    await AiLayout({
+      children: await ConversationPage({
+        params: Promise.resolve({ conversationId: 'c1' }),
+      }),
     })
   );
 }
 
 describe('AC-15: the AI section is a viewport-height shell with panes that scroll on their own', () => {
-  it('the layout fills the viewport below the app header and hides overflow (no page scroll, no ContentArea)', () => {
-    const { container } = render(<AiLayout>content</AiLayout>);
+  it('the layout fills the viewport below the app header and hides overflow (no page scroll, no ContentArea)', async () => {
+    listConversationSummaries.mockResolvedValue({
+      success: true,
+      data: { items: rows(['A']), timeZone: 'UTC' },
+    });
+    // ai-chat-v2 T66 (ADR-0013): the layout is async; it loads the list once.
+    const { container } = render(await AiLayout({ children: 'content' }));
     const shell = container.firstElementChild as HTMLElement;
     expect(shell.className).toMatch(/h-\[calc\(100dvh-var\(--header-height\)/);
     expect(shell.className).toMatch(/overflow-hidden/);
@@ -190,7 +199,11 @@ describe('AC-19: below md the list opens as a left sheet and closes on a pick', 
       success: true,
       data: { items: rows(['Draft for Acme']), timeZone: 'UTC' },
     });
-    render(await AiPage({ searchParams: Promise.resolve({}) }));
+    render(
+      await AiLayout({
+        children: await AiPage({ searchParams: Promise.resolve({}) }),
+      })
+    );
     expect(
       screen.getByRole('button', { name: 'Open conversations' })
     ).toBeInTheDocument();

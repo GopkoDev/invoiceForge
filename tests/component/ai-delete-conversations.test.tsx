@@ -39,7 +39,22 @@ vi.mock('next/navigation', () => ({
     replace: vi.fn(),
   }),
   usePathname: () => pathname,
+  useSelectedLayoutSegment: () => pathname.split("/")[2] ?? null,
   useSearchParams: () => new URLSearchParams(),
+}));
+
+// ai-chat-v2 T66 (ADR-0013): the layout loads the list once for its provider.
+vi.mock('@/lib/services/conversations', () => ({
+  listConversationSummaries: async () => ({
+    success: true,
+    data: { items: [], timeZone: 'UTC' },
+  }),
+}));
+vi.mock('@/lib/helpers/session-actor', () => ({
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'u1', timeZone: 'UTC' },
+  }),
 }));
 
 const toastSuccess = vi.fn();
@@ -612,10 +627,11 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
   describe('AI section layout', () => {
     it('renders its children and mounts the AI modal container so the dialog can open', async () => {
       const user = userEvent.setup();
+      // ai-chat-v2 T66 (ADR-0013): the layout is async (it loads the list once for its provider).
       render(
-        <AiLayout>
-          <ConversationHeaderClient conversationId="c9" title={TITLE} />
-        </AiLayout>
+        await AiLayout({
+          children: <ConversationHeaderClient conversationId="c9" title={TITLE} />,
+        })
       );
 
       await user.click(

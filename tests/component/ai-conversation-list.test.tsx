@@ -11,6 +11,7 @@ let pathname = '/ai';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
   usePathname: () => pathname,
+  useSelectedLayoutSegment: () => pathname.split('/')[2] ?? null,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -45,6 +46,7 @@ vi.mock('@/lib/actions/assistant-actions', () => ({
 import { ConversationList } from '@/components/ai/conversation-list';
 import AiLoading from '@/app/(protected)/ai/loading';
 import AiPage from '@/app/(protected)/ai/page';
+import AiLayout from '@/app/(protected)/ai/layout';
 import { navigationMenuConfig } from '@/config/navigation-menu.config';
 import { DynamicSidebarSection } from '@/components/layout/dynamic-sidebar-section';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -423,7 +425,10 @@ describe('AI page (SCR-01 reads)', () => {
       success: true,
       data: { items: FOUR, timeZone: 'UTC' },
     });
-    const ui = await AiPage({ searchParams: Promise.resolve({}) });
+    // ai-chat-v2 T66 (ADR-0013): the layout reads the summaries once; the page renders inside it.
+    const ui = await AiLayout({
+      children: await AiPage({ searchParams: Promise.resolve({}) }),
+    });
     expect(listConversationSummaries).toHaveBeenCalledWith({
       userId: 'u1',
       timeZone: 'UTC',
@@ -441,7 +446,7 @@ describe('AI page (SCR-01 reads)', () => {
       error: 'boom',
     });
     await expect(
-      AiPage({ searchParams: Promise.resolve({}) })
+      (async () => AiLayout({ children: null }))()
     ).rejects.toBeDefined();
   });
 });

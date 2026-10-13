@@ -43,6 +43,7 @@ import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
 import { ConversationListButton } from '@/components/ai/ai-workspace';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
+import { useOptionalConversationList } from '@/components/ai/conversation-list-context';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
 import {
@@ -451,6 +452,7 @@ function ChatSession({
 }) {
   const router = useRouter();
   const newConversation = useNewConversation();
+  const list = useOptionalConversationList();
   // The live chat this island shows: the one handed over at this Conversation's address, or a new one.
   const adoptId = conversationId ?? liveAt;
   const [session] = useState<LiveSession>(
@@ -527,6 +529,12 @@ function ChatSession({
         newConversation?.announce({
           id: part.data.conversationId,
           title: part.data.title,
+        });
+        // ADR-0013: the new Conversation heads the list in place, with no list request.
+        list?.conversationCreated({
+          id: part.data.conversationId,
+          title: part.data.title,
+          lastMessageAt: new Date().toISOString(),
         });
         replaceAddress(`/ai/${part.data.conversationId}`);
       } else if (part.type === 'data-allowance') {
@@ -623,6 +631,8 @@ function ChatSession({
       // keeps serving that page, and a navigation to /ai/{id} would show its loading skeleton and remount the
       // chat (fix 2026-10-12). Read the saved Conversation's cards and link states instead.
       const savedId = live.getConversationId();
+      // ADR-0013: a saved turn moves its Conversation to the top of the list.
+      if (savedId) list?.conversationTouched(savedId, new Date().toISOString());
       if (conversationId === null && savedId) {
         void loadConversationCards(savedId).then(
           (result) => {

@@ -42,6 +42,7 @@ let pathname = '/ai';
 vi.mock('next/navigation', () => ({
   useRouter: () => router,
   usePathname: () => pathname,
+  useSelectedLayoutSegment: () => pathname.split('/')[2] ?? null,
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');

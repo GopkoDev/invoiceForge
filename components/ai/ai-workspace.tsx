@@ -3,6 +3,10 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { PanelLeftIcon } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import {
+  ConversationListProvider,
+  useConversationList,
+} from '@/components/ai/conversation-list-context';
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
 import { InvoicePreviewPanel } from '@/components/ai/invoice-preview-panel';
 import { InvoiceStateProvider } from '@/components/ai/invoice-state-context';
@@ -13,6 +17,18 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import type { ConversationSummary } from '@/types/assistant/types';
 import { cn } from '@/lib/utils';
+
+// The list the layout's provider holds (ADR-0013), handed to the pane and the phone sheet.
+function ProvidedList({ onPick }: { onPick?: () => void }) {
+  const { conversations, timeZone } = useConversationList();
+  return (
+    <ConversationListClient
+      conversations={conversations}
+      timeZone={timeZone}
+      onPick={onPick}
+    />
+  );
+}
 
 const ListSheetContext = createContext<{
   openList: () => void;
@@ -71,88 +87,83 @@ export function AiWorkspace({
   );
 
   return (
-    <NewConversationProvider>
-      <InvoiceStateProvider>
-        <ListSheetContext.Provider value={sheet}>
-          <div
-            data-slot="ai-workspace"
-            data-preview={previewOpen ? 'open' : 'closed'}
-            className={cn(
-              // screens.md «Workspace container» (ADR-0010): from md one rounded bordered container, panes divided by
-              // one vertical border; below md edge to edge.
-              'bg-background grid h-full min-h-0 grid-cols-1 overflow-hidden md:rounded-xl md:border',
-              previewOpen
-                ? 'md:grid-cols-[minmax(0,1fr)_minmax(20rem,50%)] xl:grid-cols-[16rem_minmax(0,1fr)_minmax(26rem,40%)]'
-                : 'md:grid-cols-[16rem_minmax(0,1fr)]'
-            )}
-          >
-            <aside
-              aria-label="Conversation list"
+    <ConversationListProvider conversations={conversations} timeZone={timeZone}>
+      <NewConversationProvider>
+        <InvoiceStateProvider>
+          <ListSheetContext.Provider value={sheet}>
+            <div
+              data-slot="ai-workspace"
+              data-preview={previewOpen ? 'open' : 'closed'}
               className={cn(
-                'hidden min-h-0 min-w-0 border-r',
-                previewOpen ? 'xl:flex xl:flex-col' : 'md:flex md:flex-col'
+                // screens.md «Workspace container» (ADR-0010): from md one rounded bordered container, panes divided by
+                // one vertical border; below md edge to edge.
+                'bg-background grid h-full min-h-0 grid-cols-1 overflow-hidden md:rounded-xl md:border',
+                previewOpen
+                  ? 'md:grid-cols-[minmax(0,1fr)_minmax(20rem,50%)] xl:grid-cols-[16rem_minmax(0,1fr)_minmax(26rem,40%)]'
+                  : 'md:grid-cols-[16rem_minmax(0,1fr)]'
               )}
             >
-              <ConversationListClient
-                conversations={conversations}
-                timeZone={timeZone}
-              />
-            </aside>
-            <section className="flex min-h-0 min-w-0 flex-col">
-              {children}
-            </section>
-            {previewCardId && desktop ? (
-              <div
-                data-slot="preview-column"
-                className="hidden min-h-0 min-w-0 md:flex md:flex-col md:border-l"
+              <aside
+                aria-label="Conversation list"
+                className={cn(
+                  'hidden min-h-0 min-w-0 border-r',
+                  previewOpen ? 'xl:flex xl:flex-col' : 'md:flex md:flex-col'
+                )}
               >
-                <InvoicePreviewPanel
-                  key={previewCardId}
-                  cardId={previewCardId}
-                />
-              </div>
-            ) : null}
-          </div>
-          <Sheet
-            open={previewCardId !== null && !desktop}
-            onOpenChange={(open) => (open ? undefined : closePreview())}
-          >
-            {/* The Sheet's bottom side sets data-[side=bottom]:h-auto, which beats a plain h-dvh: the same variant is
-              needed, or the sheet grows to its content and runs off the top of the screen (T31 finding). */}
-            <SheetContent
-              side="bottom"
-              showCloseButton={false}
-              className="h-dvh gap-0 p-0 data-[side=bottom]:h-dvh md:hidden"
-            >
-              <SheetTitle className="sr-only">Invoice preview</SheetTitle>
-              {previewCardId && !desktop ? (
-                <InvoicePreviewPanel
-                  key={previewCardId}
-                  cardId={previewCardId}
-                  variant="sheet"
-                />
+                <ProvidedList />
+              </aside>
+              <section className="flex min-h-0 min-w-0 flex-col">
+                {children}
+              </section>
+              {previewCardId && desktop ? (
+                <div
+                  data-slot="preview-column"
+                  className="hidden min-h-0 min-w-0 md:flex md:flex-col md:border-l"
+                >
+                  <InvoicePreviewPanel
+                    key={previewCardId}
+                    cardId={previewCardId}
+                  />
+                </div>
               ) : null}
-            </SheetContent>
-          </Sheet>
-          <Sheet open={listOpen} onOpenChange={setListOpen}>
-            <SheetContent
-              side="left"
-              // The sheet's own × sits top-right: the list's search row leaves room for it.
-              className={cn(
-                'w-[min(20rem,85vw)] gap-0 p-0 [&_[data-slot=conversation-list-top]]:pr-12',
-                previewOpen ? 'xl:hidden' : 'md:hidden'
-              )}
+            </div>
+            <Sheet
+              open={previewCardId !== null && !desktop}
+              onOpenChange={(open) => (open ? undefined : closePreview())}
             >
-              <SheetTitle className="sr-only">Conversations</SheetTitle>
-              <ConversationListClient
-                conversations={conversations}
-                timeZone={timeZone}
-                onPick={() => setListOpen(false)}
-              />
-            </SheetContent>
-          </Sheet>
-        </ListSheetContext.Provider>
-      </InvoiceStateProvider>
-    </NewConversationProvider>
+              {/* The Sheet's bottom side sets data-[side=bottom]:h-auto, which beats a plain h-dvh: the same variant is
+              needed, or the sheet grows to its content and runs off the top of the screen (T31 finding). */}
+              <SheetContent
+                side="bottom"
+                showCloseButton={false}
+                className="h-dvh gap-0 p-0 data-[side=bottom]:h-dvh md:hidden"
+              >
+                <SheetTitle className="sr-only">Invoice preview</SheetTitle>
+                {previewCardId && !desktop ? (
+                  <InvoicePreviewPanel
+                    key={previewCardId}
+                    cardId={previewCardId}
+                    variant="sheet"
+                  />
+                ) : null}
+              </SheetContent>
+            </Sheet>
+            <Sheet open={listOpen} onOpenChange={setListOpen}>
+              <SheetContent
+                side="left"
+                // The sheet's own × sits top-right: the list's search row leaves room for it.
+                className={cn(
+                  'w-[min(20rem,85vw)] gap-0 p-0 [&_[data-slot=conversation-list-top]]:pr-12',
+                  previewOpen ? 'xl:hidden' : 'md:hidden'
+                )}
+              >
+                <SheetTitle className="sr-only">Conversations</SheetTitle>
+                <ProvidedList onPick={() => setListOpen(false)} />
+              </SheetContent>
+            </Sheet>
+          </ListSheetContext.Provider>
+        </InvoiceStateProvider>
+      </NewConversationProvider>
+    </ConversationListProvider>
   );
 }
