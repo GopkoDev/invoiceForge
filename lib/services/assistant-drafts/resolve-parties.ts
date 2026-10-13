@@ -213,6 +213,7 @@ function resolveSenderAndAccount(
           currency,
           senderProfileId: profile.id,
           account: accountWithCurrency(elsewhere.account),
+          accounts: inCurrency.map(accountOption),
         },
       };
     }

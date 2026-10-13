@@ -222,6 +222,8 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     currency,
     senderProfileId: recordId,
     account: accountInCurrency,
+    // ai-chat-v2 T52 (ADR-0011): the profile's accounts in the asked currency, so the form can offer them (may be empty).
+    accounts: accounts.optional(),
   }),
   z.object({ kind: z.literal('LINE_QUANTITY_MISSING'), lineIndex, description: z.string() }),
   z.object({

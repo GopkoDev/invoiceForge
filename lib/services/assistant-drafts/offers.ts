@@ -17,8 +17,8 @@ import type { DraftIssue, DraftRequest } from '@/lib/services/assistant-drafts/s
 /** At most this many buttons; above it the reply states the count instead (AC-14). */
 export const MAX_OFFER_OPTIONS = 8;
 
-const CURRENCIES = ['UAH', 'USD', 'EUR', 'GBP', 'PLN'] as const;
-type Currency = (typeof CURRENCIES)[number];
+export const CURRENCIES = ['UAH', 'USD', 'EUR', 'GBP', 'PLN'] as const;
+export type Currency = (typeof CURRENCIES)[number];
 const recordId = z.string().min(1).max(64);
 
 export const offerOptionRefSchema = z.union([
@@ -64,10 +64,10 @@ type Found = {
 };
 type Profile = { senderProfileId: string; name: { freelancerText: string } };
 
-const isCurrency = (code: string): code is Currency => (CURRENCIES as readonly string[]).includes(code);
+export const isCurrency = (code: string): code is Currency => (CURRENCIES as readonly string[]).includes(code);
 
 /** A Customer's saved name; with its email (or "no email") only when another offered name folds equal (AC-10). */
-function customerOptions(candidates: Array<{ customerId: string; name: { freelancerText: string }; email: string | null }>) {
+export function customerOptions(candidates: Array<{ customerId: string; name: { freelancerText: string }; email: string | null }>) {
   const folded = candidates.map((c) => foldName(c.name.freelancerText));
   return candidates.map((c, i) => {
     const name = c.name.freelancerText;
@@ -77,15 +77,24 @@ function customerOptions(candidates: Array<{ customerId: string; name: { freelan
   });
 }
 
-const profileOptions = (profiles: Profile[]) =>
+export const profileOptions = (profiles: Profile[]) =>
   profiles.map((p) => ({ label: p.name.freelancerText, ref: { senderProfileId: p.senderProfileId } }));
 
-const accountOptions = (
+export const accountOptions = (
   accounts: Array<{ bankAccountId: string; bankName: { freelancerText: string }; lastFour: string; currency: string }>
 ) =>
   accounts.map((a) => ({
     label: `${a.bankName.freelancerText} ••${a.lastFour} · ${a.currency}`,
     ref: { bankAccountId: a.bankAccountId },
+  }));
+
+/** A product option: name, unit and the price in the invoice currency (spec §1 "What a button shows"). */
+export const productOptions = (
+  candidates: Array<{ productId: string; name: { freelancerText: string }; unit: string; price: string; currency: string }>
+) =>
+  candidates.map((p) => ({
+    label: `${p.name.freelancerText} · ${p.unit} · ${p.price} ${p.currency}`,
+    ref: { productId: p.productId },
   }));
 
 /** The options one issue offers, by kind; null for a kind that is never an offer (a value to type, a link). */
@@ -114,10 +123,7 @@ function optionsOf(issue: DraftIssue): Found | null {
         offerKind: 'PRODUCT',
         lineIndex: issue.lineIndex,
         total: issue.total,
-        options: issue.candidates.map((p) => ({
-          label: `${p.name.freelancerText} · ${p.unit} · ${p.price} ${p.currency}`,
-          ref: { productId: p.productId },
-        })),
+        options: productOptions(issue.candidates),
       };
     default:
       return null;

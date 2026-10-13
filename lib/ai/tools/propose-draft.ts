@@ -120,7 +120,7 @@ export function withoutLongLists(issues: DraftIssue[]): { issues: DraftIssue[]; 
       // A capped product list counts all its matches (R12-2).
       count = ('total' in issue && issue.total) || issue.candidates.length;
       next = { ...issue, candidates: [] } as DraftIssue;
-    } else if ('accounts' in issue && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
+    } else if ('accounts' in issue && issue.accounts && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
       count = issue.accounts.length;
       next = { ...issue, accounts: [] } as DraftIssue;
     } else if (issue.kind === 'SENDER_PROFILE_NOT_FOUND' && issue.profiles.length > MAX_LISTED) {

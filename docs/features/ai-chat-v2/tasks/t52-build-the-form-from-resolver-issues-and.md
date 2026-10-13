@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/forms.ts", "tests/unit/"]
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T52 — Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)
