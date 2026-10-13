@@ -113,15 +113,16 @@ describe('the ai-chat-v2 spans carry metadata only', () => {
     expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'unavailable']]);
   });
 
-  it('chat.choice-check (store failure): still outcome=unavailable, no error text in the span', async () => {
+  // Review 2026-10-13 R1-S3: a store failure is its own outcome (the route answers 503, not 409).
+  it('chat.choice-check (store failure): outcome=failed, no error text in the span', async () => {
     const { checkChoice } = await import('@/lib/services/assistant-drafts/offers');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     prismaFake.choiceOffer.findFirst.mockRejectedValue(new Error(`boom ${LABEL}`));
 
     const result = await checkChoice(actor, { conversationId: 'conv1', offerId: OFFER_ID, optionId: 0 });
 
-    expect(result.ok).toBe(false);
-    expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'unavailable']]);
+    expect(result).toEqual({ ok: false, failed: true });
+    expect(expectMetadataOnly('chat.choice-check')).toEqual([['outcome', 'failed']]);
   });
 
   it.each([
