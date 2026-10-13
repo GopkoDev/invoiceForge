@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/forms.ts", "lib/ai/tools/propose-dra
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T72 — Give resolver-raised questions chat-written question text and fix the instructions' tool sentence (review R20-11, R20-9)

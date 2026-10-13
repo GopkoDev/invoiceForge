@@ -266,7 +266,8 @@ function questionOf(issue: DraftIssue, ctx: { today: string; issueDate?: string 
       if (!target) return null;
       const options =
         target.field === 'ISSUE_DATE' || target.field === 'DUE_DATE' ? dateOptions(target.field, ctx) : [];
-      return question(target.field, target.lineIndex, options, { prompt: issue.message.slice(0, 140) });
+      // T72 (F2): the question text is written by the chat (ask_user), never the resolver's English message.
+      return question(target.field, target.lineIndex, options);
     }
     case 'NO_SENDER_PROFILE_WITH_ACCOUNT':
       return null;

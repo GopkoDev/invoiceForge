@@ -116,10 +116,10 @@ describe('formFromIssues: every resolver issue becomes a question (T52)', () => 
       expect(fieldsOf(qs)).toEqual(['CUSTOMER', 'SENDER_PROFILE', 'BANK_ACCOUNT', 'CURRENCY', 'PRODUCT#1']);
     });
 
-    it('a FIELD_INVALID issue becomes its field\'s question with the resolver message as the prompt', () => {
+    it('a FIELD_INVALID issue becomes its field\'s question with no resolver message as the prompt (T72, F2: question text is chat-written)', () => {
       const qs = formFromIssues([{ kind: 'FIELD_INVALID', field: 'taxRate', message: 'Tax rate must be 100 or less.' }, severalAccounts()], ctx);
       expect(fieldsOf(qs)).toEqual(['TAX_RATE', 'BANK_ACCOUNT']);
-      expect(qs[0]).toMatchObject({ prompt: 'Tax rate must be 100 or less.', input: 'RATE', required: false, skippable: true, options: [] });
+      expect(qs[0]).toMatchObject({ prompt: null, input: 'RATE', required: false, skippable: true, options: [] });
     });
   });
 

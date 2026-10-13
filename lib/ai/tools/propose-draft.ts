@@ -200,7 +200,9 @@ export function createProposeDraftTool(turn: TurnContext) {
           turn.pending.resolver = { request, questions };
           resolverCalls.set(turn, call);
         }
-        return issuesAnswer(issues, matchCount, offered);
+        // T72: the fields the form will ask, so the model writes one prompt per field through ask_user.
+        const askFields = questions.map((q) => ({ field: q.field, lineIndex: q.lineIndex }));
+        return { ...issuesAnswer(issues, matchCount, offered), askFields };
       }
       const { proposal } = resolved.data;
       const cardId = createId();
