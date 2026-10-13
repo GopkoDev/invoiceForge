@@ -92,7 +92,7 @@ test('AC-34: with no messages left, Create with AI shows the used-up notice and 
 
     await page.goto(`${APP_E2E_URL}${protectedRoutes.invoices}`);
     await page.getByRole('link', { name: 'Create with AI' }).click();
-    await expect(page).toHaveURL(/\/ai\?start=draft$/);
+    await expect(page).toHaveURL(/\/ai\?start=draft&from=invoices$/);
 
     const main = page.getByRole('main');
     await expect(main.getByText("You've used today's 30 messages")).toBeVisible();
@@ -193,7 +193,7 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
 
       await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
       await expect(
-        page.getByRole('heading', { name: 'Ask about your invoices' })
+        page.getByRole('heading', { name: 'Hi! What can I help you with?' })
       ).toBeVisible();
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveScreenshot('ai-section-default.png', {

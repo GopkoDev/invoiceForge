@@ -4,22 +4,29 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
+import { Composer } from '@/components/ai/composer';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { protectedRoutes } from '@/config/routes.config';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 
-const QUESTION_EXAMPLES = [
+// ai-chat-v2 T20 (screens.md §SCR-02; spec §1): the fixed suggested requests, incl. drafting and who owes money.
+const SUGGESTIONS = [
+  'Invoice Acme for 20 hours of consulting at $50',
   'Who owes me money right now?',
   "What's overdue today?",
-  'How much did I invoice this month?',
-  'Where do I change the logo on my invoices?',
+  'Which bank accounts do I have?',
 ];
-const QUESTION_SUBTITLE = 'Answers come from your own invoices, Customers and figures.';
-const DRAFT_SUBTITLE = "Describe it in one sentence. You'll see a card to check before anything is created.";
-const DRAFT_EXAMPLE = 'Invoice Acme for 20 hours of consulting at $50';
+const GREETING = 'Hi! What can I help you with?';
+const SUBLINE = 'Ask about your invoices, Customers and payments, or describe an invoice to draft.';
+const DRAFT_GREETING = 'Draft an invoice';
+const DRAFT_SUBLINE = "Describe it in one sentence. You'll see a card to check before anything is created.";
+const DRAFT_EXAMPLE = SUGGESTIONS[0];
 
+/**
+ * SCR-02, the empty state of a new Conversation (AC-18): a greeting, a centred max-2xl composer with the counter
+ * under it, and the suggested requests, centred in the chat pane. A suggestion only fills and focuses the box.
+ * Nothing is saved until the first message; ChatIsland owns `onSend` and moves the composer down on it.
+ */
 export function StartPanel({
   state,
   start,
@@ -32,65 +39,50 @@ export function StartPanel({
   const [text, setText] = useState('');
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const isDraft = start === 'draft';
-  const examples = isDraft ? [DRAFT_EXAMPLE] : QUESTION_EXAMPLES;
+  const suggestions = isDraft ? [DRAFT_EXAMPLE] : SUGGESTIONS;
 
-  function pick(example: string) {
-    setText(example);
+  function pick(suggestion: string) {
+    setText(suggestion);
     boxRef.current?.focus();
   }
 
-  function send() {
-    const trimmed = text.trim();
-    if (trimmed) onSend(trimmed);
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle role="heading" aria-level={2}>
-          {isDraft ? 'Draft an invoice' : 'Ask about your invoices'}
-        </CardTitle>
-        <CardDescription>{isDraft ? DRAFT_SUBTITLE : QUESTION_SUBTITLE}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {state.left === 0 ? (
+    <div data-slot="start-panel" className="flex min-h-full flex-1 flex-col items-center justify-center gap-6 px-2 py-8">
+      <div className="flex max-w-2xl flex-col items-center gap-2 text-center">
+        <h2 className="text-2xl font-semibold tracking-tight">{isDraft ? DRAFT_GREETING : GREETING}</h2>
+        <p className="text-muted-foreground text-sm">{isDraft ? DRAFT_SUBLINE : SUBLINE}</p>
+      </div>
+      {state.left === 0 ? (
+        <div className="w-full max-w-2xl">
           <AllowanceNotice state={state} handMadeLink={isDraft} />
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {examples.map((example) => (
-                <Button key={example} type="button" variant="outline" onClick={() => pick(example)}>
-                  {example}
-                </Button>
-              ))}
-            </div>
-            <Textarea
-              ref={boxRef}
-              autoFocus={isDraft}
+        </div>
+      ) : (
+        <>
+          <div data-slot="start-composer" className="w-full max-w-2xl">
+            <Composer
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              aria-label="Message"
-              placeholder={
-                isDraft
-                  ? `e.g. "${DRAFT_EXAMPLE}"`
-                  : 'Ask a question or describe an invoice'
-              }
+              onChange={setText}
+              onSend={onSend}
+              allowance={state}
+              busy={false}
+              placeholder={isDraft ? `e.g. "${DRAFT_EXAMPLE}"` : undefined}
+              inputRef={boxRef}
+              autoFocus={isDraft}
             />
-            <div className="flex items-center justify-between gap-3">
-              <AllowanceNotice state={state} />
-              <Button type="button" onClick={send}>
-                Send
+          </div>
+          <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
+            {suggestions.map((suggestion) => (
+              <Button key={suggestion} type="button" variant="outline" size="sm" onClick={() => pick(suggestion)}>
+                {suggestion}
               </Button>
-            </div>
-            <Link
-              href={protectedRoutes.settingsAssistants}
-              className={buttonVariants({ variant: 'link', className: 'self-start px-0' })}
-            >
-              Connect your own AI client →
-            </Link>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            ))}
+          </div>
+          {/* Kept from the parent start panel (ai-assistant AC-01): the Personal-key alternative. */}
+          <Link href={protectedRoutes.settingsAssistants} className={buttonVariants({ variant: 'link', size: 'sm' })}>
+            Connect your own AI client →
+          </Link>
+        </>
+      )}
+    </div>
   );
 }

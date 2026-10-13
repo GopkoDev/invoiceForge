@@ -502,7 +502,7 @@ describe('T33 ChatIsland - SCR-01 sending the first message', () => {
         allowance={allowance(30)}
       />
     );
-    expect(screen.getByText('Ask about your invoices')).toBeTruthy();
+    expect(screen.getByText('Hi! What can I help you with?')).toBeTruthy();
     await send(user, 'Who owes me money right now?');
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -698,7 +698,7 @@ describe('T39 R-02 - first message on /ai', () => {
 
     pathname = '/ai';
     view.rerender(<ChatIsland {...props} />);
-    expect(await screen.findByText('Ask about your invoices')).toBeTruthy();
+    expect(await screen.findByText('Hi! What can I help you with?')).toBeTruthy();
     expect(screen.queryByText('Nobody yet.')).toBeNull();
   });
 });

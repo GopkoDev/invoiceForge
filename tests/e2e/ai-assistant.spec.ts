@@ -36,13 +36,14 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
     await page.getByRole('link', { name: 'AI', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${protectedRoutes.ai}$`));
     await expect(
-      page.getByRole('heading', { name: 'Ask about your invoices' })
+      page.getByRole('heading', { name: 'Hi! What can I help you with?' })
     ).toBeVisible();
+    // ai-chat-v2 T20 (SCR-02): the fixed suggested requests.
     for (const example of [
+      'Invoice Acme for 20 hours of consulting at $50',
       'Who owes me money right now?',
       "What's overdue today?",
-      'How much did I invoice this month?',
-      'Where do I change the logo on my invoices?',
+      'Which bank accounts do I have?',
     ]) {
       await expect(page.getByRole('button', { name: example })).toBeVisible();
     }
@@ -54,9 +55,8 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
   });
 
   test('AC-01: a question is answered in the chat, with a link, and the allowance counts it', async () => {
-    await page
-      .getByRole('button', { name: 'Where do I change the logo on my invoices?' })
-      .click();
+    // ai-chat-v2 T20: no longer a suggested request; typed instead.
+    await page.getByRole('textbox', { name: 'Message' }).fill('Where do I change the logo on my invoices?');
     await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue(
       'Where do I change the logo on my invoices?'
     );
@@ -94,7 +94,7 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
   test('AC-33: "Create with AI" on the invoice list opens a Conversation ready to draft', async () => {
     await page.goto(`${APP_E2E_URL}${protectedRoutes.invoices}`);
     await page.getByRole('link', { name: 'Create with AI' }).click();
-    await expect(page).toHaveURL(/\/ai\?start=draft$/);
+    await expect(page).toHaveURL(/\/ai\?start=draft&from=invoices$/);
     await expect(
       page.getByRole('heading', { name: 'Draft an invoice' })
     ).toBeVisible();

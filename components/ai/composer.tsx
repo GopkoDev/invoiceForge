@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,9 @@ export function Composer({
   busy,
   disabled = false,
   serverError,
+  placeholder = 'Ask a question or describe an invoice',
+  inputRef,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -34,8 +37,13 @@ export function Composer({
   disabled?: boolean;
   /** A refusal from the route (400 VALIDATION), shown where the client check shows. */
   serverError?: string;
+  placeholder?: string;
+  /** Lets the start screen focus the box after a suggestion fills it. */
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
+  autoFocus?: boolean;
 }) {
-  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const ownRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = inputRef ?? ownRef;
   const wasBusy = useRef(false);
   const trimmed = value.trim();
   const tooLong = trimmed.length > MESSAGE_MAX_LENGTH;
@@ -45,7 +53,7 @@ export function Composer({
   useEffect(() => {
     if (wasBusy.current && !busy && !disabled) boxRef.current?.focus();
     wasBusy.current = busy;
-  }, [busy, disabled]);
+  }, [busy, disabled, boxRef]);
 
   function send() {
     if (locked || tooLong || !trimmed) return;
@@ -60,7 +68,7 @@ export function Composer({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div data-slot="composer" className="flex flex-col gap-2">
       <Field data-invalid={error ? true : undefined}>
         <Textarea
           ref={boxRef}
@@ -70,7 +78,8 @@ export function Composer({
           disabled={locked}
           aria-label="Message"
           aria-invalid={error ? true : undefined}
-          placeholder="Ask a question or describe an invoice"
+          placeholder={placeholder}
+          autoFocus={autoFocus}
         />
         <FieldError>{error}</FieldError>
       </Field>

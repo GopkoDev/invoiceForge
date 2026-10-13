@@ -6,7 +6,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
@@ -26,6 +26,7 @@ import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import type { AllowanceState, AppLink } from '@/lib/validations/assistant-chat';
 import type {
   ConversationMessageView,
+  ConversationStartPoint,
   DraftCardView,
   LinkedInvoiceState,
 } from '@/types/assistant/types';
@@ -134,6 +135,13 @@ interface ChatIslandProps {
   cards: Record<string, DraftCardView>;
   allowance: AllowanceState;
   start?: 'draft';
+  /** ai-chat-v2 T20: where a new Conversation was opened from; sent with its first message only (AI_SECTION is omitted). */
+  startedFrom?: ConversationStartPoint;
+}
+
+/** True when the device asks for reduced motion (AC-18): the composer then jumps instead of moving. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
 export function ChatIsland(props: ChatIslandProps) {
@@ -154,6 +162,7 @@ function ChatSession({
   cards: initialCards,
   allowance: initialAllowance,
   start,
+  startedFrom = 'AI_SECTION',
 }: ChatIslandProps) {
   const router = useRouter();
   const newConversation = useNewConversation();
@@ -174,17 +183,28 @@ function ChatSession({
   const cards = loaded?.cards ?? initialCards;
   const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
   const listRef = useRef<HTMLDivElement>(null);
+  // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
+  // screen to the bottom (FLIP over a translate transition), or jumps there under reduced motion.
+  const startRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const moveFrom = useRef<number | null>(null);
+  const [composerMove, setComposerMove] = useState<'animated' | 'none'>();
   const [transport] = useState(
     () =>
       new DefaultChatTransport<ChatMessage>({
         api: '/api/chat',
         fetch: chatFetch,
-        prepareSendMessagesRequest: ({ messages }) => ({
-          body: {
-            conversationId: live.getConversationId(),
-            message: messages[messages.length - 1],
-          },
-        }),
+        prepareSendMessagesRequest: ({ messages }) => {
+          const savedId = live.getConversationId();
+          return {
+            body: {
+              conversationId: savedId,
+              message: messages[messages.length - 1],
+              // openapi ChatRequest: the start point goes with a new Conversation's first message only.
+              ...(savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
+            },
+          };
+        },
       })
   );
 
@@ -291,6 +311,11 @@ function ChatSession({
     live.setPending({ id, text: raw });
     setReplyDone(false);
     setFailure(null);
+    if (!started && conversationId === null) {
+      const from = startRef.current?.querySelector('[data-slot="composer"]')?.getBoundingClientRect();
+      moveFrom.current = from ? from.top : null;
+      setComposerMove(prefersReducedMotion() ? 'none' : 'animated');
+    }
     setStarted(true);
     setText('');
     void sendMessage({
@@ -314,9 +339,23 @@ function ChatSession({
     els?.[els.length - 1]?.scrollIntoView?.({ block: 'end' });
   }, [messages]);
 
+  // FLIP: start the docked composer where the centred one was, then let the transition carry it to the bottom.
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (!started || composerMove !== 'animated' || !dock || moveFrom.current === null) return;
+    const delta = moveFrom.current - dock.getBoundingClientRect().top;
+    moveFrom.current = null;
+    if (delta === 0) return;
+    dock.style.transition = 'none';
+    dock.style.transform = `translateY(${delta}px)`;
+    void dock.offsetHeight; // apply the start position before the transition runs
+    dock.style.transition = '';
+    dock.style.transform = '';
+  }, [started, composerMove]);
+
   if (conversationId === null && !started) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+      <div ref={startRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         <ConversationListButton />
         <StartPanel state={allowance} start={start} onSend={send} />
       </div>
@@ -406,28 +445,35 @@ function ChatSession({
           </Alert>
         ) : null}
       </div>
-      {allowance.left === 0 ? (
-        <AllowanceNotice
-          state={allowance}
-          usedUpMessage={usedUpMessage}
-          handMadeLink={start === 'draft'}
-        />
-      ) : (
-        <Composer
-          value={text}
-          onChange={(value) => {
-            setText(value);
-            if (failure?.kind === 'VALIDATION') setFailure(null);
-          }}
-          onSend={send}
-          allowance={allowance}
-          busy={inFlight}
-          disabled={failure?.kind === 'GONE'}
-          serverError={
-            failure?.kind === 'VALIDATION' ? failure.message : undefined
-          }
-        />
-      )}
+      <div
+        ref={dockRef}
+        data-slot="composer-dock"
+        data-composer-move={composerMove}
+        className="shrink-0 transition-transform duration-[250ms] ease-out motion-reduce:transition-none"
+      >
+        {allowance.left === 0 ? (
+          <AllowanceNotice
+            state={allowance}
+            usedUpMessage={usedUpMessage}
+            handMadeLink={start === 'draft'}
+          />
+        ) : (
+          <Composer
+            value={text}
+            onChange={(value) => {
+              setText(value);
+              if (failure?.kind === 'VALIDATION') setFailure(null);
+            }}
+            onSend={send}
+            allowance={allowance}
+            busy={inFlight}
+            disabled={failure?.kind === 'GONE'}
+            serverError={
+              failure?.kind === 'VALIDATION' ? failure.message : undefined
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }

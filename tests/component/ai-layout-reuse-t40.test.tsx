@@ -107,7 +107,7 @@ describe('R-21 (reworked by ai-chat-v2 T19): the list pane precedes the chat in 
   it('puts the md+ list pane before the start panel, with no CSS reordering', async () => {
     listConversationSummaries.mockResolvedValue(summaries(['Draft for Acme']));
     render(await AiPage({ searchParams: Promise.resolve({}) }));
-    const panel = screen.getByRole('heading', { name: 'Ask about your invoices' });
+    const panel = screen.getByRole('heading', { name: 'Hi! What can I help you with?' });
     const list = screen.getByRole('heading', { level: 2, name: 'Conversations' });
     expect(list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.querySelector('[class*="md:order-"], [class*="lg:order-"]')).toBeNull();
@@ -115,9 +115,11 @@ describe('R-21 (reworked by ai-chat-v2 T19): the list pane precedes the chat in 
 });
 
 describe('R-24: start panel subtitles (AC-01, AC-33)', () => {
-  it('default shows the answers subtitle', () => {
+  it('default shows the greeting sub-line (ai-chat-v2 T20, SCR-02)', () => {
     render(<StartPanel state={allowance} onSend={() => {}} />);
-    expect(screen.getByText('Answers come from your own invoices, Customers and figures.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Ask about your invoices, Customers and payments, or describe an invoice to draft.')
+    ).toBeInTheDocument();
   });
 
   it('start=draft shows the one-sentence subtitle', () => {
@@ -201,7 +203,8 @@ describe('R-28: shared link style and route', () => {
 
   it('"Create with AI" href comes from protectedRoutes', () => {
     const aiStartDraft = (protectedRoutes as Record<string, unknown>)['aiStartDraft'];
-    expect(aiStartDraft).toBe('/ai?start=draft');
+    // ai-chat-v2 T20: the link carries its start point (contracts/server-actions.md §Addresses and start points).
+    expect(aiStartDraft).toBe('/ai?start=draft&from=invoices');
     render(
       <InvoicesLayout>
         <p>x</p>
