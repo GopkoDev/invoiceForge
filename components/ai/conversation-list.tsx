@@ -41,7 +41,7 @@ function formatLastMessage(iso: string, timeZone: string): string {
 }
 
 /** The id of the Conversation open at `/ai/{id}`, or null. */
-function openConversationId(pathname: string | null): string | null {
+export function openConversationId(pathname: string | null): string | null {
   const match = pathname?.match(/^\/ai\/([^/?#]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }

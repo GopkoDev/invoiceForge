@@ -1,7 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { ConversationList } from '@/components/ai/conversation-list';
+import { usePathname, useRouter } from 'next/navigation';
+import { ConversationList, openConversationId } from '@/components/ai/conversation-list';
+import { protectedRoutes } from '@/config/routes.config';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { useDeleteConversations } from '@/components/ai/use-delete-conversations';
 import type { ConversationSummary } from '@/types/assistant/types';
@@ -14,7 +15,15 @@ export function ConversationListClient(props: {
   onPick?: () => void;
 }) {
   const router = useRouter();
-  const { deleteOne, deleteAll } = useDeleteConversations({ onGone: () => router.refresh() });
+  const openId = openConversationId(usePathname());
+  // SCR-01 "deleted": when the open Conversation is among the deleted, leave for /ai; otherwise refresh the list.
+  const { deleteOne, deleteAll } = useDeleteConversations({
+    onGone: (target) => {
+      const openGone = openId !== null && (target.kind === 'all' || target.id === openId);
+      if (openGone) router.push(protectedRoutes.ai);
+      else router.refresh();
+    },
+  });
 
   const created = useNewConversation()?.created;
   // The Conversation just started in the island heads the list (in Today) until the server list includes it.

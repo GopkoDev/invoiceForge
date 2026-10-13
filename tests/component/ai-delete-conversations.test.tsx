@@ -25,9 +25,10 @@ vi.mock('@/lib/actions/assistant-actions', () => ({
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
+let pathname = '/ai';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush, refresh: routerRefresh, replace: vi.fn() }),
-  usePathname: () => '/ai',
+  usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -107,8 +108,45 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       toastSuccess, toastError, goToSignIn,
     ]) m.mockReset();
     useModalStore.getState().resetAllModals();
+    pathname = '/ai';
   });
   afterEach(() => cleanup());
+
+  // Review 2026-10-13 R1-U3, SCR-01 "deleted": deleting the open Conversation from the list (one, or all) leaves for
+  // /ai instead of refreshing a page whose Conversation is gone (the not-found page).
+  describe('from the list while a Conversation is open', () => {
+    it('deleting the open row goes to /ai', async () => {
+      pathname = '/ai/c1';
+      deleteConversationMock.mockResolvedValue(ok());
+      const user = userEvent.setup();
+      renderList();
+      const dialog = await openRowDelete(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/ai'));
+      expect(deleteConversationMock).toHaveBeenCalledWith('c1');
+    });
+
+    it('deleting another row only refreshes the list', async () => {
+      pathname = '/ai/c2';
+      deleteConversationMock.mockResolvedValue(ok());
+      const user = userEvent.setup();
+      renderList();
+      const dialog = await openRowDelete(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(routerRefresh).toHaveBeenCalled());
+      expect(routerPush).not.toHaveBeenCalled();
+    });
+
+    it('"Delete all" with a Conversation open goes to /ai', async () => {
+      pathname = '/ai/c2';
+      deleteAllConversationsMock.mockResolvedValue(ok({ deleted: 12 }));
+      const user = userEvent.setup();
+      renderList();
+      const dialog = await openDeleteAll(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/ai'));
+    });
+  });
 
   describe('default (one) from a list row', () => {
     it('opens with the exact title, body naming the Conversation and that drafts stay, and a destructive Delete', async () => {
