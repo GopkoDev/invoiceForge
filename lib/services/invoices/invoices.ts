@@ -1059,12 +1059,15 @@ export async function issueInvoiceFromPreview(
   id: string,
   expectedVersion: number
 ): Promise<ActionResult<{ status: InvoiceStatus; version: number; invoice: LinkedInvoiceState }>> {
-  const result = await changeInvoiceStatus(actor, id, 'PENDING', { expectedVersion, issuedFromChat: true });
-  if (!result.success) return result;
-  return ok({
-    status: result.data.status,
-    version: result.data.version,
-    invoice: linkedInvoiceStateOf({ ...result.data, id }, todayIn(actor.timeZone)),
+  // Span per contracts/server-actions.md §issueFromPreview; metadata only (the outcome).
+  return inOutcomeSpan({ name: 'invoices.issue-from-preview' }, async () => {
+    const result = await changeInvoiceStatus(actor, id, 'PENDING', { expectedVersion, issuedFromChat: true });
+    if (!result.success) return result;
+    return ok({
+      status: result.data.status,
+      version: result.data.version,
+      invoice: linkedInvoiceStateOf({ ...result.data, id }, todayIn(actor.timeZone)),
+    });
   });
 }
 

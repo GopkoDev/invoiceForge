@@ -45,6 +45,11 @@ export const allowanceStateSchema = z
 export const chatChoiceSchema = z
   .object({ offerId: recordId, optionId: z.number().int().min(0).max(7) })
   .strict();
+/** ai-chat-v2 T17 (contracts/server-actions.md §issueFromPreview): the invoice and the version the preview showed. */
+export const issueFromPreviewInputSchema = z
+  .object({ invoiceId: recordId, expectedVersion: z.number().int().min(0) })
+  .strict();
+
 export const conversationStartPointSchema = z.enum(['AI_SECTION', 'INVOICE_LIST', 'DASHBOARD_PROMPT', 'DASHBOARD_CREATE']);
 /** The origins a client may ask for; PRESSED is set by the server from a valid choice only. */
 export const requestMessageOriginSchema = z.enum(['TYPED', 'DASHBOARD']);

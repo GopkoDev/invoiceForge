@@ -8,9 +8,10 @@ import { fail, ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { todayInZone } from '@/lib/helpers/calendar-day';
-import { createInvoice } from '@/lib/services/invoices/invoices';
+import { createInvoice, getInvoice } from '@/lib/services/invoices/invoices';
 import { readInvoiceStates } from '@/lib/services/conversations/conversations';
-import { toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
+import { linkedInvoiceStateOf, toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
+import { todayIn } from '@/lib/services/_shared/overdue';
 import { fingerprintRequest } from '@/lib/services/assistant-drafts/fingerprint';
 import { resolveDraftRequest, toInvoiceFormInput } from '@/lib/services/assistant-drafts/resolve';
 import {
@@ -19,6 +20,7 @@ import {
   type DraftIssue,
 } from '@/lib/services/assistant-drafts/schema';
 import type { DraftCardView, LinkedInvoiceState } from '@/types/assistant/types';
+import type { SerializedInvoice } from '@/types/invoice/types';
 
 const NOT_FOUND_MESSAGE = 'This draft card is no longer available.';
 const FAILED_MESSAGE = "The draft couldn't be created. Try again.";
@@ -165,5 +167,48 @@ export async function createFromCard(
     });
   } catch (error) {
     return failed('Error creating the draft from a card:', error, FAILED_MESSAGE, 'assistant.create-from-card');
+  }
+}
+
+export type InvoicePreview =
+  | { kind: 'AVAILABLE'; invoice: SerializedInvoice; version: number; state: LinkedInvoiceState }
+  | { kind: 'UNAVAILABLE' };
+
+const PREVIEW_NOT_FOUND = "This invoice can't be found.";
+const PREVIEW_FAILED = "The preview couldn't be loaded. Try again.";
+
+/**
+ * ai-chat-v2 T17 (AC-20, AC-21, AC-22; ADR-0006): the invoice of a CREATED Draft card, owner-scoped, as the
+ * list's preview renders it (getInvoice's serialization), with the version issueFromPreview sends back and its
+ * link state. A card that is not this Freelancer's, unknown or not CREATED reads NOT_FOUND in one set of words.
+ * Read-only: never a message, never counted.
+ */
+export async function getCardInvoicePreview(
+  actor: ActingFreelancer,
+  cardId: string
+): Promise<ActionResult<InvoicePreview>> {
+  try {
+    const card = await prisma.draftCard.findFirst({
+      where: { id: cardId, userId: actor.userId, state: 'CREATED' },
+      select: { invoiceId: true },
+    });
+    if (!card) return fail('NOT_FOUND', PREVIEW_NOT_FOUND);
+    if (card.invoiceId === null) return ok({ kind: 'UNAVAILABLE' });
+
+    const invoice = await getInvoice(actor, card.invoiceId);
+    if (!invoice.success) {
+      // Deleted between the two reads: the card's link is cleared by the same delete.
+      return invoice.code === 'NOT_FOUND' ? ok({ kind: 'UNAVAILABLE' }) : fail('FAILED', PREVIEW_FAILED);
+    }
+    // The serialization carries the display status (overdue derived), which the link state shows as is.
+    const { id, invoiceNumber, status, dueDate, version } = invoice.data;
+    return ok({
+      kind: 'AVAILABLE',
+      invoice: invoice.data,
+      version,
+      state: linkedInvoiceStateOf({ id, invoiceNumber, status, dueDate }, todayIn(actor.timeZone)),
+    });
+  } catch (error) {
+    return failed('getCardInvoicePreview failed', error, PREVIEW_FAILED);
   }
 }
