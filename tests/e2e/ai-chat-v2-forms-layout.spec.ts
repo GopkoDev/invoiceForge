@@ -705,6 +705,61 @@ test('AC-52: picking another Conversation changes only the chat pane: the list i
   }
 });
 
+test('AC-17 / AC-52 (T75): after the first send on /ai the new row is the current one and deleting it lands on /ai; a send in an existing Conversation reads no list', async ({
+  browser,
+}, testInfo) => {
+  testInfo.setTimeout(240_000);
+  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-new-row', {
+    seed: { timeZone: 'UTC' },
+    context: { timezoneId: 'UTC', viewport: { width: 1440, height: 900 } },
+  });
+  try {
+    const { page } = f;
+    const list = page.getByRole('complementary', { name: 'Conversation list' });
+    await page.goto(`${APP_E2E_URL}/ai`);
+    await message(page).fill('Who owes me money right now?');
+    await send(page).click();
+    // The address is swapped in place (history.replaceState); the new row must follow it.
+    await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
+    await expect(replies(page)).toHaveCount(1);
+    const current = list.locator('a[aria-current="page"]');
+    await expect(current).toHaveCount(1);
+    await expect(current).toHaveAttribute('href', new URL(page.url()).pathname);
+
+    // A second send in this (now existing) Conversation reads neither the list nor the layout again.
+    const seen: Array<{ url: string; rsc: boolean }> = [];
+    page.on('response', (response) => {
+      const headers = response.request().headers();
+      seen.push({
+        url: response.url(),
+        rsc:
+          (headers['rsc'] === '1' || response.url().includes('_rsc=')) &&
+          !headers['next-router-prefetch'],
+      });
+    });
+    await message(page).fill('And who is late?');
+    await send(page).click();
+    await expect(replies(page)).toHaveCount(2);
+    await page.waitForLoadState('networkidle');
+    expect(seen.filter((r) => r.rsc)).toEqual([]);
+    expect(seen.filter((r) => /\/api\/(ai\/)?conversations/.test(r.url))).toEqual([]);
+
+    // Deleting the open (just-created) row from the list leaves for /ai.
+    const title = (await current.innerText()).trim();
+    await list.getByRole('button', { name: `Actions for ${title}` }).click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^Delete/ })
+      .click();
+    await expect(page).toHaveURL(/\/ai$/);
+    await expect(list.getByRole('link', { name: title })).toHaveCount(0);
+    await expect(userBubbles(page)).toHaveCount(0);
+  } finally {
+    await f.context.close();
+  }
+});
+
 test('AC-53: each avatar is level with the first line of its reply, for a one-line and a five-line reply', async ({
   browser,
 }, testInfo) => {

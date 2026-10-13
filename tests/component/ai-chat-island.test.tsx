@@ -347,7 +347,10 @@ describe('T33 ChatIsland - waiting and streaming', () => {
     expect(
       await screen.findByText('You have two overdue invoices.')
     ).toBeTruthy();
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    // ai-chat-v2 T75 (ADR-0013): a saved turn loads its cards without router.refresh(), which would re-run the
+    // layout's list read.
+    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledWith('c1'));
+    expect(refresh).not.toHaveBeenCalled();
     await waitFor(() =>
       expect((box() as HTMLTextAreaElement).disabled).toBe(false)
     );
@@ -596,7 +599,7 @@ describe('T33 ChatIsland - conversation-gone and signed out', () => {
 });
 
 describe('T33 ChatIsland - cards and links as they arrive', () => {
-  it('a streamed data-draft-card renders the DraftCard and the island refreshes after finish', async () => {
+  it('a streamed data-draft-card renders the DraftCard and the island loads the cards (no router.refresh) after finish', async () => {
     const card = { id: 'card1' } as unknown as DraftCardView;
     fetchMock.mockResolvedValue(
       sse([
@@ -618,7 +621,8 @@ describe('T33 ChatIsland - cards and links as they arrive', () => {
     expect(
       screen.getByRole('link', { name: 'Sender profiles →' })
     ).toBeTruthy();
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledWith('c1'));
+    expect(refresh).not.toHaveBeenCalled();
   });
 });
 

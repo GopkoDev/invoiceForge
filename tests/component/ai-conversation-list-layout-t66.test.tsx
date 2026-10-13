@@ -27,6 +27,9 @@ import { useState } from 'react';
 
 const route = vi.hoisted(() => ({
   pathname: '/ai',
+  // T75: after the first send the address is swapped by history.replaceState; the App Router keeps the /ai tree, so
+  // the layout segment stays null while usePathname follows the address.
+  segmentFrozenNull: false,
   listeners: new Set<() => void>(),
 }));
 const refresh = vi.fn();
@@ -53,8 +56,8 @@ vi.mock('next/navigation', async () => {
     useSelectedLayoutSegment: () =>
       useSyncExternalStore(
         sub,
-        () => route.pathname.split('/')[2] ?? '',
-        () => route.pathname.split('/')[2] ?? ''
+        () => (route.segmentFrozenNull ? '' : route.pathname.split('/')[2] ?? ''),
+        () => (route.segmentFrozenNull ? '' : route.pathname.split('/')[2] ?? '')
       ) || null,
     useSearchParams: () => new URLSearchParams(),
     notFound: () => {
@@ -172,6 +175,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
   route.pathname = '/ai/c1';
+  route.segmentFrozenNull = false;
   listConversationSummaries.mockReset();
   getConversation.mockReset();
   deleteConversation.mockReset();
@@ -540,5 +544,33 @@ describe('chat results raise the list events', () => {
     await waitFor(() => expect(titlesInList()?.[0]).toBe('Where is the logo set'));
     expect(titlesInList()).toHaveLength(4);
     expect(listConversationSummaries).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ai-chat-v2 T75 (R20-5; AC-17): after the first send on /ai the address is swapped by history.replaceState, so the
+// layout segment stays null while the pathname is /ai/{id}. The open Conversation then comes from the pathname.
+describe('T75: a just-created Conversation (address swapped, layout segment still null)', () => {
+  beforeEach(() => {
+    route.segmentFrozenNull = true;
+    route.pathname = '/ai/c2';
+  });
+
+  it('marks the row of the address as the current page', async () => {
+    await renderLayout(<Pages />);
+    const link = (name: RegExp) => within(listPane()).getByRole('link', { name });
+    expect(link(/Invoice Acme/)).toHaveAttribute('aria-current', 'page');
+    expect(link(/Who owes me money/)).not.toHaveAttribute('aria-current');
+  });
+
+  it('deleting that row from the list removes it and leaves for /ai', async () => {
+    const user = userEvent.setup();
+    deleteConversation.mockResolvedValue({ success: true, data: undefined });
+    await renderLayout(<Pages />);
+    await user.click(screen.getByRole('button', { name: 'Actions for Invoice Acme for 20 hours' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^Delete/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/ai'));
+    expect(within(listPane()).queryByRole('link', { name: /Invoice Acme/ })).toBeNull();
   });
 });

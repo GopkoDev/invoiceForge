@@ -495,9 +495,12 @@ function ChatSession({
     invoiceLinks: Record<string, LinkedInvoiceState>;
     forms: Record<string, FormView>;
   } | null>(null);
-  const cards = loaded?.cards ?? initialCards;
-  const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
-  const forms = loaded?.forms ?? initialForms;
+  // The page's own entries stay; the read adds what the turns since have made (T75).
+  const cards = loaded ? { ...initialCards, ...loaded.cards } : initialCards;
+  const invoiceLinks = loaded
+    ? { ...initialInvoiceLinks, ...loaded.invoiceLinks }
+    : initialInvoiceLinks;
+  const forms = loaded ? { ...initialForms, ...loaded.forms } : initialForms;
   // The 400 field errors of the last form send, by question (`form.answers.<id>`); picks stay in the form.
   const [formErrors, setFormErrors] = useState<{
     formId: string;
@@ -609,7 +612,9 @@ function ChatSession({
             // The server's per-question errors show under the questions; the picks stay.
             const errors = error.body?.fieldErrors ?? {};
             // A 400 with no per-question key would show nothing: fall back to the failure alert (T74, R20-4).
-            if (Object.keys(errors).some((k) => k.startsWith('form.answers.'))) {
+            if (
+              Object.keys(errors).some((k) => k.startsWith('form.answers.'))
+            ) {
               setFormErrors({ formId: sent.form.formId, errors });
               return;
             }
@@ -634,11 +639,13 @@ function ChatSession({
       const savedId = live.getConversationId();
       // ADR-0013: a saved turn moves its Conversation to the top of the list.
       if (savedId) list?.conversationTouched(savedId, new Date().toISOString());
-      if (conversationId === null && savedId) {
+      // A saved turn in an open Conversation reads the same way: router.refresh() would re-run the layout's list
+      // read on every turn (ADR-0013, T75).
+      // A reply taken over mid-stream by a remounted page is the exception: that page's props are stale (R6-U3).
+      if (savedId && !(handedOver !== null && conversationId !== null)) {
         void loadConversationCards(savedId).then(
           (result) => {
-            if (result.success)
-              setLoaded(result.data);
+            if (result.success) setLoaded(result.data);
           },
           () => undefined
         );
@@ -691,8 +698,7 @@ function ChatSession({
       newConversation?.announce({ id, title: session.title });
     void loadConversationCards(id).then(
       (result) => {
-        if (result.success)
-          setLoaded(result.data);
+        if (result.success) setLoaded(result.data);
       },
       () => undefined
     );
@@ -957,9 +963,16 @@ function ChatSession({
           </div>
           {waiting ? (
             // Not a message (no data-role): the reply that replaces it is. The avatar and Loader sit in the reply's place.
-            <div data-slot="message-waiting" className="flex w-full items-start gap-3">
+            <div
+              data-slot="message-waiting"
+              className="flex w-full items-start gap-3"
+            >
               <MessageAvatar />
-              <Loader label="Thinking…" announce="Assistant is replying…" className="min-h-6" />
+              <Loader
+                label="Thinking…"
+                announce="Assistant is replying…"
+                className="min-h-6"
+              />
             </div>
           ) : null}
           {failureMessage}

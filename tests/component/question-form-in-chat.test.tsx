@@ -374,24 +374,21 @@ describe('ChatIsland - Send posts the form (AC-08)', () => {
     stream.end();
   });
 
-  it('after the reply, the refreshed page marks the sent answers and reads "Sent"; the older form stays visible and read-only', async () => {
+  it('after the reply, the loaded forms mark the sent answers and reads "Sent"; the older form stays visible and read-only', async () => {
+    // ai-chat-v2 T75 (ADR-0013): the saved turn loads its forms itself; no router.refresh (it re-reads the list).
+    loadConversationCards.mockResolvedValue({
+      success: true,
+      data: { cards: {}, invoiceLinks: {}, forms: { f1: sentForm() } },
+    });
     fetchMock.mockResolvedValueOnce(answeredReply('Here is the draft for Acme GmbH.'));
-    const view = island();
+    island();
     const user = userEvent.setup();
     await answerBoth(user);
     await user.click(formSend());
     await screen.findByText('Here is the draft for Acme GmbH.');
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
-    view.rerender(
-      <ChatIsland
-        conversationId="c1"
-        initialMessages={asked}
-        invoiceLinks={{}}
-        cards={{}}
-        forms={{ f1: sentForm() }}
-        allowance={allowance(26)}
-      />
-    );
+    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledWith('c1'));
+    expect(refresh).not.toHaveBeenCalled();
+    await waitFor(() => expect(within(theForm()).getByText('Sent')).toBeTruthy());
     expect(chipIn('Acme GmbH')).toHaveAttribute('aria-checked', 'true');
     expect(chipIn('Wise ••••7710 · USD')).toHaveAttribute('aria-checked', 'true');
     expect(within(theForm()).getByText('Sent')).toBeTruthy();

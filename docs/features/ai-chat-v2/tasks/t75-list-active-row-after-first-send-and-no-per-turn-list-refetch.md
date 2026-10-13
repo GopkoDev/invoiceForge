@@ -9,7 +9,7 @@ files_hint: ["components/ai/conversation-list.tsx", "components/ai/conversation-
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T75 — The Conversation list marks and deletes a just-created Conversation correctly, and a saved turn no longer refetches the list (review R20-5, R20-12)

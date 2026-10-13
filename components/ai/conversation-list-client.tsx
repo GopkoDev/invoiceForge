@@ -1,8 +1,15 @@
 'use client';
 
-import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
+import {
+  usePathname,
+  useRouter,
+  useSelectedLayoutSegment,
+} from 'next/navigation';
 import { useOptionalConversationList } from '@/components/ai/conversation-list-context';
-import { ConversationList } from '@/components/ai/conversation-list';
+import {
+  ConversationList,
+  openConversationId,
+} from '@/components/ai/conversation-list';
 import { protectedRoutes } from '@/config/routes.config';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { useDeleteConversations } from '@/components/ai/use-delete-conversations';
@@ -16,7 +23,8 @@ export function ConversationListClient(props: {
   onPick?: () => void;
 }) {
   const router = useRouter();
-  const openId = useSelectedLayoutSegment();
+  const segment = useSelectedLayoutSegment();
+  const openId = openConversationId(usePathname()) ?? segment;
   const layoutList = useOptionalConversationList();
   const newConversation = useNewConversation();
   // SCR-01 "deleted": when the open Conversation is among the deleted, leave for /ai; otherwise refresh the list.

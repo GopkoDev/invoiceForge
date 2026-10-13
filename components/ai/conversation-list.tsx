@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useSelectedLayoutSegment } from 'next/navigation';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import {
   MessageSquareIcon,
   MoreHorizontal,
@@ -86,7 +86,11 @@ export function ConversationList({
   onPick,
 }: ConversationListProps) {
   const [query, setQuery] = useState('');
-  const currentId = useSelectedLayoutSegment();
+  // After the first send on /ai the address is swapped by history.replaceState and the layout segment stays null:
+  // the pathname leads, the segment is the fallback (T75).
+  const pathname = usePathname();
+  const segment = useSelectedLayoutSegment();
+  const currentId = openConversationId(pathname) ?? segment;
   const matches = filterByTitle(conversations, query);
   const groups = groupConversations(matches, new Date(), timeZone);
 
