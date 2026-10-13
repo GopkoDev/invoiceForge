@@ -195,7 +195,9 @@ describe('MessageList - SCR-02 default', () => {
     ).toHaveAttribute('href', '/settings/assistants');
   });
 
-  it('keeps Assistant text as plain text: a model-written URL is never an anchor, line breaks are kept', () => {
+  // ai-chat-v2 T62 (AC-42/43, ADR-0012) supersedes ai-assistant AC-07 "plain text": replies render as safe Markdown.
+  // Kept from AC-07: a model-written outside URL is never an anchor, and the line break survives.
+  it('renders Assistant text as Markdown: a model-written outside URL is never an anchor, the line break is kept', () => {
     const { container } = render(
       <MessageList messages={MESSAGES} invoiceLinks={LINKS} />
     );
@@ -207,11 +209,10 @@ describe('MessageList - SCR-02 default', () => {
     );
     expect(hrefs.some((h) => h?.includes('evil.example'))).toBe(false);
     const textEl = screen.getByText(/Two Customers owe you money\./);
-    expect(textEl.className).toContain('whitespace-pre-wrap');
     expect(textEl.textContent).toContain('\n');
   });
 
-  it('does not render Markdown or HTML written by the model', () => {
+  it('renders Markdown written by the model but never its HTML or an outside link (AC-42, AC-43)', () => {
     const msgs: ConversationMessageView[] = [
       {
         id: 'x',
@@ -229,10 +230,11 @@ describe('MessageList - SCR-02 default', () => {
     const { container } = render(
       <MessageList messages={msgs} invoiceLinks={{}} />
     );
-    expect(container.querySelector('strong, b, a')).toBeNull();
-    expect(container).toHaveTextContent(
-      '**bold** <b>html</b> [x](https://evil.example)'
-    );
+    expect(container.querySelector('strong')).toHaveTextContent('bold');
+    expect(container.querySelector('b, a')).toBeNull();
+    expect(container).toHaveTextContent('<b>html</b>');
+    expect(container).toHaveTextContent('x');
+    expect(container).not.toHaveTextContent('**bold**');
   });
 
   it('puts the card slot at the draft-card part, in part order, with the card id', () => {

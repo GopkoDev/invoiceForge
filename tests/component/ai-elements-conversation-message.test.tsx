@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // T33 (ai-chat-v2; ADR-0010; AC-16, AC-33; screens.md «Presentation revision»): the ported Conversation, Message and
 // Loader elements. Conversation is driven by useFollowLatest (48 px), never use-stick-to-bottom; MessageResponse shows
-// plain text only (ai-assistant AC-07); Message `from` sets data-role and alignment; Loader is a static status under
+// safe Markdown (ai-chat-v2 AC-42; supersedes ai-assistant AC-07); Message `from` sets data-role and alignment; Loader is a static status under
 // reduced motion.
 //
 // jsdom has no layout: the conversation's scroll area gets a 400 px view whose content height is set per test.
@@ -262,7 +262,9 @@ describe('Message', () => {
     ).not.toHaveClass('bg-secondary');
   });
 
-  it('MessageResponse shows Markdown, HTML and a URL literally, with no anchor (ai-assistant AC-07)', () => {
+  // ai-chat-v2 T62 (AC-42, AC-43, ADR-0012) supersedes ai-assistant AC-07: Markdown is formatted, HTML stays literal
+  // text, an outside link is plain text with no anchor.
+  it('MessageResponse formats Markdown, shows HTML literally and an outside link as plain text (AC-42, AC-43)', () => {
     const raw = '**bold** <b>x</b> [x](https://evil.example)\nsecond line';
     const { container } = render(
       <Message from="assistant">
@@ -272,11 +274,13 @@ describe('Message', () => {
       </Message>
     );
     const response = container.querySelector('[data-slot="message-response"]')!;
-    expect(response.textContent).toBe(raw);
-    expect(response).toHaveClass('whitespace-pre-wrap');
+    expect(response.textContent).toContain('<b>x</b>');
+    expect(response.textContent).toContain('x');
+    expect(response.textContent).toContain('second line');
+    expect(response.textContent).not.toContain('**');
     expect(container.querySelector('a')).toBeNull();
     expect(container.querySelector('b')).toBeNull();
-    expect(container.querySelector('strong')).toBeNull();
+    expect(container.querySelector('strong')).toHaveTextContent('bold');
   });
 
   it('MessageAction has an accessible name and a visible label, and reports the press', async () => {

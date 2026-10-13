@@ -4,13 +4,16 @@
  * Copyright 2023 Vercel, Inc. Licensed under the Apache License, Version 2.0 (see ./LICENSE and ./NOTICE).
  * Modified: rebuilt on @base-ui/react; see ADR-0010
  * (docs/features/ai-chat-v2/adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md).
- * Deviations: MessageResponse renders plain text with line breaks kept (no streamdown, no Markdown, no HTML, no links;
- * ai-assistant AC-07); Message sets `data-role`; MessageAvatar comes from the earlier upstream API; MessageAction is a
+ * Deviations: MessageResponse renders safe Markdown via react-markdown + remark-gfm (no streamdown, no raw HTML, no
+ * images, links only to in-app paths; ai-chat-v2 T62, ADR-0012, supersedes ai-assistant AC-07); Message sets `data-role`; MessageAvatar comes from the earlier upstream API; MessageAction is a
  * labelled ghost button (Base UI Tooltip via `render`, no asChild); no branch selector or toolbar.
  */
 'use client';
 
 import { SparklesIcon } from 'lucide-react';
+import Link from 'next/link';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   createContext,
   useContext,
@@ -26,6 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { isInAppPath } from '@/lib/ai/in-app-links';
 import { cn } from '@/lib/utils';
 
 export type MessageRole = 'user' | 'assistant';
@@ -106,29 +110,174 @@ export function MessageAvatar({
 }
 
 export type MessageResponseProps = Omit<
-  HTMLAttributes<HTMLParagraphElement>,
+  HTMLAttributes<HTMLDivElement>,
   'children'
 > & {
   children: string;
+  /** True while the reply is still being written; the output is the same as for a saved reply (AC-44). */
+  streaming?: boolean;
+};
+
+type MdNode = { type: string; value?: string; children?: MdNode[] };
+
+/** Turns raw HTML in the Markdown tree into literal text, so it is shown as typed and never parsed (AC-43). */
+function remarkHtmlAsText() {
+  const walk = (node: MdNode): void => {
+    if (!node.children) return;
+    node.children = node.children.map((child) => {
+      if (child.type === 'html') {
+        return { type: 'text', value: child.value ?? '' };
+      }
+      walk(child);
+      return child;
+    });
+  };
+  return (tree: MdNode) => {
+    walk(tree);
+    // A block-level html node is now a bare text node directly under the root: wrap it in a paragraph.
+    tree.children = (tree.children ?? []).map((child) =>
+      child.type === 'text' ? { type: 'paragraph', children: [child] } : child
+    );
+  };
+}
+
+const ALLOWED_ELEMENTS = [
+  'p',
+  'br',
+  'strong',
+  'em',
+  'del',
+  'code',
+  'pre',
+  'blockquote',
+  'hr',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'li',
+  'a',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
+  'input',
+] as const;
+
+const REMARK_PLUGINS = [remarkGfm, remarkHtmlAsText];
+
+/** An inline element with no content is never rendered (a half-written mark must not leave an empty element). */
+function hasContent(children: ReactNode): boolean {
+  return Array.isArray(children)
+    ? children.length > 0
+    : children != null && children !== '';
+}
+
+const COMPONENTS: Components = {
+  a: ({ href, children }) => {
+    if (!href || !isInAppPath(href)) return <>{children}</>;
+    return (
+      <Link
+        href={href}
+        className="text-primary font-medium underline underline-offset-2"
+      >
+        {children}
+      </Link>
+    );
+  },
+  strong: ({ children }) =>
+    hasContent(children) ? (
+      <strong className="font-semibold">{children}</strong>
+    ) : null,
+  em: ({ children }) => (hasContent(children) ? <em>{children}</em> : null),
+  del: ({ children }) => (hasContent(children) ? <del>{children}</del> : null),
+  code: ({ children, className }) =>
+    hasContent(children) ? (
+      <code
+        className={cn(
+          'bg-muted rounded px-1 py-0.5 font-mono text-[0.85em]',
+          className
+        )}
+      >
+        {children}
+      </code>
+    ) : null,
+  pre: ({ children }) => (
+    <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs [&>code]:bg-transparent [&>code]:p-0">
+      {children}
+    </pre>
+  ),
+  ul: ({ children }) => (
+    <ul className="list-disc space-y-1 pl-5">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="list-decimal space-y-1 pl-5">{children}</ol>
+  ),
+  h1: ({ children }) => <h1 className="text-lg font-semibold">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-base font-semibold">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-semibold">{children}</h3>,
+  h4: ({ children }) => <h4 className="text-sm font-semibold">{children}</h4>,
+  h5: ({ children }) => <h5 className="text-sm font-semibold">{children}</h5>,
+  h6: ({ children }) => <h6 className="text-sm font-semibold">{children}</h6>,
+  blockquote: ({ children }) => (
+    <blockquote className="border-border text-muted-foreground border-l-2 pl-3">
+      {children}
+    </blockquote>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-left text-sm">
+        {children}
+      </table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border-border border-b px-2 py-1 font-semibold">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border-border border-b px-2 py-1">{children}</td>
+  ),
 };
 
 /**
- * A reply's text, always plain: line breaks kept, never Markdown, HTML or a link (ai-assistant AC-07, ADR-0010).
- * Links come only from structured parts, rendered beside it by the caller.
+ * A reply's text as safe Markdown (ai-chat-v2 AC-42..44, ADR-0012): no raw HTML (shown as text), no images, and a link
+ * only when its address is an in-app path; every other link shows its label as plain text. A half-written mark is
+ * shown as typed until it closes, and a streamed reply renders exactly like the saved one.
  */
 export function MessageResponse({
   className,
   children,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- streamed and saved replies render identically
+  streaming: _streaming,
   ...props
 }: MessageResponseProps) {
   return (
-    <p
+    <div
       data-slot="message-response"
-      className={cn('break-words whitespace-pre-wrap', className)}
+      className={cn(
+        'space-y-2 break-words [&>:first-child]:mt-0 [&>:last-child]:mb-0',
+        className
+      )}
       {...props}
     >
-      {children}
-    </p>
+      <ReactMarkdown
+        remarkPlugins={REMARK_PLUGINS}
+        allowedElements={ALLOWED_ELEMENTS}
+        unwrapDisallowed
+        urlTransform={(url) => (isInAppPath(url) ? url : '')}
+        components={COMPONENTS}
+      >
+        {children}
+      </ReactMarkdown>
+    </div>
   );
 }
 

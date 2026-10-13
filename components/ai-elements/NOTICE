@@ -27,8 +27,9 @@ from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md):
   a Tab stop with a focus ring, which a keyboard jump focuses;
   ConversationContent is a full-width scroll area with a centred
   max-w-3xl column; ConversationDownload not ported.
-- message.tsx: MessageResponse renders plain text with line breaks kept
-  (no streamdown, no Markdown, no HTML, no links); MessageAvatar taken
+- message.tsx: MessageResponse renders safe Markdown with react-markdown
+  and remark-gfm (T62, ADR-0012; no streamdown, no raw HTML, no images,
+  links only to in-app paths); MessageAvatar taken
   from the earlier upstream API; MessageAction shows a visible label;
   the branch selector and toolbar are not ported.
 - prompt-input.tsx: no attachments, screenshots, referenced sources,
