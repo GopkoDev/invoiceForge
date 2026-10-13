@@ -33,7 +33,7 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
 
   test('AC-01: the sidebar opens the AI section, ready with nothing to set up', async () => {
     await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-    await page.getByRole('link', { name: 'AI', exact: true }).click();
+    await page.getByRole('link', { name: 'AI chat', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${protectedRoutes.ai}$`));
     await expect(
       page.getByRole('heading', { name: 'Hi! What can I help you with?' })

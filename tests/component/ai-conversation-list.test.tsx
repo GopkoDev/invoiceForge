@@ -224,26 +224,23 @@ describe('AI page (SCR-01 reads)', () => {
   });
 });
 
-describe('Sidebar entry (AC-35 navigation)', () => {
-  const main = navigationMenuConfig.sections!.find((s) => s.type === 'main')!;
+describe('Sidebar entry (AC-35 navigation; ai-chat-v2 T25 "AI" group)', () => {
+  const group = navigationMenuConfig.sections!.find((s) => s.label === 'AI')!;
 
-  it('has "AI" right after "Invoices" in the main section, pointing at /ai', () => {
-    const titles = main.items!.map((i) => i.title);
-    expect(titles.indexOf('AI')).toBe(titles.indexOf('Invoices') + 1);
-    expect(main.items!.find((i) => i.title === 'AI')!.url).toBe('/ai');
+  it('has "AI chat" in the "AI" group, pointing at /ai', () => {
+    expect(group.type).toBe('group');
+    expect(group.items!.find((i) => i.title === 'AI chat')!.url).toBe('/ai');
   });
 
-  it.each(['/ai', '/ai/abc123'])('marks AI active on %s and not Invoices', (p) => {
+  it.each(['/ai', '/ai/abc123'])('marks AI chat active on %s', (p) => {
     pathname = p;
     render(
       <SidebarProvider>
-        <DynamicSidebarSection section={main} />
+        <DynamicSidebarSection section={group} />
       </SidebarProvider>
     );
-    const ai = screen.getByRole('link', { name: /^AI$/ });
+    const ai = screen.getByRole('link', { name: /^AI chat$/ });
     expect(ai).toHaveAttribute('href', '/ai');
     expect(ai.querySelector('[data-active="true"]') ?? ai.closest('[data-active="true"]')).not.toBeNull();
-    const inv = screen.getByRole('link', { name: /Invoices/ });
-    expect(inv.querySelector('[data-active="true"]')).toBeNull();
   });
 });
