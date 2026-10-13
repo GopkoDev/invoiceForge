@@ -205,7 +205,10 @@ export async function POST(request: NextRequest) {
       const saved = await saveTurn(actor, {
         conversation,
         userText,
+        userOrigin: 'TYPED',
+        assistantMessageId: createId(),
         assistantParts: assistantPartsOf(result),
+        offer: null,
         turn,
         proposedCard: result.pendingCard,
       });

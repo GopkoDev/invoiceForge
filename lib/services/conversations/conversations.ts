@@ -10,12 +10,14 @@ import { failed } from '@/lib/services/_shared/result-helpers';
 import { derivedStatus, todayIn } from '@/lib/services/_shared/overdue';
 import { appLinkSchema } from '@/lib/validations/assistant-chat';
 import { toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
+import { storedOfferOptionsSchema } from '@/lib/services/assistant-drafts/offers';
 import type {
   ConversationMessageView,
   MessageOrigin,
   ConversationSummary,
   DraftCardView,
   LinkedInvoiceState,
+  OfferView,
 } from '@/types/assistant/types';
 
 const PAGE_SIZE = 20;
@@ -28,6 +30,10 @@ const partSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('data-link'), data: appLinkSchema }).strict(),
   z
     .object({ type: z.literal('data-draft-card'), id: z.string(), data: z.object({ cardId: z.string() }).strict() })
+    .strict(),
+  // ai-chat-v2: the reply's Offered choices, by offer id only (ADR-0001).
+  z
+    .object({ type: z.literal('data-offer'), id: z.string(), data: z.object({ offerId: z.string() }).strict() })
     .strict(),
 ]);
 const partsSchema = z.array(partSchema);
@@ -106,6 +112,28 @@ export async function readInvoiceStates(
   return states;
 }
 
+/**
+ * ai-chat-v2 T11 (AC-12, AC-13): a Conversation's Offered choices as the browser sees them - labels and state only,
+ * never a record reference or the stored request (ADR-0001, ADR-0003). Owner-scoped; writes nothing.
+ */
+async function readOffers(actor: ActingFreelancer, conversationId: string): Promise<Record<string, OfferView>> {
+  const rows = await prisma.choiceOffer.findMany({
+    where: { conversationId, userId: actor.userId },
+    select: { id: true, kind: true, state: true, chosenOptionId: true, options: true },
+  });
+  const offers: Record<string, OfferView> = {};
+  for (const r of rows) {
+    offers[r.id] = {
+      offerId: r.id,
+      kind: r.kind,
+      state: r.state,
+      chosenOptionId: r.state === 'CHOSEN' ? r.chosenOptionId : null,
+      options: storedOfferOptionsSchema.parse(r.options).map(({ optionId, label }) => ({ optionId, label })),
+    };
+  }
+  return offers;
+}
+
 export async function getConversation(
   actor: ActingFreelancer,
   id: string
@@ -115,6 +143,7 @@ export async function getConversation(
     messages: ConversationMessageView[];
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
+    offers: Record<string, OfferView>;
   }>
 > {
   try {
@@ -176,8 +205,9 @@ export async function getConversation(
     const invoiceLinks = await readInvoiceStates(actor, [...invoiceIds]);
     const cards: Record<string, DraftCardView> = {};
     for (const c of cardRows) cards[c.id] = toDraftCardView(c, invoiceLinks);
+    const offers = await readOffers(actor, id);
 
-    return ok({ conversation: toSummary(conversation), messages, cards, invoiceLinks });
+    return ok({ conversation: toSummary(conversation), messages, cards, invoiceLinks, offers });
   } catch (error) {
     return failed('getConversation failed', error, FAILED_MESSAGE);
   }
