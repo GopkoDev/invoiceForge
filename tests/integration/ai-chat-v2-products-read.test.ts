@@ -154,8 +154,11 @@ describe.runIf(containerRuntimeAvailable)('list_products (ai-chat-v2 T06)', () =
     expect((theirs.structuredContent as any).code).toBe('NOT_FOUND');
     expect((theirs.structuredContent as any).message).toBe('Customer not found.');
     expect(theirs.structuredContent).toEqual(unknown.structuredContent);
-    expect(JSON.stringify(theirs)).not.toContain('Globex');
-    expect(JSON.stringify(theirs)).not.toContain('77');
+    // The harness's own timing field (`ms`) is not part of the answer; a duration like 11.877 must not read as a leak.
+    const answer = { ...(theirs as Record<string, unknown>) };
+    delete answer.ms;
+    expect(JSON.stringify(answer)).not.toContain('Globex');
+    expect(JSON.stringify(answer)).not.toContain('77');
 
     const { listProductsForAssistant } = await import('@/lib/services/products/products');
     const actor = await h.actor(userId, TZ);

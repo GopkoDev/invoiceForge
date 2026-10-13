@@ -213,7 +213,15 @@ describe.runIf(containerRuntimeAvailable)(
       const { user, actor } = await freelancer();
       const p = await createProduct(prisma, user.id, { currency: 'USD' });
       const options = [opt(0, { productId: p.id })];
-      const request = { customer: 'Acme', currency: 'USD' };
+      // A PRODUCT offer fills an existing line: the stored request has the line its lineIndex names (T14).
+      const request = {
+        customer: 'Acme',
+        currency: 'USD',
+        lines: [
+          { description: 'Design', quantity: '1', price: '10' },
+          { description: 'Sticker', quantity: '2' },
+        ],
+      };
       const { conversation, offer } = await offerFor(user.id, {
         kind: 'PRODUCT',
         lineIndex: 1,

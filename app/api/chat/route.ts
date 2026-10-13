@@ -3,6 +3,10 @@
 // the slot back. A new Conversation is announced (data-conversation) only after its row is saved, so a turn
 // that does not count never hands the client an id that does not exist (R-02). Every refusal before the
 // stream is a JSON ActionFailure and nothing is counted.
+// ai-chat-v2 T14 (critical flow 1, ADR-0003; AC-08, AC-08b, AC-10, AC-11, AC-12b, AC-29): a press is checked against
+// its stored offer after the owner check and before the allowance; a valid one reserves the slot and claims the
+// offer in one transaction, is pinned and resolved in code, and is saved with the stored label and origin PRESSED.
+// A system-side failure gives the slot and the claim back together.
 import { createId } from '@paralleldrive/cuid2';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
@@ -15,10 +19,14 @@ import { todayInZone } from '@/lib/helpers/calendar-day';
 import { renewalWhen } from '@/lib/helpers/allowance-renewal';
 import { chatRequestSchema } from '@/lib/validations/assistant-chat';
 import { reserveMessageSlot } from '@/lib/services/assistant-usage/allowance';
+import { checkChoice, reserveAndClaim, type CheckedChoice } from '@/lib/services/assistant-drafts/offers';
+import { pinChoice } from '@/lib/services/assistant-drafts/pin';
+import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
 import { loadHistory } from '@/lib/services/conversations/conversations';
 import { saveTurn } from '@/lib/services/conversations/save-turn';
 import { runTurn } from '@/lib/ai/run-turn';
+import type { PinnedResolution } from '@/lib/ai/turn-context';
 import {
   assistantPartsOf,
   chatOutcomeOf,
@@ -29,6 +37,7 @@ import '@/lib/ai/mastra';
 import type {
   AssistantTurnMetadata,
   ConversationMessageView,
+  MessageOrigin,
 } from '@/types/assistant/types';
 
 export const runtime = 'nodejs';
@@ -42,6 +51,13 @@ const FAILED = {
   success: false,
   code: 'FAILED',
   error: "The reply couldn't be completed. Try again.",
+} as const;
+/** One body for every cause a press cannot be applied (AC-12b, AC-13): outdated, foreign, never existed, changed. */
+const CHOICE_UNAVAILABLE = {
+  success: false,
+  code: 'CONFLICT',
+  error: 'This option is no longer available. Choose again or type your request.',
+  details: { kind: 'CHOICE_UNAVAILABLE' },
 } as const;
 /** The 429 sentence, with the renewal time in the Freelancer's own zone (AC-10, spec §8 time-zone rule). */
 const usedUpText = (renewsAt: string, timeZone: string, now: Date) =>
@@ -84,8 +100,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(chatValidationFailure(parsed.error), {
       status: 400,
     });
-  const { conversationId } = parsed.data;
-  const userText = parsed.data.message.parts[0].text;
+  const { conversationId, choice, origin, startedFrom } = parsed.data;
+  // A press is saved with the offer's stored label; the client's text is ignored (ADR-0003).
+  let userText = parsed.data.message.parts[0].text;
+  // The server sets the origin: PRESSED only from a valid choice; DASHBOARD only on a first message (schema).
+  const userOrigin: MessageOrigin = choice ? 'PRESSED' : origin === 'DASHBOARD' ? 'DASHBOARD' : 'TYPED';
 
   // Owner check (and the history, read server-side): unknown and foreign answer alike.
   let history: ConversationMessageView[] = [];
@@ -99,9 +118,21 @@ export async function POST(request: NextRequest) {
     history = loaded.data;
   }
 
+  // Checked before the allowance: an invalid press is unavailable even with the allowance used up.
+  let checked: CheckedChoice | null = null;
+  if (choice && conversationId) {
+    checked = await checkChoice(actor, { conversationId, ...choice });
+    if (!checked.ok) return NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
+    userText = checked.option.label;
+  }
+
   const startedAt = Date.now();
-  const reservation = await reserveMessageSlot(actor, new Date(startedAt));
+  const reservation = choice
+    ? await reserveAndClaim(actor, new Date(startedAt), choice.offerId, choice.optionId)
+    : await reserveMessageSlot(actor, new Date(startedAt));
   if (!reservation.ok) {
+    // Another press claimed the offer first; the transaction took no slot.
+    if ('claimLost' in reservation) return NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
     if ('usedUp' in reservation) {
       await recordTurnMetadata(actor, {
         topic: null,
@@ -129,6 +160,20 @@ export async function POST(request: NextRequest) {
   }
 
   const slot = reservation;
+
+  // The chosen record is pinned into the offer's request and resolved in code before the model writes (AC-10).
+  let pinned: PinnedResolution | undefined;
+  if (checked?.ok) {
+    const { offer, option } = checked;
+    const request = pinChoice(offer.request, offer.kind, offer.lineIndex, option.ref);
+    const resolved = await resolveDraftRequest(actor, request, todayInZone(actor.timeZone)).catch(() => null);
+    if (!resolved?.success) {
+      await slot.release().catch(() => null);
+      await recordTurnMetadata(actor, failedTurn(startedAt)).catch(() => undefined);
+      return NextResponse.json(FAILED, { status: 503 });
+    }
+    pinned = { request, resolution: resolved.data };
+  }
   // A new Conversation's id (a cuid, like every record id) is announced only once its row is saved (R-02).
   const conversation = {
     id: conversationId ?? createId(),
@@ -174,6 +219,7 @@ export async function POST(request: NextRequest) {
       // server-side, is saved and counted (a disconnect is not a system-side failure, spec §1 D2).
       signal: new AbortController().signal,
       origin: request.nextUrl.origin,
+      pinned,
     });
     for await (const chunk of turnStream) write(chunk);
     const result = await resultPromise;
@@ -212,8 +258,9 @@ export async function POST(request: NextRequest) {
       // Saved before the stream closes so a serverless function is not frozen mid-write.
       const saved = await saveTurn(actor, {
         conversation,
+        ...(conversation.isNew && startedFrom ? { startedFrom } : {}),
         userText,
-        userOrigin: 'TYPED',
+        userOrigin,
         assistantMessageId: createId(),
         assistantParts: assistantPartsOf(result),
         offer: result.pendingOffer ?? null,

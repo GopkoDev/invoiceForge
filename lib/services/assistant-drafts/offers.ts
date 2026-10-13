@@ -161,6 +161,20 @@ export type CheckedChoice =
 const UNAVAILABLE = { ok: false } as const;
 const sameCode = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase();
 
+const REF_KEY: Record<ChoiceOfferKind, string> = {
+  CUSTOMER: 'customerId',
+  SENDER_PROFILE: 'senderProfileId',
+  CURRENCY: 'currency',
+  BANK_ACCOUNT: 'bankAccountId',
+  PRODUCT: 'productId',
+};
+
+function refFitsKind(ref: OfferOptionRef, kind: ChoiceOfferKind, lineIndex: number | null, request: DraftRequest) {
+  if (!(REF_KEY[kind] in ref)) return false;
+  if (kind !== 'PRODUCT') return true;
+  return lineIndex !== null && lineIndex >= 0 && lineIndex < (request.lines?.length ?? 0);
+}
+
 /** Whether the option's record still exists, is the actor's and still fits the stored request (AC-13). */
 async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: DraftRequest): Promise<boolean> {
   const prisma = await db();
@@ -220,7 +234,9 @@ async function check(
   // Written by saveTurn from the resolver's own request (ADR-0003), never from the client.
   const request = row.request as DraftRequest;
   const option = options.data.find((o) => o.optionId === input.optionId);
-  if (!option || !(await stillFits(actor, option.ref, request))) return UNAVAILABLE;
+  // The option must fit the slot it fills, so pinning it can never fail (pinChoice throws on a mismatch).
+  if (!option || !refFitsKind(option.ref, row.kind, row.lineIndex, request)) return UNAVAILABLE;
+  if (!(await stillFits(actor, option.ref, request))) return UNAVAILABLE;
   return {
     ok: true,
     offer: { id: row.id, kind: row.kind, lineIndex: row.lineIndex, request },

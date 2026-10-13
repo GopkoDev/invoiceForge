@@ -30,7 +30,9 @@ export function chatOutcomeOf(result: TurnResult): {
 
 /** A 400 VALIDATION body for a request the schema refused; the length refusal carries the contract wording. */
 export function chatValidationFailure(error: ZodError) {
-  const failure = zodValidationFailure(error);
+  // A field-combination refusal (ai-chat-v2 ChatRequest) is said in its own words, e.g. a choice without a Conversation.
+  const combination = error.issues.length === 1 && error.issues[0].code === 'custom' ? error.issues[0].message : undefined;
+  const failure = zodValidationFailure(error, combination);
   const tooLong = error.issues.some(
     (i) => i.code === 'too_big' && i.path.join('.') === 'message.parts.0.text'
   );
