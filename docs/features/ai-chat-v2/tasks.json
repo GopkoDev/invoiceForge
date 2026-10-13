@@ -733,6 +733,27 @@
         "tests/e2e/route-sweep.spec.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t31-e2e-preview-dashboard-nav-a11y.md"
+    },
+    {
+      "id": "T32",
+      "title": "Product candidates follow the drafting currency when only the Customer fails (review R14-1)",
+      "layer": "app",
+      "deps": [
+        "T08",
+        "T12"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "With a Customer not saved yet and no written currency, the resolver gives resolveLines the currency the request drafts in (the one resolveSenderAndAccount chose), so no product in another currency is a candidate and a lone same-currency match needs no choice; the press check and the resolver share one drafting-currency source; an integration test written first proves it; unit, integration, lint and typecheck are green.",
+      "files_hint": [
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "lib/services/assistant-drafts/resolve.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "tests/integration/ai-chat-v2-resolver-delta.test.ts"
+      ],
+      "file": "tasks/t32-drafting-currency-on-customer-not-found.md"
     }
   ]
 }

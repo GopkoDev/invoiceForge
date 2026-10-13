@@ -216,19 +216,17 @@ async function requestProfileId(userId: string, request: DraftRequest): Promise<
 }
 
 /**
- * The currency a request with no written currency is drafted in now: its named account (by id) or the default account
- * of the profile it drafts under. Null when that cannot be told here (an account named by text, no account).
+ * The currency a request with no written currency is drafted in now, from the resolver itself (one source with the
+ * pinned turn; T32, review 2026-10-13 R14-1): the parties' currency, also when only the Customer failed. Null when
+ * the parties cannot tell (no profile or account resolved).
  */
-async function draftingCurrency(userId: string, request: DraftRequest): Promise<string | null> {
-  const profileId = await requestProfileId(userId, request);
-  if (profileId === null) return null;
-  const accounts = await (await db()).bankAccount.findMany({
-    where: { senderProfileId: profileId, senderProfile: { userId } },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, currency: true, isDefault: true },
-  });
-  if (request.bankAccount !== undefined) return accounts.find((a) => a.id === request.bankAccount)?.currency ?? null;
-  return (accounts.find((a) => a.isDefault) ?? accounts[0])?.currency ?? null;
+async function draftingCurrency(actor: ActingFreelancer, request: DraftRequest): Promise<string | null> {
+  const [{ resolveParties }, { todayInZone }] = await Promise.all([
+    import('@/lib/services/assistant-drafts/resolve-parties'),
+    import('@/lib/helpers/calendar-day'),
+  ]);
+  const parties = await resolveParties(actor, request, todayInZone(actor.timeZone));
+  return parties.ok ? parties.parties.currency : (parties.currency ?? null);
 }
 
 /** Whether the option's record still exists, is the actor's and still fits the stored request (AC-13). */
@@ -248,7 +246,7 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
     if (product === null) return false;
     if (request.currency !== undefined) return currencyFits(product.currency, request.currency);
     // No currency written: the invoice is drafted in the account's currency the resolver would use now (R13-2).
-    const drafting = await draftingCurrency(userId, request);
+    const drafting = await draftingCurrency(actor, request);
     return drafting === null || drafting === product.currency;
   }
   const account = await prisma.bankAccount.findFirst({

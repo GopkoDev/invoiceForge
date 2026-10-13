@@ -19,7 +19,11 @@ export type ResolvedParties = Pick<
 
 export type ResolvePartiesResult =
   | { ok: true; parties: ResolvedParties }
-  | { ok: false; issues: DraftIssue[] };
+  /**
+   * `currency`: the currency the request drafts in, when the sender profile and account resolved and only the
+   * Customer failed, so the lines still follow it (T32, review 2026-10-13 R14-1).
+   */
+  | { ok: false; issues: DraftIssue[]; currency?: Currency };
 
 type Currency = DraftProposal['currency'];
 type Account = {
@@ -319,7 +323,7 @@ export async function resolveParties(
   if ('issue' in customerResult) issues.push(withOwnProfileHint(customerResult.issue, request, profiles));
   if ('issue' in partiesResult) issues.push(partiesResult.issue);
   if (issues.length > 0 || !('customer' in customerResult) || !('chosen' in partiesResult)) {
-    return { ok: false, issues };
+    return { ok: false, issues, ...('chosen' in partiesResult ? { currency: partiesResult.chosen.currency } : {}) };
   }
 
   const { chosen } = partiesResult;

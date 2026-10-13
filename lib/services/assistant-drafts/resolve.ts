@@ -61,7 +61,8 @@ export async function resolveDraftRequest(
     userId: actor.userId,
     // When the parties fail, the lines still follow the currency the request names, read as the resolver reads it, so
     // no product in another currency is offered (it could never be pressed; review 2026-10-13 R13-1).
-    currency: parties.ok ? parties.parties.currency : writtenCurrency(request.currency),
+    // With only the Customer failing, the drafting currency the parties chose (T32, R14-1).
+    currency: parties.ok ? parties.parties.currency : (parties.currency ?? writtenCurrency(request.currency)),
     customerId: parties.ok ? parties.parties.customer.customerId : undefined,
   });
 

@@ -331,6 +331,19 @@ describe.runIf(containerRuntimeAvailable)('resolver request and candidate delta 
   describe('product candidates carry unit, price and currency', () => {
     // Review 2026-10-13 R13-1: when the parties fail (a Customer not added yet), the lines still follow the currency
     // the request names, so no product in another currency is offered (it could never be pressed).
+    // T32 (review 2026-10-13 R14-1): with no written currency either, the lines follow the currency the request drafts
+    // in (the default account's), so no product in another currency is offered and a lone match needs no choice.
+    it('with CUSTOMER_NOT_FOUND and no currency, products follow the default account currency (no EUR, no choice)', async () => {
+      const { user, actor } = await setup();
+      await createProduct(prisma, user.id, { name: 'Consulting', unit: 'hours', price: 50, currency: 'USD' });
+      await createProduct(prisma, user.id, { name: 'Consulting', unit: 'hours', price: 45, currency: 'EUR' });
+      const issues = await issuesOf(
+        svc.resolveDraftRequest(actor, { customer: 'Globex', lines: [{ description: 'consulting', quantity: '3' }] }, TODAY)
+      );
+      expect(issues.map((i) => i.kind)).toEqual(['CUSTOMER_NOT_FOUND']);
+      expect(JSON.stringify(issues)).not.toContain('"EUR"');
+    });
+
     it('with CUSTOMER_NOT_FOUND and currency "USD", no EUR product is a candidate', async () => {
       const { user, actor } = await setup();
       await createProduct(prisma, user.id, { name: 'Consulting', unit: 'hours', price: 50, currency: 'USD' });
