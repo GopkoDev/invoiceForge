@@ -56,6 +56,27 @@
 | T48 | [One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)](./t48-chip-height-and-notice.md) | ui | Dmytro Hopko | S | T45 | done |
 | T49 | [Record the scroll area's labelled region and Tab stop in screens.md, the NOTICE and the element header (review R18-1)](./t49-record-messages-region.md) | docs | Dmytro Hopko | XS | T47 | done |
 
-**Total:** 49 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups).
+| T50 | [Promote staged migrations 06–08, apply the Prisma schema edits for the Question form and extend the factories](./t50-promote-staged-migrations-06-08-apply-the.md) | migration | Dmytro Hopko | M | — | todo |
+| T51 | [Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms](./t51-add-the-question-form-types-and-zod.md) | domain | Dmytro Hopko | M | T50 | todo |
+| T52 | [Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)](./t52-build-the-form-from-resolver-issues-and.md) | domain | Dmytro Hopko | L | T51 | todo |
+| T53 | [Check typed answers per kind, pin answers into a stored draft request, and compose the answer message](./t53-check-typed-answers-per-kind-pin-answers.md) | domain | Dmytro Hopko | M | T51 | todo |
+| T54 | [Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels](./t54-add-the-chat-only-ask-user-tool.md) | app | Dmytro Hopko | M | T52 | todo |
+| T55 | [Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen](./t55-compose-the-turn-s-one-form-stream.md) | app | Dmytro Hopko | L | T52, T54 | todo |
+| T56 | [Check a sent form before any count and claim or release it with the allowance slot](./t56-check-a-sent-form-before-any-count.md) | infra | Dmytro Hopko | M | T53, T55 | todo |
+| T57 | [Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM](./t57-run-the-form-path-in-the-chat.md) | ports | Dmytro Hopko | L | T56 | todo |
+| T58 | [Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans](./t58-prove-the-form-safety-properties-injection-and.md) | tests | Dmytro Hopko | M | T57 | todo |
+| T59 | [Build the QuestionForm component with every SCR-04 revision state](./t59-build-the-questionform-component-with-every-scr.md) | ui | Dmytro Hopko | L | T51, T53 | todo |
+| T60 | [Wire QuestionForm into the chat island, send forms, remove OfferedChoices](./t60-wire-questionform-into-the-chat-island-send.md) | ui | Dmytro Hopko | M | T57, T59 | todo |
+| T61 | [Cover forms, answers and origin FORM in the data export, account deletion and the privacy page](./t61-cover-forms-answers-and-origin-form-in.md) | app | Dmytro Hopko | S | T55 | todo |
+| T62 | [Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist](./t62-render-replies-as-safe-markdown-with-react.md) | ui | Dmytro Hopko | L | — | todo |
+| T63 | [Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links](./t63-tell-the-model-today-and-the-time.md) | app | Dmytro Hopko | M | T54, T64 | todo |
+| T64 | [Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels](./t64-add-created-date-filters-a-created-date.md) | app | Dmytro Hopko | M | — | todo |
+| T65 | [Extend the evaluation harness with form, card-or-form, link and date checks and the owner-feedback rows](./t65-extend-the-evaluation-harness-with-form-card.md) | tests | Dmytro Hopko | M | T60, T63, T64 | todo |
+| T66 | [Keep the Conversation list mounted in the AI layout and update it from chat events](./t66-keep-the-conversation-list-mounted-in-the.md) | ui | Dmytro Hopko | L | — | todo |
+| T67 | [Align the list top row with the chat header, size every skeleton to its content, and level the avatar with the first line](./t67-align-the-list-top-row-with-the.md) | ui | Dmytro Hopko | M | T66 | todo |
+| T68 | [Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines](./t68-add-e2e-through-ui-tests-for-forms.md) | tests | Dmytro Hopko | L | T60, T62, T67 | todo |
+| T69 | [Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form](./t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md) | docs | Dmytro Hopko | S | T60, T62, T66 | todo |
+
+**Total:** 69 tasks, ~33 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013).
 
 **Owner gates outside `implement`:** T28 privacy wording review and the spec §8 terms-page question (before `ship`); the real-model evaluation run (T29 rows) and the read/issue load scenarios (pre-release).

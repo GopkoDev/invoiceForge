@@ -10,11 +10,14 @@ Ship the second iteration of the in-app AI chat without loosening any first-iter
 
 - **In:** `lib/assistant-tools` (3 reads), `lib/services/assistant-drafts` (resolver delta, offers, pins, own-profile hint), `lib/services/conversations` (origin, start point, offers, summaries), `lib/services/invoices` (expectedVersion, issuedFromChat), `lib/ai` (pinned turn, offers in `propose_draft`, instructions), `app/api/chat` (press path), `lib/actions/assistant-actions` (preview, issue), `components/ai` + `components/dashboard` + navigation config, privacy page, export, five staged migrations, eval harness, e2e.
 - **In (presentation rewrite, T33–T41):** `components/ai-elements/` (Conversation, Message, PromptInput, Suggestion, Loader ported from Vercel AI Elements onto Base UI, Apache-2.0 LICENSE + NOTICE), the AI section's layout and components in `components/ai` and `components/dashboard/ai-block.tsx`, `docs/design-system.md`, the AI e2e selectors and Linux baselines. No behaviour, contract, schema or copy change beyond screens.md's presentation revision.
+- **In (owner feedback revision, T50–T69, 2026-10-13):** the Question form (staged migrations 06–08, `lib/services/assistant-drafts/forms.ts` + `form-pin.ts`, the chat-only `ask_user` tool, the chat route form path, `components/ai/question-form.tsx`), safe Markdown replies (`react-markdown@10.1.0`, `remark-gfm@4.0.1`, `lib/ai/in-app-links.ts`), the per-turn date note, the chat instructions and router wording, `search_invoices` created-date filters, the Conversation list in `ai/layout.tsx`, header/skeleton/avatar fixes, export and privacy coverage, eval rows and e2e.
 - **Out (spec §3):** the AI issuing, sending, editing or deleting an invoice; editing a draft inside the chat panel; free-form buttons written by the model; full bank account numbers in any answer; rewriting the first iteration's documents.
 
 ## Execution order
 
 Implementation runs **sequentially, in place, in id order** (T01 → T31; no worktrees). The presentation rewrite (T33–T41, added 2026-10-13 after the owner rejected the built AI section UI; ADR-0010) follows the same rule: id order is a valid topological order, waves inside it are T33/T34/T35 → T36/T39 → T37/T38 → T40/T41. Every task's `deps` point only to smaller ids, so id order is a valid topological order. The `Wave` in each task file is the longest dependency chain, shown only to make the parallel branches visible (for example T25 and T28 have no dependency and could run any time).
+
+The owner feedback revision (T50–T69) runs after T49 in id order; every dep points to a smaller id. Parallel branches inside it: the form chain T50 → T51 → T52/T53 → T54 → T55 → T56 → T57 → T58/T60; the independent T62 (Markdown), T64 (search) and T66 → T67 (workspace) can run any time; T61 after T55; T63 after T54/T64; T65, T68, T69 close it.
 
 ## Task map
 
@@ -125,6 +128,53 @@ flowchart LR
     T37 --> T41
     T38 --> T41
     T39 --> T41
+    T50["T50 migration: Promote staged migrations 06–08, apply"]
+    T51["T51 domain: Add the Question form types and zod sc"]
+    T52["T52 domain: Build the form from resolver issues an"]
+    T53["T53 domain: Check typed answers per kind, pin answ"]
+    T54["T54 app: Add the chat-only ask_user tool that c"]
+    T55["T55 app: Compose the turn's one form, stream it"]
+    T56["T56 infra: Check a sent form before any count and"]
+    T57["T57 ports: Run the form path in the chat route: r"]
+    T58["T58 tests: Prove the form safety properties: inje"]
+    T59["T59 ui: Build the QuestionForm component with "]
+    T60["T60 ui: Wire QuestionForm into the chat island"]
+    T61["T61 app: Cover forms, answers and origin FORM i"]
+    T62["T62 ui: Render replies as safe Markdown with r"]
+    T63["T63 app: Tell the model today and the time zone"]
+    T64["T64 app: Add created-date filters, a created-da"]
+    T65["T65 tests: Extend the evaluation harness with for"]
+    T66["T66 ui: Keep the Conversation list mounted in "]
+    T67["T67 ui: Align the list top row with the chat h"]
+    T68["T68 tests: Add e2e-through-UI tests for forms, Ma"]
+    T69["T69 docs: Register QuestionForm, ConversationLis"]
+    T50 --> T51
+    T51 --> T52
+    T51 --> T53
+    T52 --> T54
+    T52 --> T55
+    T54 --> T55
+    T53 --> T56
+    T55 --> T56
+    T56 --> T57
+    T57 --> T58
+    T51 --> T59
+    T53 --> T59
+    T57 --> T60
+    T59 --> T60
+    T55 --> T61
+    T54 --> T63
+    T64 --> T63
+    T60 --> T65
+    T63 --> T65
+    T64 --> T65
+    T66 --> T67
+    T60 --> T68
+    T62 --> T68
+    T67 --> T68
+    T60 --> T69
+    T62 --> T69
+    T66 --> T69
 ```
 
 ## Tasks
@@ -174,6 +224,26 @@ See [tracker.md](./tracker.md) for status. Machine contract: [tasks.json](../tas
 | T39 | [Build the dashboard AI block prompt box on the PromptInput element](./t39-dashboard-ai-block-on-prompt-input.md) | ui | T34 | The dashboard prompt box is a PromptInput card with the counter in its footer and a round submit labelled "Send to AI", empty and too-long prompts … |
 | T40 | [Register the AI elements and the changed AI components in the design system](./t40-register-ai-elements-in-design-system.md) | docs | T36, T37, T38, T39 | docs/design-system.md lists Conversation, Message, PromptInput, Suggestion and Loader from components/ai-elements with their contracts, Base UI … |
 | T41 | [Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines](./t41-e2e-selectors-and-linux-baselines-retake.md) | tests | T35, T36, T37, T38, T39 | All AI e2e specs pass locally against the new presentation with selectors updated only where markup changed, new checks prove the centred column … |
+| T50 | [Promote staged migrations 06–08, apply the Prisma schema edits for the Question form and extend the factories](./t50-promote-staged-migrations-06-08-apply-the.md) | migration | — | migrations apply, backfill and revert cleanly on a throwaway Postgres; no command against `.env` / `.env.prod` … |
+| T51 | [Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms](./t51-add-the-question-form-types-and-zod.md) | domain | T50 | unit tests for the schemas and the legacy mapping pass … |
+| T52 | [Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)](./t52-build-the-form-from-resolver-issues-and.md) | domain | T51 | unit tests pass, including the 9-question ordering and the date options with a fixed clock in Europe/Kyiv … |
+| T53 | [Check typed answers per kind, pin answers into a stored draft request, and compose the answer message](./t53-check-typed-answers-per-kind-pin-answers.md) | domain | T51 | unit tests pass for every kind and the pin of every field … |
+| T54 | [Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels](./t54-add-the-chat-only-ask-user-tool.md) | app | T52 | integration tests pass on a throwaway database with the scripted model … |
+| T55 | [Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen](./t55-compose-the-turn-s-one-form-stream.md) | app | T52, T54 | integration tests (scripted model) pass for each edge … |
+| T56 | [Check a sent form before any count and claim or release it with the allowance slot](./t56-check-a-sent-form-before-any-count.md) | infra | T53, T55 | integration tests pass; the T12 claim/release tests are rewritten for forms … |
+| T57 | [Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM](./t57-run-the-form-path-in-the-chat.md) | ports | T56 | route integration tests with the scripted model pass (call counts asserted) … |
+| T58 | [Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans](./t58-prove-the-form-safety-properties-injection-and.md) | tests | T57 | suite green on a throwaway database … |
+| T59 | [Build the QuestionForm component with every SCR-04 revision state](./t59-build-the-questionform-component-with-every-scr.md) | ui | T51, T53 | component tests pass for every state … |
+| T60 | [Wire QuestionForm into the chat island, send forms, remove OfferedChoices](./t60-wire-questionform-into-the-chat-island-send.md) | ui | T57, T59 | component + island tests pass … |
+| T61 | [Cover forms, answers and origin FORM in the data export, account deletion and the privacy page](./t61-cover-forms-answers-and-origin-form-in.md) | app | T55 | tests pass … |
+| T62 | [Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist](./t62-render-replies-as-safe-markdown-with-react.md) | ui | — | unit + component tests pass … |
+| T63 | [Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links](./t63-tell-the-model-today-and-the-time.md) | app | T54, T64 | unit tests pass … |
+| T64 | [Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels](./t64-add-created-date-filters-a-created-date.md) | app | — | integration + contract tests pass … |
+| T65 | [Extend the evaluation harness with form, card-or-form, link and date checks and the owner-feedback rows](./t65-extend-the-evaluation-harness-with-form-card.md) | tests | T60, T63, T64 | harness unit tests pass … |
+| T66 | [Keep the Conversation list mounted in the AI layout and update it from chat events](./t66-keep-the-conversation-list-mounted-in-the.md) | ui | — | component tests pass … |
+| T67 | [Align the list top row with the chat header, size every skeleton to its content, and level the avatar with the first line](./t67-align-the-list-top-row-with-the.md) | ui | T66 | component tests pass … |
+| T68 | [Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines](./t68-add-e2e-through-ui-tests-for-forms.md) | tests | T60, T62, T67 | full AI e2e suite green locally … |
+| T69 | [Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form](./t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md) | docs | T60, T62, T66 | docs updated; links resolve … |
 
 ## Decisions
 
@@ -195,16 +265,25 @@ Taken at the tasks stage for the owner (autonomous run, 2026-10-13); the owner c
 - **D-13 — Registration as its own docs task.** Unlike D-6, the element set is registered in one place (T40) after all UI follow-ups, so the contracts are written once against the reviewed code.
 - **D-14 — Baselines retaken in their own commit after a full local e2e run** (T41), with each diff inspected against the reference image.
 
+- **D-15 — Owner feedback revision as T50–T69 (2026-10-13).** The owner's feedback (spec §1 F1–F13; screenshots `ref/feedback-2026-10-13-*.png`) is implemented as appended tasks; done tasks are not reopened. **Existing AC tests stay green and are never weakened; the tests of superseded ACs (AC-08–AC-14 and their T10–T15, T22, T30 tests) are rewritten for the Question form in the same files, never deleted silently.**
+- **D-16 — The offer row becomes the form row.** No new table (ADR-0011); staged migrations 06–08 extend `ChoiceOffer` and backfill legacy offers into one-question forms; promoted by T50 after `20261013104000`.
+- **D-17 — Origin `FORM`.** A sent form is saved with a new origin `FORM`; `PRESSED` is no longer written and stays for history (spec F5).
+- **D-18 — Send is always pressed**, also for a one-question form (spec Clarifications 2026-10-13).
+- **D-19 — Two new dependencies, exact pins:** `react-markdown@10.1.0` (2025-03-07) and `remark-gfm@4.0.1` (2025-02-10) for safe Markdown (ADR-0012); this supersedes D-11's "no new dependency" for rendering only.
+- **D-20 — The list moves into the layout** (ADR-0013); T66 re-runs the existing hand-over e2e specs unchanged.
+
 ## Risks / Hard rules
 
 - **Code builds every button; the model only words it.** Offers come only from `offerFromIssues(issue)`; no model text path into an offer (spec §6 "0 buttons from model text", ADR-0002).
-- **An invalid press never reaches the model, is never counted, marks nothing, and gets one fixed sentence** "This option is no longer available. Choose again or type your request." (spec §1, AC-12b, openapi 409).
+- **An invalid press never reaches the model, is never counted, marks nothing, and gets one fixed sentence** "This option is no longer available. Choose again or type your request." (spec §1, AC-12b, openapi 409). *Since 2026-10-13 (T50+): a sent form follows the same rule with "This form is no longer available. Answer the latest questions or type your request." (spec F7).*
+- **Every form option is one of the Freelancer's records checked by the server, a supported currency or a server-computed date, with a server label; never model text** (spec F3, ADR-0011).
 - **The model has no issuing tool.** Issuing exists only as the Freelancer's confirmed `issueFromPreview`, guarded by `expectedVersion` (ADR-0007, AC-24).
 - **No full bank account number in any read answer** — output schemas have no field for it (spec §6.1).
 - **Owner-scoped everything:** another Freelancer's offer, card, Conversation or record answers exactly as one that does not exist (sad.md §8).
 - **Preview and issue are never messages** and touch no counter (AC-27).
 - **Prompt text never appears in a URL** (ADR-0009).
-- **No new runtime dependency** (sad.md §2; ADR-0010 for the AI elements — no Radix, no `streamdown`, no `use-stick-to-bottom`).
-- **Presentation rewrite changes no behaviour** (T33–T41): every state, AC, address, hand-off, allowance notice, breakpoint, the 48 px follow and reduced motion stay as specified; replies stay plain text.
+- **No new runtime dependency** (sad.md §2; ADR-0010 for the AI elements — no Radix, no `streamdown`, no `use-stick-to-bottom`). *Exception 2026-10-13: `react-markdown@10.1.0` + `remark-gfm@4.0.1`, exact pins (ADR-0012, D-19).*
+- **Replies never render HTML; links only to in-app route patterns** (ADR-0012).
+- **Presentation rewrite changes no behaviour** (T33–T41): every state, AC, address, hand-off, allowance notice, breakpoint, the 48 px follow and reduced motion stay as specified; replies stay plain text (superseded by T62, ADR-0012, for the in-app chat).
 - **Database safety:** integration and migration tests run only on throwaway containers; `.env` is dev, `.env.prod` is prod — never targeted.
 - **e2e runs locally before ship** (no e2e in CI): check `docker info`, keep the machine awake, clean leaked testcontainers.

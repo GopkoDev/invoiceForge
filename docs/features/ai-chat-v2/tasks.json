@@ -6,7 +6,9 @@
       "title": "Spike and build the run-turn seam that starts a chat turn from a pinned resolution",
       "layer": "app",
       "deps": [],
-      "acs": ["AC-10"],
+      "acs": [
+        "AC-10"
+      ],
       "dod": "An integration test with the scripted model shows runTurn started from a pinned PROPOSAL returns that proposal as its pending card without a second name match, the model's input carries the pinned result, and the approach taken (prior tool step or the documented system-note fallback) is recorded in sad.md §11.",
       "files_hint": [
         "lib/ai/run-turn.ts",
@@ -22,7 +24,9 @@
       "title": "Promote staged migrations 01–05, apply the Prisma schema edits and extend the test factories",
       "layer": "migration",
       "deps": [],
-      "acs": ["AC-34"],
+      "acs": [
+        "AC-34"
+      ],
       "dod": "The five staged pairs are promoted in order into prisma/migrations, apply, backfill and revert cleanly on a throwaway testcontainers Postgres with no Prisma drift, a second OPEN offer in one Conversation fails on the partial unique index, and prisma.user.delete leaves no ChoiceOffer row.",
       "files_hint": [
         "docs/features/ai-chat-v2/migrations/01_create_choice_offer.up.sql",
@@ -52,7 +56,10 @@
       "title": "Move foldName into an isomorphic shared helper with one look-alike fixture set",
       "layer": "domain",
       "deps": [],
-      "acs": ["AC-03", "AC-17"],
+      "acs": [
+        "AC-03",
+        "AC-17"
+      ],
       "dod": "foldName lives in lib/helpers/fold-name.ts with no server-only import, every caller imports it from there, and a unit test over the shared look-alike fixture set shows every Latin/Cyrillic, extra-space and case variant folds equal while distinct names stay distinct.",
       "files_hint": [
         "lib/helpers/fold-name.ts",
@@ -68,7 +75,10 @@
       "title": "Add the offer, origin and start-point types and the CHOICE_UNAVAILABLE and ALREADY_ISSUED error details",
       "layer": "domain",
       "deps": [],
-      "acs": ["AC-12b", "AC-26"],
+      "acs": [
+        "AC-12b",
+        "AC-26"
+      ],
       "dod": "types/result.ts and types/assistant/types.ts export the new kinds and types, every exhaustive switch over ActionErrorDetails.kind handles CHOICE_UNAVAILABLE and ALREADY_ISSUED, the fixed unavailable sentence is one exported constant, and typecheck passes.",
       "files_hint": [
         "types/result.ts",
@@ -82,7 +92,11 @@
       "title": "Add the list_sender_profiles read question for the chat and MCP, and fix the stale MCP read-only comment",
       "layer": "app",
       "deps": [],
-      "acs": ["AC-01", "AC-06", "AC-07"],
+      "acs": [
+        "AC-01",
+        "AC-06",
+        "AC-07"
+      ],
       "dod": "list_sender_profiles is in READ_QUESTIONS for both channels, returns each profile with its default mark and account summaries (bank name, last four, currency, default) built in the service, an integration test shows AC-01's two profiles and only the acting Freelancer's rows, and the lib/mcp/server.ts read-only comment no longer contradicts the Draft-permission tool.",
       "files_hint": [
         "lib/assistant-tools/sender-profiles.ts",
@@ -99,8 +113,16 @@
       "id": "T06",
       "title": "Add the list_products read question with prices per currency and a Customer's Custom prices",
       "layer": "app",
-      "deps": ["T03", "T05"],
-      "acs": ["AC-02", "AC-05", "AC-06", "AC-07"],
+      "deps": [
+        "T03",
+        "T05"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-05",
+        "AC-06",
+        "AC-07"
+      ],
       "dod": "list_products answers a folded name filter with at most 20 rows plus the total, each figure exactly as stored, adds Custom prices only for a customerId owned by the acting Freelancer, and answers a foreign customerId exactly as an unknown one, proven by integration tests on both channels.",
       "files_hint": [
         "lib/assistant-tools/products.ts",
@@ -115,8 +137,16 @@
       "id": "T07",
       "title": "Make list_customers look-alike aware with a 20-row page, and add the cross-read contract and timing tests",
       "layer": "app",
-      "deps": ["T03", "T06"],
-      "acs": ["AC-03", "AC-05", "AC-06", "AC-07"],
+      "deps": [
+        "T03",
+        "T06"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-05",
+        "AC-06",
+        "AC-07"
+      ],
       "dod": "list_customers finds \"Оohn  Doe\" from \"oohn doe\" with its saved name, caps a page at 20 with pageInfo.total, a contract test walks every read question's output and finds none of the seeded full account numbers, the tool listing holds the 10 tools, and each new read answers in p95 ≤ 800 ms on the heavy fixture.",
       "files_hint": [
         "lib/assistant-tools/customers.ts",
@@ -132,8 +162,13 @@
       "id": "T08",
       "title": "Extend the draft resolver: senderProfileId in the request and label fields on the issue candidates",
       "layer": "domain",
-      "deps": ["T03"],
-      "acs": ["AC-04", "AC-10"],
+      "deps": [
+        "T03"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-10"
+      ],
       "dod": "DraftRequest accepts senderProfileId (at most one of senderProfile and senderProfileId), Customer candidates carry email, bank-account candidates bank name, last four and currency, product candidates unit, price and currency, SENDER_PROFILE_NOT_FOUND carries profiles[], and an integration test drafts AC-04 under \"Consulting FOP\" with its UAH account marked as taken from the request.",
       "files_hint": [
         "lib/services/assistant-drafts/schema.ts",
@@ -149,8 +184,15 @@
       "id": "T09",
       "title": "Rewrite the chat instructions for the real reads and add the own-sender-profile hint on CUSTOMER_NOT_FOUND (AC-05b)",
       "layer": "app",
-      "deps": ["T07", "T08"],
-      "acs": ["AC-05", "AC-05b", "AC-24"],
+      "deps": [
+        "T07",
+        "T08"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-05b",
+        "AC-24"
+      ],
       "dod": "The chat instructions name exactly the read questions in READ_QUESTIONS and state the sender-profile versus Customer rule, CUSTOMER_NOT_FOUND carries an ownSenderProfile hint when the folded written name equals one of the Freelancer's sender profile names, the issue text explains it in en and uk, no card, offer or add-Customer link follows, and the agent's tool set holds no issuing tool.",
       "files_hint": [
         "lib/ai/instructions/chat.ts",
@@ -170,8 +212,17 @@
       "id": "T10",
       "title": "Build Offered choices from resolver issues and pin a chosen option into a draft request",
       "layer": "domain",
-      "deps": ["T04", "T08"],
-      "acs": ["AC-08", "AC-08b", "AC-09", "AC-10", "AC-14"],
+      "deps": [
+        "T04",
+        "T08"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-09",
+        "AC-10",
+        "AC-14"
+      ],
       "dod": "offerFromIssues maps issues to at most one offer in the order Customer, sender profile, currency, bank account, product, returns TOO_MANY above 8 and NONE for non-offer kinds, builds labels per spec §1 with email or \"no email\" only for look-alike Customers, and pinChoice writes each kind's record into the request, all proven by unit tests.",
       "files_hint": [
         "lib/services/assistant-drafts/offers.ts",
@@ -185,8 +236,15 @@
       "id": "T11",
       "title": "Store a turn's offer, message origin and start point in saveTurn, close the open offer, and return offers on reopen",
       "layer": "infra",
-      "deps": ["T02", "T10"],
-      "acs": ["AC-12", "AC-13", "AC-18"],
+      "deps": [
+        "T02",
+        "T10"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-18"
+      ],
       "dod": "saveTurn creates a Conversation with startedFrom on its first message, writes origin on the USER row and NULL on the reply, closes the open offer for a typed or dashboard message before inserting the turn's own OPEN offer tied to the pre-generated reply id, saves nothing but metadata for a failed turn, and getConversation and loadConversationCards return offers keyed by offerId, proven by integration tests.",
       "files_hint": [
         "lib/services/conversations/save-turn.ts",
@@ -200,8 +258,15 @@
       "id": "T12",
       "title": "Check a pressed choice against the stored offer and claim or release it with the allowance slot",
       "layer": "infra",
-      "deps": ["T10", "T11"],
-      "acs": ["AC-11", "AC-12b", "AC-13"],
+      "deps": [
+        "T10",
+        "T11"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
       "dod": "checkChoice returns ok only for an OPEN offer of the acting Freelancer in that Conversation whose option exists and whose record still exists, is owned and still fits, claimOffer moves OPEN to CHOSEN in the same transaction as the slot reservation and returns false on a lost race, releaseOffer moves CHOSEN back to OPEN, and checkChoice writes nothing, all proven by integration tests.",
       "files_hint": [
         "lib/services/assistant-drafts/offers.ts",
@@ -214,8 +279,16 @@
       "id": "T13",
       "title": "Turn propose_draft issues into the reply's offer, apply the turn's pins, and stream the data-offer part",
       "layer": "app",
-      "deps": ["T01", "T10", "T11"],
-      "acs": ["AC-08", "AC-09", "AC-14"],
+      "deps": [
+        "T01",
+        "T10",
+        "T11"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-09",
+        "AC-14"
+      ],
       "dod": "A drafting turn whose resolver issue is offer-able returns a pending offer built by offerFromIssues, streams one data-offer part with only its offerId after the text, a TOO_MANY issue gives the model the match count and no offer, and a re-called propose_draft inside a pinned turn keeps the pinned record, proven by integration tests with the scripted model.",
       "files_hint": [
         "lib/ai/tools/propose-draft.ts",
@@ -230,8 +303,19 @@
       "id": "T14",
       "title": "Accept choice, origin and startedFrom in the chat request and run the press path in the chat route",
       "layer": "ports",
-      "deps": ["T12", "T13"],
-      "acs": ["AC-08", "AC-08b", "AC-10", "AC-11", "AC-12b", "AC-29", "AC-36"],
+      "deps": [
+        "T12",
+        "T13"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-10",
+        "AC-11",
+        "AC-12b",
+        "AC-29",
+        "AC-36"
+      ],
       "dod": "The chat route validates the new field combinations, refuses an invalid press with the one 409 CHOICE_UNAVAILABLE body before any reservation or model call, reserves and claims a valid press in one transaction, runs the turn from the pinned resolution, saves the stored label with origin PRESSED, releases slot and claim on a system-side failure, and sets DASHBOARD origin and startedFrom only on a new Conversation, proven by integration and contract tests.",
       "files_hint": [
         "app/api/chat/route.ts",
@@ -246,8 +330,15 @@
       "id": "T15",
       "title": "Prove the press safety properties: injection fixture, uniform refusals, concurrent claims, release on failure, metadata-only spans",
       "layer": "tests",
-      "deps": ["T14"],
-      "acs": ["AC-09", "AC-11", "AC-12b", "AC-13"],
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
       "dod": "A stream contract test with the injection fixture shows every data-offer equals the builder's output and no option comes from text, every invalid-press cause returns a byte-identical 409 body with no slot, no model call and no state change, two concurrent presses process exactly once, a fault-injected pressed turn releases slot and claim, and the new spans carry metadata only.",
       "files_hint": [
         "tests/contract/ai-chat-v2-offer-stream.contract.test.ts",
@@ -260,8 +351,15 @@
       "id": "T16",
       "title": "Guard updateInvoiceStatus with an optional expectedVersion and set issuedFromChat on that path",
       "layer": "infra",
-      "deps": ["T02", "T04"],
-      "acs": ["AC-25", "AC-26", "AC-26b"],
+      "deps": [
+        "T02",
+        "T04"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26",
+        "AC-26b"
+      ],
       "dod": "updateInvoiceStatus with expectedVersion returns CONFLICT ALREADY_ISSUED for a non-draft and CONFLICT CHANGED_ELSEWHERE for any version change under the row lock before the draft rules, keeps the editor's VALIDATION messages verbatim for rule failures, writes issuedFromChat only on the chat call, leaves the row-menu caller unchanged, and two concurrent confirms issue exactly once.",
       "files_hint": [
         "lib/services/invoices/invoices.ts",
@@ -273,8 +371,17 @@
       "id": "T17",
       "title": "Add the loadInvoicePreview and issueFromPreview server actions",
       "layer": "ports",
-      "deps": ["T16"],
-      "acs": ["AC-20", "AC-21", "AC-22", "AC-23", "AC-27", "AC-36"],
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-21",
+        "AC-22",
+        "AC-23",
+        "AC-27",
+        "AC-36"
+      ],
       "dod": "loadInvoicePreview returns AVAILABLE with the owner-scoped serialized invoice, version and state for a created card, UNAVAILABLE for a card whose invoice was deleted, and the same NOT_FOUND words for a foreign, unknown or uncreated card, issueFromPreview validates its input and maps every service outcome per the contract, neither touches the allowance, and both refuse a request without a session.",
       "files_hint": [
         "lib/actions/assistant-actions.ts",
@@ -288,8 +395,14 @@
       "id": "T18",
       "title": "List every Conversation summary and the latest three, and add the grouping and title-search helpers",
       "layer": "app",
-      "deps": ["T03", "T11"],
-      "acs": ["AC-17", "AC-30"],
+      "deps": [
+        "T03",
+        "T11"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-30"
+      ],
       "dod": "listConversationSummaries returns every owned Conversation newest first with the Freelancer time zone, listLatestConversations returns at most three, groupConversations puts last-message days into Today, Yesterday, Previous 7 days (2–7) and Older (8+) under a fixed clock and zone, and filterByTitle folds case, spaces and look-alike letters.",
       "files_hint": [
         "lib/services/conversations/conversations.ts",
@@ -303,8 +416,15 @@
       "id": "T19",
       "title": "Make the AI section a full-height workspace with a grouped, searchable Conversation list and phone sheets",
       "layer": "ui",
-      "deps": ["T18"],
-      "acs": ["AC-15", "AC-17", "AC-19", "AC-36"],
+      "deps": [
+        "T18"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-17",
+        "AC-19",
+        "AC-36"
+      ],
       "dod": "The AI section renders in a viewport-height shell where only the list and the messages scroll, the list shows the four groups, the folded search, the no-match text and New chat in a fixed footer, below 768 px the list opens as a left sheet that closes on a pick, the ?page links are gone, and docs/design-system.md describes the changed AiWorkspace and ConversationList.",
       "files_hint": [
         "app/(protected)/ai/layout.tsx",
@@ -324,8 +444,14 @@
       "id": "T20",
       "title": "Redesign the empty Conversation start with suggested requests and the composer move, and send the start point",
       "layer": "ui",
-      "deps": ["T14", "T19"],
-      "acs": ["AC-18", "AC-30"],
+      "deps": [
+        "T14",
+        "T19"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30"
+      ],
       "dod": "A new Conversation shows a centred greeting, the composer and at least four fixed suggested requests that only fill the box, the first send moves the composer down with a transition that reduced motion removes, the island sends startedFrom from the address (from=invoices, from=dashboard, unknown or missing values mapped per contract), the invoice list's Create with AI link carries from=invoices, and the used-up drafting start shows the hand-made link.",
       "files_hint": [
         "components/ai/chat-island.tsx",
@@ -344,8 +470,13 @@
       "id": "T21",
       "title": "Follow new text within 48 px with a jump-to-latest control, and pin the word-by-word streaming",
       "layer": "ui",
-      "deps": ["T20"],
-      "acs": ["AC-16", "AC-33"],
+      "deps": [
+        "T20"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-33"
+      ],
       "dod": "A follow-to-latest hook treats an end no more than 48 px out of view as at the bottom, keeps the newest text in view within 100 ms of each delta there, makes no position change when scrolled further up and shows a jump-to-latest control, a component test shows streamed text growing word by word with the first word unpaced, and a reopened reply renders whole.",
       "files_hint": [
         "components/ai/use-follow-latest.ts",
@@ -361,8 +492,18 @@
       "id": "T22",
       "title": "Render Offered choices under a reply and send a press from the chat island",
       "layer": "ui",
-      "deps": ["T14", "T21"],
-      "acs": ["AC-08", "AC-10", "AC-11", "AC-12", "AC-12b", "AC-13"],
+      "deps": [
+        "T14",
+        "T21"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-12b",
+        "AC-13"
+      ],
       "dod": "OfferedChoices renders an OfferView's stored labels verbatim in a kind-labelled group with skeleton, pressable, pressing, chosen and inactive states, a press sends { offerId, optionId } with the label as an optimistic message, 409 and 429 put the buttons back to pressable with nothing marked and show the fixed sentence or the used-up notice, and the component is registered in docs/design-system.md.",
       "files_hint": [
         "components/ai/offered-choices.tsx",
@@ -378,8 +519,14 @@
       "id": "T23",
       "title": "Add the workspace invoice-state store and the Draft card Preview button",
       "layer": "ui",
-      "deps": ["T17", "T22"],
-      "acs": ["AC-21", "AC-23"],
+      "deps": [
+        "T17",
+        "T22"
+      ],
+      "acs": [
+        "AC-21",
+        "AC-23"
+      ],
       "dod": "One InvoiceStateProvider seeded from the page load is applied by createDraftFromCard, loadInvoicePreview and issueFromPreview results, the created Draft card shows Preview and \"Open in editor\" and reads its status from the store, ChatLink reads the same store, and a component test shows the card, links and panel agree after an issue or an unavailable result.",
       "files_hint": [
         "components/ai/invoice-state-context.tsx",
@@ -396,7 +543,9 @@
       "id": "T24",
       "title": "Build the invoice preview panel and the issue confirmation for desktop and phone",
       "layer": "ui",
-      "deps": ["T23"],
+      "deps": [
+        "T23"
+      ],
       "acs": [
         "AC-19",
         "AC-20",
@@ -425,7 +574,9 @@
       "title": "Replace the single AI navigation item with an \"AI\" group holding AI chat and Connect your AI",
       "layer": "ui",
       "deps": [],
-      "acs": ["AC-28"],
+      "acs": [
+        "AC-28"
+      ],
       "dod": "The navigation config holds an \"AI\" group between the main section and Management with \"AI chat\" (/ai) and \"Connect your AI\" (/settings/assistants), the single AI item is gone, the sidebar renders it like Management and marks the current path's item active.",
       "files_hint": [
         "config/navigation-menu.config.ts",
@@ -439,8 +590,17 @@
       "id": "T26",
       "title": "Add the dashboard AI block with the prompt box hand-off, the latest Conversations and Create invoice with AI",
       "layer": "ui",
-      "deps": ["T18", "T22"],
-      "acs": ["AC-29", "AC-30", "AC-31", "AC-32", "AC-36"],
+      "deps": [
+        "T18",
+        "T22"
+      ],
+      "acs": [
+        "AC-29",
+        "AC-30",
+        "AC-31",
+        "AC-32",
+        "AC-36"
+      ],
       "dod": "The dashboard shows the AI block with up to three latest Conversation links, All conversations, the prompt box validated by the chat message rule, and a Create invoice with AI link before Create Invoice, a valid prompt is stored under a one-time sessionStorage hand-off id and opens /ai?handoff={id}, the island takes and deletes the entry exactly once and sends it with origin DASHBOARD and startedFrom DASHBOARD_PROMPT, and the used-up state offers the hand-made link and sends nothing.",
       "files_hint": [
         "components/dashboard/ai-block.tsx",
@@ -461,8 +621,12 @@
       "id": "T27",
       "title": "Cover offers, chosen options, message origins and start points in the data export and account deletion",
       "layer": "app",
-      "deps": ["T11"],
-      "acs": ["AC-34"],
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-34"
+      ],
       "dod": "The export is version 2.3 and holds every Conversation's startedFrom, each message's origin and each reply's offer with its labels, state and chosen option (no record references, no stored request), invoices carry issuedFromChat, and account deletion leaves no ChoiceOffer, message or Conversation row.",
       "files_hint": [
         "lib/services/account/account.ts",
@@ -476,7 +640,9 @@
       "title": "Update the privacy page AI section for what the chat stores and shares, and check the terms page",
       "layer": "docs",
       "deps": [],
-      "acs": ["AC-35"],
+      "acs": [
+        "AC-35"
+      ],
       "dod": "The privacy page's AI section states what is stored, the 90-day retention, the model provider through its gateway as the processor, and that reads share bank name, last four digits and currency but never a full account number, a component test asserts those statements, the terms page is checked against the chat, and the wording is flagged for the owner's review before ship.",
       "files_hint": [
         "app/(public)/privacy/privacy-content.tsx",
@@ -489,8 +655,16 @@
       "id": "T29",
       "title": "Extend the evaluation harness with explains and press fields, the own-profile-name setup and this feature's fixtures",
       "layer": "tests",
-      "deps": ["T09", "T14"],
-      "acs": ["AC-05", "AC-05b", "AC-10", "AC-24"],
+      "deps": [
+        "T09",
+        "T14"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-05b",
+        "AC-10",
+        "AC-24"
+      ],
       "dod": "The dataset type accepts optional explains and press fields and the own-profile-name setup, the harness replays a press through the route's press path, the scorer applies the own-sender-profile rule and the no-status-change check, the AC-05b, AC-05, AC-24 and pressed-record rows are in no-guessing.jsonl, and a dry run validates every row against the schema.",
       "files_hint": [
         "evals/assistant/dataset.ts",
@@ -505,8 +679,19 @@
       "id": "T30",
       "title": "Add e2e-through-UI tests for presses, reopen, full-height layout, empty start, phone sheets and streaming",
       "layer": "tests",
-      "deps": ["T19", "T21", "T22"],
-      "acs": ["AC-08", "AC-13", "AC-15", "AC-18", "AC-19", "AC-33"],
+      "deps": [
+        "T19",
+        "T21",
+        "T22"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-13",
+        "AC-15",
+        "AC-18",
+        "AC-19",
+        "AC-33"
+      ],
       "dod": "Playwright tests against a throwaway database with the scripted model show a Customer press ending in the right card, a reopened Conversation with the chosen option marked, zero page scroll with the composer in view at 360×640, 768×1024, 1440×900 and 2560×1440, the empty-state first send, the phone list sheet, and at least three samples of growing streamed text, with approved Linux visual baselines for SCR-02 and SCR-03/SCR-04.",
       "files_hint": [
         "tests/e2e/ai-chat-v2-chat.spec.ts",
@@ -519,7 +704,14 @@
       "id": "T31",
       "title": "Add e2e tests for preview and issue (two tabs), navigation, dashboard prompt, privacy, MCP reads and accessibility",
       "layer": "tests",
-      "deps": ["T07", "T24", "T25", "T26", "T28", "T30"],
+      "deps": [
+        "T07",
+        "T24",
+        "T25",
+        "T26",
+        "T28",
+        "T30"
+      ],
       "acs": [
         "AC-06",
         "AC-20",
@@ -546,8 +738,14 @@
       "id": "T32",
       "title": "Product candidates follow the drafting currency when only the Customer fails (review R14-1)",
       "layer": "app",
-      "deps": ["T08", "T12"],
-      "acs": ["AC-12b", "AC-13"],
+      "deps": [
+        "T08",
+        "T12"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-13"
+      ],
       "dod": "With a Customer not saved yet and no written currency, the resolver gives resolveLines the currency the request drafts in (the one resolveSenderAndAccount chose), so no product in another currency is a candidate and a lone same-currency match needs no choice; the press check and the resolver share one drafting-currency source; an integration test written first proves it; unit, integration, lint and typecheck are green.",
       "files_hint": [
         "lib/services/assistant-drafts/resolve-parties.ts",
@@ -562,7 +760,10 @@
       "title": "Port the Conversation, Message and Loader elements from Vercel AI Elements onto Base UI, with the licence files",
       "layer": "ui",
       "deps": [],
-      "acs": ["AC-16", "AC-33"],
+      "acs": [
+        "AC-16",
+        "AC-33"
+      ],
       "dod": "components/ai-elements/conversation.tsx, message.tsx and loader.tsx export the ADR-0010 anatomy built only on components/ui and @base-ui/react (no Radix, no new package), Conversation is driven by useFollowLatest (48 px) and MessageResponse renders plain text, each file carries the Apache-2.0 attribution header, LICENSE and NOTICE exist, and component tests written first prove follow/jump, alignment by role, plain text and the reduced-motion loader.",
       "files_hint": [
         "components/ai-elements/conversation.tsx",
@@ -579,7 +780,10 @@
       "title": "Port the PromptInput and Suggestion elements onto Base UI",
       "layer": "ui",
       "deps": [],
-      "acs": ["AC-18", "AC-31"],
+      "acs": [
+        "AC-18",
+        "AC-31"
+      ],
       "dod": "components/ai-elements/prompt-input.tsx and suggestion.tsx export the ADR-0010 anatomy on InputGroup, Textarea and Button with the attribution header, PromptInputSubmit reflects ready/submitted/streaming/error, Enter submits and Shift+Enter adds a line, a Suggestion only reports its text, and component tests written first prove each.",
       "files_hint": [
         "components/ai-elements/prompt-input.tsx",
@@ -593,7 +797,11 @@
       "title": "Rebuild the workspace as a bordered container and the Conversation list as plain rows with a row menu for delete",
       "layer": "ui",
       "deps": [],
-      "acs": ["AC-15", "AC-17", "AC-19"],
+      "acs": [
+        "AC-15",
+        "AC-17",
+        "AC-19"
+      ],
       "dod": "At md and wider the AI section is one rounded bordered container in the content area with zero page scroll, the list pane shows the search row with the actions menu, small muted group labels, plain one-line truncated rows with no visible delete icon, a row ⋯ menu leading to the unchanged delete dialog, and New chat full width at the bottom, every SCR-01 state still renders, and the updated component tests pass.",
       "files_hint": [
         "app/(protected)/ai/layout.tsx",
@@ -612,8 +820,16 @@
       "id": "T36",
       "title": "Rebuild the message list and chat pane on the elements: centred column, bubbles, avatar, errors as assistant messages with Try again",
       "layer": "ui",
-      "deps": ["T33", "T35"],
-      "acs": ["AC-12b", "AC-15", "AC-16", "AC-33"],
+      "deps": [
+        "T33",
+        "T35"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-15",
+        "AC-16",
+        "AC-33"
+      ],
       "dod": "SCR-03 renders through Conversation and Message in a centred max-w-3xl column with the composer docked at the same width, user messages as right-aligned secondary bubbles, assistant replies with the avatar and plain text, waiting with Loader, the scroll button from useFollowLatest, could-not-complete and ai-unavailable as an assistant message with an inline destructive alert and a Try again action that re-sends the same text or choice, choice unavailable and conversation gone as assistant messages, no empty header bar on /ai at md and wider, and the existing chat component tests stay green.",
       "files_hint": [
         "components/ai/message-list.tsx",
@@ -631,8 +847,15 @@
       "id": "T37",
       "title": "Rebuild the empty state with the time-of-day greeting, the PromptInput composer and suggestion chips",
       "layer": "ui",
-      "deps": ["T34", "T36"],
-      "acs": ["AC-18", "AC-30", "AC-31"],
+      "deps": [
+        "T34",
+        "T36"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30",
+        "AC-31"
+      ],
       "dod": "/ai shows the two-line greeting computed on the server in the Freelancer time zone with the first name and the accent span, a centred PromptInput card with the counter and round send button, and the four Suggestion chips that only fill the box; start=draft, used-up, handoff and the composer move with its reduced-motion variant behave as before; Composer keeps its validation on PromptInput; a unit test pins the greeting rule and the start-panel and handoff component tests stay green.",
       "files_hint": [
         "components/ai/start-panel.tsx",
@@ -651,8 +874,13 @@
       "id": "T38",
       "title": "Align Offered choices, the Draft card and the preview panel with the message layout",
       "layer": "ui",
-      "deps": ["T36"],
-      "acs": ["AC-08", "AC-20"],
+      "deps": [
+        "T36"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-20"
+      ],
       "dod": "Offered choices render as rounded-full chips inside the assistant MessageContent, the Draft card spans the centred column with the container border colour, the preview panel at md and wider is the right-most pane with an h-12 header aligned with the chat header and no own outer border, every SCR-04/05/06 state and label is unchanged, and the offered-choices, draft-card and preview-panel component tests stay green.",
       "files_hint": [
         "components/ai/offered-choices.tsx",
@@ -668,8 +896,13 @@
       "id": "T39",
       "title": "Build the dashboard AI block prompt box on the PromptInput element",
       "layer": "ui",
-      "deps": ["T34"],
-      "acs": ["AC-30", "AC-31"],
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-30",
+        "AC-31"
+      ],
       "dod": "The dashboard prompt box is a PromptInput card with the counter in its footer and a round submit labelled \"Send to AI\", empty and too-long prompts show the same verbatim FieldError and create nothing, a valid prompt hands off exactly as before, and dashboard-ai-block component tests stay green.",
       "files_hint": [
         "components/dashboard/ai-block.tsx",
@@ -681,8 +914,15 @@
       "id": "T40",
       "title": "Register the AI elements and the changed AI components in the design system",
       "layer": "docs",
-      "deps": ["T36", "T37", "T38", "T39"],
-      "acs": ["AC-15"],
+      "deps": [
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
+      "acs": [
+        "AC-15"
+      ],
       "dod": "docs/design-system.md lists Conversation, Message, PromptInput, Suggestion and Loader from components/ai-elements with their contracts, Base UI basis and the ADR-0010 deviations and licence note, updates the AiWorkspace, ConversationList, ChatIsland, Composer, StartPanel, OfferedChoices, DraftCard, InvoicePreviewPanel and DashboardAiBlock rows to the new presentation, and screens.md §New components marks each element registered.",
       "files_hint": [
         "docs/design-system.md",
@@ -694,7 +934,13 @@
       "id": "T41",
       "title": "Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines",
       "layer": "tests",
-      "deps": ["T35", "T36", "T37", "T38", "T39"],
+      "deps": [
+        "T35",
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
       "acs": [
         "AC-08",
         "AC-15",
@@ -722,8 +968,12 @@
       "id": "T42",
       "title": "Redraw the Conversation page loading skeleton inside the workspace container (review R16-1)",
       "layer": "ui",
-      "deps": ["T35"],
-      "acs": ["AC-15"],
+      "deps": [
+        "T35"
+      ],
+      "acs": [
+        "AC-15"
+      ],
       "dod": "app/(protected)/ai/[conversationId]/loading.tsx renders the same bordered rounded 16rem workspace container and list-pane skeleton as /ai/loading.tsx, plus an h-12 header skeleton, message skeletons in a centred max-w-3xl column and a rounded-2xl composer skeleton; a component test written first proves it.",
       "files_hint": [
         "app/(protected)/ai/[conversationId]/loading.tsx",
@@ -736,8 +986,12 @@
       "id": "T43",
       "title": "Jump to latest shows its label on focus and keeps focus; the follow hook lives with the elements (review R16-2, R16-8)",
       "layer": "ui",
-      "deps": ["T33"],
-      "acs": ["AC-16"],
+      "deps": [
+        "T33"
+      ],
+      "acs": [
+        "AC-16"
+      ],
       "dod": "ConversationScrollButton has a text label that becomes visible on keyboard focus, and after a jump focus moves to a sensible target instead of body; use-follow-latest lives in components/ai-elements (components/ai re-exports or imports from there) so no element imports from components/ai; the inner column carries data-slot=\"conversation-column\"; component tests written first prove label-on-focus and focus retention.",
       "files_hint": [
         "components/ai-elements/conversation.tsx",
@@ -751,8 +1005,13 @@
       "id": "T44",
       "title": "PromptInput on InputGroup, IME-safe Enter in Safari, and a decorative spinner in the submit (review R16-5, R16-6, R16-7)",
       "layer": "ui",
-      "deps": ["T34"],
-      "acs": ["AC-18", "AC-33"],
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-33"
+      ],
       "dod": "PromptInput's card is the InputGroup primitive (no hand-copied border, ring or invalid classes); an Enter keydown with keyCode 229 (Safari, after compositionend) does not submit; PromptInputSubmit's busy state is a decorative aria-hidden spinner with no role=status and no div inside the button, so only the chat's own status announces a waiting reply; component tests written first prove each.",
       "files_hint": [
         "components/ai-elements/prompt-input.tsx",
@@ -765,8 +1024,13 @@
       "id": "T45",
       "title": "Start panel: used-up from Create with AI keeps the default heading, chips wrap on phones, greeting slot, one session read (review R16-3, R16-9, R16-10)",
       "layer": "ui",
-      "deps": ["T37"],
-      "acs": ["AC-18", "AC-30"],
+      "deps": [
+        "T37"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30"
+      ],
       "dod": "With start=draft and left=0 the start panel shows the default line 2 and no draft sub-line (test asserts heading and absence of sub-line); Suggestion chips may wrap their text (no whitespace-nowrap overflow at 360 px); the greeting line carries data-slot=\"greeting-line\"; the /ai page reads the account name without an extra auth() call per render; tests written first.",
       "files_hint": [
         "components/ai/start-panel.tsx",
@@ -782,8 +1046,14 @@
       "id": "T46",
       "title": "E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)",
       "layer": "tests",
-      "deps": ["T43", "T45"],
-      "acs": ["AC-15", "AC-18"],
+      "deps": [
+        "T43",
+        "T45"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-18"
+      ],
       "dod": "accessibility.spec runs the empty-state axe scan in the dark theme too, and the greeting accent's contrast is asserted by computing the token colours (axe reports gradient text as incomplete); a 360x640 check asserts the start panel has no horizontal overflow; the centred-column and greeting-mask selectors use data-slot instead of DOM nesting; affected e2e specs pass.",
       "files_hint": [
         "tests/e2e/accessibility.spec.ts",
@@ -796,8 +1066,12 @@
       "id": "T47",
       "title": "The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)",
       "layer": "ui",
-      "deps": ["T43"],
-      "acs": ["AC-16"],
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-16"
+      ],
       "dod": "ConversationContent's scroll area is tabIndex 0, named (role region, aria-label Messages) and shows a focus-visible ring instead of outline-none; a keyboard jump still moves focus to it; component tests written first.",
       "files_hint": [
         "components/ai-elements/conversation.tsx",
@@ -809,8 +1083,12 @@
       "id": "T48",
       "title": "One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)",
       "layer": "ui",
-      "deps": ["T45"],
-      "acs": ["AC-18"],
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-18"
+      ],
       "dod": "A one-line Suggestion chip is 32 px tall again (py-1 with min-h-8), wrapped chips still grow; components/ai-elements/NOTICE lists the InputGroup card, the decorative submit spinner and chip text wrapping; Linux baselines checked.",
       "files_hint": [
         "components/ai-elements/suggestion.tsx",
@@ -823,8 +1101,12 @@
       "id": "T49",
       "title": "Record the scroll area's labelled region and Tab stop in screens.md, the NOTICE and the element header (review R18-1)",
       "layer": "docs",
-      "deps": ["T47"],
-      "acs": ["AC-16"],
+      "deps": [
+        "T47"
+      ],
+      "acs": [
+        "AC-16"
+      ],
       "dod": "screens.md SCR-03 says the scroll area is a Tab stop (tabIndex 0, role region, aria-label Messages) with an inset focus-visible ring and that a keyboard Jump to latest moves focus to it; components/ai-elements/NOTICE and the conversation.tsx header record the labelled region and Tab stop as the replacement for role=log.",
       "files_hint": [
         "docs/features/ai-chat-v2/screens.md",
@@ -832,6 +1114,431 @@
         "components/ai-elements/conversation.tsx"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t49-record-messages-region.md"
+    },
+    {
+      "id": "T50",
+      "title": "Promote staged migrations 06–08, apply the Prisma schema edits for the Question form and extend the factories",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-13",
+        "AC-34"
+      ],
+      "dod": "migrations apply, backfill and revert cleanly on a throwaway Postgres; no command against `.env` / `.env.prod`; existing ChoiceOffer integration tests stay green; typecheck green after `prisma generate`; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/migrations/06_add_form_enum_values.up.sql",
+        "docs/features/ai-chat-v2/migrations/07_add_choice_offer_form_columns.up.sql",
+        "docs/features/ai-chat-v2/migrations/08_backfill_choice_offer_questions.up.sql",
+        "prisma/schema/ai.prisma",
+        "prisma/migrations/",
+        "tests/support/factories/choice-offer.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t50-promote-staged-migrations-06-08-apply-the.md"
+    },
+    {
+      "id": "T51",
+      "title": "Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms",
+      "layer": "domain",
+      "deps": [
+        "T50"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "unit tests for the schemas and the legacy mapping pass; the rewritten request-schema tests pass; typecheck, lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "types/assistant/types.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "lib/validations/assistant-chat.ts",
+        "lib/services/conversations/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t51-add-the-question-form-types-and-zod.md"
+    },
+    {
+      "id": "T52",
+      "title": "Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)",
+      "layer": "domain",
+      "deps": [
+        "T51"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-14",
+        "AC-39",
+        "AC-41"
+      ],
+      "dod": "unit tests pass, including the 9-question ordering and the date options with a fixed clock in Europe/Kyiv; the old `offerFromIssues` unit tests are rewritten for questions (not deleted); lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/unit/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t52-build-the-form-from-resolver-issues-and.md"
+    },
+    {
+      "id": "T53",
+      "title": "Check typed answers per kind, pin answers into a stored draft request, and compose the answer message",
+      "layer": "domain",
+      "deps": [
+        "T51"
+      ],
+      "acs": [
+        "AC-10",
+        "AC-38",
+        "AC-39"
+      ],
+      "dod": "unit tests pass for every kind and the pin of every field; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/form-pin.ts",
+        "lib/validations/form-answers.ts",
+        "tests/unit/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t53-check-typed-answers-per-kind-pin-answers.md"
+    },
+    {
+      "id": "T54",
+      "title": "Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels",
+      "layer": "app",
+      "deps": [
+        "T52"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-37"
+      ],
+      "dod": "integration tests pass on a throwaway database with the scripted model; MCP listing contract test unchanged; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/tools/ask-user.ts",
+        "lib/ai/agent.ts",
+        "lib/services/assistant-drafts/forms.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t54-add-the-chat-only-ask-user-tool.md"
+    },
+    {
+      "id": "T55",
+      "title": "Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen",
+      "layer": "app",
+      "deps": [
+        "T52",
+        "T54"
+      ],
+      "acs": [
+        "AC-08b",
+        "AC-12",
+        "AC-13",
+        "AC-37",
+        "AC-41"
+      ],
+      "dod": "integration tests (scripted model) pass for each edge; rewritten T11/T13 tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/turn-context.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/conversations/",
+        "lib/actions/assistant-actions.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t55-compose-the-turn-s-one-form-stream.md"
+    },
+    {
+      "id": "T56",
+      "title": "Check a sent form before any count and claim or release it with the allowance slot",
+      "layer": "infra",
+      "deps": [
+        "T53",
+        "T55"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "integration tests pass; the T12 claim/release tests are rewritten for forms; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-usage/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t56-check-a-sent-form-before-any-count.md"
+    },
+    {
+      "id": "T57",
+      "title": "Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM",
+      "layer": "ports",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12b",
+        "AC-38"
+      ],
+      "dod": "route integration tests with the scripted model pass (call counts asserted); rewritten T14 tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/ai/run-turn.ts",
+        "lib/services/conversations/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t57-run-the-form-path-in-the-chat.md"
+    },
+    {
+      "id": "T58",
+      "title": "Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans",
+      "layer": "tests",
+      "deps": [
+        "T57"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11",
+        "AC-12b"
+      ],
+      "dod": "suite green on a throwaway database; no T15 test deleted without its rewritten counterpart; lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "tests/integration/",
+        "tests/contract/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t58-prove-the-form-safety-properties-injection-and.md"
+    },
+    {
+      "id": "T59",
+      "title": "Build the QuestionForm component with every SCR-04 revision state",
+      "layer": "ui",
+      "deps": [
+        "T51",
+        "T53"
+      ],
+      "acs": [
+        "AC-08b",
+        "AC-12",
+        "AC-13",
+        "AC-38",
+        "AC-40"
+      ],
+      "dod": "component tests pass for every state; a11y: radiogroup arrow keys, `aria-invalid`, `aria-describedby`; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "tests/component/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t59-build-the-questionform-component-with-every-scr.md"
+    },
+    {
+      "id": "T60",
+      "title": "Wire QuestionForm into the chat island, send forms, remove OfferedChoices",
+      "layer": "ui",
+      "deps": [
+        "T57",
+        "T59"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-12",
+        "AC-40"
+      ],
+      "dod": "component + island tests pass; existing chat-island tests stay green; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "components/ai/message-list.tsx",
+        "components/ai/offered-choices.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t60-wire-questionform-into-the-chat-island-send.md"
+    },
+    {
+      "id": "T61",
+      "title": "Cover forms, answers and origin FORM in the data export, account deletion and the privacy page",
+      "layer": "app",
+      "deps": [
+        "T55"
+      ],
+      "acs": [
+        "AC-34",
+        "AC-35"
+      ],
+      "dod": "tests pass; owner reviews the privacy wording before ship (as D-7); existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/account/",
+        "constants/public-pages-content.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t61-cover-forms-answers-and-origin-form-in.md"
+    },
+    {
+      "id": "T62",
+      "title": "Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-42",
+        "AC-43",
+        "AC-44"
+      ],
+      "dod": "unit + component tests pass; bundle delta measured ≤ 60 kB gzip and noted in the commit; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "package.json",
+        "components/ai-elements/message.tsx",
+        "lib/ai/in-app-links.ts",
+        "components/ai-elements/NOTICE",
+        "tests/component/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t62-render-replies-as-safe-markdown-with-react.md"
+    },
+    {
+      "id": "T63",
+      "title": "Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links",
+      "layer": "app",
+      "deps": [
+        "T54",
+        "T64"
+      ],
+      "acs": [
+        "AC-45",
+        "AC-46",
+        "AC-47",
+        "AC-48"
+      ],
+      "dod": "unit tests pass; existing AC-24 / AC-05b tests stay green; lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/instructions/chat.ts",
+        "lib/ai/router.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t63-tell-the-model-today-and-the-time.md"
+    },
+    {
+      "id": "T64",
+      "title": "Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-48",
+        "AC-49"
+      ],
+      "dod": "integration + contract tests pass; existing search tests unchanged and green; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/invoices/assistant-search.ts",
+        "lib/assistant-tools/search.ts",
+        "tests/integration/",
+        "tests/contract/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t64-add-created-date-filters-a-created-date.md"
+    },
+    {
+      "id": "T65",
+      "title": "Extend the evaluation harness with form, card-or-form, link and date checks and the owner-feedback rows",
+      "layer": "tests",
+      "deps": [
+        "T60",
+        "T63",
+        "T64"
+      ],
+      "acs": [
+        "AC-37",
+        "AC-45",
+        "AC-46",
+        "AC-47",
+        "AC-48",
+        "AC-49"
+      ],
+      "dod": "harness unit tests pass; one local run recorded in the commit message (owner gate before ship); existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "evals/assistant/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t65-extend-the-evaluation-harness-with-form-card.md"
+    },
+    {
+      "id": "T66",
+      "title": "Keep the Conversation list mounted in the AI layout and update it from chat events",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-17",
+        "AC-52"
+      ],
+      "dod": "component tests pass; existing AI e2e specs pass locally unchanged (docker info checked, machine kept awake); lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "app/(protected)/ai/layout.tsx",
+        "app/(protected)/ai/page.tsx",
+        "app/(protected)/ai/[conversationId]/page.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list-context.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/chat-island.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t66-keep-the-conversation-list-mounted-in-the.md"
+    },
+    {
+      "id": "T67",
+      "title": "Align the list top row with the chat header, size every skeleton to its content, and level the avatar with the first line",
+      "layer": "ui",
+      "deps": [
+        "T66"
+      ],
+      "acs": [
+        "AC-50",
+        "AC-51",
+        "AC-53"
+      ],
+      "dod": "component tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/conversation-header.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "app/(protected)/ai/[conversationId]/loading.tsx",
+        "components/ai-elements/message.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t67-align-the-list-top-row-with-the.md"
+    },
+    {
+      "id": "T68",
+      "title": "Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines",
+      "layer": "tests",
+      "deps": [
+        "T60",
+        "T62",
+        "T67"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-13",
+        "AC-37",
+        "AC-40",
+        "AC-42",
+        "AC-50",
+        "AC-51",
+        "AC-52",
+        "AC-53"
+      ],
+      "dod": "full AI e2e suite green locally; baselines retaken deliberately; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "e2e/",
+        "e2e/__screenshots__/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t68-add-e2e-through-ui-tests-for-forms.md"
+    },
+    {
+      "id": "T69",
+      "title": "Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form",
+      "layer": "docs",
+      "deps": [
+        "T60",
+        "T62",
+        "T66"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-42",
+        "AC-52"
+      ],
+      "dod": "docs updated; links resolve; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/ai-chat-v2/ux-flows.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md"
     }
   ]
 }
