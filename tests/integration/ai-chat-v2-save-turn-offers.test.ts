@@ -1,6 +1,7 @@
 // ai-chat-v2 T11 (spec.md §5 AC-12, AC-13, AC-18; contracts/server-actions.md §saveTurn, §getConversation,
 // §loadConversationCards): saveTurn stores the turn's Offered choices tied to the pre-generated reply, closes the
-// Conversation's OPEN offer for a typed/dashboard message (never for a press), writes origin and startedFrom;
+// Conversation's OPEN offer for any new message (for a press, only an offer another tab stored: its own is CHOSEN;
+// review 2026-10-13 R2-B1), writes origin and startedFrom;
 // getConversation and loadConversationCards return offers keyed by offerId (no ref, no request).
 import {
   afterAll,

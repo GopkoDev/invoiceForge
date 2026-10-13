@@ -55,3 +55,7 @@ An Offered choice must be shown again when a Conversation is reopened (spec §1,
 - Spec: [[../spec.md]] §1 "Offered choices as buttons", AC-08–AC-14, AC-34
 - SAD: [[../sad.md]] §4, §5
 - Related ADR: [[0002-build-offered-choices-in-code-from-the-draft-resolvers-typed-issues]], [[0003-send-a-press-as-an-option-reference-and-pin-the-chosen-record-into-the-draft-request-in-code]]; ai-assistant ADR-0007, ADR-0008
+
+## As built (review 2026-10-13)
+
+The life cycle of Option 1 as implemented: a non-counted failure releases `CHOSEN` → `OPEN`, or → `CLOSED` when a newer message was saved meanwhile (another tab), so an older reply's buttons never become pressable again (R1-B2, R2-B1). Any newer message closes an `OPEN` offer, a press included (its own offer is already `CHOSEN`, so it closes only an offer another tab stored).

@@ -1,5 +1,5 @@
-// Review 2026-10-13 R2-B2, R3-B3, R3-B4 (ai-chat-v2 AC-14): above 8 matches the propose_draft answer drops every list
-// longer than 8 and carries each one's count; lists of 8 or fewer, and an answer with no match count, stay whole.
+// Review 2026-10-13 R2-B2, R3-B3, R3-B4, R4-B1, R4-B2 (ai-chat-v2 AC-14): the propose_draft answer drops every list
+// longer than 8, in any issue, and carries each one's count and a directive; lists of 8 or fewer stay whole.
 import { describe, expect, it, vi } from 'vitest';
 import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
 
