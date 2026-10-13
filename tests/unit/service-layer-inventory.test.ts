@@ -83,6 +83,10 @@ describe('part 2: every business function has request-free and foreign-record te
     'invoiceNumberConflict',
     // Internal link-state read shared by getConversation and createFromCard (ai-assistant T20).
     'readInvoiceStates',
+    // Transaction steps of the press path (server-actions.md §Chat route internals): they take the route's
+    // transaction, not an actor-first call; covered by tests/integration/ai-chat-v2-choice-check.test.ts (ai-chat-v2 T12).
+    'claimOffer',
+    'releaseOffer',
   ]);
 
   type Fn = { name: string; file: string; takesId: boolean };

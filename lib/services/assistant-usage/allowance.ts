@@ -8,6 +8,7 @@ import { dayToUtcDate, todayInZone, utcDateToDay } from '@/lib/helpers/calendar-
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import type { ActionResult } from '@/types/result';
+import type { Prisma } from '@prisma/client';
 
 export const ALLOWANCE_LIMIT = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +26,20 @@ export type AllowanceDayRow = { day: Date; used: number; timeZone: string; first
 export type ReserveResult =
   | { ok: true; state: AllowanceState; release: () => Promise<AllowanceState> }
   | { ok: false; usedUp: { kind: 'ALLOWANCE_USED_UP'; limit: 30; renewsAt: string; timeZone: string } }
-  | { ok: false; unavailable: true };
+  | { ok: false; unavailable: true }
+  /** ai-chat-v2: the press's claim was lost to another press; no slot was taken. */
+  | { ok: false; claimLost: true };
+
+/**
+ * ai-chat-v2 T12 (Critical flow 1, data-model §ChoiceOffer Claim): work committed in the same transaction as the
+ * slot (a press's offer claim) and undone together with it.
+ */
+export type SlotClaim = {
+  claim: (tx: Prisma.TransactionClient) => Promise<boolean>;
+  release: (tx: Prisma.TransactionClient) => Promise<void>;
+};
+
+class ClaimLost extends Error {}
 
 const endOfLocalDay = (day: Date, zone: string) => {
   const key = utcDateToDay(day);
@@ -86,8 +100,15 @@ export async function getAllowanceState(
   }
 }
 
-/** Takes one slot of today's allowance, or says it is used up. Fails closed on any database error. */
-export async function reserveMessageSlot(actor: ActingFreelancer, now: Date): Promise<ReserveResult> {
+/**
+ * Takes one slot of today's allowance, or says it is used up. Fails closed on any database error. With `claim`, the
+ * slot and the claim commit together or not at all, and `release` gives both back in one transaction.
+ */
+export async function reserveMessageSlot(
+  actor: ActingFreelancer,
+  now: Date,
+  claim?: SlotClaim
+): Promise<ReserveResult> {
   try {
     const latest = await latestRow(actor.userId);
     const cur = currentAllowanceDay(latest, actor.timeZone, now);
@@ -99,10 +120,30 @@ export async function reserveMessageSlot(actor: ActingFreelancer, now: Date): Pr
         skipDuplicates: true,
       });
     }
-    const rows = await prisma.$queryRaw<{ used: number }[]>`
+    const take = (client: Prisma.TransactionClient) => client.$queryRaw<{ used: number }[]>`
       UPDATE "MessageAllowanceDay" SET "used" = "used" + 1
       WHERE "userId" = ${userId} AND "day" = ${cur.day} AND "used" < ${ALLOWANCE_LIMIT}
       RETURNING "used"`;
+    const giveBack = (client: Prisma.TransactionClient) => client.$queryRaw<{ used: number }[]>`
+      UPDATE "MessageAllowanceDay" SET "used" = "used" - 1
+      WHERE "userId" = ${userId} AND "day" = ${cur.day} AND "used" > 0
+      RETURNING "used"`;
+    let rows: { used: number }[];
+    if (claim) {
+      try {
+        rows = await prisma.$transaction(async (tx) => {
+          const taken = await take(tx);
+          // No slot left: nothing is claimed (AC-11). A lost claim rolls the slot back with it.
+          if (taken.length > 0 && !(await claim.claim(tx))) throw new ClaimLost();
+          return taken;
+        });
+      } catch (error) {
+        if (error instanceof ClaimLost) return { ok: false, claimLost: true };
+        throw error;
+      }
+    } else {
+      rows = await take(prisma);
+    }
     if (rows.length === 0) {
       return {
         ok: false,
@@ -114,10 +155,13 @@ export async function reserveMessageSlot(actor: ActingFreelancer, now: Date): Pr
     const release = async (): Promise<AllowanceState> => {
       if (released && after) return after;
       released = true;
-      const back = await prisma.$queryRaw<{ used: number }[]>`
-        UPDATE "MessageAllowanceDay" SET "used" = "used" - 1
-        WHERE "userId" = ${userId} AND "day" = ${cur.day} AND "used" > 0
-        RETURNING "used"`;
+      const back = claim
+        ? await prisma.$transaction(async (tx) => {
+            const r = await giveBack(tx);
+            await claim.release(tx);
+            return r;
+          })
+        : await giveBack(prisma);
       const used =
         back[0]?.used ??
         (await prisma.messageAllowanceDay.findUnique({
