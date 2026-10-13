@@ -172,6 +172,9 @@ describe('Suggestion', () => {
     expect(chip).toHaveClass('rounded-full');
     // Review R16-10 / T45: a long chip wraps its text on a phone instead of overflowing the pane.
     expect(chip).toHaveClass('h-auto', 'whitespace-normal', 'text-left');
+    // Button's base shrink-0 would keep the chip at its one-line width; it must shrink to the row.
+    expect(chip).toHaveClass('max-w-full', 'shrink');
+    expect(chip.className).not.toMatch(/(^|\s)shrink-0(\s|$)/);
     expect(chip.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
     await userEvent.click(chip);
     expect(onPick).toHaveBeenCalledWith('Who owes me money right now?');

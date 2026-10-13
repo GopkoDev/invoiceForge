@@ -45,7 +45,7 @@ export function Suggestion({
       variant={variant}
       size={size}
       className={cn(
-        'h-auto min-h-8 rounded-full px-3 py-1.5 text-left font-normal whitespace-normal',
+        'h-auto min-h-8 max-w-full shrink rounded-full px-3 py-1.5 text-left font-normal whitespace-normal',
         className
       )}
       onClick={() => onClick?.(suggestion)}
