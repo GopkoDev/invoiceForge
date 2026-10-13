@@ -374,3 +374,36 @@ describe('Following new text (AC-16)', () => {
     );
   });
 });
+
+// Review 2026-10-13 R1-U4: content that grows with no new message (a Draft card replacing its skeleton after the
+// reply, Offered-choice labels replacing theirs) is followed too, and further up it shows the jump control.
+describe('Following content that grows after the stream (AC-16)', () => {
+  const grow = (el: HTMLElement, chars: number) => {
+    const block = document.createElement('div');
+    block.textContent = 'x'.repeat(chars);
+    el.appendChild(block);
+  };
+
+  it('at the bottom, a card that grows the content by more than 48 px is followed', async () => {
+    island();
+    await waitFor(() => expect(atEnd()).toBe(true));
+    const el = scroller();
+    grow(el, 200); // 400 px taller
+    await waitFor(() => expect(atEnd()).toBe(true), { timeout: 100 });
+    expect(jump()).toBeNull();
+  });
+
+  it('further up, growing content moves nothing and the jump control stays', async () => {
+    island();
+    await waitFor(() => expect(atEnd()).toBe(true));
+    const el = scroller();
+    el.scrollTop = maxTop(el) - 49;
+    fireEvent.scroll(el);
+    const kept = el.scrollTop;
+    expect(await screen.findByRole('button', { name: 'Jump to latest' })).toBeTruthy();
+    grow(el, 200);
+    await pause(50);
+    expect(el.scrollTop).toBe(kept);
+    expect(jump()).toBeTruthy();
+  });
+});

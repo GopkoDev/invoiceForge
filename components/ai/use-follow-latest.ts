@@ -67,6 +67,30 @@ export function useFollowLatest(content: unknown) {
     return () => el.removeEventListener('scroll', onScroll);
   }, [el]);
 
+  // Content can also grow with no new message: a Draft card replacing its skeleton after the reply, offer labels
+  // replacing theirs, a card refreshed from the server (review 2026-10-13 R1-U4). While following, keep the end in
+  // view; further up nothing moves (the jump control is already showing).
+  useEffect(() => {
+    if (!el) return;
+    const follow = () => {
+      if (following.current) scrollToEnd(el);
+    };
+    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(follow) : null;
+    const observeChildren = () => {
+      for (const child of Array.from(el.children)) resize?.observe(child);
+    };
+    observeChildren();
+    const mutation = new MutationObserver(() => {
+      observeChildren();
+      follow();
+    });
+    mutation.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => {
+      mutation.disconnect();
+      resize?.disconnect();
+    };
+  }, [el]);
+
   // Follow new content before paint while at the bottom (on open too: a reopened Conversation shows its end).
   useLayoutEffect(() => {
     if (el && following.current) scrollToEnd(el);
