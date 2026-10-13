@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeftIcon, MoreHorizontal, PlusIcon } from 'lucide-react';
+import { MoreHorizontal, PlusIcon } from 'lucide-react';
+import { ConversationListButton } from '@/components/ai/ai-workspace';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,18 +20,14 @@ interface ConversationHeaderProps {
 
 export function ConversationHeader({ title, onDelete }: ConversationHeaderProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <Link
-        href={protectedRoutes.ai}
-        className="text-muted-foreground inline-flex items-center gap-1 text-sm hover:underline lg:hidden"
-      >
-        <ArrowLeftIcon className="size-4" />
-        All conversations
-      </Link>
+    <div className="flex shrink-0 flex-col gap-2 pb-2">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="min-w-0 truncate text-lg font-semibold" title={title}>
-          {title}
-        </h1>
+        <div className="flex min-w-0 items-center gap-1">
+          <ConversationListButton />
+          <h1 className="min-w-0 truncate text-lg font-semibold" title={title}>
+            {title}
+          </h1>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link href={protectedRoutes.ai} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
             <PlusIcon data-icon="inline-start" />

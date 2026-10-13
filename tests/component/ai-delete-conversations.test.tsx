@@ -51,21 +51,15 @@ import { ConversationHeaderClient } from '@/components/ai/conversation-header-cl
 import { AiModalContainer } from '@/components/modals/ai/ai-modal-container';
 import AiLayout from '@/app/(protected)/ai/layout';
 import { useModalStore } from '@/store/use-modal-store';
-import type { ConversationPage } from '@/components/ai/conversation-list';
+import type { ConversationSummary } from '@/types/assistant/types';
 
-function pageOf(titles: string[], total = titles.length): ConversationPage {
-  return {
-    items: titles.map((title, i) => ({
-      id: `c${i + 1}`,
-      title,
-      lastMessageAt: '2026-10-10T09:00:00.000Z',
-    })) as ConversationPage['items'],
-    total,
-    page: 1,
-    pageSize: 20,
-    totalPages: 1,
-    hasMore: false,
-  };
+// ai-chat-v2 T19: the list takes every summary (no paging); `total` extra rows stand in for the server count.
+function pageOf(titles: string[], total = titles.length): ConversationSummary[] {
+  return Array.from({ length: Math.max(total, titles.length) }, (_, i) => ({
+    id: `c${i + 1}`,
+    title: titles[i] ?? `Chat ${i + 1}`,
+    lastMessageAt: '2026-10-10T09:00:00.000Z',
+  }));
 }
 
 const TITLE = 'Who owes me money?';

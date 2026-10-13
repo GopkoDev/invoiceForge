@@ -40,7 +40,7 @@ const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
   // T40 (R-20): the conversation page also reads the list column.
-  listConversations: async () => ({ success: true, data: { items: [], total: 0, page: 1, pageSize: 20, totalPages: 1, hasMore: false } }),
+  listConversationSummaries: async () => ({ success: true, data: { items: [], timeZone: 'UTC' } }),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
   actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
@@ -191,7 +191,8 @@ describe('ConversationHeader', () => {
     render(<ConversationHeader title="Who owes me money?" onDelete={onDelete} />);
     expect(screen.getByText('Who owes me money?')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /new conversation/i })).toHaveAttribute('href', '/ai');
-    expect(screen.getByRole('link', { name: /all conversations/i })).toHaveAttribute('href', '/ai');
+    // ai-chat-v2 T19: the phone list is a sheet opened from the workspace's list button, not a link back.
+    expect(screen.queryByRole('link', { name: /all conversations/i })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Conversation actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete conversation' }));
     expect(onDelete).toHaveBeenCalledTimes(1);

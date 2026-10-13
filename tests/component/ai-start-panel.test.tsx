@@ -26,10 +26,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const listConversations = vi.fn();
+const listConversationSummaries = vi.fn();
 const getAllowanceState = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
-  listConversations: (...a: unknown[]) => listConversations(...a),
+  listConversationSummaries: (...a: unknown[]) => listConversationSummaries(...a),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: (...a: unknown[]) => getAllowanceState(...a),
@@ -67,7 +67,7 @@ function state(over: Partial<AllowanceState> = {}): AllowanceState {
 const usedUp = () => state({ used: 30, left: 0 });
 
 beforeEach(() => {
-  listConversations.mockReset();
+  listConversationSummaries.mockReset();
   getAllowanceState.mockReset();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-12T10:00:00.000Z'));
@@ -164,10 +164,10 @@ describe('StartPanel - used-up from Create with AI (AC-34)', () => {
 });
 
 describe('AI page wiring', () => {
-  const emptyPage = { items: [], total: 0, page: 1, pageSize: 20, totalPages: 0, hasMore: false };
+  const emptyPage = { items: [], timeZone: 'UTC' };
 
   beforeEach(() => {
-    listConversations.mockResolvedValue({ success: true, data: emptyPage });
+    listConversationSummaries.mockResolvedValue({ success: true, data: emptyPage });
   });
 
   it('reads the allowance of the signed-in freelancer and renders the default panel', async () => {
@@ -194,23 +194,16 @@ describe('AI page wiring', () => {
 
   it('keeps the list readable and shows the used-up notice when nothing is left', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: usedUp() });
-    listConversations.mockResolvedValue({
+    listConversationSummaries.mockResolvedValue({
       success: true,
-      data: {
-        ...emptyPage,
-        items: [{ id: 'c1', title: 'Who owes me money?', lastMessageAt: '2026-10-10T09:00:00.000Z' }],
-        total: 1,
-        totalPages: 1,
-      },
+      data: { ...emptyPage, items: [{ id: 'c1', title: 'Who owes me money?', lastMessageAt: '2026-10-10T09:00:00.000Z' }] },
     });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText("You've used today's 30 messages")).toBeInTheDocument();
-    // T44: the list renders in two slots (lg and phone); every copy must link to the Conversation.
+    // ai-chat-v2 T19: one list (the md+ pane); the phone sheet renders only when opened.
     const rows = screen.getAllByRole('link', { name: /Who owes me money\?/ });
-    expect(rows).toHaveLength(2); // T45 (P-3): exactly one copy per slot (lg and phone)
-    expect(rows.filter((r) => r.closest('.hidden.lg\\:block'))).toHaveLength(1);
-    expect(rows.filter((r) => r.closest('.lg\\:hidden'))).toHaveLength(1);
-    rows.forEach((row) => expect(row).toHaveAttribute('href', '/ai/c1'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute('href', '/ai/c1');
     expect(screen.queryByRole('link', { name: 'Create it by hand →' })).not.toBeInTheDocument();
   });
 

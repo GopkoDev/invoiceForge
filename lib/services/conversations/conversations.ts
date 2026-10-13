@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { prisma } from '@/prisma';
 import { ok, fail, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
-import { paginate, type Page } from '@/lib/services/_shared/list-query';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { todayIn } from '@/lib/services/_shared/overdue';
 import { appLinkSchema } from '@/lib/validations/assistant-chat';
@@ -20,7 +19,6 @@ import type {
   OfferView,
 } from '@/types/assistant/types';
 
-const PAGE_SIZE = 20;
 const HISTORY_LIMIT = 40;
 const NOT_FOUND_MESSAGE = "This conversation can't be found.";
 const FAILED_MESSAGE = "We couldn't load this conversation. Please try again.";
@@ -61,38 +59,13 @@ const toMessageView = (m: MessageRow): ConversationMessageView => ({
   createdAt: m.createdAt.toISOString(),
 });
 
-export async function listConversations(
-  actor: ActingFreelancer,
-  page?: number
-): Promise<ActionResult<Page<ConversationSummary>>> {
-  const where = { userId: actor.userId };
-  try {
-    const result = await paginate({
-      count: () => prisma.conversation.count({ where }),
-      findMany: (args) =>
-        prisma.conversation.findMany({
-          where,
-          select: { id: true, title: true, lastMessageAt: true },
-          ...args,
-        } as Parameters<typeof prisma.conversation.findMany>[0]) as Promise<
-          Array<{ id: string; title: string; lastMessageAt: Date }>
-        >,
-      orderBy: [{ lastMessageAt: 'desc' }],
-      query: { page, pageSize: PAGE_SIZE },
-    });
-    return ok({ ...result, items: result.items.map(toSummary) });
-  } catch (error) {
-    return failed('listConversations failed', error, LIST_FAILED_MESSAGE);
-  }
-}
-
 const SUMMARY_SELECT = { id: true, title: true, lastMessageAt: true } as const;
 const LIST_FAILED_MESSAGE = "We couldn't load your conversations. Please try again.";
 
 /**
  * ai-chat-v2 T18 (AC-15, AC-17, AC-18; contracts/server-actions.md §listConversationSummaries): every Conversation
  * of the Freelancer, newest last message first, with their time zone for the client's day groups. No paging: the
- * allowance and the 90-day retention bound it (sad.md §5, §7). Replaces listConversations once T19 swaps the pages.
+ * allowance and the 90-day retention bound it (sad.md §5, §7). It replaced the paged listConversations (ai-chat-v2 T19).
  */
 export async function listConversationSummaries(
   actor: ActingFreelancer

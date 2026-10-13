@@ -31,10 +31,10 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) },
 }));
 
-const listConversations = vi.fn();
+const listConversationSummaries = vi.fn();
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
-  listConversations: (...a: unknown[]) => listConversations(...a),
+  listConversationSummaries: (...a: unknown[]) => listConversationSummaries(...a),
   getConversation: (...a: unknown[]) => getConversation(...a),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
@@ -63,17 +63,11 @@ import { buttonVariants } from '@/components/ui/button';
 import { protectedRoutes } from '@/config/routes.config';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 import type { DraftCardView } from '@/types/assistant/types';
-import type { ConversationPage as ListPage } from '@/components/ai/conversation-list';
+import type { ConversationSummary } from '@/types/assistant/types';
 
-const page = (titles: string[]): ListPage =>
-  ({
-    items: titles.map((title, i) => ({ id: `c${i + 1}`, title, lastMessageAt: '2026-10-10T09:00:00.000Z' })),
-    total: titles.length,
-    page: 1,
-    pageSize: 20,
-    totalPages: 1,
-    hasMore: false,
-  }) as ListPage;
+const page = (titles: string[]): ConversationSummary[] =>
+  titles.map((title, i) => ({ id: `c${i + 1}`, title, lastMessageAt: '2026-10-10T09:00:00.000Z' }));
+const summaries = (titles: string[]) => ({ success: true, data: { items: page(titles), timeZone: 'UTC' } });
 
 const allowance = {
   limit: 30,
@@ -84,7 +78,7 @@ const allowance = {
 } as AllowanceState;
 
 beforeEach(() => {
-  listConversations.mockReset();
+  listConversationSummaries.mockReset();
   getConversation.mockReset();
   deleteConversationMock.mockReset();
   toastError.mockReset();
@@ -94,7 +88,7 @@ afterEach(cleanup);
 
 describe('R-20: /ai/{id} keeps the Conversation list column (AC-35)', () => {
   it('renders the list of Conversations next to the open one', async () => {
-    listConversations.mockResolvedValue({ success: true, data: page(['Who owes me money?', 'Draft for Acme']) });
+    listConversationSummaries.mockResolvedValue(summaries(['Who owes me money?', 'Draft for Acme']));
     getConversation.mockResolvedValue({
       success: true,
       data: {
@@ -109,17 +103,14 @@ describe('R-20: /ai/{id} keeps the Conversation list column (AC-35)', () => {
   });
 });
 
-describe('R-21: below lg the start panel comes first, then "Recent conversations" (AC-01)', () => {
-  it('orders the panel before the list in the DOM and gives the list lg ordering', async () => {
-    listConversations.mockResolvedValue({ success: true, data: page(['Draft for Acme']) });
+describe('R-21 (reworked by ai-chat-v2 T19): the list pane precedes the chat in DOM and visual order (AC-01)', () => {
+  it('puts the md+ list pane before the start panel, with no CSS reordering', async () => {
+    listConversationSummaries.mockResolvedValue(summaries(['Draft for Acme']));
     render(await AiPage({ searchParams: Promise.resolve({}) }));
-    // T44 N-7: the list is rendered in two slots (lg before the chat, phones after it), so DOM order
-    // matches visual order; lg:order-first reordering is gone.
     const panel = screen.getByRole('heading', { name: 'Ask about your invoices' });
-    const headings = screen.getAllByRole('heading', { name: 'Recent conversations' });
-    const phoneHeading = headings[headings.length - 1];
-    expect(panel.compareDocumentPosition(phoneHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(document.querySelector('[class*="lg:order-first"]')).toBeNull();
+    const list = screen.getByRole('heading', { level: 2, name: 'Conversations' });
+    expect(list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector('[class*="md:order-"], [class*="lg:order-"]')).toBeNull();
   });
 });
 
@@ -137,16 +128,17 @@ describe('R-24: start panel subtitles (AC-01, AC-33)', () => {
   });
 });
 
-describe('R-26: the AI section sits in ContentArea', () => {
-  it('wraps children in the shared content container', () => {
+describe('R-26 (reworked by ai-chat-v2 T19): the AI section sits in a viewport-height shell, not ContentArea', () => {
+  it('wraps children in the full-height shell', () => {
     const { container } = render(
       <AiLayout>
         <p>child</p>
       </AiLayout>
     );
-    const wrapper = container.querySelector('div.container.mx-auto');
-    expect(wrapper).not.toBeNull();
-    expect(within(wrapper as HTMLElement).getByText('child')).toBeInTheDocument();
+    expect(container.querySelector('div.container.mx-auto')).toBeNull();
+    const shell = container.firstElementChild as HTMLElement;
+    expect(shell.className).toMatch(/overflow-hidden/);
+    expect(within(shell).getByText('child')).toBeInTheDocument();
   });
 });
 
@@ -242,7 +234,7 @@ describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 
       )
     );
     try {
-      listConversations.mockResolvedValue({ success: true, data: page(['Older chat']) });
+      listConversationSummaries.mockResolvedValue(summaries(['Older chat']));
       const user = userEvent.setup();
       render(await AiPage({ searchParams: Promise.resolve({}) }));
       await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Who owes me money right now?');

@@ -1,14 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MessageSquareIcon,
-  MoreHorizontal,
-  PlusIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { MessageSquareIcon, MoreHorizontal, PlusIcon, SearchIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,106 +11,68 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from '@/components/ui/pagination';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { protectedRoutes } from '@/config/routes.config';
+import { filterByTitle, groupConversations } from '@/lib/helpers/conversation-groups';
 import type { ConversationSummary } from '@/types/assistant/types';
 import { cn } from '@/lib/utils';
 
-// Structurally the service layer's Page<ConversationSummary>; declared here because a client file
-// may not import lib/services (service-layer boundary).
-export type ConversationPage = {
-  items: ConversationSummary[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasMore: boolean;
-};
-
-export type ConversationDeleteTarget =
-  | { kind: 'one'; id: string; title: string }
-  | { kind: 'all' };
+export type ConversationDeleteTarget = { kind: 'one'; id: string; title: string } | { kind: 'all' };
 
 interface ConversationListProps {
-  conversations: ConversationPage;
+  /** Every Conversation of the Freelancer, newest last message first (listConversationSummaries). */
+  conversations: ConversationSummary[];
   timeZone: string;
   onDelete: (target: ConversationDeleteTarget) => void;
+  /** A row or New chat was picked: the phone sheet closes on it (SCR-01 phone sheet). */
+  onPick?: () => void;
 }
 
-export const RETENTION_NOTICE =
-  'Conversations are kept for 90 days after their last message.';
+export const RETENTION_NOTICE = 'Conversations are kept for 90 days after their last message.';
 
 // "10 Oct 2026": the day of the last message in the Freelancer's zone (ADR-0006).
 function formatLastMessage(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone,
-  }).format(new Date(iso));
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(
+    new Date(iso)
+  );
 }
 
-function pageHref(page: number): string {
-  return `?page=${page}`;
+/** The id of the Conversation open at `/ai/{id}`, or null. */
+function openConversationId(pathname: string | null): string | null {
+  const match = pathname?.match(/^\/ai\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function ConversationList({
-  conversations,
-  timeZone,
-  onDelete,
-}: ConversationListProps) {
-  const { items, page, totalPages } = conversations;
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+/**
+ * ai-chat-v2 T19 (SCR-01; AC-15, AC-17, AC-19): the Conversation list. A header with the actions menu, a search
+ * that folds case, spaces and look-alike letters (no request), the rows grouped by the last message's day in the
+ * Freelancer time zone in their own scroll area, and a footer that is always visible: New chat above the retention
+ * notice. Opening, listing and searching write and count nothing.
+ */
+export function ConversationList({ conversations, timeZone, onDelete, onPick }: ConversationListProps) {
+  const [query, setQuery] = useState('');
+  const currentId = openConversationId(usePathname());
+  const matches = filterByTitle(conversations, query);
+  const groups = groupConversations(matches, new Date(), timeZone);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <h2 className="text-sm font-medium lg:sr-only">Recent conversations</h2>
+    <div className="flex h-full min-h-0 flex-col gap-3 p-3">
       <div className="flex items-center justify-between gap-2">
-        <Link
-          href={protectedRoutes.ai}
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
-        >
-          <PlusIcon data-icon="inline-start" />
-          New conversation
-        </Link>
-        {items.length > 0 && (
+        <h2 className="text-sm font-semibold">Conversations</h2>
+        {conversations.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Conversation actions"
-                >
+                <Button variant="ghost" size="icon-sm" aria-label="Conversation actions">
                   <MoreHorizontal className="size-4" />
                 </Button>
               }
             />
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => onDelete({ kind: 'all' })}
-              >
+              <DropdownMenuItem variant="destructive" onClick={() => onDelete({ kind: 'all' })}>
                 Delete all
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -123,8 +80,28 @@ export function ConversationList({
         )}
       </div>
 
-      {items.length === 0 ? (
-        <Empty>
+      <InputGroup>
+        <InputGroupAddon>
+          <SearchIcon />
+        </InputGroupAddon>
+        <InputGroupInput
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search conversations"
+          aria-label="Search conversations"
+          disabled={conversations.length === 0}
+        />
+        {query !== '' && (
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton size="icon-xs" aria-label="Clear search text" onClick={() => setQuery('')}>
+              <XIcon />
+            </InputGroupButton>
+          </InputGroupAddon>
+        )}
+      </InputGroup>
+
+      {conversations.length === 0 ? (
+        <Empty className="flex-1">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <MessageSquareIcon />
@@ -133,95 +110,68 @@ export function ConversationList({
             <EmptyDescription>Ask a question to start one.</EmptyDescription>
           </EmptyHeader>
         </Empty>
+      ) : matches.length === 0 ? (
+        <Empty className="flex-1 p-4">
+          <EmptyHeader>
+            <EmptyDescription>No conversation matches &quot;{query}&quot;.</EmptyDescription>
+          </EmptyHeader>
+          <Button variant="link" size="sm" onClick={() => setQuery('')}>
+            Clear search
+          </Button>
+        </Empty>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <ItemGroup className="gap-2">
-            {items.map((c) => (
-              <Item key={c.id} size="sm" variant="outline">
-                <ItemContent className="min-w-0">
-                  <Link
-                    href={protectedRoutes.aiConversation(c.id)}
-                    className="min-w-0 outline-none"
-                  >
-                    <ItemTitle
-                      className="block w-full truncate"
-                      title={c.title}
-                    >
-                      {c.title}
-                    </ItemTitle>
-                    <ItemDescription>
-                      {formatLastMessage(c.lastMessageAt, timeZone)}
-                    </ItemDescription>
-                  </Link>
-                </ItemContent>
-                <ItemActions>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Delete conversation ${c.title}`}
-                    onClick={() =>
-                      onDelete({ kind: 'one', id: c.id, title: c.title })
-                    }
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                </ItemActions>
-              </Item>
+          <div className="flex flex-col gap-4 pr-2">
+            {groups.map((group) => (
+              <section key={group.key} aria-labelledby={`conversation-group-${group.key}`} className="flex flex-col gap-2">
+                <h3 id={`conversation-group-${group.key}`} className="text-muted-foreground px-1 text-xs font-medium">
+                  {group.label}
+                </h3>
+                <ItemGroup className="gap-1">
+                  {group.items.map((c) => {
+                    const current = c.id === currentId;
+                    return (
+                      <Item key={c.id} size="sm" variant="outline" className={cn(current && 'bg-accent')}>
+                        <ItemContent className="min-w-0">
+                          <Link
+                            href={protectedRoutes.aiConversation(c.id)}
+                            aria-current={current ? 'page' : undefined}
+                            className="min-w-0 outline-none"
+                            onClick={onPick}
+                          >
+                            <ItemTitle className="block w-full truncate" title={c.title}>
+                              {c.title}
+                            </ItemTitle>
+                            <ItemDescription>{formatLastMessage(c.lastMessageAt, timeZone)}</ItemDescription>
+                          </Link>
+                        </ItemContent>
+                        <ItemActions>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Delete conversation ${c.title}`}
+                            onClick={() => onDelete({ kind: 'one', id: c.id, title: c.title })}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </ItemActions>
+                      </Item>
+                    );
+                  })}
+                </ItemGroup>
+              </section>
             ))}
-          </ItemGroup>
+          </div>
         </ScrollArea>
       )}
 
-      {totalPages > 1 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <Link
-                href={pageHref(Math.max(1, page - 1))}
-                aria-label="Go to previous page"
-                aria-disabled={page <= 1}
-                className={cn(
-                  buttonVariants({ variant: 'ghost' }),
-                  page <= 1 && 'pointer-events-none opacity-50'
-                )}
-              >
-                <ChevronLeftIcon data-icon="inline-start" />
-                <span className="hidden sm:block">Previous</span>
-              </Link>
-            </PaginationItem>
-            {pages.map((n) => (
-              <PaginationItem key={n}>
-                <Link
-                  href={pageHref(n)}
-                  aria-current={n === page ? 'page' : undefined}
-                  className={buttonVariants({
-                    variant: n === page ? 'outline' : 'ghost',
-                    size: 'icon',
-                  })}
-                >
-                  {n}
-                </Link>
-              </PaginationItem>
-            ))}
-            <PaginationItem>
-              <Link
-                href={pageHref(Math.min(totalPages, page + 1))}
-                aria-label="Go to next page"
-                aria-disabled={page >= totalPages}
-                className={cn(
-                  buttonVariants({ variant: 'ghost' }),
-                  page >= totalPages && 'pointer-events-none opacity-50'
-                )}
-              >
-                <span className="hidden sm:block">Next</span>
-                <ChevronRightIcon data-icon="inline-end" />
-              </Link>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
-
-      <p className="text-muted-foreground text-xs">{RETENTION_NOTICE}</p>
+      <div className="flex shrink-0 flex-col gap-2 border-t pt-3">
+        <Link href={protectedRoutes.ai} className={cn(buttonVariants({ variant: 'default' }), 'w-full')} onClick={onPick}>
+          <PlusIcon data-icon="inline-start" />
+          New chat
+        </Link>
+        <p className="text-muted-foreground text-xs">{RETENTION_NOTICE}</p>
+      </div>
     </div>
   );
 }

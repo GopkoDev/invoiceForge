@@ -62,7 +62,7 @@ vi.mock('@/components/ai/draft-card', () => ({
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
-  listConversations: async () => ({ success: true, data: { items: [], page: 1, pageCount: 1 } }),
+  listConversationSummaries: async () => ({ success: true, data: { items: [], timeZone: 'UTC' } }),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
   actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),

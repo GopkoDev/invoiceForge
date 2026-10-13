@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
+import { ConversationListButton } from '@/components/ai/ai-workspace';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
@@ -314,7 +315,12 @@ function ChatSession({
   }, [messages]);
 
   if (conversationId === null && !started) {
-    return <StartPanel state={allowance} start={start} onSend={send} />;
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <ConversationListButton />
+        <StartPanel state={allowance} start={start} onSend={send} />
+      </div>
+    );
   }
 
   // A failed reply is discarded whole: everything after the Freelancer's message is hidden.
@@ -339,9 +345,10 @@ function ChatSession({
     inFlight && !(failedIndex !== -1) && last?.role !== 'assistant';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {saved ? <ConversationHeaderClient conversationId={saved.id} title={saved.title} /> : null}
-      <div ref={listRef}>
+      {/* ai-chat-v2 T19 (AC-15): only the messages scroll; the composer below stays docked. */}
+      <div ref={listRef} data-slot="chat-scroll" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <MessageList
           messages={visible}
           invoiceLinks={invoiceLinks}
@@ -353,52 +360,52 @@ function ChatSession({
             )
           }
         />
-      </div>
-      <div aria-live="polite" className="sr-only">
-        {replyDone && !inFlight && lastText
-          ? `Assistant replied: ${lastText}`
-          : ''}
-      </div>
-      {waiting ? (
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Spinner aria-hidden role="presentation" />
-          <span>Thinking…</span>
-          <span role="status" className="sr-only">
-            Assistant is replying…
-          </span>
+        <div aria-live="polite" className="sr-only">
+          {replyDone && !inFlight && lastText
+            ? `Assistant replied: ${lastText}`
+            : ''}
         </div>
-      ) : null}
-      {failure && 'userMessageId' in failure ? (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {failure.kind === 'AI_UNAVAILABLE'
-              ? AI_UNAVAILABLE
-              : COULD_NOT_COMPLETE}
-          </AlertDescription>
-          <div className="mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => tryAgain(failure)}
-            >
-              Try again
-            </Button>
+        {waiting ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Spinner aria-hidden role="presentation" />
+            <span>Thinking…</span>
+            <span role="status" className="sr-only">
+              Assistant is replying…
+            </span>
           </div>
-        </Alert>
-      ) : null}
-      {failure?.kind === 'GONE' ? (
-        <Alert variant="destructive">
-          <AlertDescription>{CONVERSATION_GONE}</AlertDescription>
-          <div className="mt-2">
-            <Link
-              href={protectedRoutes.ai}
-              className={buttonVariants({ variant: 'outline' })}
-            >
-              Start a new conversation →
-            </Link>
-          </div>
-        </Alert>
-      ) : null}
+        ) : null}
+        {failure && 'userMessageId' in failure ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {failure.kind === 'AI_UNAVAILABLE'
+                ? AI_UNAVAILABLE
+                : COULD_NOT_COMPLETE}
+            </AlertDescription>
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => tryAgain(failure)}
+              >
+                Try again
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {failure?.kind === 'GONE' ? (
+          <Alert variant="destructive">
+            <AlertDescription>{CONVERSATION_GONE}</AlertDescription>
+            <div className="mt-2">
+              <Link
+                href={protectedRoutes.ai}
+                className={buttonVariants({ variant: 'outline' })}
+              >
+                Start a new conversation →
+              </Link>
+            </div>
+          </Alert>
+        ) : null}
+      </div>
       {allowance.left === 0 ? (
         <AllowanceNotice
           state={allowance}

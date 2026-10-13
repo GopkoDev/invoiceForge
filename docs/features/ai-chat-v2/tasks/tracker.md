@@ -24,7 +24,7 @@
 | T16 | [Guard updateInvoiceStatus with an optional expectedVersion and set issuedFromChat on that path](./t16-invoice-status-expected-version.md) | infra | Dmytro Hopko | M | T02, T04 | done |
 | T17 | [Add the loadInvoicePreview and issueFromPreview server actions](./t17-preview-and-issue-actions.md) | ports | Dmytro Hopko | M | T16 | done |
 | T18 | [List every Conversation summary and the latest three, and add the grouping and title-search helpers](./t18-conversation-summaries-and-grouping.md) | app | Dmytro Hopko | S | T03, T11 | done |
-| T19 | [Make the AI section a full-height workspace with a grouped, searchable Conversation list and phone sheets](./t19-full-height-workspace-and-list.md) | ui | Dmytro Hopko | L | T18 | todo |
+| T19 | [Make the AI section a full-height workspace with a grouped, searchable Conversation list and phone sheets](./t19-full-height-workspace-and-list.md) | ui | Dmytro Hopko | L | T18 | done |
 | T20 | [Redesign the empty Conversation start with suggested requests and the composer move, and send the start point](./t20-empty-state-and-start-points.md) | ui | Dmytro Hopko | M | T14, T19 | todo |
 | T21 | [Follow new text within 48 px with a jump-to-latest control, and pin the word-by-word streaming](./t21-follow-latest-and-streamed-reply.md) | ui | Dmytro Hopko | M | T20 | todo |
 | T22 | [Render Offered choices under a reply and send a press from the chat island](./t22-offered-choices-ui.md) | ui | Dmytro Hopko | M | T14, T21 | todo |
