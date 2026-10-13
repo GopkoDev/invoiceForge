@@ -3,28 +3,59 @@
 import '@/components/ai/zod-csp-safe';
 
 import { Chat, useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, generateId, type ChatInit, type UIMessage } from 'ai';
-import { ArrowDownIcon, InfoIcon } from 'lucide-react';
+import {
+  DefaultChatTransport,
+  generateId,
+  type ChatInit,
+  type UIMessage,
+} from 'ai';
+import { AlertCircleIcon, InfoIcon, RotateCcwIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
-import { HANDOFF_PARAM, hasHandoff, subscribeHandoffs, takeHandoff } from '@/components/ai/ai-handoff';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import { Loader } from '@/components/ai-elements/loader';
+import {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageAvatar,
+  MessageContent,
+} from '@/components/ai-elements/message';
+import {
+  HANDOFF_PARAM,
+  hasHandoff,
+  subscribeHandoffs,
+  takeHandoff,
+} from '@/components/ai/ai-handoff';
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
 import { ConversationListButton } from '@/components/ai/ai-workspace';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
-import { InvoiceStateProvider, useSeedInvoiceStates } from '@/components/ai/invoice-state-context';
+import {
+  InvoiceStateProvider,
+  useSeedInvoiceStates,
+} from '@/components/ai/invoice-state-context';
 import { MessageList } from '@/components/ai/message-list';
 import { OfferedChoices } from '@/components/ai/offered-choices';
 import { StartPanel } from '@/components/ai/start-panel';
 import { useFollowLatest } from '@/components/ai/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Spinner } from '@/components/ui/spinner';
 import { replaceAddress } from '@/components/ai/preview-address';
 import { protectedRoutes } from '@/config/routes.config';
 import { loadConversationCards } from '@/lib/actions/assistant-actions';
@@ -125,7 +156,10 @@ function createRequestState(initialConversationId: string | null) {
 }
 
 type RequestState = ReturnType<typeof createRequestState>;
-type ChatHandlers = Pick<ChatInit<ChatMessage>, 'onData' | 'onError' | 'onFinish'>;
+type ChatHandlers = Pick<
+  ChatInit<ChatMessage>,
+  'onData' | 'onError' | 'onFinish'
+>;
 
 /** What the island shows besides the messages, carried to the island that takes the live chat over. */
 interface SessionUi {
@@ -160,7 +194,10 @@ interface LiveSession {
 type ChatEvent =
   | { kind: 'data'; part: Parameters<NonNullable<ChatHandlers['onData']>>[0] }
   | { kind: 'error'; error: Error }
-  | { kind: 'finish'; finished: Parameters<NonNullable<ChatHandlers['onFinish']>>[0] };
+  | {
+      kind: 'finish';
+      finished: Parameters<NonNullable<ChatHandlers['onFinish']>>[0];
+    };
 
 /** How long a session with no island waits at its Conversation's address for the router to mount the next island. */
 const HANDOVER_GRACE_MS = 5000;
@@ -196,16 +233,24 @@ function createLiveSession(
       const sent = live.getPending();
       const choice = sent?.choice;
       // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
-      const dashboard = !choice && savedId === null && sent?.origin === 'DASHBOARD';
+      const dashboard =
+        !choice && savedId === null && sent?.origin === 'DASHBOARD';
       return {
         body: {
           conversationId: savedId,
           message: messages[messages.length - 1],
           // openapi ChatRequest: a press carries its choice and never an origin or a start point.
           ...(choice ? { choice } : {}),
-          ...(dashboard ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' } : {}),
+          ...(dashboard
+            ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }
+            : {}),
           // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-          ...(!choice && !dashboard && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
+          ...(!choice &&
+          !dashboard &&
+          savedId === null &&
+          startedFrom !== 'AI_SECTION'
+            ? { startedFrom }
+            : {}),
         },
       };
     },
@@ -221,7 +266,9 @@ function createLiveSession(
   };
   session.chat = new Chat<ChatMessage>({
     transport,
-    messages: initialMessages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage),
+    messages: initialMessages.map(
+      (m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage
+    ),
     onData: (part) => report(session, { kind: 'data', part }),
     onError: (error) => report(session, { kind: 'error', error }),
     onFinish: (finished) => report(session, { kind: 'finish', finished }),
@@ -230,13 +277,20 @@ function createLiveSession(
 }
 
 /** The island showing `session` now: its handlers answer the Chat, and what it shows is kept for a hand-over. */
-function showSession(session: LiveSession, handlers: ChatHandlers, ui: SessionUi): void {
+function showSession(
+  session: LiveSession,
+  handlers: ChatHandlers,
+  ui: SessionUi
+): void {
   session.handlers.current = handlers;
   session.ui = ui;
 }
 
 /** The live chat's messages up to a failed one: a failed message and its reply were never saved (R7-2). */
-function savedLength(messages: readonly ChatMessage[], failure: Failure | null): number {
+function savedLength(
+  messages: readonly ChatMessage[],
+  failure: Failure | null
+): number {
   if (!failure || !('userMessageId' in failure)) return messages.length;
   const index = messages.findIndex((m) => m.id === failure.userMessageId);
   return index === -1 ? messages.length : index;
@@ -249,7 +303,8 @@ function nameSession(session: LiveSession, title: string): void {
 function endSession(session: LiveSession): void {
   session.chat.stop();
   session.queued = [];
-  for (const [id, held] of liveSessions) if (held === session) liveSessions.delete(id);
+  for (const [id, held] of liveSessions)
+    if (held === session) liveSessions.delete(id);
 }
 
 /**
@@ -260,7 +315,8 @@ function endSession(session: LiveSession): void {
  */
 function holdSession(session: LiveSession): () => void {
   session.mounted += 1;
-  for (const event of session.queued.splice(0)) deliver(session.handlers.current, event);
+  for (const event of session.queued.splice(0))
+    deliver(session.handlers.current, event);
   return () => {
     session.mounted -= 1;
     const deadline = Date.now() + HANDOVER_GRACE_MS;
@@ -268,7 +324,9 @@ function holdSession(session: LiveSession): () => void {
       if (session.mounted > 0) return;
       const id = session.live.getConversationId();
       const waiting =
-        id !== null && window.location.pathname === protectedRoutes.aiConversation(id) && Date.now() < deadline;
+        id !== null &&
+        window.location.pathname === protectedRoutes.aiConversation(id) &&
+        Date.now() < deadline;
       if (waiting) setTimeout(check, HANDOVER_CHECK_MS);
       else endSession(session);
     };
@@ -290,7 +348,11 @@ function toView(message: ChatMessage): ConversationMessageView {
         data: part.data,
       });
     } else if (part.type === 'data-offer') {
-      parts.push({ type: 'data-offer', id: part.id ?? part.data.offerId, data: part.data });
+      parts.push({
+        type: 'data-offer',
+        id: part.id ?? part.data.offerId,
+        data: part.data,
+      });
     }
   }
   return {
@@ -320,7 +382,10 @@ interface ChatIslandProps {
 
 /** True when the device asks for reduced motion (AC-18): the composer then jumps instead of moving. */
 function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  );
 }
 
 export function ChatIsland(props: ChatIslandProps) {
@@ -330,15 +395,21 @@ export function ChatIsland(props: ChatIslandProps) {
   const router = useRouter();
   const [seen, setSeen] = useState({ pathname, chat: 0 });
   if (seen.pathname !== pathname) {
-    setSeen({ pathname, chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat });
+    setSeen({
+      pathname,
+      chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat,
+    });
   }
   // ai-chat-v2 T31 finding: a Conversation started in place keeps the /ai page's tree in its history entry, so Back
   // then Forward to /ai/{id} mounts /ai's page again, and after "New chat" Back reaches /ai/{id} on the same mounted
   // page (review 2026-10-13 R2-U3). At a Conversation address the /ai page shows only the live chat that saved that
   // Conversation; otherwise the island shows a skeleton and refreshes once, so the server renders the saved page.
-  const openId = pathname?.startsWith(`${protectedRoutes.ai}/`) ? pathname.slice(protectedRoutes.ai.length + 1) : null;
+  const openId = pathname?.startsWith(`${protectedRoutes.ai}/`)
+    ? pathname.slice(protectedRoutes.ai.length + 1)
+    : null;
   // The /ai page restored at a Conversation address shows that Conversation's live chat when one is held (R3-U3).
-  const liveAtAddress = props.conversationId === null && openId !== null ? openId : null;
+  const liveAtAddress =
+    props.conversationId === null && openId !== null ? openId : null;
   const staleEntry = liveAtAddress !== null && !liveSessions.has(liveAtAddress);
   useEffect(() => {
     if (staleEntry) router.refresh();
@@ -381,20 +452,33 @@ function ChatSession({
   // Mutable request bookkeeping read by the transport and SDK callbacks, never during render.
   const { live } = session;
   const [handedOver] = useState(session.ui);
-  const [allowance, setAllowance] = useState(handedOver?.allowance ?? initialAllowance);
-  const [usedUpMessage, setUsedUpMessage] = useState<string | undefined>(handedOver?.usedUpMessage);
-  const [failure, setFailure] = useState<Failure | null>(handedOver?.failure ?? null);
+  const [allowance, setAllowance] = useState(
+    handedOver?.allowance ?? initialAllowance
+  );
+  const [usedUpMessage, setUsedUpMessage] = useState<string | undefined>(
+    handedOver?.usedUpMessage
+  );
+  const [failure, setFailure] = useState<Failure | null>(
+    handedOver?.failure ?? null
+  );
   // An /ai page showing a handed-over chat starts past the start screen, under that Conversation's header.
-  const [started, setStarted] = useState(conversationId === null && liveAt !== null && handedOver !== null);
+  const [started, setStarted] = useState(
+    conversationId === null && liveAt !== null && handedOver !== null
+  );
   const [text, setText] = useState(handedOver?.text ?? '');
   const [replyDone, setReplyDone] = useState(handedOver?.replyDone ?? false);
   // Only on /ai: the Conversation the first reply saved, and its cards and link states once read.
-  const [saved, setSaved] = useState<{ id: string; title: string } | null>(() => {
-    const savedId = session.live.getConversationId();
-    return conversationId === null && liveAt !== null && savedId === liveAt && session.title !== null
-      ? { id: savedId, title: session.title }
-      : null;
-  });
+  const [saved, setSaved] = useState<{ id: string; title: string } | null>(
+    () => {
+      const savedId = session.live.getConversationId();
+      return conversationId === null &&
+        liveAt !== null &&
+        savedId === liveAt &&
+        session.title !== null
+        ? { id: savedId, title: session.title }
+        : null;
+    }
+  );
   const [loaded, setLoaded] = useState<{
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
@@ -411,7 +495,9 @@ function ChatSession({
   const dockRef = useRef<HTMLDivElement>(null);
   const moveFrom = useRef<number | null>(null);
   const [composerMove, setComposerMove] = useState<'animated' | 'none'>();
-  const { messages, setMessages, sendMessage, status } = useChat<ChatMessage>({ chat: session.chat });
+  const { messages, setMessages, sendMessage, status } = useChat<ChatMessage>({
+    chat: session.chat,
+  });
 
   // The handlers of the island showing the session now (the Chat calls them), and what it shows besides the messages.
   const handlers: ChatHandlers = {
@@ -420,8 +506,12 @@ function ChatSession({
         live.setConversationId(part.data.conversationId);
         liveSessions.set(part.data.conversationId, session);
         nameSession(session, part.data.title);
-        if (conversationId === null) setSaved({ id: part.data.conversationId, title: part.data.title });
-        newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
+        if (conversationId === null)
+          setSaved({ id: part.data.conversationId, title: part.data.title });
+        newConversation?.announce({
+          id: part.data.conversationId,
+          title: part.data.title,
+        });
         replaceAddress(`/ai/${part.data.conversationId}`);
       } else if (part.type === 'data-allowance') {
         setAllowance(part.data);
@@ -480,7 +570,8 @@ function ChatSession({
         }
         if (error.status === 409) {
           // AC-12b, AC-13: the press is not applied; drop the optimistic message, leave the buttons as they were.
-          if (sent) setMessages((current) => current.filter((m) => m.id !== sent.id));
+          if (sent)
+            setMessages((current) => current.filter((m) => m.id !== sent.id));
           setFailure({ kind: 'CHOICE_UNAVAILABLE', message: error.message });
           return;
         }
@@ -511,7 +602,8 @@ function ChatSession({
       if (conversationId === null && savedId) {
         void loadConversationCards(savedId).then(
           (result) => {
-            if (result.success) setLoaded({ ...result.data, offers: result.data.offers ?? {} });
+            if (result.success)
+              setLoaded({ ...result.data, offers: result.data.offers ?? {} });
           },
           () => undefined
         );
@@ -521,7 +613,13 @@ function ChatSession({
     },
   };
   useLayoutEffect(() => {
-    showSession(session, handlers, { text, failure, allowance, usedUpMessage, replyDone });
+    showSession(session, handlers, {
+      text,
+      failure,
+      allowance,
+      usedUpMessage,
+      replyDone,
+    });
   });
   // Held and let go in the commit itself, so nothing the stream reports between two islands is lost (R3-U2).
   useLayoutEffect(() => holdSession(session), [session]);
@@ -535,7 +633,8 @@ function ChatSession({
       session.chat.status !== 'streaming' &&
       // A finish waiting in the queue refreshes the page itself when replayed (R7-1).
       !session.queued.some((e) => e.kind === 'finish') &&
-      savedLength(session.chat.messages, handedOver.failure) > initialMessages.length
+      savedLength(session.chat.messages, handedOver.failure) >
+        initialMessages.length
   );
   useEffect(() => {
     if (!staleProps.current) return;
@@ -544,15 +643,21 @@ function ChatSession({
   }, [router]);
   // The /ai page that took a live chat over at its Conversation's address has no cards, links or choices of its own
   // (its page loaded none): read them once, and put the Conversation back at the head of the list (R4-U1).
-  const adoptedAt = useRef(conversationId === null && liveAt !== null && handedOver !== null ? liveAt : null);
+  const adoptedAt = useRef(
+    conversationId === null && liveAt !== null && handedOver !== null
+      ? liveAt
+      : null
+  );
   useEffect(() => {
     const id = adoptedAt.current;
     if (id === null) return;
     adoptedAt.current = null;
-    if (session.title !== null) newConversation?.announce({ id, title: session.title });
+    if (session.title !== null)
+      newConversation?.announce({ id, title: session.title });
     void loadConversationCards(id).then(
       (result) => {
-        if (result.success) setLoaded({ ...result.data, offers: result.data.offers ?? {} });
+        if (result.success)
+          setLoaded({ ...result.data, offers: result.data.offers ?? {} });
       },
       () => undefined
     );
@@ -561,7 +666,8 @@ function ChatSession({
   const inFlight = status === 'submitted' || status === 'streaming';
 
   // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
-  const { scrollRef, showJump, jumpToLatest } = useFollowLatest(messages);
+  const follow = useFollowLatest(messages);
+  const { jumpToLatest } = follow;
 
   function send(raw: string, choice?: Choice, origin?: Origin) {
     // A failed reply stays discarded whatever comes next (parent SCR-02): its message and partial text go before the
@@ -580,7 +686,9 @@ function ChatSession({
     // A dashboard prompt opens straight into the Conversation layout: nothing moved, so nothing animates.
     if (origin === 'DASHBOARD') setComposerMove('none');
     else if (!started && conversationId === null) {
-      const from = startRef.current?.querySelector('[data-slot="composer"]')?.getBoundingClientRect();
+      const from = startRef.current
+        ?.querySelector('[data-slot="composer"]')
+        ?.getBoundingClientRect();
       moveFrom.current = from ? from.top : null;
       setComposerMove(prefersReducedMotion() ? 'none' : 'animated');
     }
@@ -613,7 +721,8 @@ function ChatSession({
   // While the entry waits (and on the server, which cannot see it) the start screen is not shown.
   const awaitingHandoff = useSyncExternalStore(
     subscribeHandoffs,
-    () => Boolean(handoffId) && conversationId === null && hasHandoff(handoffId!),
+    () =>
+      Boolean(handoffId) && conversationId === null && hasHandoff(handoffId!),
     () => Boolean(handoffId) && conversationId === null
   );
   const handoffTaken = useRef(false);
@@ -631,14 +740,20 @@ function ChatSession({
       replaceAddress(`${url.pathname}${url.search}${url.hash}`);
     }
     const prompt = takeHandoff(handoffId);
-    if (prompt !== null && prompt.trim()) sendRef.current?.(prompt.trim(), undefined, 'DASHBOARD');
+    if (prompt !== null && prompt.trim())
+      sendRef.current?.(prompt.trim(), undefined, 'DASHBOARD');
   }, [handoffId, conversationId]);
-
 
   // FLIP: start the docked composer where the centred one was, then let the transition carry it to the bottom.
   useLayoutEffect(() => {
     const dock = dockRef.current;
-    if (!started || composerMove !== 'animated' || !dock || moveFrom.current === null) return;
+    if (
+      !started ||
+      composerMove !== 'animated' ||
+      !dock ||
+      moveFrom.current === null
+    )
+      return;
     const delta = moveFrom.current - dock.getBoundingClientRect().top;
     moveFrom.current = null;
     if (delta === 0) return;
@@ -651,9 +766,17 @@ function ChatSession({
 
   if (conversationId === null && !started && !awaitingHandoff) {
     return (
-      <div ref={startRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+      <div
+        ref={startRef}
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+      >
         <ConversationListButton />
-        <StartPanel state={allowance} start={start} onSend={send} usedUpMessage={usedUpMessage} />
+        <StartPanel
+          state={allowance}
+          start={start}
+          onSend={send}
+          usedUpMessage={usedUpMessage}
+        />
       </div>
     );
   }
@@ -681,138 +804,158 @@ function ChatSession({
   // SCR-04: only the newest reply's choices can be pressed, and not while a turn is in flight. A failed message
   // left in view (could-not-complete) does not count as newer: the offer was released, so it is pressable again.
   const tail = failedIndex !== -1 ? visible[visible.length - 2] : last;
-  const latestReplyId = !inFlight && tail?.role === 'assistant' ? tail.id : null;
+  const latestReplyId =
+    !inFlight && tail?.role === 'assistant' ? tail.id : null;
   const sentChoice = inFlight ? live.getPending()?.choice : undefined;
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {saved ? (
-        <ConversationHeaderClient conversationId={saved.id} title={saved.title} />
-      ) : conversationId === null ? (
-        // Below md the list stays reachable from the first send, also when it fails and nothing is saved (R5-U3).
-        // md:hidden like the button itself, so the desktop layout keeps no empty row.
-        <div className="flex shrink-0 items-center md:hidden">
-          <ConversationListButton />
-        </div>
-      ) : null}
-      {/* ai-chat-v2 T19 (AC-15): only the messages scroll; the composer below stays docked. */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} data-slot="chat-scroll" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        <MessageList
-          messages={visible}
-          invoiceLinks={invoiceLinks}
-          renderOffer={(offerId, messageId) => (
-            <OfferedChoices
-              offer={offers[offerId]}
-              isLatest={messageId === latestReplyId}
-              pendingOptionId={sentChoice?.offerId === offerId ? sentChoice.optionId : null}
-              onPress={press}
-            />
-          )}
-          renderCard={(id) =>
-            cards[id] ? (
-              <DraftCard card={cards[id]} cards={cards} />
-            ) : (
-              <Skeleton className="h-64 w-full" />
-            )
-          }
-        />
-        <div aria-live="polite" className="sr-only">
-          {replyDone && !inFlight && lastText
-            ? `Assistant replied: ${lastText}`
-            : ''}
-        </div>
-        {waiting ? (
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            <Spinner aria-hidden role="presentation" />
-            <span>Thinking…</span>
-            <span role="status" className="sr-only">
-              Assistant is replying…
-            </span>
-          </div>
-        ) : null}
-        {failure && 'userMessageId' in failure ? (
+  // A failed reply, a refused press or a vanished Conversation is shown as an assistant message in the reply position
+  // (screens.md «Errors are messages»): the avatar, an inline alert with the copy verbatim and, for a failure, Try again.
+  const failureMessage =
+    failure && 'userMessageId' in failure ? (
+      <Message from="assistant">
+        <MessageAvatar />
+        <MessageContent>
           <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden />
             <AlertDescription>
               {failure.kind === 'AI_UNAVAILABLE'
                 ? AI_UNAVAILABLE
                 : COULD_NOT_COMPLETE}
             </AlertDescription>
-            <div className="mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => tryAgain(failure)}
-              >
-                Try again
-              </Button>
-            </div>
           </Alert>
-        ) : null}
-        {failure?.kind === 'CHOICE_UNAVAILABLE' ? (
-          // SCR-03 "choice unavailable": a non-destructive notice in the reply position.
+          <MessageActions>
+            <MessageAction onClick={() => tryAgain(failure)}>
+              <RotateCcwIcon aria-hidden />
+              Try again
+            </MessageAction>
+          </MessageActions>
+        </MessageContent>
+      </Message>
+    ) : failure?.kind === 'CHOICE_UNAVAILABLE' ? (
+      // SCR-03 "choice unavailable": a non-destructive notice in the reply position, no Try again.
+      <Message from="assistant">
+        <MessageAvatar />
+        <MessageContent>
           <Alert>
             <InfoIcon aria-hidden />
             <AlertDescription>{failure.message}</AlertDescription>
           </Alert>
-        ) : null}
-        {failure?.kind === 'GONE' ? (
+        </MessageContent>
+      </Message>
+    ) : failure?.kind === 'GONE' ? (
+      <Message from="assistant">
+        <MessageAvatar />
+        <MessageContent>
           <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden />
             <AlertDescription>{CONVERSATION_GONE}</AlertDescription>
-            <div className="mt-2">
-              <Link
-                href={protectedRoutes.ai}
-                className={buttonVariants({ variant: 'outline' })}
-              >
-                Start a new conversation →
-              </Link>
-            </div>
           </Alert>
-        ) : null}
-      </div>
-      {showJump ? (
-        // screens.md §SCR-03 "scrolled up": centred 12 px above the composer.
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          data-slot="jump-to-latest"
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 shadow-sm"
-          onClick={() => jumpToLatest()}
+          <div>
+            <Link
+              href={protectedRoutes.ai}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Start a new conversation →
+            </Link>
+          </div>
+        </MessageContent>
+      </Message>
+    ) : null;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {saved ? (
+        <ConversationHeaderClient
+          conversationId={saved.id}
+          title={saved.title}
+        />
+      ) : conversationId === null ? (
+        // Below md the list stays reachable from the first send, also when it fails and nothing is saved (R5-U3).
+        // md:hidden like the button itself, so the desktop layout keeps no empty header bar (screens.md «Header»).
+        <div
+          data-slot="chat-header"
+          className="flex h-12 shrink-0 items-center border-b px-2 md:hidden"
         >
-          <ArrowDownIcon aria-hidden />
-          Jump to latest
-        </Button>
+          <ConversationListButton />
+        </div>
       ) : null}
-      </div>
+      {/* ai-chat-v2 T19 (AC-15): only the messages scroll; the composer below stays docked. T36: the scroll area is
+          full width with the messages in a centred max-w-3xl column (screens.md «Centred column»). */}
+      <Conversation follow={follow}>
+        <ConversationContent data-slot="chat-scroll">
+          <MessageList
+            messages={visible}
+            invoiceLinks={invoiceLinks}
+            renderOffer={(offerId, messageId) => (
+              <OfferedChoices
+                offer={offers[offerId]}
+                isLatest={messageId === latestReplyId}
+                pendingOptionId={
+                  sentChoice?.offerId === offerId ? sentChoice.optionId : null
+                }
+                onPress={press}
+              />
+            )}
+            renderCard={(id) =>
+              cards[id] ? (
+                <DraftCard card={cards[id]} cards={cards} />
+              ) : (
+                <Skeleton className="h-64 w-full" />
+              )
+            }
+          />
+          <div aria-live="polite" className="sr-only">
+            {replyDone && !inFlight && lastText
+              ? `Assistant replied: ${lastText}`
+              : ''}
+          </div>
+          {waiting ? (
+            <Message from="assistant" data-slot="message-waiting">
+              <MessageAvatar />
+              <MessageContent>
+                <Loader
+                  label="Thinking…"
+                  announce="Assistant is replying…"
+                  className="min-h-6"
+                />
+              </MessageContent>
+            </Message>
+          ) : null}
+          {failureMessage}
+        </ConversationContent>
+        {/* screens.md §SCR-03 "scrolled up": centred 12 px above the composer. */}
+        <ConversationScrollButton data-slot="jump-to-latest" />
+      </Conversation>
       <div
         ref={dockRef}
         data-slot="composer-dock"
         data-composer-move={composerMove}
         className="shrink-0 transition-transform duration-[250ms] ease-out motion-reduce:transition-none"
       >
-        {allowance.left === 0 ? (
-          <AllowanceNotice
-            state={allowance}
-            usedUpMessage={usedUpMessage}
-            handMadeLink={start === 'draft'}
-          />
-        ) : (
-          <Composer
-            value={text}
-            onChange={(value) => {
-              setText(value);
-              if (failure?.kind === 'VALIDATION') setFailure(null);
-            }}
-            onSend={send}
-            allowance={allowance}
-            busy={inFlight}
-            disabled={failure?.kind === 'GONE'}
-            serverError={
-              failure?.kind === 'VALIDATION' ? failure.message : undefined
-            }
-          />
-        )}
+        <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+          {allowance.left === 0 ? (
+            <AllowanceNotice
+              state={allowance}
+              usedUpMessage={usedUpMessage}
+              handMadeLink={start === 'draft'}
+            />
+          ) : (
+            <Composer
+              value={text}
+              onChange={(value) => {
+                setText(value);
+                if (failure?.kind === 'VALIDATION') setFailure(null);
+              }}
+              onSend={send}
+              allowance={allowance}
+              busy={inFlight}
+              disabled={failure?.kind === 'GONE'}
+              serverError={
+                failure?.kind === 'VALIDATION' ? failure.message : undefined
+              }
+            />
+          )}
+        </div>
       </div>
     </div>
   );

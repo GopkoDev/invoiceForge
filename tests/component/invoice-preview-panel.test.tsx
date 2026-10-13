@@ -10,7 +10,14 @@
 //   components/ai/ai-workspace.tsx -> reads ?preview=: from md a grid column beside the chat (the list pane hidden
 //     below xl, reachable through the list button), below md a full-screen bottom Sheet.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail, ok } from '@/types/actions';
 
@@ -27,7 +34,10 @@ vi.mock('@/lib/actions/assistant-actions', () => ({
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock('sonner', () => ({
-  toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
+  toast: {
+    success: (...a: unknown[]) => toastSuccess(...a),
+    error: (...a: unknown[]) => toastError(...a),
+  },
 }));
 let search = new URLSearchParams();
 let pathname = '/ai/c1';
@@ -48,7 +58,13 @@ vi.mock('@/lib/helpers/client-session-redirect', () => ({
   },
 }));
 vi.mock('@/components/invoice-editor/pdf-preview-panel', () => ({
-  PDFPreviewPanel: ({ source }: { source: { invoice: { invoiceNumber: string; status: string; total: number } } }) => (
+  PDFPreviewPanel: ({
+    source,
+  }: {
+    source: {
+      invoice: { invoiceNumber: string; status: string; total: number };
+    };
+  }) => (
     <div data-testid="pdf-preview">{`document ${source.invoice.invoiceNumber} ${source.invoice.status} ${source.invoice.total}`}</div>
   ),
 }));
@@ -56,24 +72,39 @@ vi.mock('@/lib/helpers/invoice-pdf-helpers', () => ({
   prepareInvoiceDataForPdf: () => ({ senderProfile: null }),
 }));
 
+import { ConversationHeader } from '@/components/ai/conversation-header';
 import { AiWorkspace } from '@/components/ai/ai-workspace';
 import { ChatLink } from '@/components/ai/chat-link';
 import { DraftCard } from '@/components/ai/draft-card';
 import { InvoicePreviewPanel } from '@/components/ai/invoice-preview-panel';
 import { InvoiceStateProvider } from '@/components/ai/invoice-state-context';
-import type { DraftCardView, LinkedInvoiceState } from '@/types/assistant/types';
+import type {
+  DraftCardView,
+  LinkedInvoiceState,
+} from '@/types/assistant/types';
 import type { SerializedInvoice } from '@/types/invoice/types';
 
 const NO_LONGER = 'This invoice is no longer available.';
 const CANT_FIND = "This invoice can't be found.";
 const LOAD_FAILED = "The preview couldn't be loaded. Try again.";
 const ALREADY = 'This invoice has already been issued.';
-const CHANGED = 'This draft was changed after you opened the preview. Check it and issue again.';
+const CHANGED =
+  'This draft was changed after you opened the preview. Check it and issue again.';
 const ISSUE_FAILED = "The invoice couldn't be issued. Try again.";
-const SENTENCE = "Once it's issued, its lines and amounts can no longer change.";
+const SENTENCE =
+  "Once it's issued, its lines and amounts can no longer change.";
 
-const DRAFT: LinkedInvoiceState = { state: 'DRAFT', invoiceId: 'inv43', invoiceNumber: 'INV-0043' };
-const ISSUED: LinkedInvoiceState = { state: 'ISSUED', invoiceId: 'inv43', invoiceNumber: 'INV-0043', status: 'pending' };
+const DRAFT: LinkedInvoiceState = {
+  state: 'DRAFT',
+  invoiceId: 'inv43',
+  invoiceNumber: 'INV-0043',
+};
+const ISSUED: LinkedInvoiceState = {
+  state: 'ISSUED',
+  invoiceId: 'inv43',
+  invoiceNumber: 'INV-0043',
+  status: 'pending',
+};
 
 const invoice = (over: Partial<Record<string, unknown>> = {}) =>
   ({
@@ -87,16 +118,32 @@ const invoice = (over: Partial<Record<string, unknown>> = {}) =>
     ...over,
   }) as unknown as SerializedInvoice;
 
-const available = (over: Partial<Record<string, unknown>> = {}, version = 3, state: LinkedInvoiceState = DRAFT) =>
-  ok({ kind: 'AVAILABLE' as const, invoice: invoice(over), version, state });
+const available = (
+  over: Partial<Record<string, unknown>> = {},
+  version = 3,
+  state: LinkedInvoiceState = DRAFT
+) => ok({ kind: 'AVAILABLE' as const, invoice: invoice(over), version, state });
 
 const card: DraftCardView = {
   id: 'card1',
   state: 'CREATED',
   proposal: {
-    customer: { customerId: 'cust1', name: { freelancerText: 'Acme Corp' }, source: 'REQUEST' },
-    senderProfile: { senderProfileId: 'sp1', name: { freelancerText: 'Main profile' }, source: 'DEFAULT' },
-    bankAccount: { bankAccountId: 'ba1', label: 'Monobank ••••1234', currency: 'USD', source: 'DEFAULT' },
+    customer: {
+      customerId: 'cust1',
+      name: { freelancerText: 'Acme Corp' },
+      source: 'REQUEST',
+    },
+    senderProfile: {
+      senderProfileId: 'sp1',
+      name: { freelancerText: 'Main profile' },
+      source: 'DEFAULT',
+    },
+    bankAccount: {
+      bankAccountId: 'ba1',
+      label: 'Monobank ••••1234',
+      currency: 'USD',
+      source: 'DEFAULT',
+    },
     currency: 'USD',
     issueDate: { value: '2026-10-11', source: 'DEFAULT' },
     dueDate: { value: '2026-11-10', source: 'DEFAULT' },
@@ -109,7 +156,11 @@ const card: DraftCardView = {
   replacedById: null,
   invoice: DRAFT,
 };
-const link = { kind: 'invoice' as const, invoiceId: 'inv43', label: 'INV-0043' };
+const link = {
+  kind: 'invoice' as const,
+  invoiceId: 'inv43',
+  label: 'INV-0043',
+};
 
 /** The panel beside a created card and a link to the same invoice, sharing one store. */
 function scene() {
@@ -125,18 +176,24 @@ function scene() {
     </InvoiceStateProvider>
   );
 }
-const panel = () => screen.getByRole('region', { name: /INV-0043|Invoice preview/ });
-const issueButton = () => within(panel()).queryByRole('button', { name: 'Issue invoice' });
+const panel = () =>
+  screen.getByRole('region', { name: /INV-0043|Invoice preview/ });
+const issueButton = () =>
+  within(panel()).queryByRole('button', { name: 'Issue invoice' });
 
 async function confirmIssue(user: ReturnType<typeof userEvent.setup>) {
   await user.click(issueButton()!);
   const dialog = await screen.findByRole('dialog');
-  await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Issue invoice' })
+  );
   return dialog;
 }
 
 const replaceState = vi.spyOn(window.history, 'replaceState');
-const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+const back = vi
+  .spyOn(window.history, 'back')
+  .mockImplementation(() => undefined);
 
 beforeEach(() => {
   search = new URLSearchParams('preview=card1');
@@ -171,19 +228,29 @@ describe('InvoicePreviewPanel - loading and draft (AC-20)', () => {
     const heading = await screen.findByRole('heading', { name: 'INV-0043' });
     const region = panel();
     expect(within(region).getByText('Draft')).toBeTruthy();
-    expect(within(region).getByTestId('pdf-preview').textContent).toContain('document INV-0043');
-    expect(within(region).getByRole('link', { name: 'Open in editor' }).getAttribute('href')).toBe('/invoices/inv43/edit');
+    expect(within(region).getByTestId('pdf-preview').textContent).toContain(
+      'document INV-0043'
+    );
+    expect(
+      within(region)
+        .getByRole('link', { name: 'Open in editor' })
+        .getAttribute('href')
+    ).toBe('/invoices/inv43/edit');
     expect(issueButton()).not.toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
   it('issued: the status badge, the document and only "Open in editor"', async () => {
-    loadInvoicePreview.mockResolvedValue(available({ status: 'PENDING' }, 4, ISSUED));
+    loadInvoicePreview.mockResolvedValue(
+      available({ status: 'PENDING' }, 4, ISSUED)
+    );
     render(<InvoicePreviewPanel cardId="card1" />);
     await screen.findByRole('heading', { name: 'INV-0043' });
     expect(within(panel()).getByText('Pending')).toBeTruthy();
     expect(issueButton()).toBeNull();
-    expect(within(panel()).getByRole('link', { name: 'Open in editor' })).toBeTruthy();
+    expect(
+      within(panel()).getByRole('link', { name: 'Open in editor' })
+    ).toBeTruthy();
   });
 
   it('"Close preview" drops the parameter, and Escape does the same', async () => {
@@ -205,9 +272,19 @@ describe('InvoicePreviewPanel - no invoice (AC-21, AC-22)', () => {
     expect(await within(panel()).findByText(NO_LONGER)).toBeTruthy();
     expect(issueButton()).toBeNull();
     expect(within(panel()).queryByRole('link')).toBeNull();
-    await waitFor(() => expect(screen.getByTestId('card').textContent).toContain('This draft is no longer available.'));
-    expect(within(screen.getByTestId('card')).queryByRole('button', { name: 'Preview' })).toBeNull();
-    expect(screen.getByTestId('link').textContent).toContain('No longer available');
+    await waitFor(() =>
+      expect(screen.getByTestId('card').textContent).toContain(
+        'This draft is no longer available.'
+      )
+    );
+    expect(
+      within(screen.getByTestId('card')).queryByRole('button', {
+        name: 'Preview',
+      })
+    ).toBeNull();
+    expect(screen.getByTestId('link').textContent).toContain(
+      'No longer available'
+    );
   });
 
   it('AC-22: NOT_FOUND says it cannot be found, verbatim, and leaves the card alone', async () => {
@@ -215,23 +292,33 @@ describe('InvoicePreviewPanel - no invoice (AC-21, AC-22)', () => {
     scene();
     expect(await within(panel()).findByText(CANT_FIND)).toBeTruthy();
     expect(issueButton()).toBeNull();
-    expect(screen.getByTestId('card').textContent).toContain('Draft INV-0043 created.');
+    expect(screen.getByTestId('card').textContent).toContain(
+      'Draft INV-0043 created.'
+    );
   });
 
   // Review 2026-10-13 R10-1: at /ai there is no open Conversation, so a preview address is not found, with no read.
   it('AC-22: at /ai (no Conversation) ?preview= shows not found without loading', async () => {
     pathname = '/ai';
     render(<InvoicePreviewPanel cardId="card1" />);
-    expect(await screen.findByText("This invoice can't be found.")).toBeTruthy();
+    expect(
+      await screen.findByText("This invoice can't be found.")
+    ).toBeTruthy();
     expect(loadInvoicePreview).not.toHaveBeenCalled();
   });
 
   it('FAILED: the load error with "Try again", which loads again', async () => {
-    loadInvoicePreview.mockResolvedValueOnce(fail('FAILED', LOAD_FAILED)).mockResolvedValueOnce(available());
+    loadInvoicePreview
+      .mockResolvedValueOnce(fail('FAILED', LOAD_FAILED))
+      .mockResolvedValueOnce(available());
     render(<InvoicePreviewPanel cardId="card1" />);
     expect(await screen.findByText(LOAD_FAILED)).toBeTruthy();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByRole('heading', { name: 'INV-0043' })).toBeTruthy();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('heading', { name: 'INV-0043' })
+    ).toBeTruthy();
     expect(loadInvoicePreview).toHaveBeenCalledTimes(2);
   });
 
@@ -263,11 +350,18 @@ describe('Issue (AC-23, AC-27)', () => {
   // Review 2026-10-13 R1-S2: the dialog names the invoice's own copy of the Customer (what the document shows), not
   // the Customer record, which may have been renamed since the draft was made.
   it('AC-23: the dialog names the Customer as the invoice shows it, not the renamed Customer record', async () => {
-    loadInvoicePreview.mockResolvedValue(available({ customerName: 'Acme Corp', customer: { id: 'cust1', name: 'Acme Renamed' } }));
+    loadInvoicePreview.mockResolvedValue(
+      available({
+        customerName: 'Acme Corp',
+        customer: { id: 'cust1', name: 'Acme Renamed' },
+      })
+    );
     render(<InvoicePreviewPanel cardId="card1" />);
     await screen.findByRole('heading', { name: 'INV-0043' });
     await userEvent.setup().click(issueButton()!);
-    const text = ((await screen.findByRole('dialog')).textContent ?? '').replace(/\s+/g, ' ');
+    const text = (
+      (await screen.findByRole('dialog')).textContent ?? ''
+    ).replace(/\s+/g, ' ');
     expect(text).toContain('Acme Corp');
     expect(text).not.toContain('Acme Renamed');
   });
@@ -276,16 +370,22 @@ describe('Issue (AC-23, AC-27)', () => {
     loadInvoicePreview
       .mockResolvedValueOnce(available())
       .mockResolvedValue(available({ status: 'PENDING' }, 4, ISSUED));
-    issueFromPreview.mockResolvedValue(ok({ status: 'PENDING', version: 4, invoice: ISSUED }));
+    issueFromPreview.mockResolvedValue(
+      ok({ status: 'PENDING', version: 4, invoice: ISSUED })
+    );
     scene();
     await screen.findByRole('heading', { name: 'INV-0043' });
     await confirmIssue(userEvent.setup());
     expect(issueFromPreview).toHaveBeenCalledWith('inv43', 3);
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Invoice INV-0043 issued.'));
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('Invoice INV-0043 issued.')
+    );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(issueButton()).toBeNull());
     expect(within(panel()).getByText('Pending')).toBeTruthy();
-    expect(screen.getByTestId('card').textContent).toContain('Invoice INV-0043');
+    expect(screen.getByTestId('card').textContent).toContain(
+      'Invoice INV-0043'
+    );
     expect(screen.getByTestId('card').textContent).toContain('Pending');
     expect(screen.getByTestId('link').textContent).toContain('Pending');
     expect(loadInvoicePreview).toHaveBeenCalledTimes(2);
@@ -293,7 +393,9 @@ describe('Issue (AC-23, AC-27)', () => {
 
   it('AC-27: issuing never depends on the allowance (no allowance input, the action is called as usual)', async () => {
     loadInvoicePreview.mockResolvedValue(available());
-    issueFromPreview.mockResolvedValue(ok({ status: 'PENDING', version: 4, invoice: ISSUED }));
+    issueFromPreview.mockResolvedValue(
+      ok({ status: 'PENDING', version: 4, invoice: ISSUED })
+    );
     render(<InvoicePreviewPanel cardId="card1" />);
     await screen.findByRole('heading', { name: 'INV-0043' });
     await confirmIssue(userEvent.setup());
@@ -303,8 +405,14 @@ describe('Issue (AC-23, AC-27)', () => {
 
 describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
   it('AC-26: ALREADY_ISSUED shows the contract text, applies details.invoice and drops Issue; nothing issued again', async () => {
-    loadInvoicePreview.mockResolvedValueOnce(available()).mockResolvedValue(available({ status: 'PENDING' }, 5, ISSUED));
-    issueFromPreview.mockResolvedValue(fail('CONFLICT', ALREADY, { details: { kind: 'ALREADY_ISSUED', invoice: ISSUED } }));
+    loadInvoicePreview
+      .mockResolvedValueOnce(available())
+      .mockResolvedValue(available({ status: 'PENDING' }, 5, ISSUED));
+    issueFromPreview.mockResolvedValue(
+      fail('CONFLICT', ALREADY, {
+        details: { kind: 'ALREADY_ISSUED', invoice: ISSUED },
+      })
+    );
     scene();
     await screen.findByRole('heading', { name: 'INV-0043' });
     await confirmIssue(userEvent.setup());
@@ -319,9 +427,23 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
   it('AC-26b: CHANGED_ELSEWHERE reloads the current draft with the warning; the next confirmation names the current figures', async () => {
     loadInvoicePreview
       .mockResolvedValueOnce(available())
-      .mockResolvedValueOnce(available({ total: 1200, customerName: 'Acme GmbH', customer: { id: 'cust2', name: 'Acme GmbH' }, currency: 'EUR' }, 7));
+      .mockResolvedValueOnce(
+        available(
+          {
+            total: 1200,
+            customerName: 'Acme GmbH',
+            customer: { id: 'cust2', name: 'Acme GmbH' },
+            currency: 'EUR',
+          },
+          7
+        )
+      );
     issueFromPreview
-      .mockResolvedValueOnce(fail('CONFLICT', CHANGED, { details: { kind: 'CHANGED_ELSEWHERE', currentVersion: 7 } }))
+      .mockResolvedValueOnce(
+        fail('CONFLICT', CHANGED, {
+          details: { kind: 'CHANGED_ELSEWHERE', currentVersion: 7 },
+        })
+      )
       .mockReturnValueOnce(new Promise(() => undefined));
     render(<InvoicePreviewPanel cardId="card1" />);
     await screen.findByRole('heading', { name: 'INV-0043' });
@@ -329,7 +451,9 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
     await confirmIssue(user);
     expect(await screen.findByText(CHANGED)).toBeTruthy();
     await waitFor(() => expect(loadInvoicePreview).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByTestId('pdf-preview').textContent).toContain('1200'));
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-preview').textContent).toContain('1200')
+    );
     expect(screen.queryByRole('dialog')).toBeNull();
     await user.click(issueButton()!);
     // The alert clears on the next Issue press; the dialog names the current figures.
@@ -338,15 +462,20 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
     const text = (dialog.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain('Acme GmbH');
     expect(text).toContain('1,200.00 EUR');
-    await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Issue invoice' })
+    );
     expect(issueFromPreview).toHaveBeenLastCalledWith('inv43', 7);
   });
 
   it('AC-25: VALIDATION shows "Can\'t issue this invoice" with the editor message verbatim and the field errors; Open in editor becomes primary', async () => {
     loadInvoicePreview.mockResolvedValue(available());
-    const message = 'The bank account currency (EUR) does not match the invoice currency (USD).';
+    const message =
+      'The bank account currency (EUR) does not match the invoice currency (USD).';
     issueFromPreview.mockResolvedValue(
-      fail('VALIDATION', message, { fieldErrors: { bankAccountId: ['Choose a bank account in USD.'] } })
+      fail('VALIDATION', message, {
+        fieldErrors: { bankAccountId: ['Choose a bank account in USD.'] },
+      })
     );
     render(<InvoicePreviewPanel cardId="card1" />);
     await screen.findByRole('heading', { name: 'INV-0043' });
@@ -356,7 +485,11 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
     expect(screen.getByText('Choose a bank account in USD.')).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(within(panel()).getByText('Draft')).toBeTruthy();
-    expect(within(panel()).getByRole('link', { name: 'Open in editor' }).getAttribute('data-variant')).toBe('default');
+    expect(
+      within(panel())
+        .getByRole('link', { name: 'Open in editor' })
+        .getAttribute('data-variant')
+    ).toBe('default');
     expect(issueButton()?.getAttribute('data-variant')).toBe('outline');
   });
 
@@ -378,8 +511,14 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
     await screen.findByRole('heading', { name: 'INV-0043' });
     await confirmIssue(userEvent.setup());
     expect(await within(panel()).findByText(NO_LONGER)).toBeTruthy();
-    await waitFor(() => expect(screen.getByTestId('card').textContent).toContain('This draft is no longer available.'));
-    expect(screen.getByTestId('link').textContent).toContain('No longer available');
+    await waitFor(() =>
+      expect(screen.getByTestId('card').textContent).toContain(
+        'This draft is no longer available.'
+      )
+    );
+    expect(screen.getByTestId('link').textContent).toContain(
+      'No longer available'
+    );
   });
 });
 
@@ -402,7 +541,16 @@ function stubWidth(desktop: boolean) {
 }
 function workspace() {
   return render(
-    <AiWorkspace conversations={[{ id: 'c1', title: 'Invoice Acme', lastMessageAt: '2026-10-12T10:00:00.000Z' }]} timeZone="UTC">
+    <AiWorkspace
+      conversations={[
+        {
+          id: 'c1',
+          title: 'Invoice Acme',
+          lastMessageAt: '2026-10-12T10:00:00.000Z',
+        },
+      ]}
+      timeZone="UTC"
+    >
       <div data-testid="chat">chat</div>
     </AiWorkspace>
   );
@@ -413,8 +561,14 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
     search = new URLSearchParams();
     stubWidth(true);
     workspace();
-    expect(screen.queryByRole('region', { name: /Invoice preview|INV-0043/ })).toBeNull();
-    expect(document.querySelector('[data-slot="ai-workspace"]')?.getAttribute('data-preview')).toBe('closed');
+    expect(
+      screen.queryByRole('region', { name: /Invoice preview|INV-0043/ })
+    ).toBeNull();
+    expect(
+      document
+        .querySelector('[data-slot="ai-workspace"]')
+        ?.getAttribute('data-preview')
+    ).toBe('closed');
   });
 
   it('desktop: the panel is a column beside the chat (not a dialog); the list pane is hidden below xl behind the list button', async () => {
@@ -422,14 +576,51 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
     loadInvoicePreview.mockResolvedValue(available());
     workspace();
     await screen.findByRole('heading', { name: 'INV-0043' });
-    const grid = document.querySelector('[data-slot="ai-workspace"]') as HTMLElement;
+    const grid = document.querySelector(
+      '[data-slot="ai-workspace"]'
+    ) as HTMLElement;
     expect(grid.getAttribute('data-preview')).toBe('open');
     expect(screen.getByTestId('chat')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
-    const list = screen.getByRole('complementary', { name: 'Conversation list' });
+    const list = screen.getByRole('complementary', {
+      name: 'Conversation list',
+    });
     expect(list.className).toMatch(/xl:flex/);
     expect(list.className).not.toMatch(/(^|\s)md:flex/);
-    expect(grid.className).toMatch(/xl:grid-cols-\[16rem_minmax\(0,1fr\)_minmax\(26rem,40%\)\]/);
+    expect(grid.className).toMatch(
+      /xl:grid-cols-\[16rem_minmax\(0,1fr\)_minmax\(26rem,40%\)\]/
+    );
+  });
+
+  // ai-chat-v2 T36 (screens.md «Header», md–xl with the preview): the h-12 header carries the list toggle, which
+  // stays until xl (where the list pane returns); the panel's own header is h-12 too, so the rows line up.
+  it('md–xl with the preview open: the h-12 chat header holds the list toggle up to xl', async () => {
+    stubWidth(true);
+    loadInvoicePreview.mockResolvedValue(available());
+    render(
+      <AiWorkspace
+        conversations={[
+          {
+            id: 'c1',
+            title: 'Invoice Acme',
+            lastMessageAt: '2026-10-12T10:00:00.000Z',
+          },
+        ]}
+        timeZone="UTC"
+      >
+        <ConversationHeader title="Invoice Acme" onDelete={() => {}} />
+      </AiWorkspace>
+    );
+    await screen.findByRole('heading', { name: 'INV-0043' });
+    const header = document.querySelector(
+      '[data-slot="chat-header"]'
+    ) as HTMLElement;
+    expect(header).toHaveClass('h-12');
+    const toggle = within(header).getByRole('button', {
+      name: 'Open conversations',
+    });
+    expect(toggle).toHaveClass('xl:hidden');
+    expect(toggle).not.toHaveClass('md:hidden');
   });
 
   it('phone (AC-19): the preview is a full-screen sheet with the same actions', async () => {
@@ -437,10 +628,18 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
     loadInvoicePreview.mockResolvedValue(available());
     workspace();
     const sheet = await screen.findByRole('dialog');
-    expect(await within(sheet).findByRole('heading', { name: 'INV-0043' })).toBeTruthy();
-    expect(within(sheet).getByRole('button', { name: 'Issue invoice' })).toBeTruthy();
-    expect(within(sheet).getByRole('link', { name: 'Open in editor' })).toBeTruthy();
-    expect(within(sheet).getByRole('button', { name: 'Close preview' })).toBeTruthy();
+    expect(
+      await within(sheet).findByRole('heading', { name: 'INV-0043' })
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole('button', { name: 'Issue invoice' })
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole('link', { name: 'Open in editor' })
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole('button', { name: 'Close preview' })
+    ).toBeTruthy();
   });
 
   it('a reload with ?preview= in the address loads the panel again', async () => {
@@ -453,7 +652,7 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
 });
 
 describe('focus return', () => {
-  it('closing returns focus to the card\'s Preview button', async () => {
+  it("closing returns focus to the card's Preview button", async () => {
     loadInvoicePreview.mockResolvedValue(available());
     const view = render(
       <InvoiceStateProvider>
@@ -477,6 +676,8 @@ describe('focus return', () => {
         </InvoiceStateProvider>
       );
     });
-    await waitFor(() => expect(document.activeElement?.textContent).toBe('Preview'));
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe('Preview')
+    );
   });
 });

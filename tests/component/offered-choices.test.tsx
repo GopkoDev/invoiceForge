@@ -13,7 +13,14 @@
 //     it and shows the used-up notice; COULD_NOT_COMPLETE leaves the buttons pressable and "Try again" re-sends
 //     the same choice.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // SCR-04 (review 2026-10-13 R1-U1): a button that can't be pressed is aria-disabled (still focusable and readable in
@@ -22,7 +29,8 @@ const expectOff = (b: HTMLElement) => {
   expect(b).toHaveAttribute('aria-disabled', 'true');
   expect(b).not.toBeDisabled();
 };
-const expectOn = (b: HTMLElement) => expect(b).not.toHaveAttribute('aria-disabled', 'true');
+const expectOn = (b: HTMLElement) =>
+  expect(b).not.toHaveAttribute('aria-disabled', 'true');
 
 const refresh = vi.fn();
 // The address the page is rendered at; the /ai page renders at /ai (ai-chat-v2 T31: /ai's island at /ai/{id} is a stale entry).
@@ -32,7 +40,9 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock('@/lib/helpers/client-session-redirect', () => ({ goToSignIn: vi.fn() }));
+vi.mock('@/lib/helpers/client-session-redirect', () => ({
+  goToSignIn: vi.fn(),
+}));
 const loadConversationCards = vi.fn();
 vi.mock('@/lib/actions/assistant-actions', () => ({
   loadConversationCards: (...a: unknown[]) => loadConversationCards(...a),
@@ -41,15 +51,27 @@ vi.mock('@/components/ai/draft-card', () => ({ DraftCard: () => <div /> }));
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
-  listConversationSummaries: async () => ({ success: true, data: { items: [], timeZone: 'UTC' } }),
+  listConversationSummaries: async () => ({
+    success: true,
+    data: { items: [], timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
-  actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'u1', timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: async () => ({
     success: true,
-    data: { limit: 30, used: 3, left: 27, renewsAt: '2026-10-14T00:00:00.000Z', timeZone: 'UTC' },
+    data: {
+      limit: 30,
+      used: 3,
+      left: 27,
+      renewsAt: '2026-10-14T00:00:00.000Z',
+      timeZone: 'UTC',
+    },
   }),
 }));
 
@@ -57,9 +79,13 @@ import { OfferedChoices } from '@/components/ai/offered-choices';
 import { ChatIsland } from '@/components/ai/chat-island';
 import ConversationPage from '@/app/(protected)/ai/[conversationId]/page';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
-import type { ConversationMessageView, OfferView } from '@/types/assistant/types';
+import type {
+  ConversationMessageView,
+  OfferView,
+} from '@/types/assistant/types';
 
-const UNAVAILABLE = 'This option is no longer available. Choose again or type your request.';
+const UNAVAILABLE =
+  'This option is no longer available. Choose again or type your request.';
 const USED_UP_TEXT =
   "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected.";
 const COULD_NOT = "The reply couldn't be completed. Try again.";
@@ -81,7 +107,12 @@ describe('OfferedChoices (SCR-04)', () => {
 
   it('labels loading: a skeleton row and no group until the OfferView arrives', () => {
     const { container } = render(
-      <OfferedChoices offer={undefined} isLatest pendingOptionId={null} onPress={vi.fn()} />
+      <OfferedChoices
+        offer={undefined}
+        isLatest
+        pendingOptionId={null}
+        onPress={vi.fn()}
+      />
     );
     expect(screen.queryByRole('group')).toBeNull();
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(3);
@@ -94,7 +125,14 @@ describe('OfferedChoices (SCR-04)', () => {
     ['SENDER_PROFILE', 'Choose a sender profile'],
     ['CURRENCY', 'Choose a currency'],
   ] as const)('%s: a group labelled "%s"', (kind, name) => {
-    render(<OfferedChoices offer={offer({ kind })} isLatest pendingOptionId={null} onPress={vi.fn()} />);
+    render(
+      <OfferedChoices
+        offer={offer({ kind })}
+        isLatest
+        pendingOptionId={null}
+        onPress={vi.fn()}
+      />
+    );
     expect(screen.getByRole('group', { name })).toBeTruthy();
   });
 
@@ -106,10 +144,20 @@ describe('OfferedChoices (SCR-04)', () => {
         { optionId: 1, label: 'Аcme Corp · no email' },
       ],
     });
-    render(<OfferedChoices offer={lookAlike} isLatest pendingOptionId={null} onPress={onPress} />);
+    render(
+      <OfferedChoices
+        offer={lookAlike}
+        isLatest
+        pendingOptionId={null}
+        onPress={onPress}
+      />
+    );
     const group = screen.getByRole('group', { name: 'Choose a Customer' });
     const buttons = within(group).getAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual(['Acme Corp · billing@acme.com', 'Аcme Corp · no email']);
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      'Acme Corp · billing@acme.com',
+      'Аcme Corp · no email',
+    ]);
     expect(buttons.map((b) => b.getAttribute('title'))).toEqual([
       'Acme Corp · billing@acme.com',
       'Аcme Corp · no email',
@@ -122,7 +170,10 @@ describe('OfferedChoices (SCR-04)', () => {
   it('a single-option offer is one pressable button', () => {
     render(
       <OfferedChoices
-        offer={offer({ kind: 'CURRENCY', options: [{ optionId: 0, label: 'USD' }] })}
+        offer={offer({
+          kind: 'CURRENCY',
+          options: [{ optionId: 0, label: 'USD' }],
+        })}
         isLatest
         pendingOptionId={null}
         onPress={vi.fn()}
@@ -132,18 +183,40 @@ describe('OfferedChoices (SCR-04)', () => {
   });
 
   it('keyboard order follows the buttons', async () => {
-    render(<OfferedChoices offer={offer()} isLatest pendingOptionId={null} onPress={vi.fn()} />);
+    render(
+      <OfferedChoices
+        offer={offer()}
+        isLatest
+        pendingOptionId={null}
+        onPress={vi.fn()}
+      />
+    );
     const user = userEvent.setup();
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Acme Corp' }));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Acme Corp' })
+    );
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Acme GmbH' }));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Acme GmbH' })
+    );
   });
 
   it('pressing: the pressed button shows a spinner and the whole group is disabled', () => {
-    render(<OfferedChoices offer={offer()} isLatest={false} pendingOptionId={1} onPress={vi.fn()} />);
+    render(
+      <OfferedChoices
+        offer={offer()}
+        isLatest={false}
+        pendingOptionId={1}
+        onPress={vi.fn()}
+      />
+    );
     const pressed = screen.getByRole('button', { name: /Acme GmbH/ });
-    expect(pressed.querySelector('[data-slot="spinner"], [role="status"], svg.animate-spin')).not.toBeNull();
+    expect(
+      pressed.querySelector(
+        '[data-slot="spinner"], [role="status"], svg.animate-spin'
+      )
+    ).not.toBeNull();
     screen.getAllByRole('button').forEach((b) => expectOff(b));
     expect(screen.queryByText('(chosen)')).toBeNull();
   });
@@ -151,12 +224,21 @@ describe('OfferedChoices (SCR-04)', () => {
   it('chosen (AC-12, AC-13): the chosen button is secondary with a check and "(chosen)"; all are disabled', () => {
     const onPress = vi.fn();
     render(
-      <OfferedChoices offer={offer({ state: 'CHOSEN', chosenOptionId: 1 })} isLatest pendingOptionId={null} onPress={onPress} />
+      <OfferedChoices
+        offer={offer({ state: 'CHOSEN', chosenOptionId: 1 })}
+        isLatest
+        pendingOptionId={null}
+        onPress={onPress}
+      />
     );
     const chosen = screen.getByRole('button', { name: 'Acme GmbH (chosen)' });
     expect(chosen.getAttribute('data-variant')).toBe('secondary');
     expect(chosen.querySelector('svg')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Acme Corp' }).getAttribute('data-variant')).toBe('outline');
+    expect(
+      screen
+        .getByRole('button', { name: 'Acme Corp' })
+        .getAttribute('data-variant')
+    ).toBe('outline');
     screen.getAllByRole('button').forEach((b) => expectOff(b));
   });
 
@@ -166,7 +248,12 @@ describe('OfferedChoices (SCR-04)', () => {
   it('chosen (SCR-04): the chosen button stays full strength while the others are muted; no press goes out', async () => {
     const onPress = vi.fn();
     render(
-      <OfferedChoices offer={offer({ state: 'CHOSEN', chosenOptionId: 1 })} isLatest pendingOptionId={null} onPress={onPress} />
+      <OfferedChoices
+        offer={offer({ state: 'CHOSEN', chosenOptionId: 1 })}
+        isLatest
+        pendingOptionId={null}
+        onPress={onPress}
+      />
     );
     const chosen = screen.getByRole('button', { name: 'Acme GmbH (chosen)' });
     const other = screen.getByRole('button', { name: 'Acme Corp' });
@@ -178,9 +265,15 @@ describe('OfferedChoices (SCR-04)', () => {
     expect(other.className).toMatch(muted);
     expect(other).toHaveAttribute('data-disabled');
     // Review 2026-10-13 R2-U4: nothing natively disabled, so the hover look is cancelled by hand while disabled.
-    expect(other.className).toMatch(/(^|\s)data-disabled:hover:bg-background(\s|$)/);
-    expect(chosen.className).toMatch(/(^|\s)data-disabled:hover:bg-secondary(\s|$)/);
-    expect(chosen.className).toMatch(/(^|\s)data-disabled:cursor-default(\s|$)/);
+    expect(other.className).toMatch(
+      /(^|\s)data-disabled:hover:bg-background(\s|$)/
+    );
+    expect(chosen.className).toMatch(
+      /(^|\s)data-disabled:hover:bg-secondary(\s|$)/
+    );
+    expect(chosen.className).toMatch(
+      /(^|\s)data-disabled:cursor-default(\s|$)/
+    );
     const user = userEvent.setup();
     await user.click(chosen);
     await user.click(other);
@@ -193,7 +286,14 @@ describe('OfferedChoices (SCR-04)', () => {
     ['CLOSED and latest', offer({ state: 'CLOSED' }), true],
     ['OPEN but not the latest reply', offer(), false],
   ])('inactive (%s): visible, disabled, none marked', (_label, o, isLatest) => {
-    render(<OfferedChoices offer={o} isLatest={isLatest} pendingOptionId={null} onPress={vi.fn()} />);
+    render(
+      <OfferedChoices
+        offer={o}
+        isLatest={isLatest}
+        pendingOptionId={null}
+        onPress={vi.fn()}
+      />
+    );
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(2);
     buttons.forEach((b) => expectOff(b));
@@ -204,7 +304,10 @@ describe('OfferedChoices (SCR-04)', () => {
 // ---------- the island's press path ----------
 
 const enc = new TextEncoder();
-const sseHeaders = { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' };
+const sseHeaders = {
+  'content-type': 'text/event-stream',
+  'x-vercel-ai-ui-message-stream': 'v1',
+};
 function openStream() {
   let ctrl!: ReadableStreamDefaultController<Uint8Array>;
   const body = new ReadableStream<Uint8Array>({
@@ -214,7 +317,8 @@ function openStream() {
   });
   return {
     response: new Response(body, { status: 200, headers: sseHeaders }),
-    push: (c: unknown) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
+    push: (c: unknown) =>
+      ctrl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
     end: () => {
       ctrl.enqueue(enc.encode('data: [DONE]\n\n'));
       ctrl.close();
@@ -222,11 +326,16 @@ function openStream() {
   };
 }
 function sse(chunks: unknown[]): Response {
-  const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('') + 'data: [DONE]\n\n';
+  const body =
+    chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('') +
+    'data: [DONE]\n\n';
   return new Response(body, { status: 200, headers: sseHeaders });
 }
 function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 const fetchMock = vi.fn();
 function bodyOf(call: number) {
@@ -244,13 +353,22 @@ const allowance = (left: number): AllowanceState => ({
 });
 
 const asked: ConversationMessageView[] = [
-  { id: 'm1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'invoice Acme for 20 hours at $50' }], createdAt: '' },
+  {
+    id: 'm1',
+    role: 'user',
+    origin: 'TYPED',
+    parts: [{ type: 'text', text: 'invoice Acme for 20 hours at $50' }],
+    createdAt: '',
+  },
   {
     id: 'm2',
     role: 'assistant',
     origin: null,
     parts: [
-      { type: 'text', text: 'Two Customers match "Acme". Which one do you mean?' },
+      {
+        type: 'text',
+        text: 'Two Customers match "Acme". Which one do you mean?',
+      },
       { type: 'data-offer', id: 'off1', data: { offerId: 'off1' } },
     ],
     createdAt: '',
@@ -277,7 +395,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   refresh.mockReset();
   loadConversationCards.mockReset();
-  loadConversationCards.mockResolvedValue({ success: true, data: { cards: {}, invoiceLinks: {}, offers: {} } });
+  loadConversationCards.mockResolvedValue({
+    success: true,
+    data: { cards: {}, invoiceLinks: {}, offers: {} },
+  });
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
@@ -288,9 +409,14 @@ afterEach(() => {
 describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
   it('renders the reply text, then its group with the stored labels; pressable as the latest reply', () => {
     island();
-    expect(screen.getByText('Two Customers match "Acme". Which one do you mean?')).toBeTruthy();
+    expect(
+      screen.getByText('Two Customers match "Acme". Which one do you mean?')
+    ).toBeTruthy();
     const buttons = within(group()).getAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual(['Acme Corp', 'Acme GmbH']);
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      'Acme Corp',
+      'Acme GmbH',
+    ]);
     buttons.forEach((b) => expectOn(b));
   });
 
@@ -298,7 +424,9 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     const stream = openStream();
     fetchMock.mockResolvedValueOnce(stream.response);
     island({ startedFrom: 'DASHBOARD_CREATE' });
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Acme GmbH' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const body = bodyOf(0);
     expect(body.conversationId).toBe('c1');
@@ -307,8 +435,12 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     expect(body).not.toHaveProperty('origin');
     expect(body).not.toHaveProperty('startedFrom');
     // pressing: the label appears at once as the Freelancer's message; the group and the composer are locked.
-    expect(document.querySelector('[data-role="user"]:last-of-type')?.textContent).toBe('Acme GmbH');
-    within(group()).getAllByRole('button').forEach((b) => expectOff(b));
+    expect(
+      document.querySelector('[data-role="user"]:last-of-type')?.textContent
+    ).toBe('Acme GmbH');
+    within(group())
+      .getAllByRole('button')
+      .forEach((b) => expectOff(b));
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     expect(screen.queryByText('(chosen)')).toBeNull();
     stream.end();
@@ -319,14 +451,20 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
       sse([
         { type: 'start', messageId: 'srv1' },
         { type: 'text-start', id: 't1' },
-        { type: 'text-delta', id: 't1', delta: 'Here is the draft for Acme GmbH.' },
+        {
+          type: 'text-delta',
+          id: 't1',
+          delta: 'Here is the draft for Acme GmbH.',
+        },
         { type: 'text-end', id: 't1' },
         { type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } },
         { type: 'finish' },
       ])
     );
     const view = island();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Acme GmbH' }));
     await screen.findByText('Here is the draft for Acme GmbH.');
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     // router.refresh() brings the stored state back through the page's props.
@@ -349,18 +487,25 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     fetchMock.mockResolvedValueOnce(stream.response);
     island();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'never mind, who owes me money?');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message' }),
+      'never mind, who owes me money?'
+    );
     await user.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(bodyOf(0)).not.toHaveProperty('choice');
-    within(group()).getAllByRole('button').forEach((b) => expectOff(b));
+    within(group())
+      .getAllByRole('button')
+      .forEach((b) => expectOff(b));
     stream.end();
   });
 
   it('a data-offer part streamed with only its id shows a skeleton until loadConversationCards brings the labels (/ai)', async () => {
     mockPathname = '/ai';
     let resolveCards!: (v: unknown) => void;
-    loadConversationCards.mockReturnValueOnce(new Promise((r) => (resolveCards = r)));
+    loadConversationCards.mockReturnValueOnce(
+      new Promise((r) => (resolveCards = r))
+    );
     fetchMock.mockResolvedValueOnce(
       sse([
         { type: 'start', messageId: 'srv1' },
@@ -368,21 +513,41 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
         { type: 'text-delta', id: 't1', delta: 'Which account?' },
         { type: 'text-end', id: 't1' },
         { type: 'data-offer', id: 'off9', data: { offerId: 'off9' } },
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Draft' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cNew', title: 'Draft' },
+        },
         { type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } },
         { type: 'finish' },
       ])
     );
     render(
-      <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(27)} />
+      <ChatIsland
+        conversationId={null}
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance(27)}
+      />
     );
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'invoice Acme GmbH');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message' }),
+      'invoice Acme GmbH'
+    );
     await user.click(screen.getByRole('button', { name: 'Send' }));
     await screen.findByText('Which account?');
-    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledWith('cNew'));
-    expect(screen.queryByRole('group', { name: 'Choose a bank account' })).toBeNull();
-    expect(document.querySelectorAll('[data-slot="offered-choices"] [data-slot="skeleton"]').length).toBe(3);
+    await waitFor(() =>
+      expect(loadConversationCards).toHaveBeenCalledWith('cNew')
+    );
+    expect(
+      screen.queryByRole('group', { name: 'Choose a bank account' })
+    ).toBeNull();
+    expect(
+      document.querySelectorAll(
+        '[data-slot="offered-choices"] [data-slot="skeleton"]'
+      ).length
+    ).toBe(3);
     await act(async () => {
       resolveCards({
         success: true,
@@ -404,30 +569,57 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
         },
       });
     });
-    const accounts = await screen.findByRole('group', { name: 'Choose a bank account' });
-    expectOn(within(accounts).getByRole('button', { name: 'Wise ••••7710 · USD' }));
+    const accounts = await screen.findByRole('group', {
+      name: 'Choose a bank account',
+    });
+    expectOn(
+      within(accounts).getByRole('button', { name: 'Wise ••••7710 · USD' })
+    );
   });
 });
 
 describe('ChatIsland - refused presses', () => {
   it('AC-12b/AC-13: 409 CHOICE_UNAVAILABLE removes the pressed message, shows the sentence, counter unchanged, buttons pressable', async () => {
     fetchMock.mockResolvedValueOnce(
-      json(409, { success: false, code: 'CONFLICT', error: UNAVAILABLE, details: { kind: 'CHOICE_UNAVAILABLE' } })
+      json(409, {
+        success: false,
+        code: 'CONFLICT',
+        error: UNAVAILABLE,
+        details: { kind: 'CHOICE_UNAVAILABLE' },
+      })
     );
     island();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Acme GmbH' }));
     expect(await screen.findByText(UNAVAILABLE)).toBeTruthy();
     expect(document.querySelectorAll('[data-role="user"]')).toHaveLength(1);
     expect(screen.getByText('27 of 30 messages left today')).toBeTruthy();
-    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
+    // ai-chat-v2 T36 (SCR-03 "choice unavailable"): a non-destructive alert in an assistant message, no Try again.
+    const notice = screen.getByRole('alert');
+    expect(notice).toHaveTextContent(UNAVAILABLE);
+    expect(notice).not.toHaveClass('text-destructive');
+    expect(notice.closest('[data-role="assistant"]')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    within(group())
+      .getAllByRole('button')
+      .forEach((b) => expectOn(b));
     expect(screen.queryByText('(chosen)')).toBeNull();
     // The composer keeps its text empty: the label is never put into the box.
-    expect((screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value).toBe('');
+    expect(
+      (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement)
+        .value
+    ).toBe('');
   });
 
   it('the unavailable sentence clears on the next send', async () => {
     fetchMock.mockResolvedValueOnce(
-      json(409, { success: false, code: 'CONFLICT', error: UNAVAILABLE, details: { kind: 'CHOICE_UNAVAILABLE' } })
+      json(409, {
+        success: false,
+        code: 'CONFLICT',
+        error: UNAVAILABLE,
+        details: { kind: 'CHOICE_UNAVAILABLE' },
+      })
     );
     const stream = openStream();
     fetchMock.mockResolvedValueOnce(stream.response);
@@ -448,24 +640,36 @@ describe('ChatIsland - refused presses', () => {
         success: false,
         code: 'RATE_LIMITED',
         error: USED_UP_TEXT,
-        details: { kind: 'ALLOWANCE_USED_UP', limit: 30, renewsAt: '2026-10-14T00:00:00.000Z', timeZone: 'UTC' },
+        details: {
+          kind: 'ALLOWANCE_USED_UP',
+          limit: 30,
+          renewsAt: '2026-10-14T00:00:00.000Z',
+          timeZone: 'UTC',
+        },
       })
     );
     island({ allowance: allowance(0) });
     // With no allowance left the buttons are still pressable: the server refuses (AC-11).
     expectOn(screen.getByRole('button', { name: 'Acme GmbH' }));
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Acme GmbH' }));
     expect(await screen.findByText(USED_UP_TEXT)).toBeTruthy();
     expect(document.querySelectorAll('[data-role="user"]')).toHaveLength(1);
     expect(screen.queryByText('(chosen)')).toBeNull();
-    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
+    within(group())
+      .getAllByRole('button')
+      .forEach((b) => expectOn(b));
   });
 
   it('could-not-complete after a press: the buttons are pressable again and "Try again" re-sends the same choice', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         { type: 'start', messageId: 'srv1' },
-        { type: 'data-outcome', data: { outcome: 'COULD_NOT_COMPLETE', counted: false } },
+        {
+          type: 'data-outcome',
+          data: { outcome: 'COULD_NOT_COMPLETE', counted: false },
+        },
         { type: 'finish' },
       ])
     );
@@ -475,8 +679,15 @@ describe('ChatIsland - refused presses', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
     expect(await screen.findByText(COULD_NOT)).toBeTruthy();
-    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    within(group())
+      .getAllByRole('button')
+      .forEach((b) => expectOn(b));
+    // ai-chat-v2 T36: the failure is an assistant message holding the alert and its "Try again".
+    const failed = screen
+      .getByRole('alert')
+      .closest('[data-role="assistant"]') as HTMLElement;
+    expect(failed).not.toBeNull();
+    await user.click(within(failed).getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).choice).toEqual({ offerId: 'off1', optionId: 1 });
     expect(bodyOf(1).message.parts[0].text).toBe('Acme GmbH');
@@ -492,14 +703,24 @@ describe('Reopen (AC-13)', () => {
         conversation: { id: 'c1', title: 'Invoice Acme' },
         messages: [
           ...asked,
-          { id: 'm3', role: 'user', origin: 'PRESSED', parts: [{ type: 'text', text: 'Acme GmbH' }], createdAt: '' },
+          {
+            id: 'm3',
+            role: 'user',
+            origin: 'PRESSED',
+            parts: [{ type: 'text', text: 'Acme GmbH' }],
+            createdAt: '',
+          },
         ],
         invoiceLinks: {},
         cards: {},
         offers: { off1: offer({ state: 'CHOSEN', chosenOptionId: 1 }) },
       },
     });
-    render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
+    render(
+      await ConversationPage({
+        params: Promise.resolve({ conversationId: 'c1' }),
+      })
+    );
     expectOff(screen.getByRole('button', { name: 'Acme GmbH (chosen)' }));
   });
 
@@ -514,7 +735,11 @@ describe('Reopen (AC-13)', () => {
         offers: { off1: offer() },
       },
     });
-    render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
+    render(
+      await ConversationPage({
+        params: Promise.resolve({ conversationId: 'c1' }),
+      })
+    );
     expectOn(screen.getByRole('button', { name: 'Acme GmbH' }));
   });
 });

@@ -9,7 +9,7 @@ files_hint: ["components/ai/message-list.tsx", "components/ai/chat-island.tsx", 
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;

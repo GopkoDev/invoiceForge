@@ -106,7 +106,7 @@ export function MessageAvatar({
 }
 
 export type MessageResponseProps = Omit<
-  HTMLAttributes<HTMLDivElement>,
+  HTMLAttributes<HTMLParagraphElement>,
   'children'
 > & {
   children: string;
@@ -122,13 +122,13 @@ export function MessageResponse({
   ...props
 }: MessageResponseProps) {
   return (
-    <div
+    <p
       data-slot="message-response"
       className={cn('break-words whitespace-pre-wrap', className)}
       {...props}
     >
       {children}
-    </div>
+    </p>
   );
 }
 

@@ -23,7 +23,15 @@
 //   app/(protected)/ai/[conversationId]/page.tsx and app/(protected)/ai/page.tsx mount the island (page test below).
 // Network is faked by stubbing global fetch with scripted UI-message-stream SSE bodies / error JSON.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const refresh = vi.fn();
@@ -56,32 +64,50 @@ vi.mock('@/lib/actions/assistant-actions', () => ({
   deleteAllConversations: vi.fn(),
 }));
 vi.mock('@/components/ai/draft-card', () => ({
-  DraftCard: ({ card }: { card: { id: string } }) => <div data-testid="draft-card">{`card ${card.id}`}</div>,
+  DraftCard: ({ card }: { card: { id: string } }) => (
+    <div data-testid="draft-card">{`card ${card.id}`}</div>
+  ),
 }));
 
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
   getConversation: (...a: unknown[]) => getConversation(...a),
-  listConversationSummaries: async () => ({ success: true, data: { items: [], timeZone: 'UTC' } }),
+  listConversationSummaries: async () => ({
+    success: true,
+    data: { items: [], timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
-  actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'u1', timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: async () => ({
     success: true,
-    data: { limit: 30, used: 12, left: 18, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+    data: {
+      limit: 30,
+      used: 12,
+      left: 18,
+      renewsAt: '2026-10-13T00:00:00.000Z',
+      timeZone: 'UTC',
+    },
   }),
 }));
 
 import { ChatIsland } from '@/components/ai/chat-island';
 import { AiWorkspace } from '@/components/ai/ai-workspace';
-import { NewConversationProvider, useNewConversation } from '@/components/ai/new-conversation-context';
+import {
+  NewConversationProvider,
+  useNewConversation,
+} from '@/components/ai/new-conversation-context';
 import ConversationPage from '@/app/(protected)/ai/[conversationId]/page';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 import type { DraftCardView } from '@/types/assistant/types';
 
-const TOO_LONG = 'Messages can be at most 2,000 characters. Shorten it and send again.';
+const TOO_LONG =
+  'Messages can be at most 2,000 characters. Shorten it and send again.';
 const COULD_NOT = "The reply couldn't be completed. Try again.";
 const UNAVAILABLE =
   'AI is temporarily unavailable. Try again in a few minutes. The rest of Invoice Forge works as usual.';
@@ -97,8 +123,15 @@ const allowance = (left: number): AllowanceState => ({
   renewsAt: '2026-10-13T00:00:00.000Z',
   timeZone: 'UTC',
 });
-const allowanceChunk = (left: number) => ({ type: 'data-allowance', transient: true, data: allowance(left) });
-const outcome = (o: string, counted: boolean) => ({ type: 'data-outcome', data: { outcome: o, counted } });
+const allowanceChunk = (left: number) => ({
+  type: 'data-allowance',
+  transient: true,
+  data: allowance(left),
+});
+const outcome = (o: string, counted: boolean) => ({
+  type: 'data-outcome',
+  data: { outcome: o, counted },
+});
 const textChunks = (text: string) => [
   { type: 'text-start', id: 't1' },
   { type: 'text-delta', id: 't1', delta: text },
@@ -109,14 +142,22 @@ const FINISH = { type: 'finish' };
 
 const enc = new TextEncoder();
 const frame = (c: unknown) => enc.encode(`data: ${JSON.stringify(c)}\n\n`);
-const sseHeaders = { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' };
+const sseHeaders = {
+  'content-type': 'text/event-stream',
+  'x-vercel-ai-ui-message-stream': 'v1',
+};
 
 function sse(chunks: unknown[]): Response {
-  const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('') + 'data: [DONE]\n\n';
+  const body =
+    chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('') +
+    'data: [DONE]\n\n';
   return new Response(body, { status: 200, headers: sseHeaders });
 }
 function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 /** A stream the test feeds chunk by chunk, so waiting / streaming can be observed mid-flight. */
 function openStream() {
@@ -143,7 +184,11 @@ function bodyOf(call: number) {
   const init = fetchMock.mock.calls[call][1] as RequestInit;
   return JSON.parse(String(init.body)) as {
     conversationId: string | null;
-    message: { id: string; role: string; parts: Array<{ type: string; text: string }> };
+    message: {
+      id: string;
+      role: string;
+      parts: Array<{ type: string; text: string }>;
+    };
     messages?: unknown;
   };
 }
@@ -177,6 +222,18 @@ function island(over: Partial<Parameters<typeof ChatIsland>[0]> = {}) {
 }
 
 const box = () => screen.getByRole('textbox', { name: 'Message' });
+
+/** ai-chat-v2 T36: a failure is an assistant message (avatar + inline alert + "Try again") after the user's bubble. */
+function expectFailureMessage(alert: HTMLElement) {
+  const message = alert.closest('[data-role="assistant"]') as HTMLElement;
+  expect(message).not.toBeNull();
+  expect(message.querySelector('[data-slot="message-avatar"]')).not.toBeNull();
+  const retry = within(message).getByRole('button', { name: 'Try again' });
+  expect(retry.closest('[data-slot="message-actions"]')).not.toBeNull();
+  const rows = Array.from(document.querySelectorAll('[data-role]'));
+  expect(rows[rows.length - 1]).toBe(message);
+  expect(rows[rows.length - 2].getAttribute('data-role')).toBe('user');
+}
 const sendBtn = () => screen.getByRole('button', { name: 'Send' });
 
 async function send(user: ReturnType<typeof userEvent.setup>, text: string) {
@@ -195,7 +252,10 @@ beforeEach(() => {
   replaceState.mockClear();
   pathname = '/ai';
   loadConversationCards.mockReset();
-  loadConversationCards.mockResolvedValue({ success: true, data: { cards: {}, invoiceLinks: {} } });
+  loadConversationCards.mockResolvedValue({
+    success: true,
+    data: { cards: {}, invoiceLinks: {} },
+  });
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
@@ -205,7 +265,9 @@ afterEach(() => {
 
 describe('T33 ChatIsland - request shape', () => {
   it('posts only the new message and the conversationId, never the history', async () => {
-    fetchMock.mockResolvedValue(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    fetchMock.mockResolvedValue(
+      sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH])
+    );
     const user = userEvent.setup();
     island();
     await send(user, "What's overdue today?");
@@ -215,7 +277,9 @@ describe('T33 ChatIsland - request shape', () => {
     const body = bodyOf(0);
     expect(body.conversationId).toBe('c1');
     expect(body.message.role).toBe('user');
-    expect(body.message.parts).toEqual([{ type: 'text', text: "What's overdue today?" }]);
+    expect(body.message.parts).toEqual([
+      { type: 'text', text: "What's overdue today?" },
+    ]);
     expect(body.messages).toBeUndefined();
     expect(Object.keys(body).sort()).toEqual(['conversationId', 'message']);
   });
@@ -270,16 +334,26 @@ describe('T33 ChatIsland - waiting and streaming', () => {
       stream.push(FINISH);
       stream.end();
     });
-    expect(await screen.findByText('You have two overdue invoices.')).toBeTruthy();
+    expect(
+      await screen.findByText('You have two overdue invoices.')
+    ).toBeTruthy();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
   });
 });
 
 describe('T33 ChatIsland - AC-09 answered keeps the counter live', () => {
   it('18 sent today -> after one more the chat shows 11 messages left', async () => {
     fetchMock.mockResolvedValue(
-      sse([allowanceChunk(11), START, ...textChunks('Two are overdue.'), outcome('ANSWERED', true), FINISH])
+      sse([
+        allowanceChunk(11),
+        START,
+        ...textChunks('Two are overdue.'),
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
     );
     const user = userEvent.setup();
     island({ allowance: allowance(12) });
@@ -295,7 +369,13 @@ describe('T33 ChatIsland - partial (AC-11b)', () => {
     const reply =
       'Found 3 invoices so far. That was too broad to answer in full. Try a narrower question, for example one Customer.';
     fetchMock.mockResolvedValue(
-      sse([allowanceChunk(11), START, ...textChunks(reply), outcome('PARTIAL', true), FINISH])
+      sse([
+        allowanceChunk(11),
+        START,
+        ...textChunks(reply),
+        outcome('PARTIAL', true),
+        FINISH,
+      ])
     );
     const user = userEvent.setup();
     island();
@@ -320,7 +400,15 @@ describe('T33 ChatIsland - could-not-complete (AC-11)', () => {
           FINISH,
         ])
       )
-      .mockResolvedValueOnce(sse([allowanceChunk(11), START, ...textChunks('Done now.'), outcome('ANSWERED', true), FINISH]));
+      .mockResolvedValueOnce(
+        sse([
+          allowanceChunk(11),
+          START,
+          ...textChunks('Done now.'),
+          outcome('ANSWERED', true),
+          FINISH,
+        ])
+      );
     const user = userEvent.setup();
     island({ allowance: allowance(12) });
     await send(user, 'Who is late?');
@@ -329,6 +417,9 @@ describe('T33 ChatIsland - could-not-complete (AC-11)', () => {
     expect(alert.textContent).toContain(COULD_NOT);
     expect(screen.queryByText(/Half an answ/)).toBeNull();
     expect(screen.getByText('12 of 30 messages left today')).toBeTruthy();
+    // ai-chat-v2 T36 (screens.md «Errors are messages»): the alert and its Try again sit in an assistant message in
+    // the reply position (after the Freelancer's bubble), with the avatar; no bare full-width card.
+    expectFailureMessage(alert);
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -340,7 +431,9 @@ describe('T33 ChatIsland - could-not-complete (AC-11)', () => {
   });
 
   it('503 FAILED before the stream shows the same alert with Try again', async () => {
-    fetchMock.mockResolvedValue(json(503, { success: false, code: 'FAILED', error: COULD_NOT }));
+    fetchMock.mockResolvedValue(
+      json(503, { success: false, code: 'FAILED', error: COULD_NOT })
+    );
     const user = userEvent.setup();
     island();
     await send(user, 'Who is late?');
@@ -365,7 +458,12 @@ describe('T33 ChatIsland - could-not-complete (AC-11)', () => {
 describe('T33 ChatIsland - ai-unavailable', () => {
   it('shows the outage alert with Try again; the counter is not spent', async () => {
     fetchMock.mockResolvedValue(
-      sse([allowanceChunk(11), outcome('AI_UNAVAILABLE', false), allowanceChunk(12), FINISH])
+      sse([
+        allowanceChunk(11),
+        outcome('AI_UNAVAILABLE', false),
+        allowanceChunk(12),
+        FINISH,
+      ])
     );
     const user = userEvent.setup();
     island({ allowance: allowance(12) });
@@ -374,6 +472,7 @@ describe('T33 ChatIsland - ai-unavailable', () => {
     expect(alert.textContent).toContain(UNAVAILABLE);
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
     expect(screen.getByText('12 of 30 messages left today')).toBeTruthy();
+    expectFailureMessage(alert);
   });
 });
 
@@ -430,7 +529,12 @@ describe('T33 ChatIsland - used-up (AC-10b)', () => {
         success: false,
         code: 'RATE_LIMITED',
         error: USED_UP_TEXT,
-        details: { kind: 'ALLOWANCE_USED_UP', limit: 30, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+        details: {
+          kind: 'ALLOWANCE_USED_UP',
+          limit: 30,
+          renewsAt: '2026-10-13T00:00:00.000Z',
+          timeZone: 'UTC',
+        },
       })
     );
     const user = userEvent.setup();
@@ -441,26 +545,38 @@ describe('T33 ChatIsland - used-up (AC-10b)', () => {
     expect(screen.queryByText('second tab message')).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Connect your own AI client →' })).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: 'Connect your own AI client →' })
+    ).toBeTruthy();
     expect(screen.getByText('Acme owes you 100.')).toBeTruthy();
   });
 });
 
 describe('T33 ChatIsland - conversation-gone and signed out', () => {
   it('404 NOT_FOUND shows the alert with a link to /ai and disables the composer', async () => {
-    fetchMock.mockResolvedValue(json(404, { success: false, code: 'NOT_FOUND', error: GONE }));
+    fetchMock.mockResolvedValue(
+      json(404, { success: false, code: 'NOT_FOUND', error: GONE })
+    );
     const user = userEvent.setup();
     island();
     await send(user, 'hello');
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(GONE);
-    const link = screen.getByRole('link', { name: 'Start a new conversation →' });
+    const link = screen.getByRole('link', {
+      name: 'Start a new conversation →',
+    });
     expect(link.getAttribute('href')).toBe('/ai');
     expect((box() as HTMLTextAreaElement).disabled).toBe(true);
   });
 
   it('401 on send goes through goToSignIn', async () => {
-    fetchMock.mockResolvedValue(json(401, { success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' }));
+    fetchMock.mockResolvedValue(
+      json(401, {
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'Not signed in.',
+      })
+    );
     const user = userEvent.setup();
     island();
     await send(user, 'hello');
@@ -486,8 +602,12 @@ describe('T33 ChatIsland - cards and links as they arrive', () => {
     const user = userEvent.setup();
     island({ cards: { card1: card } });
     await send(user, 'Invoice Acme for 20 hours at $50');
-    expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
-    expect(screen.getByRole('link', { name: 'Sender profiles →' })).toBeTruthy();
+    expect((await screen.findByTestId('draft-card')).textContent).toBe(
+      'card card1'
+    );
+    expect(
+      screen.getByRole('link', { name: 'Sender profiles →' })
+    ).toBeTruthy();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 });
@@ -511,23 +631,32 @@ describe('T33 ChatIsland - SCR-01 sending the first message', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(bodyOf(0).conversationId).toBeNull();
-    expect(await screen.findByText('Who owes me money right now?')).toBeTruthy();
+    expect(
+      await screen.findByText('Who owes me money right now?')
+    ).toBeTruthy();
     expect(screen.getByText('Thinking…')).toBeTruthy();
 
     await act(async () => {
-      stream.push({ type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me money right now?' } });
+      stream.push({
+        type: 'data-conversation',
+        data: { conversationId: 'cNew', title: 'Who owes me money right now?' },
+      });
       stream.push(allowanceChunk(29));
       stream.push(START);
       stream.push({ type: 'text-start', id: 't1' });
       stream.push({ type: 'text-delta', id: 't1', delta: 'Nobody yet.' });
     });
     await waitFor(() =>
-      expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cNew'))).toBe(true)
+      expect(
+        replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cNew'))
+      ).toBe(true)
     );
     expect(push).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
     // not remounted: the user message and the streaming reply are both still on screen
-    expect(screen.getByText('Who owes me money right now?', { selector: 'p' })).toBeTruthy();
+    expect(
+      screen.getByText('Who owes me money right now?', { selector: 'p' })
+    ).toBeTruthy();
     expect(await screen.findByText(/Nobody yet\./)).toBeTruthy();
     expect(screen.getByText('29 of 30 messages left today')).toBeTruthy();
 
@@ -537,9 +666,13 @@ describe('T33 ChatIsland - SCR-01 sending the first message', () => {
       stream.push(FINISH);
       stream.end();
     });
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
 
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH])
+    );
     await send(user, 'and Globex?');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).conversationId).toBe('cNew');
@@ -566,8 +699,14 @@ describe('T33 page wiring', () => {
         cards: {},
       },
     });
-    render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
-    expect(screen.getByText('Who owes me money?', { selector: 'p' })).toBeTruthy();
+    render(
+      await ConversationPage({
+        params: Promise.resolve({ conversationId: 'c1' }),
+      })
+    );
+    expect(
+      screen.getByText('Who owes me money?', { selector: 'p' })
+    ).toBeTruthy();
     expect(box()).toBeTruthy();
     expect(screen.getByText('18 of 30 messages left today')).toBeTruthy();
   });
@@ -575,7 +714,13 @@ describe('T33 page wiring', () => {
 
 const startPanelIsland = () =>
   render(
-    <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+    <ChatIsland
+      conversationId={null}
+      initialMessages={[]}
+      invoiceLinks={{}}
+      cards={{}}
+      allowance={allowance(30)}
+    />
   );
 
 describe('T39 R-01 - contract 429 body', () => {
@@ -585,7 +730,12 @@ describe('T39 R-01 - contract 429 body', () => {
         success: false,
         code: 'RATE_LIMITED',
         error: USED_UP_TEXT,
-        details: { kind: 'ALLOWANCE_USED_UP', limit: 30, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+        details: {
+          kind: 'ALLOWANCE_USED_UP',
+          limit: 30,
+          renewsAt: '2026-10-13T00:00:00.000Z',
+          timeZone: 'UTC',
+        },
       })
     );
     const user = userEvent.setup();
@@ -602,25 +752,41 @@ describe('T39 R-02 - first message on /ai', () => {
   it.each([
     ['AI_UNAVAILABLE', UNAVAILABLE],
     ['COULD_NOT_COMPLETE', COULD_NOT],
-  ])('%s with no data-conversation: alert, URL stays /ai, Try again posts conversationId null', async (kind, text) => {
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome(kind, false), FINISH]));
-    const user = userEvent.setup();
-    startPanelIsland();
-    await send(user, 'first question');
+  ])(
+    '%s with no data-conversation: alert, URL stays /ai, Try again posts conversationId null',
+    async (kind, text) => {
+      fetchMock.mockResolvedValueOnce(
+        sse([START, ...textChunks('partial'), outcome(kind, false), FINISH])
+      );
+      const user = userEvent.setup();
+      startPanelIsland();
+      await send(user, 'first question');
 
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(text);
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(replace).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
-    expect(replaceState).not.toHaveBeenCalled();
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent).toContain(text);
+      expectFailureMessage(alert);
+      // ai-chat-v2 T36 (screens.md «Header», unsaved at md and wider): no header bar (the only row is md:hidden), no
+      // title.
+      const header = document.querySelector(
+        '[data-slot="chat-header"]'
+      ) as HTMLElement;
+      expect(header).toHaveClass('md:hidden', 'h-12');
+      expect(header).toHaveTextContent('');
+      expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+      expect(replace).not.toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+      expect(replaceState).not.toHaveBeenCalled();
 
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(bodyOf(1).conversationId).toBeNull();
-    expect(bodyOf(1).message.parts[0].text).toBe('first question');
-  });
+      fetchMock.mockResolvedValueOnce(
+        sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH])
+      );
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(bodyOf(1).conversationId).toBeNull();
+      expect(bodyOf(1).message.parts[0].text).toBe('first question');
+    }
+  );
 
   it('adopts the id only from the late data-conversation (after text) and ends on /ai/{id}', async () => {
     fetchMock.mockResolvedValueOnce(
@@ -628,7 +794,10 @@ describe('T39 R-02 - first message on /ai', () => {
         allowanceChunk(29),
         START,
         ...textChunks('Nobody yet.'),
-        { type: 'data-conversation', data: { conversationId: 'cLate', title: 'Who owes me?' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cLate', title: 'Who owes me?' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -637,12 +806,20 @@ describe('T39 R-02 - first message on /ai', () => {
     startPanelIsland();
     await send(user, 'Who owes me?');
     await waitFor(() =>
-      expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cLate'))).toBe(true)
+      expect(
+        replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cLate'))
+      ).toBe(true)
     );
-    expect(replaceState.mock.calls.every((c) => !String(c[2]).endsWith('/ai/null'))).toBe(true);
+    expect(
+      replaceState.mock.calls.every((c) => !String(c[2]).endsWith('/ai/null'))
+    ).toBe(true);
 
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    fetchMock.mockResolvedValueOnce(
+      sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH])
+    );
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
     await send(user, 'and Globex?');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).conversationId).toBe('cLate');
@@ -652,14 +829,20 @@ describe('T39 R-02 - first message on /ai', () => {
   // a navigation that showed the route's loading skeleton and remounted the chat.
   it('the first reply on /ai is appended in place: no navigation, the card comes from the saved Conversation', async () => {
     const card = { id: 'card1' } as unknown as DraftCardView;
-    loadConversationCards.mockResolvedValue({ success: true, data: { cards: { card1: card }, invoiceLinks: {} } });
+    loadConversationCards.mockResolvedValue({
+      success: true,
+      data: { cards: { card1: card }, invoiceLinks: {} },
+    });
     fetchMock.mockResolvedValueOnce(
       sse([
         allowanceChunk(29),
         START,
         ...textChunks('Here is the draft.'),
         { type: 'data-draft-card', id: 'card1', data: { cardId: 'card1' } },
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Invoice Acme' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cNew', title: 'Invoice Acme' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -668,14 +851,20 @@ describe('T39 R-02 - first message on /ai', () => {
     startPanelIsland();
     await send(user, 'Invoice Acme for 20 hours at $50');
     const sent = await screen.findByText('Invoice Acme for 20 hours at $50');
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
     await act(async () => {});
 
     expect(replace).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
-    expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
+    expect((await screen.findByTestId('draft-card')).textContent).toBe(
+      'card card1'
+    );
     expect(loadConversationCards).toHaveBeenCalledWith('cNew');
-    expect(replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cNew'))).toBe(true);
+    expect(
+      replaceState.mock.calls.some((c) => String(c[2]).endsWith('/ai/cNew'))
+    ).toBe(true);
     // not remounted: the very same message element is still on screen, under the Conversation's header
     expect(screen.getByText('Invoice Acme for 20 hours at $50')).toBe(sent);
     expect(screen.getByRole('heading', { name: 'Invoice Acme' })).toBeTruthy();
@@ -686,7 +875,10 @@ describe('T39 R-02 - first message on /ai', () => {
       sse([
         START,
         ...textChunks('Nobody yet.'),
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cNew', title: 'Who owes me?' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -695,14 +887,22 @@ describe('T39 R-02 - first message on /ai', () => {
     const view = startPanelIsland();
     await send(user, 'Who owes me?');
     await screen.findByText('Nobody yet.');
-    const props = { conversationId: null, initialMessages: [], invoiceLinks: {}, cards: {}, allowance: allowance(29) };
+    const props = {
+      conversationId: null,
+      initialMessages: [],
+      invoiceLinks: {},
+      cards: {},
+      allowance: allowance(29),
+    };
     pathname = '/ai/cNew';
     view.rerender(<ChatIsland {...props} />);
     expect(screen.getByText('Nobody yet.')).toBeTruthy();
 
     pathname = '/ai';
     view.rerender(<ChatIsland {...props} />);
-    expect(await screen.findByText('Hi! What can I help you with?')).toBeTruthy();
+    expect(
+      await screen.findByText('Hi! What can I help you with?')
+    ).toBeTruthy();
     expect(screen.queryByText('Nobody yet.')).toBeNull();
   });
 });
@@ -714,7 +914,9 @@ describe('T39 R-22 - live regions', () => {
     const user = userEvent.setup();
     const { container } = island();
     const announced = () =>
-      Array.from(container.querySelectorAll('[aria-live]')).map((el) => el.textContent ?? '');
+      Array.from(container.querySelectorAll('[aria-live]')).map(
+        (el) => el.textContent ?? ''
+      );
 
     for (const el of Array.from(container.querySelectorAll('[data-role]'))) {
       expect(el.closest('[aria-live]')).toBeNull();
@@ -740,9 +942,13 @@ describe('T39 R-22 - live regions', () => {
       stream.end();
     });
     await waitFor(() =>
-      expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain('Two invoices are overdue.')
+      expect(
+        container.querySelector('[aria-live="polite"]')?.textContent
+      ).toContain('Two invoices are overdue.')
     );
-    expect(announced().filter((t) => t.includes('Two invoices are overdue.'))).toHaveLength(1);
+    expect(
+      announced().filter((t) => t.includes('Two invoices are overdue.'))
+    ).toHaveLength(1);
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
   });
 });
@@ -770,7 +976,10 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
       sse([
         START,
         ...textChunks('Saved.'),
-        { type: 'data-conversation', data: { conversationId: 'cMoved', title: 'Moved' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cMoved', title: 'Moved' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -781,7 +990,13 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
     refresh.mockClear();
     pathname = '/ai/cMoved';
     view.rerender(
-      <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(12)} />
+      <ChatIsland
+        conversationId={null}
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance(12)}
+      />
     );
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeTruthy();
     await new Promise((r) => setTimeout(r, 20));
@@ -803,7 +1018,13 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
 describe('the one-time swap to the Conversation page keeps the live chat', () => {
   const conversationPage = () => (
     <div key="conversation-page">
-      <ChatIsland conversationId="cNew" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      <ChatIsland
+        conversationId="cNew"
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance(28)}
+      />
     </div>
   );
 
@@ -812,7 +1033,10 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
       sse([
         START,
         ...textChunks('First answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cNew', title: 'Who owes me?' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -820,7 +1044,9 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
     const view = startPanelIsland();
     await send(user, 'Who owes me?');
     await screen.findByText('First answer.');
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
     pathname = '/ai/cNew';
     return view;
   }
@@ -862,7 +1088,9 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
 
     expect((box() as HTMLTextAreaElement).value).toBe('unsent words');
     expect(screen.getByText('First answer.')).toBeTruthy();
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([START, ...textChunks('ok'), outcome('ANSWERED', true), FINISH])
+    );
     await user.click(sendBtn());
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).conversationId).toBe('cNew');
@@ -876,7 +1104,13 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
     window.history.replaceState(null, '', '/ai/cOther');
     view.rerender(
       <div key="other">
-        <ChatIsland conversationId="cOther" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId="cOther"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
     await new Promise((r) => setTimeout(r, 20));
@@ -885,7 +1119,13 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
         <ChatIsland
           conversationId="cNew"
           initialMessages={[
-            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'From the server' }], createdAt: '' },
+            {
+              id: 's1',
+              role: 'user',
+              origin: 'TYPED',
+              parts: [{ type: 'text', text: 'From the server' }],
+              createdAt: '',
+            },
           ]}
           invoiceLinks={{}}
           cards={{}}
@@ -903,7 +1143,13 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
 describe('the swap with a loading state in between', () => {
   const page = (key: string) => (
     <div key={key}>
-      <ChatIsland conversationId="cLoad" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      <ChatIsland
+        conversationId="cLoad"
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance(28)}
+      />
     </div>
   );
 
@@ -912,7 +1158,10 @@ describe('the swap with a loading state in between', () => {
       sse([
         START,
         ...textChunks('First answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cLoad', title: 'Who owes me?' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cLoad', title: 'Who owes me?' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -920,7 +1169,9 @@ describe('the swap with a loading state in between', () => {
     const view = startPanelIsland();
     await send(user, 'Who owes me?');
     await screen.findByText('First answer.');
-    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((box() as HTMLTextAreaElement).disabled).toBe(false)
+    );
     pathname = '/ai/cLoad';
     return view;
   }
@@ -974,14 +1225,23 @@ describe('New chat, then Back to the Conversation started in place', () => {
       sse([
         START,
         ...textChunks('First answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cBack', title: 'Who owes me?' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cBack', title: 'Who owes me?' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
     );
     const user = userEvent.setup();
     const element = () => (
-      <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+      <ChatIsland
+        conversationId={null}
+        initialMessages={[]}
+        invoiceLinks={{}}
+        cards={{}}
+        allowance={allowance(30)}
+      />
     );
     const view = render(element());
     await send(user, 'Who owes me?');
@@ -1015,7 +1275,10 @@ describe('the /ai page restored at the address of a live Conversation', () => {
       sse([
         START,
         ...textChunks('Restored answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cRestore', title: 'Restore me' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cRestore', title: 'Restore me' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1027,7 +1290,13 @@ describe('the /ai page restored at the address of a live Conversation', () => {
     pathname = '/ai/cRestore';
     view.rerender(
       <div key="conversation-page">
-        <ChatIsland conversationId="cRestore" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId="cRestore"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
     expect(screen.getByText('Restored answer.')).toBeTruthy();
@@ -1035,7 +1304,13 @@ describe('the /ai page restored at the address of a live Conversation', () => {
 
     view.rerender(
       <div key="ai-page-restored">
-        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId={null}
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
 
@@ -1057,7 +1332,10 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
         ...textChunks('Here is the draft.'),
         { type: 'data-draft-card', id: 'card1', data: { cardId: 'card1' } },
         { type: 'data-offer', id: 'off1', data: { offerId: 'off1' } },
-        { type: 'data-conversation', data: { conversationId: 'cCards', title: 'With cards' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cCards', title: 'With cards' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1069,7 +1347,13 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
     pathname = '/ai/cCards';
     view.rerender(
       <div key="conversation-page">
-        <ChatIsland conversationId="cCards" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId="cCards"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
     loadConversationCards.mockReset();
@@ -1092,12 +1376,22 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
 
     view.rerender(
       <div key="ai-page-restored">
-        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId={null}
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
 
-    expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
-    expect(await screen.findByRole('group', { name: 'Choose a bank account' })).toBeTruthy();
+    expect((await screen.findByTestId('draft-card')).textContent).toBe(
+      'card card1'
+    );
+    expect(
+      await screen.findByRole('group', { name: 'Choose a bank account' })
+    ).toBeTruthy();
     expect(loadConversationCards).toHaveBeenCalledWith('cCards');
     expect(loadConversationCards).toHaveBeenCalledTimes(1);
   });
@@ -1108,7 +1402,10 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
       sse([
         START,
         ...textChunks('Listed again.'),
-        { type: 'data-conversation', data: { conversationId: 'cListed', title: 'Listed' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cListed', title: 'Listed' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1120,24 +1417,42 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
     pathname = '/ai/cListed';
     view.rerender(
       <div key="conversation-page">
-        <ChatIsland conversationId="cListed" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId="cListed"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
     function Probe() {
-      return <span data-testid="created">{JSON.stringify(useNewConversation()?.created ?? null)}</span>;
+      return (
+        <span data-testid="created">
+          {JSON.stringify(useNewConversation()?.created ?? null)}
+        </span>
+      );
     }
 
     view.rerender(
       <div key="ai-page-restored">
         <NewConversationProvider>
           <Probe />
-          <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+          <ChatIsland
+            conversationId={null}
+            initialMessages={[]}
+            invoiceLinks={{}}
+            cards={{}}
+            allowance={allowance(28)}
+          />
         </NewConversationProvider>
       </div>
     );
 
     await waitFor(() =>
-      expect(JSON.parse(screen.getByTestId('created').textContent ?? 'null')).toEqual({ id: 'cListed', title: 'Listed' })
+      expect(
+        JSON.parse(screen.getByTestId('created').textContent ?? 'null')
+      ).toEqual({ id: 'cListed', title: 'Listed' })
     );
   });
 });
@@ -1151,7 +1466,10 @@ describe('the Conversation page taking over a chat with newer cards than its pro
         START,
         ...textChunks('Here is the draft.'),
         { type: 'data-draft-card', id: 'cardN', data: { cardId: 'cardN' } },
-        { type: 'data-conversation', data: { conversationId: 'cStale', title: 'Stale' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cStale', title: 'Stale' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1165,7 +1483,13 @@ describe('the Conversation page taking over a chat with newer cards than its pro
 
     view.rerender(
       <div key="cached-conversation-page">
-        <ChatIsland conversationId="cStale" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        <ChatIsland
+          conversationId="cStale"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
       </div>
     );
 
@@ -1180,7 +1504,10 @@ describe('the Conversation page taking over a chat with newer cards than its pro
         START,
         ...textChunks('Here is the draft.'),
         { type: 'data-draft-card', id: 'cardF', data: { cardId: 'cardF' } },
-        { type: 'data-conversation', data: { conversationId: 'cFresh', title: 'Fresh' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cFresh', title: 'Fresh' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1197,14 +1524,24 @@ describe('the Conversation page taking over a chat with newer cards than its pro
         <ChatIsland
           conversationId="cFresh"
           initialMessages={[
-            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'Invoice Acme' }], createdAt: '' },
+            {
+              id: 's1',
+              role: 'user',
+              origin: 'TYPED',
+              parts: [{ type: 'text', text: 'Invoice Acme' }],
+              createdAt: '',
+            },
             {
               id: 's2',
               role: 'assistant',
               origin: null,
               parts: [
                 { type: 'text', text: 'Here is the draft.' },
-                { type: 'data-draft-card', id: 'cardF', data: { cardId: 'cardF' } },
+                {
+                  type: 'data-draft-card',
+                  id: 'cardF',
+                  data: { cardId: 'cardF' },
+                },
               ],
               createdAt: '',
             },
@@ -1224,16 +1561,40 @@ describe('the Conversation page taking over a chat with newer cards than its pro
 // Review 2026-10-13 R5-U3: on a phone the list button stays reachable from the first send, also when that send fails.
 describe('the phone list button before the Conversation is saved', () => {
   it('shows "Open conversations" while the first message waits and after it fails', async () => {
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('partial'),
+        outcome('COULD_NOT_COMPLETE', false),
+        FINISH,
+      ])
+    );
     const user = userEvent.setup();
     render(
       <AiWorkspace conversations={[]} timeZone="UTC">
-        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+        <ChatIsland
+          conversationId={null}
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(30)}
+        />
       </AiWorkspace>
     );
     await send(user, 'first question');
     await screen.findByRole('alert');
-    expect(screen.getByRole('button', { name: 'Open conversations' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Open conversations' })
+    ).toBeTruthy();
+    // ai-chat-v2 T36 (screens.md «Header», unsaved below md): the h-12 header row holds only the list button.
+    const header = document.querySelector(
+      '[data-slot="chat-header"]'
+    ) as HTMLElement;
+    expect(header).toHaveClass('h-12', 'md:hidden');
+    expect(header.querySelectorAll('button')).toHaveLength(1);
+    expect(header).toContainElement(
+      screen.getByRole('button', { name: 'Open conversations' })
+    );
   });
 });
 
@@ -1244,7 +1605,10 @@ describe('a swap while a failed reply shows', () => {
       sse([
         START,
         ...textChunks('Saved answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cFailSwap', title: 'Fail swap' } },
+        {
+          type: 'data-conversation',
+          data: { conversationId: 'cFailSwap', title: 'Fail swap' },
+        },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -1253,7 +1617,14 @@ describe('a swap while a failed reply shows', () => {
     const view = startPanelIsland();
     await send(user, 'Who owes me?');
     await screen.findByText('Saved answer.');
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('partial'),
+        outcome('COULD_NOT_COMPLETE', false),
+        FINISH,
+      ])
+    );
     await send(user, 'And Globex?');
     await screen.findByRole('alert');
     pathname = '/ai/cFailSwap';
@@ -1264,8 +1635,20 @@ describe('a swap while a failed reply shows', () => {
         <ChatIsland
           conversationId="cFailSwap"
           initialMessages={[
-            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'Who owes me?' }], createdAt: '' },
-            { id: 's2', role: 'assistant', origin: null, parts: [{ type: 'text', text: 'Saved answer.' }], createdAt: '' },
+            {
+              id: 's1',
+              role: 'user',
+              origin: 'TYPED',
+              parts: [{ type: 'text', text: 'Who owes me?' }],
+              createdAt: '',
+            },
+            {
+              id: 's2',
+              role: 'assistant',
+              origin: null,
+              parts: [{ type: 'text', text: 'Saved answer.' }],
+              createdAt: '',
+            },
           ]}
           invoiceLinks={{}}
           cards={{}}
@@ -1283,14 +1666,28 @@ describe('a swap while a failed reply shows', () => {
 // exchange back: the failed message and its partial text stay discarded (parent SCR-02).
 describe('sending after a failed reply', () => {
   it('keeps the failed message and its partial reply discarded', async () => {
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('half an answer'),
+        outcome('COULD_NOT_COMPLETE', false),
+        FINISH,
+      ])
+    );
     const user = userEvent.setup();
     island();
     await send(user, 'first try');
     await screen.findByRole('alert');
     expect(screen.queryByText('half an answer')).toBeNull();
 
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('A fresh answer.'), outcome('ANSWERED', true), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('A fresh answer.'),
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
     await send(user, 'second try');
     await screen.findByText('A fresh answer.');
 
@@ -1304,7 +1701,13 @@ describe('sending after a failed reply', () => {
   const withOffer = () =>
     island({
       initialMessages: [
-        { id: 'm1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'invoice Acme' }], createdAt: '' },
+        {
+          id: 'm1',
+          role: 'user',
+          origin: 'TYPED',
+          parts: [{ type: 'text', text: 'invoice Acme' }],
+          createdAt: '',
+        },
         {
           id: 'm2',
           role: 'assistant',
@@ -1331,31 +1734,61 @@ describe('sending after a failed reply', () => {
     });
 
   it('a press after a typed failure sends its choice and keeps the failed exchange discarded', async () => {
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('half an answer'),
+        outcome('COULD_NOT_COMPLETE', false),
+        FINISH,
+      ])
+    );
     const user = userEvent.setup();
     withOffer();
     await send(user, 'never mind');
     await screen.findByRole('alert');
 
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('Draft for Acme GmbH.'), outcome('ANSWERED', true), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Draft for Acme GmbH.'),
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
     await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
     await screen.findByText('Draft for Acme GmbH.');
 
-    expect((bodyOf(1) as unknown as { choice: unknown }).choice).toEqual({ offerId: 'off1', optionId: 1 });
+    expect((bodyOf(1) as unknown as { choice: unknown }).choice).toEqual({
+      offerId: 'off1',
+      optionId: 1,
+    });
     expect(screen.queryByText('never mind')).toBeNull();
     expect(screen.queryByText('half an answer')).toBeNull();
   });
 
   it('a refused press (409) after a typed failure shows the notice, no Try again, and nothing discarded comes back', async () => {
-    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('half an answer'),
+        outcome('COULD_NOT_COMPLETE', false),
+        FINISH,
+      ])
+    );
     const user = userEvent.setup();
     withOffer();
     await send(user, 'never mind');
     await screen.findByRole('alert');
 
-    const notice = 'This option is no longer available. Choose again or type your request.';
+    const notice =
+      'This option is no longer available. Choose again or type your request.';
     fetchMock.mockResolvedValueOnce(
-      json(409, { success: false, code: 'CONFLICT', error: notice, details: { kind: 'CHOICE_UNAVAILABLE' } })
+      json(409, {
+        success: false,
+        code: 'CONFLICT',
+        error: notice,
+        details: { kind: 'CHOICE_UNAVAILABLE' },
+      })
     );
     await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
 
@@ -1365,4 +1798,3 @@ describe('sending after a failed reply', () => {
     expect(screen.queryByText('half an answer')).toBeNull();
   });
 });
-
