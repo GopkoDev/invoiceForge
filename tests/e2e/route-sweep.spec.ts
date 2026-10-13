@@ -440,6 +440,50 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
       await context.dispose();
     }
   });
+
+  // ai-chat-v2 T31 (AC-36): the AI section, a preview address, the dashboard (its prompt box), the chat route and
+  // the two new preview/issue actions all refuse a Visitor; nothing is processed or counted.
+  test('ai-chat-v2 AC-36: anonymous AI addresses go to sign-in, and the chat route and preview/issue actions are refused', async ({
+    playwright,
+  }) => {
+    const context = await playwright.request.newContext({ maxRedirects: 0 });
+    try {
+      for (const page of [
+        protectedRoutes.ai,
+        `${protectedRoutes.ai}?start=draft&from=dashboard`,
+        `${protectedRoutes.ai}/${FAKE_ID}?preview=${FAKE_ID}`,
+        `${protectedRoutes.ai}?handoff=${FAKE_ID}`,
+        protectedRoutes.dashboard,
+      ]) {
+        const response = await context.get(`${APP_E2E_URL}${page}`);
+        expect([302, 307], page).toContain(response.status());
+        expect(new URL(response.headers()['location']!, APP_E2E_URL).pathname, page).toBe(authRoutes.signIn);
+      }
+
+      const chat = await context.post(`${APP_E2E_URL}/api/chat`, {
+        data: {
+          conversationId: null,
+          message: { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'who owes me money?' }] },
+          origin: 'DASHBOARD',
+          startedFrom: 'DASHBOARD_PROMPT',
+        },
+      });
+      expect(chat.status()).toBe(401);
+      expect(await chat.json()).toEqual(UNAUTHORIZED_BODY);
+
+      for (const action of ['loadInvoicePreview', 'issueFromPreview']) {
+        const actionId = readNonSignInActionId('lib/actions/assistant-actions.ts', action);
+        const response = await context.post(`${APP_E2E_URL}${protectedRoutes.ai}/${FAKE_ID}`, {
+          headers: { 'Next-Action': actionId },
+          data: JSON.stringify([FAKE_ID, 0]),
+        });
+        expect(response.status(), action).toBe(401);
+        expect(await response.json(), action).toEqual(UNAUTHORIZED_BODY);
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
 });
 
 // AC-02, AC-05: the other half of the sweep — a Freelancer holding a genuine session, issued

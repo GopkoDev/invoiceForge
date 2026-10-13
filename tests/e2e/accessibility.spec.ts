@@ -4,6 +4,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { openSignedInFreelancer } from './support/signed-in';
+import { createTestPrismaClient } from '../support/db/client';
+import { createCustomer } from '../support/factories/customer';
+import { readE2eRuntime } from './support/app-server';
 import { openEditor } from './support/invoice-ui';
 import { APP_E2E_URL } from './support/app-server';
 import { protectedRoutes } from '../../config/routes.config';
@@ -15,6 +18,10 @@ async function expectNoSeriousViolations(
   testInfo: TestInfo,
   where: string
 ): Promise<void> {
+  // A fade or slide still running would be measured half-transparent (false contrast findings).
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity)
+  );
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
     .analyze();
@@ -151,4 +158,56 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
       await f.context.close();
     }
   });
+
+  // ai-chat-v2 T31 (spec §6 NFR "Accessibility"): the AI section empty and with Offered choices, the preview panel
+  // with the issue confirmation open, at desktop and phone width, and the dashboard AI block.
+  for (const vp of VIEWPORTS) {
+    test(`ai-chat-v2: the AI section, Offered choices, the preview with its dialog, and the dashboard AI block at ${vp.name}`, async ({
+      browser,
+    }, testInfo) => {
+      testInfo.setTimeout(240_000);
+      const f = await openSignedInFreelancer(browser, testInfo, `ai-v2-axe-${vp.name}`, {
+        seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
+        context: { viewport: { width: 1280, height: 800 } },
+      });
+      try {
+        const { page, workspace } = f;
+        const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+        try {
+          await createCustomer(prisma, workspace.userId, { name: 'Acme GmbH' });
+        } finally {
+          await prisma.$disconnect();
+        }
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+
+        await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
+        await expect(page.getByRole('heading', { name: 'Hi! What can I help you with?' })).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await expectNoSeriousViolations(page, testInfo, `AI section, empty (${vp.name})`);
+
+        await page.getByRole('textbox', { name: 'Message' }).fill('invoice Acme for 20 hours at $50');
+        await page.getByRole('button', { name: 'Send', exact: true }).click();
+        const choices = page.getByRole('group', { name: 'Choose a Customer' });
+        await expect(choices.getByRole('button', { name: 'Acme Corp', exact: true })).toBeEnabled();
+        await expectNoSeriousViolations(page, testInfo, `AI section, Offered choices (${vp.name})`);
+
+        await choices.getByRole('button', { name: 'Acme Corp', exact: true }).click();
+        await page.getByRole('button', { name: 'Create draft' }).click();
+        await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
+        await page.getByRole('button', { name: 'Preview', exact: true }).click();
+        const panel = page.locator('[data-slot="invoice-preview-panel"]');
+        await panel.getByRole('button', { name: 'Issue invoice' }).click();
+        await expect(page.getByRole('dialog', { name: /^Issue invoice / })).toBeVisible();
+        await expectNoSeriousViolations(page, testInfo, `preview with the issue dialog (${vp.name})`);
+        await page.getByRole('dialog', { name: /^Issue invoice / }).getByRole('button', { name: 'Cancel' }).click();
+
+        await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
+        await expect(page.locator('[data-slot="dashboard-ai-block"]').getByRole('list', { name: 'Recent conversations' })).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await expectNoSeriousViolations(page, testInfo, `dashboard AI block (${vp.name})`);
+      } finally {
+        await f.context.close();
+      }
+    });
+  }
 });

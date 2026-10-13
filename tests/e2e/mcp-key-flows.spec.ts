@@ -1,12 +1,13 @@
 // AC-01, AC-02, AC-06 (test-plan.md, e2e-through-UI): connect an Assistant, see the new key exactly
 // once, revoke it. One Freelancer per describe, a genuine session, the production build.
 import { test, expect, type Page } from '@playwright/test';
-import { APP_E2E_URL } from './support/app-server';
+import { createTestPrismaClient } from '../support/db/client';
+import { APP_E2E_URL, readE2eRuntime } from './support/app-server';
 import {
   openSignedInFreelancer,
   type SignedInFreelancer,
 } from './support/signed-in';
-import { protectedRoutes } from '../../config/routes.config';
+import { MCP_PATH, protectedRoutes } from '../../config/routes.config';
 
 test.describe.configure({ mode: 'serial', timeout: 150_000 });
 
@@ -114,5 +115,79 @@ test.describe('Connect your AI: reach it, create a key, revoke it', () => {
     await expect(
       page.getByRole('button', { name: `Revoke ${KEY_NAME}` })
     ).toHaveCount(0);
+  });
+});
+
+// ai-chat-v2 T31 (AC-06): a key without Draft permission reads sender profiles, products and Customers through the
+// real proxy and handler of the production build, with record ids and never a full account number.
+test.describe('AC-06 (ai-chat-v2): a read-only key reads profiles, products and Customers', () => {
+  const FULL_NUMBER = '4400556677881234';
+  let freelancer: SignedInFreelancer;
+  let fullKey = '';
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    freelancer = await openSignedInFreelancer(browser, testInfo, 'mcp-v2-reads', {
+      seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
+      context: { timezoneId: 'UTC' },
+    });
+    const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
+    try {
+      await prisma.bankAccount.updateMany({
+        where: { senderProfileId: freelancer.workspace.senderProfileId },
+        data: { accountNumber: FULL_NUMBER },
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+    const { page } = freelancer;
+    await page.goto(`${APP_E2E_URL}${protectedRoutes.settingsAssistants}`);
+    await page.getByLabel('Key name').fill('Read-only assistant');
+    await page.getByRole('button', { name: 'Create key' }).click();
+    fullKey = await page.getByLabel('New key').inputValue();
+    expect(fullKey).toMatch(/^ifk_/);
+  });
+
+  test.afterAll(async () => {
+    await freelancer?.context.close();
+  });
+
+  test('list_sender_profiles, list_products and list_customers answer with ids and no full account number', async ({
+    playwright,
+  }) => {
+    const outside = await playwright.request.newContext();
+    try {
+      let id = 0;
+      const call = async (name: string, args: Record<string, unknown> = {}) => {
+        const response = await outside.post(`${APP_E2E_URL}${MCP_PATH}`, {
+          headers: {
+            authorization: `Bearer ${fullKey}`,
+            accept: 'application/json, text/event-stream',
+          },
+          data: { jsonrpc: '2.0', id: ++id, method: 'tools/call', params: { name, arguments: args } },
+          maxRedirects: 0,
+        });
+        expect(response.status(), name).toBe(200);
+        const text = await response.text();
+        expect(text, `${name}: no full account number`).not.toContain(FULL_NUMBER);
+        const body = JSON.parse(text.startsWith('{') ? text : text.split('\n').find((l) => l.startsWith('data: '))!.slice(6));
+        expect(body.result.isError ?? false, name).toBe(false);
+        return body.result.structuredContent;
+      };
+
+      const profiles = await call('list_sender_profiles');
+      expect(profiles.rows).toHaveLength(1);
+      expect(profiles.rows[0].senderProfileId).toBe(freelancer.workspace.senderProfileId);
+      expect(profiles.rows[0].bankAccounts[0]).toMatchObject({ lastFour: '1234', currency: 'USD' });
+
+      const products = await call('list_products');
+      expect(products.rows.map((p: { productId: string }) => p.productId)).toContain(freelancer.workspace.productId);
+
+      const customers = await call('list_customers', { name: 'acme  CORP' });
+      expect(customers.rows.map((c: { customerId: string }) => c.customerId)).toEqual([freelancer.workspace.customerId]);
+      expect(customers.pageInfo).toBeDefined();
+    } finally {
+      await outside.dispose();
+    }
   });
 });
