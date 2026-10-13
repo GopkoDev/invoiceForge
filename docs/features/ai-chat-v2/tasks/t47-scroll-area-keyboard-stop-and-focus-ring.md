@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/conversation.tsx", "tests/component/ai-elem
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T47 — The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)

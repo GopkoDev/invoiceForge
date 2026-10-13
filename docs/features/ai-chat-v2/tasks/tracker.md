@@ -52,7 +52,7 @@
 | T44 | [PromptInput on InputGroup, IME-safe Enter in Safari, and a decorative spinner in the submit (review R16-5, R16-6, R16-7)](./t44-prompt-input-input-group-ime-and-submit-spinner.md) | ui | Dmytro Hopko | S | T34 | done |
 | T45 | [Start panel: used-up from Create with AI keeps the default heading, chips wrap on phones, greeting slot, one session read (review R16-3, R16-9, R16-10)](./t45-start-panel-used-up-draft-chips-wrap-session-read.md) | ui | Dmytro Hopko | S | T37 | done |
 | T46 | [E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)](./t46-e2e-dark-contrast-phone-overflow-data-slot-selectors.md) | tests | Dmytro Hopko | S | T43, T45 | done |
-| T47 | [The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)](./t47-scroll-area-keyboard-stop-and-focus-ring.md) | ui | Dmytro Hopko | S | T43 | todo |
+| T47 | [The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)](./t47-scroll-area-keyboard-stop-and-focus-ring.md) | ui | Dmytro Hopko | S | T43 | done |
 | T48 | [One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)](./t48-chip-height-and-notice.md) | ui | Dmytro Hopko | S | T45 | todo |
 
 **Total:** 48 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46 and T47–T48 are its review round 16 and 17 follow-ups).

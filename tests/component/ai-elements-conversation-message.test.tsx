@@ -193,7 +193,13 @@ describe('Conversation (AC-16: follow within 48 px, jump control beyond it)', ()
     await userEvent.keyboard('{Enter}');
     expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
     expect(document.activeElement).toBe(area);
-    expect(area).toHaveAttribute('tabindex', '-1');
+    // Review R17-1 / T47: the scroll area stays a Tab stop (plain-text Conversations have nothing else to focus), is
+    // named, and shows a focus ring instead of outline-none.
+    expect(area).toHaveAttribute('tabindex', '0');
+    expect(area).toHaveAttribute('role', 'region');
+    expect(area).toHaveAttribute('aria-label', 'Messages');
+    expect(area).not.toHaveClass('outline-none');
+    expect(area.className).toMatch(/focus-visible:ring-/);
   });
 
   it('the centred column is addressable as data-slot="conversation-column"', () => {

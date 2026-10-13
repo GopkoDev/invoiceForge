@@ -86,11 +86,17 @@ export function ConversationContent({
   return (
     <div
       ref={scrollRef}
-      // Programmatic focus target after a keyboard jump (R16-2); not a tab stop.
-      tabIndex={-1}
+      // A Tab stop (a Conversation of plain-text replies has nothing else to focus to scroll it) and the focus target
+      // after a keyboard jump (R16-2, R17-1).
+      tabIndex={0}
+      role="region"
+      aria-label="Messages"
       data-conversation-scroll=""
       data-slot="conversation-content"
-      className={cn('min-h-0 flex-1 overflow-y-auto outline-none', className)}
+      className={cn(
+        'focus-visible:ring-ring/50 min-h-0 flex-1 overflow-y-auto focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset',
+        className
+      )}
       {...props}
     >
       <div
