@@ -2,6 +2,7 @@
 // composes the parties (T07) and the lines into a DraftProposal, or returns every DraftIssue together.
 // Pure apart from reads: it creates nothing.
 import 'server-only';
+import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import { computeInvoiceAmounts, lineAmount } from '@/lib/helpers/invoice-calculations';
 import { ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -43,6 +44,13 @@ function invoiceRuleIssues(proposal: DraftProposal): DraftIssue[] {
   return Object.entries(errors).map(([field, messages]) => ({ kind: 'FIELD_INVALID', field, message: messages[0] }));
 }
 
+/** A written currency that reads as one code on its own ("$" → USD, "€" → EUR, "usd"); otherwise undefined. */
+function writtenCurrency(written: string | undefined): DraftProposal['currency'] | undefined {
+  if (written === undefined) return undefined;
+  const reading = interpretCurrency(written, 'USD');
+  return reading.kind === 'RESOLVED' ? (reading.currency as DraftProposal['currency']) : undefined;
+}
+
 export async function resolveDraftRequest(
   actor: ActingFreelancer,
   request: DraftRequest,
@@ -51,7 +59,9 @@ export async function resolveDraftRequest(
   const parties = await resolveParties(actor, request, today);
   const resolved = await resolveLines(request, {
     userId: actor.userId,
-    currency: parties.ok ? parties.parties.currency : undefined,
+    // When the parties fail, the lines still follow the currency the request names, read as the resolver reads it, so
+    // no product in another currency is offered (it could never be pressed; review 2026-10-13 R13-1).
+    currency: parties.ok ? parties.parties.currency : writtenCurrency(request.currency),
     customerId: parties.ok ? parties.parties.customer.customerId : undefined,
   });
 

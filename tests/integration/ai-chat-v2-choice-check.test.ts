@@ -493,6 +493,27 @@ describe.runIf(containerRuntimeAvailable)(
       expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
     });
 
+    // Review 2026-10-13 R13-2: a request with no currency drafts in the default account's currency. Once that moves to
+    // another currency, a product priced in the old one no longer fits.
+    it('AC-13: a PRODUCT for a request with no currency no longer fits once the default account is in another currency', async () => {
+      const { user, actor } = await freelancer();
+      const sp = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
+      const usd = await createBankAccount(prisma, sp.id, { currency: 'USD', isDefault: true });
+      const eur = await createBankAccount(prisma, sp.id, { currency: 'EUR', isDefault: false });
+      const p = await createProduct(prisma, user.id, { currency: 'USD' });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'PRODUCT',
+        lineIndex: 0,
+        options: [opt(0, { productId: p.id })],
+        request: { customer: 'Acme', lines: [{ description: 'Audit', quantity: '1' }] },
+      });
+      expect((await check(actor, conversation.id, offer.id)).ok).toBe(true);
+      await prisma.bankAccount.update({ where: { id: usd.id }, data: { isDefault: false } });
+      await prisma.bankAccount.update({ where: { id: eur.id }, data: { isDefault: true } });
+
+      expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
+    });
+
     it('AC-13: an archived PRODUCT is { ok: false }', async () => {
       const { user, actor } = await freelancer();
       const p = await createProduct(prisma, user.id, { currency: 'USD' });

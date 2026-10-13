@@ -215,6 +215,22 @@ async function requestProfileId(userId: string, request: DraftRequest): Promise<
   return (profiles.find((p) => p.isDefault) ?? profiles[0])?.id ?? null;
 }
 
+/**
+ * The currency a request with no written currency is drafted in now: its named account (by id) or the default account
+ * of the profile it drafts under. Null when that cannot be told here (an account named by text, no account).
+ */
+async function draftingCurrency(userId: string, request: DraftRequest): Promise<string | null> {
+  const profileId = await requestProfileId(userId, request);
+  if (profileId === null) return null;
+  const accounts = await (await db()).bankAccount.findMany({
+    where: { senderProfileId: profileId, senderProfile: { userId } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, currency: true, isDefault: true },
+  });
+  if (request.bankAccount !== undefined) return accounts.find((a) => a.id === request.bankAccount)?.currency ?? null;
+  return (accounts.find((a) => a.isDefault) ?? accounts[0])?.currency ?? null;
+}
+
 /** Whether the option's record still exists, is the actor's and still fits the stored request (AC-13). */
 async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: DraftRequest): Promise<boolean> {
   const prisma = await db();
@@ -229,7 +245,11 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
       where: { id: ref.productId, userId, isActive: true },
       select: { currency: true },
     });
-    return product !== null && currencyFits(product.currency, request.currency);
+    if (product === null) return false;
+    if (request.currency !== undefined) return currencyFits(product.currency, request.currency);
+    // No currency written: the invoice is drafted in the account's currency the resolver would use now (R13-2).
+    const drafting = await draftingCurrency(userId, request);
+    return drafting === null || drafting === product.currency;
   }
   const account = await prisma.bankAccount.findFirst({
     where: { id: ref.bankAccountId, senderProfile: { userId } },

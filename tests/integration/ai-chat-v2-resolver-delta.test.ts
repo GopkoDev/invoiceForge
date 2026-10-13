@@ -329,6 +329,20 @@ describe.runIf(containerRuntimeAvailable)('resolver request and candidate delta 
   });
 
   describe('product candidates carry unit, price and currency', () => {
+    // Review 2026-10-13 R13-1: when the parties fail (a Customer not added yet), the lines still follow the currency
+    // the request names, so no product in another currency is offered (it could never be pressed).
+    it('with CUSTOMER_NOT_FOUND and currency "USD", no EUR product is a candidate', async () => {
+      const { user, actor } = await setup();
+      await createProduct(prisma, user.id, { name: 'Consulting', unit: 'hours', price: 50, currency: 'USD' });
+      await createProduct(prisma, user.id, { name: 'Consulting', unit: 'hours', price: 45, currency: 'EUR' });
+      const issues = await issuesOf(
+        svc.resolveDraftRequest(actor, { customer: 'Globex', currency: 'USD', lines: [{ description: 'consulting', quantity: '3' }] }, TODAY)
+      );
+      expect(issues.map((i) => i.kind)).toContain('CUSTOMER_NOT_FOUND');
+      expect(JSON.stringify(issues)).not.toContain('"EUR"');
+      expect(issues.some((i) => i.kind === 'PRODUCT_AMBIGUOUS')).toBe(false);
+    });
+
     // Review 2026-10-13 R12-2: above the 50 listed, the issue carries how many products match in all.
     it('PRODUCT_AMBIGUOUS with 60 matches lists 50 and carries total 60; 50 or fewer carry no total', async () => {
       const { user, actor } = await setup();
