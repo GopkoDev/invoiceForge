@@ -1,6 +1,5 @@
-// ai-chat-v2 T18 (spec.md §5 AC-17, AC-18, AC-30; contracts/server-actions.md §listConversationSummaries,
-// §listLatestConversations): every Conversation summary newest first with the Freelancer time zone, and the latest
-// three for the dashboard. Owner-scoped; request-free against a throwaway Postgres.
+// ai-chat-v2 T18 (spec.md §5 AC-17, AC-18; contracts/server-actions.md §listConversationSummaries): every Conversation
+// summary newest first with the Freelancer time zone. Owner-scoped; request-free against a throwaway Postgres.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { isContainerRuntimeAvailable } from '../../../support/db/docker-availability';
@@ -16,10 +15,9 @@ const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 type Summary = { id: string; title: string; lastMessageAt: string };
 type Svc = {
   listConversationSummaries: (a: unknown) => Promise<{ success: boolean; data?: { items: Summary[]; timeZone: string } }>;
-  listLatestConversations: (a: unknown, limit?: number) => Promise<{ success: boolean; data?: Summary[] }>;
 };
 
-describe.runIf(containerRuntimeAvailable)('listConversationSummaries and listLatestConversations (ai-chat-v2 T18)', () => {
+describe.runIf(containerRuntimeAvailable)('listConversationSummaries (ai-chat-v2 T18)', () => {
   let db: TestDatabase;
   let prisma: PrismaClient;
   let svc: Svc;
@@ -77,21 +75,6 @@ describe.runIf(containerRuntimeAvailable)('listConversationSummaries and listLat
     const user = await createFreelancer(prisma, { email: 't18-a@example.com' });
     const res = await svc.listConversationSummaries(await actingFreelancerForTest(user.id));
     expect(res.data!.items).toEqual([]);
-  });
-
-  it('AC-30: listLatestConversations gives the latest three of five, newest first, owner-scoped', async () => {
-    const user = await createFreelancer(prisma, { email: 't18-a@example.com' });
-    const other = await createFreelancer(prisma, { email: 't18-b@example.com' });
-    await fiveConversations(user.id);
-    await createConversation(prisma, { userId: other.id, title: "B's chat", lastMessageAt: new Date() });
-    const res = await svc.listLatestConversations(await actingFreelancerForTest(user.id));
-    expect(res.success).toBe(true);
-    expect(res.data!.map((i) => i.title)).toEqual(['Chat 1', 'Chat 3', 'Chat 2']);
-  });
-
-  it('AC-30: listLatestConversations is [] for a Freelancer with none', async () => {
-    const user = await createFreelancer(prisma, { email: 't18-a@example.com' });
-    expect(await svc.listLatestConversations(await actingFreelancerForTest(user.id))).toEqual({ success: true, data: [] });
   });
 });
 

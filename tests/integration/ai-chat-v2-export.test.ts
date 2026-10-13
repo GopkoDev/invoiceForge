@@ -322,7 +322,7 @@ describe.runIf(containerRuntimeAvailable)(
           {
             ...defaultFormQuestions([customer.id, 'fixture-acme-gmbh'])[0],
             options: [
-              { optionId: 0, label: 'Acme Corp', ref: { customerId: customer.id } },
+              { optionId: 0, label: 'Acme Corp', detail: 'billing@acme.example.test', ref: { customerId: customer.id } },
             ],
           },
         ],
@@ -352,7 +352,7 @@ describe.runIf(containerRuntimeAvailable)(
         ['assistant', null],
       ]);
 
-      // The sent form: questions with prompt (the default text when none), field and option labels; answers incl. typed text and the skip.
+      // The sent form: questions with prompt (the STORED prompt: null stays null, never the server default text; T81 R4), field and option labels; answers incl. typed text and the skip.
       const sent = forms.messages[1].form!;
       expect(sent.state).toBe('CHOSEN');
       expect(
@@ -361,7 +361,7 @@ describe.runIf(containerRuntimeAvailable)(
         [0, 'CURRENCY', 'Which currency?'],
         [1, 'CUSTOMER', 'Which Acme do you mean?'],
         [2, 'PRICE', 'What is the hourly price?'],
-        [3, 'NOTES', 'Any notes?'],
+        [3, 'NOTES', null],
       ]);
       expect(sent.questions[0].options).toEqual([
         { optionId: 0, label: 'USD' },
@@ -391,6 +391,8 @@ describe.runIf(containerRuntimeAvailable)(
       expect(closed.questions[0].options).toEqual([
         { optionId: 0, label: 'Acme Corp' },
       ]);
+      // T81 R4: a filled option carrying `detail` exports exactly {optionId, label} (contract: additionalProperties false).
+      expect(Object.keys(closed.questions[0].options[0]).sort()).toEqual(['label', 'optionId']);
       // Replies without a form, and USER messages, carry form: null.
       expect(forms.messages[0].form).toBeNull();
       expect(forms.messages[2].form).toBeNull();
@@ -437,6 +439,15 @@ describe.runIf(containerRuntimeAvailable)(
         body: JSON.parse(text),
         specPath: SECURITY_PATCH_SPEC_PATH,
       });
+    });
+
+    it('T81 R4: a filled option with detail exports as exactly {optionId, label}', async () => {
+      const a = await formUser();
+      const result = await account.getAccountExport(await actingFreelancerForTest(a.freelancer.id));
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const closed = result.data.conversations.find((c) => c.title === 'Form chat')!.messages[3].form!;
+      expect(closed.questions[0].options).toEqual([{ optionId: 0, label: 'Acme Corp' }]);
     });
 
     it('deleteAccount removes every form row, answer and message; another account keeps its forms (AC-34)', async () => {

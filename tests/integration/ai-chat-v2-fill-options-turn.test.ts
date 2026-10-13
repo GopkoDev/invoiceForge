@@ -21,6 +21,17 @@ vi.mock('@/auth', () => ({ auth: () => authMock() }));
 let model: MockLanguageModelV4;
 vi.mock('@/lib/ai/model', () => ({ getChatModel: () => model }));
 
+// T81 R1: lets one test make the server-side option fill throw.
+const fill = vi.hoisted(() => ({ fail: false }));
+vi.mock('@/lib/services/assistant-drafts/forms', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/assistant-drafts/forms')>();
+  return {
+    ...actual,
+    fillRecordOptions: (...args: Parameters<typeof actual.fillRecordOptions>) =>
+      fill.fail ? Promise.reject(new Error('fill exploded')) : actual.fillRecordOptions(...args),
+  };
+});
+
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 describe.runIf(containerRuntimeAvailable)('ask_user without recordIds: the server offers the Freelancer\'s records (T78)', () => {
@@ -46,6 +57,7 @@ describe.runIf(containerRuntimeAvailable)('ask_user without recordIds: the serve
 
   beforeEach(() => authMock.mockReset());
   afterEach(async () => {
+    fill.fail = false;
     vi.restoreAllMocks();
     await truncateAllTables(prisma);
   });
@@ -88,4 +100,14 @@ describe.runIf(containerRuntimeAvailable)('ask_user without recordIds: the serve
     expect(questions[0].prompt).toBe('Who is it for?');
     expect('heading' in questions[0]).toBe(false);
   });
+
+  it('T81 R1: when filling the options throws, the turn still settles and the form is stored input-only', async () => {
+    fill.fail = true;
+    const { questions } = await Promise.race([
+      run('en', 'invoice for some work'),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('turn hung: result never settled')), 15_000)),
+    ]);
+    expect(questions[0].options).toEqual([]);
+    expect(questions[0].input).toBe('TEXT');
+  }, 30_000);
 });

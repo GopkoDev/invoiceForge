@@ -1,7 +1,7 @@
 import 'server-only';
 import { captureException } from '@sentry/nextjs';
 import type { MessageOrigin } from '@prisma/client';
-import { toFormView, type FormRow } from '@/lib/services/assistant-drafts/forms';
+import { storedFormQuestionsSchema, toFormView, type FormRow } from '@/lib/services/assistant-drafts/forms';
 import { prisma } from '@/prisma';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { fail, ok, type ActionResult } from '@/types/result';
@@ -283,16 +283,19 @@ function exportOffer(offer: ExportOfferRow | null) {
 function exportForm(offer: ExportOfferRow | null) {
   if (!offer) return null;
   const view = toFormView(offer);
+  // A legacy Offered choice has no stored questions: its backfilled view stands in.
+  const stored =
+    offer.kind === 'FORM' ? storedFormQuestionsSchema.parse(offer.questions) : view.questions;
   const labelOf = (questionId: number, optionId: number) =>
     view.questions.find((q) => q.questionId === questionId)?.options.find((o) => o.optionId === optionId)?.label ?? '';
   return {
     state: view.state,
-    questions: view.questions.map((q) => ({
+    questions: stored.map((q) => ({
       questionId: q.questionId,
       field: q.field,
       lineIndex: q.lineIndex,
-      prompt: q.prompt,
-      options: q.options,
+      prompt: q.prompt ?? null,
+      options: q.options.map(({ optionId, label }) => ({ optionId, label })),
       input: q.input,
       required: q.required,
       skippable: q.skippable,

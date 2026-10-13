@@ -49,7 +49,7 @@ export interface FixtureFormQuestion {
   lineIndex: number | null;
   heading: string;
   prompt: string | null;
-  options: Array<{ optionId: number; label: string; ref: Record<string, unknown> }>;
+  options: Array<{ optionId: number; label: string; detail?: string; ref: Record<string, unknown> }>;
   input: string;
   required: boolean;
   skippable: boolean;

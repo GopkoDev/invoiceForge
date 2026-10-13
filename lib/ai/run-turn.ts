@@ -9,6 +9,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
 import { createTurnContext, type PinnedResolution, type TurnContext } from '@/lib/ai/turn-context';
 import { askFieldsOf, issuesAnswer, linksFor, resolverFormFor } from '@/lib/ai/tools/propose-draft';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
@@ -158,7 +159,12 @@ async function pendingFormOf(turn: TurnContext): Promise<TurnResult['pendingForm
   const reading = typeof written === 'string' ? interpretCurrency(written, 'USD') : null;
   const currency = reading?.kind === 'RESOLVED' && isCurrency(reading.currency) ? reading.currency : null;
   const senderProfileId = typeof request?.senderProfileId === 'string' ? request.senderProfileId : null;
-  questions = await fillRecordOptions(turn.actor, questions, { currency, senderProfileId });
+  try {
+    questions = await fillRecordOptions(turn.actor, questions, { currency, senderProfileId });
+  } catch (error) {
+    // A failed fill never fails the turn: the form goes out with its questions unfilled.
+    console.error(`pending_form_fill_failed error=${String(redactError(error))}`);
+  }
   return { id: createId(), request, questions };
 }
 

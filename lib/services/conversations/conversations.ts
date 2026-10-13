@@ -82,24 +82,6 @@ export async function listConversationSummaries(
   }
 }
 
-/** ai-chat-v2 T18 (AC-30; §listLatestConversations): the dashboard's latest Conversations, at most `limit` (3). */
-export async function listLatestConversations(
-  actor: ActingFreelancer,
-  limit = 3
-): Promise<ActionResult<ConversationSummary[]>> {
-  try {
-    const rows = await prisma.conversation.findMany({
-      where: { userId: actor.userId },
-      select: SUMMARY_SELECT,
-      orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
-      take: Math.max(0, Math.min(limit, 3)),
-    });
-    return ok(rows.map(toSummary));
-  } catch (error) {
-    return failed('listLatestConversations failed', error, LIST_FAILED_MESSAGE);
-  }
-}
-
 export async function readInvoiceStates(
   actor: ActingFreelancer,
   ids: string[]
