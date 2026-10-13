@@ -26,7 +26,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined })
 
 type Result = { success: boolean; code?: string; error?: string; details?: any; data?: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Actions = {
-  loadInvoicePreview: (cardId: unknown) => Promise<Result>;
+  loadInvoicePreview: (cardId: unknown, conversationId: unknown) => Promise<Result>;
   issueFromPreview: (invoiceId: unknown, expectedVersion: unknown) => Promise<Result>;
 };
 
@@ -79,7 +79,7 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
   it('AC-20: the preview of a created card loads with its version and the draft state', async () => {
     const a = await seedCreatedCard('t17-a@example.com');
     signIn(a.user);
-    const res = await actions.loadInvoicePreview(a.card.id);
+    const res = await actions.loadInvoicePreview(a.card.id, a.card.conversationId);
     expect(res).toMatchObject({
       success: true,
       data: { kind: 'AVAILABLE', version: 2, state: { state: 'DRAFT', invoiceId: a.invoice.id, invoiceNumber: 'INV-0007' } },
@@ -91,15 +91,15 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
     const a = await seedCreatedCard('t17-a@example.com');
     await prisma.invoice.delete({ where: { id: a.invoice.id } });
     signIn(a.user);
-    expect(await actions.loadInvoicePreview(a.card.id)).toEqual({ success: true, data: { kind: 'UNAVAILABLE' } });
+    expect(await actions.loadInvoicePreview(a.card.id, a.card.conversationId)).toEqual({ success: true, data: { kind: 'UNAVAILABLE' } });
   });
 
   it("AC-22: another Freelancer's card and an unknown id give identical NOT_FOUND words", async () => {
     const a = await seedCreatedCard('t17-a@example.com');
     const b = await seedCreatedCard('t17-b@example.com');
     signIn(a.user);
-    const foreign = await actions.loadInvoicePreview(b.card.id);
-    const unknown = await actions.loadInvoicePreview('clx0unknown00000000000001');
+    const foreign = await actions.loadInvoicePreview(b.card.id, b.card.conversationId);
+    const unknown = await actions.loadInvoicePreview('clx0unknown00000000000001', a.card.conversationId);
     expect(foreign).toEqual({ success: false, code: 'NOT_FOUND', error: "This invoice can't be found." });
     expect(unknown).toEqual(foreign);
   });
@@ -117,7 +117,7 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
       },
     });
     expect(await invoiceRow(a.invoice.id)).toMatchObject({ status: 'PENDING', invoiceNumber: 'INV-0007', issuedFromChat: true });
-    const preview = await actions.loadInvoicePreview(a.card.id);
+    const preview = await actions.loadInvoicePreview(a.card.id, a.card.conversationId);
     expect(preview.data.invoice.assistantMark).toBeNull();
     expect(revalidated).toEqual(expect.arrayContaining(['/invoices', '/dashboard']));
   });
@@ -157,7 +157,7 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
     const a = await seedCreatedCard('t17-a@example.com');
     await createMessageAllowanceDay(prisma, { userId: a.user.id, used: 30 });
     signIn(a.user);
-    expect((await actions.loadInvoicePreview(a.card.id)).success).toBe(true);
+    expect((await actions.loadInvoicePreview(a.card.id, a.card.conversationId)).success).toBe(true);
     expect((await actions.issueFromPreview(a.invoice.id, 2)).success).toBe(true);
     const days = await prisma.messageAllowanceDay.findMany({ where: { userId: a.user.id } });
     expect(days.map((d) => d.used)).toEqual([30]);
@@ -166,7 +166,7 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
   it('AC-36: without a session both actions are UNAUTHORIZED and nothing changes', async () => {
     const a = await seedCreatedCard('t17-a@example.com');
     authMock.mockResolvedValue(null);
-    expect(await actions.loadInvoicePreview(a.card.id)).toMatchObject({ success: false, code: 'UNAUTHORIZED' });
+    expect(await actions.loadInvoicePreview(a.card.id, a.card.conversationId)).toMatchObject({ success: false, code: 'UNAUTHORIZED' });
     expect(await actions.issueFromPreview(a.invoice.id, 2)).toMatchObject({ success: false, code: 'UNAUTHORIZED' });
     expect(await invoiceRow(a.invoice.id)).toMatchObject({ status: 'DRAFT', version: 2 });
   });
@@ -182,7 +182,7 @@ describe.runIf(containerRuntimeAvailable)('loadInvoicePreview and issueFromPrevi
     const a = await seedCreatedCard('t17-a@example.com');
     signIn(a.user);
     expect(await actions.issueFromPreview('', 2)).toMatchObject({ success: false, code: 'VALIDATION' });
-    expect(await actions.loadInvoicePreview(42)).toEqual({ success: false, code: 'NOT_FOUND', error: "This invoice can't be found." });
+    expect(await actions.loadInvoicePreview(42, 'c1')).toEqual({ success: false, code: 'NOT_FOUND', error: "This invoice can't be found." });
   });
 });
 
