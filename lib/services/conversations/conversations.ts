@@ -82,7 +82,48 @@ export async function listConversations(
     });
     return ok({ ...result, items: result.items.map(toSummary) });
   } catch (error) {
-    return failed('listConversations failed', error, "We couldn't load your conversations. Please try again.");
+    return failed('listConversations failed', error, LIST_FAILED_MESSAGE);
+  }
+}
+
+const SUMMARY_SELECT = { id: true, title: true, lastMessageAt: true } as const;
+const LIST_FAILED_MESSAGE = "We couldn't load your conversations. Please try again.";
+
+/**
+ * ai-chat-v2 T18 (AC-15, AC-17, AC-18; contracts/server-actions.md §listConversationSummaries): every Conversation
+ * of the Freelancer, newest last message first, with their time zone for the client's day groups. No paging: the
+ * allowance and the 90-day retention bound it (sad.md §5, §7). Replaces listConversations once T19 swaps the pages.
+ */
+export async function listConversationSummaries(
+  actor: ActingFreelancer
+): Promise<ActionResult<{ items: ConversationSummary[]; timeZone: string }>> {
+  try {
+    const rows = await prisma.conversation.findMany({
+      where: { userId: actor.userId },
+      select: SUMMARY_SELECT,
+      orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+    });
+    return ok({ items: rows.map(toSummary), timeZone: actor.timeZone });
+  } catch (error) {
+    return failed('listConversationSummaries failed', error, LIST_FAILED_MESSAGE);
+  }
+}
+
+/** ai-chat-v2 T18 (AC-30; §listLatestConversations): the dashboard's latest Conversations, at most `limit` (3). */
+export async function listLatestConversations(
+  actor: ActingFreelancer,
+  limit = 3
+): Promise<ActionResult<ConversationSummary[]>> {
+  try {
+    const rows = await prisma.conversation.findMany({
+      where: { userId: actor.userId },
+      select: SUMMARY_SELECT,
+      orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+      take: Math.max(0, Math.min(limit, 3)),
+    });
+    return ok(rows.map(toSummary));
+  } catch (error) {
+    return failed('listLatestConversations failed', error, LIST_FAILED_MESSAGE);
   }
 }
 
