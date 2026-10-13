@@ -145,6 +145,11 @@ describe('PromptInput', () => {
     expect(card).toHaveAttribute('role', 'group');
     expect(card).toHaveClass('group/input-group');
     expect(card.className).not.toMatch(/(^|\s)focus-within:ring-\[3px\]/);
+    // T48: InputGroup's `relative` on this rounded overflow-hidden card made Chromium composite it and draw the
+    // workspace text with grayscale instead of subpixel antialiasing (the SCR-01/SCR-03 Linux baselines moved);
+    // the card stays unpositioned.
+    expect(card).toHaveClass('static');
+    expect(card).not.toHaveClass('relative');
     expect(card).toContainElement(
       screen.getByRole('textbox', { name: 'Message' })
     );

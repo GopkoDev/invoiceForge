@@ -60,10 +60,12 @@ export function PromptInput({
       onSubmit={handleSubmit}
       {...props}
     >
+      {/* `static` overrides InputGroup's `relative`: a positioned rounded overflow-hidden card is composited by
+          Chromium, which turns the workspace text from subpixel to grayscale antialiasing. */}
       <InputGroup
         data-slot="prompt-input-card"
         className={cn(
-          'bg-background h-auto flex-col items-stretch overflow-hidden rounded-2xl',
+          'bg-background static h-auto flex-col items-stretch overflow-hidden rounded-2xl',
           cardClassName
         )}
       >
