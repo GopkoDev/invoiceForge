@@ -463,6 +463,10 @@ async function runNoGuessing(
       }
       if (setup === 'two-acme' || setup === 'own-profile-name')
         await createCustomer(prisma, user.id, { name: 'Acme GmbH' });
+      // ai-chat-v2 AC-14: more matches than an offer holds.
+      if (setup === 'many-studios')
+        for (let n = 0; n < 12; n++)
+          await createCustomer(prisma, user.id, { name: `Studio ${String.fromCharCode(65 + n)}` });
       if (setup === 'base') {
         const consulting = await createProduct(prisma, user.id, {
           name: 'Consulting',

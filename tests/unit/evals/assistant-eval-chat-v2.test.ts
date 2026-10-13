@@ -304,3 +304,46 @@ describe('harness: the own-profile-name setup and the press path', () => {
     expect(pkg.scripts['eval:assistant:dry']).toMatch(/ASSISTANT_EVAL=dry/);
   });
 });
+
+// Review 2026-10-13 R2-B2 (AC-14): above 8 matches the chat says how many match and asks for a more exact name.
+describe('AC-14: the match-count rows and rule', () => {
+  const rows = loadNoGuessingSet();
+
+  it('has the AC-14 rows (en, uk) on the many-studios setup with explains "match-count"', () => {
+    const ac14 = rows.filter((r) => r.ac === 'AC-14');
+    expect(ac14.map((r) => r.lang).sort()).toEqual(['en', 'uk']);
+    for (const r of ac14) {
+      expect(r).toMatchObject({ setup: 'many-studios', expect: 'question', explains: 'match-count' });
+    }
+  });
+
+  const row = (over: Partial<NoGuessingRow> = {}): NoGuessingRow => ({
+    id: 'AC-14-studio',
+    expect: 'question',
+    hasCard: false,
+    ungroundedValues: [],
+    explains: 'match-count',
+    lang: 'en',
+    replyText: '12 Customers match "Studio". Type a more exact name.',
+    ...over,
+  });
+
+  it('passes when the reply says 12 and names none of the Studios', () => {
+    expect(noGuessingRowFailures(row())).toEqual([]);
+  });
+
+  it('fails when the reply lists them or does not say the count', () => {
+    expect(noGuessingRowFailures(row({ replyText: 'Which one: Studio A, Studio B, Studio C?' }))).toEqual(
+      expect.arrayContaining(['reply does not say how many match', 'reply lists the matches'])
+    );
+  });
+
+  it('a failing match-count row lowers the question rate', () => {
+    expect(scoreNoGuessing([row({ replyText: 'Which Studio?' })]).questionRate).toBe(0);
+  });
+
+  it('the harness seeds twelve "Studio" Customers for many-studios', () => {
+    const run = readFileSync(join(ROOT, 'evals/assistant/run.ts'), 'utf8');
+    expect(run).toMatch(/many-studios/);
+  });
+});

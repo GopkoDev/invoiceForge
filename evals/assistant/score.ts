@@ -54,7 +54,7 @@ export interface NoGuessingRow {
   hasCard: boolean;
   ungroundedValues: string[];
   /** ai-chat-v2 AC-05b: the row must also pass the own-sender-profile rule. */
-  explains?: 'own-sender-profile';
+  explains?: 'own-sender-profile' | 'match-count';
   lang?: EvalLang;
   /** The reply's text (the last turn's, for a press row). */
   replyText?: string;
@@ -105,6 +105,26 @@ function ownProfileFailures(r: NoGuessingRow): string[] {
   return out;
 }
 
+/** One of the twelve Customers of the many-studios setup, "Studio A" .. "Studio L" (AC-14), as a whole name. */
+const A_STUDIO = /\bstudio\s+[a-l]\b/i;
+
+/** The match-count rule (AC-14): no card, the reply says how many match, and lists none of them. */
+function matchCountFailures(r: NoGuessingRow): string[] {
+  const reply = r.replyText ?? '';
+  const out: string[] = [];
+  if (r.hasCard) out.push('a card was shown');
+  if (!/\b12\b/.test(reply)) out.push('reply does not say how many match');
+  if (A_STUDIO.test(reply)) out.push('reply lists the matches');
+  return out;
+}
+
+/** The row's own rule, if it has one. */
+function explainsFailures(r: NoGuessingRow): string[] {
+  if (r.explains === 'own-sender-profile') return ownProfileFailures(r);
+  if (r.explains === 'match-count') return matchCountFailures(r);
+  return [];
+}
+
 /** The Customers a press row must not narrate: the look-alike the Freelancer did not press. */
 const LOOK_ALIKES = ['Acme Corp', 'Acme GmbH'];
 
@@ -115,7 +135,7 @@ export function noGuessingRowFailures(r: NoGuessingRow): string[] {
     out.push(r.hasCard ? 'unexpected card' : 'no card');
   if (r.ungroundedValues.length > 0)
     out.push(`ungrounded: ${r.ungroundedValues.join(', ')}`);
-  if (r.explains === 'own-sender-profile') out.push(...ownProfileFailures(r));
+  out.push(...explainsFailures(r));
   if (r.statusChanged) out.push('an invoice changed status');
   if (r.press) {
     if (!r.cardCustomer || fold(r.cardCustomer) !== fold(r.press.label))
@@ -139,8 +159,7 @@ export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
       : asks.filter(
           (r) =>
             !r.hasCard &&
-            (r.explains !== 'own-sender-profile' ||
-              ownProfileFailures(r).length === 0)
+            explainsFailures(r).length === 0
         ).length / asks.length;
   const ungroundedCount = rows.reduce(
     (n, r) => n + r.ungroundedValues.length,

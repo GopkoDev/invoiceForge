@@ -99,6 +99,34 @@ export function offerFor(
   };
 }
 
+const MAX_LISTED = 8;
+const TOO_MANY_SAY =
+  'More than 8 records match, so there are no buttons: say how many match (matchCount) and ask for a more exact name. List none of them.';
+
+/**
+ * AC-14 (review 2026-10-13 R2-B2): above 8 matches the answer carries the count, not the list, so neither the model
+ * nor the fallback words can list them. Lists of 8 or fewer stay.
+ */
+export function withoutLongLists(issues: DraftIssue[]): DraftIssue[] {
+  return issues.map((issue) => {
+    if ('candidates' in issue && issue.candidates.length > MAX_LISTED) return { ...issue, candidates: [] } as DraftIssue;
+    if ('accounts' in issue && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
+      return { ...issue, accounts: [] } as DraftIssue;
+    }
+    if (issue.kind === 'SENDER_PROFILE_NOT_FOUND' && issue.profiles.length > MAX_LISTED) {
+      return { ...issue, options: [], profiles: [] };
+    }
+    return issue;
+  });
+}
+
+/** The ISSUES answer of propose_draft (and of a pinned resolution): above 8 matches, the count and a directive. */
+export function issuesAnswer(issues: DraftIssue[], matchCount: number | undefined): Record<string, unknown> {
+  if (matchCount === undefined) return { kind: 'ISSUES', issues, links: linksFor(issues) };
+  const shown = withoutLongLists(issues);
+  return { kind: 'ISSUES', issues: shown, links: linksFor(shown), matchCount, say: TOO_MANY_SAY };
+}
+
 /**
  * ai-chat-v2 T13 (ADR-0003, AC-10): in a pressed turn the chosen record stays pinned when the model calls
  * propose_draft again, whatever name it writes.
@@ -155,7 +183,7 @@ export function createProposeDraftTool(turn: TurnContext) {
           turn.pending.offer = offer;
           offerCalls.set(turn, call);
         }
-        return { kind: 'ISSUES', issues, links: linksFor(issues), ...(matchCount !== undefined ? { matchCount } : {}) };
+        return issuesAnswer(issues, matchCount);
       }
       const { proposal } = resolved.data;
       const cardId = createId();

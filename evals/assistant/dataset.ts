@@ -37,6 +37,8 @@ export const NO_GUESSING_SETUPS = [
   'several-eur',
   // ai-chat-v2 (AC-05b): default profile "Studio" (USD), a second profile "Consulting FOP" (UAH), Acme Corp and Acme GmbH.
   'own-profile-name',
+  // ai-chat-v2 AC-14: twelve Customers "Studio A" .. "Studio L" (more than the 8 an offer holds).
+  'many-studios',
 ] as const;
 export type NoGuessingSetup = (typeof NO_GUESSING_SETUPS)[number];
 
@@ -66,7 +68,7 @@ export const noGuessingItemSchema = z
           .strict()
       )
       .optional(),
-    explains: z.literal('own-sender-profile').optional(),
+    explains: z.enum(['own-sender-profile', 'match-count']).optional(),
     press: z
       .object({ label: z.string().min(1) })
       .strict()

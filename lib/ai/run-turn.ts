@@ -6,7 +6,7 @@ import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createTurnContext, type PinnedResolution } from '@/lib/ai/turn-context';
-import { linksFor, offerFor } from '@/lib/ai/tools/propose-draft';
+import { issuesAnswer, linksFor, offerFor } from '@/lib/ai/tools/propose-draft';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
@@ -136,15 +136,10 @@ const PINNED_CALL_ID = 'pinned-choice';
 /** The propose_draft result of a pinned resolution: the prior step in the model input, and the answer to a re-call. */
 function pinnedAnswer(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): Record<string, unknown> {
   const { resolution } = pinned;
-  return resolution.kind === 'PROPOSAL'
-    ? { kind: 'CARD', cardId, resolution }
-    : {
-        kind: 'ISSUES',
-        issues: resolution.issues,
-        links: linksFor(resolution.issues),
-        ...(matchCount !== undefined ? { matchCount } : {}),
-        resolution,
-      };
+  if (resolution.kind === 'PROPOSAL') return { kind: 'CARD', cardId, resolution };
+  const answer = issuesAnswer(resolution.issues, matchCount);
+  // Above 8 matches the resolution's own lists stay out of the model input too (AC-14).
+  return { ...answer, resolution: { kind: 'ISSUES', issues: answer.issues } };
 }
 
 function pinnedStep(pinned: PinnedResolution, value: Record<string, unknown>): ModelMessage[] {
@@ -252,7 +247,9 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     let usage = EMPTY_USAGE as TurnResult['usage'];
     let openText: string | null = null;
     // The last propose_draft ISSUES answer, for the fallback words when the model writes none.
-    let draftIssues: DraftIssue[] = input.pinned?.resolution.kind === 'ISSUES' ? input.pinned.resolution.issues : [];
+    let draftIssues: DraftIssue[] =
+      turn.pinnedAnswer?.kind === 'ISSUES' ? (turn.pinnedAnswer.issues as DraftIssue[]) : [];
+    let draftMatchCount: number | undefined = pinnedMatchCount;
     if (draftIssues.length > 0) pushUnique(links, linksFor(draftIssues));
 
     const closeText = () => {
@@ -290,7 +287,10 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
           case 'tool-result':
             pushUnique(links, linksFromToolResult(p.toolName, p.result));
             // Only the last propose_draft answer counts: a later CARD clears earlier issues (review R6-2).
-            if (p.toolName === 'propose_draft') draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
+            if (p.toolName === 'propose_draft') {
+              draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
+              draftMatchCount = p.result?.kind === 'ISSUES' ? p.result.matchCount : undefined;
+            }
             break;
           case 'step-finish':
             closeText();
@@ -326,7 +326,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
 
     if (text.trim() === '' && draftIssues.length > 0 && !turn.pending.card) {
       // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).
-      const fallback = issuesText(draftIssues, verdict.language);
+      const fallback = issuesText(draftIssues, verdict.language, draftMatchCount);
       emit({ type: 'text-start', id: 'issues' });
       emit({ type: 'text-delta', id: 'issues', delta: fallback });
       emit({ type: 'text-end', id: 'issues' });

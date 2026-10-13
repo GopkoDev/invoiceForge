@@ -119,8 +119,53 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
   },
 };
 
-/** One paragraph naming every issue, in the message's language (English unless it is Ukrainian). */
-export function issuesText(issues: DraftIssue[], language: string): string {
-  const sentence = SENTENCES[language === 'uk' ? 'uk' : 'en'];
-  return issues.map(sentence).join(' ');
+/**
+ * Above 8 matches (AC-14) the tool answer drops the list: the chat says how many match and asks for a more exact
+ * name. Null for an issue whose list was not dropped.
+ */
+function countSentence(issue: DraftIssue, count: number, language: Language): string | null {
+  const uk = language === 'uk';
+  switch (issue.kind) {
+    case 'CUSTOMER_AMBIGUOUS':
+    case 'CUSTOMER_NEAR_MISS':
+      if (issue.candidates.length > 0) return null;
+      return uk
+        ? `Під ${issue.written} підходять ${count} клієнтів. Напишіть точнішу назву.`
+        : `${count} Customers match ${issue.written}. Type a more exact name.`;
+    case 'PRODUCT_AMBIGUOUS':
+      if (issue.candidates.length > 0) return null;
+      return uk
+        ? `Під ${issue.written} підходять ${count} продуктів. Напишіть точнішу назву.`
+        : `${count} products match ${issue.written}. Type a more exact name.`;
+    case 'SEVERAL_ACCOUNTS_IN_CURRENCY':
+      if (issue.accounts.length > 0) return null;
+      return uk
+        ? `У вас ${count} рахунків у ${issue.currency}. Назвіть той, який використати для інвойсу.`
+        : `${count} bank accounts in ${issue.currency} match. Name the one the invoice should use.`;
+    case 'BANK_ACCOUNT_AMBIGUOUS':
+    case 'BANK_ACCOUNT_NOT_FOUND':
+      if (issue.accounts.length > 0) return null;
+      return uk
+        ? `Під ${issue.written} підходять ${count} рахунків. Напишіть точнішу назву.`
+        : `${count} bank accounts match ${issue.written}. Type a more exact name.`;
+    case 'SENDER_PROFILE_NOT_FOUND':
+      if (issue.profiles.length > 0) return null;
+      return uk
+        ? `Під ${issue.written} підходять ${count} профілів відправника. Напишіть точнішу назву.`
+        : `${count} sender profiles match ${issue.written}. Type a more exact name.`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * One paragraph naming every issue, in the message's language (English unless it is Ukrainian). `matchCount` is the
+ * propose_draft answer's count of an offer above 8 options (AC-14).
+ */
+export function issuesText(issues: DraftIssue[], language: string, matchCount?: number): string {
+  const lang: Language = language === 'uk' ? 'uk' : 'en';
+  const sentence = SENTENCES[lang];
+  return issues
+    .map((issue) => (matchCount !== undefined ? countSentence(issue, matchCount, lang) : null) ?? sentence(issue))
+    .join(' ');
 }

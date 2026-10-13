@@ -144,3 +144,23 @@ describe('issuesText (fix 2026-10-12)', () => {
     );
   });
 });
+
+// Review 2026-10-13 R2-B2 (ai-chat-v2 AC-14): above 8 matches the chat says how many match and asks for a more exact
+// name, listing none (the tool answer carries the count and no candidate list).
+describe('issuesText with a match count (AC-14)', () => {
+  const studios: DraftIssue = { kind: 'CUSTOMER_AMBIGUOUS', written: 'Studio', candidates: [] };
+
+  it('says the count and asks for a more exact name, naming no candidate', () => {
+    expect(issuesText([studios], 'en', 12)).toBe('12 Customers match Studio. Type a more exact name.');
+    expect(issuesText([studios], 'uk', 12)).toBe('Під Studio підходять 12 клієнтів. Напишіть точнішу назву.');
+  });
+
+  it('products and bank accounts say their own count', () => {
+    expect(issuesText([{ kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: [] } as DraftIssue], 'en', 9)).toBe(
+      '9 products match audit. Type a more exact name.'
+    );
+    expect(
+      issuesText([{ kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY', currency: 'USD', accounts: [] } as unknown as DraftIssue], 'en', 10)
+    ).toBe('10 bank accounts in USD match. Name the one the invoice should use.');
+  });
+});

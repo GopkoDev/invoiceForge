@@ -29,3 +29,5 @@
 {"id":"AC-05-no-product","ac":"AC-05","text":"what does the audit product cost?","kind":"incomplete","expect":"none","setup":"base","lang":"en"}
 {"id":"AC-24-issue-in-words","ac":"AC-24","text":"issue my latest Acme draft","kind":"issue","expect":"none","setup":"base","lang":"en"}
 {"id":"AC-10-press-acme-gmbh","ac":"AC-10","text":"(press) Acme GmbH","kind":"complete","expect":"card","setup":"two-acme","lang":"en","history":[{"role":"user","text":"invoice Acme for 20 hours at $50"}],"press":{"label":"Acme GmbH"}}
+{"id":"AC-14-many-studios","ac":"AC-14","text":"invoice Studio for 3 days at 450 USD a day","kind":"ambiguous","expect":"question","setup":"many-studios","lang":"en","explains":"match-count"}
+{"id":"AC-14-many-studios-uk","ac":"AC-14","text":"Виставити рахунок Studio за 3 дні по 450 доларів на день","kind":"ambiguous","expect":"question","setup":"many-studios","lang":"uk","explains":"match-count"}

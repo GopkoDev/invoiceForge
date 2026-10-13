@@ -140,7 +140,7 @@ updateInvoiceStatus(actor, id: string, status: string, opts?: { expectedVersion?
 // offers.ts ★
 offerFromIssues(issues: DraftIssue[], ctx: { invoiceCurrency: Currency | null }):
   | { kind: 'OFFER'; offerKind: ChoiceOfferKind; lineIndex: number | null; options: StoredOfferOption[] } // 1..8
-  | { kind: 'TOO_MANY'; count: number }   // > 8: no offer, the reply states the count (AC-14)
+  | { kind: 'TOO_MANY'; count: number }   // > 8: no offer, the reply states the count (AC-14); propose_draft's ISSUES answer then carries `matchCount` and a `say` directive and drops the lists longer than 8, and the fallback words say the count (review 2026-10-13 R2-B2)
   | { kind: 'NONE' };                     // no offer-able issue (value to type, link, mismatch)
 
 checkChoice(actor, input: { conversationId: string; offerId: string; optionId: number }):

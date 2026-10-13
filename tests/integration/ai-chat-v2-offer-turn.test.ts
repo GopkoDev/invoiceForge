@@ -190,6 +190,29 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       expect(types(parts)).not.toContain('data-offer');
       expect(prompts.length).toBeGreaterThanOrEqual(2);
       expect(toolResultText(prompts[1])).toMatch(/matchCount\\?"?\s*:\s*12\b/);
+      // Review 2026-10-13 R2-B2: the answer lists none of the 12, so the model cannot list them either.
+      expect(toolResultText(prompts[1])).not.toContain('Studio A');
+    });
+
+    it('AC-14: when the model writes nothing, the chat says the count and asks for a more exact name, naming none', async () => {
+      const user = await freelancer('t13-ac14-words@example.com');
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'EUR' });
+      for (let n = 1; n <= 12; n++) {
+        await createCustomer(prisma, user.id, { name: `Studio ${String.fromCharCode(64 + n)}` });
+      }
+      script((i) =>
+        i === 0
+          ? { toolCall: { name: 'propose_draft', input: { customer: 'Studio', currency: 'EUR', lines: [{ description: 'Work', quantity: '3', price: '450' }] } } }
+          : { text: '' }
+      );
+
+      const parts = await send('invoice Studio for 3 days at 450 EUR a day');
+
+      const text = parts.filter((p: any) => p.type === 'text-delta').map((p: any) => p.delta).join('');
+      expect(text).toContain('12 Customers match Studio. Type a more exact name.');
+      expect(text).not.toContain('Studio A');
+      expect(types(parts)).not.toContain('data-offer');
     });
   });
 
