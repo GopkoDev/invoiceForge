@@ -33,7 +33,7 @@ const LINES = [{ description: 'Consulting', quantity: '20', price: '50' }];
 const UNAVAILABLE_BODY = {
   success: false,
   code: 'CONFLICT',
-  error: 'This option is no longer available. Choose again or type your request.',
+  error: 'This form is no longer available. Answer the latest questions or type your request.',
   details: { kind: 'CHOICE_UNAVAILABLE' },
 };
 

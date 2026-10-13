@@ -9,7 +9,7 @@ files_hint: ["types/assistant/types.ts", "lib/services/assistant-drafts/forms.ts
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T51 — Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms

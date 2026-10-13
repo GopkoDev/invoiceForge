@@ -3,6 +3,7 @@
 // T10 lands the production zod schemas; then they are built by those schemas so a fixture cannot drift.
 // Fixture text only, never real data.
 
+import { storedFormQuestionsSchema } from '@/lib/services/assistant-drafts/forms';
 import { Prisma, type ChoiceOffer, type ChoiceOfferKind, type ChoiceOfferState, type PrismaClient } from '@prisma/client';
 
 export interface FixtureOfferOption {
@@ -40,7 +41,7 @@ export function defaultOfferOptions(customerIds: [string, string] = ['fixture-ac
 
 // ---------- ai-chat-v2 T50 (ADR-0011): a Question form row (kind FORM) ----------
 // Default: a Customer question (Acme Corp / Acme GmbH + "Other…") and a "Line 1 · Price" input question, over
-// DEFAULT_OFFER_REQUEST. Typed literals until T51 lands formQuestionSchema; then they are parsed by it.
+// DEFAULT_OFFER_REQUEST. Questions are parsed by the production formQuestionSchema (T51), so a fixture cannot drift.
 
 export interface FixtureFormQuestion {
   questionId: number;
@@ -104,7 +105,7 @@ export function defaultFormQuestions(customerIds: [string, string] = ['fixture-a
 }
 
 export async function createQuestionForm(prisma: PrismaClient, params: CreateQuestionFormParams): Promise<ChoiceOffer> {
-  const questions = params.questions ?? defaultFormQuestions();
+  const questions = storedFormQuestionsSchema.parse(params.questions ?? defaultFormQuestions());
   return prisma.choiceOffer.create({
     data: {
       ...(params.id ? { id: params.id } : {}),

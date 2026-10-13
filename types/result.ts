@@ -65,8 +65,8 @@ export type ActionErrorDetails =
   /** ai-chat-v2 (AC-26): issueFromPreview found the draft already issued; the panel and card show this state. */
   | { kind: 'ALREADY_ISSUED'; invoice: LinkedInvoiceState };
 
-/** ai-chat-v2 (AC-12b; openapi sendChatMessage 409): the same words whatever made the option unavailable. */
-export const CHOICE_UNAVAILABLE_MESSAGE = 'This option is no longer available. Choose again or type your request.';
+/** ai-chat-v2 (AC-12b; openapi sendChatMessage 409; spec §1 F7 revision 2026-10-13): the same words for every cause. */
+export const CHOICE_UNAVAILABLE_MESSAGE = 'This form is no longer available. Answer the latest questions or type your request.';
 
 export type AmbiguousCandidate = {
   id: string;

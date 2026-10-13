@@ -1,6 +1,6 @@
 // Shared assistant view types (contracts/server-actions.md "Shared types", abridged).
 import type { DraftProposal } from '@/lib/services/assistant-drafts/schema';
-import type { AppLink } from '@/lib/validations/assistant-chat';
+import type { AppLink, FormAnswer } from '@/lib/validations/assistant-chat';
 
 /** The status in words, derived by the shared overdue rule (ADR-0005). */
 export type InvoiceDisplayStatus = 'draft' | 'pending' | 'overdue' | 'paid' | 'cancelled';
@@ -43,10 +43,57 @@ export type OfferView = {
   options: Array<{ optionId: number; label: string }>;
 };
 
+// ai-chat-v2 revision 2026-10-13 (ADR-0011; openapi FormField, FormInput, FormAnswer, FormView): the Question form.
+/** Which draft field (or none, FREE) a question fills. */
+export type FormField =
+  | 'CUSTOMER'
+  | 'SENDER_PROFILE'
+  | 'BANK_ACCOUNT'
+  | 'PRODUCT'
+  | 'CURRENCY'
+  | 'ISSUE_DATE'
+  | 'DUE_DATE'
+  | 'QUANTITY'
+  | 'PRICE'
+  | 'TAX_RATE'
+  | 'DISCOUNT'
+  | 'PO_NUMBER'
+  | 'PAYMENT_TERMS'
+  | 'NOTES'
+  | 'FREE';
+/** The typed input a question offers besides its options; NONE = options only. */
+export type FormInput = 'NONE' | 'TEXT' | 'AMOUNT' | 'RATE' | 'DISCOUNT' | 'DATE';
+/** One sent answer: a picked option, the Freelancer's own typed text, or a skip of an optional question. */
+export type { FormAnswer, ChatForm } from '@/lib/validations/assistant-chat';
+/** A stored question with its option refs (server only; never sent to the browser). */
+export type { StoredFormQuestion } from '@/lib/services/assistant-drafts/forms';
+
+/** A question as the browser sees it: labels only, no refs, no stored request. */
+export type FormQuestionView = {
+  questionId: number;
+  field: FormField;
+  lineIndex: number | null;
+  heading: string;
+  prompt: string | null;
+  options: Array<{ optionId: number; label: string }>;
+  input: FormInput;
+  required: boolean;
+  skippable: boolean;
+  matchCount: number | null;
+};
+
+/** What the browser gets for a form (openapi FormView); `answers` only once sent (CHOSEN). */
+export type FormView = {
+  formId: string;
+  state: ChoiceOfferState;
+  questions: FormQuestionView[];
+  answers: FormAnswer[] | null;
+};
+
 export type ConversationMessageView = {
   id: string;
   role: 'user' | 'assistant';
-  /** ai-chat-v2: TYPED / PRESSED / DASHBOARD on Freelancer messages; null on Assistant replies. */
+  /** ai-chat-v2: TYPED / PRESSED / DASHBOARD / FORM on Freelancer messages; null on Assistant replies. */
   origin: MessageOrigin | null;
   parts: Array<
     | { type: 'text'; text: string }

@@ -13,13 +13,14 @@ import type {
 } from '@/types/assistant/types';
 
 describe('ai-chat-v2 shared result and assistant types (T04)', () => {
+  // T51 (spec §1 F7, openapi 0.3.0): the sentence now names the form, the same for every refused Send.
   it('the unavailable sentence is the contract sentence, the same for every refused press', () => {
-    expect(CHOICE_UNAVAILABLE_MESSAGE).toBe('This option is no longer available. Choose again or type your request.');
+    expect(CHOICE_UNAVAILABLE_MESSAGE).toBe('This form is no longer available. Answer the latest questions or type your request.');
     const refusal = fail('CONFLICT', CHOICE_UNAVAILABLE_MESSAGE, { details: { kind: 'CHOICE_UNAVAILABLE' } });
     expect(refusal).toEqual({
       success: false,
       code: 'CONFLICT',
-      error: 'This option is no longer available. Choose again or type your request.',
+      error: 'This form is no longer available. Answer the latest questions or type your request.',
       details: { kind: 'CHOICE_UNAVAILABLE' },
     });
   });

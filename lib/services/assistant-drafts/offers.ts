@@ -10,7 +10,8 @@ import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symb
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { reserveMessageSlot, type ReserveResult } from '@/lib/services/assistant-usage/allowance';
-import type { ChoiceOfferKind } from '@/types/assistant/types';
+import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormView } from '@/types/assistant/types';
+import { formHeading } from '@/lib/services/assistant-drafts/form-headings';
 import type { DraftIssue, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
 /** At most this many buttons; above it the reply states the count instead (AC-14). */
@@ -150,6 +151,55 @@ export function offerFromIssues(
     };
   }
   return { kind: 'NONE' };
+}
+
+// ---------- revision 2026-10-13 T51 (spec §1 F9a; data-model 08): the legacy reader ----------
+
+const backfilledQuestionSchema = z
+  .object({ questionId: z.literal(0), options: storedOfferOptionsSchema })
+  .passthrough();
+const legacyAnswersSchema = z.array(z.object({ questionId: z.literal(0), optionId: z.number().int().min(0) }).strict()).length(1);
+
+/**
+ * A pre-revision offer row read as a one-question form (F9a): the question's field is the row's kind, its heading the
+ * app's heading for that field, its options the frozen labels, with no "Other…" input. The backfilled `questions` and
+ * `answers` (08) are read when present, else the same view is built from kind, options and chosenOptionId.
+ */
+export function offerRowToFormView(row: {
+  id: string;
+  kind: ChoiceOfferKind;
+  state: ChoiceOfferState;
+  lineIndex: number | null;
+  options: unknown;
+  chosenOptionId: number | null;
+  questions: unknown;
+  answers: unknown;
+}): FormView {
+  if (row.kind === 'FORM') throw new Error('A FORM row is read by toFormView.');
+  const field: FormField = row.kind;
+  const backfilled = Array.isArray(row.questions) ? backfilledQuestionSchema.safeParse(row.questions[0]) : null;
+  const options = backfilled?.success ? backfilled.data.options : storedOfferOptionsSchema.parse(row.options);
+  const stored = row.answers === null ? null : legacyAnswersSchema.safeParse(row.answers);
+  const chosen = stored?.success ? stored.data[0].optionId : row.chosenOptionId;
+  return {
+    formId: row.id,
+    state: row.state,
+    questions: [
+      {
+        questionId: 0,
+        field,
+        lineIndex: row.lineIndex,
+        heading: formHeading(field, row.lineIndex),
+        prompt: null,
+        options: options.map(({ optionId, label }) => ({ optionId, label })),
+        input: 'NONE',
+        required: true,
+        skippable: false,
+        matchCount: null,
+      },
+    ],
+    answers: row.state === 'CHOSEN' && chosen !== null ? [{ questionId: 0, optionId: chosen }] : null,
+  };
 }
 
 // ---------- ai-chat-v2 T12: the press check, claim and release (server-actions.md §Chat route internals) ----------

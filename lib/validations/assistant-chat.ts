@@ -55,6 +55,28 @@ export const conversationStartPointSchema = z.enum(['AI_SECTION', 'INVOICE_LIST'
 /** The origins a client may ask for; PRESSED is set by the server from a valid choice only. */
 export const requestMessageOriginSchema = z.enum(['TYPED', 'DASHBOARD']);
 
+// ai-chat-v2 revision 2026-10-13 (ADR-0011; openapi ChatForm, FormAnswer): a sent Question form. Answers name a question
+// and an option by position, or carry the Freelancer's own typed text, or skip an optional question; never a record id
+// or a label. Isomorphic: the browser builds the same shape.
+export const FORM_MAX_QUESTIONS = 6;
+export const FORM_MAX_OPTIONS = 8;
+const questionId = z.number().int().min(0).max(FORM_MAX_QUESTIONS - 1);
+export const formAnswerSchema = z.union([
+  z.object({ questionId, optionId: z.number().int().min(0).max(FORM_MAX_OPTIONS - 1) }).strict(),
+  z.object({ questionId, text: z.string().min(1).max(2000) }).strict(),
+  z.object({ questionId, skipped: z.literal(true) }).strict(),
+]);
+export const formAnswersSchema = z
+  .array(formAnswerSchema)
+  .min(1)
+  .max(FORM_MAX_QUESTIONS)
+  .refine((answers) => new Set(answers.map((a) => a.questionId)).size === answers.length, 'At most one answer per question.');
+export const chatFormSchema = z.object({ formId: recordId, answers: formAnswersSchema }).strict();
+export type FormAnswer = z.infer<typeof formAnswerSchema>;
+export type ChatForm = z.infer<typeof chatFormSchema>;
+
+export const FORM_NEEDS_CONVERSATION = 'A form can only be sent in a saved conversation.';
+const FORM_WITH_ORIGIN = 'A form is sent without an origin.';
 export const CHOICE_NEEDS_CONVERSATION = 'A choice can only be sent in a saved conversation.';
 const CHOICE_WITH_ORIGIN = 'A choice is sent without an origin.';
 const FIRST_MESSAGE_ONLY = "This can only be sent with a new conversation's first message.";
@@ -80,6 +102,7 @@ export const chatRequestSchema = z
       })
       .strict(),
     choice: chatChoiceSchema.optional(),
+    form: chatFormSchema.optional(),
     origin: requestMessageOriginSchema.optional(),
     startedFrom: conversationStartPointSchema.optional(),
   })
@@ -89,6 +112,8 @@ export const chatRequestSchema = z
     const issue = (field: string, message: string) => ctx.addIssue({ code: 'custom', path: [field], message });
     if (v.choice && v.conversationId === null) issue('choice', CHOICE_NEEDS_CONVERSATION);
     if (v.choice && v.origin !== undefined) issue('origin', CHOICE_WITH_ORIGIN);
+    if (v.form && v.conversationId === null) issue('form', FORM_NEEDS_CONVERSATION);
+    if (v.form && v.origin !== undefined) issue('origin', FORM_WITH_ORIGIN);
     if (v.conversationId !== null) {
       if (v.origin !== undefined) issue('origin', FIRST_MESSAGE_ONLY);
       if (v.startedFrom !== undefined) issue('startedFrom', FIRST_MESSAGE_ONLY);

@@ -18,6 +18,7 @@ import { actingFreelancerForRoute } from '@/lib/helpers/session-actor';
 import { todayInZone } from '@/lib/helpers/calendar-day';
 import { renewalWhen } from '@/lib/helpers/allowance-renewal';
 import { chatRequestSchema } from '@/lib/validations/assistant-chat';
+import { CHOICE_UNAVAILABLE_MESSAGE } from '@/types/result';
 import { reserveMessageSlot } from '@/lib/services/assistant-usage/allowance';
 import { checkChoice, reserveAndClaim, type CheckedChoice } from '@/lib/services/assistant-drafts/offers';
 import { pinChoice } from '@/lib/services/assistant-drafts/pin';
@@ -56,7 +57,7 @@ const FAILED = {
 const CHOICE_UNAVAILABLE = {
   success: false,
   code: 'CONFLICT',
-  error: 'This option is no longer available. Choose again or type your request.',
+  error: CHOICE_UNAVAILABLE_MESSAGE,
   details: { kind: 'CHOICE_UNAVAILABLE' },
 } as const;
 /** The 429 sentence, with the renewal time in the Freelancer's own zone (AC-10, spec §8 time-zone rule). */

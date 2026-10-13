@@ -1,3 +1,5 @@
+// T51 (revision 2026-10-13, ADR-0011): the `press` example is replaced by the `form` example (ChatForm); `choice` is
+// removed from the contract's ChatRequest (the server schema drops it with the route switch in T57).
 // T14 (ai-chat-v2, AC-08, AC-29; contracts/openapi.yaml sendChatMessage, ChatRequest): the three request examples validate
 // against the ChatRequest schema AND parse with chatRequestSchema; every field-combination violation is refused with the
 // field named; the 409 example is the route's refusal body. Unit tier: no database.
@@ -8,6 +10,7 @@ import SwaggerParser from '@apidevtools/swagger-parser';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { chatRequestSchema } from '@/lib/validations/assistant-chat';
+import { CHOICE_UNAVAILABLE_MESSAGE } from '@/types/result';
 
 const SPEC = path.resolve(process.cwd(), 'docs/features/ai-chat-v2/contracts/openapi.yaml');
 
@@ -29,7 +32,7 @@ const base = (extra: Record<string, unknown> = {}, conversationId: string | null
 const CHOICE = { offerId: 'clx0offer000000000000001', optionId: 1 };
 
 describe('sendChatMessage request examples (openapi)', () => {
-  it.each(['press', 'dashboardPrompt', 'createWithAiFromDashboard'])('AC-08 / AC-29: the %s example validates against ChatRequest and parses with chatRequestSchema', async (name) => {
+  it.each(['form', 'dashboardPrompt', 'createWithAiFromDashboard'])('AC-08 / AC-29: the %s example validates against ChatRequest and parses with chatRequestSchema', async (name) => {
     const op = await operation();
     const example = op.requestBody.content['application/json'].examples[name].value;
     const validate = validatorFor(op.requestBody.content['application/json'].schema);
@@ -38,6 +41,14 @@ describe('sendChatMessage request examples (openapi)', () => {
     const parsed = chatRequestSchema.safeParse(example);
     expect(parsed.success, JSON.stringify(parsed.success ? null : parsed.error.issues)).toBe(true);
     if (parsed.success) expect(parsed.data).toEqual(example);
+  });
+
+  it('AC-12b: the removed `press` example (a `choice`) is refused by the contract ChatRequest (unknown key)', async () => {
+    const op = await operation();
+    const example = op.requestBody.content['application/json'].examples.press.value;
+    const validate = validatorFor(op.requestBody.content['application/json'].schema);
+    expect(validate(example)).toBe(false);
+    expect(validate.errors?.some((e: any) => e.keyword === 'additionalProperties' && e.params.additionalProperty === 'choice')).toBe(true);
   });
 });
 
@@ -50,9 +61,10 @@ describe('the 409 CHOICE_UNAVAILABLE refusal', () => {
     expect(example).toEqual({
       success: false,
       code: 'CONFLICT',
-      error: 'This option is no longer available. Choose again or type your request.',
+      error: 'This form is no longer available. Answer the latest questions or type your request.',
       details: { kind: 'CHOICE_UNAVAILABLE' },
     });
+    expect(example.error).toBe(CHOICE_UNAVAILABLE_MESSAGE);
   });
 });
 
@@ -63,6 +75,42 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
     if (r.success) return {} as Record<string, string[]>;
     return r.error.flatten().fieldErrors as Record<string, string[]>;
   };
+
+  // ---------- T51: the Question form (ChatForm) ----------
+  const FORM = { formId: 'clx0offer000000000000002', answers: [{ questionId: 0, optionId: 1 }, { questionId: 1, text: '40' }] };
+
+  it('AC-08: accepts a form in a saved Conversation (picked option, typed text, skip)', () => {
+    expect(chatRequestSchema.safeParse(base({ form: FORM })).success).toBe(true);
+    expect(chatRequestSchema.safeParse(base({ form: { ...FORM, answers: [{ questionId: 2, skipped: true }] } })).success).toBe(true);
+  });
+
+  it('AC-12b: refuses a form with conversationId null, keyed `form`', () => {
+    expect(fieldsOf(base({ form: FORM }, null)).form).toEqual(['A form can only be sent in a saved conversation.']);
+  });
+
+  it('refuses a form together with an origin (FORM is set by the server)', () => {
+    const f = fieldsOf(base({ form: FORM, origin: 'TYPED' }));
+    expect(f.origin).toBeDefined();
+  });
+
+  it('refuses origin FORM from the client', () => {
+    expect(fieldsOf(base({ origin: 'FORM' }, null)).origin).toBeDefined();
+  });
+
+  it.each([
+    ['two answers for one question', { ...FORM, answers: [{ questionId: 0, optionId: 1 }, { questionId: 0, text: 'Acme' }] }],
+    ['no answers', { ...FORM, answers: [] }],
+    ['seven answers', { ...FORM, answers: Array.from({ length: 7 }, (_, i) => ({ questionId: i, optionId: 0 })) }],
+    ['an empty formId', { ...FORM, formId: '' }],
+    ['a formId over 64 characters', { ...FORM, formId: 'x'.repeat(65) }],
+    ['an optionId above 7', { ...FORM, answers: [{ questionId: 0, optionId: 8 }] }],
+    ['a questionId above 5', { ...FORM, answers: [{ questionId: 6, optionId: 0 }] }],
+    ['a label sent by the browser', { ...FORM, answers: [{ questionId: 0, optionId: 1, label: 'Acme GmbH' }] }],
+    ['a record id sent by the browser', { ...FORM, answers: [{ questionId: 0, customerId: 'clx0cus00000000000000001' }] }],
+    ['an extra key in the form', { ...FORM, offerId: 'x' }],
+  ])('refuses %s', (_label, form) => {
+    expect(fieldsOf(base({ form }))).not.toEqual({});
+  });
 
   it('AC-08: accepts a choice in a saved Conversation', () => {
     expect(chatRequestSchema.safeParse(base({ choice: CHOICE })).success).toBe(true);
