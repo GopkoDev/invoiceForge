@@ -375,6 +375,51 @@ for (const viewport of [
   });
 }
 
+for (const viewport of [PHONE, { width: 375, height: 667 }]) {
+  // Review R16-10 / T46: the longest suggestion chip wraps instead of pushing the start panel sideways on a phone.
+  test(`AC-15: at ${viewport.width} x ${viewport.height} the start panel and its suggestion chips fit the width`, async ({
+    browser,
+  }, testInfo) => {
+    const f = await openSignedInFreelancer(
+      browser,
+      testInfo,
+      `ai-v2-start-phone-${viewport.width}`,
+      {
+        seed: { timeZone: 'UTC' },
+        context: { timezoneId: 'UTC', viewport: DESKTOP },
+      }
+    );
+    try {
+      const { page } = f;
+      // Signed in at desktop size (the cookie banner covers the phone sign-in button), then resized.
+      await page.setViewportSize(viewport);
+      await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
+      const panel = page.locator('[data-slot="start-panel"]');
+      await expect(panel).toBeVisible();
+      const chips = panel.locator('[data-slot="suggestions"] button');
+      await expect(chips).toHaveCount(4);
+      const fit = await panel.evaluate((el) => ({
+        panelScroll: el.scrollWidth,
+        panelClient: el.clientWidth,
+        pageScroll: document.scrollingElement!.scrollWidth,
+        innerWidth: window.innerWidth,
+      }));
+      expect(fit.panelScroll).toBeLessThanOrEqual(fit.panelClient);
+      expect(fit.pageScroll).toBeLessThanOrEqual(fit.innerWidth);
+      const row = (await panel
+        .locator('[data-slot="suggestions"]')
+        .boundingBox())!;
+      for (const chip of await chips.all()) {
+        const box = (await chip.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(row.x - 0.5);
+        expect(box.x + box.width).toBeLessThanOrEqual(row.x + row.width + 0.5);
+      }
+    } finally {
+      await f.context.close();
+    }
+  });
+}
+
 test('AC-18: a new Conversation starts with a greeting and suggestions, is not saved until the first message, then moves the box down and is listed', async ({
   browser,
 }, testInfo) => {
@@ -579,7 +624,7 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressabl
         page.getByText(/\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b/),
         page.getByText(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/),
         // ai-chat-v2 T37: greeting line 1 follows the time of day ("Good morning/afternoon/evening, {name}").
-        page.locator('[data-slot="start-panel"] h1 > span').first(),
+        page.locator('[data-slot="greeting-line"]'),
       ];
       const shot = {
         maxDiffPixelRatio: 0.002,
@@ -676,8 +721,7 @@ test('presentation: a centred column of at most 768 px at 1440 x 900, no row del
     await expect(userBubbles(page).first()).toBeVisible();
     const scrollBox = (await scroll.boundingBox())!;
     const columnBox = (await scroll
-      .locator(':scope > div')
-      .first()
+      .locator('[data-slot="conversation-column"]')
       .boundingBox())!;
     expect(scrollBox.width).toBeGreaterThan(768);
     expect(columnBox.width).toBeLessThanOrEqual(768);

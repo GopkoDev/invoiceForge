@@ -13,6 +13,52 @@ import { protectedRoutes } from '../../config/routes.config';
 
 test.describe.configure({ timeout: 120_000 });
 
+/**
+ * ai-chat-v2 review R16-4 / T46 (spec §6 Accessibility; screens.md SCR-02 «Greeting», >= 3:1 as large text): axe
+ * reports gradient text as "incomplete", never as a pass, so the greeting accent's contrast is measured here: each
+ * gradient stop, painted onto a canvas to get sRGB, against the nearest opaque background behind the heading.
+ */
+async function greetingAccentContrast(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    const rgb = (css: string): [number, number, number, number] => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      return [r, g, b, a];
+    };
+    const luminance = ([r, g, b]: number[]) => {
+      const lin = (c: number) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const accent = document.querySelector<HTMLElement>('[data-slot="greeting-accent"]')!;
+    const stops = getComputedStyle(accent).backgroundImage.match(/(?:oklch|oklab|lab|lch|rgba?|hsla?|color)\([^()]*\)/g) ?? [];
+    if (stops.length < 2) throw new Error(`no gradient stops in ${getComputedStyle(accent).backgroundImage}`);
+    let el: HTMLElement | null = accent;
+    let bg: [number, number, number, number] = [255, 255, 255, 255];
+    while (el) {
+      const c = rgb(getComputedStyle(el).backgroundColor);
+      if (c[3] === 255) {
+        bg = c;
+        break;
+      }
+      el = el.parentElement;
+    }
+    const lb = luminance(bg);
+    return Math.min(
+      ...stops.map((stop) => {
+        const lf = luminance(rgb(stop));
+        return (Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05);
+      })
+    );
+  });
+}
+
 async function expectNoSeriousViolations(
   page: Page,
   testInfo: TestInfo,
@@ -184,6 +230,14 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
         await expect(page.getByRole('heading', { name: /How can I help with your invoices today\?/ })).toBeVisible();
         await page.waitForLoadState('networkidle');
         await expectNoSeriousViolations(page, testInfo, `AI section, empty (${vp.name})`);
+        expect(await greetingAccentContrast(page), 'greeting accent contrast, light').toBeGreaterThanOrEqual(3);
+        // The same empty state in the dark theme (the app follows the system scheme by default).
+        await page.emulateMedia({ colorScheme: 'dark' });
+        await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
+        await expectNoSeriousViolations(page, testInfo, `AI section, empty, dark (${vp.name})`);
+        expect(await greetingAccentContrast(page), 'greeting accent contrast, dark').toBeGreaterThanOrEqual(3);
+        await page.emulateMedia({ colorScheme: 'light' });
+        await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
 
         await page.getByRole('textbox', { name: 'Message' }).fill('invoice Acme for 20 hours at $50');
         await page.getByRole('button', { name: 'Send', exact: true }).click();

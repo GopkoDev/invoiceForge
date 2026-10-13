@@ -186,7 +186,7 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
         page.getByText(/\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b/),
         page.getByText(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/),
         // ai-chat-v2 T37: greeting line 1 follows the time of day ("Good morning/afternoon/evening, {name}").
-        page.locator('[data-slot="start-panel"] h1 > span').first(),
+        page.locator('[data-slot="greeting-line"]'),
       ];
       const shot = {
         maxDiffPixelRatio: 0.002,

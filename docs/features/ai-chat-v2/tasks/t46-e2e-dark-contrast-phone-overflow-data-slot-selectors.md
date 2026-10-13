@@ -9,7 +9,7 @@ files_hint: ["tests/e2e/accessibility.spec.ts", "tests/e2e/ai-chat-v2-chat.spec.
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T46 — E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)
