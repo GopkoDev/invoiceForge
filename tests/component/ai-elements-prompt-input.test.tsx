@@ -77,6 +77,21 @@ describe('PromptInput', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Review R16-6 / T44: WebKit fires compositionend before the committing keydown, which then has isComposing false
+  // and keyCode 229.
+  it('the Enter that confirms an IME in Safari (keyCode 229 after compositionend) does not submit', () => {
+    const onSubmit = vi.fn();
+    render(<Box onSubmit={onSubmit} />);
+    const box = screen.getByRole('textbox', { name: 'Message' });
+    fireEvent.change(box, { target: { value: 'にほん' } });
+    fireEvent.compositionStart(box);
+    fireEvent.compositionEnd(box);
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 229, isComposing: false });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 13 });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it('the submit is a round "Send" button with an arrow while ready, and pressing it submits', async () => {
     const onSubmit = vi.fn();
     render(<Box onSubmit={onSubmit} />);
@@ -99,7 +114,14 @@ describe('PromptInput', () => {
       render(<Box onSubmit={onSubmit} status={status} />);
       const send = screen.getByRole('button', { name: 'Send' });
       expect(send).toBeDisabled();
-      expect(send.querySelector('[data-slot="loader"]')).not.toBeNull();
+      // Review R16-5 / T44: a decorative spinner only — no <div> in the button and no second status region (the
+      // chat's own "Assistant is replying…" status is the one announcement).
+      const spinner = send.querySelector('[data-slot="prompt-input-spinner"]');
+      expect(spinner).not.toBeNull();
+      expect(spinner).toHaveAttribute('aria-hidden', 'true');
+      expect(send.querySelector('div')).toBeNull();
+      expect(send.querySelector('[role="status"]')).toBeNull();
+      expect(screen.queryByRole('status')).toBeNull();
       const box = screen.getByRole('textbox', { name: 'Message' });
       await userEvent.type(box, 'x{Enter}');
       expect(onSubmit).not.toHaveBeenCalled();
@@ -110,7 +132,7 @@ describe('PromptInput', () => {
     render(<Box onSubmit={vi.fn()} status="error" submitLabel="Send to AI" />);
     const send = screen.getByRole('button', { name: 'Send to AI' });
     expect(send).toBeEnabled();
-    expect(send.querySelector('[data-slot="loader"]')).toBeNull();
+    expect(send.querySelector('[data-slot="prompt-input-spinner"]')).toBeNull();
   });
 
   it('is a rounded card form holding the textarea and the footer', () => {
@@ -119,6 +141,10 @@ describe('PromptInput', () => {
     expect(form).not.toBeNull();
     const card = form!.querySelector('[data-slot="prompt-input-card"]')!;
     expect(card).toHaveClass('rounded-2xl', 'border');
+    // Review R16-7 / T44 (ADR-0010): the card is the InputGroup primitive, not a copy of its styling.
+    expect(card).toHaveAttribute('role', 'group');
+    expect(card).toHaveClass('group/input-group');
+    expect(card.className).not.toMatch(/(^|\s)focus-within:ring-\[3px\]/);
     expect(card).toContainElement(
       screen.getByRole('textbox', { name: 'Message' })
     );

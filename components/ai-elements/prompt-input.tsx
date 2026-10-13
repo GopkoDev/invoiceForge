@@ -6,8 +6,9 @@
  * (docs/features/ai-chat-v2/adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md).
  * Deviations: no attachments, screenshots, referenced sources, action menu, model select, hover card, command palette,
  * provider or nanoid; the caller owns the text (a controlled textarea) and its validation, so `onSubmit` receives the
- * text and the form never resets itself; the submit is a round arrow button that shows a Loader and is disabled while a
- * reply is in flight (no stop request is sent).
+ * text and the form never resets itself; the card is the project's InputGroup; the submit is a round arrow button that
+ * shows a decorative spinner and is disabled while a reply is in flight (no stop request is sent; the chat announces
+ * the wait itself, so the button adds no status region).
  */
 'use client';
 
@@ -20,9 +21,9 @@ import {
   type KeyboardEvent,
 } from 'react';
 
-import { Loader } from '@/components/ai-elements/loader';
 import { Button } from '@/components/ui/button';
-import { InputGroupTextarea } from '@/components/ui/input-group';
+import { InputGroup, InputGroupTextarea } from '@/components/ui/input-group';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
 /** The chat status the submit reflects (AI SDK `ChatStatus`). */
@@ -59,15 +60,15 @@ export function PromptInput({
       onSubmit={handleSubmit}
       {...props}
     >
-      <div
+      <InputGroup
         data-slot="prompt-input-card"
         className={cn(
-          'bg-background dark:bg-input/30 border-input focus-within:border-ring focus-within:ring-ring/50 has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-destructive/20 flex w-full flex-col overflow-hidden rounded-2xl border shadow-xs transition-[color,box-shadow] focus-within:ring-[3px]',
+          'bg-background h-auto flex-col items-stretch overflow-hidden rounded-2xl',
           cardClassName
         )}
       >
         {children}
-      </div>
+      </InputGroup>
     </form>
   );
 }
@@ -97,7 +98,14 @@ export function PromptInputTextarea({
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     onKeyDown?.(event);
     if (event.defaultPrevented || event.key !== 'Enter') return;
-    if (composing || event.nativeEvent.isComposing || event.shiftKey) return;
+    // WebKit fires compositionend before the committing keydown, which then reports keyCode 229 (R16-6).
+    if (
+      composing ||
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229 ||
+      event.shiftKey
+    )
+      return;
     event.preventDefault();
     const { form } = event.currentTarget;
     const submit = form?.querySelector<HTMLButtonElement>(
@@ -169,7 +177,10 @@ export type PromptInputSubmitProps = Omit<
   status?: PromptInputStatus;
 };
 
-/** The round send button: an arrow while ready or after an error; disabled with a Loader while a reply is in flight. */
+/**
+ * The round send button: an arrow while ready or after an error; disabled with a decorative spinner while a reply is
+ * in flight (no status region of its own: the chat announces the wait once).
+ */
 export function PromptInputSubmit({
   status = 'ready',
   disabled,
@@ -191,7 +202,13 @@ export function PromptInputSubmit({
     >
       {children ??
         (inFlight ? (
-          <Loader className="text-current" />
+          <Spinner
+            aria-hidden="true"
+            role="presentation"
+            aria-label={undefined}
+            data-slot="prompt-input-spinner"
+            className="motion-reduce:animate-none"
+          />
         ) : (
           <ArrowUpIcon aria-hidden className="size-4" />
         ))}

@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/prompt-input.tsx", "components/ai-elements/
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T44 — PromptInput on InputGroup, IME-safe Enter in Safari, and a decorative spinner in the submit (review R16-5, R16-6, R16-7)
