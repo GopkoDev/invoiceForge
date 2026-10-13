@@ -518,6 +518,21 @@ function ChatSession({
   });
   // Held and let go in the commit itself, so nothing the stream reports between two islands is lost (R3-U2).
   useLayoutEffect(() => holdSession(session), [session]);
+  // A Conversation page restored from the router cache can take over a live chat whose newer reply holds a card or
+  // choices its cached props lack: once the chat is idle, refresh once so they load (R5-U2).
+  const staleProps = useRef(conversationId !== null && handedOver !== null);
+  useEffect(() => {
+    if (!staleProps.current || status === 'submitted' || status === 'streaming') return;
+    staleProps.current = false;
+    const missing = messages.some((m) =>
+      m.parts.some(
+        (p) =>
+          (p.type === 'data-draft-card' && !(p.data.cardId in initialCards)) ||
+          (p.type === 'data-offer' && !(p.data.offerId in initialOffers))
+      )
+    );
+    if (missing) router.refresh();
+  }, [status, messages, initialCards, initialOffers, router]);
   // The /ai page that took a live chat over at its Conversation's address has no cards, links or choices of its own
   // (its page loaded none): read them once, and put the Conversation back at the head of the list (R4-U1).
   const adoptedAt = useRef(conversationId === null && liveAt !== null && handedOver !== null ? liveAt : null);
@@ -653,7 +668,14 @@ function ChatSession({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {saved ? <ConversationHeaderClient conversationId={saved.id} title={saved.title} /> : null}
+      {saved ? (
+        <ConversationHeaderClient conversationId={saved.id} title={saved.title} />
+      ) : conversationId === null ? (
+        // Below md the list stays reachable from the first send, also when it fails and nothing is saved (R5-U3).
+        <div className="flex shrink-0 items-center">
+          <ConversationListButton />
+        </div>
+      ) : null}
       {/* ai-chat-v2 T19 (AC-15): only the messages scroll; the composer below stays docked. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} data-slot="chat-scroll" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">

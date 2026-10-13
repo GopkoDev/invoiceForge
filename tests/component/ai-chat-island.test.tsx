@@ -75,6 +75,8 @@ vi.mock('@/lib/services/assistant-usage', () => ({
 }));
 
 import { ChatIsland } from '@/components/ai/chat-island';
+import { AiWorkspace } from '@/components/ai/ai-workspace';
+import { NewConversationProvider, useNewConversation } from '@/components/ai/new-conversation-context';
 import ConversationPage from '@/app/(protected)/ai/[conversationId]/page';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 import type { DraftCardView } from '@/types/assistant/types';
@@ -1091,5 +1093,128 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
     expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
     expect(await screen.findByRole('group', { name: 'Choose a bank account' })).toBeTruthy();
     expect(loadConversationCards).toHaveBeenCalledWith('cCards');
+    expect(loadConversationCards).toHaveBeenCalledTimes(1);
+  });
+
+  // Review 2026-10-13 R5-U1: the row is put back in the list (the restored workspace has a fresh provider).
+  it('announces the Conversation to the list of the restored workspace', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Listed again.'),
+        { type: 'data-conversation', data: { conversationId: 'cListed', title: 'Listed' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('Listed again.');
+    pathname = '/ai/cListed';
+    view.rerender(
+      <div key="conversation-page">
+        <ChatIsland conversationId="cListed" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+    let created: unknown = null;
+    function Probe() {
+      created = useNewConversation()?.created ?? null;
+      return null;
+    }
+
+    view.rerender(
+      <div key="ai-page-restored">
+        <NewConversationProvider>
+          <Probe />
+          <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+        </NewConversationProvider>
+      </div>
+    );
+
+    await waitFor(() => expect(created).toEqual({ id: 'cListed', title: 'Listed' }));
+  });
+});
+
+// Review 2026-10-13 R5-U2: the Conversation page restored from the router cache can take over a live chat whose newer
+// reply holds a card or choices its cached props lack. It refreshes once, so they load.
+describe('the Conversation page taking over a chat with newer cards than its props', () => {
+  it('refreshes once when a card or offer of the messages is missing from its props', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Here is the draft.'),
+        { type: 'data-draft-card', id: 'cardN', data: { cardId: 'cardN' } },
+        { type: 'data-conversation', data: { conversationId: 'cStale', title: 'Stale' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Invoice Acme');
+    await screen.findByText('Here is the draft.');
+    pathname = '/ai/cStale';
+    refresh.mockClear();
+
+    view.rerender(
+      <div key="cached-conversation-page">
+        <ChatIsland conversationId="cStale" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh when its props already hold every card', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Here is the draft.'),
+        { type: 'data-draft-card', id: 'cardF', data: { cardId: 'cardF' } },
+        { type: 'data-conversation', data: { conversationId: 'cFresh', title: 'Fresh' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Invoice Acme');
+    await screen.findByText('Here is the draft.');
+    pathname = '/ai/cFresh';
+    refresh.mockClear();
+
+    view.rerender(
+      <div key="fresh-conversation-page">
+        <ChatIsland
+          conversationId="cFresh"
+          initialMessages={[]}
+          invoiceLinks={{}}
+          cards={{ cardF: { id: 'cardF' } as unknown as DraftCardView }}
+          allowance={allowance(28)}
+        />
+      </div>
+    );
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+// Review 2026-10-13 R5-U3: on a phone the list button stays reachable from the first send, also when that send fails.
+describe('the phone list button before the Conversation is saved', () => {
+  it('shows "Open conversations" while the first message waits and after it fails', async () => {
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    const user = userEvent.setup();
+    render(
+      <AiWorkspace conversations={[]} timeZone="UTC">
+        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+      </AiWorkspace>
+    );
+    await send(user, 'first question');
+    await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Open conversations' })).toBeTruthy();
   });
 });
