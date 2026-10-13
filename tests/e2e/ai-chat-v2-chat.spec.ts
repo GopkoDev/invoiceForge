@@ -313,6 +313,8 @@ test('AC-18: a new Conversation starts with a greeting and suggestions, is not s
     // The box is docked at the bottom, below the reply.
     const dock = page.locator('[data-slot="composer-dock"]');
     await expect(dock.getByRole('textbox', { name: 'Message' })).toBeVisible();
+    // The move is a ~250 ms translate (FLIP); measure where it ends, not mid-move.
+    await expect.poll(() => dock.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
     const replyBox = await replies(page).first().boundingBox();
     const dockBox = await dock.boundingBox();
     expect(replyBox!.y + replyBox!.height).toBeLessThanOrEqual(dockBox!.y);
