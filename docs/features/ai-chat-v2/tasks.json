@@ -1672,6 +1672,41 @@
         "tests/e2e/ai-chat-v2-forms-layout.spec.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t75-list-active-row-after-first-send-and-no-per-turn-list-refetch.md"
+    },
+    {
+      "id": "T76",
+      "title": "Carry askFields on the pinned form-Send path and derive them from the form as composed (cap 6, F1 order) (review R21-1, R21-2)",
+      "layer": "app",
+      "deps": [
+        "T72"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "askFields is derived from the questions the form will actually hold (composeForm order, F1 sort, cap FORM_MAX_QUESTIONS), on both the propose_draft tool path and the pinned path (the pinned ISSUES answer the model sees and any propose_draft re-call carry it). A unit test: more than 6 open issues give exactly 6 askFields in F1 order. An integration test (form-send): a pinned form Send whose request resolves to ISSUES gives the model a tool result carrying askFields. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/integration/ai-chat-v2-form-send.test.ts",
+        "tests/unit/lib/ai/propose-draft-ask-fields.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t76-ask-fields-on-the-pinned-path-capped-like-the-form.md"
+    },
+    {
+      "id": "T77",
+      "title": "Keep the axe-core lockfile change to axe-core only: restore next's @babel/core 7.29.7 peer resolution (review R21-3)",
+      "layer": "infra",
+      "deps": [
+        "T74"
+      ],
+      "acs": [],
+      "dod": "pnpm-lock.yaml differs from its pre-T74 state (7d1e185) only by the axe-core 4.13.0 devDependency importer entry and the package entries it needs; next resolves @babel/core 7.29.7 again (e.g. restore the old lock and run a plain `pnpm install` with the package.json entry, which keeps locked resolutions). `pnpm install --frozen-lockfile` succeeds. No test change (infra only, no RED). Gate: unit (incl. the axe component test), lint, typecheck, and `next build` via the affected e2e run.",
+      "files_hint": [
+        "pnpm-lock.yaml",
+        "package.json"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t77-keep-the-lockfile-change-to-axe-core-only.md"
     }
   ]
 }
