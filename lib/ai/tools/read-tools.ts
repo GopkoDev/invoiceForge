@@ -5,6 +5,7 @@ import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 import type { TurnContext } from '@/lib/ai/turn-context';
+import { isOwnSenderProfileName } from '@/lib/services/sender-profiles/sender-profiles';
 
 const CHAT_KEY_ID = 'chat';
 
@@ -30,12 +31,22 @@ const ADD_PAGE_WHEN_NONE: Partial<Record<string, AppLink>> = {
   list_products: { kind: 'page', page: 'new-product' },
 };
 
-/** The add page when a read filtered by a name matched nothing; the link comes from code, not from the model. */
-function addPageLinks(tool: string, args: Record<string, unknown>, answer: Record<string, unknown>): AppLink[] {
+/**
+ * The add page when a read filtered by a name matched nothing; the link comes from code, not from the model. A
+ * Customer name that is the Freelancer's own sender profile gets none (AC-05b, D-1; review 2026-10-13 R3-B1).
+ */
+async function addPageLinks(
+  turn: TurnContext,
+  tool: string,
+  args: Record<string, unknown>,
+  answer: Record<string, unknown>
+): Promise<AppLink[]> {
   const link = ADD_PAGE_WHEN_NONE[tool];
-  const named = typeof args.name === 'string' && args.name.trim() !== '';
+  const name = typeof args.name === 'string' ? args.name.trim() : '';
   const total = (answer.pageInfo as { total?: unknown } | undefined)?.total;
-  return link && named && total === 0 ? [link] : [];
+  if (!link || !name || total !== 0) return [];
+  if (tool === 'list_customers' && (await isOwnSenderProfileName(turn.actor, name))) return [];
+  return [link];
 }
 
 /**
@@ -58,7 +69,7 @@ export function createReadTools(turn: TurnContext) {
           const outcome = await handler(args, context);
           if (!outcome.success) return { ...toToolError(outcome) };
           const answer = outcome.data as Record<string, unknown>;
-          return { ...answer, links: [...invoiceLinks(answer), ...addPageLinks(definition.name, args, answer)] };
+          return { ...answer, links: [...invoiceLinks(answer), ...(await addPageLinks(turn, definition.name, args, answer))] };
         },
       }),
     ])

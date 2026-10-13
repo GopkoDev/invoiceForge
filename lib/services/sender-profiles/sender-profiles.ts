@@ -18,6 +18,7 @@ import { captureMessage } from '@sentry/nextjs';
 import { z } from 'zod';
 import type { Currency } from '@prisma/client';
 import { accountLastFour } from '@/lib/helpers/account-last-four';
+import { foldName } from '@/lib/helpers/fold-name';
 import {
   isPageOutOfRange,
   pageOutOfRange,
@@ -364,5 +365,20 @@ export async function listSenderProfilesForAssistant(
     });
   } catch (error) {
     return failed('Error listing sender profiles for the Assistant:', error, 'Failed to fetch sender profiles.');
+  }
+}
+
+/**
+ * ai-chat-v2 D-1 (AC-05b; review 2026-10-13 R3-B1): whether `name`, once folded (case, spaces, look-alike letters),
+ * is exactly one of the Freelancer's own sender profile names. Owner-scoped; false on any failure.
+ */
+export async function isOwnSenderProfileName(actor: ActingFreelancer, name: string): Promise<boolean> {
+  const needle = foldName(name);
+  if (!needle) return false;
+  try {
+    const profiles = await prisma.senderProfile.findMany({ where: { userId: actor.userId }, select: { name: true } });
+    return profiles.some((p) => foldName(p.name) === needle);
+  } catch {
+    return false;
   }
 }

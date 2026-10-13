@@ -256,4 +256,16 @@ describe.runIf(containerRuntimeAvailable)('sender-profiles service — request-f
       details: { kind: 'PAGE_OUT_OF_RANGE' },
     });
   });
+  it('isOwnSenderProfileName (ai-chat-v2 R3-B1): folded match on own profiles only, never Freelancer B\'s', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting FOP' });
+    await createSenderProfile(prisma, b.id, { name: 'Globex Studio' });
+    const actor = await actingFreelancerForTest(a.id);
+
+    expect(await svc.isOwnSenderProfileName(actor, 'consulting   fop')).toBe(true);
+    expect(await svc.isOwnSenderProfileName(actor, 'Consulting')).toBe(false);
+    expect(await svc.isOwnSenderProfileName(actor, 'Globex Studio')).toBe(false);
+    expect(await svc.isOwnSenderProfileName(actor, '   ')).toBe(false);
+  });
 });

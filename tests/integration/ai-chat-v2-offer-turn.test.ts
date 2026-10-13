@@ -235,6 +235,46 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       expect(linkPages(parts)).toContain('new-customer');
     });
 
+    // Review 2026-10-13 R3-B2: a read turn where the model also tried propose_draft and was refused (NOT_REQUESTED)
+    // drafted nothing, so the read's add page stays.
+    it('a read turn whose propose_draft was refused keeps "Add a Customer"', async () => {
+      const user = await freelancer('t13-read-refused@example.com');
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      model = scriptedModel({
+        verdict: { topic: 'in_scope', language: 'en', intent: 'read' },
+        steps: (i) =>
+          i === 0
+            ? { toolCall: { name: 'list_customers', input: { name: 'Globex' } } }
+            : i === 1
+              ? { toolCall: { name: 'propose_draft', input: { customer: 'Globex', currency: 'USD', lines: LINES } } }
+              : { text: 'You have no Customer called Globex.' },
+      });
+
+      const parts = await send('find the Customer Globex');
+
+      expect(linkPages(parts)).toContain('new-customer');
+    });
+
+    // Review 2026-10-13 R3-B1: the AC-05b own-profile name never gets "Add a Customer", even from a read-only turn.
+    it('a read-only turn for the own sender profile name shows no "Add a Customer"', async () => {
+      const user = await freelancer('t13-own-profile-readonly@example.com');
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
+      await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      await createSenderProfile(prisma, user.id, { name: 'Consulting FOP', isDefault: false });
+      model = scriptedModel({
+        verdict: { topic: 'in_scope', language: 'en', intent: 'read' },
+        steps: (i) =>
+          i === 0
+            ? { toolCall: { name: 'list_customers', input: { name: 'consulting  fop' } } }
+            : { text: 'Consulting FOP is your own sender profile, not a Customer.' },
+      });
+
+      const parts = await send('is Consulting FOP a customer?');
+
+      expect(linkPages(parts)).not.toContain('new-customer');
+    });
+
     it('a drafting turn that also looked the name up shows no "Add a Customer" for the own sender profile', async () => {
       const user = await freelancer('t13-own-profile-read@example.com');
       const profile = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });

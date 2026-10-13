@@ -109,7 +109,7 @@ function linksFromToolResult(toolName: string, result: unknown): AppLink[] {
 /**
  * Reads whose empty named answer carries an add page (AC-05). That link answers a read; in a drafting turn the
  * draft's own issues decide the links (no "Add a Customer" for the own sender profile, AC-05b; review 2026-10-13
- * R2-B3), so it is dropped once propose_draft was called.
+ * R2-B3), so it is dropped once propose_draft drafted (answered ISSUES or CARD).
  */
 const READ_ADD_PAGE_TOOLS = new Set(['list_customers', 'list_products']);
 
@@ -246,6 +246,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     const links: AppLink[] = [];
     // The add-page links of empty named reads: kept only for a read answer, never in a drafting turn (R2-B3).
     const readAddLinks: AppLink[] = [];
+    let drafted = false;
     let steps = 0;
     let lastFinish: string | undefined;
     let text = '';
@@ -297,6 +298,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
             else pushUnique(links, linksFromToolResult(p.toolName, p.result));
             // Only the last propose_draft answer counts: a later CARD clears earlier issues (review R6-2).
             if (p.toolName === 'propose_draft') {
+              // Only an answer that resolved something drafts; NOT_REQUESTED or a refused input does not (R3-B2).
+              if (p.result?.kind === 'ISSUES' || p.result?.kind === 'CARD') drafted = true;
               draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
               draftMatchCount = p.result?.kind === 'ISSUES' ? p.result.matchCount : undefined;
             }
@@ -333,7 +336,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       return;
     }
 
-    if (!input.pinned && !toolNames.includes('propose_draft')) pushUnique(links, readAddLinks);
+    if (!input.pinned && !drafted) pushUnique(links, readAddLinks);
 
     if (text.trim() === '' && draftIssues.length > 0 && !turn.pending.card) {
       // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).
