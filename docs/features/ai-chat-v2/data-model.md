@@ -106,7 +106,7 @@ erDiagram
 | `lineIndex` | INTEGER | NULL | the slot the choice fills when it is per line (`PRODUCT`); NULL for the other kinds, whose slot is the kind itself |
 | `request` | JSONB | NOT NULL | the stored `DraftRequest` the offer continues. A press pins the chosen record id into a copy of it and re-resolves in code (ADR-0003). Shape owned by the `assistant-drafts` zod schema |
 | `options` | JSONB | NOT NULL | 1…8 frozen options `{ optionId, label, ref }`: `optionId` is the option's position (SAD §8 IDs), `label` is built from the stored record per spec §1 "What a button shows" (email or "no email" for look-alike Customers), `ref` is the record reference (`customerId` / `senderProfileId` / `bankAccountId` / `productId` / currency code). Never model text (ADR-0002). The 1…8 bound is the builder's rule (no offer above 8, AC-14; a single option is a valid offer, for example the near-miss Customer or the one other sender profile of spec §1), validated by zod, not the DB |
-| `state` | `ChoiceOfferState` | NOT NULL DEFAULT `'OPEN'` | `OPEN` → `CHOSEN` on a press claim; `CHOSEN` → `OPEN` on a non-counted failure (release; `CLOSED` when a newer offer is already OPEN); `OPEN` → `CLOSED` when a newer typed or dashboard message is saved (AC-12). `CHOSEN` and `CLOSED` are final otherwise |
+| `state` | `ChoiceOfferState` | NOT NULL DEFAULT `'OPEN'` | `OPEN` → `CHOSEN` on a press claim; `CHOSEN` → `OPEN` on a non-counted failure (release; `CLOSED` instead when a newer message exists); `OPEN` → `CLOSED` when any newer message is saved (AC-12; a press closes only an offer another tab stored). `CHOSEN` and `CLOSED` are final otherwise |
 | `chosenOptionId` | INTEGER | NULL | set together with `CHOSEN`, cleared on release; NULL while `OPEN` or `CLOSED`. Shown as the chosen mark on reopen (AC-13) and exported (AC-34) |
 | `createdAt` | TIMESTAMP(3) | NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 | `updatedAt` | TIMESTAMP(3) | NOT NULL, `@updatedAt` | the claim, release or close time |
@@ -114,7 +114,7 @@ erDiagram
 **Constraints:** PK; UNIQUE `messageId`; partial UNIQUE `conversationId` WHERE `state = 'OPEN'` (one open offer per Conversation); three FKs, all cascade.
 
 **Access patterns (from SAD §5 and §6):**
-- **Press check (Critical flow 1, AC-12b):** `SELECT … WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'` → PK. "Latest" holds by construction: the only `OPEN` row in the Conversation is the latest offering reply's, because any newer typed or dashboard message closed it. Not found, foreign, not open or option missing → one `CHOICE_UNAVAILABLE` outcome, nothing written.
+- **Press check (Critical flow 1, AC-12b):** `SELECT … WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'` → PK. "Latest" holds by construction: the only `OPEN` row in the Conversation is the latest offering reply's, because any newer message closed it (a press's own offer is CHOSEN, and a released offer whose reply is no longer the latest ends CLOSED). Not found, foreign, not open or option missing → one `CHOICE_UNAVAILABLE` outcome, nothing written.
 - **Claim (Critical flow 1, step 3):** `UPDATE … SET "state" = 'CHOSEN', "chosenOptionId" = $n WHERE "id" = $offerId AND "userId" = $actor AND "state" = 'OPEN'`, 1 row = claimed, 0 rows = lost the race → unavailable (the slot is released). Same transaction as the allowance slot reservation, and nothing else: the pressed message is saved by `saveTurn` at the end of the turn (parent rule), and a failed turn saves only its metadata and releases the claim together with the slot.
 - **Release (Critical flow 1, system-side failure):** lock the Conversation row (`FOR UPDATE`, the lock `saveTurn` takes), then `UPDATE … SET "state" = 'OPEN', "chosenOptionId" = NULL WHERE "id" = $offerId AND "state" = 'CHOSEN'`. The turn's own next offer is stored only on success, but a typed turn in another tab can have saved a newer message (with or without its own OPEN offer) meanwhile; then the released offer becomes `CLOSED` (unmarked) instead of `OPEN`: its reply is no longer the latest, the partial index holds, and the slot is still given back (review 2026-10-13 R1-B2, R2-B1).
 - **Close on any new message (Flows 4, 6, Critical flow 3):** a pressed message too: its own offer is already `CHOSEN`, so it closes only an offer another tab stored meanwhile (review 2026-10-13 R2-B1). `UPDATE … SET "state" = 'CLOSED' WHERE "conversationId" = $c AND "state" = 'OPEN'` → `ChoiceOffer_conversationId_open_key`. Runs inside `saveTurn` at the end of the turn, before the turn's own offer is inserted; a failed turn closes nothing (SAD §6 Flags: "the partial unique index never sees two open rows").
@@ -154,7 +154,7 @@ erDiagram
 
 | Index | Columns | Query it serves |
 |---|---|---|
-| `ChoiceOffer_conversationId_open_key` (unique, partial `state = 'OPEN'`) | `conversationId` | one open offer per Conversation; close the open offer when a typed or dashboard message is saved (Flows 4, 6, Critical flow 3); race backstop for the claim and the next-offer insert (Critical flow 1) |
+| `ChoiceOffer_conversationId_open_key` (unique, partial `state = 'OPEN'`) | `conversationId` | one open offer per Conversation; close the open offer when any newer message is saved (Flows 4, 6, Critical flow 3); race backstop for the claim and the next-offer insert (Critical flow 1) |
 | `ChoiceOffer_conversationId_idx` | `conversationId` | offers of a reopened Conversation (Flow 7) and the export (Flow 11); FK cascade on Conversation delete and the 90-day purge. The partial index cannot serve these (it holds only `OPEN` rows) |
 | `ChoiceOffer_messageId_key` (unique) | `messageId` | one offer per reply; join offer ↔ reply on reopen (Flow 7); FK cascade on message delete |
 | `ChoiceOffer_userId_idx` | `userId` | FK cascade on account deletion (Flow 11) |
@@ -196,7 +196,7 @@ enum ChoiceOfferKind {
 enum ChoiceOfferState {
     OPEN // the latest reply's buttons; at most one per Conversation
     CHOSEN // a press claimed it (released back to OPEN on a non-counted failure)
-    CLOSED // a newer typed or dashboard message was saved; no choice
+    CLOSED // a newer message was saved (or a release found one); no choice
 }
 ```
 

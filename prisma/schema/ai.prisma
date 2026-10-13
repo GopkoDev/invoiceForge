@@ -39,8 +39,8 @@ enum ChoiceOfferKind {
 // ai-chat-v2 (ADR-0001): one offer's life.
 enum ChoiceOfferState {
     OPEN // the latest reply's buttons; at most one per Conversation
-    CHOSEN // a press claimed it (released back to OPEN on a non-counted failure)
-    CLOSED // a newer typed or dashboard message was saved; no choice
+    CHOSEN // a press claimed it (released back to OPEN on a non-counted failure, or CLOSED when a newer message exists)
+    CLOSED // a newer message was saved (or a release found one); no choice
 }
 
 enum AssistantTopic {

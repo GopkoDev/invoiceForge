@@ -460,7 +460,7 @@ components:
       type: string
       enum: [CUSTOMER, SENDER_PROFILE, CURRENCY, BANK_ACCOUNT, PRODUCT]
     ChoiceOfferState:
-      description: data-model `ChoiceOfferState`. OPEN → CHOSEN (claim), CHOSEN → OPEN (release on a non-counted failure), OPEN → CLOSED (a newer typed or dashboard message).
+      description: data-model `ChoiceOfferState`. OPEN → CHOSEN (claim), CHOSEN → OPEN (release on a non-counted failure; CHOSEN → CLOSED instead when a newer message exists), OPEN → CLOSED (any newer message; a press closes only an offer another tab stored).
       type: string
       enum: [OPEN, CHOSEN, CLOSED]
     OfferOptionLabel:

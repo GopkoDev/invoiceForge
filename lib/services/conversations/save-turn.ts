@@ -1,7 +1,7 @@
 // T25 (ai-assistant; spec.md §5 AC-35; sad.md §6): one exchange is saved in one transaction under the Conversation
 // row lock - the Conversation (when new), both messages, the proposed card and the turn metadata.
 // ai-chat-v2 T11 (server-actions.md §saveTurn; AC-12, AC-13, AC-18): the Conversation is created with its start
-// point; a typed or dashboard message closes the open offer before the turn's own offer is stored OPEN, tied to the
+// point; every new message closes the open offer (a press's own is CHOSEN) before the turn's own offer is stored OPEN, tied to the
 // pre-generated reply id; the USER row carries its origin, the reply none.
 import 'server-only';
 import { Prisma } from '@prisma/client';
