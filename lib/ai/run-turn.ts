@@ -106,6 +106,13 @@ function linksFromToolResult(toolName: string, result: unknown): AppLink[] {
   return links;
 }
 
+/**
+ * Reads whose empty named answer carries an add page (AC-05). That link answers a read; in a drafting turn the
+ * draft's own issues decide the links (no "Add a Customer" for the own sender profile, AC-05b; review 2026-10-13
+ * R2-B3), so it is dropped once propose_draft was called.
+ */
+const READ_ADD_PAGE_TOOLS = new Set(['list_customers', 'list_products']);
+
 function pushUnique(links: AppLink[], more: AppLink[]) {
   for (const link of more) {
     const key = JSON.stringify(link);
@@ -238,6 +245,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   const stream = chunkStream(async (emit) => {
     const toolNames: string[] = [];
     const links: AppLink[] = [];
+    // The add-page links of empty named reads: kept only for a read answer, never in a drafting turn (R2-B3).
+    const readAddLinks: AppLink[] = [];
     let steps = 0;
     let lastFinish: string | undefined;
     let text = '';
@@ -285,7 +294,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
             toolNames.push(p.toolName);
             break;
           case 'tool-result':
-            pushUnique(links, linksFromToolResult(p.toolName, p.result));
+            if (READ_ADD_PAGE_TOOLS.has(p.toolName)) pushUnique(readAddLinks, linksFromToolResult(p.toolName, p.result));
+            else pushUnique(links, linksFromToolResult(p.toolName, p.result));
             // Only the last propose_draft answer counts: a later CARD clears earlier issues (review R6-2).
             if (p.toolName === 'propose_draft') {
               draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
@@ -323,6 +333,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       resolveResult(failed(failureOf(fault), topic, { steps, toolNames, usage, costUsd, text }));
       return;
     }
+
+    if (!input.pinned && !toolNames.includes('propose_draft')) pushUnique(links, readAddLinks);
 
     if (text.trim() === '' && draftIssues.length > 0 && !turn.pending.card) {
       // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).

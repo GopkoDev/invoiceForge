@@ -216,6 +216,45 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
     });
   });
 
+  // Review 2026-10-13 R2-B3: the add-page link of an empty named read belongs to a read answer. In a drafting turn
+  // (propose_draft called) the draft's own links decide: no "Add a Customer" under the AC-05b own-profile reply.
+  describe('AC-05 / AC-05b: add-page links of an empty read', () => {
+    const linkPages = (parts: any[]) => parts.filter((p) => p.type === 'data-link').map((p) => p.data.page);
+
+    it('a read answer that found nothing carries "Add a Customer"', async () => {
+      const user = await freelancer('t13-read-none@example.com');
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      model = scriptedModel({
+        verdict: { topic: 'in_scope', language: 'en', intent: 'read' },
+        steps: (i) => (i === 0 ? { toolCall: { name: 'list_customers', input: { name: 'Globex' } } } : { text: 'You have no Customer called Globex.' }),
+      });
+
+      const parts = await send('find the Customer Globex');
+
+      expect(linkPages(parts)).toContain('new-customer');
+    });
+
+    it('a drafting turn that also looked the name up shows no "Add a Customer" for the own sender profile', async () => {
+      const user = await freelancer('t13-own-profile-read@example.com');
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
+      await createBankAccount(prisma, profile.id, { currency: 'USD' });
+      const fop = await createSenderProfile(prisma, user.id, { name: 'Consulting FOP', isDefault: false });
+      await createBankAccount(prisma, fop.id, { currency: 'UAH' });
+      script((i) =>
+        i === 0
+          ? { toolCall: { name: 'list_customers', input: { name: 'Consulting FOP' } } }
+          : i === 1
+            ? { toolCall: { name: 'propose_draft', input: { customer: 'Consulting FOP', currency: 'USD', lines: LINES } } }
+            : { text: 'Consulting FOP is your own sender profile. Which Customer should this invoice go to?' }
+      );
+
+      const parts = await send('invoice Consulting FOP for 10 hours at 40 USD');
+
+      expect(linkPages(parts)).not.toContain('new-customer');
+    });
+  });
+
   describe('turn-level edges', () => {
     it('keeps only the first offer when propose_draft is called twice with different offer-able issues', async () => {
       const user = await freelancer('t13-first@example.com');
