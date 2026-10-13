@@ -234,6 +234,15 @@ Result: 1 core ✗ (point 3), resolved in the contract with an upstream OQ, plus
 | cursor pagination | page numbers (`PageInfo`) on the MCP reads. `listConversationSummaries` is unpaged and bounded (SAD §7) | service-layer ADR-0005; SAD §5 |
 | full contract | a delta with `x-supersedes` / `x-extends` against the parent files | spec §3: "the ai-assistant contracts stay as written" |
 
+## C2. Changes after review (2026-10-13)
+
+| Change | Where | Source |
+|---|---|---|
+| `AppPageKey` gains `new-product` (`/products/new`, titled "Add a product"); `new-customer` is titled "Add a Customer". An empty named `list_customers` / `list_products` read carries the add page in a read answer | ai-assistant openapi.yaml `AppPageKey`; `lib/validations/assistant-chat.ts`; `lib/ai/app-map.ts` | review R1-B3/U5, R2-B3 |
+| A press that cannot be checked (system failure) is `503 FAILED`, not `409 CHOICE_UNAVAILABLE`; span `chat.choice-check` outcome `failed` | openapi.yaml `/api/chat` 503; server-actions.md `checkChoice` | review R1-S3 |
+| A released press ends `CLOSED` when a newer message exists | openapi.yaml `/api/chat`; data-model.md Release | review R1-B2, R2-B1 |
+| Above 8 matches the `propose_draft` ISSUES answer carries `matchCount` and a `say` directive and drops the longer lists | server-actions.md `offerFromIssues` | review R2-B2 |
+
 ## D. Open questions
 
 | # | Question | Owner | Due | Status |

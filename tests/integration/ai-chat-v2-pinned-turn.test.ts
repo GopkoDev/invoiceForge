@@ -155,7 +155,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn from a pinned resolution (T01
     expect(text).toContain(resolution.issues[0].kind);
   });
 
-  it('keeps the pinned card when the model re-calls propose_draft by the ambiguous name, and the turn context holds the pins', async () => {
+  it('keeps the pinned card when the model re-calls propose_draft by the ambiguous name, and the turn context holds the pinned card', async () => {
     const { cyrillic, run, resolvePinned } = await setup();
     const request = { customerId: cyrillic.id, currency: 'USD', lines: [{ description: 'Design', quantity: '1', price: '100' }] };
     const resolution = await resolvePinned(request);
@@ -169,10 +169,10 @@ describe.runIf(containerRuntimeAvailable)('runTurn from a pinned resolution (T01
 
     expect(result.pendingCard?.proposal.customer.customerId).toBe(cyrillic.id);
 
-    // T13's propose_draft adapter re-applies these pins on a re-call; T01 only carries them.
+    // A re-call in a pressed turn is answered with the pinned result (review 2026-10-13 R1-S1); the context carries
+    // the pinned card from the start and always counts as a drafting turn.
     const { createTurnContext } = await import('@/lib/ai/turn-context');
     const turn = createTurnContext({ actor: {} as any, today: TODAY, pinned: { request, resolution } });
-    expect(turn.pins).toEqual(request);
     expect(turn.draftIntent).toBe(true);
     expect(turn.pending.card?.proposal).toEqual(resolution.proposal);
   });

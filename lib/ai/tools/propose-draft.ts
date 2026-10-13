@@ -127,30 +127,6 @@ export function issuesAnswer(issues: DraftIssue[], matchCount: number | undefine
   return { kind: 'ISSUES', issues: shown, links: linksFor(shown), matchCount, say: TOO_MANY_SAY };
 }
 
-/**
- * ai-chat-v2 T13 (ADR-0003, AC-10): in a pressed turn the chosen record stays pinned when the model calls
- * propose_draft again, whatever name it writes.
- */
-export function applyPins(request: DraftRequest, pins: DraftRequest | null): DraftRequest {
-  if (!pins) return request;
-  const pinned: DraftRequest = { ...request };
-  if (pins.customerId !== undefined) {
-    pinned.customerId = pins.customerId;
-    delete pinned.customer;
-  }
-  if (pins.senderProfileId !== undefined) {
-    pinned.senderProfileId = pins.senderProfileId;
-    delete pinned.senderProfile;
-  }
-  if (pins.currency !== undefined) pinned.currency = pins.currency;
-  if (pins.bankAccount !== undefined) pinned.bankAccount = pins.bankAccount;
-  pinned.lines = request.lines.map((line, i) => {
-    const productId = pins.lines[i]?.productId;
-    return productId ? { ...line, productId } : line;
-  });
-  return pinned;
-}
-
 // One offer per reply: the earliest propose_draft call of the turn that found one keeps it, even when parallel
 // calls finish out of order.
 const callCounts = new WeakMap<TurnContext, number>();
@@ -169,7 +145,7 @@ export function createProposeDraftTool(turn: TurnContext) {
       // A pressed turn's card or offer was resolved in code from the pinned choice: a re-call gets that same answer
       // and changes neither, whatever lines, prices or names the model writes (SAD §11; review 2026-10-13 R1-S1).
       if (turn.pinnedAnswer) return turn.pinnedAnswer;
-      const request = applyPins(draftRequestSchema.parse(rawRequest), turn.pins);
+      const request = draftRequestSchema.parse(rawRequest);
       const call = callCounts.get(turn) ?? 0;
       callCounts.set(turn, call + 1);
       // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.

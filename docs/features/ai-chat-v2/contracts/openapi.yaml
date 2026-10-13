@@ -162,6 +162,7 @@ paths:
            `optionId`, and its record must still exist, be owned and still fit (for example an account still
            in the currency). Any failure → `409 CONFLICT` + `CHOICE_UNAVAILABLE`, the same words for every
            cause: outdated, closed, already chosen, deleted, changed, foreign or never existed (AC-12b, AC-13).
+           A system failure while checking is not a refusal: `503 FAILED` (review 2026-10-13 R1-S3).
            Checked before the allowance, so an invalid press is refused as unavailable even when the
            allowance is used up (ADR-0003 Neutral).
         5. **Allowance** — the parent `429 RATE_LIMITED` + `ALLOWANCE_USED_UP` (a valid press with no slot
@@ -173,8 +174,9 @@ paths:
         **stored label** as its text and origin `PRESSED` — the request's `message.parts[0].text` is ignored.
         The chosen record is pinned into the offer's stored draft request and resolved in code before the
         model writes the reply around the result (AC-08, AC-10). `COULD_NOT_COMPLETE` / `AI_UNAVAILABLE`
-        release the slot **and** the claim (`CHOSEN → OPEN`, chosen option cleared), so nothing is marked
-        (AC-11); as in the parent, such a turn saves only its metadata row.
+        release the slot **and** the claim (`CHOSEN → OPEN`, chosen option cleared; `CLOSED` instead when a newer
+        message was saved meanwhile, review 2026-10-13 R1-B2/R2-B1), so nothing is marked (AC-11); as in the
+        parent, such a turn saves only its metadata row.
 
         **A typed or dashboard message** that is saved closes the Conversation's open offer with no choice
         (AC-12), inside the turn's save, before the turn's own offer is stored. A failed turn closes nothing.
@@ -301,7 +303,7 @@ paths:
                 error: "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected."
                 details: { kind: ALLOWANCE_USED_UP, limit: 30, renewsAt: "2026-10-12T21:00:00.000Z", timeZone: "Europe/Kyiv" }
         "503":
-          description: The allowance could not be reserved (fail closed), parent behaviour. Nothing claimed.
+          description: The allowance could not be reserved (fail closed), parent behaviour, or a press could not be checked (a system failure, never a refusal; review 2026-10-13 R1-S3). Nothing claimed.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ActionFailure" }

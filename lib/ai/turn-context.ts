@@ -35,8 +35,6 @@ export interface TurnContext {
     card: { id: string; request: DraftRequest; proposal: DraftProposal } | null;
     offer: PendingOffer | null;
   };
-  /** The pinned draft request of a pressed choice (ADR-0003), or null; propose_draft re-applies it on a re-call (T13). */
-  pins: DraftRequest | null;
   /**
    * In a pressed turn, the pinned propose_draft result the model already holds. A re-call is answered with it and
    * changes neither the card nor the offer: both come from code (SAD §11; review 2026-10-13 R1-S1). Null otherwise.
@@ -64,7 +62,6 @@ export function createTurnContext(input: {
     // A press continues a draft the Freelancer asked for, whatever the router reads in the button label.
     draftIntent: pinned ? true : (input.draftIntent ?? false),
     pending: { card, offer: null },
-    pins: pinned?.request ?? null,
     pinnedAnswer: null,
   };
 }

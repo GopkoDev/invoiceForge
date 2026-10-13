@@ -138,9 +138,8 @@ const PINNED_CALL_ID = 'pinned-choice';
 /**
  * The pinned result as the propose_draft step the model would have taken (sad §11, approach A): an assistant
  * tool call followed by its tool result. The result is data only, in the tool's own answer shape plus the
- * resolution the press produced.
+ * resolution the press produced. The same value answers a propose_draft re-call in the pressed turn (R1-S1).
  */
-/** The propose_draft result of a pinned resolution: the prior step in the model input, and the answer to a re-call. */
 function pinnedAnswer(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): Record<string, unknown> {
   const { resolution } = pinned;
   if (resolution.kind === 'PROPOSAL') return { kind: 'CARD', cardId, resolution };
