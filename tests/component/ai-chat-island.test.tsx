@@ -1038,3 +1038,58 @@ describe('the /ai page restored at the address of a live Conversation', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+// Review 2026-10-13 R4-U1: the /ai page that takes a live chat over at its Conversation's address loads that
+// Conversation's cards and choices, instead of leaving their skeletons until the next reply.
+describe('the /ai page restored at a live Conversation: cards and choices', () => {
+  it('loads the Conversation cards and offers once and shows them', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Here is the draft.'),
+        { type: 'data-draft-card', id: 'card1', data: { cardId: 'card1' } },
+        { type: 'data-offer', id: 'off1', data: { offerId: 'off1' } },
+        { type: 'data-conversation', data: { conversationId: 'cCards', title: 'With cards' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Invoice Acme');
+    await screen.findByText('Here is the draft.');
+    pathname = '/ai/cCards';
+    view.rerender(
+      <div key="conversation-page">
+        <ChatIsland conversationId="cCards" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+    loadConversationCards.mockReset();
+    loadConversationCards.mockResolvedValue({
+      success: true,
+      data: {
+        cards: { card1: { id: 'card1' } },
+        invoiceLinks: {},
+        offers: {
+          off1: {
+            offerId: 'off1',
+            kind: 'BANK_ACCOUNT',
+            state: 'OPEN',
+            chosenOptionId: null,
+            options: [{ optionId: 0, label: 'Monobank ••••4821 · USD' }],
+          },
+        },
+      },
+    });
+
+    view.rerender(
+      <div key="ai-page-restored">
+        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+
+    expect((await screen.findByTestId('draft-card')).textContent).toBe('card card1');
+    expect(await screen.findByRole('group', { name: 'Choose a bank account' })).toBeTruthy();
+    expect(loadConversationCards).toHaveBeenCalledWith('cCards');
+  });
+});

@@ -518,6 +518,21 @@ function ChatSession({
   });
   // Held and let go in the commit itself, so nothing the stream reports between two islands is lost (R3-U2).
   useLayoutEffect(() => holdSession(session), [session]);
+  // The /ai page that took a live chat over at its Conversation's address has no cards, links or choices of its own
+  // (its page loaded none): read them once, and put the Conversation back at the head of the list (R4-U1).
+  const adoptedAt = useRef(conversationId === null && liveAt !== null && handedOver !== null ? liveAt : null);
+  useEffect(() => {
+    const id = adoptedAt.current;
+    if (id === null) return;
+    adoptedAt.current = null;
+    if (session.title !== null) newConversation?.announce({ id, title: session.title });
+    void loadConversationCards(id).then(
+      (result) => {
+        if (result.success) setLoaded({ ...result.data, offers: result.data.offers ?? {} });
+      },
+      () => undefined
+    );
+  }, [session, newConversation]);
 
   const inFlight = status === 'submitted' || status === 'streaming';
 
