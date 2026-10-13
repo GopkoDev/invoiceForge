@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/form-pin.ts", "lib/validations/form-
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T53 — Check typed answers per kind, pin answers into a stored draft request, and compose the answer message
