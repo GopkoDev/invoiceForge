@@ -818,6 +818,20 @@
         "tests/component/ai-elements-prompt-input.test.tsx"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t48-chip-height-and-notice.md"
+    },
+    {
+      "id": "T49",
+      "title": "Record the scroll area's labelled region and Tab stop in screens.md, the NOTICE and the element header (review R18-1)",
+      "layer": "docs",
+      "deps": ["T47"],
+      "acs": ["AC-16"],
+      "dod": "screens.md SCR-03 says the scroll area is a Tab stop (tabIndex 0, role region, aria-label Messages) with an inset focus-visible ring and that a keyboard Jump to latest moves focus to it; components/ai-elements/NOTICE and the conversation.tsx header record the labelled region and Tab stop as the replacement for role=log.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/screens.md",
+        "components/ai-elements/NOTICE",
+        "components/ai-elements/conversation.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t49-record-messages-region.md"
     }
   ]
 }

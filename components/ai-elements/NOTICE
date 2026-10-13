@@ -23,7 +23,9 @@ from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md):
 - conversation.tsx: driven by the project's useFollowLatest hook (48 px
   follow threshold, reduced motion, jump control) instead of
   use-stick-to-bottom; no role="log" (it would announce every streamed
-  delta); ConversationContent is a full-width scroll area with a centred
+  delta) - the scroll area is instead a labelled region ("Messages") and
+  a Tab stop with a focus ring, which a keyboard jump focuses;
+  ConversationContent is a full-width scroll area with a centred
   max-w-3xl column; ConversationDownload not ported.
 - message.tsx: MessageResponse renders plain text with line breaks kept
   (no streamdown, no Markdown, no HTML, no links); MessageAvatar taken

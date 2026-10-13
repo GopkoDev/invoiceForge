@@ -54,7 +54,8 @@
 | T46 | [E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)](./t46-e2e-dark-contrast-phone-overflow-data-slot-selectors.md) | tests | Dmytro Hopko | S | T43, T45 | done |
 | T47 | [The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)](./t47-scroll-area-keyboard-stop-and-focus-ring.md) | ui | Dmytro Hopko | S | T43 | done |
 | T48 | [One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)](./t48-chip-height-and-notice.md) | ui | Dmytro Hopko | S | T45 | done |
+| T49 | [Record the scroll area's labelled region and Tab stop in screens.md, the NOTICE and the element header (review R18-1)](./t49-record-messages-region.md) | docs | Dmytro Hopko | XS | T47 | done |
 
-**Total:** 48 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46 and T47–T48 are its review round 16 and 17 follow-ups).
+**Total:** 49 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups).
 
 **Owner gates outside `implement`:** T28 privacy wording review and the spec §8 terms-page question (before `ship`); the real-model evaluation run (T29 rows) and the read/issue load scenarios (pre-release).

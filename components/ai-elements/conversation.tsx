@@ -5,7 +5,8 @@
  * Modified: rebuilt on @base-ui/react; see ADR-0010
  * (docs/features/ai-chat-v2/adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md).
  * Deviations: driven by useFollowLatest (48 px follow, reduced motion, jump control) instead of use-stick-to-bottom;
- * no role="log" (its implicit live region would announce every streamed delta); ConversationContent is a full-width
+ * no role="log" (its implicit live region would announce every streamed delta) - the scroll area is instead a labelled
+ * region ("Messages") and a Tab stop with a focus ring, which a keyboard jump focuses; ConversationContent is a full-width
  * scroll area holding a centred max-w-3xl column; no ConversationDownload.
  */
 'use client';
