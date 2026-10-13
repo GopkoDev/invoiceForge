@@ -4,7 +4,13 @@
 // md (768 px) before the chat, and below md the list opens as a left Sheet from the header's list button and closes
 // on a pick. "Delete all" still counts the merged list.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 
@@ -27,16 +33,26 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const listConversationSummaries = vi.fn();
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
-  listConversationSummaries: (...a: unknown[]) => listConversationSummaries(...a),
+  listConversationSummaries: (...a: unknown[]) =>
+    listConversationSummaries(...a),
   getConversation: (...a: unknown[]) => getConversation(...a),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
-  actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'u1', timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: async () => ({
     success: true,
-    data: { limit: 30, used: 1, left: 29, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+    data: {
+      limit: 30,
+      used: 1,
+      left: 29,
+      renewsAt: '2026-10-13T00:00:00.000Z',
+      timeZone: 'UTC',
+    },
   }),
 }));
 vi.mock('@/components/modals/invoice/invoice-modal-container', () => ({
@@ -47,12 +63,19 @@ import AiLayout from '@/app/(protected)/ai/layout';
 import AiPage from '@/app/(protected)/ai/page';
 import ConversationPage from '@/app/(protected)/ai/[conversationId]/page';
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
-import { NewConversationProvider, useNewConversation } from '@/components/ai/new-conversation-context';
+import {
+  NewConversationProvider,
+  useNewConversation,
+} from '@/components/ai/new-conversation-context';
 import { AiModalContainer } from '@/components/modals/ai/ai-modal-container';
 import type { ConversationSummary } from '@/types/assistant/types';
 
 const rows = (titles: string[]): ConversationSummary[] =>
-  titles.map((title, i) => ({ id: `c${i + 1}`, title, lastMessageAt: '2026-10-10T09:00:00.000Z' }));
+  titles.map((title, i) => ({
+    id: `c${i + 1}`,
+    title,
+    lastMessageAt: '2026-10-10T09:00:00.000Z',
+  }));
 
 beforeEach(() => {
   mockPathname = '/ai/c1';
@@ -65,19 +88,30 @@ afterEach(cleanup);
 async function renderConversationPage() {
   listConversationSummaries.mockResolvedValue({
     success: true,
-    data: { items: rows(['Who owes me money?', 'Draft for Acme']), timeZone: 'UTC' },
+    data: {
+      items: rows(['Who owes me money?', 'Draft for Acme']),
+      timeZone: 'UTC',
+    },
   });
   getConversation.mockResolvedValue({
     success: true,
     data: {
-      conversation: { id: 'c1', title: 'Who owes me money?', lastMessageAt: '2026-10-10T09:01:05.000Z' },
+      conversation: {
+        id: 'c1',
+        title: 'Who owes me money?',
+        lastMessageAt: '2026-10-10T09:01:05.000Z',
+      },
       messages: [],
       cards: {},
       invoiceLinks: {},
       offers: {},
     },
   });
-  return render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
+  return render(
+    await ConversationPage({
+      params: Promise.resolve({ conversationId: 'c1' }),
+    })
+  );
 }
 
 describe('AC-15: the AI section is a viewport-height shell with panes that scroll on their own', () => {
@@ -87,28 +121,41 @@ describe('AC-15: the AI section is a viewport-height shell with panes that scrol
     expect(shell.className).toMatch(/h-\[calc\(100dvh-var\(--header-height\)/);
     expect(shell.className).toMatch(/overflow-hidden/);
     expect(container.querySelector('.container.mx-auto')).toBeNull();
+    // ai-chat-v2 T35 (screens.md «Workspace container»): 16 px around the container from md, none below.
+    expect(shell.className).toMatch(/md:p-4/);
+    expect(shell.className).not.toMatch(/(^|\s)p-4/);
   });
 
   it('the workspace grid and its panes are min-h-0, the list pane shows from md before the chat', async () => {
     const { container } = await renderConversationPage();
-    const grid = container.querySelector('[data-slot="ai-workspace"]') as HTMLElement;
+    const grid = container.querySelector(
+      '[data-slot="ai-workspace"]'
+    ) as HTMLElement;
     expect(grid.className).toMatch(/h-full/);
     expect(grid.className).toMatch(/min-h-0/);
-    expect(grid.className).toMatch(/md:grid-cols-\[18rem_/);
+    // ai-chat-v2 T35: the list pane is 16rem; from md the workspace is one rounded bordered container.
+    expect(grid.className).toMatch(/md:grid-cols-\[16rem_/);
+    expect(grid.className).toMatch(/md:rounded-xl/);
+    expect(grid.className).toMatch(/md:border(\s|$)/);
+    expect(grid.className).toMatch(/overflow-hidden/);
     const pane = grid.querySelector('aside') as HTMLElement;
     expect(pane.className).toMatch(/hidden/);
     expect(pane.className).toMatch(/md:flex/);
     expect(pane.className).toMatch(/min-h-0/);
     const chat = grid.querySelector(':scope > section') as HTMLElement;
     expect(chat.className).toMatch(/min-h-0/);
-    expect(pane.compareDocumentPosition(chat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      pane.compareDocumentPosition(chat) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(container.querySelector('[class*="lg:"]')).toBeNull();
   });
 
   it('the messages scroll inside the chat pane with the composer outside that scroll area', async () => {
     await renderConversationPage();
     const box = screen.getByRole('textbox', { name: 'Message' });
-    const scroller = document.querySelector('[data-slot="chat-scroll"]') as HTMLElement;
+    const scroller = document.querySelector(
+      '[data-slot="chat-scroll"]'
+    ) as HTMLElement;
     expect(scroller.className).toMatch(/overflow-y-auto/);
     expect(scroller.className).toMatch(/min-h-0/);
     expect(scroller.contains(box)).toBe(false);
@@ -118,7 +165,9 @@ describe('AC-15: the AI section is a viewport-height shell with panes that scrol
 describe('AC-19: below md the list opens as a left sheet and closes on a pick', () => {
   it('renders the list once (the pane); the sheet is not rendered until opened', async () => {
     await renderConversationPage();
-    expect(screen.getAllByRole('heading', { level: 2, name: 'Conversations' })).toHaveLength(1);
+    expect(
+      screen.getAllByRole('heading', { level: 2, name: 'Conversations' })
+    ).toHaveLength(1);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -129,15 +178,22 @@ describe('AC-19: below md the list opens as a left sheet and closes on a pick', 
     expect(open.className).toMatch(/md:hidden/);
     await user.click(open);
     const sheet = await screen.findByRole('dialog', { name: 'Conversations' });
-    await user.click(within(sheet).getByRole('link', { name: /Draft for Acme/ }));
+    await user.click(
+      within(sheet).getByRole('link', { name: /Draft for Acme/ })
+    );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('on /ai the start screen has the same list button', async () => {
     mockPathname = '/ai';
-    listConversationSummaries.mockResolvedValue({ success: true, data: { items: rows(['Draft for Acme']), timeZone: 'UTC' } });
+    listConversationSummaries.mockResolvedValue({
+      success: true,
+      data: { items: rows(['Draft for Acme']), timeZone: 'UTC' },
+    });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole('button', { name: 'Open conversations' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Open conversations' })
+    ).toBeInTheDocument();
   });
 });
 
@@ -153,14 +209,25 @@ describe('N-11: "Delete all" counts the merged list (AC-37)', () => {
     render(
       <NewConversationProvider>
         <Announce />
-        <ConversationListClient conversations={rows(['A', 'B', 'C'])} timeZone="UTC" />
+        <ConversationListClient
+          conversations={rows(['A', 'B', 'C'])}
+          timeZone="UTC"
+        />
         <AiModalContainer />
       </NewConversationProvider>
     );
-    expect(await screen.findByRole('link', { name: /Fresh chat/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Conversation actions' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Delete all' }));
+    expect(
+      await screen.findByRole('link', { name: /Fresh chat/ })
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Conversation actions' })
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Delete all' })
+    );
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/All 4 conversations will be deleted/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/All 4 conversations will be deleted/)
+    ).toBeInTheDocument();
   });
 });

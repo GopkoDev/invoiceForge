@@ -11,7 +11,13 @@
 //   components/ai/conversation-header-client.tsx -> props { conversationId: string; title: string }
 //     (the id is NEW: the header needs it to call deleteConversation).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail, ok } from '@/types/actions';
 
@@ -27,7 +33,11 @@ const routerPush = vi.fn();
 const routerRefresh = vi.fn();
 let pathname = '/ai';
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: routerPush, refresh: routerRefresh, replace: vi.fn() }),
+  useRouter: () => ({
+    push: routerPush,
+    refresh: routerRefresh,
+    replace: vi.fn(),
+  }),
   usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -48,7 +58,10 @@ vi.mock('@/lib/helpers/client-session-redirect', async (orig) => ({
 }));
 
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
-import { NewConversationProvider, useNewConversation } from '@/components/ai/new-conversation-context';
+import {
+  NewConversationProvider,
+  useNewConversation,
+} from '@/components/ai/new-conversation-context';
 import { useEffect } from 'react';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { AiModalContainer } from '@/components/modals/ai/ai-modal-container';
@@ -57,7 +70,10 @@ import { useModalStore } from '@/store/use-modal-store';
 import type { ConversationSummary } from '@/types/assistant/types';
 
 // ai-chat-v2 T19: the list takes every summary (no paging); `total` extra rows stand in for the server count.
-function pageOf(titles: string[], total = titles.length): ConversationSummary[] {
+function pageOf(
+  titles: string[],
+  total = titles.length
+): ConversationSummary[] {
   return Array.from({ length: Math.max(total, titles.length) }, (_, i) => ({
     id: `c${i + 1}`,
     title: titles[i] ?? `Chat ${i + 1}`,
@@ -87,28 +103,44 @@ function renderHeader() {
 }
 
 async function openRowDelete(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: `Delete conversation ${TITLE}` }));
+  // ai-chat-v2 T35: a row's delete is in its ⋯ menu (no always-visible delete icon).
+  await user.click(
+    screen.getByRole('button', { name: `Actions for ${TITLE}` })
+  );
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
   return screen.findByRole('dialog');
 }
 
 async function openDeleteAll(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Conversation actions' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Conversation actions' })
+  );
   await user.click(await screen.findByRole('menuitem', { name: 'Delete all' }));
   return screen.findByRole('dialog');
 }
 
 async function openHeaderDelete(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Conversation actions' }));
-  await user.click(await screen.findByRole('menuitem', { name: 'Delete conversation' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Conversation actions' })
+  );
+  await user.click(
+    await screen.findByRole('menuitem', { name: 'Delete conversation' })
+  );
   return screen.findByRole('dialog');
 }
 
 describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
   beforeEach(() => {
     for (const m of [
-      deleteConversationMock, deleteAllConversationsMock, routerPush, routerRefresh,
-      toastSuccess, toastError, goToSignIn,
-    ]) m.mockReset();
+      deleteConversationMock,
+      deleteAllConversationsMock,
+      routerPush,
+      routerRefresh,
+      toastSuccess,
+      toastError,
+      goToSignIn,
+    ])
+      m.mockReset();
     useModalStore.getState().resetAllModals();
     pathname = '/ai';
   });
@@ -142,9 +174,18 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       deleteConversationMock.mockResolvedValue(ok());
       const user = userEvent.setup();
       renderStarted();
-      await user.click(await screen.findByRole('button', { name: 'Delete conversation Started here' }));
-      await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
-      await waitFor(() => expect(screen.queryByText('Started here')).toBeNull());
+      await user.click(
+        await screen.findByRole('button', { name: 'Actions for Started here' })
+      );
+      await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Delete',
+        })
+      );
+      await waitFor(() =>
+        expect(screen.queryByText('Started here')).toBeNull()
+      );
     });
 
     // Review 2026-10-13 R3-U1: the same from the Conversation's own header (the /ai page stays mounted).
@@ -156,19 +197,29 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
           <NewConversationProvider>
             <Announce />
             <ConversationListClient conversations={[]} timeZone="UTC" />
-            <ConversationHeaderClient conversationId="cX" title="Started here" />
+            <ConversationHeaderClient
+              conversationId="cX"
+              title="Started here"
+            />
           </NewConversationProvider>
           <AiModalContainer />
         </>
       );
-      await screen.findByRole('button', { name: 'Delete conversation Started here' });
-      const menus = screen.getAllByRole('button', { name: 'Conversation actions' });
+      await screen.findByRole('button', { name: 'Actions for Started here' });
+      const menus = screen.getAllByRole('button', {
+        name: 'Conversation actions',
+      });
       await user.click(menus[menus.length - 1]); // the header's menu
-      await user.click(await screen.findByRole('menuitem', { name: 'Delete conversation' }));
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Delete conversation' })
+      );
       const dialog = await screen.findByRole('dialog');
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
       await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/ai'));
-      expect(screen.queryByRole('button', { name: 'Delete conversation Started here' })).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Actions for Started here' })
+      ).toBeNull();
+      expect(screen.queryByRole('link', { name: /Started here/ })).toBeNull();
     });
 
     it('"Delete all" removes it and shows the empty list', async () => {
@@ -177,8 +228,12 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderStarted();
       await screen.findByText('Started here');
       const dialog = await openDeleteAll(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
-      await waitFor(() => expect(screen.queryByText('Started here')).toBeNull());
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      );
+      await waitFor(() =>
+        expect(screen.queryByText('Started here')).toBeNull()
+      );
     });
   });
 
@@ -211,7 +266,9 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       const user = userEvent.setup();
       renderList();
       const dialog = await openDeleteAll(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      );
       await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/ai'));
     });
   });
@@ -222,14 +279,20 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderList();
       const dialog = await openRowDelete(user);
 
-      expect(within(dialog).getByText('Delete this conversation?')).toBeInTheDocument();
+      expect(
+        within(dialog).getByText('Delete this conversation?')
+      ).toBeInTheDocument();
       expect(
         within(dialog).getByText(
           `“${TITLE}” will be deleted for good. Drafts it created stay in your invoices.`
         )
       ).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('button', { name: 'Delete' })
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('button', { name: 'Cancel' })
+      ).toBeInTheDocument();
       expect(deleteConversationMock).not.toHaveBeenCalled();
     });
 
@@ -241,13 +304,17 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-      await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Conversation deleted.'));
+      await waitFor(() =>
+        expect(toastSuccess).toHaveBeenCalledWith('Conversation deleted.')
+      );
       expect(deleteConversationMock).toHaveBeenCalledTimes(1);
       expect(deleteConversationMock).toHaveBeenCalledWith('c1');
       expect(deleteAllConversationsMock).not.toHaveBeenCalled();
       expect(routerRefresh).toHaveBeenCalled();
       expect(routerPush).not.toHaveBeenCalled();
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
     });
 
     it('pending: spinner in confirm, both buttons disabled, dialog stays open, a double click calls once', async () => {
@@ -261,46 +328,62 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       await user.dblClick(confirm);
 
       await waitFor(() => expect(confirm).toBeDisabled());
-      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+      expect(
+        within(dialog).getByRole('button', { name: 'Cancel' })
+      ).toBeDisabled();
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(deleteConversationMock).toHaveBeenCalledTimes(1);
       expect(toastSuccess).not.toHaveBeenCalled();
 
       resolve(ok());
-      await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Conversation deleted.'));
+      await waitFor(() =>
+        expect(toastSuccess).toHaveBeenCalledWith('Conversation deleted.')
+      );
     });
 
     it('not-found: closes, shows the NOT_FOUND copy verbatim and refreshes the list', async () => {
       const user = userEvent.setup();
-      deleteConversationMock.mockResolvedValue(fail('NOT_FOUND', NOT_FOUND_COPY));
-      renderList();
-      const dialog = await openRowDelete(user);
-
-      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-      await waitFor(() => expect(toastError).toHaveBeenCalledWith(NOT_FOUND_COPY));
-      expect(toastSuccess).not.toHaveBeenCalled();
-      expect(routerRefresh).toHaveBeenCalled();
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    });
-
-    it('FAILED: shows the failure message as an error, no success toast', async () => {
-      const user = userEvent.setup();
-      deleteConversationMock.mockResolvedValue(fail('FAILED', 'The conversation was not deleted. Try again.'));
+      deleteConversationMock.mockResolvedValue(
+        fail('NOT_FOUND', NOT_FOUND_COPY)
+      );
       renderList();
       const dialog = await openRowDelete(user);
 
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
       await waitFor(() =>
-        expect(toastError).toHaveBeenCalledWith('The conversation was not deleted. Try again.')
+        expect(toastError).toHaveBeenCalledWith(NOT_FOUND_COPY)
+      );
+      expect(toastSuccess).not.toHaveBeenCalled();
+      expect(routerRefresh).toHaveBeenCalled();
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
+    });
+
+    it('FAILED: shows the failure message as an error, no success toast', async () => {
+      const user = userEvent.setup();
+      deleteConversationMock.mockResolvedValue(
+        fail('FAILED', 'The conversation was not deleted. Try again.')
+      );
+      renderList();
+      const dialog = await openRowDelete(user);
+
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() =>
+        expect(toastError).toHaveBeenCalledWith(
+          'The conversation was not deleted. Try again.'
+        )
       );
       expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it('UNAUTHORIZED result goes to sign-in, no toast', async () => {
       const user = userEvent.setup();
-      deleteConversationMock.mockResolvedValue(fail('UNAUTHORIZED', 'Please sign in.'));
+      deleteConversationMock.mockResolvedValue(
+        fail('UNAUTHORIZED', 'Please sign in.')
+      );
       renderList();
       const dialog = await openRowDelete(user);
 
@@ -330,7 +413,9 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
       expect(deleteConversationMock).not.toHaveBeenCalled();
       expect(deleteAllConversationsMock).not.toHaveBeenCalled();
       expect(toastSuccess).not.toHaveBeenCalled();
@@ -344,7 +429,9 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
       await user.keyboard('{Escape}');
 
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
       expect(deleteConversationMock).not.toHaveBeenCalled();
     });
   });
@@ -355,13 +442,17 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderList();
       const dialog = await openDeleteAll(user);
 
-      expect(within(dialog).getByText('Delete all conversations?')).toBeInTheDocument();
+      expect(
+        within(dialog).getByText('Delete all conversations?')
+      ).toBeInTheDocument();
       expect(
         within(dialog).getByText(
           'All 12 conversations will be deleted for good. Drafts they created stay in your invoices.'
         )
       ).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: 'Delete all' })).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      ).toBeInTheDocument();
       expect(deleteAllConversationsMock).not.toHaveBeenCalled();
     });
 
@@ -371,14 +462,20 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderList();
       const dialog = await openDeleteAll(user);
 
-      await user.dblClick(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await user.dblClick(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      );
 
-      await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('All conversations deleted.'));
+      await waitFor(() =>
+        expect(toastSuccess).toHaveBeenCalledWith('All conversations deleted.')
+      );
       expect(deleteAllConversationsMock).toHaveBeenCalledTimes(1);
       expect(deleteConversationMock).not.toHaveBeenCalled();
       expect(routerRefresh).toHaveBeenCalled();
       expect(routerPush).not.toHaveBeenCalled();
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
     });
 
     it('rejected: goes to sign-in', async () => {
@@ -387,18 +484,24 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderList();
       const dialog = await openDeleteAll(user);
 
-      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      );
 
       await waitFor(() => expect(goToSignIn).toHaveBeenCalled());
     });
 
     it('UNAUTHORIZED result goes to sign-in', async () => {
       const user = userEvent.setup();
-      deleteAllConversationsMock.mockResolvedValue(fail('UNAUTHORIZED', 'Please sign in.'));
+      deleteAllConversationsMock.mockResolvedValue(
+        fail('UNAUTHORIZED', 'Please sign in.')
+      );
       renderList();
       const dialog = await openDeleteAll(user);
 
-      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Delete all' })
+      );
 
       await waitFor(() => expect(goToSignIn).toHaveBeenCalled());
       expect(toastSuccess).not.toHaveBeenCalled();
@@ -411,14 +514,18 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
       expect(deleteAllConversationsMock).not.toHaveBeenCalled();
     });
 
     it('is hidden for an empty list', () => {
       renderList(pageOf([], 0));
 
-      expect(screen.queryByRole('button', { name: 'Conversation actions' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Conversation actions' })
+      ).not.toBeInTheDocument();
       expect(screen.queryByText('Delete all')).not.toBeInTheDocument();
     });
   });
@@ -429,7 +536,9 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       renderHeader();
       const dialog = await openHeaderDelete(user);
 
-      expect(within(dialog).getByText('Delete this conversation?')).toBeInTheDocument();
+      expect(
+        within(dialog).getByText('Delete this conversation?')
+      ).toBeInTheDocument();
       expect(
         within(dialog).getByText(
           `“${TITLE}” will be deleted for good. Drafts it created stay in your invoices.`
@@ -449,20 +558,28 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       expect(deleteConversationMock).toHaveBeenCalledTimes(1);
       expect(deleteConversationMock).toHaveBeenCalledWith('c9');
       expect(toastSuccess).toHaveBeenCalledWith('Conversation deleted.');
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
     });
 
     it('not-found: toast verbatim and back to /ai (the Conversation is gone)', async () => {
       const user = userEvent.setup();
-      deleteConversationMock.mockResolvedValue(fail('NOT_FOUND', NOT_FOUND_COPY));
+      deleteConversationMock.mockResolvedValue(
+        fail('NOT_FOUND', NOT_FOUND_COPY)
+      );
       renderHeader();
       const dialog = await openHeaderDelete(user);
 
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-      await waitFor(() => expect(toastError).toHaveBeenCalledWith(NOT_FOUND_COPY));
+      await waitFor(() =>
+        expect(toastError).toHaveBeenCalledWith(NOT_FOUND_COPY)
+      );
       expect(toastSuccess).not.toHaveBeenCalled();
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
     });
 
     it('rejected: goes to sign-in and does not navigate', async () => {
@@ -484,7 +601,9 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      );
       expect(deleteConversationMock).not.toHaveBeenCalled();
       expect(routerPush).not.toHaveBeenCalled();
     });
@@ -499,10 +618,16 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
         </AiLayout>
       );
 
-      await user.click(screen.getByRole('button', { name: 'Conversation actions' }));
-      await user.click(await screen.findByRole('menuitem', { name: 'Delete conversation' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Conversation actions' })
+      );
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Delete conversation' })
+      );
 
-      expect(await screen.findByText('Delete this conversation?')).toBeInTheDocument();
+      expect(
+        await screen.findByText('Delete this conversation?')
+      ).toBeInTheDocument();
     });
   });
 });

@@ -154,7 +154,9 @@ describe('R-27: the delete dialog closes on FAILED (AC-37)', () => {
         <AiModalContainer />
       </>
     );
-    await user.click(screen.getByRole('button', { name: 'Delete conversation Who owes me money?' }));
+    // ai-chat-v2 T35: a row's delete is in its ⋯ menu.
+    await user.click(screen.getByRole('button', { name: 'Actions for Who owes me money?' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('The conversation was not deleted. Try again.'));

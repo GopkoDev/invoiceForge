@@ -429,7 +429,7 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
     const list = screen.getByRole('complementary', { name: 'Conversation list' });
     expect(list.className).toMatch(/xl:flex/);
     expect(list.className).not.toMatch(/(^|\s)md:flex/);
-    expect(grid.className).toMatch(/xl:grid-cols-\[18rem_minmax\(0,1fr\)_minmax\(26rem,40%\)\]/);
+    expect(grid.className).toMatch(/xl:grid-cols-\[16rem_minmax\(0,1fr\)_minmax\(26rem,40%\)\]/);
   });
 
   it('phone (AC-19): the preview is a full-screen sheet with the same actions', async () => {
