@@ -16,6 +16,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+// SCR-04 (review 2026-10-13 R1-U1): a button that can't be pressed is aria-disabled (still focusable and readable in
+// the a11y tree), never natively disabled.
+const expectOff = (b: HTMLElement) => {
+  expect(b).toHaveAttribute('aria-disabled', 'true');
+  expect(b).not.toBeDisabled();
+};
+const expectOn = (b: HTMLElement) => expect(b).not.toHaveAttribute('aria-disabled', 'true');
+
 const refresh = vi.fn();
 // The address the page is rendered at; the /ai page renders at /ai (ai-chat-v2 T31: /ai's island at /ai/{id} is a stale entry).
 let mockPathname = '/ai/c1';
@@ -106,7 +114,7 @@ describe('OfferedChoices (SCR-04)', () => {
       'Acme Corp · billing@acme.com',
       'Аcme Corp · no email',
     ]);
-    buttons.forEach((b) => expect(b).not.toBeDisabled());
+    buttons.forEach((b) => expectOn(b));
     await userEvent.setup().click(buttons[1]);
     expect(onPress).toHaveBeenCalledWith('off1', 1, 'Аcme Corp · no email');
   });
@@ -120,7 +128,7 @@ describe('OfferedChoices (SCR-04)', () => {
         onPress={vi.fn()}
       />
     );
-    expect(screen.getByRole('button', { name: 'USD' })).not.toBeDisabled();
+    expectOn(screen.getByRole('button', { name: 'USD' }));
   });
 
   it('keyboard order follows the buttons', async () => {
@@ -136,7 +144,7 @@ describe('OfferedChoices (SCR-04)', () => {
     render(<OfferedChoices offer={offer()} isLatest={false} pendingOptionId={1} onPress={vi.fn()} />);
     const pressed = screen.getByRole('button', { name: /Acme GmbH/ });
     expect(pressed.querySelector('[data-slot="spinner"], [role="status"], svg.animate-spin')).not.toBeNull();
-    screen.getAllByRole('button').forEach((b) => expect(b).toBeDisabled());
+    screen.getAllByRole('button').forEach((b) => expectOff(b));
     expect(screen.queryByText('(chosen)')).toBeNull();
   });
 
@@ -149,7 +157,32 @@ describe('OfferedChoices (SCR-04)', () => {
     expect(chosen.getAttribute('data-variant')).toBe('secondary');
     expect(chosen.querySelector('svg')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Acme Corp' }).getAttribute('data-variant')).toBe('outline');
-    screen.getAllByRole('button').forEach((b) => expect(b).toBeDisabled());
+    screen.getAllByRole('button').forEach((b) => expectOff(b));
+  });
+
+  // Review 2026-10-13 R1-U1: the chosen option is the most prominent one, not the faintest. Only the unchosen and
+  // inactive buttons take the muted opacity; the chosen one is full strength with a visible edge, and a click on it
+  // (or any other) does nothing.
+  it('chosen (SCR-04): the chosen button stays full strength while the others are muted; no press goes out', async () => {
+    const onPress = vi.fn();
+    render(
+      <OfferedChoices offer={offer({ state: 'CHOSEN', chosenOptionId: 1 })} isLatest pendingOptionId={null} onPress={onPress} />
+    );
+    const chosen = screen.getByRole('button', { name: 'Acme GmbH (chosen)' });
+    const other = screen.getByRole('button', { name: 'Acme Corp' });
+    // The shared Button's `disabled:opacity-50` reacts only to native disabled, which these buttons never carry.
+    const muted = /(^|\s)data-disabled:opacity-50(\s|$)/;
+    expect(chosen).not.toBeDisabled();
+    expect(chosen.className).not.toMatch(muted);
+    expect(chosen.className).toMatch(/(^|\s)border-border(\s|$)/);
+    expect(other.className).toMatch(muted);
+    expect(other).toHaveAttribute('data-disabled');
+    const user = userEvent.setup();
+    await user.click(chosen);
+    await user.click(other);
+    expect(onPress).not.toHaveBeenCalled();
+    await user.tab();
+    expect(document.activeElement).toBe(other);
   });
 
   it.each([
@@ -159,7 +192,7 @@ describe('OfferedChoices (SCR-04)', () => {
     render(<OfferedChoices offer={o} isLatest={isLatest} pendingOptionId={null} onPress={vi.fn()} />);
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(2);
-    buttons.forEach((b) => expect(b).toBeDisabled());
+    buttons.forEach((b) => expectOff(b));
     expect(screen.queryByText('(chosen)')).toBeNull();
   });
 });
@@ -254,7 +287,7 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     expect(screen.getByText('Two Customers match "Acme". Which one do you mean?')).toBeTruthy();
     const buttons = within(group()).getAllByRole('button');
     expect(buttons.map((b) => b.textContent)).toEqual(['Acme Corp', 'Acme GmbH']);
-    buttons.forEach((b) => expect(b).not.toBeDisabled());
+    buttons.forEach((b) => expectOn(b));
   });
 
   it('a press sends { conversationId, message: label, choice } with no origin and no startedFrom', async () => {
@@ -271,7 +304,7 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     expect(body).not.toHaveProperty('startedFrom');
     // pressing: the label appears at once as the Freelancer's message; the group and the composer are locked.
     expect(document.querySelector('[data-role="user"]:last-of-type')?.textContent).toBe('Acme GmbH');
-    within(group()).getAllByRole('button').forEach((b) => expect(b).toBeDisabled());
+    within(group()).getAllByRole('button').forEach((b) => expectOff(b));
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     expect(screen.queryByText('(chosen)')).toBeNull();
     stream.end();
@@ -303,8 +336,8 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
         allowance={allowance(26)}
       />
     );
-    expect(screen.getByRole('button', { name: 'Acme GmbH (chosen)' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Acme Corp' })).toBeDisabled();
+    expectOff(screen.getByRole('button', { name: 'Acme GmbH (chosen)' }));
+    expectOff(screen.getByRole('button', { name: 'Acme Corp' }));
   });
 
   it('AC-12: after a newer typed message, the earlier group is visible but cannot be pressed', async () => {
@@ -316,7 +349,7 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(bodyOf(0)).not.toHaveProperty('choice');
-    within(group()).getAllByRole('button').forEach((b) => expect(b).toBeDisabled());
+    within(group()).getAllByRole('button').forEach((b) => expectOff(b));
     stream.end();
   });
 
@@ -368,7 +401,7 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
       });
     });
     const accounts = await screen.findByRole('group', { name: 'Choose a bank account' });
-    expect(within(accounts).getByRole('button', { name: 'Wise ••••7710 · USD' })).not.toBeDisabled();
+    expectOn(within(accounts).getByRole('button', { name: 'Wise ••••7710 · USD' }));
   });
 });
 
@@ -382,7 +415,7 @@ describe('ChatIsland - refused presses', () => {
     expect(await screen.findByText(UNAVAILABLE)).toBeTruthy();
     expect(document.querySelectorAll('[data-role="user"]')).toHaveLength(1);
     expect(screen.getByText('27 of 30 messages left today')).toBeTruthy();
-    within(group()).getAllByRole('button').forEach((b) => expect(b).not.toBeDisabled());
+    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
     expect(screen.queryByText('(chosen)')).toBeNull();
     // The composer keeps its text empty: the label is never put into the box.
     expect((screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value).toBe('');
@@ -416,12 +449,12 @@ describe('ChatIsland - refused presses', () => {
     );
     island({ allowance: allowance(0) });
     // With no allowance left the buttons are still pressable: the server refuses (AC-11).
-    expect(screen.getByRole('button', { name: 'Acme GmbH' })).not.toBeDisabled();
+    expectOn(screen.getByRole('button', { name: 'Acme GmbH' }));
     await userEvent.setup().click(screen.getByRole('button', { name: 'Acme GmbH' }));
     expect(await screen.findByText(USED_UP_TEXT)).toBeTruthy();
     expect(document.querySelectorAll('[data-role="user"]')).toHaveLength(1);
     expect(screen.queryByText('(chosen)')).toBeNull();
-    within(group()).getAllByRole('button').forEach((b) => expect(b).not.toBeDisabled());
+    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
   });
 
   it('could-not-complete after a press: the buttons are pressable again and "Try again" re-sends the same choice', async () => {
@@ -438,7 +471,7 @@ describe('ChatIsland - refused presses', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
     expect(await screen.findByText(COULD_NOT)).toBeTruthy();
-    within(group()).getAllByRole('button').forEach((b) => expect(b).not.toBeDisabled());
+    within(group()).getAllByRole('button').forEach((b) => expectOn(b));
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(bodyOf(1).choice).toEqual({ offerId: 'off1', optionId: 1 });
@@ -463,7 +496,7 @@ describe('Reopen (AC-13)', () => {
       },
     });
     render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
-    expect(screen.getByRole('button', { name: 'Acme GmbH (chosen)' })).toBeDisabled();
+    expectOff(screen.getByRole('button', { name: 'Acme GmbH (chosen)' }));
   });
 
   it('a latest reply with nothing pressed is still pressable on reopen', async () => {
@@ -478,6 +511,6 @@ describe('Reopen (AC-13)', () => {
       },
     });
     render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
-    expect(screen.getByRole('button', { name: 'Acme GmbH' })).not.toBeDisabled();
+    expectOn(screen.getByRole('button', { name: 'Acme GmbH' }));
   });
 });

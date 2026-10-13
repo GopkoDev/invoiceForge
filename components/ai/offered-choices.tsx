@@ -3,6 +3,7 @@
 import { CheckIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import type { ChoiceOfferKind, OfferView } from '@/types/assistant/types';
@@ -65,8 +66,12 @@ export function OfferedChoices({
             title={option.label}
             // The accessible name keeps the space the sr-only suffix loses in name computation.
             aria-label={chosen ? `${option.label} (chosen)` : undefined}
+            // SCR-04 (review 2026-10-13 R1-U1): aria-disabled, never native disabled, so every button stays focusable
+            // and readable; a click on one does nothing. Only the unchosen ones are muted: the chosen one is the most
+            // prominent, full strength with an edge, since secondary is the reply bubble's own colour.
             disabled={!pressable}
-            className="max-w-full"
+            focusableWhenDisabled
+            className={cn('max-w-full', chosen ? 'border-border' : 'data-disabled:opacity-50')}
             onClick={() => onPress(offer.offerId, option.optionId, option.label)}
           >
             {pendingOptionId === option.optionId ? <Spinner aria-hidden role="presentation" /> : null}
