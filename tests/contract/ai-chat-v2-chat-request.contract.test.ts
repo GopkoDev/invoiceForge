@@ -112,6 +112,39 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
     expect(fieldsOf(base({ form }))).not.toEqual({});
   });
 
+  // ---------- T74 (R20-4): a form's message text is ignored by the server, so the schema does not bound it ----------
+  const withText = (text: string, extra: Record<string, unknown> = {}) => ({
+    conversationId: 'clx0conv0000000000000001',
+    message: { id: 'msg_client_01', role: 'user', parts: [{ type: 'text', text }] },
+    ...extra,
+  });
+
+  it.each([
+    ['an empty text', ''],
+    ['a text over 2000 characters', 'Notes: ' + 'x'.repeat(2000)],
+  ])('T74: a form request with %s is accepted', (_label, text) => {
+    const r = chatRequestSchema.safeParse(withText(text, { form: FORM }));
+    expect(r.success, JSON.stringify(r.success ? null : r.error.issues)).toBe(true);
+  });
+
+  it('T74: a form request with text of exactly 8000 characters is accepted', () => {
+    const r = chatRequestSchema.safeParse(withText('x'.repeat(8000), { form: FORM }));
+    expect(r.success, JSON.stringify(r.success ? null : r.error.issues)).toBe(true);
+  });
+
+  it('T74: a form request with text over 8000 characters is refused as too_big at the text path', () => {
+    const r = chatRequestSchema.safeParse(withText('x'.repeat(8001), { form: FORM }));
+    expect(r.success, 'expected the request to be refused').toBe(false);
+    if (r.success) return;
+    expect(r.error.issues.some((i) => i.code === 'too_big' && i.path.join('.') === 'message.parts.0.text')).toBe(true);
+  });
+
+  it('T74: a typed message keeps its bounds (empty and over 2000 refused)', () => {
+    expect(chatRequestSchema.safeParse(withText('')).success).toBe(false);
+    expect(chatRequestSchema.safeParse(withText('x'.repeat(2001))).success).toBe(false);
+    expect(chatRequestSchema.safeParse(withText('x'.repeat(2000))).success).toBe(true);
+  });
+
   // ---------- T57: `choice` is removed; a form replaces it (ADR-0011). The choice cases are now refusal cases. ----------
   const refusedAsUnknownChoice = (input: unknown) => {
     const r = chatRequestSchema.safeParse(input);

@@ -606,6 +606,7 @@ describe.runIf(containerRuntimeAvailable)(
         [form.id]: {
           formId: form.id,
           state: 'CHOSEN',
+          currency: 'USD',
           questions: [
             {
               questionId: 0,

@@ -28,6 +28,7 @@ import {
   type Currency,
   type OfferOptionRef,
 } from '@/lib/services/assistant-drafts/offers';
+import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import { formHeading, LINE_FIELDS } from '@/lib/services/assistant-drafts/form-headings';
 import { draftRequestShape, type DraftIssue, type DraftRequest } from '@/lib/services/assistant-drafts/schema';
 import { FORM_MAX_OPTIONS, FORM_MAX_QUESTIONS, formAnswersSchema, type FormAnswer } from '@/lib/validations/assistant-chat';
@@ -100,12 +101,15 @@ export type FormRow = {
   chosenOptionId: number | null;
   questions: unknown;
   answers: unknown;
+  /** The stored request (server only); read for the resolved currency, never sent. */
+  request?: unknown;
 };
 
 /** The browser's view of a stored form: labels only (no ref, no source, no request); answers once sent. */
 export function toFormView(row: FormRow): FormView {
   if (row.kind !== 'FORM') return offerRowToFormView(row);
   const questions = storedFormQuestionsSchema.parse(row.questions);
+  const currency = resolvedCurrency(row.request);
   return {
     formId: row.id,
     state: row.state,
@@ -122,7 +126,16 @@ export function toFormView(row: FormRow): FormView {
       matchCount: q.matchCount,
     })),
     answers: row.state === 'CHOSEN' && row.answers !== null ? formAnswersSchema.parse(row.answers) : null,
+    ...(currency ? { currency } : {}),
   };
+}
+
+/** The ISO code the stored request's written currency reads as on its own ("$" is USD); null when absent or unclear. */
+function resolvedCurrency(request: unknown): string | null {
+  const written = (request as { currency?: unknown } | null | undefined)?.currency;
+  if (typeof written !== 'string') return null;
+  const reading = interpretCurrency(written, 'USD');
+  return reading.kind === 'RESOLVED' ? reading.currency : null;
 }
 
 // ---------- T52: questions from resolver issues, date options, one form per reply (ADR-0011; spec §1 F1–F4) ----------

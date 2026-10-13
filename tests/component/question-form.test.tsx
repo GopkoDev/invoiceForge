@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import axe from 'axe-core';
 
 import { QuestionForm } from '@/components/ai/question-form';
 import { composeAnswerMessage } from '@/lib/validations/form-answers';
@@ -277,11 +278,113 @@ describe('send', () => {
 });
 
 describe('sending', () => {
-  it('disables the form and Send and shows a spinner while pending', () => {
-    renderForm(makeForm([customerQ()]), { pending: true });
+  // T74 (R20-6): REWRITTEN. It pinned the old behaviour (isLatest, chips aria-disabled, Spinner with role=status,
+  // reached only through pending on a form that was still "latest"). In the island a send makes isLatest false, so the
+  // form must show as SENT from pending alone: picks kept and checked, everything disabled, a decorative spinner.
+  const sending = async () => {
+    const onSend = vi.fn();
+    const user = userEvent.setup();
+    const q = [customerQ(), priceQ()];
+    const view = render(<QuestionForm form={makeForm(q)} isLatest pending={false} onSend={onSend} />);
+    await user.click(chip('Acme GmbH'));
+    await user.type(screen.getByRole('textbox'), '40');
+    view.rerender(<QuestionForm form={makeForm(q)} isLatest={false} pending onSend={onSend} />);
+  };
+
+  it('keeps the picked option checked and every control disabled, with a decorative spinner in Send', async () => {
+    await sending();
+    expect(chip('Acme GmbH')).toHaveAttribute('aria-checked', 'true');
+    expect(chip('Acme Corp')).toHaveAttribute('aria-checked', 'false');
+    for (const r of screen.getAllByRole('radio')) expectOff(r);
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByRole('textbox')).toHaveValue('40');
     expectOff(send());
-    expectOff(chip('Acme Corp'));
-    expect(within(send()).getByRole('status', { hidden: true })).toBeInTheDocument();
+    const spinner = send().querySelector('.animate-spin');
+    expect(spinner).not.toBeNull();
+    expect(spinner).toHaveAttribute('aria-hidden', 'true');
+    expect(within(send()).queryByRole('status', { hidden: true })).toBeNull();
+  });
+
+  it('does not say "Not answered" while sending', async () => {
+    await sending();
+    expect(screen.queryByText('Not answered')).toBeNull();
+  });
+});
+
+describe('Send needs at least one answer (T74, R20-4)', () => {
+  const optionalForm = () => makeForm([notesQ({ questionId: 0 }), notesQ({ questionId: 1, field: 'FREE', heading: 'Anything else' })]);
+
+  it('is disabled while an all-optional form holds nothing', () => {
+    renderForm(optionalForm());
+    expectOff(send());
+  });
+
+  it('turns on after one Skip', async () => {
+    const { user } = renderForm(optionalForm());
+    await user.click(screen.getAllByRole('radio', { name: 'Skip' })[0]);
+    expectOn(send());
+  });
+
+  it('turns on after one answer', async () => {
+    const { user } = renderForm(optionalForm());
+    await user.type(screen.getAllByRole('textbox')[0], 'Net 30');
+    expectOn(send());
+  });
+});
+
+describe('every input has an accessible name (T74, R20-7)', () => {
+  const open = () =>
+    makeForm([
+      notesQ({ questionId: 0, heading: 'Notes' }),
+      notesQ({ questionId: 1, field: 'FREE', heading: 'Anything else' }),
+      priceQ({ questionId: 2, field: 'ISSUE_DATE', input: 'DATE', heading: 'Issue date', lineIndex: null, prompt: null }),
+    ]);
+
+  it('names the NOTES and FREE textareas by their heading', () => {
+    renderForm(open());
+    const [notes, free] = screen.getAllByRole('textbox');
+    expect(notes).toHaveAccessibleName(/Notes/);
+    expect(free).toHaveAccessibleName(/Anything else/);
+  });
+
+  it('includes the heading in the DATE trigger name', () => {
+    renderForm(open());
+    expect(screen.getByRole('button', { name: /Issue date/ })).toBeInTheDocument();
+  });
+
+  it('has no axe label violation with NOTES, FREE and DATE open', async () => {
+    const { container } = render(<QuestionForm form={open()} isLatest pending={false} onSend={vi.fn()} />);
+    const results = await axe.run(container, { runOnly: ['label', 'button-name', 'aria-input-field-name'] });
+    expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' | ')}`)).toEqual([]);
+  });
+});
+
+describe('unit suffix (T74, R20-13)', () => {
+  const unitForm = (currency: string | null) =>
+    makeForm(
+      [
+        priceQ({ questionId: 0, field: 'PRICE', input: 'AMOUNT', heading: 'Price' }),
+        priceQ({ questionId: 1, field: 'DISCOUNT', input: 'DISCOUNT', heading: 'Discount' }),
+        priceQ({ questionId: 2, field: 'TAX_RATE', input: 'RATE', heading: 'Tax' }),
+      ],
+      { currency } as Partial<FormView>
+    );
+
+  it('shows the invoice currency after PRICE and DISCOUNT inputs and % after the tax rate', () => {
+    renderForm(unitForm('USD'));
+    const field = (name: string) => screen.getByRole('textbox', { name }).parentElement as HTMLElement;
+    expect(within(field('Price')).getByText('USD')).toBeInTheDocument();
+    expect(within(field('Discount')).getByText('USD')).toBeInTheDocument();
+    expect(within(field('Tax')).getByText('%')).toBeInTheDocument();
+    expect(within(field('Tax')).queryByText('USD')).toBeNull();
+  });
+
+  it('shows no currency when it is unknown, but keeps % for the tax rate', () => {
+    renderForm(unitForm(null));
+    expect(screen.queryByText('USD')).toBeNull();
+    expect(screen.getByText('%')).toBeInTheDocument();
+    const price = screen.getByRole('textbox', { name: 'Price' }).parentElement as HTMLElement;
+    expect(price.querySelector('span')).toBeNull();
   });
 });
 

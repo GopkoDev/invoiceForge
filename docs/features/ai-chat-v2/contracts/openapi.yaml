@@ -412,7 +412,7 @@ components:
           oneOf: [{ $ref: "#/components/schemas/RecordId" }, { type: "null" }]
         message:
           $ref: "#/components/schemas/ChatUserMessage"
-          description: Parent shape. With `choice`, the text should be the pressed label (shown optimistically) and is ignored by the server, which saves the stored label.
+          description: Parent shape. With `choice`, the text should be the pressed label (shown optimistically) and is ignored by the server, which saves the stored label. For a `form` request the text is not bounded to 1..2000 (the server ignores it and composes the saved text); it is capped at 8000 characters only (T74).
         form: { $ref: "#/components/schemas/ChatForm" }
         origin: { $ref: "#/components/schemas/RequestMessageOrigin" }
         startedFrom: { $ref: "#/components/schemas/ConversationStartPoint" }
@@ -892,6 +892,7 @@ components:
       properties:
         formId: { $ref: "#/components/schemas/RecordId" }
         state: { $ref: "#/components/schemas/ChoiceOfferState" }
+        currency: { type: [string, "null"], description: "The invoice currency the form's stored request resolved to (ISO code), null when unknown. The unit suffix of the PRICE and DISCOUNT inputs (T74)." }
         questions:
           type: array
           minItems: 1

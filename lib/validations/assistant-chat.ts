@@ -88,7 +88,8 @@ export const chatRequestSchema = z
             z
               .object({
                 type: z.literal('text'),
-                text: z.string().trim().min(1).max(2000),
+                // Bounded below for a typed message; a form's text is ignored and composed by the server (T74, R20-4).
+                text: z.string().trim(),
               })
               .strict()
           )
@@ -102,7 +103,22 @@ export const chatRequestSchema = z
   .strict()
   // Field combinations (openapi ChatRequest): each violation is keyed by its field.
   .superRefine((v, ctx) => {
-    const issue = (field: string, message: string) => ctx.addIssue({ code: 'custom', path: [field], message });
+    const issueAt = (path: Array<string | number>, message: string) => ctx.addIssue({ code: 'custom', path, message });
+    const issue = (field: string, message: string) => issueAt([field], message);
+    // A typed message is 1..2000 characters; a form's text is ignored by the server, so it is not bounded (T74, R20-4).
+    // The codes stay zod's own (too_small / too_big): the route words the 2,000 limit from the code.
+    const text = v.message.parts[0]?.text ?? '';
+    const textPath = ['message', 'parts', 0, 'text'];
+    if (!v.form && v.message.parts.length === 1 && text.length < 1) {
+      ctx.addIssue({ code: 'too_small', type: 'string', minimum: 1, inclusive: true, path: textPath, message: 'Too small: expected at least 1 character.' });
+    }
+    if (!v.form && v.message.parts.length === 1 && text.length > 2000) {
+      ctx.addIssue({ code: 'too_big', type: 'string', maximum: 2000, inclusive: true, path: textPath, message: 'Too big: expected at most 2000 characters.' });
+    }
+    // A form's text is ignored (composed server-side) but still bounded so a request cannot be arbitrarily large.
+    if (v.form && text.length > 8000) {
+      ctx.addIssue({ code: 'too_big', type: 'string', maximum: 8000, inclusive: true, path: textPath, message: 'Too big: expected at most 8000 characters.' });
+    }
     if (v.form && v.conversationId === null) issue('form', FORM_NEEDS_CONVERSATION);
     if (v.form && v.origin !== undefined) issue('origin', FORM_WITH_ORIGIN);
     if (v.conversationId !== null) {

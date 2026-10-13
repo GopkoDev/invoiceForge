@@ -9,7 +9,7 @@ files_hint: ["components/ai/question-form.tsx", "components/ai/chat-island.tsx",
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T74 — QuestionForm: show the sending state, name every input, show the currency unit, and never drop a form 400 silently (review R20-4, R20-6, R20-7, R20-13)

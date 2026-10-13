@@ -589,6 +589,41 @@ describe('ChatIsland - refused form sends', () => {
     expect(within(theForm()).queryByText('Sent')).toBeNull();
   });
 
+  it('T74 (R20-4): a 400 with no form.answers.<n> key still shows the VALIDATION failure, not silence', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(400, {
+        success: false,
+        code: 'VALIDATION',
+        error: 'Check the answers.',
+        fieldErrors: { 'message.parts.0.text': ['Too small'], form: ['Something is off.'] },
+      })
+    );
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await user.click(formSend());
+    expect(await screen.findByText('Check the answers.')).toBeTruthy();
+    expect(document.querySelectorAll('[data-role="user"]')).toHaveLength(1);
+    expect(chipIn('Acme GmbH')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('T74 (R20-6): while the form request is in flight the form is shown as sent: picks checked, all disabled, Send spinner, no "Not answered"', async () => {
+    const stream = openStream();
+    fetchMock.mockResolvedValueOnce(stream.response);
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await user.click(formSend());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(chipIn('Acme GmbH')).toHaveAttribute('aria-checked', 'true');
+    expect(chipIn('Wise ••••7710 · USD')).toHaveAttribute('aria-checked', 'true');
+    within(theForm()).getAllByRole('radio').forEach((b) => expectOff(b));
+    expect(within(theForm()).queryByText('Not answered')).toBeNull();
+    expect(formSend().querySelector('.animate-spin')).not.toBeNull();
+    expect(within(formSend()).queryByRole('status', { hidden: true })).toBeNull();
+    stream.end();
+  });
+
   it('AC-11: 429 removes the sent message, shows the used-up notice, keeps the picks, marks nothing', async () => {
     fetchMock.mockResolvedValueOnce(
       json(429, {

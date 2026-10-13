@@ -76,6 +76,8 @@ export type FormView = {
   state: ChoiceOfferState;
   questions: FormQuestionView[];
   answers: FormAnswer[] | null;
+  /** The invoice currency the form's request resolved to (ISO code), null when unknown (T74, R20-13). */
+  currency?: string | null;
 };
 
 export type ConversationMessageView = {

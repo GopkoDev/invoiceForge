@@ -132,6 +132,7 @@ async function readForms(actor: ActingFreelancer, conversationId: string): Promi
       options: true,
       questions: true,
       answers: true,
+      request: true,
     },
   });
   const forms: Record<string, FormView> = {};

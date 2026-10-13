@@ -46,7 +46,7 @@ describe('ai-chat-v2 shared result and assistant types (T04)', () => {
 
   it('FormView sent to the browser carries only optionId + label per option: no record reference, no stored request', () => {
     expectTypeOf<FormQuestionView['options'][number]>().toEqualTypeOf<{ optionId: number; label: string }>();
-    expectTypeOf<keyof FormView>().toEqualTypeOf<'formId' | 'state' | 'questions' | 'answers'>();
+    expectTypeOf<keyof FormView>().toEqualTypeOf<'formId' | 'state' | 'questions' | 'answers' | 'currency'>();
     const view: FormView = {
       formId: 'form-1',
       state: 'OPEN',

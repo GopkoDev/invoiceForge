@@ -40,7 +40,6 @@ export function QuestionForm({
   form,
   isLatest,
   pending,
-  invoiceCurrency,
   onSend,
   fieldErrors,
 }: {
@@ -48,7 +47,6 @@ export function QuestionForm({
   form: FormView | undefined;
   isLatest: boolean;
   pending: boolean;
-  invoiceCurrency?: string;
   onSend: (formId: string, answers: FormAnswer[], composedText: string) => void;
   /** A server 400's field errors, keyed `form.answers.<questionId>`. */
   fieldErrors?: Record<string, string[]>;
@@ -62,7 +60,8 @@ export function QuestionForm({
 
   const questions = [...form.questions].sort((a, b) => a.questionId - b.questionId);
   const answered = form.state === 'CHOSEN';
-  const editable = form.state === 'OPEN' && isLatest;
+  // While the sent form's request is in flight the island marks it no longer latest; it still shows as the sent form (SCR-04 sending).
+  const editable = form.state === 'OPEN' && (isLatest || pending);
   const locked = pending;
 
   const answerOf = (questionId: number) => form.answers?.find((a) => a.questionId === questionId);
@@ -80,7 +79,8 @@ export function QuestionForm({
   // The counter is over the required questions; a form with none counts all its (optional) questions instead.
   const counted = requiredCount > 0 ? questions.filter((q) => q.required) : questions;
   const answeredCount = counted.filter(isValid).length;
-  const ready = questions.every((q) => (q.required ? isValid(q) : !picks[q.questionId] || isValid(q)));
+  // An all-optional form needs at least one answer (or Skip) before it can be sent.
+  const ready = held.length > 0 && questions.every((q) => (q.required ? isValid(q) : !picks[q.questionId] || isValid(q)));
   const sendDisabled = locked || !ready;
 
   const setPick = (questionId: number, pick: Pick | undefined) =>
@@ -129,6 +129,7 @@ export function QuestionForm({
         const error = editable ? errorFor(q) : null;
         const errorId = `${uid}-err-${qid}`;
         const inputId = `${uid}-in-${qid}`;
+        const headingId = `${uid}-h-${qid}`;
         const textValue = pick?.kind === 'text' ? pick.text : '';
         const interactive = editable && !locked;
 
@@ -204,11 +205,12 @@ export function QuestionForm({
           },
         };
         const decimal = q.input === 'AMOUNT' || q.input === 'RATE' || q.input === 'DISCOUNT';
-        const suffix = q.input === 'RATE' ? '%' : q.input === 'AMOUNT' || q.input === 'DISCOUNT' ? invoiceCurrency : undefined;
+        const suffix =
+          q.input === 'RATE' ? '%' : q.field === 'PRICE' || q.input === 'DISCOUNT' ? (form.currency ?? undefined) : undefined;
 
         return (
           <div key={qid} data-slot="question" className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            <div id={headingId} className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {q.heading}
               {q.skippable ? ' · Optional' : ''}
             </div>
@@ -256,6 +258,7 @@ export function QuestionForm({
                   <Popover>
                     <PopoverTrigger
                       id={inputId}
+                      aria-labelledby={`${headingId} ${inputId}`}
                       disabled={locked}
                       aria-invalid={error ? true : undefined}
                       aria-describedby={error ? errorId : undefined}
@@ -284,6 +287,7 @@ export function QuestionForm({
                 ) : TEXTAREA_FIELDS.has(q.field) ? (
                   <Textarea
                     {...inputProps}
+                    aria-labelledby={headingId}
                     rows={2}
                     onChange={(e) => onTextChange(e.target.value)}
                   />
@@ -327,7 +331,7 @@ export function QuestionForm({
             title={ready ? undefined : 'Answer the required questions first'}
             onClick={send}
           >
-            {pending ? <Spinner aria-hidden role="status" /> : null}
+            {pending ? <Spinner aria-hidden role={undefined} aria-label={undefined} /> : null}
             Send
             <ArrowUpIcon aria-hidden data-icon="inline-end" />
           </Button>

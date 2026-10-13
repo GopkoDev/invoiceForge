@@ -607,11 +607,12 @@ function ChatSession({
           }
           if (sent?.form) {
             // The server's per-question errors show under the questions; the picks stay.
-            setFormErrors({
-              formId: sent.form.formId,
-              errors: error.body?.fieldErrors ?? {},
-            });
-            return;
+            const errors = error.body?.fieldErrors ?? {};
+            // A 400 with no per-question key would show nothing: fall back to the failure alert (T74, R20-4).
+            if (Object.keys(errors).some((k) => k.startsWith('form.answers.'))) {
+              setFormErrors({ formId: sent.form.formId, errors });
+              return;
+            }
           }
           setFailure({ kind: 'VALIDATION', message: error.message });
           return;
