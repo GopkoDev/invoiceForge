@@ -90,3 +90,12 @@ describe('issuesAnswer: long lists after the first issue, and the directive', ()
     expect(answer).not.toHaveProperty('say');
   });
 });
+
+// Review 2026-10-13 R12-2: a capped product list counts all its matches, not the 50 it lists.
+describe('withoutLongLists: a capped product list', () => {
+  it('counts the total, not the 50 listed', () => {
+    const product = (i: number) => ({ productId: `p${i}`, name: { freelancerText: `Audit ${i}` }, unit: 'h', price: '1.00', currency: 'USD' });
+    const issues = [{ kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: many(50, product), total: 60 }] as unknown as DraftIssue[];
+    expect(withoutLongLists(issues).counts).toEqual([60]);
+  });
+});

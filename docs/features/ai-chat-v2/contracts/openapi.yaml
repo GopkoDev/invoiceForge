@@ -585,7 +585,8 @@ components:
         - `CUSTOMER_AMBIGUOUS` / `CUSTOMER_NEAR_MISS` `.candidates[]` → CustomerCandidate (+ `email`);
         - `SEVERAL_ACCOUNTS_IN_CURRENCY` / `BANK_ACCOUNT_NOT_FOUND` / `BANK_ACCOUNT_AMBIGUOUS` `.accounts[]`
           → BankAccountCandidate (+ `bankName`, `lastFour`, `currency`);
-        - `PRODUCT_AMBIGUOUS` `.candidates[]` → ProductCandidate (+ `unit`, `price`, `currency`);
+        - `PRODUCT_AMBIGUOUS` `.candidates[]` → ProductCandidate (+ `unit`, `price`, `currency`), at most 50, plus an optional
+          `total` (integer) when more products match, so the reply states the real count (review 2026-10-13 R12-2);
         - `SENDER_PROFILE_NOT_FOUND` → + `profiles[]` (SenderProfileRef) beside the existing `options` names;
         - `CUSTOMER_NOT_FOUND` → + optional `ownSenderProfile` (OwnSenderProfileHint), set only when the folded
           written name equals the folded name of one of the acting Freelancer's sender profiles (tasks-stage

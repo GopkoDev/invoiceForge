@@ -329,6 +329,17 @@ describe.runIf(containerRuntimeAvailable)('resolver request and candidate delta 
   });
 
   describe('product candidates carry unit, price and currency', () => {
+    // Review 2026-10-13 R12-2: above the 50 listed, the issue carries how many products match in all.
+    it('PRODUCT_AMBIGUOUS with 60 matches lists 50 and carries total 60; 50 or fewer carry no total', async () => {
+      const { user, actor } = await setup();
+      for (let n = 0; n < 60; n++) {
+        await createProduct(prisma, user.id, { name: `Audit ${String(n).padStart(2, '0')}`, unit: 'h', price: 10, currency: 'USD' });
+      }
+      const issues = await issuesOf(resolve(actor, { currency: 'USD', lines: [{ description: 'audit', quantity: '1' }] }));
+      expect(issues[0]).toMatchObject({ kind: 'PRODUCT_AMBIGUOUS', total: 60 });
+      expect(issues[0].candidates).toHaveLength(50);
+    });
+
     it('PRODUCT_AMBIGUOUS: Product.price, and the Custom price for the Customer when one is agreed', async () => {
       const { user, actor, acme } = await setup();
       const basic = await createProduct(prisma, user.id, { name: 'Consulting basic', unit: 'hours', price: 50, currency: 'USD' });

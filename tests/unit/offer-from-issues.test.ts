@@ -174,6 +174,18 @@ describe('offerFromIssues', () => {
     it('9 options: TOO_MANY 9', () => {
       expect(offerFromIssues([manyCustomers(9)], ctx)).toEqual({ kind: 'TOO_MANY', count: 9 });
     });
+    // Review 2026-10-13 R12-2: product candidates are capped at 50; the count is the real number of matches.
+    it('60 matching products (50 listed, total 60): TOO_MANY 60', () => {
+      const products = Array.from({ length: 50 }, (_, i) => ({
+        productId: `p${i}`,
+        name: { freelancerText: `Audit ${i}` },
+        unit: 'h',
+        price: '1.00',
+        currency: 'USD' as const,
+      }));
+      const issue = { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'audit', candidates: products, total: 60 } as DraftIssue;
+      expect(offerFromIssues([issue], ctx)).toEqual({ kind: 'TOO_MANY', count: 60 });
+    });
   });
 
   describe('other kinds', () => {

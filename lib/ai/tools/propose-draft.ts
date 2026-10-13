@@ -117,7 +117,8 @@ export function withoutLongLists(issues: DraftIssue[]): { issues: DraftIssue[]; 
     let count: number | null = null;
     let next: DraftIssue = issue;
     if ('candidates' in issue && issue.candidates.length > MAX_LISTED) {
-      count = issue.candidates.length;
+      // A capped product list counts all its matches (R12-2).
+      count = ('total' in issue && issue.total) || issue.candidates.length;
       next = { ...issue, candidates: [] } as DraftIssue;
     } else if ('accounts' in issue && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
       count = issue.accounts.length;

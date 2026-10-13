@@ -69,6 +69,8 @@ function resolveOne(
         lineIndex: index,
         written: line.description,
         // ai-chat-v2 (DraftIssueDelta ProductCandidate): unit, the rate this line would get, and its currency.
+        // The list is capped at 50; the count of all matches goes with it, so the reply says the real number (R12-2).
+        ...(sameCurrency.length > 50 ? { total: sameCurrency.length } : {}),
         candidates: sameCurrency.slice(0, 50).map((p) => ({
           productId: p.id,
           name: { freelancerText: p.name },

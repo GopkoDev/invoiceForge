@@ -229,6 +229,8 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     lineIndex,
     written: z.string(),
     candidates: productCandidates,
+    // ai-chat-v2 review 2026-10-13 R12-2: how many products match in all, when more than the 50 listed.
+    total: z.number().int().positive().optional(),
   }),
   z.object({ kind: z.literal('PRODUCT_NOT_FOUND'), lineIndex, written: z.string() }),
   z.object({ kind: z.literal('FIELD_INVALID'), field: z.string(), message: z.string() }),

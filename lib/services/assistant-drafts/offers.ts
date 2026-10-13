@@ -54,7 +54,13 @@ export type OfferFromIssues =
   | { kind: 'TOO_MANY'; count: number }
   | { kind: 'NONE' };
 
-type Found = { offerKind: ChoiceOfferKind; lineIndex: number | null; options: Array<Omit<StoredOfferOption, 'optionId'>> };
+type Found = {
+  offerKind: ChoiceOfferKind;
+  lineIndex: number | null;
+  options: Array<Omit<StoredOfferOption, 'optionId'>>;
+  /** All matches when the issue's list is capped (products, R12-2). */
+  total?: number;
+};
 type Profile = { senderProfileId: string; name: { freelancerText: string } };
 
 const isCurrency = (code: string): code is Currency => (CURRENCIES as readonly string[]).includes(code);
@@ -106,6 +112,7 @@ function optionsOf(issue: DraftIssue): Found | null {
       return {
         offerKind: 'PRODUCT',
         lineIndex: issue.lineIndex,
+        total: issue.total,
         options: issue.candidates.map((p) => ({
           label: `${p.name.freelancerText} · ${p.unit} · ${p.price} ${p.currency}`,
           ref: { productId: p.productId },
@@ -133,7 +140,8 @@ export function offerFromIssues(
   for (const kind of PRECEDENCE) {
     const first = found.find((f) => f.offerKind === kind);
     if (!first) continue;
-    if (first.options.length > MAX_OFFER_OPTIONS) return { kind: 'TOO_MANY', count: first.options.length };
+    const count = first.total ?? first.options.length;
+    if (count > MAX_OFFER_OPTIONS) return { kind: 'TOO_MANY', count };
     return {
       kind: 'OFFER',
       offerKind: first.offerKind,
