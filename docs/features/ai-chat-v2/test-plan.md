@@ -158,7 +158,7 @@ The second iteration of the in-app AI chat adds three read questions shared by t
 - A press that carries free text in the message part → expected: the text is ignored and the saved message is the stored label (contract and integration).
 - A press for an offer from another Conversation of the same Freelancer → expected: the uniform "no longer available" refusal.
 - A press while a turn in the same Conversation is still running → expected: serialized by the Conversation lock. At most one claim succeeds.
-- A pressed turn that fails at the provider or runs out of steps → expected: the slot is released and the offer goes back to open with no chosen option, so nothing is marked (fault-injection integration test).
+- A pressed turn that fails at the provider (COULD_NOT_COMPLETE / AI_UNAVAILABLE) → expected: the slot is released and the offer goes back to open with no chosen option, so nothing is marked (fault-injection integration test). A pressed turn that runs out of steps is PARTIAL and counts (ai-assistant D2): its offer stays CHOSEN (review 2026-10-13 R13-3).
 - A typed message whose turn fails → expected: the open offer stays open. A failed turn closes nothing.
 - A pressed product that was archived, or no longer has a price in the invoice currency → expected: the uniform refusal, not counted.
 - A pressed sender profile that was deleted → expected: the uniform refusal, not counted.
