@@ -410,12 +410,19 @@ describe('ConversationList - empty', () => {
 });
 
 describe('AI loading (SCR-01 loading)', () => {
-  it('renders the full-height grid with a search skeleton, two group headings and six row skeletons', () => {
+  // ai-chat-v2 T67 (AC-51; supersedes T35): the list lives in the layout (T66); this boundary is the start pane only.
+  it('renders the centred greeting and composer placeholders and no list skeleton', () => {
     const { container } = render(<AiLoading />);
-    expect(
-      container.querySelectorAll('[data-slot="skeleton"]').length
-    ).toBeGreaterThanOrEqual(9);
-    expect(container.firstElementChild?.className).toMatch(/h-full/);
+    const all = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-slot="skeleton"]')
+    );
+    expect(all.length).toBeGreaterThanOrEqual(3);
+    expect(all.filter((s) => /(^|\s)h-9(\s|$)/.test(s.className))).toHaveLength(
+      0
+    );
+    expect(container.firstElementChild?.className).not.toMatch(
+      /16rem|grid-cols/
+    );
   });
 });
 

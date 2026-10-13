@@ -96,9 +96,9 @@ export function ConversationList({
       <h2 className="sr-only">Conversations</h2>
       <div
         data-slot="conversation-list-top"
-        className="flex shrink-0 items-center gap-1 border-b p-2"
+        className="flex h-12 shrink-0 items-center gap-1 border-b px-2"
       >
-        <InputGroup className="border-transparent shadow-none dark:bg-transparent">
+        <InputGroup className="h-8 border-transparent shadow-none dark:bg-transparent">
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
@@ -128,6 +128,7 @@ export function ConversationList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  className="size-8"
                   aria-label="Conversation actions"
                 >
                   <MoreHorizontal className="size-4" />

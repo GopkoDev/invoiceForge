@@ -78,7 +78,7 @@ export function Composer({
 
   return (
     <div data-slot="composer">
-      <PromptInput onSubmit={send}>
+      <PromptInput onSubmit={send} cardClassName="min-h-[7.25rem]">
         <PromptInputBody>
           <PromptInputTextarea
             ref={boxRef}

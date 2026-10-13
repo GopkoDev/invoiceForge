@@ -94,18 +94,20 @@ export function MessageAvatar({
   ...props
 }: MessageAvatarProps) {
   return (
-    <Avatar
-      data-slot="message-avatar"
-      size="sm"
-      aria-hidden
-      className={cn('mt-0.5', className)}
-      {...props}
-    >
-      {src ? <AvatarImage src={src} alt={name ?? ''} /> : null}
-      <AvatarFallback className="bg-primary text-primary-foreground">
-        {fallback ?? <SparklesIcon className="size-3.5" />}
-      </AvatarFallback>
-    </Avatar>
+    <div className="flex h-6 shrink-0 items-center">
+      <Avatar
+        data-slot="message-avatar"
+        size="sm"
+        aria-hidden
+        className={className}
+        {...props}
+      >
+        {src ? <AvatarImage src={src} alt={name ?? ''} /> : null}
+        <AvatarFallback className="bg-primary text-primary-foreground">
+          {fallback ?? <SparklesIcon className="size-3.5" />}
+        </AvatarFallback>
+      </Avatar>
+    </div>
   );
 }
 
@@ -263,7 +265,7 @@ export function MessageResponse({
     <div
       data-slot="message-response"
       className={cn(
-        'space-y-2 break-words [&>:first-child]:mt-0 [&>:last-child]:mb-0',
+        'space-y-2 leading-6 break-words [&>:first-child]:mt-0 [&>:last-child]:mb-0',
         className
       )}
       {...props}

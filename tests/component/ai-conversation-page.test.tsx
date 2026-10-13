@@ -406,24 +406,18 @@ describe('Conversation loading (SCR-03 loading)', () => {
     ).toBeGreaterThanOrEqual(4);
   });
 
-  // Review R16-1 / T42: the boundary every Conversation switch shows draws the same workspace container as /ai.
-  it('draws the bordered 16rem workspace container, the plain list rows, the h-12 header and the centred column', () => {
+  // ai-chat-v2 T67 (AC-51; supersedes Review R16-1 / T42): T66 keeps the list in the layout, so this boundary draws
+  // only the chat pane (no workspace container, no list rows): the h-12 header and the centred column.
+  it('draws only the chat pane: the h-12 header, the centred column, no list skeleton', () => {
     const { container } = render(<ConversationLoading />);
     const root = container.firstElementChild as HTMLElement;
-    expect(root.className).toMatch(/md:grid-cols-\[16rem_minmax\(0,1fr\)\]/);
-    expect(root.className).toMatch(/md:rounded-xl/);
-    expect(root.className).toMatch(/md:border(\s|$)/);
-    expect(root.className).toMatch(/bg-background/);
-    expect(root.className).not.toMatch(/18rem/);
+    expect(root.className).not.toMatch(/16rem|grid-cols/);
     const skeletons = Array.from(
       container.querySelectorAll<HTMLElement>('[data-slot="skeleton"]')
     );
-    expect(skeletons.some((s) => /(^|\s)h-14(\s|$)/.test(s.className))).toBe(
-      false
-    );
     expect(
       skeletons.filter((s) => /(^|\s)h-9(\s|$)/.test(s.className)).length
-    ).toBeGreaterThanOrEqual(6);
+    ).toBe(0);
     expect(container.querySelector('.h-12.border-b')).not.toBeNull();
     expect(container.querySelector('.max-w-3xl')).not.toBeNull();
     expect(skeletons.some((s) => /rounded-2xl/.test(s.className))).toBe(true);
