@@ -452,7 +452,6 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
         protectedRoutes.ai,
         `${protectedRoutes.ai}?start=draft&from=dashboard`,
         `${protectedRoutes.ai}/${FAKE_ID}?preview=${FAKE_ID}`,
-        `${protectedRoutes.ai}?handoff=${FAKE_ID}`,
         protectedRoutes.dashboard,
       ]) {
         const response = await context.get(`${APP_E2E_URL}${page}`);

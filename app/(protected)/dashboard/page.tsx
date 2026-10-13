@@ -12,7 +12,6 @@ import {
   DashboardExpectedPaymentsSkeleton,
   DashboardSenderAccountsSkeleton,
   DashboardRecentInvoicesSkeleton,
-  DashboardAiBlockSkeleton,
 } from '@/components/dashboard';
 import {
   StatsSection,
@@ -21,7 +20,6 @@ import {
   ExpectedPaymentsSection,
   SenderAccountsSection,
   RecentInvoicesSection,
-  AiBlockSection,
 } from './_sections';
 import {
   getDashboardCurrencyTabs,
@@ -129,11 +127,6 @@ export default async function DashboardPage({
         showOverdueRuleNotice={showOverdueRuleNotice}
         showConnectAiEntry={showConnectAiEntry}
       />
-
-      {/* ai-chat-v2 T26 (SCR-09): the AI block in its own Suspense, after the banners and before the stats. */}
-      <Suspense fallback={<DashboardAiBlockSkeleton />}>
-        <AiBlockSection />
-      </Suspense>
 
       <Suspense
         key={`stats-${currencyKey}-${rangeKey}`}

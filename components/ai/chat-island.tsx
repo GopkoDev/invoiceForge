@@ -17,7 +17,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react';
 
 import {
@@ -33,12 +32,6 @@ import {
   MessageAvatar,
   MessageContent,
 } from '@/components/ai-elements/message';
-import {
-  HANDOFF_PARAM,
-  hasHandoff,
-  subscribeHandoffs,
-  takeHandoff,
-} from '@/components/ai/ai-handoff';
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
 import { ConversationListButton } from '@/components/ai/ai-workspace';
@@ -98,11 +91,8 @@ type ChatMessage = UIMessage<
 /** A sent Question form (ADR-0011): the form id and the structured answers, never a record id. */
 type SentForm = { formId: string; answers: FormAnswer[] };
 
-/** A dashboard prompt's first message (ADR-0009): origin DASHBOARD with startedFrom DASHBOARD_PROMPT. */
-type Origin = 'DASHBOARD';
-
 /** What the island sent last: the optimistic message id, its text and, for a form, the form with its answers. */
-type Pending = { id: string; text: string; form?: SentForm; origin?: Origin };
+type Pending = { id: string; text: string; form?: SentForm };
 
 type Failure =
   | {
@@ -110,7 +100,6 @@ type Failure =
       userMessageId: string;
       text: string;
       form?: SentForm;
-      origin?: Origin;
     }
   | { kind: 'GONE' }
   | { kind: 'VALIDATION'; message: string }
@@ -239,21 +228,14 @@ function createLiveSession(
       const savedId = live.getConversationId();
       const sent = live.getPending();
       const form = sent?.form;
-      // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
-      const dashboard =
-        !form && savedId === null && sent?.origin === 'DASHBOARD';
       return {
         body: {
           conversationId: savedId,
           message: messages[messages.length - 1],
           // openapi ChatRequest: a form carries its answers and never an origin or a start point.
           ...(form ? { form } : {}),
-          ...(dashboard
-            ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }
-            : {}),
           // openapi ChatRequest: the start point goes with a new Conversation's first message only.
           ...(!form &&
-          !dashboard &&
           savedId === null &&
           startedFrom !== 'AI_SECTION'
             ? { startedFrom }
@@ -383,8 +365,6 @@ interface ChatIslandProps {
   start?: 'draft';
   /** ai-chat-v2 T20: where a new Conversation was opened from; sent with its first message only (AI_SECTION is omitted). */
   startedFrom?: ConversationStartPoint;
-  /** ai-chat-v2 T26: `/ai?handoff={id}`, the dashboard prompt's one-time sessionStorage entry (ADR-0009). */
-  handoffId?: string;
   /** ai-chat-v2 T37: the start screen's greeting line 1, computed by the /ai page on the server. */
   greeting?: string;
 }
@@ -443,7 +423,6 @@ function ChatSession({
   allowance: initialAllowance,
   start,
   startedFrom = 'AI_SECTION',
-  handoffId,
   greeting,
   liveAt = null,
 }: ChatIslandProps & {
@@ -555,7 +534,6 @@ function ChatSession({
             userMessageId: sent.id,
             text: sent.text,
             form: sent.form,
-            origin: sent.origin,
           });
         }
       }
@@ -629,7 +607,6 @@ function ChatSession({
           userMessageId: sent.id,
           text: sent.text,
           form: sent.form,
-          origin: sent.origin,
         });
     },
     onFinish: () => {
@@ -714,7 +691,7 @@ function ChatSession({
   const follow = useFollowLatest(messages);
   const { jumpToLatest } = follow;
 
-  function send(raw: string, form?: SentForm, origin?: Origin) {
+  function send(raw: string, form?: SentForm) {
     // A failed reply stays discarded whatever comes next (parent SCR-02): its message and partial text go before the
     // new message is added, as Try again does (review 2026-10-13 R7-4).
     if (failure && 'userMessageId' in failure) {
@@ -725,14 +702,12 @@ function ChatSession({
       });
     }
     const id = generateId();
-    live.setPending({ id, text: raw, form, origin });
+    live.setPending({ id, text: raw, form });
     setReplyDone(false);
     setFailure(null);
     setFormErrors(null);
     if (!form) setFormEpoch((n) => n + 1);
-    // A dashboard prompt opens straight into the Conversation layout: nothing moved, so nothing animates.
-    if (origin === 'DASHBOARD') setComposerMove('none');
-    else if (!started && conversationId === null) {
+    if (!started && conversationId === null) {
       const from = startRef.current
         ?.querySelector('[data-slot="composer"]')
         ?.getBoundingClientRect();
@@ -755,41 +730,13 @@ function ChatSession({
       const index = current.findIndex((m) => m.id === failed.userMessageId);
       return index === -1 ? current : current.slice(0, index);
     });
-    send(failed.text, failed.form, failed.origin);
+    send(failed.text, failed.form);
   }
 
   // SCR-04: Send on a Question form posts its answers with the composed text as the optimistic message.
   function sendForm(formId: string, answers: FormAnswer[], composed: string) {
     send(composed, { formId, answers });
   }
-
-  // ai-chat-v2 T26 (ADR-0009; SCR-02 "handoff"): take the dashboard prompt once, drop ?handoff= from the address and
-  // send it; a missing, taken or blocked entry falls back to the plain start screen with nothing sent.
-  // While the entry waits (and on the server, which cannot see it) the start screen is not shown.
-  const awaitingHandoff = useSyncExternalStore(
-    subscribeHandoffs,
-    () =>
-      Boolean(handoffId) && conversationId === null && hasHandoff(handoffId!),
-    () => Boolean(handoffId) && conversationId === null
-  );
-  const handoffTaken = useRef(false);
-  // The hand-off effect reads the latest send without re-running when it changes.
-  const sendRef = useRef<typeof send | null>(null);
-  useLayoutEffect(() => {
-    sendRef.current = send;
-  });
-  useEffect(() => {
-    if (!handoffId || conversationId !== null || handoffTaken.current) return;
-    handoffTaken.current = true;
-    const url = new URL(window.location.href);
-    if (url.searchParams.has(HANDOFF_PARAM)) {
-      url.searchParams.delete(HANDOFF_PARAM);
-      replaceAddress(`${url.pathname}${url.search}${url.hash}`);
-    }
-    const prompt = takeHandoff(handoffId);
-    if (prompt !== null && prompt.trim())
-      sendRef.current?.(prompt.trim(), undefined, 'DASHBOARD');
-  }, [handoffId, conversationId]);
 
   // FLIP: start the docked composer where the centred one was, then let the transition carry it to the bottom.
   useLayoutEffect(() => {
@@ -811,7 +758,7 @@ function ChatSession({
     dock.style.transform = '';
   }, [started, composerMove]);
 
-  if (conversationId === null && !started && !awaitingHandoff) {
+  if (conversationId === null && !started) {
     return (
       <div
         ref={startRef}

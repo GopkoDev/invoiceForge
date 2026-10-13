@@ -6,7 +6,6 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 import type { PrismaClient } from '@prisma/client';
 import { createTestPrismaClient } from '../support/db/client';
-import { createConversation } from '../support/factories/conversation';
 import { APP_E2E_URL, SNAPSHOT_PLATFORM, readE2eRuntime } from './support/app-server';
 import { openSignedInFreelancer } from './support/signed-in';
 import { listRow, notesField, openEditor, openInvoiceList } from './support/invoice-ui';
@@ -388,94 +387,15 @@ test('AC-28: the navigation "AI" group holds AI chat and Connect your AI; each o
   }
 });
 
-test('AC-29: a dashboard prompt opens a new Conversation with the message already sent, without the start screen, counted once', async ({
+test('AC-30: Create invoice with AI on the dashboard opens a drafting Conversation', async ({
   browser,
 }, testInfo) => {
-  testInfo.setTimeout(240_000);
-  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-dashboard-prompt', {
+  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-dashboard-create', {
     seed: { timeZone: 'UTC' },
     context: { timezoneId: 'UTC', viewport: DESKTOP },
   });
   try {
-    const { page, workspace } = f;
-    // Records whether the empty-state start screen is ever attached on the way to the Conversation.
-    await page.addInitScript(() => {
-      const w = window as unknown as { __sawStart?: boolean };
-      new MutationObserver(() => {
-        if (document.querySelector('[data-slot="start-panel"]')) w.__sawStart = true;
-      }).observe(document, { childList: true, subtree: true });
-    });
-    await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-    const block = page.locator('[data-slot="dashboard-ai-block"]');
-    await block.getByRole('textbox', { name: 'Message to AI' }).fill('who owes me money?');
-    await block.getByRole('button', { name: 'Send to AI' }).click();
-
-    await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
-    await expect(page.locator('[data-role="user"]')).toHaveText(['who owes me money?']);
-    await expect(page.locator('[data-role="assistant"]')).toHaveCount(1);
-    expect(await page.evaluate(() => (window as unknown as { __sawStart?: boolean }).__sawStart ?? false)).toBe(false);
-    expect(page.url()).not.toContain('handoff');
-
-    await withDb(async (prisma) => {
-      const conversations = await prisma.conversation.findMany({
-        where: { userId: workspace.userId },
-        include: { messages: { where: { role: 'USER' } } },
-      });
-      expect(conversations).toHaveLength(1);
-      expect(conversations[0].startedFrom).toBe('DASHBOARD_PROMPT');
-      expect(conversations[0].messages.map((m) => m.origin)).toEqual(['DASHBOARD']);
-      const days = await prisma.messageAllowanceDay.findMany({ where: { userId: workspace.userId } });
-      expect(days.reduce((n, d) => n + d.used, 0)).toBe(1);
-    });
-
-    // Back to the dashboard and forward again: the hand-off is not sent a second time.
-    await page.goBack();
-    await page.goForward();
-    await expect(page.locator('[data-role="user"]')).toHaveCount(1);
-    expect(await withDb((prisma) => prisma.conversation.count({ where: { userId: workspace.userId } }))).toBe(1);
-  } finally {
-    await f.context.close();
-  }
-});
-
-test('AC-30: the dashboard lists the three latest Conversations, links to all, and Create invoice with AI opens a drafting Conversation', async ({
-  browser,
-}, testInfo) => {
-  testInfo.setTimeout(240_000);
-  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-dashboard-latest', {
-    seed: { timeZone: 'UTC' },
-    context: { timezoneId: 'UTC', viewport: DESKTOP },
-  });
-  try {
-    const { page, workspace } = f;
-    await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-    const block = page.locator('[data-slot="dashboard-ai-block"]');
-    await expect(block.getByText('No conversations yet. Your chats with AI will show here.')).toBeVisible();
-
-    const ids = await withDb(async (prisma) => {
-      const out: string[] = [];
-      for (let i = 1; i <= 5; i++) {
-        const c = await createConversation(prisma, {
-          userId: workspace.userId,
-          title: `Conversation ${i}`,
-          lastMessageAt: new Date(Date.now() - (6 - i) * 3600_000),
-          messages: [{ role: 'USER', text: `Question ${i}` }, { role: 'ASSISTANT', text: `Answer ${i}` }],
-        });
-        out.push(c.id);
-      }
-      return out;
-    });
-
-    await page.reload();
-    const recent = block.getByRole('list', { name: 'Recent conversations' });
-    await expect(recent.getByRole('link')).toHaveCount(3);
-    await expect(recent.getByRole('link')).toContainText(['Conversation 5', 'Conversation 4', 'Conversation 3']);
-    await expect(block.getByRole('link', { name: 'All conversations →' })).toHaveAttribute('href', protectedRoutes.ai);
-
-    await recent.getByRole('link', { name: /Conversation 4/ }).click();
-    await expect(page).toHaveURL(new RegExp(`/ai/${ids[3]}$`));
-    await expect(page.locator('[data-role="user"]')).toHaveText(['Question 4']);
-
+    const { page } = f;
     await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
     await page.getByRole('link', { name: 'Create invoice with AI' }).click();
     await expect(page).toHaveURL(/\/ai\?start=draft&from=dashboard$/);
@@ -502,8 +422,8 @@ test('AC-35: a Visitor reads the privacy page AI section without signing in', as
   }
 });
 
-test.describe('visual baselines: SCR-06 preview at 1440 x 900, SCR-09 dashboard AI block', () => {
-  test('SCR-06 and SCR-09', async ({ browser }, testInfo) => {
+test.describe('visual baselines: SCR-06 preview at 1440 x 900', () => {
+  test('SCR-06', async ({ browser }, testInfo) => {
     test.skip(SNAPSHOT_PLATFORM !== 'linux', 'Baselines are Linux-only (CI image); see tests/e2e/README.md');
     testInfo.setTimeout(240_000);
     const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-visual-preview', {
@@ -535,12 +455,6 @@ test.describe('visual baselines: SCR-06 preview at 1440 x 900, SCR-09 dashboard 
       }, invoiceNumber);
       await expect(page).toHaveScreenshot('ai-v2-preview-panel.png', { ...shot, mask: volatile() });
 
-      await page.setViewportSize(DESKTOP);
-      await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-      const block = page.locator('[data-slot="dashboard-ai-block"]');
-      await expect(block.getByRole('list', { name: 'Recent conversations' })).toBeVisible();
-      await page.waitForLoadState('networkidle');
-      await expect(block).toHaveScreenshot('ai-v2-dashboard-ai-block.png', { ...shot, mask: volatile() });
     } finally {
       await f.context.close();
     }

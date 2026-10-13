@@ -261,9 +261,8 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
         await page.getByRole('dialog', { name: /^Issue invoice / }).getByRole('button', { name: 'Cancel' }).click();
 
         await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-        await expect(page.locator('[data-slot="dashboard-ai-block"]').getByRole('list', { name: 'Recent conversations' })).toBeVisible();
         await page.waitForLoadState('networkidle');
-        await expectNoSeriousViolations(page, testInfo, `dashboard AI block (${vp.name})`);
+        await expectNoSeriousViolations(page, testInfo, `dashboard (${vp.name})`);
       } finally {
         await f.context.close();
       }

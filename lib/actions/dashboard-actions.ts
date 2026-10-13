@@ -15,8 +15,6 @@ import {
 } from '@/lib/services/dashboard/dashboard';
 import { ok, type ActionResult } from '@/types/result';
 import type { CurrencyTab } from '@/types/dashboard';
-import type { AllowanceState } from '@/lib/validations/assistant-chat';
-import type { ConversationSummary } from '@/types/assistant/types';
 
 // T19 (service-layer; public-api.md §2.7 + §3): thin wrappers. Session actor first (UNAUTHORIZED is
 // returned and no business function runs), then the layer function, result returned untouched.
@@ -116,26 +114,4 @@ export async function getConnectAiEntryState(): Promise<ActionResult<{ showConne
   const used = await hasUsedAnyPersonalKey(actor.data);
   if (!used.success) return used;
   return ok({ showConnectAiEntry: !used.data });
-}
-
-/**
- * ai-chat-v2 T26 (screens.md §SCR-09; AC-30, AC-32): the dashboard AI block's read - today's allowance and the
- * latest three Conversations, owner-scoped. Read-only: it never creates a Conversation or counts a message.
- */
-export async function getDashboardAiBlock(): Promise<
-  ActionResult<{ allowance: AllowanceState; latest: ConversationSummary[]; timeZone: string }>
-> {
-  const actor = await actingFreelancerFromSession();
-  if (!actor.success) return actor;
-  const [{ getAllowanceState }, { listLatestConversations }] = await Promise.all([
-    import('@/lib/services/assistant-usage'),
-    import('@/lib/services/conversations'),
-  ]);
-  const [allowance, latest] = await Promise.all([
-    getAllowanceState(actor.data),
-    listLatestConversations(actor.data),
-  ]);
-  if (!allowance.success) return allowance;
-  if (!latest.success) return latest;
-  return ok({ allowance: allowance.data, latest: latest.data, timeZone: actor.data.timeZone });
 }

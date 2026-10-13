@@ -24,4 +24,3 @@ export { DashboardDebtorsSkeleton } from './skeletons/dashboard-debtors-skeleton
 export { DashboardExpectedPaymentsSkeleton } from './skeletons/dashboard-expected-payments-skeleton';
 export { DashboardSenderAccountsSkeleton } from './skeletons/dashboard-sender-accounts-skeleton';
 export { DashboardRecentInvoicesSkeleton } from './skeletons/dashboard-recent-invoices-skeleton';
-export { DashboardAiBlockSkeleton } from './skeletons/dashboard-ai-block-skeleton';

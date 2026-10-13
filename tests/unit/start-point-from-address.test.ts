@@ -17,7 +17,7 @@ describe('startPointFromAddress', () => {
     expect(startPointFromAddress(params as Record<string, string | string[] | undefined>)).toEqual(expected);
   });
 
-  it('never yields DASHBOARD_PROMPT (that start point belongs to the dashboard hand-off only)', () => {
+  it('never yields DASHBOARD_PROMPT (the dashboard prompt that used it was removed; the value stays readable in history)', () => {
     for (const from of ['prompt', 'dashboard_prompt', 'DASHBOARD_PROMPT']) {
       expect(startPointFromAddress({ start: 'draft', from }).startedFrom).not.toBe('DASHBOARD_PROMPT');
     }
