@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useApplyInvoiceState, useInvoiceState } from '@/components/ai/invoice-state-context';
+import {
+  useApplyCardInvoiceState,
+  useCardInvoiceState,
+  useRegisterCardInvoice,
+} from '@/components/ai/invoice-state-context';
 import { closePreview, openPreview, PREVIEW_PARAM } from '@/components/ai/preview-address';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -151,8 +155,9 @@ function AmountRow({ label, value, currency }: { label: string; value: string; c
  * the card. A draft or an issued invoice offers "Open in editor →" and "Preview" (?preview={cardId}, ADR-0005).
  */
 function CreatedLine({ cardId, invoice: cardInvoice }: { cardId: string; invoice: LinkedInvoiceState }) {
-  const stored = useInvoiceState(cardInvoice.state === 'UNAVAILABLE' ? null : cardInvoice.invoiceId);
-  const invoice = stored ?? cardInvoice;
+  const knownId = cardInvoice.state === 'UNAVAILABLE' ? null : cardInvoice.invoiceId;
+  useRegisterCardInvoice(cardId, knownId);
+  const invoice = useCardInvoiceState(cardId, knownId) ?? cardInvoice;
   const previewOpen = useSearchParams()?.get(PREVIEW_PARAM) === cardId;
   if (invoice.state === 'UNAVAILABLE') {
     return <p className="text-muted-foreground text-sm">This draft is no longer available.</p>;
@@ -196,7 +201,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
   const [view, setView] = useState<View>(() => initialView(card, cards));
   const [pending, setPending] = useState(false);
   const firing = useRef(false);
-  const applyInvoiceState = useApplyInvoiceState();
+  const applyCardInvoiceState = useApplyCardInvoiceState();
   const { proposal } = card;
   const customer = proposal.customer.name.freelancerText;
   const summary = `Draft invoice · ${customer} · ${money(proposal.total)} ${proposal.currency}`;
@@ -221,12 +226,12 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
             invoiceId: data.invoiceId,
             invoiceNumber: data.invoiceNumber,
           };
-          applyInvoiceState(data.invoiceId, invoice);
+          applyCardInvoiceState(card.id, invoice);
           setView({ kind: 'created', invoice });
           break;
         }
         case 'ALREADY_CREATED':
-          if (data.invoice.state !== 'UNAVAILABLE') applyInvoiceState(data.invoice.invoiceId, data.invoice);
+          applyCardInvoiceState(card.id, data.invoice);
           setView({ kind: 'created', invoice: data.invoice });
           break;
         case 'REPLACED':
