@@ -29,7 +29,7 @@ export function ConversationHeader({
   return (
     <div
       data-slot="chat-header"
-      className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-2 md:px-4"
+      className="@container/chat-header flex h-12 shrink-0 items-center justify-between gap-2 border-b px-2 md:px-4"
     >
       <div className="flex min-w-0 items-center gap-1">
         <ConversationListButton />
@@ -43,8 +43,9 @@ export function ConversationHeader({
           className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
         >
           <PlusIcon data-icon="inline-start" />
-          {/* Icon-only on a phone so the title keeps its room; the name stays for screen readers. */}
-          <span className="sr-only sm:not-sr-only">New conversation</span>
+          {/* Icon-only in a narrow pane (a phone, or beside the preview) so the title keeps its room; the name stays
+              for screen readers. */}
+          <span className="sr-only @lg/chat-header:not-sr-only">New conversation</span>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger

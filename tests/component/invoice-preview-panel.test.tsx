@@ -240,6 +240,19 @@ describe('InvoicePreviewPanel - loading and draft (AC-20)', () => {
     await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
+  // ai-chat-v2 T38 (ADR-0010, SCR-06): the column variant is the workspace's right-most pane: no own outer border,
+  // shadow or radius (the workspace column draws the one dividing border) and an h-12 header like the chat header.
+  it('column: no own outer border, shadow or radius, and an h-12 header', async () => {
+    loadInvoicePreview.mockResolvedValue(available());
+    render(<InvoicePreviewPanel cardId="card1" />);
+    await screen.findByRole('heading', { name: 'INV-0043' });
+    const region = panel();
+    expect(region.className).not.toMatch(
+      /(^|\s)(border|border-l|shadow\S*|rounded\S*)(\s|$)/
+    );
+    expect(region.querySelector('header')).toHaveClass('h-12', 'border-b');
+  });
+
   it('issued: the status badge, the document and only "Open in editor"', async () => {
     loadInvoicePreview.mockResolvedValue(
       available({ status: 'PENDING' }, 4, ISSUED)
@@ -425,19 +438,17 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
   });
 
   it('AC-26b: CHANGED_ELSEWHERE reloads the current draft with the warning; the next confirmation names the current figures', async () => {
-    loadInvoicePreview
-      .mockResolvedValueOnce(available())
-      .mockResolvedValueOnce(
-        available(
-          {
-            total: 1200,
-            customerName: 'Acme GmbH',
-            customer: { id: 'cust2', name: 'Acme GmbH' },
-            currency: 'EUR',
-          },
-          7
-        )
-      );
+    loadInvoicePreview.mockResolvedValueOnce(available()).mockResolvedValueOnce(
+      available(
+        {
+          total: 1200,
+          customerName: 'Acme GmbH',
+          customer: { id: 'cust2', name: 'Acme GmbH' },
+          currency: 'EUR',
+        },
+        7
+      )
+    );
     issueFromPreview
       .mockResolvedValueOnce(
         fail('CONFLICT', CHANGED, {

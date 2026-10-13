@@ -15,6 +15,7 @@ import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
@@ -26,6 +27,9 @@ import type { DraftCardView, LinkedInvoiceState } from '@/types/assistant/types'
 import type { InvoiceStatus } from '@/types/invoice/types';
 
 type CardResult = Extract<Awaited<ReturnType<typeof createDraftFromCard>>, { success: true }>['data'];
+/** ai-chat-v2 T38 (ADR-0010, SCR-05): full column width, rounded-xl in the workspace container's border colour. */
+const CARD_FRAME = 'w-full rounded-xl shadow-none ring-border';
+
 type DraftIssue = Extract<CardResult, { kind: 'NEEDS_ANSWERS' }>['issues'][number];
 
 type View =
@@ -260,7 +264,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
     const badge = view.kind === 'replaced' ? 'Replaced' : view.kind === 'gone' ? null : 'Outdated';
     return (
       <>
-        <Card id={`draft-card-${card.id}`} className="opacity-70">
+        <Card id={`draft-card-${card.id}`} className={cn(CARD_FRAME, 'opacity-70')}>
           <CardContent className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">{summary}</p>
@@ -314,7 +318,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
   const defaults = defaultsList(proposal.defaultsUsed);
 
   return (
-    <Card id={`draft-card-${card.id}`}>
+    <Card id={`draft-card-${card.id}`} className={CARD_FRAME}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium">Draft invoice</p>

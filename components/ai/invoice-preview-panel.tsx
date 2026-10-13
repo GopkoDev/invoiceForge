@@ -201,7 +201,9 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
     <section
       aria-labelledby={headingId}
       data-slot="invoice-preview-panel"
-      className={cn('bg-background flex min-h-0 min-w-0 flex-1 flex-col', !sheet && 'border-l')}
+      // ai-chat-v2 T38 (SCR-06): the column is the workspace's right-most pane, whose one dividing border the workspace
+      // column draws; the panel has no outer border, shadow or radius of its own.
+      className="bg-background flex min-h-0 min-w-0 flex-1 flex-col"
       onKeyDown={
         sheet
           ? undefined
@@ -210,7 +212,7 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
             }
       }
     >
-      <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
         <h2 id={headingId} ref={headingRef} tabIndex={-1} className="truncate text-base font-semibold outline-none">
           {title}
         </h2>

@@ -105,6 +105,22 @@ const offer = (over: Partial<OfferView> = {}): OfferView => ({
 describe('OfferedChoices (SCR-04)', () => {
   afterEach(() => cleanup());
 
+  // ai-chat-v2 T38 (ADR-0010, SCR-04): choices are rounded-full chips, the same shape as the Suggestion chips.
+  it('renders each option as a rounded-full outline chip in a wrapping row', () => {
+    render(
+      <OfferedChoices
+        offer={offer()}
+        isLatest
+        pendingOptionId={null}
+        onPress={vi.fn()}
+      />
+    );
+    const group = screen.getByRole('group', { name: 'Choose a Customer' });
+    expect(group).toHaveClass('flex-wrap');
+    for (const b of within(group).getAllByRole('button'))
+      expect(b).toHaveClass('rounded-full');
+  });
+
   it('labels loading: a skeleton row and no group until the OfferView arrives', () => {
     const { container } = render(
       <OfferedChoices
@@ -418,6 +434,18 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
       'Acme GmbH',
     ]);
     buttons.forEach((b) => expectOn(b));
+    // ai-chat-v2 T38: the group sits inside the reply's content column, after its text, not under the avatar.
+    const content = group().closest(
+      '[data-slot="message-content"]'
+    ) as HTMLElement;
+    expect(content).not.toBeNull();
+    expect(content.closest('[data-role="assistant"]')).not.toBeNull();
+    const text = content.querySelector(
+      '[data-slot="message-response"]'
+    ) as HTMLElement;
+    expect(
+      text.compareDocumentPosition(group()) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('a press sends { conversationId, message: label, choice } with no origin and no startedFrom', async () => {

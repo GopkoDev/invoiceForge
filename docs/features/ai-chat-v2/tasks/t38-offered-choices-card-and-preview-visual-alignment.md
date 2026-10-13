@@ -9,7 +9,7 @@ files_hint: ["components/ai/offered-choices.tsx", "components/ai/draft-card.tsx"
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;

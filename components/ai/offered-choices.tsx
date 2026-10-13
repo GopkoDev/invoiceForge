@@ -73,7 +73,8 @@ export function OfferedChoices({
             focusableWhenDisabled
             // Nothing is natively disabled, so the hover look is cancelled by hand while disabled (R2-U4).
             className={cn(
-              'max-w-full data-disabled:cursor-default',
+              // ai-chat-v2 T38 (ADR-0010): a chip, the same shape as the start screen's Suggestion chips.
+              'max-w-full rounded-full px-3 data-disabled:cursor-default',
               chosen
                 ? 'border-border data-disabled:hover:bg-secondary'
                 : 'data-disabled:opacity-50 data-disabled:hover:bg-background dark:data-disabled:hover:bg-input/30'
