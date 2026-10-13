@@ -5,7 +5,7 @@
  * Modified: rebuilt on @base-ui/react; see ADR-0010
  * (docs/features/ai-chat-v2/adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md).
  * Deviations: MessageResponse renders safe Markdown via react-markdown + remark-gfm (no streamdown, no raw HTML, no
- * images, links only to in-app paths; ai-chat-v2 T62, ADR-0012, supersedes ai-assistant AC-07); Message sets `data-role`; MessageAvatar comes from the earlier upstream API; MessageAction is a
+ * images, no headings or checkboxes, links only to in-app paths; ai-chat-v2 T62, ADR-0012, supersedes ai-assistant AC-07); Message sets `data-role`; MessageAvatar comes from the earlier upstream API; MessageAction is a
  * labelled ghost button (Base UI Tooltip via `render`, no asChild); no branch selector or toolbar.
  */
 'use client';
@@ -153,12 +153,6 @@ const ALLOWED_ELEMENTS = [
   'pre',
   'blockquote',
   'hr',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
   'ul',
   'ol',
   'li',
@@ -169,7 +163,6 @@ const ALLOWED_ELEMENTS = [
   'tr',
   'th',
   'td',
-  'input',
 ] as const;
 
 const REMARK_PLUGINS = [remarkGfm, remarkHtmlAsText];
@@ -215,18 +208,13 @@ const COMPONENTS: Components = {
       {children}
     </pre>
   ),
+  p: ({ children }) => <p className="whitespace-pre-line">{children}</p>,
   ul: ({ children }) => (
     <ul className="list-disc space-y-1 pl-5">{children}</ul>
   ),
   ol: ({ children }) => (
     <ol className="list-decimal space-y-1 pl-5">{children}</ol>
   ),
-  h1: ({ children }) => <h1 className="text-lg font-semibold">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-base font-semibold">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-sm font-semibold">{children}</h3>,
-  h4: ({ children }) => <h4 className="text-sm font-semibold">{children}</h4>,
-  h5: ({ children }) => <h5 className="text-sm font-semibold">{children}</h5>,
-  h6: ({ children }) => <h6 className="text-sm font-semibold">{children}</h6>,
   blockquote: ({ children }) => (
     <blockquote className="border-border text-muted-foreground border-l-2 pl-3">
       {children}
@@ -250,7 +238,8 @@ const COMPONENTS: Components = {
 };
 
 /**
- * A reply's text as safe Markdown (ai-chat-v2 AC-42..44, ADR-0012): no raw HTML (shown as text), no images, and a link
+ * A reply's text as safe Markdown (ai-chat-v2 AC-42..44, ADR-0012): no raw HTML (shown as text), no images, no headings
+ * or checkboxes (their text stays), a single newline in a paragraph shows as a break, and a link
  * only when its address is an in-app path; every other link shows its label as plain text. A half-written mark is
  * shown as typed until it closes, and a streamed reply renders exactly like the saved one.
  */

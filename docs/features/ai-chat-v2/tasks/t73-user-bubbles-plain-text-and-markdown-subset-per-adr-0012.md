@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/message.tsx", "components/ai/message-list.t
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T73 — Render Freelancer messages as plain pre-wrapped text, keep single line breaks in replies, trim the Markdown subset to ADR-0012 and fix stale plain-text docs (review R20-2, R20-8, R20-10)

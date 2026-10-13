@@ -241,9 +241,14 @@ test('AC-37: a typed "Other…" answer, a typed price and a skip go in one Send;
     await expect(formSend(page)).toBeEnabled();
     await formSend(page).click();
 
-    await expect(userBubbles(page).last()).toHaveText(
-      /Customer: Acme GmbH\s+Line 1 · Price: 62\.5\s+PO number: Skipped/
-    );
+    const sentLines = await userBubbles(page)
+      .last()
+      .evaluate((el) => (el as HTMLElement).innerText.split('\n'));
+    expect(sentLines).toEqual([
+      'Customer: Acme GmbH',
+      'Line 1 · Price: 62.5',
+      'PO number: Skipped',
+    ]);
     await expect(page.getByRole('button', { name: 'Create draft' })).toBeVisible();
     await expect(allowanceText(page)).toHaveText('29 of 30 messages left today');
     await withDb(async (prisma) => {

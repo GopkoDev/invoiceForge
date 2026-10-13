@@ -20,7 +20,7 @@ function html(text: string, streaming = false) {
 }
 
 describe('Markdown formatting (AC-42)', () => {
-  it('renders a bulleted list, numbered list, bold, italic, strike, headings', () => {
+  it('renders a bulleted list, numbered list, bold, italic, strike; headings stay plain text (ADR-0012)', () => {
     const { container } = html(
       '# Title\n\n- one\n- two\n\n1. a\n2. b\n\n**bold** *it* ~~gone~~'
     );
@@ -29,7 +29,8 @@ describe('Markdown formatting (AC-42)', () => {
     expect(container.querySelector('strong')).toHaveTextContent('bold');
     expect(container.querySelector('em')).toHaveTextContent('it');
     expect(container.querySelector('del')).toHaveTextContent('gone');
-    expect(container.querySelector('h1')).toHaveTextContent('Title');
+    expect(container.querySelector('h1, h2, h3, h4, h5, h6')).toBeNull();
+    expect(container.textContent).toContain('Title');
   });
 
   it('renders a GFM table with bold totals', () => {
@@ -174,5 +175,34 @@ describe('streaming safety (AC-44)', () => {
       expect(container.querySelector('a[href^="http"]')).toBeNull();
       unmount();
     }).not.toThrow();
+  });
+});
+
+describe('T73: Freelancer messages are plain text, replies keep soft breaks and the ADR-0012 subset', () => {
+  it('keeps a single newline inside a reply paragraph visible', () => {
+    const { container } = html('first line\nsecond line');
+    const p = container.querySelector('p')!;
+    expect(p.textContent).toContain('first line');
+    expect(p.textContent).toContain('second line');
+    const visible =
+      p.classList.contains('whitespace-pre-line') ||
+      p.classList.contains('whitespace-pre-wrap') ||
+      p.querySelector('br') !== null;
+    expect(visible, 'p has pre-line/pre-wrap or contains a br').toBe(true);
+  });
+
+  it.each(['# Title', '## Sub', '###### Six'])(
+    'renders reply %j without a heading, keeping its text',
+    (t) => {
+      const { container } = html(t);
+      expect(container.querySelector('h1, h2, h3, h4, h5, h6')).toBeNull();
+      expect(container.textContent).toContain(t.replace(/^#+\s*/, ''));
+    }
+  );
+
+  it('renders a reply task-list item without an input, keeping its text', () => {
+    const { container } = html('- [ ] x');
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.textContent).toContain('x');
   });
 });

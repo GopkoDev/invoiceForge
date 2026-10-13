@@ -210,7 +210,61 @@ describe('MessageList - SCR-02 default', () => {
     expect(hrefs.some((h) => h?.includes('evil.example'))).toBe(false);
     const textEl = screen.getByText(/Two Customers owe you money\./);
     expect(textEl.textContent).toContain('\n');
+    // T73: the break is visible, not only present in the text node.
+    const p = textEl.closest('p') ?? textEl;
+    expect(
+      p.classList.contains('whitespace-pre-line') ||
+        p.classList.contains('whitespace-pre-wrap') ||
+        p.querySelector('br') !== null
+    ).toBe(true);
   });
+
+  // T73 (R20-2, F5): a sent form's composed lines stay on separate lines in the Freelancer bubble.
+  it('renders a sent form bubble as plain pre-wrapped text with one line per answer (AC-08)', () => {
+    const composed = 'Customer: Acme GmbH\nLine 1 · Price: 40';
+    const msgs: ConversationMessageView[] = [
+      {
+        id: 'f1',
+        role: 'user',
+        origin: 'FORM',
+        parts: [{ type: 'text', text: composed }],
+        createdAt: '2026-10-10T09:00:00.000Z',
+      },
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} invoiceLinks={{}} />
+    );
+    const row = container.querySelector('[data-role="user"]')!;
+    const el = row.querySelector('.whitespace-pre-wrap');
+    expect(el, 'an element with whitespace-pre-wrap').not.toBeNull();
+    expect(el!.textContent).toBe(composed);
+    expect(el!.textContent!.split('\n')).toEqual([
+      'Customer: Acme GmbH',
+      'Line 1 · Price: 40',
+    ]);
+  });
+
+  it.each(['# 5 hours', '1. foo', '- item', '**x**'])(
+    'shows %j typed by the Freelancer as literal text (no heading, list or mark) (AC-08)',
+    (t) => {
+      const msgs: ConversationMessageView[] = [
+        {
+          id: 'u1',
+          role: 'user',
+          origin: 'TYPED',
+          parts: [{ type: 'text', text: t }],
+          createdAt: '2026-10-10T09:00:00.000Z',
+        },
+      ];
+      const { container } = render(
+        <MessageList messages={msgs} invoiceLinks={{}} />
+      );
+      expect(
+        container.querySelector('h1, h2, h3, h4, h5, h6, ol, ul, li, strong')
+      ).toBeNull();
+      expect(container.querySelector('[data-role="user"]')!.textContent).toContain(t);
+    }
+  );
 
   it('renders Markdown written by the model but never its HTML or an outside link (AC-42, AC-43)', () => {
     const msgs: ConversationMessageView[] = [

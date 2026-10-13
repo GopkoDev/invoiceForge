@@ -22,11 +22,12 @@ interface MessageListProps {
 
 /**
  * The messages of a Conversation, composed from the chat elements (ai-chat-v2 T36, ADR-0010): a Freelancer message is
- * a right-aligned secondary bubble; a reply is the avatar and plain text, followed by its links, Question forms and
+ * a right-aligned secondary bubble; a reply is the avatar and safe Markdown, followed by its links, Question forms and
  * Draft cards in part order inside the same content column.
  *
- * Message text is always plain text with line breaks kept: never Markdown, HTML or an anchor (AC-07). Links come only
- * from data-link parts; cards from data-draft-card parts.
+ * A Freelancer's text is always plain text with line breaks kept (never parsed as Markdown, HTML or an anchor); a
+ * reply's text is safe Markdown (ADR-0012). Model-written links render only for in-app paths; cards come from
+ * data-draft-card parts.
  */
 export function MessageList({
   messages,
@@ -42,7 +43,16 @@ export function MessageList({
           <MessageContent>
             {m.parts.map((part, i) => {
               if (part.type === 'text') {
-                return <MessageResponse key={i}>{part.text}</MessageResponse>;
+                return m.role === 'user' ? (
+                  <p
+                    key={i}
+                    className="leading-6 break-words whitespace-pre-wrap"
+                  >
+                    {part.text}
+                  </p>
+                ) : (
+                  <MessageResponse key={i}>{part.text}</MessageResponse>
+                );
               }
               if (part.type === 'data-link') {
                 const state =
