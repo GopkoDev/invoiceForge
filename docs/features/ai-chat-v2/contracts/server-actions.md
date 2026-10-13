@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ---
 
@@ -228,3 +228,26 @@ conversations: Array</* parent */ & {
 ## Read questions — `lib/assistant-tools/` (shared registry; openapi.yaml `x-mcp-tools`)
 
 `sender-profiles.ts` ★ (`list_sender_profiles`), `products.ts` ★ (`list_products`) and `customers.ts` ✎ (`list_customers`) are registered by both MCP and the chat (`lib/ai/tools/read-tools.ts`). Their services: `listSenderProfilesForAssistant(actor, input)` ★ and `listProductsForAssistant(actor, input)` ★ in the owning domains; `listCustomersForAssistant` ✎ folds the name and caps the page at 20. Each returns `ActionResult` and is wrapped in its `inOutcomeSpan` (`assistant-tools.<name>`). A contract test walks every read question's output against a fixture with known full account numbers (spec §6 "Bank account exposure").
+
+## Revision 2026-10-13 (owner feedback; ADR-0011, ADR-0013)
+
+- **Types ✎.** `MessageOrigin` adds `'FORM'` (`PRESSED` is read-only history). `OfferView` is superseded by `FormView` (openapi.yaml `FormView`): `{ formId, state, questions: FormQuestionView[], answers: FormAnswer[] | null }`; a pre-revision offer row reads as a one-question `FormView` (data-model 08). `ConversationMessageView.parts` keeps `{ type: 'data-offer'; data: { offerId } }`, now resolved to a `FormView`.
+- **`getConversation(actor, id)` ✎ / `loadConversationCards(id)` ✎** return `forms: Record<string, FormView>` instead of `offers`. Sent answers (typed text included) are part of the view, so a reopened form shows them read-only (AC-12, AC-13).
+- **`ActionErrorDetails` ✎.** `CHOICE_UNAVAILABLE` is unchanged as a kind; its sentence on `/api/chat` becomes "This form is no longer available. Answer the latest questions or type your request." (one sentence for every cause, AC-12b). Typed-answer format errors are `VALIDATION` with `fieldErrors['form.answers.<questionId>']`, the sentence per kind from the screens manifest.
+- **Chat route internals ✎ (`lib/services/assistant-drafts/forms.ts` ★, `form-pin.ts` ★):**
+
+```ts
+formFromIssues(issues: DraftIssue[], ctx: { invoiceCurrency: Currency | null; today: string; timeZone: string }): FormQuestionDraft[]; // every issue → a question; > 8 candidates → input-only + matchCount
+checkAskUser(actor, input: AskUserInput, ctx): Promise<{ ok: true; questions: FormQuestionDraft[]; draft: DraftRequestPartial | null } | { ok: false; error: 'OPTIONS_UNAVAILABLE' }>;
+composeForm(resolver: FormQuestionDraft[], chat: FormQuestionDraft[], fallback: boolean): StoredFormQuestion[]; // ≤ 6, spec F1 order, dedupe by field+lineIndex
+checkForm(actor, input: { conversationId: string; form: ChatForm }):
+  Promise<{ ok: true; form: { id: string; request: DraftRequestPartial | null; questions: StoredFormQuestion[] }; answers: ResolvedAnswer[] }
+        | { ok: false; kind: 'UNAVAILABLE' } | { ok: false; kind: 'INVALID'; fieldErrors: Record<string, string[]> }>;
+claimForm(actor, formId: string, answers: FormAnswer[], tx): Promise<boolean>; // OPEN → CHOSEN, with the allowance slot
+releaseForm(actor, formId: string): Promise<void>;                             // CHOSEN → OPEN (or CLOSED), answers cleared
+composeAnswerMessage(questions: StoredFormQuestion[], answers: ResolvedAnswer[]): string; // "heading: answer" lines
+pinAnswers(request: DraftRequestPartial, answers: ResolvedAnswer[]): DraftRequestPartial;  // ids for picks, names for "Other…", dates, values, skips
+```
+
+- **`search_invoices` ✎** (`lib/services/invoices/assistant-search.ts`): `createdFrom`, `createdTo`, `sort`; rows add `createdAt` (local day) and `path` (`protectedRoutes.invoiceEdit(id)`). Same owner scope, both channels.
+- **Conversation list (ADR-0013) — client contract, no server action change.** `ConversationListProvider` (client) is seeded by `ai/layout.tsx` with `listConversationSummaries(actor)` and updated by `conversationCreated(summary)`, `conversationTouched(id, lastMessageAt, title?)`, `conversationRenamed(id, title)`, `conversationsDeleted(ids)`. The existing delete and rename actions keep their results; their callers raise the events. No action revalidates the `/ai` layout.

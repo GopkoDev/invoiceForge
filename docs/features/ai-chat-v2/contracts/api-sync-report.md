@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ---
 
@@ -258,3 +258,27 @@ Result: 1 core ✗ (point 3), resolved in the contract with an upstream OQ, plus
 - 15 "unused" schemas, referenced only from `x-mcp-tools`, `x-chunk-schema`, `x-extends` and server-actions.md (as in the parent contracts).
 
 The `$ref`s into `../../ai-assistant/` and `../../mcp-server/` resolve.
+
+## Reconcile 2026-10-13 (owner feedback; ADR-0011–0013)
+
+Inputs re-read: spec §1 F1–F13 and AC-08–AC-14, AC-34, AC-37–AC-53; data-model "Revision 2026-10-13" (06–08); sad.md §5 "Revision 2026-10-13", Critical flows 4–5, Flow 12. `info.version` 0.2.0 → 0.3.0 (breaking within the unshipped feature: `choice` removed).
+
+| path | origin | confidence |
+|---|---|---|
+| ChatRequest.form.formId | ChoiceOffer.id | high |
+| FormAnswer.questionId / optionId | ChoiceOffer.questions[].questionId / options[].optionId (positions, frozen) | high |
+| FormAnswer.text | spec F6 per-kind checks; draftRequestSchema amountInput / localDate / lengths | high |
+| FormAnswer.skipped | spec F4 optional fields | high |
+| StoredFormQuestion.* | data-model ChoiceOffer.questions (zod-owned shape) | high |
+| FormView.answers | ChoiceOffer.answers | high |
+| MessageOrigin.FORM | data-model 06 | high |
+| AskUserInput.* | ADR-0011 + spec F2–F4 (6 questions, 8 ids, prompt 140) | high |
+| SearchInvoicesInputDelta.createdFrom/To, sort | Invoice.createdAt (existing column) + spec F12 | high |
+| SearchInvoicesRowDelta.path | config/routes.config.ts invoiceEdit | high |
+| 409 sentence | spec F7 (verbatim) | high |
+
+**Drift checklist.** Endpoint ↔ model ✓ (no new endpoint; `/api/chat` request field maps to the row). Error codes ↔ repo ✓ (`CONFLICT` + `CHOICE_UNAVAILABLE`, `VALIDATION` exist in `types/result.ts`). Validation ↔ constraints ✓ (6 questions, 8 options, lengths). OpenAPI ↔ sequences ✓: Critical flow 4 branches (unavailable → 409, bad format → 400, used up → 429, failure → 503 / stream outcome, valid → 200) all present.
+
+**Back-feed.** AC-42–AC-44 and AC-50–AC-53 have no contract surface (browser rendering and layout) — expected, screens own them. AC-45–AC-49 map to the turn's date note, `ask_user`, `search_invoices` delta. No sequence gap.
+
+**Stale (kept, marked):** `ChatChoice` (deprecated, removed), `OfferView` (superseded by `FormView`), the `press` example.

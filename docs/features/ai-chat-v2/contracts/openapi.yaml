@@ -26,7 +26,7 @@ openapi: 3.1.0
 
 info:
   title: Invoice Forge — AI chat v2 (Offered choices, new read questions, chat request delta)
-  version: 0.2.0
+  version: 0.3.0  # 0.3.0 (2026-10-13, owner feedback): Question form (`form` replaces `choice`), ask_user tool, search_invoices created-date filters
   contact:
     name: Dmytro Hopko
   description: |
@@ -143,6 +143,20 @@ paths:
       summary: Send one chat message — typed, pressed or from the dashboard — and stream the reply
       x-supersedes: "../../ai-assistant/contracts/openapi.yaml#/paths/~1api~1chat/post"
       description: |
+        **Revision 2026-10-13 (ADR-0011, spec §1 F1–F9a).** `choice` is **removed**; a sent Question form is
+        the `form` field (ChatForm). Check order step 4 becomes the **form check**: the form must be this
+        Freelancer's, in this Conversation, `OPEN`, hold every `questionId`/`optionId` sent, have every
+        required question answered, and every chosen record must still exist for the actor and fit its stored
+        ref → else `409 CONFLICT` + `CHOICE_UNAVAILABLE` with the sentence "This form is no longer available.
+        Answer the latest questions or type your request." for every cause. A typed answer that fails its
+        per-kind format check (spec F6) → `400 VALIDATION` with `fieldErrors` keyed `form.answers.<questionId>`;
+        neither is counted or reaches the model. A valid form claims the row (`OPEN → CHOSEN`, `answers`
+        stored) with the slot; the message text is composed by the server (one "heading: answer" line per
+        answer) and saved with origin `FORM`; `message.parts[0].text` is ignored. Answers are pinned into the
+        stored request and resolved in code when it validates; otherwise they reach the turn as a prior
+        `ask_user` step. The `data-offer` part keeps its name and now references a form (FormView). Where the
+        text below says "press", "offer" or "choice", read "sent form", "form" and "answers".
+
         The parent operation, extended. Everything the parent says still holds (one message per request,
         history loaded on the server, the four stream outcomes, only visible content saved, not idempotency-keyed).
         What changes:
@@ -190,8 +204,21 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ChatRequest" }
             examples:
+              form:
+                summary: Sending a Question form with a Customer pick and a typed price (AC-08, AC-37, AC-38)
+                value:
+                  conversationId: "clx0conv0000000000000001"
+                  message:
+                    id: "msg_client_06"
+                    role: user
+                    parts: [{ type: text, text: "Customer: Acme GmbH\nLine 1 · Price: 40" }]
+                  form:
+                    formId: "clx0offer000000000000002"
+                    answers:
+                      - { questionId: 0, optionId: 1 }
+                      - { questionId: 1, text: "40" }
               press:
-                summary: Pressing "Acme GmbH" under the latest reply (AC-08)
+                summary: (removed 2026-10-13, ADR-0011; kept for history) Pressing "Acme GmbH" under the latest reply (AC-08)
                 value:
                   conversationId: "clx0conv0000000000000001"
                   message:
@@ -290,7 +317,7 @@ paths:
               example:
                 success: false
                 code: CONFLICT
-                error: "This option is no longer available. Choose again or type your request."
+                error: "This form is no longer available. Answer the latest questions or type your request."
                 details: { kind: CHOICE_UNAVAILABLE }
         "429":
           description: The parent used-up answer, for a typed message and a valid press alike (AC-11); a press claims nothing.
@@ -386,10 +413,12 @@ components:
         message:
           $ref: "#/components/schemas/ChatUserMessage"
           description: Parent shape. With `choice`, the text should be the pressed label (shown optimistically) and is ignored by the server, which saves the stored label.
-        choice: { $ref: "#/components/schemas/ChatChoice" }
+        form: { $ref: "#/components/schemas/ChatForm" }
         origin: { $ref: "#/components/schemas/RequestMessageOrigin" }
         startedFrom: { $ref: "#/components/schemas/ConversationStartPoint" }
     ChatChoice:
+      deprecated: true
+      x-removed: "2026-10-13 (ADR-0011): replaced by ChatForm; a request carrying `choice` is a 400 VALIDATION (unknown key, strict schema)."
       description: A press (ADR-0003) — an option reference inside a stored offer, never a record id.
       type: object
       required: [offerId, optionId]
@@ -409,7 +438,7 @@ components:
     MessageOrigin:
       description: data-model `MessageOrigin` — `ConversationMessage.origin` on USER messages; null on ASSISTANT messages.
       type: string
-      enum: [TYPED, PRESSED, DASHBOARD]
+      enum: [TYPED, PRESSED, DASHBOARD, FORM]  # FORM added 2026-10-13; PRESSED no longer written
     ConversationStartPoint:
       description: data-model `ConversationStartPoint` — `Conversation.startedFrom`, set with the first message, never changed.
       type: string
@@ -766,3 +795,176 @@ components:
       properties:
         rows: { type: array, maxItems: 20, items: { $ref: "#/components/schemas/CustomerDetails" } }
         pageInfo: { $ref: "#/components/schemas/PageInfo" }
+
+    # ---------- Question form (revision 2026-10-13, ADR-0011) ----------
+    ChatForm:
+      description: |
+        A sent Question form. Combination rules (400 VALIDATION, keyed by the field): `form` requires a
+        non-null `conversationId`; `form` and `origin` are never sent together (`FORM` is set by the server).
+        At most one answer per `questionId`.
+      type: object
+      required: [formId, answers]
+      additionalProperties: false
+      properties:
+        formId: { $ref: "#/components/schemas/RecordId", description: "ChoiceOffer.id from the reply's `data-offer` part." }
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items: { $ref: "#/components/schemas/FormAnswer" }
+    FormAnswer:
+      oneOf:
+        - type: object
+          title: picked option
+          required: [questionId, optionId]
+          additionalProperties: false
+          properties:
+            questionId: { $ref: "#/components/schemas/QuestionId" }
+            optionId: { $ref: "#/components/schemas/OptionId" }
+        - type: object
+          title: typed answer ("Other…" or an input-only question)
+          required: [questionId, text]
+          additionalProperties: false
+          properties:
+            questionId: { $ref: "#/components/schemas/QuestionId" }
+            text: { type: string, minLength: 1, maxLength: 2000, description: "Checked per the question's `input` (spec F6): AMOUNT > 0, ≤ 2 decimals, ≤ 8 integer digits; RATE 0–100; DISCOUNT ≥ 0; DATE YYYY-MM-DD calendar day; TEXT length per field." }
+        - type: object
+          title: skipped optional question
+          required: [questionId, skipped]
+          additionalProperties: false
+          properties:
+            questionId: { $ref: "#/components/schemas/QuestionId" }
+            skipped: { const: true }
+    QuestionId:
+      description: The question's 0-based position in its form (frozen when the form is made).
+      type: integer
+      minimum: 0
+      maximum: 5
+    FormField:
+      description: Which draft field (or none, FREE) a question fills.
+      type: string
+      enum: [CUSTOMER, SENDER_PROFILE, BANK_ACCOUNT, PRODUCT, CURRENCY, ISSUE_DATE, DUE_DATE, QUANTITY, PRICE, TAX_RATE, DISCOUNT, PO_NUMBER, PAYMENT_TERMS, NOTES, FREE]
+    FormInput:
+      description: The typed input a question offers besides its options. NONE = options only.
+      type: string
+      enum: [NONE, TEXT, AMOUNT, RATE, DISCOUNT, DATE]
+    FormOptionRef:
+      description: What an option stands for (stored, never sent to the browser).
+      oneOf:
+        - $ref: "#/components/schemas/OfferOptionRef"
+        - { type: object, required: [date], additionalProperties: false, properties: { date: { type: string, format: date } } }
+        - { type: object, required: [daysAfterIssue], additionalProperties: false, properties: { daysAfterIssue: { enum: [7, 14, 30] } } }
+    StoredFormQuestion:
+      description: ChoiceOffer.questions[] (data-model). Labels and headings are app/server text; `prompt` is model text, plain.
+      type: object
+      required: [questionId, field, heading, options, input, required, skippable, source]
+      additionalProperties: false
+      properties:
+        questionId: { $ref: "#/components/schemas/QuestionId" }
+        field: { $ref: "#/components/schemas/FormField" }
+        lineIndex: { type: [integer, "null"], minimum: 0, maximum: 49 }
+        heading: { type: string, maxLength: 60, examples: ["Customer", "Line 1 · Price"] }
+        prompt: { type: [string, "null"], maxLength: 140 }
+        options:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            required: [optionId, label, ref]
+            additionalProperties: false
+            properties:
+              optionId: { $ref: "#/components/schemas/OptionId" }
+              label: { type: string, minLength: 1, maxLength: 600 }
+              ref: { $ref: "#/components/schemas/FormOptionRef" }
+        input: { $ref: "#/components/schemas/FormInput" }
+        required: { type: boolean }
+        skippable: { type: boolean }
+        matchCount: { type: [integer, "null"], minimum: 9, description: "Set when more than 8 records matched (input only, AC-14)." }
+        source: { enum: [RESOLVER, CHAT, FALLBACK] }
+    FormView:
+      x-supersedes: "#/components/schemas/OfferView"
+      description: What the browser gets for a form (server-actions.md). No refs, no stored request.
+      type: object
+      required: [formId, state, questions, answers]
+      additionalProperties: false
+      properties:
+        formId: { $ref: "#/components/schemas/RecordId" }
+        state: { $ref: "#/components/schemas/ChoiceOfferState" }
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            type: object
+            required: [questionId, field, heading, options, input, required, skippable]
+            additionalProperties: false
+            properties:
+              questionId: { $ref: "#/components/schemas/QuestionId" }
+              field: { $ref: "#/components/schemas/FormField" }
+              lineIndex: { type: [integer, "null"] }
+              heading: { type: string }
+              prompt: { type: [string, "null"] }
+              options:
+                type: array
+                maxItems: 8
+                items: { $ref: "#/components/schemas/OfferOptionLabel" }
+              input: { $ref: "#/components/schemas/FormInput" }
+              required: { type: boolean }
+              skippable: { type: boolean }
+              matchCount: { type: [integer, "null"] }
+        answers:
+          description: The sent answers (state CHOSEN), else null.
+          oneOf: [{ type: array, items: { $ref: "#/components/schemas/FormAnswer" } }, { type: "null" }]
+
+    # ---------- chat-only tool: ask_user (ADR-0011) ----------
+    AskUserInput:
+      description: |
+        The chat agent's `ask_user` tool (not registered on MCP). The server loads every `recordIds` entry
+        owner-scoped and by the question's kind (CUSTOMER → Customer, SENDER_PROFILE → SenderProfile,
+        BANK_ACCOUNT → a BankAccount of one of the actor's profiles, PRODUCT → Product); CURRENCY options come
+        from `currencies` (the app's Currency enum); date options are computed by the server, never sent.
+        Any failing id → the whole call answers `{ ok: false, error: OPTIONS_UNAVAILABLE }` with the same
+        words for a foreign and an unknown id; nothing is stored. At most 6 questions; a record question
+        offers at most 8 ids.
+      type: object
+      required: [questions]
+      additionalProperties: false
+      properties:
+        draft:
+          description: The partial draft request the questions complete ("draft in progress", spec F6) — DraftRequestDelta with every field optional; validated, never trusted for ids (ids are re-checked).
+          type: object
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            type: object
+            required: [field, prompt]
+            additionalProperties: false
+            properties:
+              field: { $ref: "#/components/schemas/FormField" }
+              lineIndex: { type: integer, minimum: 0, maximum: 49 }
+              prompt: { type: string, minLength: 1, maxLength: 140 }
+              recordIds: { type: array, maxItems: 8, items: { $ref: "#/components/schemas/RecordId" } }
+              currencies: { type: array, maxItems: 5, items: { $ref: "#/components/schemas/Currency" } }
+              optional: { type: boolean, description: "Only for FREE and the optional draft fields." }
+    AskUserAnswer:
+      oneOf:
+        - { type: object, required: [ok, shown], properties: { ok: { const: true }, shown: { type: integer, description: "Number of questions shown." }, say: { type: string, description: "Write at most two sentences; do not repeat the questions." } } }
+        - { type: object, required: [ok, error], properties: { ok: { const: false }, error: { const: OPTIONS_UNAVAILABLE } } }
+
+    # ---------- search_invoices delta (spec F12, AC-49) ----------
+    SearchInvoicesInputDelta:
+      x-extends: "../../mcp-server/contracts/openapi.yaml#/components/schemas/SearchInvoicesInput"
+      description: Added optional filters (both channels, compatible). Days are calendar days in the Freelancer time zone, inclusive.
+      type: object
+      properties:
+        createdFrom: { type: string, format: date }
+        createdTo: { type: string, format: date }
+        sort: { enum: [issueDate, createdAt], default: issueDate, description: "Newest first." }
+    SearchInvoicesRowDelta:
+      x-extends: "../../mcp-server/contracts/openapi.yaml#/components/schemas/SearchInvoicesRow"
+      type: object
+      properties:
+        createdAt: { type: string, format: date, description: "The day the invoice was created, Freelancer time zone." }
+        path: { type: string, pattern: "^/invoices/[A-Za-z0-9_-]{1,64}/edit$", description: "In-app path built by code; the chat links with it (ADR-0012)." }
