@@ -1298,5 +1298,71 @@ describe('sending after a failed reply', () => {
     expect(screen.queryByText('first try')).toBeNull();
     expect(screen.getByText('second try')).toBeTruthy();
   });
+
+  // Review 2026-10-13 R8-2: pressing an option while a typed failure shows still sends the choice, and the failed
+  // exchange stays discarded, also when that press is refused (409).
+  const withOffer = () =>
+    island({
+      initialMessages: [
+        { id: 'm1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'invoice Acme' }], createdAt: '' },
+        {
+          id: 'm2',
+          role: 'assistant',
+          origin: null,
+          parts: [
+            { type: 'text', text: 'Which one?' },
+            { type: 'data-offer', id: 'off1', data: { offerId: 'off1' } },
+          ],
+          createdAt: '',
+        },
+      ],
+      offers: {
+        off1: {
+          offerId: 'off1',
+          kind: 'CUSTOMER',
+          state: 'OPEN',
+          chosenOptionId: null,
+          options: [
+            { optionId: 0, label: 'Acme Corp' },
+            { optionId: 1, label: 'Acme GmbH' },
+          ],
+        },
+      },
+    });
+
+  it('a press after a typed failure sends its choice and keeps the failed exchange discarded', async () => {
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    const user = userEvent.setup();
+    withOffer();
+    await send(user, 'never mind');
+    await screen.findByRole('alert');
+
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('Draft for Acme GmbH.'), outcome('ANSWERED', true), FINISH]));
+    await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await screen.findByText('Draft for Acme GmbH.');
+
+    expect((bodyOf(1) as unknown as { choice: unknown }).choice).toEqual({ offerId: 'off1', optionId: 1 });
+    expect(screen.queryByText('never mind')).toBeNull();
+    expect(screen.queryByText('half an answer')).toBeNull();
+  });
+
+  it('a refused press (409) after a typed failure shows the notice, no Try again, and nothing discarded comes back', async () => {
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    const user = userEvent.setup();
+    withOffer();
+    await send(user, 'never mind');
+    await screen.findByRole('alert');
+
+    const notice = 'This option is no longer available. Choose again or type your request.';
+    fetchMock.mockResolvedValueOnce(
+      json(409, { success: false, code: 'CONFLICT', error: notice, details: { kind: 'CHOICE_UNAVAILABLE' } })
+    );
+    await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
+
+    expect(await screen.findByText(notice)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByText('never mind')).toBeNull();
+    expect(screen.queryByText('half an answer')).toBeNull();
+  });
 });
 
