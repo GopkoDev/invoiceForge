@@ -458,6 +458,41 @@ describe.runIf(containerRuntimeAvailable)(
       expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
     });
 
+    // Review 2026-10-13 R12-1: the stored request names no sender profile id (the default, or a profile by name).
+    // The account must still be in the profile the resolver would use now.
+    it('AC-13: a BANK_ACCOUNT of the default profile no longer fits once another profile is the default', async () => {
+      const { user, actor } = await freelancer();
+      const main = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
+      const second = await createSenderProfile(prisma, user.id, { name: 'Second', isDefault: false });
+      const acc = await createBankAccount(prisma, main.id, { currency: 'USD' });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'BANK_ACCOUNT',
+        options: [opt(0, { bankAccountId: acc.id })],
+        request: { customer: 'Acme', currency: 'USD' },
+      });
+      expect((await check(actor, conversation.id, offer.id)).ok).toBe(true);
+      await prisma.senderProfile.update({ where: { id: main.id }, data: { isDefault: false } });
+      await prisma.senderProfile.update({ where: { id: second.id }, data: { isDefault: true } });
+
+      expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
+    });
+
+    it('AC-13: a BANK_ACCOUNT of a profile named in the request no longer fits once that profile is renamed', async () => {
+      const { user, actor } = await freelancer();
+      const consulting = await createSenderProfile(prisma, user.id, { name: 'Consulting FOP', isDefault: false });
+      await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
+      const acc = await createBankAccount(prisma, consulting.id, { currency: 'USD' });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'BANK_ACCOUNT',
+        options: [opt(0, { bankAccountId: acc.id })],
+        request: { customer: 'Acme', currency: 'USD', senderProfile: 'consulting  fop' },
+      });
+      expect((await check(actor, conversation.id, offer.id)).ok).toBe(true);
+      await prisma.senderProfile.update({ where: { id: consulting.id }, data: { name: 'Studio' } });
+
+      expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
+    });
+
     it('AC-13: an archived PRODUCT is { ok: false }', async () => {
       const { user, actor } = await freelancer();
       const p = await createProduct(prisma, user.id, { currency: 'USD' });

@@ -187,6 +187,26 @@ function refFitsKind(ref: OfferOptionRef, kind: ChoiceOfferKind, lineIndex: numb
   return lineIndex !== null && lineIndex >= 0 && lineIndex < (request.lines?.length ?? 0);
 }
 
+/** The sender profile a stored request drafts under, as the resolver picks it; null when it names none that exists. */
+async function requestProfileId(userId: string, request: DraftRequest): Promise<string | null> {
+  if (request.senderProfileId !== undefined) return request.senderProfileId;
+  const prisma = await db();
+  const profiles = await prisma.senderProfile.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, name: true, isDefault: true },
+  });
+  if (request.senderProfile !== undefined) {
+    // As resolveSenderAndAccount: the exact folded name, else the one profile whose name contains it.
+    const needle = foldName(request.senderProfile);
+    const exact = profiles.find((p) => foldName(p.name) === needle);
+    if (exact) return exact.id;
+    const partial = profiles.filter((p) => foldName(p.name).includes(needle));
+    return partial.length === 1 ? partial[0].id : null;
+  }
+  return (profiles.find((p) => p.isDefault) ?? profiles[0])?.id ?? null;
+}
+
 /** Whether the option's record still exists, is the actor's and still fits the stored request (AC-13). */
 async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: DraftRequest): Promise<boolean> {
   const prisma = await db();
@@ -208,7 +228,9 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
     select: { senderProfileId: true, currency: true },
   });
   if (!account) return false;
-  if (request.senderProfileId !== undefined && account.senderProfileId !== request.senderProfileId) return false;
+  // The account must be in the profile the resolver would draft under now: the request's profile id, the profile it
+  // names (folded name), or the current default (review 2026-10-13 R12-1). Otherwise the pinned turn could not use it.
+  if (account.senderProfileId !== (await requestProfileId(userId, request))) return false;
   return currencyFits(account.currency, request.currency);
 }
 
