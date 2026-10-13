@@ -921,16 +921,11 @@ function ChatSession({
               : ''}
           </div>
           {waiting ? (
-            <Message from="assistant" data-slot="message-waiting">
+            // Not a message (no data-role): the reply that replaces it is. The avatar and Loader sit in the reply's place.
+            <div data-slot="message-waiting" className="flex w-full items-start gap-3">
               <MessageAvatar />
-              <MessageContent>
-                <Loader
-                  label="Thinking…"
-                  announce="Assistant is replying…"
-                  className="min-h-6"
-                />
-              </MessageContent>
-            </Message>
+              <Loader label="Thinking…" announce="Assistant is replying…" className="min-h-6" />
+            </div>
           ) : null}
           {failureMessage}
         </ConversationContent>

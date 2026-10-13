@@ -315,6 +315,9 @@ describe('T33 ChatIsland - waiting and streaming', () => {
     expect(await screen.findByText("What's overdue today?")).toBeTruthy();
     expect(screen.getByText('Thinking…')).toBeTruthy();
     expect(screen.getByText('Assistant is replying…')).toBeTruthy();
+    // ai-chat-v2 T41: the waiting row is not a message: every [data-role] element is a real message (the reply that
+    // replaces the row is the next one), so a reader of the last reply never reads "Thinking…".
+    expect(screen.getByText('Thinking…').closest('[data-role]')).toBeNull();
     expect((sendBtn() as HTMLButtonElement).disabled).toBe(true);
     expect((box() as HTMLTextAreaElement).disabled).toBe(true);
 

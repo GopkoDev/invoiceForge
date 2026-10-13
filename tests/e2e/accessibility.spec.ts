@@ -181,7 +181,7 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
 
         await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
-        await expect(page.getByRole('heading', { name: 'Hi! What can I help you with?' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /How can I help with your invoices today\?/ })).toBeVisible();
         await page.waitForLoadState('networkidle');
         await expectNoSeriousViolations(page, testInfo, `AI section, empty (${vp.name})`);
 

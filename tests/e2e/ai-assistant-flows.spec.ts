@@ -185,6 +185,8 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
         page.getByText(/Draft [A-Z0-9-]+ created\./),
         page.getByText(/\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b/),
         page.getByText(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/),
+        // ai-chat-v2 T37: greeting line 1 follows the time of day ("Good morning/afternoon/evening, {name}").
+        page.locator('[data-slot="start-panel"] h1 > span').first(),
       ];
       const shot = {
         maxDiffPixelRatio: 0.002,
@@ -193,7 +195,7 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
 
       await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
       await expect(
-        page.getByRole('heading', { name: 'Hi! What can I help you with?' })
+        page.getByRole('heading', { name: /How can I help with your invoices today\?/ })
       ).toBeVisible();
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveScreenshot('ai-section-default.png', {

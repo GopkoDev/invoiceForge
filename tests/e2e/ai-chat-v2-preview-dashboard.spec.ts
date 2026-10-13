@@ -475,7 +475,7 @@ test('AC-30: the dashboard lists the three latest Conversations, links to all, a
     await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
     await page.getByRole('link', { name: 'Create invoice with AI' }).click();
     await expect(page).toHaveURL(/\/ai\?start=draft&from=dashboard$/);
-    await expect(page.getByRole('heading', { name: 'Draft an invoice' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Let's draft an invoice\./ })).toBeVisible();
   } finally {
     await f.context.close();
   }

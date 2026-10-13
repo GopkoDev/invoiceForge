@@ -8,9 +8,16 @@ import type { PrismaClient } from '@prisma/client';
 import { createTestPrismaClient } from '../support/db/client';
 import { createBankAccount } from '../support/factories/bank-account';
 import { createCustomer } from '../support/factories/customer';
-import { createConversation, type ConversationMessageInput } from '../support/factories/conversation';
+import {
+  createConversation,
+  type ConversationMessageInput,
+} from '../support/factories/conversation';
 import { createChoiceOffer } from '../support/factories/choice-offer';
-import { APP_E2E_URL, SNAPSHOT_PLATFORM, readE2eRuntime } from './support/app-server';
+import {
+  APP_E2E_URL,
+  SNAPSHOT_PLATFORM,
+  readE2eRuntime,
+} from './support/app-server';
 import { openSignedInFreelancer } from './support/signed-in';
 import { protectedRoutes } from '../../config/routes.config';
 import { STREAMED_REPLY } from '../../lib/ai/e2e-stub-model';
@@ -20,15 +27,20 @@ test.describe.configure({ timeout: 150_000 });
 const AMBIGUOUS = 'invoice Acme for 20 hours at $50';
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 360, height: 640 };
-const UNAVAILABLE = 'This option is no longer available. Choose again or type your request.';
+const UNAVAILABLE =
+  'This option is no longer available. Choose again or type your request.';
 
 const message = (page: Page) => page.getByRole('textbox', { name: 'Message' });
-const send = (page: Page) => page.getByRole('button', { name: 'Send', exact: true });
+const send = (page: Page) =>
+  page.getByRole('button', { name: 'Send', exact: true });
 const userBubbles = (page: Page) => page.locator('[data-role="user"]');
 const replies = (page: Page) => page.locator('[data-role="assistant"]');
-const allowanceText = (page: Page) => page.getByText(/\d+ of 30 messages left today/).first();
+const allowanceText = (page: Page) =>
+  page.getByText(/\d+ of 30 messages left today/).first();
 
-async function withDb<T>(run: (prisma: PrismaClient) => Promise<T>): Promise<T> {
+async function withDb<T>(
+  run: (prisma: PrismaClient) => Promise<T>
+): Promise<T> {
   const prisma = createTestPrismaClient(readE2eRuntime().databaseUrl);
   try {
     return await run(prisma);
@@ -53,7 +65,9 @@ test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with 
   });
   try {
     const { page, workspace } = f;
-    await withDb((prisma) => createCustomer(prisma, workspace.userId, { name: 'Acme GmbH' }));
+    await withDb((prisma) =>
+      createCustomer(prisma, workspace.userId, { name: 'Acme GmbH' })
+    );
 
     await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
     await message(page).fill(AMBIGUOUS);
@@ -61,15 +75,28 @@ test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with 
 
     const choices = page.getByRole('group', { name: 'Choose a Customer' });
     await expect(choices).toBeVisible();
-    await expect(choices.getByRole('button')).toHaveText(['Acme Corp', 'Acme GmbH']);
-    await expect(page.getByRole('button', { name: 'Create draft' })).toHaveCount(0);
+    await expect(choices.getByRole('button')).toHaveText([
+      'Acme Corp',
+      'Acme GmbH',
+    ]);
+    await expect(
+      page.getByRole('button', { name: 'Create draft' })
+    ).toHaveCount(0);
 
-    await choices.getByRole('button', { name: 'Acme GmbH', exact: true }).click();
+    await choices
+      .getByRole('button', { name: 'Acme GmbH', exact: true })
+      .click();
 
     await expect(userBubbles(page).last()).toHaveText('Acme GmbH');
-    await expect(page.getByRole('button', { name: 'Create draft' })).toBeVisible();
-    await expect(choices.getByRole('button', { name: 'Acme GmbH (chosen)' })).toBeVisible();
-    await expect(choices.getByRole('button', { name: 'Acme Corp', exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Create draft' })
+    ).toBeVisible();
+    await expect(
+      choices.getByRole('button', { name: 'Acme GmbH (chosen)' })
+    ).toBeVisible();
+    await expect(
+      choices.getByRole('button', { name: 'Acme Corp', exact: true })
+    ).toBeDisabled();
 
     // The press was saved as a PRESSED message with the stored label, and the card is for exactly Acme GmbH.
     await withDb(async (prisma) => {
@@ -78,9 +105,16 @@ test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with 
         orderBy: { position: 'desc' },
       });
       expect(pressed.origin).toBe('PRESSED');
-      const gmbh = await prisma.customer.findFirstOrThrow({ where: { userId: workspace.userId, name: 'Acme GmbH' } });
-      const card = await prisma.draftCard.findFirstOrThrow({ where: { userId: workspace.userId } });
-      expect((card.proposal as { customer: { customerId: string } }).customer.customerId).toBe(gmbh.id);
+      const gmbh = await prisma.customer.findFirstOrThrow({
+        where: { userId: workspace.userId, name: 'Acme GmbH' },
+      });
+      const card = await prisma.draftCard.findFirstOrThrow({
+        where: { userId: workspace.userId },
+      });
+      expect(
+        (card.proposal as { customer: { customerId: string } }).customer
+          .customerId
+      ).toBe(gmbh.id);
     });
   } finally {
     await f.context.close();
@@ -91,10 +125,15 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
-  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-reopen-offer', {
-    seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
-    context: { timezoneId: 'UTC', viewport: DESKTOP },
-  });
+  const f = await openSignedInFreelancer(
+    browser,
+    testInfo,
+    'ai-v2-reopen-offer',
+    {
+      seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
+      context: { timezoneId: 'UTC', viewport: DESKTOP },
+    }
+  );
   try {
     const { page, workspace } = f;
     const conversationId = await withDb(async (prisma) => {
@@ -111,17 +150,34 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
       const accounts = [alpha, beta, gamma];
       const reply1 = `e2e-offer-reply-1-${workspace.userId}`;
       const reply2 = `e2e-offer-reply-2-${workspace.userId}`;
-      const label = (a: (typeof accounts)[number]) => `${a.bankName} ••${a.accountNumber.slice(-4)} · USD`;
-      const options = accounts.map((a, i) => ({ optionId: i + 1, label: label(a), ref: { bankAccountId: a.id } }));
+      const label = (a: (typeof accounts)[number]) =>
+        `${a.bankName} ••${a.accountNumber.slice(-4)} · USD`;
+      const options = accounts.map((a, i) => ({
+        optionId: i + 1,
+        label: label(a),
+        ref: { bankAccountId: a.id },
+      }));
       const conversation = await createConversation(prisma, {
         userId: workspace.userId,
         title: 'Acme accounts',
         lastMessageAt: new Date(Date.now() - 3 * 24 * 3600_000),
         messages: [
           { role: 'USER', text: AMBIGUOUS },
-          { role: 'ASSISTANT', id: reply1, parts: [{ type: 'text', text: 'Which account should be paid into?' }] },
+          {
+            role: 'ASSISTANT',
+            id: reply1,
+            parts: [
+              { type: 'text', text: 'Which account should be paid into?' },
+            ],
+          },
           { role: 'USER', text: label(beta), origin: 'PRESSED' },
-          { role: 'ASSISTANT', id: reply2, parts: [{ type: 'text', text: 'Which account for the second invoice?' }] },
+          {
+            role: 'ASSISTANT',
+            id: reply2,
+            parts: [
+              { type: 'text', text: 'Which account for the second invoice?' },
+            ],
+          },
         ],
       });
       const chosen = await createChoiceOffer(prisma, {
@@ -129,7 +185,11 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
         conversationId: conversation.id,
         messageId: reply1,
         kind: 'BANK_ACCOUNT',
-        request: { customer: 'Acme', currency: 'USD', lines: [{ description: 'Design work', quantity: '20', price: '50' }] },
+        request: {
+          customer: 'Acme',
+          currency: 'USD',
+          lines: [{ description: 'Design work', quantity: '20', price: '50' }],
+        },
         options,
         state: 'CHOSEN',
         chosenOptionId: 2,
@@ -139,7 +199,11 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
         conversationId: conversation.id,
         messageId: reply2,
         kind: 'BANK_ACCOUNT',
-        request: { customer: 'Acme', currency: 'USD', lines: [{ description: 'Design work', quantity: '20', price: '50' }] },
+        request: {
+          customer: 'Acme',
+          currency: 'USD',
+          lines: [{ description: 'Design work', quantity: '20', price: '50' }],
+        },
         options,
       });
       for (const [messageId, offer, text] of [
@@ -148,7 +212,12 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
       ] as const) {
         await prisma.conversationMessage.update({
           where: { id: messageId },
-          data: { parts: [{ type: 'text', text }, { type: 'data-offer', id: offer.id, data: { offerId: offer.id } }] },
+          data: {
+            parts: [
+              { type: 'text', text },
+              { type: 'data-offer', id: offer.id, data: { offerId: offer.id } },
+            ],
+          },
         });
       }
       // The account offered on the still-open buttons is deleted afterwards.
@@ -164,20 +233,35 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
     await expect(groups).toHaveCount(2);
     const earlier = groups.first();
     await expect(earlier.getByRole('button')).toHaveCount(3);
-    await expect(earlier.getByRole('button', { name: 'Beta Bank ••2222 · USD (chosen)' })).toBeVisible();
-    for (const button of await earlier.getByRole('button').all()) await expect(button).toBeDisabled();
+    await expect(
+      earlier.getByRole('button', { name: 'Beta Bank ••2222 · USD (chosen)' })
+    ).toBeVisible();
+    for (const button of await earlier.getByRole('button').all())
+      await expect(button).toBeDisabled();
 
     // The latest reply's buttons can still be pressed; the deleted account's is turned down without counting.
     const latest = groups.last();
-    await expect(latest.getByRole('button', { name: 'Gamma Bank ••3333 · USD' })).toBeEnabled();
+    await expect(
+      latest.getByRole('button', { name: 'Gamma Bank ••3333 · USD' })
+    ).toBeEnabled();
     const before = await allowanceText(page).textContent();
-    await latest.getByRole('button', { name: 'Gamma Bank ••3333 · USD' }).click();
+    await latest
+      .getByRole('button', { name: 'Gamma Bank ••3333 · USD' })
+      .click();
     await expect(page.getByText(UNAVAILABLE)).toBeVisible();
-    await expect(latest.getByRole('button', { name: /\(chosen\)/ })).toHaveCount(0);
+    await expect(
+      latest.getByRole('button', { name: /\(chosen\)/ })
+    ).toHaveCount(0);
     await expect(allowanceText(page)).toHaveText(before!);
     await withDb(async (prisma) => {
-      expect(await prisma.messageAllowanceDay.count({ where: { userId: workspace.userId, used: { gt: 0 } } })).toBe(0);
-      expect(await prisma.conversationMessage.count({ where: { conversationId } })).toBe(4);
+      expect(
+        await prisma.messageAllowanceDay.count({
+          where: { userId: workspace.userId, used: { gt: 0 } },
+        })
+      ).toBe(0);
+      expect(
+        await prisma.conversationMessage.count({ where: { conversationId } })
+      ).toBe(4);
     });
   } finally {
     await f.context.close();
@@ -195,10 +279,15 @@ for (const viewport of [
     browser,
   }, testInfo) => {
     testInfo.setTimeout(240_000);
-    const f = await openSignedInFreelancer(browser, testInfo, `ai-v2-layout-${viewport.width}`, {
-      seed: { timeZone: 'UTC' },
-      context: { timezoneId: 'UTC', viewport: DESKTOP },
-    });
+    const f = await openSignedInFreelancer(
+      browser,
+      testInfo,
+      `ai-v2-layout-${viewport.width}`,
+      {
+        seed: { timeZone: 'UTC' },
+        context: { timezoneId: 'UTC', viewport: DESKTOP },
+      }
+    );
     try {
       const { page, workspace } = f;
       // Signed in at desktop size (the cookie banner covers the phone sign-in button), then resized.
@@ -230,7 +319,10 @@ for (const viewport of [
       for (const target of [message(page), send(page)]) {
         const covered = await target.evaluate((el) => {
           const r = el.getBoundingClientRect();
-          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          const hit = document.elementFromPoint(
+            r.x + r.width / 2,
+            r.y + r.height / 2
+          );
           return !(hit && (hit === el || el.contains(hit)));
         });
         expect(covered).toBe(false);
@@ -246,10 +338,15 @@ for (const viewport of [
       expect(first.scrollHeight).toBeLessThanOrEqual(first.innerHeight);
 
       const chat = page.locator('[data-slot="chat-scroll"]');
-      const chatSize = await chat.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+      const chatSize = await chat.evaluate((el) => ({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      }));
       expect(chatSize.scrollHeight).toBeGreaterThan(chatSize.clientHeight);
 
-      const list = page.getByRole('complementary', { name: 'Conversation list' });
+      const list = page.getByRole('complementary', {
+        name: 'Conversation list',
+      });
       const listVisible = await list.isVisible();
       const listBefore = listVisible ? await list.boundingBox() : null;
 
@@ -282,27 +379,48 @@ test('AC-18: a new Conversation starts with a greeting and suggestions, is not s
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
-  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-empty-start', {
-    seed: { timeZone: 'UTC' },
-    context: { timezoneId: 'UTC', viewport: DESKTOP },
-  });
+  const f = await openSignedInFreelancer(
+    browser,
+    testInfo,
+    'ai-v2-empty-start',
+    {
+      seed: { timeZone: 'UTC' },
+      context: { timezoneId: 'UTC', viewport: DESKTOP },
+    }
+  );
   try {
     const { page, workspace } = f;
     const QUESTION = 'Who owes me money right now?';
     await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
-    await expect(page.getByRole('heading', { name: 'Hi! What can I help you with?' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: /How can I help with your invoices today\?/,
+      })
+    ).toBeVisible();
     const start = page.locator('[data-slot="start-panel"]');
     await expect(start.locator('[data-slot="start-composer"]')).toBeVisible();
     await expect(start.getByRole('button', { name: QUESTION })).toBeVisible();
-    await expect(start.getByRole('button', { name: 'Invoice Acme for 20 hours of consulting at $50' })).toBeVisible();
+    await expect(
+      start.getByRole('button', {
+        name: 'Invoice Acme for 20 hours of consulting at $50',
+      })
+    ).toBeVisible();
 
     // A suggestion only fills the box: nothing is sent or saved.
     await start.getByRole('button', { name: QUESTION }).click();
     await expect(message(page)).toHaveValue(QUESTION);
     await expect(userBubbles(page)).toHaveCount(0);
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Hi! What can I help you with?' })).toBeVisible();
-    expect(await withDb((prisma) => prisma.conversation.count({ where: { userId: workspace.userId } }))).toBe(0);
+    await expect(
+      page.getByRole('heading', {
+        name: /How can I help with your invoices today\?/,
+      })
+    ).toBeVisible();
+    expect(
+      await withDb((prisma) =>
+        prisma.conversation.count({ where: { userId: workspace.userId } })
+      )
+    ).toBe(0);
 
     await message(page).fill(QUESTION);
     await send(page).click();
@@ -314,7 +432,9 @@ test('AC-18: a new Conversation starts with a greeting and suggestions, is not s
     const dock = page.locator('[data-slot="composer-dock"]');
     await expect(dock.getByRole('textbox', { name: 'Message' })).toBeVisible();
     // The move is a ~250 ms translate (FLIP); measure where it ends, not mid-move.
-    await expect.poll(() => dock.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
+    await expect
+      .poll(() => dock.evaluate((el) => getComputedStyle(el).transform))
+      .toBe('none');
     const replyBox = await replies(page).first().boundingBox();
     const dockBox = await dock.boundingBox();
     expect(replyBox!.y + replyBox!.height).toBeLessThanOrEqual(dockBox!.y);
@@ -322,7 +442,11 @@ test('AC-18: a new Conversation starts with a greeting and suggestions, is not s
 
     const id = page.url().split('/ai/')[1];
     await expect(page.locator(`a[href="/ai/${id}"]:visible`)).toHaveCount(1);
-    expect(await withDb((prisma) => prisma.conversation.count({ where: { userId: workspace.userId } }))).toBe(1);
+    expect(
+      await withDb((prisma) =>
+        prisma.conversation.count({ where: { userId: workspace.userId } })
+      )
+    ).toBe(1);
   } finally {
     await f.context.close();
   }
@@ -341,7 +465,11 @@ test('AC-19: on a phone the chat fills the screen and the Conversation list open
     // Signed in at desktop size (the cookie banner covers the phone sign-in button), then resized.
     await page.setViewportSize(PHONE);
     const [firstId, secondId] = await withDb(async (prisma) => {
-      const a = await createConversation(prisma, { userId: workspace.userId, title: 'Phone first', messages: textMessages(2, 'a') });
+      const a = await createConversation(prisma, {
+        userId: workspace.userId,
+        title: 'Phone first',
+        messages: textMessages(2, 'a'),
+      });
       const b = await createConversation(prisma, {
         userId: workspace.userId,
         title: 'Phone second',
@@ -353,13 +481,15 @@ test('AC-19: on a phone the chat fills the screen and the Conversation list open
 
     await page.goto(`${APP_E2E_URL}/ai/${firstId}`);
     await expect(replies(page)).toHaveCount(1);
-    await expect(page.getByRole('complementary', { name: 'Conversation list' })).toBeHidden();
+    await expect(
+      page.getByRole('complementary', { name: 'Conversation list' })
+    ).toBeHidden();
     await expect(message(page)).toBeInViewport();
     // The box sits at the bottom: just above the cookie banner while it shows, never under it.
     const box = await message(page).boundingBox();
-    const banner = await page.getByRole('button', { name: 'Accept' }).evaluate(
-      (el) => el.closest('.fixed')!.getBoundingClientRect().top
-    );
+    const banner = await page
+      .getByRole('button', { name: 'Accept' })
+      .evaluate((el) => el.closest('.fixed')!.getBoundingClientRect().top);
     expect(box!.y + box!.height).toBeLessThanOrEqual(banner);
     expect(box!.y + box!.height).toBeGreaterThan(banner - 160);
 
@@ -375,7 +505,9 @@ test('AC-19: on a phone the chat fills the screen and the Conversation list open
   }
 });
 
-test('AC-33: a multi-sentence reply appears word by word, and reopens whole', async ({ browser }, testInfo) => {
+test('AC-33: a multi-sentence reply appears word by word, and reopens whole', async ({
+  browser,
+}, testInfo) => {
   testInfo.setTimeout(240_000);
   const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-stream', {
     seed: { timeZone: 'UTC' },
@@ -395,7 +527,9 @@ test('AC-33: a multi-sentence reply appears word by word, and reopens whole', as
       const deadline = Date.now() + 20_000;
       while (Date.now() < deadline) {
         const bubbles = document.querySelectorAll('[data-role="assistant"]');
-        const text = (bubbles[bubbles.length - 1]?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const text = (bubbles[bubbles.length - 1]?.textContent ?? '')
+          .replace(/\s+/g, ' ')
+          .trim();
         if (text && seen[seen.length - 1] !== text) seen.push(text);
         if (text === expected) break;
         await new Promise((r) => setTimeout(r, 30));
@@ -405,7 +539,8 @@ test('AC-33: a multi-sentence reply appears word by word, and reopens whole', as
     expect(samples[samples.length - 1]).toBe(full);
     const partial = samples.slice(0, -1).filter((s) => s.length < full.length);
     expect(partial.length).toBeGreaterThanOrEqual(3);
-    for (let i = 1; i < samples.length; i++) expect(samples[i].length).toBeGreaterThan(samples[i - 1].length);
+    for (let i = 1; i < samples.length; i++)
+      expect(samples[i].length).toBeGreaterThan(samples[i - 1].length);
     await expect(reply).toHaveText(full);
 
     // Reopened later: the saved reply is shown whole at once.
@@ -413,7 +548,9 @@ test('AC-33: a multi-sentence reply appears word by word, and reopens whole', as
     await page.reload();
     await page.waitForSelector('[data-role="assistant"]');
     const firstSeen = await page.evaluate(() =>
-      (document.querySelector('[data-role="assistant"]')?.textContent ?? '').replace(/\s+/g, ' ').trim()
+      (document.querySelector('[data-role="assistant"]')?.textContent ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
     );
     expect(firstSeen).toBe(full);
   } finally {
@@ -423,7 +560,10 @@ test('AC-33: a multi-sentence reply appears word by word, and reopens whole', as
 
 test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressable and chosen', () => {
   test('SCR-02 and SCR-03/SCR-04', async ({ browser }, testInfo) => {
-    test.skip(SNAPSHOT_PLATFORM !== 'linux', 'Baselines are Linux-only (CI image); see tests/e2e/README.md');
+    test.skip(
+      SNAPSHOT_PLATFORM !== 'linux',
+      'Baselines are Linux-only (CI image); see tests/e2e/README.md'
+    );
     testInfo.setTimeout(240_000);
     const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-visual', {
       seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
@@ -431,34 +571,192 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressabl
     });
     try {
       const { page, workspace } = f;
-      await withDb((prisma) => createCustomer(prisma, workspace.userId, { name: 'Acme GmbH' }));
+      await withDb((prisma) =>
+        createCustomer(prisma, workspace.userId, { name: 'Acme GmbH' })
+      );
       const volatile = () => [
         page.getByText(/@example\.test/),
         page.getByText(/\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b/),
         page.getByText(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/),
+        // ai-chat-v2 T37: greeting line 1 follows the time of day ("Good morning/afternoon/evening, {name}").
+        page.locator('[data-slot="start-panel"] h1 > span').first(),
       ];
-      const shot = { maxDiffPixelRatio: 0.002, animations: 'disabled' as const };
+      const shot = {
+        maxDiffPixelRatio: 0.002,
+        animations: 'disabled' as const,
+      };
 
       await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
-      await expect(page.getByRole('heading', { name: 'Hi! What can I help you with?' })).toBeVisible();
+      await expect(
+        page.getByRole('heading', {
+          name: /How can I help with your invoices today\?/,
+        })
+      ).toBeVisible();
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveScreenshot('ai-v2-new-conversation.png', { ...shot, mask: volatile() });
+      await expect(page).toHaveScreenshot('ai-v2-new-conversation.png', {
+        ...shot,
+        mask: volatile(),
+      });
 
       await message(page).fill(AMBIGUOUS);
       await send(page).click();
       const choices = page.getByRole('group', { name: 'Choose a Customer' });
-      await expect(choices.getByRole('button', { name: 'Acme GmbH', exact: true })).toBeEnabled();
+      await expect(
+        choices.getByRole('button', { name: 'Acme GmbH', exact: true })
+      ).toBeEnabled();
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveScreenshot('ai-v2-offered-choices-pressable.png', { ...shot, mask: volatile() });
+      await expect(page).toHaveScreenshot(
+        'ai-v2-offered-choices-pressable.png',
+        { ...shot, mask: volatile() }
+      );
 
-      await choices.getByRole('button', { name: 'Acme GmbH', exact: true }).click();
-      await expect(choices.getByRole('button', { name: 'Acme GmbH (chosen)' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Create draft' })).toBeVisible();
+      await choices
+        .getByRole('button', { name: 'Acme GmbH', exact: true })
+        .click();
+      await expect(
+        choices.getByRole('button', { name: 'Acme GmbH (chosen)' })
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Create draft' })
+      ).toBeVisible();
       await page.waitForLoadState('networkidle');
-      await page.locator('[data-slot="chat-scroll"]').evaluate((el) => el.scrollTo({ top: 0 }));
-      await expect(page).toHaveScreenshot('ai-v2-offered-choices-chosen.png', { ...shot, mask: volatile() });
+      await page
+        .locator('[data-slot="chat-scroll"]')
+        .evaluate((el) => el.scrollTo({ top: 0 }));
+      await expect(page).toHaveScreenshot('ai-v2-offered-choices-chosen.png', {
+        ...shot,
+        mask: volatile(),
+      });
     } finally {
       await f.context.close();
     }
   });
+});
+
+// ai-chat-v2 T41 (ADR-0010; screens.md «Centred column», SCR-01 "row actions", «Errors are messages»): the new
+// presentation keeps the behaviour; these pin its layout and the error-as-message retry in the real app.
+test('presentation: a centred column of at most 768 px at 1440 x 900, no row delete without hover, and could-not-complete as an assistant message whose Try again re-sends once', async ({
+  browser,
+}, testInfo) => {
+  testInfo.setTimeout(240_000);
+  const WIDE = { width: 1440, height: 900 };
+  const f = await openSignedInFreelancer(
+    browser,
+    testInfo,
+    'ai-v2-presentation',
+    {
+      seed: { timeZone: 'UTC' },
+      context: { timezoneId: 'UTC', viewport: WIDE },
+    }
+  );
+  try {
+    const { page, workspace } = f;
+    const [openId] = await withDb(async (prisma) => {
+      const open = await createConversation(prisma, {
+        userId: workspace.userId,
+        title: 'Open one',
+        messages: textMessages(4, 'open'),
+      });
+      await createConversation(prisma, {
+        userId: workspace.userId,
+        title: 'Other one',
+        lastMessageAt: new Date(Date.now() - 3600_000),
+        messages: textMessages(2, 'other'),
+      });
+      return [open.id];
+    });
+
+    await page.goto(`${APP_E2E_URL}/ai/${openId}`);
+    await expect(replies(page)).toHaveCount(2);
+
+    // Centred column: the scroll area spans the pane, the messages and the docked box sit in a column <= 768 px,
+    // centred in the pane; the user bubble is at most 80 % of it.
+    const scroll = page.locator('[data-slot="chat-scroll"]');
+    await expect(scroll).toBeVisible();
+    await expect(userBubbles(page).first()).toBeVisible();
+    const scrollBox = (await scroll.boundingBox())!;
+    const columnBox = (await scroll
+      .locator(':scope > div')
+      .first()
+      .boundingBox())!;
+    expect(scrollBox.width).toBeGreaterThan(768);
+    expect(columnBox.width).toBeLessThanOrEqual(768);
+    expect(
+      Math.abs(
+        columnBox.x -
+          scrollBox.x -
+          (scrollBox.x + scrollBox.width - (columnBox.x + columnBox.width))
+      )
+    ).toBeLessThanOrEqual(16);
+    const composerBox = (await page
+      .locator('[data-slot="composer"]')
+      .boundingBox())!;
+    expect(composerBox.width).toBeLessThanOrEqual(768);
+    const bubble = (await userBubbles(page)
+      .first()
+      .locator('[data-slot="message-content"]')
+      .boundingBox())!;
+    expect(bubble.width).toBeLessThanOrEqual(columnBox.width * 0.8 + 1);
+
+    // No delete button is visible in the list; a non-current row's ⋯ shows only on hover.
+    const list = page.getByRole('complementary', { name: 'Conversation list' });
+    await expect(list.getByRole('button', { name: /delete/i })).toHaveCount(0);
+    const otherActions = list.getByRole('button', {
+      name: 'Actions for Other one',
+    });
+    const opacity = () =>
+      otherActions.evaluate((el) => getComputedStyle(el).opacity);
+    await page.mouse.move(WIDE.width - 10, WIDE.height / 2);
+    await expect.poll(opacity).toBe('0');
+    await list.getByRole('link', { name: 'Other one' }).hover();
+    await expect.poll(opacity).toBe('1');
+    await expect(
+      list.getByRole('button', { name: 'Actions for Open one' })
+    ).toHaveCSS('opacity', '1');
+
+    // Could-not-complete: the alert and Try again live in an assistant message; Try again sends the same text once.
+    const sent: string[] = [];
+    let failOnce = true;
+    await page.route('**/api/chat', async (route) => {
+      sent.push(
+        (
+          route.request().postDataJSON() as {
+            message: { parts: { text: string }[] };
+          }
+        ).message.parts[0].text
+      );
+      if (failOnce) {
+        failOnce = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            code: 'FAILED',
+            error: "The reply couldn't be completed. Try again.",
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await message(page).fill('Who owes me money right now?');
+    await send(page).click();
+    const failed = replies(page).last();
+    await expect(failed.getByRole('alert')).toHaveText(
+      "The reply couldn't be completed. Try again."
+    );
+    await failed.getByRole('button', { name: 'Try again' }).click();
+    await expect(scroll.getByRole('alert')).toHaveCount(0);
+    await expect(replies(page)).toHaveCount(3);
+    await expect(userBubbles(page).last()).toHaveText(
+      'Who owes me money right now?'
+    );
+    expect(sent).toEqual([
+      'Who owes me money right now?',
+      'Who owes me money right now?',
+    ]);
+  } finally {
+    await f.context.close();
+  }
 });
