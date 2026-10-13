@@ -432,7 +432,7 @@ components:
       minimum: 0
       maximum: 7
     RequestMessageOrigin:
-      description: The origins a client may ask for. `PRESSED` is never accepted from the client.
+      description: The origins a client may ask for. `PRESSED` is never accepted from the client. `DASHBOARD` is deprecated (2026-10-14, dashboard AI block removed by the owner) - no client writes it any more; it stays accepted and readable for history.
       type: string
       enum: [TYPED, DASHBOARD]
     MessageOrigin:
@@ -910,7 +910,18 @@ components:
               options:
                 type: array
                 maxItems: 8
-                items: { $ref: "#/components/schemas/OfferOptionLabel" }
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [optionId, label]
+                  properties:
+                    optionId: { type: integer, minimum: 0, maximum: 7 }
+                    label: { $ref: "#/components/schemas/OfferOptionLabel" }
+                    detail:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                      description: Server-written second line (fix 2026-10-14, AC-54) - Customer email or country, product price, sender profile country, bank account currency and last four. Never model text.
               input: { $ref: "#/components/schemas/FormInput" }
               required: { type: boolean }
               skippable: { type: boolean }

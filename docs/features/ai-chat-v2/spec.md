@@ -478,7 +478,7 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 **Given** a Freelancer with four Customers, one sender profile, and no catalogue product "web dev"
 **When** they write "invoice web dev 10 hours, but show me the list of Customers"
-**Then** the reply lists the four Customers and ends with one Question form: a Customer question offering the four Customers and "Other…", and a "Line 1 · Price" question with an input only; it asks nothing it can fill itself (the only sender profile, its default account, today as the issue date) and holds no question in prose. After they answer both and press Send, one message is counted, it shows one line per answer, and the chat shows a draft card with those values
+**Then** the reply lists the four Customers and ends with one Question form: a Customer question offering the four Customers and "Other…", and a price question for line 1 with an input only; it asks nothing it can fill itself (the only sender profile, its default account, today as the issue date) and holds no question in prose. After they answer both and press Send, one message is counted, it shows one line per answer, and the chat shows a draft card with those values
 
 ### AC-38 (US-03) — happy path
 
