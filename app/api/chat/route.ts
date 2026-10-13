@@ -24,7 +24,7 @@ import { reserveMessageSlot } from '@/lib/services/assistant-usage/allowance';
 import { checkForm, reserveAndClaimForm, type CheckedForm } from '@/lib/services/assistant-drafts/forms';
 import { pinAnswers } from '@/lib/services/assistant-drafts/form-pin';
 import { draftRequestSchema } from '@/lib/services/assistant-drafts/schema';
-import { composeAnswerMessage } from '@/lib/validations/form-answers';
+import { answerText, composeAnswerMessage, defaultPrompt } from '@/lib/validations/form-answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
 import { loadHistory } from '@/lib/services/conversations/conversations';
@@ -211,8 +211,8 @@ export async function POST(request: NextRequest) {
           const option = answer && 'optionId' in answer ? q.options.find((o) => o.optionId === answer.optionId) : null;
           const id = keys && option ? (option.ref as Record<string, unknown>)[keys[1]] : null;
           return {
-            heading: q.heading,
-            answer: composeAnswerMessage([q], answers).slice(q.heading.length + 2),
+            question: q.prompt ?? defaultPrompt(q.field, q.lineIndex),
+            answer: answer ? answerText(q, answer) : '',
             ...(keys && typeof id === 'string' ? { [keys[0]]: id, ...(q.field === 'PRODUCT' ? { lineIndex: q.lineIndex ?? 0 } : {}) } : {}),
           };
         });

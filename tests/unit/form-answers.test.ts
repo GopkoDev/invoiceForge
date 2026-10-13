@@ -1,5 +1,5 @@
 // ai-chat-v2 T53 (spec §1 F5, F6; screens.md SCR-04 revision "Validation"; AC-38, AC-39): the per-kind format check of
-// typed answers (shared by the browser and the server, no server-only) and the composed "heading: answer" message.
+// typed answers (shared by the browser and the server, no server-only) and the composed "question — answer" message.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
@@ -9,11 +9,12 @@ import {
   formFormatErrors,
 } from '@/lib/validations/form-answers';
 
-const q = (questionId: number, field: string, input: string, heading = field) => ({
+const q = (questionId: number, field: string, input: string, prompt: string | null = null) => ({
   questionId,
   field: field as never,
   input: input as never,
-  heading,
+  lineIndex: null,
+  prompt,
   options: [] as Array<{ optionId: number; label: string }>,
 });
 
@@ -89,16 +90,16 @@ describe('formFormatErrors: every typed answer, plus due-not-before-issue in the
   });
 });
 
-describe('composeAnswerMessage (F5): one "heading: answer" line per answered question, from stored labels and typed text', () => {
+describe('composeAnswerMessage (F5): one "question — answer" line per answered question, from stored labels and typed text', () => {
   const questions = [
-    { ...q(0, 'CUSTOMER', 'TEXT', 'Customer'), options: [{ optionId: 0, label: 'Acme Corp' }, { optionId: 1, label: 'Acme GmbH' }] },
-    q(1, 'PRICE', 'AMOUNT', 'Line 1 · Price'),
-    q(2, 'NOTES', 'TEXT', 'Notes'),
-    q(3, 'FREE', 'TEXT', 'Question'),
+    { ...q(0, 'CUSTOMER', 'TEXT'), options: [{ optionId: 0, label: 'Acme Corp' }, { optionId: 1, label: 'Acme GmbH' }] },
+    { ...q(1, 'PRICE', 'AMOUNT'), lineIndex: 0 as number | null },
+    q(2, 'NOTES', 'TEXT', 'Anything to add?'),
+    q(3, 'FREE', 'TEXT', 'What period?'),
   ];
 
   it('AC-08: a picked option reads its stored label', () => {
-    expect(composeAnswerMessage(questions, [{ questionId: 0, optionId: 1 }])).toBe('Customer: Acme GmbH');
+    expect(composeAnswerMessage(questions, [{ questionId: 0, optionId: 1 }])).toBe('Which Customer is this invoice for? — Acme GmbH');
   });
 
   it('lines follow the question order, typed text trimmed and on one line, a skip reads "Skipped"', () => {
@@ -109,7 +110,7 @@ describe('composeAnswerMessage (F5): one "heading: answer" line per answered que
         { questionId: 0, text: 'Оohn  Doe' },
         { questionId: 3, text: 'the whole\nof September' },
       ])
-    ).toBe('Customer: Оohn  Doe\nLine 1 · Price: 40\nNotes: Skipped\nQuestion: the whole of September');
+    ).toBe('Which Customer is this invoice for? — Оohn  Doe\nWhat price for line 1? — 40\nAnything to add? — Skipped\nWhat period? — the whole of September');
   });
 
   it('throws on an option the question does not hold (the form check runs first)', () => {

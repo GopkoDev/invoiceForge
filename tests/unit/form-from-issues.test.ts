@@ -323,8 +323,8 @@ describe('dateOptions (AC-39)', () => {
     const today = todayInZone('Europe/Kyiv', new Date('2026-10-12T22:30:00Z'));
     expect(today).toBe('2026-10-13');
     expect(dateOptions('ISSUE_DATE', { today })).toEqual([
-      { optionId: 0, label: 'Today · 13 Oct 2026', ref: { date: '2026-10-13' } },
-      { optionId: 1, label: 'Yesterday · 12 Oct 2026', ref: { date: '2026-10-12' } },
+      { optionId: 0, label: 'Today · Oct 13, 2026', ref: { date: '2026-10-13' } },
+      { optionId: 1, label: 'Yesterday · Oct 12, 2026', ref: { date: '2026-10-12' } },
     ]);
   });
 
@@ -335,9 +335,9 @@ describe('dateOptions (AC-39)', () => {
       { optionId: 2, label: '30 days after the issue date', ref: { daysAfterIssue: 30 } },
     ]);
     expect(dateOptions('DUE_DATE', { today: '2026-10-13', issueDate: '2026-10-12' }).map((o) => o.label)).toEqual([
-      '7 days after the issue date · 19 Oct 2026',
-      '14 days after the issue date · 26 Oct 2026',
-      '30 days after the issue date · 11 Nov 2026',
+      '7 days after the issue date · Oct 19, 2026',
+      '14 days after the issue date · Oct 26, 2026',
+      '30 days after the issue date · Nov 11, 2026',
     ]);
   });
 });
@@ -356,16 +356,16 @@ describe('composeForm (AC-41, F1)', () => {
     ...over,
   });
 
-  it('9 open questions keep the first 6 in the F1 order, numbered 0..5, with app headings', () => {
-    const chat = [q('FREE'), q('NOTES'), q('PRICE', 0), q('QUANTITY', 0), q('DUE_DATE'), q('ISSUE_DATE'), q('PRODUCT', 0), q('CURRENCY'), q('CUSTOMER')];
+  it('9 open questions keep the first 6 in the F1 order, numbered 0..5, each with its default question text', () => {
+    const chat = [q('FREE'), q('NOTES'), q('PRICE', 0), q('QUANTITY', 0), q('DUE_DATE'), q('ISSUE_DATE'), q('PRODUCT', 0), q('CURRENCY'), q('CUSTOMER')].map((x) => ({ ...x, prompt: null }));
     const form = composeForm([], chat);
-    expect(form.map((x) => [x.questionId, x.field, x.heading])).toEqual([
-      [0, 'CUSTOMER', 'Customer'],
-      [1, 'CURRENCY', 'Currency'],
-      [2, 'PRODUCT', 'Line 1 · Product'],
-      [3, 'ISSUE_DATE', 'Issue date'],
-      [4, 'DUE_DATE', 'Due date'],
-      [5, 'QUANTITY', 'Line 1 · Quantity'],
+    expect(form.map((x) => [x.questionId, x.field, x.prompt])).toEqual([
+      [0, 'CUSTOMER', 'Which Customer is this invoice for?'],
+      [1, 'CURRENCY', 'Which currency?'],
+      [2, 'PRODUCT', 'Which product for line 1?'],
+      [3, 'ISSUE_DATE', 'What is the issue date?'],
+      [4, 'DUE_DATE', 'When is it due?'],
+      [5, 'QUANTITY', 'What quantity for line 1?'],
     ]);
     for (const x of form) expect(formQuestionSchema.safeParse(x).success).toBe(true);
   });

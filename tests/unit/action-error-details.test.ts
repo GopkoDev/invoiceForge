@@ -44,8 +44,8 @@ describe('ai-chat-v2 shared result and assistant types (T04)', () => {
     expectTypeOf<ConversationStartPoint>().toEqualTypeOf<'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE'>();
   });
 
-  it('FormView sent to the browser carries only optionId + label per option: no record reference, no stored request', () => {
-    expectTypeOf<FormQuestionView['options'][number]>().toEqualTypeOf<{ optionId: number; label: string }>();
+  it('FormView sent to the browser carries only optionId + label (+ optional detail) per option: no record reference, no stored request', () => {
+    expectTypeOf<FormQuestionView['options'][number]>().toEqualTypeOf<{ optionId: number; label: string; detail?: string }>();
     expectTypeOf<keyof FormView>().toEqualTypeOf<'formId' | 'state' | 'questions' | 'answers' | 'currency'>();
     const view: FormView = {
       formId: 'form-1',
@@ -55,7 +55,6 @@ describe('ai-chat-v2 shared result and assistant types (T04)', () => {
           questionId: 0,
           field: 'CUSTOMER',
           lineIndex: null,
-          heading: 'Customer',
           prompt: null,
           options: [{ optionId: 0, label: 'Acme Corp (billing@acme.example.test)' }],
           input: 'NONE',

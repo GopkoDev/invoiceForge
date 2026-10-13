@@ -7,7 +7,7 @@ import { foldName } from '@/lib/helpers/fold-name';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormView } from '@/types/assistant/types';
-import { formHeading } from '@/lib/services/assistant-drafts/form-headings';
+import { defaultPrompt } from '@/lib/validations/form-answers';
 import type { DraftRequest } from '@/lib/services/assistant-drafts/schema';
 
 /** At most this many buttons; above it the reply states the count instead (AC-14). */
@@ -32,47 +32,53 @@ export const storedOfferOptionSchema = z
     optionId: z.number().int().min(0).max(MAX_OFFER_OPTIONS - 1),
     label: z.string().min(1).max(600),
     ref: offerOptionRefSchema,
+    detail: z.string().min(1).max(200).optional(),
   })
   .strict();
 export type StoredOfferOption = z.infer<typeof storedOfferOptionSchema>;
 
 export const storedOfferOptionsSchema = z.array(storedOfferOptionSchema).min(1).max(MAX_OFFER_OPTIONS);
 
-type Profile = { senderProfileId: string; name: { freelancerText: string } };
+type Profile = { senderProfileId: string; name: { freelancerText: string }; detail?: string | null };
+
+/** T78: the optional secondary line of an option; absent (no key) when there is none. */
+const withDetail = (detail: string | null | undefined) => (detail ? { detail: detail.slice(0, 200) } : {});
 
 export const isCurrency = (code: string): code is Currency => (CURRENCIES as readonly string[]).includes(code);
 
 /** A Customer's saved name; with its email (or "no email") only when another offered name folds equal (AC-10). */
-export function customerOptions(candidates: Array<{ customerId: string; name: { freelancerText: string }; email: string | null }>) {
+export function customerOptions(candidates: Array<{ customerId: string; name: { freelancerText: string }; email: string | null; detail?: string | null }>) {
   const folded = candidates.map((c) => foldName(c.name.freelancerText));
   return candidates.map((c, i) => {
     const name = c.name.freelancerText;
     const lookAlike = folded.some((f, j) => j !== i && f === folded[i]);
     const label = lookAlike ? `${name} (${c.email ?? 'no email'})` : name;
-    return { label, ref: { customerId: c.customerId } };
+    return { label, ref: { customerId: c.customerId }, ...withDetail(c.detail) };
   });
 }
 
 export const profileOptions = (profiles: Profile[]) =>
-  profiles.map((p) => ({ label: p.name.freelancerText, ref: { senderProfileId: p.senderProfileId } }));
+  profiles.map((p) => ({ label: p.name.freelancerText, ref: { senderProfileId: p.senderProfileId }, ...withDetail(p.detail) }));
 
 export const accountOptions = (
-  accounts: Array<{ bankAccountId: string; bankName: { freelancerText: string }; lastFour: string; currency: string }>
+  accounts: Array<{ bankAccountId: string; bankName: { freelancerText: string }; lastFour: string; currency: string; detail?: string | null }>
 ) =>
   accounts.map((a) => ({
     label: `${a.bankName.freelancerText} ••${a.lastFour} · ${a.currency}`,
     ref: isCurrency(a.currency)
       ? { bankAccountId: a.bankAccountId, accountCurrency: a.currency }
       : { bankAccountId: a.bankAccountId },
+    ...withDetail(a.detail),
   }));
 
 /** A product option: name, unit and the price in the invoice currency (spec §1 "What a button shows"). */
 export const productOptions = (
-  candidates: Array<{ productId: string; name: { freelancerText: string }; unit: string; price: string; currency: string }>
+  candidates: Array<{ productId: string; name: { freelancerText: string }; unit: string; price: string; currency: string; detail?: string | null }>
 ) =>
   candidates.map((p) => ({
     label: `${p.name.freelancerText} · ${p.unit} · ${p.price} ${p.currency}`,
     ref: { productId: p.productId },
+    ...withDetail(p.detail),
   }));
 
 // ---------- revision 2026-10-13 T51 (spec §1 F9a; data-model 08): the legacy reader ----------
@@ -83,8 +89,8 @@ const backfilledQuestionSchema = z
 const legacyAnswersSchema = z.array(z.object({ questionId: z.literal(0), optionId: z.number().int().min(0) }).strict()).length(1);
 
 /**
- * A pre-revision offer row read as a one-question form (F9a): the question's field is the row's kind, its heading the
- * app's heading for that field, its options the frozen labels, with no "Other…" input. The backfilled `questions` and
+ * A pre-revision offer row read as a one-question form (F9a): the question's field is the row's kind, its question the
+ * app's default text for that field, its options the frozen labels, with no "Other…" input. The backfilled `questions` and
  * `answers` (08) are read when present, else the same view is built from kind, options and chosenOptionId.
  */
 export function offerRowToFormView(row: {
@@ -111,8 +117,7 @@ export function offerRowToFormView(row: {
         questionId: 0,
         field,
         lineIndex: row.lineIndex,
-        heading: formHeading(field, row.lineIndex),
-        prompt: null,
+        prompt: defaultPrompt(field, row.lineIndex),
         options: options.map(({ optionId, label }) => ({ optionId, label })),
         input: 'NONE',
         required: true,

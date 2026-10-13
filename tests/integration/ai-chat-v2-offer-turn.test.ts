@@ -428,9 +428,9 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       expect(forms).toHaveLength(1);
       expect(forms[0]).toMatchObject({ kind: 'FORM', state: 'OPEN', request: null });
       const questions = forms[0].questions as any[];
-      expect(questions.map((q) => [q.field, q.heading, q.lineIndex, q.source])).toEqual([
-        ['CUSTOMER', 'Customer', null, 'CHAT'],
-        ['PRICE', 'Line 1 · Price', 0, 'CHAT'],
+      expect(questions.map((q) => [q.field, q.prompt, q.lineIndex, q.source])).toEqual([
+        ['CUSTOMER', 'Which Customer is this for?', null, 'CHAT'],
+        ['PRICE', 'What is the hourly price?', 0, 'CHAT'],
       ]);
       expect(questions[0].options.map((o: any) => o.label).sort()).toEqual(['Client 1', 'Client 2', 'Client 3', 'Client 4']);
       expect(questions[0].options.map((o: any) => o.ref.customerId).sort()).toEqual(customers.map((c) => c.id).sort());
@@ -564,7 +564,8 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       expect(forms[0].kind).toBe('FORM');
       const questions = forms[0].questions as any[];
       expect(questions.map((q) => [q.field, q.source, q.options.length])).toEqual([
-        ['CUSTOMER', 'FALLBACK', 0],
+        // T78: the Freelancer's one own Customer is offered even though the refused call named an unknown id.
+        ['CUSTOMER', 'FALLBACK', 1],
         ['PRICE', 'FALLBACK', 0],
       ]);
       expect(questions[0].input).toBe('TEXT');

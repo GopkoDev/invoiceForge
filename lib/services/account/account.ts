@@ -291,7 +291,6 @@ function exportForm(offer: ExportOfferRow | null) {
       questionId: q.questionId,
       field: q.field,
       lineIndex: q.lineIndex,
-      heading: q.heading,
       prompt: q.prompt,
       options: q.options,
       input: q.input,

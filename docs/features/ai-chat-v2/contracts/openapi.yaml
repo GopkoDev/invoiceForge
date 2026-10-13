@@ -151,7 +151,7 @@ paths:
         Answer the latest questions or type your request." for every cause. A typed answer that fails its
         per-kind format check (spec F6) → `400 VALIDATION` with `fieldErrors` keyed `form.answers.<questionId>`;
         neither is counted or reaches the model. A valid form claims the row (`OPEN → CHOSEN`, `answers`
-        stored) with the slot; the message text is composed by the server (one "heading: answer" line per
+        stored) with the slot; the message text is composed by the server (one "<question> — <answer>" line per
         answer) and saved with origin `FORM`; `message.parts[0].text` is ignored. Answers are pinned into the
         stored request and resolved in code when it validates; otherwise they reach the turn as a prior
         `ask_user` step. The `data-offer` part keeps its name and now references a form (FormView). Where the
@@ -859,14 +859,14 @@ components:
     StoredFormQuestion:
       description: ChoiceOffer.questions[] (data-model). Labels and headings are app/server text; `prompt` is model text, plain.
       type: object
-      required: [questionId, field, heading, options, input, required, skippable, source]
+      required: [questionId, field, options, input, required, skippable, source]
       additionalProperties: false
       properties:
         questionId: { $ref: "#/components/schemas/QuestionId" }
         field: { $ref: "#/components/schemas/FormField" }
         lineIndex: { type: [integer, "null"], minimum: 0, maximum: 49 }
-        heading: { type: string, maxLength: 60, examples: ["Customer", "Line 1 · Price"] }
-        prompt: { type: [string, "null"], maxLength: 140 }
+        heading: { type: string, maxLength: 60, description: "Legacy: rows made before the headings were dropped; never written, never sent." }
+        prompt: { type: [string, "null"], maxLength: 140, description: "The question text; the chat's, else the field's default written by the server at compose time." }
         options:
           type: array
           maxItems: 8
@@ -878,6 +878,7 @@ components:
               optionId: { $ref: "#/components/schemas/OptionId" }
               label: { type: string, minLength: 1, maxLength: 600 }
               ref: { $ref: "#/components/schemas/FormOptionRef" }
+              detail: { type: string, minLength: 1, maxLength: 200, description: "T78: optional secondary line (customer email or country, product price and currency, profile country or email, account currency and last four)." }
         input: { $ref: "#/components/schemas/FormInput" }
         required: { type: boolean }
         skippable: { type: boolean }
@@ -899,13 +900,12 @@ components:
           maxItems: 6
           items:
             type: object
-            required: [questionId, field, heading, options, input, required, skippable]
+            required: [questionId, field, options, input, required, skippable]
             additionalProperties: false
             properties:
               questionId: { $ref: "#/components/schemas/QuestionId" }
               field: { $ref: "#/components/schemas/FormField" }
               lineIndex: { type: [integer, "null"] }
-              heading: { type: string }
               prompt: { type: [string, "null"] }
               options:
                 type: array

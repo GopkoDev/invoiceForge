@@ -85,9 +85,9 @@ describe.runIf(containerRuntimeAvailable)('ask_user: checked, owner-scoped quest
       {
         field: 'CUSTOMER', lineIndex: null, prompt: 'Which Customer is this for?', input: 'TEXT', required: true, skippable: false, matchCount: null, source: 'CHAT',
         options: [
-          { optionId: 0, label: 'Acme Corp (a@acme.example.test)', ref: { customerId: w.acme.id } },
+          { optionId: 0, label: 'Acme Corp (a@acme.example.test)', ref: { customerId: w.acme.id }, detail: 'a@acme.example.test' },
           { optionId: 1, label: 'Аcme Corp (no email)', ref: { customerId: w.acmeLook.id } },
-          { optionId: 2, label: 'Globex', ref: { customerId: w.globex.id } },
+          { optionId: 2, label: 'Globex', ref: { customerId: w.globex.id }, detail: expect.any(String) },
         ],
       },
       { field: 'PRICE', lineIndex: 0, prompt: 'What is the hourly rate?', input: 'AMOUNT', required: true, skippable: false, matchCount: null, source: 'CHAT', options: [] },
@@ -117,7 +117,7 @@ describe.runIf(containerRuntimeAvailable)('ask_user: checked, owner-scoped quest
       ['Mono ••1234 · USD', 'Wise ••5678 · EUR'],
       ['Audit · hour · 90.00 USD'],
       ['USD', 'EUR'],
-      ['7 days after the issue date · 19 Oct 2026', '14 days after the issue date · 26 Oct 2026', '30 days after the issue date · 11 Nov 2026'],
+      ['7 days after the issue date · Oct 19, 2026', '14 days after the issue date · Oct 26, 2026', '30 days after the issue date · Nov 11, 2026'],
       [],
     ]);
     expect(out.questions[5]).toMatchObject({ field: 'NOTES', required: false, skippable: true, input: 'TEXT' });

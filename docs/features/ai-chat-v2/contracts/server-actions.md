@@ -201,7 +201,7 @@ The prompt box validates with the chat's own message rule (`chatRequestSchema`'s
 
 ## Data export — `getAccountExport` / `GET /api/user/export` ✎ (flow 11; AC-34)
 
-`exportVersion` goes from `'2.2'` to `'2.3'` (additive only). Revision 2026-10-13 (T61) bumps it to `'2.4'`: each message also carries `form` (null, or `{ state, questions[{questionId, field, lineIndex, heading, prompt, options[{optionId,label}], input, required, skippable}], answers }`), origin may be `FORM`, and a FORM row exports `offer: null`:
+`exportVersion` goes from `'2.2'` to `'2.3'` (additive only). Revision 2026-10-13 (T61) bumps it to `'2.4'`: each message also carries `form` (null, or `{ state, questions[{questionId, field, lineIndex, prompt, options[{optionId,label}], input, required, skippable}], answers }`), origin may be `FORM`, and a FORM row exports `offer: null`:
 
 ```ts
 conversations: Array</* parent */ & {
@@ -247,7 +247,7 @@ checkForm(actor, input: { conversationId: string; form: ChatForm }):
         | { ok: false; kind: 'UNAVAILABLE' } | { ok: false; kind: 'INVALID'; fieldErrors: Record<string, string[]> }>;
 claimForm(actor, formId: string, answers: FormAnswer[], tx): Promise<boolean>; // OPEN → CHOSEN, with the allowance slot
 releaseForm(actor, formId: string): Promise<void>;                             // CHOSEN → OPEN (or CLOSED), answers cleared
-composeAnswerMessage(questions: StoredFormQuestion[], answers: ResolvedAnswer[]): string; // "heading: answer" lines
+composeAnswerMessage(questions: StoredFormQuestion[], answers: ResolvedAnswer[]): string; // "<question> — <answer>" lines
 pinAnswers(request: DraftRequestPartial, answers: ResolvedAnswer[]): DraftRequestPartial;  // ids for picks, names for "Other…", dates, values, skips
 ```
 

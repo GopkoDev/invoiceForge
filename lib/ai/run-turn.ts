@@ -14,7 +14,9 @@ import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
-import { composeForm, fallbackQuestions, type StoredFormQuestion } from '@/lib/services/assistant-drafts/forms';
+import { composeForm, fallbackQuestions, fillRecordOptions, type StoredFormQuestion } from '@/lib/services/assistant-drafts/forms';
+import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
+import { isCurrency } from '@/lib/services/assistant-drafts/offers';
 import type { ConversationMessageView } from '@/types/assistant/types';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 
@@ -145,12 +147,19 @@ function chunkStream(run: (emit: (chunk: UIMessageChunk) => void) => Promise<voi
 }
 
 /** T55 (ADR-0011): the turn's one form - resolver and chat questions composed, or the inputs-only fallback of a refused ask_user. */
-function pendingFormOf(turn: TurnContext): TurnResult['pendingForm'] {
+async function pendingFormOf(turn: TurnContext): Promise<TurnResult['pendingForm']> {
   const { resolver, ask, askRefused } = turn.pending;
   let questions = composeForm(resolver?.questions ?? [], ask?.questions ?? []);
   if (questions.length === 0 && askRefused) questions = composeForm([], fallbackQuestions(askRefused));
   if (questions.length === 0) return undefined;
-  return { id: createId(), request: resolver?.request ?? ask?.draft ?? null, questions };
+  const request = resolver?.request ?? ask?.draft ?? null;
+  // T78: an input-only record question is filled with the Freelancer's own records (up to 8), in the request's currency.
+  const written = request?.currency;
+  const reading = typeof written === 'string' ? interpretCurrency(written, 'USD') : null;
+  const currency = reading?.kind === 'RESOLVED' && isCurrency(reading.currency) ? reading.currency : null;
+  const senderProfileId = typeof request?.senderProfileId === 'string' ? request.senderProfileId : null;
+  questions = await fillRecordOptions(turn.actor, questions, { currency, senderProfileId });
+  return { id: createId(), request, questions };
 }
 
 /** T63 (AC-45): the per-turn date note. It is a separate message, so the frozen instructions stay identical across days. */
@@ -171,7 +180,7 @@ function priorAskStep(answers: Array<Record<string, unknown>>, request?: Record<
     {
       role: 'assistant',
       content: [
-        { type: 'tool-call', toolCallId: PRIOR_ASK_CALL_ID, toolName: 'ask_user', input: { questions: answers.map((a) => ({ heading: a.heading as string })) } },
+        { type: 'tool-call', toolCallId: PRIOR_ASK_CALL_ID, toolName: 'ask_user', input: { questions: answers.map((a) => ({ question: a.question as string })) } },
       ],
     },
     {
@@ -447,7 +456,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       usage,
       costUsd,
       pendingCard: turn.pending.card ?? undefined,
-      pendingForm: turn.pending.card ? undefined : pendingFormOf(turn),
+      pendingForm: turn.pending.card ? undefined : await pendingFormOf(turn),
       links,
       text,
     });

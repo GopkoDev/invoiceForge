@@ -7,6 +7,7 @@ import type { TurnContext } from '@/lib/ai/turn-context';
 const DESCRIPTION =
   'Ask the Freelancer everything still open in one Question form (up to 6 questions) instead of asking in prose. ' +
   'Offer records only by the ids the read tools returned; never write option labels, the app writes them. ' +
+  'For a Customer, sender profile, bank account or product question you may omit recordIds; the app then offers the Freelancer\'s own records. ' +
   'Pass what the Freelancer already said as the partial draft. Your reply text must be at most two sentences leading into the form.';
 
 const SAY = 'Write at most two sentences before the form; do not repeat the questions.';

@@ -88,6 +88,9 @@ describe('part 2: every business function has request-free and foreign-record te
     'claimForm',
     'releaseForm',
     'stillFits',
+    // ai-chat-v2 T78: the record fill is request-free (actor-first) but its test shares a file that mocks @/auth for the chat route; covered by
+    // tests/integration/services/assistant-drafts/fill-record-options.test.ts and tests/integration/ai-chat-v2-fill-options-turn.test.ts.
+    'fillRecordOptions',
   ]);
 
   type Fn = { name: string; file: string; takesId: boolean };

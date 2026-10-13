@@ -252,7 +252,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
   }
 
   describe('AC-08: picking a Customer and pressing Send', () => {
-    it('AC-08: Send with "Acme GmbH" saves "Customer: Acme GmbH" (origin FORM), marks the form CHOSEN with the answers, counts one slot and shows the card for exactly that Customer; the client text is ignored', async () => {
+    it('AC-08: Send with "Acme GmbH" saves "Which Customer is this invoice for? — Acme GmbH" (origin FORM), marks the form CHOSEN with the answers, counts one slot and shows the card for exactly that Customer; the client text is ignored', async () => {
       const user = await freelancer('t57-ac08@example.com');
       await profileWithOneUsdAccount(user.id);
       const { gmbh } = await acmePair(user.id);
@@ -272,7 +272,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(after.state).toBe('CHOSEN');
       expect(after.answers).toEqual([pick]);
       const message = await lastUserMessage();
-      expect((message.parts as any[])[0].text).toBe('Customer: Acme GmbH');
+      expect((message.parts as any[])[0].text).toBe('Which Customer is this invoice for? — Acme GmbH');
       expect(message.origin).toBe('FORM');
       expect(await prisma.conversationMessage.count({ where: { origin: 'PRESSED' } })).toBe(0);
       expect(await used(user.id)).toBe(usedBefore + 1);
@@ -303,7 +303,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(proposal.customer.customerId).toBe(gmbh.id);
       expect(proposal.bankAccount.bankAccountId).toBe(alpha.id);
       expect(await used(user.id)).toBe(4);
-      expect((await lastUserMessage() as any).parts[0].text).toBe('Customer: Acme GmbH\nBank account: Alpha Bank ••1111 · USD');
+      expect((await lastUserMessage() as any).parts[0].text).toBe('Which Customer is this invoice for? — Acme GmbH\nWhich bank account should be paid into? — Alpha Bank ••1111 · USD');
     });
   });
 
@@ -549,7 +549,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
 
       expect(response.status).toBe(200);
       expect((await onlyCard()).customer.customerId).toBe(north.id);
-      expect(((await lastUserMessage()).parts as any[])[0].text).toBe('Customer: Studio North');
+      expect(((await lastUserMessage()).parts as any[])[0].text).toBe('Which Customer is this invoice for? — Studio North');
     });
   });
 
@@ -578,7 +578,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(proposal.customer.customerId).toBe(john.id);
       expect(proposal.lines[0].rate).toBe('40.00');
       expect(await used(user.id)).toBe(1);
-      expect(((await lastUserMessage()).parts as any[])[0].text).toBe(`Customer: ${OTHER.trim()}\nLine 1 · Price: 40`);
+      expect(((await lastUserMessage()).parts as any[])[0].text).toBe(`Which Customer is this invoice for? — ${OTHER.trim()}\nWhat price for line 1? — 40`);
     });
 
     it.each(['forty', '-5', '0', '1.234'])('AC-38: a price of "%s" is 400 VALIDATION keyed form.answers.1; nothing sent, counted, claimed or saved; the model is not called', async (price) => {
@@ -628,7 +628,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
   });
 
   describe('a form with no draft action to run', () => {
-    it('a free-question form (request NULL): no draft action and no card; the answers reach the model as data (a prior ask_user step), the message reads "heading: answer", origin FORM, one slot', async () => {
+    it('a free-question form (request NULL): no draft action and no card; the answers reach the model as data (a prior ask_user step), the message reads "question — answer", origin FORM, one slot', async () => {
       const user = await freelancer('t57-free@example.com');
       const { conversationId, form } = await seedForm(user.id, {
         questions: [q({ questionId: 0, field: 'FREE', heading: 'Rush fee', prompt: 'Is there a rush fee?', source: 'CHAT' })],
@@ -648,7 +648,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(calls.some((p) => p.type === 'tool-call' && p.toolName === 'ask_user')).toBe(true);
       expect(calls.some((p) => p.type === 'tool-call' && p.toolName === 'propose_draft')).toBe(false);
       const message = await lastUserMessage();
-      expect((message.parts as any[])[0].text).toBe('Rush fee: yes please');
+      expect((message.parts as any[])[0].text).toBe('Is there a rush fee? — yes please');
       expect(message.origin).toBe('FORM');
       const after = await formRow(form.id);
       expect(after.state).toBe('CHOSEN');
@@ -671,8 +671,8 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
 
       expect(response.status).toBe(200);
       expect((await onlyCard()).customer.customerId).toBe(gmbh.id);
-      expect(((await lastUserMessage()).parts as any[])[0].text).toBe('Customer: Acme GmbH\nRush fee: yes please');
-      expect(JSON.stringify(prompts[0])).toContain('Rush fee: yes please');
+      expect(((await lastUserMessage()).parts as any[])[0].text).toBe('Which Customer is this invoice for? — Acme GmbH\nQuestion — yes please');
+      expect(JSON.stringify(prompts[0])).toContain('Question — yes please');
     });
 
     it('a draft form whose pinned request still fails draftRequestSchema (no line to price) runs no draft action and sends the answers as data', async () => {
@@ -704,7 +704,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
     };
     const hasId = (json: string, key: string, id: string) => new RegExp(`"${key}"\\s*:\\s*"${id}"`).test(json);
 
-    it('a form without draft: the prior ask_user result carries exactly the picked Customer id as customerId, beside the heading and answer, and still says data not instructions', async () => {
+    it('a form without draft: the prior ask_user result carries exactly the picked Customer id as customerId, beside the question and answer, and still says data not instructions', async () => {
       const user = await freelancer('t71-ids@example.com');
       const { corp, gmbh } = await acmePair(user.id);
       const { conversationId, form } = await seedForm(user.id, {
@@ -891,7 +891,7 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(raw).toMatch(/"counted":false/);
       expect(streamCalls()).toBeGreaterThanOrEqual(1);
       // The turn really ran as the form's Send (the composed message reached the model), then everything was given back.
-      expect(JSON.stringify(prompts[0])).toContain('Customer: Acme GmbH');
+      expect(JSON.stringify(prompts[0])).toContain('Which Customer is this invoice for? — Acme GmbH');
       const after = await formRow(form.id);
       expect(after.state).toBe('OPEN');
       expect(after.answers).toBeNull();

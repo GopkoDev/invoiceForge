@@ -322,7 +322,7 @@ describe.runIf(containerRuntimeAvailable)('form safety: uniform refusals, one cl
       expect(raw).toMatch(/"counted":false/);
       expect(model.doStreamCalls.length).toBeGreaterThanOrEqual(1);
       // The turn ran as the form's Send (the composed message reached the model), then claim and slot were given back.
-      expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain('Bank account: Alpha Bank ••1111 · USD');
+      expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain('Which bank account should be paid into? — Alpha Bank ••1111 · USD');
       const after = await prisma.choiceOffer.findUniqueOrThrow({ where: { id: form.id } });
       expect(after.state).toBe('OPEN');
       expect(after.answers).toBeNull();
@@ -380,7 +380,7 @@ describe.runIf(containerRuntimeAvailable)('form safety: uniform refusals, one cl
   describe('AC-09: the stream contract - every FormView option is the system\'s own record with the system\'s label (T58)', () => {
     const FOREIGN_NAME = 'Foreign Customer Ltd';
     const GLOBEX = `Globex ${INJECTED_NOTE}`; // a stored name that is itself an instruction
-    const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const dayFmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
     async function seedOwnAndForeign(email: string) {
       const user = await createFreelancer(prisma, { email, timeZone: TZ });
@@ -499,11 +499,14 @@ describe.runIf(containerRuntimeAvailable)('form safety: uniform refusals, one cl
       expect(forms).toHaveLength(1);
       const stored: any[] = forms[0].questions as any[];
       expect(stored.length).toBeGreaterThan(0);
+      // T78: the fallback fills a record question with the Freelancer's OWN records (never a foreign one, never the refused ids).
+      const ownIds = new Set([s.profile.id, s.account.id, s.globex.id, s.acmeOne.id, s.acmeTwo.id, s.product.id]);
       for (const q of stored) {
-        expect(q.options).toEqual([]);
         expect(q.source).toBe('FALLBACK');
+        for (const o of q.options) expect(ownIds.has(Object.values(o.ref)[0] as string)).toBe(true);
       }
-      expect(views.flatMap((v) => v.questions.flatMap((q: any) => q.options))).toEqual([]);
+      const shown = views.flatMap((v) => v.questions.flatMap((q: any) => q.options.map((o: any) => o.label)));
+      for (const label of shown) expect(label).not.toMatch(/Their|Foreign|Theirs/i);
       for (const secret of [FOREIGN_NAME, 'Their Bank', '9999', s.otherCustomer.id, s.otherAccount.id, s.otherProfile.id]) {
         expect(JSON.stringify(forms)).not.toContain(secret);
         expect(raw).not.toContain(secret);

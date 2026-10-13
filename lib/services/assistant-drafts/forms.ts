@@ -8,7 +8,7 @@ import { startSpan } from '@sentry/nextjs';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { reserveMessageSlot, type ReserveResult } from '@/lib/services/assistant-usage/allowance';
-import { formFormatErrors } from '@/lib/validations/form-answers';
+import { defaultPrompt, formFormatErrors } from '@/lib/validations/form-answers';
 import { addDaysToDay, isCalendarDay } from '@/lib/helpers/calendar-day';
 import { accountLastFour } from '@/lib/helpers/account-last-four';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -29,7 +29,7 @@ import {
   type OfferOptionRef,
 } from '@/lib/services/assistant-drafts/offers';
 import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
-import { formHeading, LINE_FIELDS } from '@/lib/services/assistant-drafts/form-headings';
+import { formatDay, formatMoney } from '@/lib/format';
 import { draftRequestShape, type DraftIssue, type DraftRequest } from '@/lib/services/assistant-drafts/schema';
 import { FORM_MAX_OPTIONS, FORM_MAX_QUESTIONS, formAnswersSchema, type FormAnswer } from '@/lib/validations/assistant-chat';
 import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormInput, FormView } from '@/types/assistant/types';
@@ -66,6 +66,7 @@ export const formOptionSchema = z
     optionId: z.number().int().min(0).max(FORM_MAX_OPTIONS - 1),
     label: z.string().min(1).max(600),
     ref: formOptionRefSchema,
+    detail: z.string().min(1).max(200).optional(),
   })
   .strict();
 export type FormOption = z.infer<typeof formOptionSchema>;
@@ -75,7 +76,8 @@ export const formQuestionSchema = z
     questionId: z.number().int().min(0).max(FORM_MAX_QUESTIONS - 1),
     field: z.enum(FORM_FIELDS),
     lineIndex: z.number().int().min(0).max(49).nullable(),
-    heading: z.string().min(1).max(60),
+    /** Legacy: rows made before the headings were dropped still carry one; never written, never sent. */
+    heading: z.string().min(1).max(60).optional(),
     prompt: z.string().max(140).nullable(),
     options: z.array(formOptionSchema).max(FORM_MAX_OPTIONS),
     input: z.enum(FORM_INPUTS),
@@ -117,9 +119,8 @@ export function toFormView(row: FormRow): FormView {
       questionId: q.questionId,
       field: q.field,
       lineIndex: q.lineIndex,
-      heading: q.heading,
-      prompt: q.prompt,
-      options: q.options.map(({ optionId, label }) => ({ optionId, label })),
+      prompt: q.prompt ?? defaultPrompt(q.field, q.lineIndex),
+      options: q.options.map(({ optionId, label, detail }) => ({ optionId, label, ...(detail ? { detail } : {}) })),
       input: q.input,
       required: q.required,
       skippable: q.skippable,
@@ -140,9 +141,12 @@ function resolvedCurrency(request: unknown): string | null {
 
 // ---------- T52: questions from resolver issues, date options, one form per reply (ADR-0011; spec §1 F1–F4) ----------
 
-/** A question before it is placed in a form: no position and no heading yet (composeForm assigns both). */
+/** A question before it is placed in a form: no position yet (composeForm assigns it, and a default question text when the chat gave none). */
 export type FormQuestionDraft = Omit<StoredFormQuestion, 'questionId' | 'heading'>;
 type DraftOption = Omit<FormOption, 'optionId'>;
+
+/** The fields that fill one invoice line; their default question names the line. */
+export const LINE_FIELDS: ReadonlySet<FormField> = new Set<FormField>(['PRODUCT', 'QUANTITY', 'PRICE']);
 
 /** The draft fields that may be left empty: a Skip answer leaves the value unset (spec §1 F4). */
 export const OPTIONAL_FIELDS: ReadonlySet<FormField> = new Set<FormField>(['TAX_RATE', 'DISCOUNT', 'PO_NUMBER', 'PAYMENT_TERMS', 'NOTES']);
@@ -190,8 +194,7 @@ function question(
   };
 }
 
-const DAY_LABEL = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-const dayLabel = (day: string) => DAY_LABEL.format(new Date(`${day}T00:00:00Z`));
+const dayLabel = (day: string) => formatDay(`${day}T00:00:00Z`);
 const DUE_OFFSETS = [7, 14, 30] as const;
 
 /**
@@ -335,7 +338,7 @@ const SUB_RANK: Partial<Record<FormField, number>> = { QUANTITY: 0, PRICE: 1 };
 /**
  * One form per reply (ADR-0011): the resolver's questions, then the chat's questions for a field and line the resolver
  * did not ask (the resolver's own options win; a missing prompt is taken from the chat), sorted in the spec §1 F1 order
- * and capped at 6 (the rest are asked in the next form). Questions are numbered 0..n-1 and get the app heading.
+ * and capped at 6 (the rest are asked in the next form). Questions are numbered 0..n-1; one the chat gave no text gets the field's default question.
  * `fallback` turns the chat's questions into inputs only (a turn that ended without a valid ask_user call).
  */
 export function composeForm(
@@ -374,11 +377,32 @@ export function composeForm(
         a.i - b.i
     )
     .slice(0, FORM_MAX_QUESTIONS);
-  return ordered.map(({ q }, questionId) => ({ questionId, heading: formHeading(q.field, q.lineIndex), ...q }));
+  return ordered.map(({ q }, questionId) => ({ questionId, ...q, prompt: q.prompt ?? defaultPrompt(q.field, q.lineIndex) }));
 }
 
 
 // ---------- T54: the chat-only ask_user tool's check (ADR-0011 "Sources of questions" (b); AC-09, AC-37) ----------
+
+// T78: a record row as the option builders take it, with the secondary `detail` line the form shows under the label.
+const customerCandidate = (r: { id: string; name: string; email: string | null; country: string | null }) => ({
+  customerId: r.id,
+  name: { freelancerText: r.name },
+  email: r.email,
+  detail: r.email ?? r.country,
+});
+const profileCandidate = (r: { id: string; name: string; email: string | null; country: string | null }) => ({
+  senderProfileId: r.id,
+  name: { freelancerText: r.name },
+  detail: r.country ?? r.email,
+});
+const accountCandidate = (r: { id: string; bankName: string; accountNumber: string; currency: string }) => {
+  const lastFour = accountLastFour(r.accountNumber);
+  return { bankAccountId: r.id, bankName: { freelancerText: r.bankName }, lastFour, currency: r.currency, detail: `${r.currency} ••${lastFour}` };
+};
+const productCandidate = (r: { id: string; name: string; unit: string; price: unknown; currency: string }) => {
+  const price = Number(r.price).toFixed(2);
+  return { productId: r.id, name: { freelancerText: r.name }, unit: r.unit, price, currency: r.currency, detail: formatMoney(Number(price), r.currency) };
+};
 
 const RECORD_FIELDS: ReadonlySet<FormField> = new Set<FormField>(['CUSTOMER', 'SENDER_PROFILE', 'BANK_ACCOUNT', 'PRODUCT']);
 const CURRENCY_CODES = ['UAH', 'USD', 'EUR', 'GBP', 'PLN'] as const;
@@ -449,34 +473,19 @@ export async function checkAskUser(actor: ActingFreelancer, raw: unknown, ctx: {
       if (q.field === 'CUSTOMER') {
         const rows = inOrder(await prisma.customer.findMany({ where: { id: { in: ids }, userId } }));
         if (!rows) return REFUSED;
-        options = customerOptions(rows.map((r) => ({ customerId: r.id, name: { freelancerText: r.name }, email: r.email })));
+        options = customerOptions(rows.map(customerCandidate));
       } else if (q.field === 'SENDER_PROFILE') {
         const rows = inOrder(await prisma.senderProfile.findMany({ where: { id: { in: ids }, userId } }));
         if (!rows) return REFUSED;
-        options = profileOptions(rows.map((r) => ({ senderProfileId: r.id, name: { freelancerText: r.name } })));
+        options = profileOptions(rows.map(profileCandidate));
       } else if (q.field === 'BANK_ACCOUNT') {
         const rows = inOrder(await prisma.bankAccount.findMany({ where: { id: { in: ids }, senderProfile: { userId } } }));
         if (!rows) return REFUSED;
-        options = accountOptions(
-          rows.map((r) => ({
-            bankAccountId: r.id,
-            bankName: { freelancerText: r.bankName },
-            lastFour: accountLastFour(r.accountNumber),
-            currency: r.currency,
-          }))
-        );
+        options = accountOptions(rows.map(accountCandidate));
       } else {
         const rows = inOrder(await prisma.product.findMany({ where: { id: { in: ids }, userId, isActive: true } }));
         if (!rows) return REFUSED;
-        options = productOptions(
-          rows.map((r) => ({
-            productId: r.id,
-            name: { freelancerText: r.name },
-            unit: r.unit,
-            price: Number(r.price).toFixed(2),
-            currency: r.currency,
-          }))
-        );
+        options = productOptions(rows.map(productCandidate));
       }
     } else if (q.field === 'CURRENCY' && q.currencies) {
       options = q.currencies.map((code) => ({ label: code, ref: { currency: code } }));
@@ -549,8 +558,7 @@ function questionsOfRow(row: {
       questionId: 0,
       field,
       lineIndex: row.lineIndex,
-      heading: formHeading(field, row.lineIndex),
-      prompt: null,
+      prompt: defaultPrompt(field, row.lineIndex),
       options: options.data,
       input: 'NONE',
       required: true,
@@ -677,4 +685,63 @@ export function reserveAndClaimForm(
     claim: (tx) => claimForm(tx, actor, formId, answers),
     release: (tx) => releaseForm(tx, formId),
   });
+}
+
+// ---------- T78: an input-only record question is filled with the Freelancer's own records (ADR-0011 amended) ----------
+
+/**
+ * The Customer, sender profile, bank account or product questions that carry no options and no count get the actor's
+ * own records instead (up to 8, most recently updated first, each with a detail line); 0 records leave the question as
+ * it was. Owner-scoped; products are active ones in the known currency; accounts are the given profile's in that currency.
+ */
+export async function fillRecordOptions(
+  actor: ActingFreelancer,
+  questions: StoredFormQuestion[],
+  ctx: { currency?: Currency | null; senderProfileId?: string | null }
+): Promise<StoredFormQuestion[]> {
+  const needs = (q: StoredFormQuestion) => RECORD_FIELDS.has(q.field) && q.options.length === 0 && q.matchCount === null;
+  if (!questions.some(needs)) return questions;
+  const prisma = (await import('@/prisma')).prisma;
+  const { userId } = actor;
+  const take = FORM_MAX_OPTIONS;
+  const orderBy = { updatedAt: 'desc' } as const;
+  const optionsOf = async (field: FormField): Promise<DraftOption[]> => {
+    switch (field) {
+      case 'CUSTOMER':
+        return customerOptions((await prisma.customer.findMany({ where: { userId }, orderBy, take })).map(customerCandidate));
+      case 'SENDER_PROFILE':
+        return profileOptions((await prisma.senderProfile.findMany({ where: { userId }, orderBy, take })).map(profileCandidate));
+      case 'BANK_ACCOUNT':
+        return accountOptions(
+          (
+            await prisma.bankAccount.findMany({
+              where: {
+                senderProfile: { userId },
+                ...(ctx.senderProfileId ? { senderProfileId: ctx.senderProfileId } : {}),
+                ...(ctx.currency ? { currency: ctx.currency } : {}),
+              },
+              orderBy,
+              take,
+            })
+          ).map(accountCandidate)
+        );
+      default:
+        return productOptions(
+          (
+            await prisma.product.findMany({
+              where: { userId, isActive: true, ...(ctx.currency ? { currency: ctx.currency } : {}) },
+              orderBy,
+              take,
+            })
+          ).map(productCandidate)
+        );
+    }
+  };
+  return Promise.all(
+    questions.map(async (q) => {
+      if (!needs(q)) return q;
+      const options = await optionsOf(q.field);
+      return options.length === 0 ? q : { ...q, options: numbered(options) };
+    })
+  );
 }

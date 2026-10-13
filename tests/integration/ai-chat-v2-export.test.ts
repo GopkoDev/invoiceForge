@@ -352,16 +352,16 @@ describe.runIf(containerRuntimeAvailable)(
         ['assistant', null],
       ]);
 
-      // The sent form: questions with heading, prompt, field and option labels; answers incl. typed text and the skip.
+      // The sent form: questions with prompt (the default text when none), field and option labels; answers incl. typed text and the skip.
       const sent = forms.messages[1].form!;
       expect(sent.state).toBe('CHOSEN');
       expect(
-        sent.questions.map((q) => [q.questionId, q.field, q.heading, q.prompt])
+        sent.questions.map((q) => [q.questionId, q.field, q.prompt])
       ).toEqual([
-        [0, 'CURRENCY', 'Currency', 'Which currency?'],
-        [1, 'CUSTOMER', 'Customer', 'Which Acme do you mean?'],
-        [2, 'PRICE', 'Line 1 · Price', 'What is the hourly price?'],
-        [3, 'NOTES', 'Notes', null],
+        [0, 'CURRENCY', 'Which currency?'],
+        [1, 'CUSTOMER', 'Which Acme do you mean?'],
+        [2, 'PRICE', 'What is the hourly price?'],
+        [3, 'NOTES', 'Any notes?'],
       ]);
       expect(sent.questions[0].options).toEqual([
         { optionId: 0, label: 'USD' },

@@ -61,9 +61,8 @@ export type FormQuestionView = {
   questionId: number;
   field: FormField;
   lineIndex: number | null;
-  heading: string;
   prompt: string | null;
-  options: Array<{ optionId: number; label: string }>;
+  options: Array<{ optionId: number; label: string; detail?: string }>;
   input: FormInput;
   required: boolean;
   skippable: boolean;

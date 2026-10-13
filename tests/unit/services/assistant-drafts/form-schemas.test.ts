@@ -14,7 +14,7 @@ import {
   type StoredFormQuestion,
 } from '@/lib/services/assistant-drafts/forms';
 import { offerRowToFormView } from '@/lib/services/assistant-drafts/offers';
-import { formHeading } from '@/lib/services/assistant-drafts/form-headings';
+import { defaultPrompt } from '@/lib/validations/form-answers';
 import { formAnswersSchema } from '@/lib/validations/assistant-chat';
 import { defaultFormQuestions } from '../../../support/factories/choice-offer';
 
@@ -33,9 +33,9 @@ describe('Question form schemas mirror openapi 0.3.0 (T51)', () => {
 
   it('the factory default questions parse (a Customer question with options + Other…, an input-only price)', () => {
     const parsed = storedFormQuestionsSchema.parse(defaultFormQuestions());
-    expect(parsed.map((q) => [q.questionId, q.field, q.heading, q.input, q.options.length])).toEqual([
-      [0, 'CUSTOMER', 'Customer', 'TEXT', 2],
-      [1, 'PRICE', 'Line 1 · Price', 'AMOUNT', 0],
+    expect(parsed.map((q) => [q.questionId, q.field, q.prompt, q.input, q.options.length])).toEqual([
+      [0, 'CUSTOMER', 'Which Acme do you mean?', 'TEXT', 2],
+      [1, 'PRICE', 'What is the hourly price?', 'AMOUNT', 0],
     ]);
   });
 
@@ -84,22 +84,22 @@ describe('Question form schemas mirror openapi 0.3.0 (T51)', () => {
     expect(formAnswersSchema.safeParse([{ questionId: 0, optionId: 8 }]).success).toBe(false);
   });
 
-  it('headings are app text per field ("Customer", "Line 1 · Price", "Issue date", …)', () => {
-    expect(formHeading('CUSTOMER', null)).toBe('Customer');
-    expect(formHeading('SENDER_PROFILE', null)).toBe('Sender profile');
-    expect(formHeading('BANK_ACCOUNT', null)).toBe('Bank account');
-    expect(formHeading('CURRENCY', null)).toBe('Currency');
-    expect(formHeading('PRODUCT', 0)).toBe('Line 1 · Product');
-    expect(formHeading('QUANTITY', 2)).toBe('Line 3 · Quantity');
-    expect(formHeading('PRICE', 0)).toBe('Line 1 · Price');
-    expect(formHeading('ISSUE_DATE', null)).toBe('Issue date');
-    expect(formHeading('DUE_DATE', null)).toBe('Due date');
-    expect(formHeading('TAX_RATE', null)).toBe('Tax rate');
-    expect(formHeading('DISCOUNT', null)).toBe('Discount');
-    expect(formHeading('PO_NUMBER', null)).toBe('PO number');
-    expect(formHeading('PAYMENT_TERMS', null)).toBe('Payment terms');
-    expect(formHeading('NOTES', null)).toBe('Notes');
-    expect(formHeading('FREE', null)).toBe('Question');
+  it('every field has a default question text; line fields name the line', () => {
+    expect(defaultPrompt('CUSTOMER', null)).toBe('Which Customer is this invoice for?');
+    expect(defaultPrompt('SENDER_PROFILE', null)).toBe('Which sender profile should it come from?');
+    expect(defaultPrompt('BANK_ACCOUNT', null)).toBe('Which bank account should be paid into?');
+    expect(defaultPrompt('CURRENCY', null)).toBe('Which currency?');
+    expect(defaultPrompt('PRODUCT', 0)).toBe('Which product for line 1?');
+    expect(defaultPrompt('QUANTITY', 2)).toBe('What quantity for line 3?');
+    expect(defaultPrompt('PRICE', 0)).toBe('What price for line 1?');
+    expect(defaultPrompt('ISSUE_DATE', null)).toBe('What is the issue date?');
+    expect(defaultPrompt('DUE_DATE', null)).toBe('When is it due?');
+    expect(defaultPrompt('TAX_RATE', null)).toBe('What tax rate?');
+    expect(defaultPrompt('DISCOUNT', null)).toBe('Any discount?');
+    expect(defaultPrompt('PO_NUMBER', null)).toBe('PO number?');
+    expect(defaultPrompt('PAYMENT_TERMS', null)).toBe('Payment terms?');
+    expect(defaultPrompt('NOTES', null)).toBe('Any notes?');
+    expect(defaultPrompt('FREE', null)).toBe('Question');
   });
 });
 
@@ -122,8 +122,8 @@ describe('FormView: what the browser gets (no refs, no stored request)', () => {
       formId: 'form1',
       state: 'CHOSEN',
       questions: [
-        { questionId: 0, field: 'CUSTOMER', lineIndex: null, heading: 'Customer', prompt: 'Which Acme do you mean?', options: [{ optionId: 0, label: 'Acme Corp' }, { optionId: 1, label: 'Acme GmbH' }], input: 'TEXT', required: true, skippable: false, matchCount: null },
-        { questionId: 1, field: 'PRICE', lineIndex: 0, heading: 'Line 1 · Price', prompt: 'What is the hourly price?', options: [], input: 'AMOUNT', required: true, skippable: false, matchCount: null },
+        { questionId: 0, field: 'CUSTOMER', lineIndex: null, prompt: 'Which Acme do you mean?', options: [{ optionId: 0, label: 'Acme Corp' }, { optionId: 1, label: 'Acme GmbH' }], input: 'TEXT', required: true, skippable: false, matchCount: null },
+        { questionId: 1, field: 'PRICE', lineIndex: 0, prompt: 'What is the hourly price?', options: [], input: 'AMOUNT', required: true, skippable: false, matchCount: null },
       ],
       answers: [{ questionId: 0, optionId: 1 }, { questionId: 1, text: '40' }],
     });
@@ -155,12 +155,12 @@ describe('FormView: what the browser gets (no refs, no stored request)', () => {
       ...over,
     });
 
-    it('a pressed (CHOSEN) backfilled offer shows its question with the app heading and its answer', () => {
+    it('a pressed (CHOSEN) backfilled offer shows its question with the default text and its answer', () => {
       expect(offerRowToFormView(legacyRow())).toEqual({
         formId: 'off1',
         state: 'CHOSEN',
-        questions: [
-          { questionId: 0, field: 'CUSTOMER', lineIndex: null, heading: 'Customer', prompt: null, options: [{ optionId: 0, label: 'Acme Corp (billing@acme.example.test)' }, { optionId: 1, label: 'Acme GmbH (no email)' }], input: 'NONE', required: true, skippable: false, matchCount: null },
+          questions: [
+          { questionId: 0, field: 'CUSTOMER', lineIndex: null, prompt: 'Which Customer is this invoice for?', options: [{ optionId: 0, label: 'Acme Corp (billing@acme.example.test)' }, { optionId: 1, label: 'Acme GmbH (no email)' }], input: 'NONE', required: true, skippable: false, matchCount: null },
         ],
         answers: [{ questionId: 0, optionId: 1 }],
       });
@@ -172,7 +172,7 @@ describe('FormView: what the browser gets (no refs, no stored request)', () => {
         legacyRow({ kind: 'PRODUCT', lineIndex: 1, state: 'OPEN', chosenOptionId: null, answers: null, questions: backfilled('PRODUCT', 1) })
       );
       expect(view.state).toBe('OPEN');
-      expect(view.questions[0]).toMatchObject({ field: 'PRODUCT', lineIndex: 1, heading: 'Line 2 · Product', input: 'NONE' });
+      expect(view.questions[0]).toMatchObject({ field: 'PRODUCT', lineIndex: 1, prompt: 'Which product for line 2?', input: 'NONE' });
       expect(view.answers).toBeNull();
     });
 

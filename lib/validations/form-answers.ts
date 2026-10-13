@@ -1,5 +1,5 @@
 // ai-chat-v2 revision 2026-10-13 T53 (spec §1 F5, F6; screens.md SCR-04 revision "Validation"): the per-kind format
-// check of a typed Question form answer, and the composed "heading: answer" message. Isomorphic: the browser runs the
+// check of a typed Question form answer, and the composed "question — answer" message. Isomorphic: the browser runs the
 // same checks before Send, and the server runs them again (400 VALIDATION per question) before anything is counted.
 import { isCalendarDay } from '@/lib/helpers/calendar-day';
 import type { FormAnswer } from '@/lib/validations/assistant-chat';
@@ -89,31 +89,62 @@ export function formFormatErrors(
   return errors;
 }
 
+const DEFAULT_PROMPT: Record<FormField, string> = {
+  CUSTOMER: 'Which Customer is this invoice for?',
+  SENDER_PROFILE: 'Which sender profile should it come from?',
+  BANK_ACCOUNT: 'Which bank account should be paid into?',
+  CURRENCY: 'Which currency?',
+  PRODUCT: 'Which product',
+  ISSUE_DATE: 'What is the issue date?',
+  DUE_DATE: 'When is it due?',
+  QUANTITY: 'What quantity',
+  PRICE: 'What price',
+  TAX_RATE: 'What tax rate?',
+  DISCOUNT: 'Any discount?',
+  PO_NUMBER: 'PO number?',
+  PAYMENT_TERMS: 'Payment terms?',
+  NOTES: 'Any notes?',
+  FREE: 'Question',
+};
+
+/** The question text of a question the chat gave none (T78): app text fixed per field; a line field names its line. */
+export function defaultPrompt(field: FormField, lineIndex: number | null): string {
+  const text = DEFAULT_PROMPT[field];
+  if (field !== 'PRODUCT' && field !== 'QUANTITY' && field !== 'PRICE') return text;
+  return lineIndex === null ? `${text}?` : `${text} for line ${lineIndex + 1}?`;
+}
+
+type AnsweredQuestion = {
+  questionId: number;
+  field: FormField;
+  lineIndex: number | null;
+  prompt: string | null;
+  options: ReadonlyArray<{ optionId: number; label: string }>;
+};
+
+/** One answer as the message shows it: the picked option's stored label, the typed text on one line, or "Skipped". */
+export function answerText(question: AnsweredQuestion, answer: FormAnswer): string {
+  if ('optionId' in answer) {
+    const option = question.options.find((o) => o.optionId === answer.optionId);
+    if (!option) throw new Error('The answer names an option the question does not hold.');
+    return option.label;
+  }
+  if ('text' in answer) return answer.text.trim().replace(/\s*\n\s*/g, ' ');
+  return 'Skipped';
+}
+
 /**
- * The sent form's message (spec F5): one "heading: answer" line per answered question, in question order, from the
- * stored option labels and the Freelancer's own typed text (trimmed, kept on one line); a skip reads "Skipped". Never
- * text sent by the browser for the message itself.
+ * The sent form's message (spec F5): one "<question> — <answer>" line per answered question, in question order, from the
+ * stored option labels and the Freelancer's own typed text (trimmed, kept on one line); a skip reads "Skipped". The
+ * question is the stored prompt, else the field's default. Never text sent by the browser for the message itself.
  */
-export function composeAnswerMessage(
-  questions: ReadonlyArray<{ questionId: number; heading: string; options: ReadonlyArray<{ optionId: number; label: string }> }>,
-  answers: readonly FormAnswer[]
-): string {
+export function composeAnswerMessage(questions: ReadonlyArray<AnsweredQuestion>, answers: readonly FormAnswer[]): string {
   const byQuestion = new Map(answers.map((a) => [a.questionId, a]));
   const lines: string[] = [];
   for (const question of [...questions].sort((a, b) => a.questionId - b.questionId)) {
     const answer = byQuestion.get(question.questionId);
     if (!answer) continue;
-    let text: string;
-    if ('optionId' in answer) {
-      const option = question.options.find((o) => o.optionId === answer.optionId);
-      if (!option) throw new Error('The answer names an option the question does not hold.');
-      text = option.label;
-    } else if ('text' in answer) {
-      text = answer.text.trim().replace(/\s*\n\s*/g, ' ');
-    } else {
-      text = 'Skipped';
-    }
-    lines.push(`${question.heading}: ${text}`);
+    lines.push(`${question.prompt ?? defaultPrompt(question.field, question.lineIndex)} — ${answerText(question, answer)}`);
   }
   return lines.join('\n');
 }
