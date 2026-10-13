@@ -1,18 +1,24 @@
 'use client';
 
-import { SendIcon, SparklesIcon } from 'lucide-react';
+import { SparklesIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type KeyboardEvent } from 'react';
+import { useState } from 'react';
 
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+} from '@/components/ai-elements/prompt-input';
 import { HANDOFF_PARAM, writeHandoff } from '@/components/ai/ai-handoff';
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { MESSAGE_MAX_LENGTH, TOO_LONG_MESSAGE } from '@/components/ai/composer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldError } from '@/components/ui/field';
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
-import { Spinner } from '@/components/ui/spinner';
 import { buttonVariants } from '@/components/ui/button';
 import { protectedRoutes } from '@/config/routes.config';
 import { cn } from '@/lib/utils';
@@ -119,50 +125,40 @@ function DashboardPromptBox({ allowance }: { allowance: AllowanceState }) {
     router.push(id ? `${protectedRoutes.ai}?${HANDOFF_PARAM}=${id}` : protectedRoutes.ai);
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      send();
-    }
-  }
-
+  // ai-chat-v2 T39 (ADR-0010, SCR-09): the same PromptInput card as the chat; Enter sends and Shift+Enter is a newline
+  // (the element), an empty or too-long prompt shows its FieldError and sends nothing (send()).
   return (
     <Field data-invalid={error ? true : undefined}>
-      <InputGroup>
-        <InputGroupTextarea
-          aria-label="Message to AI"
-          placeholder="Ask about your invoices or describe one to draft"
-          rows={2}
-          value={value}
-          readOnly={sending}
-          aria-invalid={error ? true : undefined}
-          onChange={(event) => {
-            setValue(event.target.value);
-            setEmptyTried(false);
-          }}
-          onKeyDown={onKeyDown}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            size="icon-sm"
-            variant="default"
-            aria-label="Send to AI"
-            disabled={sending || tooLong}
-            onClick={send}
-          >
-            {sending ? <Spinner aria-hidden role="presentation" /> : <SendIcon aria-hidden />}
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
-      {error ? (
-        <FieldError>
-          <span>{error}</span>
-          {tooLong ? (
-            <span className="ml-2">{`${withThousands(trimmed.length)} / ${withThousands(MESSAGE_MAX_LENGTH)}`}</span>
-          ) : null}
-        </FieldError>
-      ) : null}
-      <AllowanceNotice state={allowance} />
+      <PromptInput onSubmit={send}>
+        <PromptInputBody>
+          <PromptInputTextarea
+            aria-label="Message to AI"
+            placeholder="Ask about your invoices or describe one to draft"
+            className="min-h-16"
+            value={value}
+            readOnly={sending}
+            aria-invalid={error ? true : undefined}
+            onChange={(event) => {
+              setValue(event.target.value);
+              setEmptyTried(false);
+            }}
+          />
+        </PromptInputBody>
+        <PromptInputFooter>
+          <PromptInputTools className="flex-col items-start gap-1 [&_p]:text-xs">
+            {error ? (
+              <FieldError className="text-xs">
+                <span>{error}</span>
+                {tooLong ? (
+                  <span className="ml-2">{`${withThousands(trimmed.length)} / ${withThousands(MESSAGE_MAX_LENGTH)}`}</span>
+                ) : null}
+              </FieldError>
+            ) : null}
+            <AllowanceNotice state={allowance} />
+          </PromptInputTools>
+          <PromptInputSubmit aria-label="Send to AI" status={sending ? 'submitted' : 'ready'} disabled={tooLong} />
+        </PromptInputFooter>
+      </PromptInput>
     </Field>
   );
 }

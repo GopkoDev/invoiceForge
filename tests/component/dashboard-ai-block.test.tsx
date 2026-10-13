@@ -61,6 +61,21 @@ describe('DashboardAiBlock - default (AC-30)', () => {
     expect(screen.getByRole('link', { name: 'All conversations →' }).getAttribute('href')).toBe('/ai');
   });
 
+  // ai-chat-v2 T39 (ADR-0010, SCR-09): the prompt box is the chat's PromptInput card: a 2-row textarea, the counter
+  // in its footer and a round "Send to AI" submit.
+  it('the prompt box is a PromptInput card with the counter in its footer and a round Send to AI', () => {
+    const { container } = block();
+    const card = container.querySelector('form[data-slot="prompt-input"] [data-slot="prompt-input-card"]') as HTMLElement;
+    expect(card).toHaveClass('rounded-2xl');
+    expect(card).toContainElement(box());
+    const footer = card.querySelector('[data-slot="prompt-input-footer"]') as HTMLElement;
+    expect(footer).toHaveTextContent('29 of 30 messages left today');
+    expect(footer).toContainElement(sendButton());
+    expect(sendButton()).toHaveClass('rounded-full');
+    expect(sendButton()).toHaveAttribute('type', 'submit');
+    expect(box()).toHaveClass('min-h-16');
+  });
+
   it('none yet: says so instead of the list and keeps "All conversations →"', () => {
     block(29, []);
     expect(screen.getByText(NONE_YET)).toBeTruthy();
