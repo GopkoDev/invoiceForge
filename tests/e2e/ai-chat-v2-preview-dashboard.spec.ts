@@ -11,6 +11,7 @@ import { APP_E2E_URL, SNAPSHOT_PLATFORM, readE2eRuntime } from './support/app-se
 import { openSignedInFreelancer } from './support/signed-in';
 import { listRow, notesField, openEditor, openInvoiceList } from './support/invoice-ui';
 import { legalRoutes, protectedRoutes } from '../../config/routes.config';
+import { STREAMED_REPLY } from '../../lib/ai/e2e-stub-model';
 
 test.describe.configure({ timeout: 150_000 });
 
@@ -114,6 +115,73 @@ test('AC-20 / AC-23: Preview opens beside the messages within 1.5 s; Issue after
     // The Assistant-draft mark is gone from the list, as for any issued Assistant draft.
     await openInvoiceList(page);
     await expect(listRow(page, invoiceNumber).getByText('AI', { exact: true })).toHaveCount(0);
+  } finally {
+    await f.context.close();
+  }
+});
+
+// Review 2026-10-13 R1-U2 / R2-U1: once the first reply saved the Conversation, the first Create draft re-renders the
+// address as the Conversation page (one remount). The live chat is handed over: unsent text stays, a reply in flight
+// finishes in place, and nothing is sent again.
+test('Create draft after the first reply keeps unsent text and a reply in flight; nothing is sent again', async ({
+  browser,
+}, testInfo) => {
+  testInfo.setTimeout(240_000);
+  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-handover', {
+    seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
+    context: { timezoneId: 'UTC', viewport: DESKTOP },
+  });
+  try {
+    const { page } = f;
+    const chatPosts: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/chat') chatPosts.push(r.url());
+    });
+    await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}?start=draft`);
+    await message(page).fill(DRAFT_SENTENCE);
+    await send(page).click();
+    const create = page.getByRole('button', { name: 'Create draft' });
+    await expect(create).toBeVisible();
+    await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
+
+    // A follow-up streams for about a second; Create is pressed while it does.
+    await message(page).fill('How do payment reminders work?');
+    await send(page).click();
+    await expect(page.locator('[data-role="assistant"]').last()).toContainText(STREAMED_REPLY[0].trim().split(' ')[0]);
+    await create.click();
+    await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
+    await expect(page.locator('[data-role="assistant"]').last()).toHaveText(STREAMED_REPLY.join('').trim());
+    await expect(page.getByText(DRAFT_SENTENCE)).toBeVisible();
+
+    // Unsent text typed now survives any later refresh of the page's data (the Conversation page is in place).
+    await message(page).fill('unsent words');
+    await page.waitForTimeout(500);
+    await expect(message(page)).toHaveValue('unsent words');
+    expect(chatPosts).toHaveLength(2);
+  } finally {
+    await f.context.close();
+  }
+});
+
+test('Create draft after the first reply keeps text typed but not sent', async ({ browser }, testInfo) => {
+  testInfo.setTimeout(240_000);
+  const f = await openSignedInFreelancer(browser, testInfo, 'ai-v2-handover-text', {
+    seed: { customerName: 'Acme Corp', timeZone: 'UTC' },
+    context: { timezoneId: 'UTC', viewport: DESKTOP },
+  });
+  try {
+    const { page } = f;
+    await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}?start=draft`);
+    await message(page).fill(DRAFT_SENTENCE);
+    await send(page).click();
+    const create = page.getByRole('button', { name: 'Create draft' });
+    await expect(create).toBeVisible();
+    await message(page).fill('also add a note');
+    await create.click();
+    await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(message(page)).toHaveValue('also add a note');
+    await expect(page.getByText(DRAFT_SENTENCE)).toBeVisible();
   } finally {
     await f.context.close();
   }
