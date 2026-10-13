@@ -31,9 +31,13 @@ from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md):
   the branch selector and toolbar are not ported.
 - prompt-input.tsx: no attachments, screenshots, referenced sources,
   action menu, model select, hover card, command palette or nanoid;
-  the caller owns the text and its validation; the submit button shows a
-  Loader while a reply is in flight and sends no stop request.
-- suggestion.tsx: wraps onto lines instead of a horizontal ScrollArea.
+  the caller owns the text and its validation; the card is the project's
+  InputGroup; an Enter keydown with keyCode 229 (WebKit's IME commit)
+  never submits; the submit button shows a decorative spinner (no status
+  region of its own) while a reply is in flight and sends no stop
+  request.
+- suggestion.tsx: wraps onto lines instead of a horizontal ScrollArea,
+  and a long chip shrinks to the row and wraps its own text.
 - loader.tsx: replaces upstream Shimmer (which needs motion) with the
   project's Spinner, static under prefers-reduced-motion.
 - Styling adjusted to the project's design tokens and the AI section's

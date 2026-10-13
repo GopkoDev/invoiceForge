@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/suggestion.tsx", "components/ai-elements/NO
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T48 — One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)

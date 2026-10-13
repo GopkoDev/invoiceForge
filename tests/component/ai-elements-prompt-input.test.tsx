@@ -175,6 +175,9 @@ describe('Suggestion', () => {
     // Button's base shrink-0 would keep the chip at its one-line width; it must shrink to the row.
     expect(chip).toHaveClass('max-w-full', 'shrink');
     expect(chip.className).not.toMatch(/(^|\s)shrink-0(\s|$)/);
+    // Review R17-2 / T48: a one-line chip stays 32 px (20 px line + py-1 + border <= min-h-8), as in the SCR-02 baselines.
+    expect(chip).toHaveClass('min-h-8', 'py-1');
+    expect(chip).not.toHaveClass('py-1.5');
     expect(chip.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
     await userEvent.click(chip);
     expect(onPick).toHaveBeenCalledWith('Who owes me money right now?');
