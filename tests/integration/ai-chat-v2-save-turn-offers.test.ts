@@ -1,8 +1,9 @@
-// ai-chat-v2 T11 (spec.md §5 AC-12, AC-13, AC-18; contracts/server-actions.md §saveTurn, §getConversation,
-// §loadConversationCards): saveTurn stores the turn's Offered choices tied to the pre-generated reply, closes the
-// Conversation's OPEN offer for any new message (for a press, only an offer another tab stored: its own is CHOSEN;
-// review 2026-10-13 R2-B1), writes origin and startedFrom;
-// getConversation and loadConversationCards return offers keyed by offerId (no ref, no request).
+// ai-chat-v2 T11, rewritten for the Question form by T55 (spec.md §5 AC-12, AC-13, AC-18; contracts/server-actions.md
+// §saveTurn, §getConversation, §loadConversationCards, Revision 2026-10-13): saveTurn stores the turn's one Question form
+// (kind FORM, questions, request or NULL) tied to the pre-generated reply, closes the Conversation's OPEN row for any
+// new message (answers NULL; for a press, only a row another tab stored: its own is CHOSEN; review 2026-10-13 R2-B1),
+// writes origin and startedFrom; getConversation and loadConversationCards return forms keyed by formId (FormView: no
+// ref, no source, no request; answers only once sent; a legacy offer reads as a one-question form).
 import {
   afterAll,
   afterEach,
@@ -23,7 +24,10 @@ import { createFreelancer } from '../support/factories/user';
 import { createConversation } from '../support/factories/conversation';
 import {
   createChoiceOffer,
+  createQuestionForm,
   DEFAULT_OFFER_REQUEST,
+  defaultFormQuestions,
+  type FixtureFormQuestion,
 } from '../support/factories/choice-offer';
 import { actingFreelancerForTest } from '../support/acting-freelancer';
 
@@ -56,12 +60,10 @@ type Turn = {
   costUsd: number | null;
 };
 type Option = { optionId: number; label: string; ref: Record<string, string> };
-type OfferInput = {
+type FormInput = {
   id: string;
-  kind: string;
-  lineIndex: number | null;
   request: unknown;
-  options: Option[];
+  questions: FixtureFormQuestion[];
 };
 type SaveInput = {
   conversation: { id: string; isNew: boolean };
@@ -74,25 +76,24 @@ type SaveInput = {
   userOrigin: 'TYPED' | 'PRESSED' | 'DASHBOARD';
   assistantMessageId: string;
   assistantParts: unknown[];
-  offer: OfferInput | null;
+  form: FormInput | null;
   turn: Turn;
 };
 type Saved =
   | { success: true; data: { conversationId: string; title: string } }
   | { success: false; code: string; error?: string };
-type OfferView = {
-  offerId: string;
-  kind: string;
+type FormView = {
+  formId: string;
   state: string;
-  chosenOptionId: number | null;
-  options: Array<{ optionId: number; label: string }>;
+  questions: Array<Record<string, unknown> & { questionId: number; field: string; options: Array<{ optionId: number; label: string }> }>;
+  answers: unknown[] | null;
 };
 type Got = {
   success: boolean;
   code?: string;
   data?: {
     messages: Array<{ role: string; origin: string | null }>;
-    offers: Record<string, OfferView>;
+    forms: Record<string, FormView>;
   };
 };
 type Svc = {
@@ -115,6 +116,38 @@ const TURN: Turn = {
   costUsd: 0.001234,
 };
 
+/** A BANK_ACCOUNT question of three options and a typed-price question (the AC-13 form). */
+function accountForm(): FixtureFormQuestion[] {
+  return [
+    {
+      questionId: 0,
+      field: 'BANK_ACCOUNT',
+      lineIndex: null,
+      heading: 'Bank account',
+      prompt: null,
+      options: ACCOUNTS.map((o) => ({ optionId: o.optionId, label: o.label, ref: o.ref })),
+      input: 'TEXT',
+      required: true,
+      skippable: false,
+      matchCount: null,
+      source: 'RESOLVER',
+    },
+    {
+      questionId: 1,
+      field: 'PRICE',
+      lineIndex: 0,
+      heading: 'Line 1 · Price',
+      prompt: null,
+      options: [],
+      input: 'AMOUNT',
+      required: true,
+      skippable: false,
+      matchCount: null,
+      source: 'CHAT',
+    },
+  ];
+}
+
 const ACCOUNTS: Option[] = [
   {
     optionId: 0,
@@ -134,7 +167,7 @@ const ACCOUNTS: Option[] = [
 ];
 
 describe.runIf(containerRuntimeAvailable)(
-  'Saving a turn with offers and reopening (T11)',
+  'Saving a turn with a Question form and reopening (T11, T55)',
   () => {
     let db: TestDatabase;
     let prisma: PrismaClient;
@@ -181,37 +214,75 @@ describe.runIf(containerRuntimeAvailable)(
         userOrigin: 'TYPED',
         assistantMessageId,
         assistantParts: [{ type: 'text', text: 'Which account?' }],
-        offer: null,
+        form: null,
         turn: TURN,
         ...over,
       };
     }
 
-    function withOffer(
+    function withForm(
       conversationId: string,
       isNew: boolean,
       over: Partial<SaveInput> = {}
-    ): SaveInput & { offer: OfferInput } {
+    ): SaveInput & { form: FormInput } {
       const assistantMessageId = over.assistantMessageId ?? createId();
-      const offer: OfferInput = {
+      const form: FormInput = {
         id: createId(),
-        kind: 'BANK_ACCOUNT',
-        lineIndex: null,
         request: DEFAULT_OFFER_REQUEST,
-        options: ACCOUNTS,
+        questions: defaultFormQuestions(),
       };
       return input(conversationId, isNew, {
         assistantMessageId,
         assistantParts: [
           { type: 'text', text: 'Which account?' },
-          { type: 'data-offer', id: offer.id, data: { offerId: offer.id } },
+          { type: 'data-offer', id: form.id, data: { offerId: form.id } },
         ],
-        offer,
+        form,
         ...over,
-      }) as SaveInput & { offer: OfferInput };
+      }) as SaveInput & { form: FormInput };
     }
 
-    async function conversationWithOffer(
+    /** A Conversation whose latest reply carries one stored form (kind FORM). */
+    async function conversationWithForm(
+      userId: string,
+      state: 'OPEN' | 'CHOSEN' | 'CLOSED',
+      over: {
+        questions?: FixtureFormQuestion[];
+        answers?: unknown[] | null;
+        request?: Record<string, unknown> | null;
+      } = {}
+    ) {
+      const messageId = createId();
+      const formId = createId();
+      const conversation = await createConversation(prisma, {
+        userId,
+        messages: [
+          { role: 'USER' },
+          {
+            role: 'ASSISTANT',
+            id: messageId,
+            parts: [
+              { type: 'text', text: 'Which account?' },
+              { type: 'data-offer', id: formId, data: { offerId: formId } },
+            ],
+          },
+        ],
+      });
+      const form = await createQuestionForm(prisma, {
+        id: formId,
+        userId,
+        conversationId: conversation.id,
+        messageId,
+        state,
+        questions: over.questions,
+        answers: (over.answers ?? null) as never,
+        ...(over.request !== undefined ? { request: over.request as never } : {}),
+      });
+      return { conversation, form };
+    }
+
+    /** A pre-revision Conversation: one legacy BANK_ACCOUNT offer on the latest reply. */
+    async function conversationWithLegacyOffer(
       userId: string,
       state: 'OPEN' | 'CHOSEN' | 'CLOSED',
       chosenOptionId: number | null = null
@@ -245,7 +316,7 @@ describe.runIf(containerRuntimeAvailable)(
       return { conversation, offer };
     }
 
-    const offerStates = async (conversationId: string) =>
+    const rowStates = async (conversationId: string) =>
       (
         await prisma.choiceOffer.findMany({
           where: { conversationId },
@@ -290,13 +361,13 @@ describe.runIf(containerRuntimeAvailable)(
       expect(conversation.startedFrom).toBe('AI_SECTION');
     });
 
-    it('AC-12: a typed message closes the earlier open offer with no choice and stores the new offer open on the new reply', async () => {
+    it('AC-12: a typed message closes the earlier open form with no answers and stores the new form open on the new reply', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer: earlier } = await conversationWithOffer(
+      const { conversation, form: earlier } = await conversationWithForm(
         user.id,
         'OPEN'
       );
-      const req = withOffer(conversation.id, false);
+      const req = withForm(conversation.id, false);
 
       const result = await svc.saveTurn(actor, req);
 
@@ -306,19 +377,20 @@ describe.runIf(containerRuntimeAvailable)(
       });
       expect(old.state).toBe('CLOSED');
       expect(old.chosenOptionId).toBeNull();
+      expect(old.answers).toBeNull();
       const fresh = await prisma.choiceOffer.findUniqueOrThrow({
-        where: { id: req.offer.id },
+        where: { id: req.form.id },
       });
       expect(fresh).toMatchObject({
-        id: req.offer.id,
+        id: req.form.id,
         messageId: req.assistantMessageId,
         userId: user.id,
         conversationId: conversation.id,
-        kind: 'BANK_ACCOUNT',
+        kind: 'FORM',
         state: 'OPEN',
         chosenOptionId: null,
       });
-      expect(fresh.options).toEqual(ACCOUNTS);
+      expect(fresh.answers).toBeNull();
       expect(
         await prisma.choiceOffer.count({
           where: { conversationId: conversation.id, state: 'OPEN' },
@@ -326,22 +398,23 @@ describe.runIf(containerRuntimeAvailable)(
       ).toBe(1);
     });
 
-    it('AC-12: a dashboard message also closes the earlier open offer', async () => {
+    it('AC-12: a dashboard message also closes the earlier open form', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer: earlier } = await conversationWithOffer(
+      const { conversation, form: earlier } = await conversationWithForm(
         user.id,
         'OPEN'
       );
 
       await svc.saveTurn(
         actor,
-        withOffer(conversation.id, false, { userOrigin: 'DASHBOARD' })
+        withForm(conversation.id, false, { userOrigin: 'DASHBOARD' })
       );
 
       const old = await prisma.choiceOffer.findUniqueOrThrow({
         where: { id: earlier.id },
       });
       expect(old.state).toBe('CLOSED');
+      expect(old.answers).toBeNull();
       expect(
         await prisma.choiceOffer.count({
           where: { conversationId: conversation.id, state: 'OPEN' },
@@ -349,56 +422,54 @@ describe.runIf(containerRuntimeAvailable)(
       ).toBe(1);
     });
 
-    it('AC-12: a pressed message leaves the claimed (CHOSEN) offer as it was and stores the new offer open', async () => {
+    it('AC-12: a pressed message leaves the claimed (CHOSEN) row as it was and stores the new form open', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer: earlier } = await conversationWithOffer(
+      const { conversation, offer: earlier } = await conversationWithLegacyOffer(
         user.id,
         'CHOSEN',
         1
       );
-      const req = withOffer(conversation.id, false, { userOrigin: 'PRESSED' });
+      const req = withForm(conversation.id, false, { userOrigin: 'PRESSED' });
 
       const result = await svc.saveTurn(actor, req);
 
       expect(result.success).toBe(true);
-      expect(await offerStates(conversation.id)).toEqual([
+      expect(await rowStates(conversation.id)).toEqual([
         [earlier.id, 'CHOSEN', 1],
-        [req.offer.id, 'OPEN', null],
+        [req.form.id, 'OPEN', null],
       ]);
     });
 
-    // Review 2026-10-13 R2-B1: another tab stored an OPEN offer while the press ran. The pressed message is newer, so
-    // that offer closes, and the press's own next offer is stored without breaking the one-open-offer rule.
-    it('AC-12: a pressed message closes an offer another tab stored meanwhile and stores its own open', async () => {
+    // Review 2026-10-13 R2-B1: another tab stored an OPEN form while the press ran. The pressed message is newer, so
+    // that form closes, and the press's own next form is stored without breaking the one-open-row rule.
+    it('AC-12: a pressed message closes a form another tab stored meanwhile and stores its own open', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer: claimed } = await conversationWithOffer(user.id, 'CHOSEN', 1);
+      const { conversation, offer: claimed } = await conversationWithLegacyOffer(user.id, 'CHOSEN', 1);
       const otherReply = await prisma.conversationMessage.create({
         data: { conversationId: conversation.id, position: 10, role: 'ASSISTANT', parts: [] },
       });
-      const other = await createChoiceOffer(prisma, {
+      const other = await createQuestionForm(prisma, {
         userId: user.id,
         conversationId: conversation.id,
         messageId: otherReply.id,
-        kind: 'BANK_ACCOUNT',
-        options: ACCOUNTS,
       });
-      const req = withOffer(conversation.id, false, { userOrigin: 'PRESSED' });
+      const req = withForm(conversation.id, false, { userOrigin: 'PRESSED' });
 
       const result = await svc.saveTurn(actor, req);
 
       expect(result.success).toBe(true);
-      expect(await offerStates(conversation.id)).toEqual(
+      expect(await rowStates(conversation.id)).toEqual(
         expect.arrayContaining([
           [claimed.id, 'CHOSEN', 1],
           [other.id, 'CLOSED', null],
-          [req.offer.id, 'OPEN', null],
+          [req.form.id, 'OPEN', null],
         ])
       );
     });
 
-    it('AC-12: a typed turn with no offer still closes the open offer and stores no offer row', async () => {
+    it('AC-12: a typed turn with no form still closes the open form and stores no new row', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer: earlier } = await conversationWithOffer(
+      const { conversation, form: earlier } = await conversationWithForm(
         user.id,
         'OPEN'
       );
@@ -406,7 +477,7 @@ describe.runIf(containerRuntimeAvailable)(
       const result = await svc.saveTurn(actor, input(conversation.id, false));
 
       expect(result.success).toBe(true);
-      expect(await offerStates(conversation.id)).toEqual([
+      expect(await rowStates(conversation.id)).toEqual([
         [earlier.id, 'CLOSED', null],
       ]);
     });
@@ -417,67 +488,93 @@ describe.runIf(containerRuntimeAvailable)(
         email: 't11-b@example.com',
         timeZone: TZ,
       });
-      const { conversation, offer } = await conversationWithOffer(
+      const { conversation, form } = await conversationWithForm(
         other.id,
         'OPEN'
       );
 
       const foreign = await svc.saveTurn(
         actor,
-        withOffer(conversation.id, false)
+        withForm(conversation.id, false)
       );
       const unknown = await svc.saveTurn(
         actor,
-        withOffer('cnv_t11_missing', false)
+        withForm('cnv_t11_missing', false)
       );
 
       expect(foreign).toEqual(NOT_FOUND);
       expect(unknown).toEqual(NOT_FOUND);
-      expect(await offerStates(conversation.id)).toEqual([
-        [offer.id, 'OPEN', null],
+      expect(await rowStates(conversation.id)).toEqual([
+        [form.id, 'OPEN', null],
       ]);
       expect(await prisma.choiceOffer.count()).toBe(1);
     });
 
-    it('AC-12: offer options are stored exactly as given', async () => {
+    it('AC-12: the form is stored as given: kind FORM, questions and request as given, options empty, no answers', async () => {
       const { actor } = await freelancer();
-      const req = withOffer('cnv_t11_opts', true, {});
+      const req = withForm('cnv_t11_opts', true, {});
 
       await svc.saveTurn(actor, req);
 
       const stored = await prisma.choiceOffer.findUniqueOrThrow({
-        where: { id: req.offer.id },
+        where: { id: req.form.id },
       });
-      expect(stored.options).toEqual(ACCOUNTS);
-      expect(stored.lineIndex).toBeNull();
+      expect(stored.kind).toBe('FORM');
+      expect(stored.questions).toEqual(req.form.questions);
       expect(stored.request).toEqual(DEFAULT_OFFER_REQUEST);
+      expect(stored.options).toEqual([]);
+      expect(stored.answers).toBeNull();
+      expect(stored.lineIndex).toBeNull();
+    });
+
+    it('AC-37: a free-question form is stored with request NULL', async () => {
+      const { actor } = await freelancer();
+      const req = withForm('cnv_t11_free', true);
+      req.form.request = null;
+
+      const result = await svc.saveTurn(actor, req);
+
+      expect(result.success).toBe(true);
+      const stored = await prisma.choiceOffer.findUniqueOrThrow({
+        where: { id: req.form.id },
+      });
+      expect(stored.kind).toBe('FORM');
+      expect(stored.request).toBeNull();
+      expect(stored.state).toBe('OPEN');
     });
 
     it.each([
       [
-        'nine options',
-        Array.from({ length: 9 }, (_, i) => ({
-          optionId: i,
-          label: `Acc ${i}`,
-          ref: { bankAccountId: `acc-${i}` },
+        'seven questions',
+        Array.from({ length: 7 }, (_, i) => ({
+          ...defaultFormQuestions()[1],
+          questionId: i,
+          lineIndex: i,
         })),
       ],
       [
         'a ref with two keys',
         [
           {
-            optionId: 0,
-            label: 'Bad',
-            ref: { bankAccountId: 'a', customerId: 'b' },
+            ...defaultFormQuestions()[0],
+            options: [
+              {
+                optionId: 0,
+                label: 'Bad',
+                ref: { bankAccountId: 'a', customerId: 'b' },
+              },
+            ],
           },
         ],
       ],
+      ['no question', []],
     ])(
-      'AC-12: an invalid options payload (%s) fails the save and writes nothing',
-      async (_name, options) => {
+      'AC-12: an invalid questions payload (%s) fails the save and writes nothing',
+      async (_name, questions) => {
         const { actor } = await freelancer();
-        const req = withOffer('cnv_t11_bad', true);
-        req.offer.options = options;
+        const req = withForm('cnv_t11_bad', true);
+        // The save validates with storedFormQuestionsSchema; the fixtures here are deliberately outside it.
+        req.form.questions = questions as unknown as FixtureFormQuestion[];
 
         const result = await svc.saveTurn(actor, req);
 
@@ -488,9 +585,105 @@ describe.runIf(containerRuntimeAvailable)(
       }
     );
 
-    it('AC-13: reopening returns the offers by id with label-only options and the chosen one marked, never ref or request', async () => {
+    it('AC-13: reopening returns the form by id with label-only options, the sent answers (an option and a typed price), never ref, source or request', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer } = await conversationWithOffer(
+      const { conversation, form } = await conversationWithForm(
+        user.id,
+        'CHOSEN',
+        {
+          questions: accountForm(),
+          answers: [
+            { questionId: 0, optionId: 1 },
+            { questionId: 1, text: '55' },
+          ],
+        }
+      );
+
+      const result = await svc.getConversation(actor, conversation.id);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.forms).toEqual({
+        [form.id]: {
+          formId: form.id,
+          state: 'CHOSEN',
+          questions: [
+            {
+              questionId: 0,
+              field: 'BANK_ACCOUNT',
+              lineIndex: null,
+              heading: 'Bank account',
+              prompt: null,
+              options: [
+                { optionId: 0, label: 'Mono ••1111 · USD' },
+                { optionId: 1, label: 'Mono ••2222 · USD' },
+                { optionId: 2, label: 'Priv ••3333 · USD' },
+              ],
+              input: 'TEXT',
+              required: true,
+              skippable: false,
+              matchCount: null,
+            },
+            {
+              questionId: 1,
+              field: 'PRICE',
+              lineIndex: 0,
+              heading: 'Line 1 · Price',
+              prompt: null,
+              options: [],
+              input: 'AMOUNT',
+              required: true,
+              skippable: false,
+              matchCount: null,
+            },
+          ],
+          answers: [
+            { questionId: 0, optionId: 1 },
+            { questionId: 1, text: '55' },
+          ],
+        },
+      });
+      const wire = JSON.stringify(result.data!.forms);
+      expect(wire).not.toContain('bankAccountId');
+      expect(wire).not.toContain('"source"');
+      expect(wire).not.toContain('"request"');
+    });
+
+    it('AC-12 / AC-13: a form skipped by a typed message reopens CLOSED with no answers', async () => {
+      const { user, actor } = await freelancer();
+      const { conversation, form } = await conversationWithForm(
+        user.id,
+        'OPEN'
+      );
+      await svc.saveTurn(actor, input(conversation.id, false));
+
+      const result = await svc.getConversation(actor, conversation.id);
+
+      expect(result.data!.forms[form.id]).toMatchObject({
+        formId: form.id,
+        state: 'CLOSED',
+        answers: null,
+      });
+    });
+
+    it('AC-13: an unsent form still OPEN reopens with its questions and no answers', async () => {
+      const { user, actor } = await freelancer();
+      const { conversation, form } = await conversationWithForm(
+        user.id,
+        'OPEN'
+      );
+
+      const result = await svc.getConversation(actor, conversation.id);
+
+      expect(result.data!.forms[form.id]).toMatchObject({
+        state: 'OPEN',
+        answers: null,
+      });
+      expect(result.data!.forms[form.id].questions).toHaveLength(2);
+    });
+
+    it('AC-13: a legacy CHOSEN offer reopens as a one-question form with the chosen option as its answer', async () => {
+      const { user, actor } = await freelancer();
+      const { conversation, offer } = await conversationWithLegacyOffer(
         user.id,
         'CHOSEN',
         1
@@ -498,34 +691,37 @@ describe.runIf(containerRuntimeAvailable)(
 
       const result = await svc.getConversation(actor, conversation.id);
 
-      expect(result.success).toBe(true);
-      expect(result.data!.offers).toEqual({
-        [offer.id]: {
-          offerId: offer.id,
-          kind: 'BANK_ACCOUNT',
-          state: 'CHOSEN',
-          chosenOptionId: 1,
-          options: [
-            { optionId: 0, label: 'Mono ••1111 · USD' },
-            { optionId: 1, label: 'Mono ••2222 · USD' },
-            { optionId: 2, label: 'Priv ••3333 · USD' },
-          ],
-        },
+      expect(result.data!.forms[offer.id]).toMatchObject({
+        formId: offer.id,
+        state: 'CHOSEN',
+        answers: [{ questionId: 0, optionId: 1 }],
       });
+      expect(result.data!.forms[offer.id].questions).toHaveLength(1);
+      expect(result.data!.forms[offer.id].questions[0]).toMatchObject({
+        questionId: 0,
+        field: 'BANK_ACCOUNT',
+      });
+      expect(
+        result.data!.forms[offer.id].questions[0].options.map((o) => o.label)
+      ).toEqual([
+        'Mono ••1111 · USD',
+        'Mono ••2222 · USD',
+        'Priv ••3333 · USD',
+      ]);
     });
 
-    it('AC-13: a closed offer reopens as CLOSED with no choice', async () => {
+    it('AC-13: a legacy closed offer reopens as a CLOSED one-question form with no answers', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer } = await conversationWithOffer(
+      const { conversation, offer } = await conversationWithLegacyOffer(
         user.id,
         'CLOSED'
       );
 
       const result = await svc.getConversation(actor, conversation.id);
 
-      expect(result.data!.offers[offer.id]).toMatchObject({
+      expect(result.data!.forms[offer.id]).toMatchObject({
         state: 'CLOSED',
-        chosenOptionId: null,
+        answers: null,
       });
     });
 
@@ -551,17 +747,13 @@ describe.runIf(containerRuntimeAvailable)(
       ]);
     });
 
-    it("AC-13: another Freelancer's Conversation is NOT_FOUND and its offers are never returned", async () => {
+    it("AC-13: another Freelancer's Conversation is NOT_FOUND and its forms are never returned", async () => {
       const { actor } = await freelancer('t11-a@example.com');
-      const mine = await createFreelancer(prisma, {
-        email: 't11-own@example.com',
-        timeZone: TZ,
-      });
       const other = await createFreelancer(prisma, {
         email: 't11-b@example.com',
         timeZone: TZ,
       });
-      const { conversation: foreign } = await conversationWithOffer(
+      const { conversation: foreign } = await conversationWithForm(
         other.id,
         'OPEN'
       );
@@ -573,24 +765,23 @@ describe.runIf(containerRuntimeAvailable)(
         ).id,
         messages: [{ role: 'USER' }, { role: 'ASSISTANT' }],
       });
-      void mine;
 
       const denied = await svc.getConversation(actor, foreign.id);
       const ownRead = await svc.getConversation(actor, own.id);
 
       expect(denied).toEqual(NOT_FOUND);
-      expect(ownRead.data!.offers).toEqual({});
+      expect(ownRead.data!.forms).toEqual({});
     });
 
     it('AC-13: reopening writes nothing', async () => {
       const { user, actor } = await freelancer();
-      const { conversation, offer } = await conversationWithOffer(
+      const { conversation, form } = await conversationWithForm(
         user.id,
         'OPEN'
       );
       const before = {
-        offer: await prisma.choiceOffer.findUniqueOrThrow({
-          where: { id: offer.id },
+        form: await prisma.choiceOffer.findUniqueOrThrow({
+          where: { id: form.id },
         }),
         conversation: await prisma.conversation.findUniqueOrThrow({
           where: { id: conversation.id },
@@ -602,9 +793,10 @@ describe.runIf(containerRuntimeAvailable)(
       const read = await svc.getConversation(actor, conversation.id);
 
       expect(read.success).toBe(true);
+      expect(read.data!.forms[form.id]).toBeDefined();
       expect(
-        await prisma.choiceOffer.findUniqueOrThrow({ where: { id: offer.id } })
-      ).toEqual(before.offer);
+        await prisma.choiceOffer.findUniqueOrThrow({ where: { id: form.id } })
+      ).toEqual(before.form);
       expect(
         await prisma.conversation.findUniqueOrThrow({
           where: { id: conversation.id },
@@ -614,21 +806,21 @@ describe.runIf(containerRuntimeAvailable)(
       expect(await prisma.messageAllowanceDay.count()).toBe(before.allowance);
     });
 
-    it('AC-13: loadConversationCards returns the same offers as getConversation', async () => {
+    it('AC-13: loadConversationCards returns the same forms as getConversation', async () => {
       const { user, actor } = await freelancer();
       authMock.mockResolvedValue({ user: { id: user.id, email: user.email } });
-      const { conversation, offer } = await conversationWithOffer(
+      const { conversation, form } = await conversationWithForm(
         user.id,
         'CHOSEN',
-        1
+        { questions: accountForm(), answers: [{ questionId: 0, optionId: 2 }, { questionId: 1, skipped: true }] }
       );
 
       const cards = await actions.loadConversationCards(conversation.id);
       const full = await svc.getConversation(actor, conversation.id);
 
       expect(cards.success).toBe(true);
-      expect(Object.keys(cards.data!.offers)).toEqual([offer.id]);
-      expect(cards.data!.offers).toEqual(full.data!.offers);
+      expect(Object.keys(cards.data!.forms)).toEqual([form.id]);
+      expect(cards.data!.forms).toEqual(full.data!.forms);
     });
   }
 );

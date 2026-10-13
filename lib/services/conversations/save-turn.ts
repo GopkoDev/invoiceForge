@@ -11,7 +11,7 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { insertLiveCard } from '@/lib/services/assistant-drafts/cards';
 import { writeTurnRow } from '@/lib/services/assistant-usage/turn-row';
-import { storedOfferOptionsSchema, type PendingOffer } from '@/lib/services/assistant-drafts/offers';
+import { storedFormQuestionsSchema, type StoredFormQuestion } from '@/lib/services/assistant-drafts/forms';
 import type {
   AssistantTurnMetadata,
   ConversationMessageView,
@@ -31,7 +31,8 @@ export type SaveTurnInput = {
   /** The reply's pre-generated id, so the offer can reference it. */
   assistantMessageId: string;
   assistantParts: ConversationMessageView['parts'];
-  offer: PendingOffer | null;
+  /** T55 (ADR-0011): the reply's one Question form; `request` is null for a free-question form. */
+  form: { id: string; request: unknown | null; questions: StoredFormQuestion[] } | null;
   turn: AssistantTurnMetadata;
   proposedCard?: { id: string; request: unknown; proposal: unknown };
 };
@@ -40,10 +41,10 @@ export async function saveTurn(
   actor: ActingFreelancer,
   input: SaveTurnInput
 ): Promise<ActionResult<{ conversationId: string; title: string }>> {
-  const { conversation, userText, assistantParts, turn, proposedCard, offer } = input;
+  const { conversation, userText, assistantParts, turn, proposedCard, form } = input;
   try {
-    // Options are built in code (ADR-0002); anything else is a bug, and nothing of the turn is saved.
-    const options = offer ? storedOfferOptionsSchema.parse(offer.options) : null;
+    // Questions and options are built in code (ADR-0011); anything else is a bug, and nothing of the turn is saved.
+    const questions = form ? storedFormQuestionsSchema.parse(form.questions) : null;
     return await prisma.$transaction(async (tx) => {
       let title: string;
       let nextPosition = 0;
@@ -77,7 +78,7 @@ export async function saveTurn(
       // closes only an offer another tab stored meanwhile (review 2026-10-13 R2-B1).
       await tx.choiceOffer.updateMany({
         where: { conversationId: conversation.id, state: 'OPEN' },
-        data: { state: 'CLOSED', chosenOptionId: null },
+        data: { state: 'CLOSED', chosenOptionId: null, answers: Prisma.DbNull },
       });
       await tx.conversationMessage.createMany({
         data: [
@@ -97,17 +98,18 @@ export async function saveTurn(
           },
         ],
       });
-      if (offer && options) {
+      if (form && questions) {
         await tx.choiceOffer.create({
           data: {
-            id: offer.id,
+            id: form.id,
             userId: actor.userId,
             conversationId: conversation.id,
             messageId: input.assistantMessageId,
-            kind: offer.kind,
-            lineIndex: offer.lineIndex,
-            request: offer.request as Prisma.InputJsonValue,
-            options: options as Prisma.InputJsonValue,
+            kind: 'FORM',
+            lineIndex: null,
+            request: form.request === null ? Prisma.DbNull : (form.request as Prisma.InputJsonValue),
+            questions: questions as Prisma.InputJsonValue,
+            options: [],
             state: 'OPEN',
           },
         });

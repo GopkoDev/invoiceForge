@@ -10,12 +10,14 @@ import { todayIn } from '@/lib/services/_shared/overdue';
 import { appLinkSchema } from '@/lib/validations/assistant-chat';
 import { linkedInvoiceStateOf, toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
 import { storedOfferOptionsSchema } from '@/lib/services/assistant-drafts/offers';
+import { toFormView } from '@/lib/services/assistant-drafts/forms';
 import type {
   ConversationMessageView,
   MessageOrigin,
   ConversationSummary,
   DraftCardView,
   LinkedInvoiceState,
+  FormView,
   OfferView,
 } from '@/types/assistant/types';
 
@@ -120,13 +122,29 @@ export async function readInvoiceStates(
  * ai-chat-v2 T11 (AC-12, AC-13): a Conversation's Offered choices as the browser sees them - labels and state only,
  * never a record reference or the stored request (ADR-0001, ADR-0003). Owner-scoped; writes nothing.
  */
-async function readOffers(actor: ActingFreelancer, conversationId: string): Promise<Record<string, OfferView>> {
+async function readOffers(
+  actor: ActingFreelancer,
+  conversationId: string
+): Promise<{ offers: Record<string, OfferView>; forms: Record<string, FormView> }> {
   const rows = await prisma.choiceOffer.findMany({
     where: { conversationId, userId: actor.userId },
-    select: { id: true, kind: true, state: true, chosenOptionId: true, options: true },
+    select: {
+      id: true,
+      kind: true,
+      state: true,
+      lineIndex: true,
+      chosenOptionId: true,
+      options: true,
+      questions: true,
+      answers: true,
+    },
   });
   const offers: Record<string, OfferView> = {};
+  const forms: Record<string, FormView> = {};
   for (const r of rows) {
+    forms[r.id] = toFormView(r);
+    // Transitional (T55 to T60): the legacy view stays for the rows the UI still renders as buttons.
+    if (r.kind === 'FORM') continue;
     offers[r.id] = {
       offerId: r.id,
       kind: r.kind,
@@ -135,7 +153,7 @@ async function readOffers(actor: ActingFreelancer, conversationId: string): Prom
       options: storedOfferOptionsSchema.parse(r.options).map(({ optionId, label }) => ({ optionId, label })),
     };
   }
-  return offers;
+  return { offers, forms };
 }
 
 export async function getConversation(
@@ -148,6 +166,7 @@ export async function getConversation(
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
     offers: Record<string, OfferView>;
+    forms: Record<string, FormView>;
   }>
 > {
   try {
@@ -209,9 +228,9 @@ export async function getConversation(
     const invoiceLinks = await readInvoiceStates(actor, [...invoiceIds]);
     const cards: Record<string, DraftCardView> = {};
     for (const c of cardRows) cards[c.id] = toDraftCardView(c, invoiceLinks);
-    const offers = await readOffers(actor, id);
+    const { offers, forms } = await readOffers(actor, id);
 
-    return ok({ conversation: toSummary(conversation), messages, cards, invoiceLinks, offers });
+    return ok({ conversation: toSummary(conversation), messages, cards, invoiceLinks, offers, forms });
   } catch (error) {
     return failed('getConversation failed', error, FAILED_MESSAGE);
   }

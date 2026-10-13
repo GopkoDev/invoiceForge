@@ -199,7 +199,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
 
     const [a, b] = model.doStreamCalls.map((c) => toolNamesOf(c as any));
     expect(a).toEqual(b);
-    expect([...a].sort()).toEqual([...READ_QUESTIONS.map((q) => q.definition.name), 'find_in_app', 'propose_draft'].sort());
+    expect([...a].sort()).toEqual([...READ_QUESTIONS.map((q) => q.definition.name), 'find_in_app', 'propose_draft', 'ask_user'].sort()); // ai-chat-v2 T54: ask_user (chat only)
   });
 
   it('AC-11b: endless tool calls stop at the 8th step: partial text, the too-broad sentence, CAPPED', async () => {

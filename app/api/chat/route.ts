@@ -239,11 +239,11 @@ export async function POST(request: NextRequest) {
       });
     }
     // At most one per reply, after the text and before the outcome; the island reads its labels afterwards.
-    if (result.pendingOffer) {
+    if (result.pendingForm) {
       write({
         type: 'data-offer',
-        id: result.pendingOffer.id,
-        data: { offerId: result.pendingOffer.id },
+        id: result.pendingForm.id,
+        data: { offerId: result.pendingForm.id },
       });
     }
 
@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
         userOrigin,
         assistantMessageId: createId(),
         assistantParts: assistantPartsOf(result),
-        offer: result.pendingOffer ?? null,
+        form: result.pendingForm ?? null,
         turn,
         proposedCard: result.pendingCard,
       });

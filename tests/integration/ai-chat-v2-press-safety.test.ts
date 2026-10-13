@@ -18,6 +18,7 @@ import { createSenderProfile } from './../support/factories/sender-profile';
 import { createBankAccount } from './../support/factories/bank-account';
 import { createConversation } from './../support/factories/conversation';
 import { createChoiceOffer } from './../support/factories/choice-offer';
+import { toLegacyOffer } from './../support/legacy-offer';
 import { scriptedModel, type StubStep } from './../support/ai-stub-model';
 
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
@@ -120,7 +121,8 @@ describe.runIf(containerRuntimeAvailable)('press safety: uniform refusals, one c
     script(proposeGlobex);
     await (await post(typed('invoice Globex 20 hours at $50 in USD'))).text(); // the turn runs while the stream is read
     const conversationId = (await prisma.conversation.findFirstOrThrow()).id;
-    const offer = await prisma.choiceOffer.findFirstOrThrow({ where: { state: 'OPEN' } });
+    // The typed turn stores a Question form (T55); the press route takes the legacy offer until T57.
+    const offer = await toLegacyOffer(prisma, await prisma.choiceOffer.findFirstOrThrow({ where: { state: 'OPEN' } }));
     expect(offer.kind).toBe('BANK_ACCOUNT');
     const optionOf = (bankAccountId: string) => (offer.options as any[]).find((o) => o.ref.bankAccountId === bankAccountId).optionId as number;
     return { user, profile, alpha, beta, conversationId, offer, optionOf };

@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
-import { offerFromIssues, type PendingOffer } from '@/lib/services/assistant-drafts/offers';
+import { formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
+import { isCurrency } from '@/lib/services/assistant-drafts/offers';
 import {
   draftRequestSchema,
   type DraftIssue,
@@ -85,18 +86,27 @@ function summarize(proposal: DraftProposal) {
 }
 
 /**
- * ai-chat-v2 T13 (ADR-0002, AC-08, AC-09, AC-14): the Offered choices code builds from the resolver's issues - never
- * from the model's words. More than 8 options give no offer, only the count for the reply (AC-14).
+ * ai-chat-v2 T55 (ADR-0011, AC-09, AC-14): the resolver's questions for an ISSUES answer, built in code - never from
+ * the model's words - and what the answer to the model says about them: whether buttons will be shown for the first
+ * question, or (more than 8 options) only the count.
  */
-export function offerFor(
+export function resolverFormFor(
   issues: DraftIssue[],
-  request: DraftRequest
-): { offer: PendingOffer | null; matchCount?: number } {
-  const built = offerFromIssues(issues, { invoiceCurrency: request.currency ?? null });
-  if (built.kind === 'TOO_MANY') return { offer: null, matchCount: built.count };
-  if (built.kind === 'NONE') return { offer: null };
+  request: DraftRequest,
+  turn: Pick<TurnContext, 'today' | 'actor'>
+): { questions: FormQuestionDraft[]; matchCount?: number; offered: boolean } {
+  const currency = request.currency?.trim().toUpperCase() ?? null;
+  const questions = formFromIssues(issues, {
+    today: turn.today,
+    timeZone: turn.actor.timeZone,
+    invoiceCurrency: currency && isCurrency(currency) ? currency : null,
+    issueDate: request.issueDate ?? null,
+  });
+  const first = questions.find((q) => q.options.length > 0 || q.matchCount !== null);
   return {
-    offer: { id: createId(), kind: built.offerKind, lineIndex: built.lineIndex, request, options: built.options },
+    questions,
+    matchCount: first?.matchCount ?? undefined,
+    offered: first !== undefined && first.options.length > 0,
   };
 }
 
@@ -158,10 +168,10 @@ export function issuesAnswer(
   return answer;
 }
 
-// One offer per reply: the earliest propose_draft call of the turn that found one keeps it, even when parallel
-// calls finish out of order.
+// One form per reply: the last propose_draft ISSUES call of the turn keeps its questions, even when parallel calls
+// finish out of order.
 const callCounts = new WeakMap<TurnContext, number>();
-const offerCalls = new WeakMap<TurnContext, number>();
+const resolverCalls = new WeakMap<TurnContext, number>();
 
 /**
  * The chat's only write-shaped tool (ADR-0006/0007). It resolves the Freelancer's words and parks
@@ -185,12 +195,12 @@ export function createProposeDraftTool(turn: TurnContext) {
       if (!resolved.success) return { ...toToolError(resolved) };
       if (resolved.data.kind === 'ISSUES') {
         const { issues } = resolved.data;
-        const { offer, matchCount } = offerFor(issues, request);
-        if (offer && (turn.pending.offer === null || call < (offerCalls.get(turn) ?? Infinity))) {
-          turn.pending.offer = offer;
-          offerCalls.set(turn, call);
+        const { questions, matchCount, offered } = resolverFormFor(issues, request, turn);
+        if (call >= (resolverCalls.get(turn) ?? -1)) {
+          turn.pending.resolver = { request, questions };
+          resolverCalls.set(turn, call);
         }
-        return issuesAnswer(issues, matchCount, offer !== null);
+        return issuesAnswer(issues, matchCount, offered);
       }
       const { proposal } = resolved.data;
       const cardId = createId();

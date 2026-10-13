@@ -196,7 +196,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn from a pinned resolution (T01
     expect(JSON.stringify(result.pendingCard)).not.toContain('Hacked');
   });
 
-  it('a re-call in a pinned ISSUES turn keeps the pinned offer and parks no card', async () => {
+  it('a re-call in a pinned ISSUES turn keeps the pinned form and parks no card', async () => {
     const { latin, run, resolvePinned } = await setup();
     const request = { customer: 'Acme Corp', currency: 'USD', lines: [{ description: 'Design', quantity: '1', price: '100' }] };
     const resolution = await resolvePinned(request);
@@ -210,8 +210,8 @@ describe.runIf(containerRuntimeAvailable)('runTurn from a pinned resolution (T01
     const { result } = await run('Acme Corp', { request, resolution });
 
     expect(result.pendingCard).toBeUndefined();
-    expect(result.pendingOffer?.request).toEqual(request);
-    expect(result.pendingOffer?.kind).toBe('CUSTOMER');
+    expect(result.pendingForm?.request).toEqual(request);
+    expect(result.pendingForm?.questions[0].field).toBe('CUSTOMER');
   });
 
   it('a press is never refused as off-topic: the router reading the label off-topic still runs the pinned turn', async () => {

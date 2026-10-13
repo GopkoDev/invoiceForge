@@ -9,7 +9,7 @@ files_hint: ["lib/ai/turn-context.ts", "lib/ai/run-turn.ts", "lib/ai/tools/propo
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T55 — Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen

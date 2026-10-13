@@ -5,14 +5,16 @@ import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
-import { createTurnContext, type PinnedResolution } from '@/lib/ai/turn-context';
-import { issuesAnswer, linksFor, offerFor } from '@/lib/ai/tools/propose-draft';
+import { createId } from '@paralleldrive/cuid2';
+import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
+import { createTurnContext, type PinnedResolution, type TurnContext } from '@/lib/ai/turn-context';
+import { issuesAnswer, linksFor, resolverFormFor } from '@/lib/ai/tools/propose-draft';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
-import type { PendingOffer } from '@/lib/services/assistant-drafts/offers';
+import { composeForm, fallbackQuestions, type StoredFormQuestion } from '@/lib/services/assistant-drafts/forms';
 import type { ConversationMessageView } from '@/types/assistant/types';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 
@@ -53,8 +55,8 @@ export interface TurnResult {
   /** Gateway-reported USD cost of every model call of the turn, router included; 0 when none is reported. */
   costUsd: number;
   pendingCard?: { id: string; request: DraftRequest; proposal: DraftProposal };
-  /** ai-chat-v2: the reply's Offered choices, built in code; absent when the turn ends with a card (card wins). */
-  pendingOffer?: PendingOffer;
+  /** ai-chat-v2 T55: the reply's one Question form, composed in code; absent when the turn ends with a card (card wins). */
+  pendingForm?: { id: string; request: DraftRequest | DraftRequestPartial | null; questions: StoredFormQuestion[] };
   links: AppLink[];
   text: string;
 }
@@ -131,6 +133,15 @@ function chunkStream(run: (emit: (chunk: UIMessageChunk) => void) => Promise<voi
       }
     },
   }) as unknown as AsyncIterable<UIMessageChunk>;
+}
+
+/** T55 (ADR-0011): the turn's one form - resolver and chat questions composed, or the inputs-only fallback of a refused ask_user. */
+function pendingFormOf(turn: TurnContext): TurnResult['pendingForm'] {
+  const { resolver, ask, askRefused } = turn.pending;
+  let questions = composeForm(resolver?.questions ?? [], ask?.questions ?? []);
+  if (questions.length === 0 && askRefused) questions = composeForm([], fallbackQuestions(askRefused));
+  if (questions.length === 0) return undefined;
+  return { id: createId(), request: resolver?.request ?? ask?.draft ?? null, questions };
 }
 
 const PINNED_CALL_ID = 'pinned-choice';
@@ -225,13 +236,15 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   });
   // A press that still leaves an issue offers its next choice from the pinned resolution (AC-08b).
   let pinnedMatchCount: number | undefined;
+  let pinnedOffered = false;
   if (input.pinned?.resolution.kind === 'ISSUES') {
-    const built = offerFor(input.pinned.resolution.issues, input.pinned.request);
-    turn.pending.offer = built.offer;
+    const built = resolverFormFor(input.pinned.resolution.issues, input.pinned.request, turn);
+    turn.pending.resolver = { request: input.pinned.request, questions: built.questions };
     pinnedMatchCount = built.matchCount;
+    pinnedOffered = built.offered;
   }
   if (input.pinned) {
-    turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, turn.pending.offer !== null);
+    turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, pinnedOffered);
   }
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
@@ -379,7 +392,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       usage,
       costUsd,
       pendingCard: turn.pending.card ?? undefined,
-      pendingOffer: turn.pending.card ? undefined : (turn.pending.offer ?? undefined),
+      pendingForm: turn.pending.card ? undefined : pendingFormOf(turn),
       links,
       text,
     });

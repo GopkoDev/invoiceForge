@@ -18,6 +18,7 @@ import { createSenderProfile } from './../support/factories/sender-profile';
 import { createBankAccount } from './../support/factories/bank-account';
 import { createConversation } from './../support/factories/conversation';
 import { createChoiceOffer } from './../support/factories/choice-offer';
+import { toLegacyOffer } from './../support/legacy-offer';
 import { partsOfText, scriptedModel, type StubStep } from './../support/ai-stub-model';
 
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
@@ -140,11 +141,15 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
   const lastUserMessage = () => prisma.conversationMessage.findFirstOrThrow({ where: { role: 'USER' }, orderBy: { position: 'desc' } });
   const conversationOf = async () => (await prisma.conversation.findFirstOrThrow()).id;
 
-  /** A first typed turn through the route: leaves a saved Conversation with one OPEN offer on its latest reply. */
+  /**
+   * A first typed turn through the route: leaves a saved Conversation with one OPEN row on its latest reply. The turn
+   * stores a Question form (T55); the press route takes a single-question offer until T57, so the row is turned into
+   * the legacy offer it presses (tests/support/legacy-offer.ts).
+   */
   async function firstTurnWithOffer(customer = 'Acme', currency = 'USD') {
     script(propose(customer, currency));
     await sendTyped('invoice Acme for 20 hours at $50');
-    return { conversationId: await conversationOf(), offer: await latestOpenOffer() };
+    return { conversationId: await conversationOf(), offer: await toLegacyOffer(prisma, await latestOpenOffer()) };
   }
 
   describe('AC-08: pressing a Customer', () => {
@@ -178,7 +183,7 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
 
   describe('AC-08b: Customer, then account', () => {
     // Review 2026-10-13 R1-B1: the real model passes the currency as written ("$50" -> "$"); the press still fits.
-    it.each(['USD', '$'])('AC-08b (currency passed as "%s"): the Customer press offers the two USD accounts; pressing one gives the card for Acme GmbH with that account; two slots for two presses', async (currency) => {
+    it.each(['USD', '$'])('AC-08b (currency passed as "%s"): the Customer press is followed by a form offering the two USD accounts; pressing one gives the card for Acme GmbH with that account; two slots for two presses', async (currency) => {
       const user = await freelancer('t14-ac08b@example.com');
       const { alpha } = await profileWithAccounts(user.id);
       const { gmbh } = await acmePair(user.id);
@@ -191,10 +196,14 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
       expect(first.response.status).toBe(200);
       expect(streamCalls()).toBeGreaterThanOrEqual(1);
       expect(await prisma.draftCard.count()).toBe(0);
-      const next = await latestOpenOffer();
-      expect(next.id).not.toBe(offer.id);
-      expect(next.kind).toBe('BANK_ACCOUNT');
-      expect((next.options as any[]).map((o) => o.label)).toEqual(['Alpha Bank ••1111 · USD', 'Beta Bank ••2222 · USD']);
+      // The follow-up of a pressed turn is a Question form (T55): the bank account question offers the two USD accounts.
+      const nextForm = await latestOpenOffer();
+      expect(nextForm.id).not.toBe(offer.id);
+      expect(nextForm.kind).toBe('FORM');
+      const accountQuestions = (nextForm.questions as any[]).filter((q) => q.field === 'BANK_ACCOUNT');
+      expect(accountQuestions).toHaveLength(1);
+      expect(accountQuestions[0].options.map((o: any) => o.label)).toEqual(['Alpha Bank ••1111 · USD', 'Beta Bank ••2222 · USD']);
+      const next = await toLegacyOffer(prisma, nextForm);
 
       script(textOnly('Here is the draft.'));
       const second = await sendPress(conversationId, next.id, optionFor(next, (o) => o.ref.bankAccountId === alpha.id).optionId);
@@ -244,8 +253,10 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
       expect(streamCalls()).toBeGreaterThanOrEqual(1);
       expect(await used(user.id)).toBe(30);
       expect((await prisma.choiceOffer.findUniqueOrThrow({ where: { id: offer.id } })).state).toBe('CHOSEN');
-      const next = await latestOpenOffer();
-      expect(next.kind).toBe('BANK_ACCOUNT');
+      const nextForm = await latestOpenOffer();
+      expect(nextForm.kind).toBe('FORM');
+      expect((nextForm.questions as any[]).map((q) => q.field)).toContain('BANK_ACCOUNT');
+      const next = await toLegacyOffer(prisma, nextForm);
       const messagesBefore = await prisma.conversationMessage.count();
 
       script(textOnly());

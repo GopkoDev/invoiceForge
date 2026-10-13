@@ -351,7 +351,11 @@ async function runNoGuessing(
       where: { id: offerId },
     });
     const optionId = optionIdForLabel(
-      offer.options as Array<{ optionId: number; label: string }>,
+      (offer.kind === 'FORM'
+        ? (offer.questions as Array<{ options: Array<{ optionId: number; label: string }> }>).flatMap(
+            (q) => q.options
+          )
+        : offer.options) as Array<{ optionId: number; label: string }>,
       item.press!.label
     );
     if (optionId === undefined)
@@ -522,16 +526,16 @@ async function runNoGuessing(
             const outcome = await turn.result;
             if (outcome.outcome === 'FAILED')
               throw new Error(`turn failed (${outcome.failure})`);
-            const offer = outcome.pendingOffer;
+            const customerQuestion = outcome.pendingForm?.questions.find(
+              (q) => q.field === 'CUSTOMER'
+            );
             return {
               proposal: outcome.pendingCard?.proposal as unknown as
                 | ProposalLike
                 | undefined,
               text: outcome.text,
               offeredCustomers:
-                offer?.kind === 'CUSTOMER'
-                  ? offer.options.map((o) => o.label)
-                  : [],
+                customerQuestion?.options.map((o) => o.label) ?? [],
             };
           });
       const card = observed.proposal;

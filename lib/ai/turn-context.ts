@@ -4,7 +4,6 @@ import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/ass
 import type { FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
 import type { FormField } from '@/types/assistant/types';
-import type { PendingOffer } from '@/lib/services/assistant-drafts/offers';
 
 /**
  * ai-chat-v2 T01 (ADR-0003): what the press path resolved in code before the turn - the draft request with the
@@ -31,12 +30,13 @@ export interface TurnContext {
   /** True only when the router judged the Freelancer's own message to ask for a draft; propose_draft parks no card otherwise (AC-15). */
   draftIntent: boolean;
   /**
-   * `offer` (ai-chat-v2, ADR-0001/0002): the turn's Offered choices, built in code from the first offer-able
-   * propose_draft issue (or the pinned issues); saveTurn stores it. A card, when there is one, wins.
+   * `resolver` (ai-chat-v2 T55, ADR-0011): the questions code built from the last propose_draft ISSUES answer (or the
+   * pinned issues) and the request they were asked against; `ask` holds the chat's own. run-turn composes the turn's
+   * one form from both and saveTurn stores it. A card, when there is one, wins.
    */
   pending: {
     card: { id: string; request: DraftRequest; proposal: DraftProposal } | null;
-    offer: PendingOffer | null;
+    resolver: { request: DraftRequest; questions: FormQuestionDraft[] } | null;
     /** T54: the questions of the turn's last valid ask_user call, and the partial draft they were asked against. */
     ask: { questions: FormQuestionDraft[]; draft: DraftRequestPartial | null } | null;
     /** T54: the questions of a refused ask_user call, for the inputs-only fallback form. */
@@ -44,7 +44,7 @@ export interface TurnContext {
   };
   /**
    * In a pressed turn, the pinned propose_draft result the model already holds. A re-call is answered with it and
-   * changes neither the card nor the offer: both come from code (SAD §11; review 2026-10-13 R1-S1). Null otherwise.
+   * changes neither the card nor the form: both come from code (SAD §11; review 2026-10-13 R1-S1). Null otherwise.
    */
   pinnedAnswer: Record<string, unknown> | null;
 }
@@ -68,7 +68,7 @@ export function createTurnContext(input: {
     origin: input.origin ?? DEFAULT_ORIGIN,
     // A press continues a draft the Freelancer asked for, whatever the router reads in the button label.
     draftIntent: pinned ? true : (input.draftIntent ?? false),
-    pending: { card, offer: null, ask: null, askRefused: null },
+    pending: { card, resolver: null, ask: null, askRefused: null },
     pinnedAnswer: null,
   };
 }
