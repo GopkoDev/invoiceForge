@@ -7,9 +7,9 @@ import { ok, fail, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { paginate, type Page } from '@/lib/services/_shared/list-query';
 import { failed } from '@/lib/services/_shared/result-helpers';
-import { derivedStatus, todayIn } from '@/lib/services/_shared/overdue';
+import { todayIn } from '@/lib/services/_shared/overdue';
 import { appLinkSchema } from '@/lib/validations/assistant-chat';
-import { toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
+import { linkedInvoiceStateOf, toDraftCardView } from '@/lib/services/assistant-drafts/card-view';
 import { storedOfferOptionsSchema } from '@/lib/services/assistant-drafts/offers';
 import type {
   ConversationMessageView,
@@ -97,17 +97,7 @@ export async function readInvoiceStates(
     select: { id: true, invoiceNumber: true, status: true, dueDate: true },
   });
   const today = todayIn(actor.timeZone);
-  for (const r of rows) {
-    states[r.id] =
-      r.status === 'DRAFT'
-        ? { state: 'DRAFT', invoiceId: r.id, invoiceNumber: r.invoiceNumber }
-        : {
-            state: 'ISSUED',
-            invoiceId: r.id,
-            invoiceNumber: r.invoiceNumber,
-            status: derivedStatus(r, today),
-          };
-  }
+  for (const r of rows) states[r.id] = linkedInvoiceStateOf(r, today);
   for (const id of ids) states[id] ??= { state: 'UNAVAILABLE' };
   return states;
 }

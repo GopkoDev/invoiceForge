@@ -2,6 +2,8 @@
 // current state of its invoice, read when rendered and never stored; any other state carries none.
 import 'server-only';
 import { draftProposalSchema } from '@/lib/services/assistant-drafts/schema';
+import type { InvoiceStatus } from '@prisma/client';
+import { derivedStatus, type LocalDate } from '@/lib/services/_shared/overdue';
 import type { DraftCardView, LinkedInvoiceState } from '@/types/assistant/types';
 
 export type DraftCardRow = {
@@ -13,6 +15,16 @@ export type DraftCardRow = {
 };
 
 const UNAVAILABLE: LinkedInvoiceState = { state: 'UNAVAILABLE' };
+
+/** An existing invoice's current state as a card or link shows it (status derived for overdue). */
+export function linkedInvoiceStateOf(
+  row: { id: string; invoiceNumber: string; status: InvoiceStatus; dueDate: Date },
+  today: LocalDate
+): LinkedInvoiceState {
+  return row.status === 'DRAFT'
+    ? { state: 'DRAFT', invoiceId: row.id, invoiceNumber: row.invoiceNumber }
+    : { state: 'ISSUED', invoiceId: row.id, invoiceNumber: row.invoiceNumber, status: derivedStatus(row, today) };
+}
 
 /** Throws a ZodError when the stored proposal is malformed; callers turn that into FAILED. */
 export function toDraftCardView(
