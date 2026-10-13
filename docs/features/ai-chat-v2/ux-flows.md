@@ -1,7 +1,7 @@
 ---
 status: draft
 feature_size: "L"
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 ---
 
 # UX flows — ai-chat-v2
@@ -13,21 +13,23 @@ updated_at: "2026-10-12"
 - **Posture:** responsive-both. `docs/design-system.md` names no posture, so this follows the app and the first iteration. The spec fixes the widths (§1): below 768 px is the phone layout; from 768 to 1279 px the desktop layout, where opening the preview hides the Conversation list behind a toggle; from 1280 px the list, the messages and the preview sit side by side. The flows are the same at every width. Only where the list and the preview open differs, and the flows show it where it matters (US-06, US-07).
 - **The AI section is one full-height workspace:** the page never scrolls. The Conversation list (SCR-01) and the messages (SCR-03) scroll on their own, and the message box is always visible. Switching Conversations, starting a new one and opening a preview all happen inside this workspace.
 - **A new Conversation is a state, not a record:** New chat, "Create invoice with AI" and the dashboard prompt open SCR-02. A Conversation exists only once its first message is sent, so leaving SCR-02 without sending leaves nothing behind.
-- **Offered choices live inline under the reply** that offers them (SCR-04). One open choice per reply. Only the latest reply's buttons can be pressed; older ones stay visible, inactive, with the chosen one marked.
+- **The Question form lives inline at the end of the reply** that asks it (SCR-04), one form per reply, replacing the first draft's one-choice buttons. It is answered with Send. Only the latest reply's form can be edited; older ones stay visible, read-only, with the answers given.
+- **The Conversation list is persistent:** it stays mounted while the Freelancer switches Conversations, so only the chat pane loads (ADR-0013).
+- **Replies are Markdown:** a reply's formatting (lists, tables, bold) shows while it is written and after reopening, and an in-app link in it opens that page (ADR-0012).
 - **The preview is a panel, not a page:** a side panel on a desktop and a full-screen sheet on a phone (SCR-06). Editing is never done there. "Open in editor" leaves for the existing editor (SCR-10).
 - **Issuing goes through one confirmation dialog** over the preview (SCR-07). Issuing from the editor keeps its own behaviour.
 - **The dashboard hands off, it does not chat:** the dashboard AI block (SCR-09) only starts or reopens Conversations. Every reply is read in the AI section.
 - **Navigation:** an "AI" group replaces the single "AI" item and holds "AI chat" and "Connect your AI" (SCR-08).
-- **Design input (not decided here):** (1) how a button press reaches the server so that it is told apart from typed text and checked against the stored options; (2) how the card and its links learn that the invoice was issued, so they can show it as issued (refresh, push or a local update after the press); (3) whether a new Conversation (SCR-02) and the open preview have their own addresses that survive a reload or a shared link; (4) how the dashboard prompt is handed to the AI section so that it is sent exactly once. `design` decides these.
+- **Design input (not decided here):** (1) how a form's Send reaches the server so that it is told apart from typed text and checked against the stored questions; (2) how the card and its links learn that the invoice was issued, so they can show it as issued (refresh, push or a local update after the press); (3) whether a new Conversation (SCR-02) and the open preview have their own addresses that survive a reload or a shared link; (4) how the dashboard prompt is handed to the AI section so that it is sent exactly once. `design` decides these.
 
 ## Screen inventory
 
 | ID | Screen | Purpose | Entry | Exit |
 |---|---|---|---|---|
-| SCR-01 | Conversation list (pane on a desktop, sheet on a phone) | Past Conversations grouped Today / Yesterday / Previous 7 days / Older by last message, a title search and New chat; scrolls on its own | Opening the AI section (SCR-08, SCR-09 "all Conversations"); the list toggle (768–1279 px with the preview open) or the list control on a phone | SCR-03 (pick a Conversation), SCR-02 (New chat) |
+| SCR-01 | Conversation list (pane on a desktop, sheet on a phone) | Past Conversations grouped Today / Yesterday / Previous 7 days / Older by last message, a title search and New chat; scrolls on its own; persistent, so it is not loaded again on a switch and keeps its scroll position and search text | Opening the AI section (SCR-08, SCR-09 "all Conversations"); the list toggle (768–1279 px with the preview open) or the list control on a phone | SCR-03 (pick a Conversation), SCR-02 (New chat) |
 | SCR-02 | New Conversation (empty state) | Greeting, message box in the middle, at least three suggested requests, messages left today; nothing saved until the first message | New chat in SCR-01; "AI chat" in SCR-08; "Create invoice with AI" in SCR-09; the existing "Create with AI" on the invoice list | SCR-03 (first message sent); SCR-01 (another Conversation, nothing saved) |
 | SCR-03 | Conversation | Messages that scroll on their own and follow new text, streamed replies, the message box at the bottom, used-up, refused and "no longer available" answers | SCR-02 after the first message; SCR-01; latest-Conversation links and the prompt in SCR-09 | SCR-04 and SCR-05 (inline), SCR-06, SCR-15, SCR-01 |
-| SCR-04 | Offered choices (inline under a reply in SCR-03) | Up to 8 buttons for the one open choice the draft action found; states pressable / inactive / chosen | A reply in SCR-03 that asks to choose among records or currencies | A press sends the label as a message in SCR-03 |
+| SCR-04 | Question form (inline at the end of a reply in SCR-03) | Up to 6 questions with options, an "Other…" typed answer and Skip for optional ones, answered together with Send; states open / sent / closed | A reply in SCR-03 that needs details to draft | Send puts the answers as the Freelancer's message in SCR-03 |
 | SCR-05 | Draft card (inline in SCR-03, existing, extended) | The first iteration's card; once created it gets Preview and shows the invoice's live status (draft, issued, no longer available) | A drafting reply in SCR-03 | SCR-06 (Preview), SCR-10 ("Open in editor" link) |
 | SCR-06 | Invoice preview panel (side panel on a desktop, full-screen sheet on a phone) | The editor's preview of that invoice, "Open in editor" and, while it is a draft, Issue; states loading / draft / issued / blocked / no longer available / not found / reloaded | Preview on SCR-05 | SCR-07 (Issue), SCR-10 ("Open in editor"), back to SCR-03 (close) |
 | SCR-07 | Issue confirmation dialog | Names the Customer, total and currency and says lines and amounts can no longer change once issued; Confirm / Cancel | Issue in SCR-06 | SCR-06 (issued, reloaded, blocked or already issued; or cancelled) |
@@ -37,7 +39,7 @@ updated_at: "2026-10-12"
 | SCR-11 | Connect your AI page (existing) | Where Personal keys are managed | "Connect your AI" in SCR-08 | — |
 | SCR-12 | Sign-in (existing) | Where a Visitor is sent | Any attempt to reach the AI section or the dashboard prompt while signed out | The AI section after sign-in |
 | SCR-13 | Privacy page (existing, public, AI section updated) | Says which chat data is stored, how long, who processes message text and what the new reads share with a Personal-key client | Footer and legal links | — |
-| SCR-14 | Privacy settings (existing) | Data export (now with Offered choices, message origin and Conversation start point) and account deletion (now removing them) | Settings navigation | — |
+| SCR-14 | Privacy settings (existing) | Data export (now with Question forms, message origin and Conversation start point) and account deletion (now removing them) | Settings navigation | — |
 | SCR-15 | Add Customer / Add product pages (existing) | Where a record the chat could not find is added | The link in a "nothing matches" reply in SCR-03 | — |
 
 ## Flows
@@ -59,32 +61,33 @@ flowchart TD
 
 The Freelancer asks in the Conversation about their own records. Asking which sender profiles and bank accounts they have gets a list of profiles with their accounts, each account named by bank name, last four digits and currency, with the default profile and account marked and no full account number. Asking what a product costs for a Customer gets the standard prices per currency plus that Customer's custom price, each exactly as stored. Asking about a Customer with extra spaces, another case or look-alike Latin/Cyrillic letters finds it and shows its saved name. A drafting request under another sender profile in another currency produces a draft card with that profile and its account, marked as taken from the request. A Customer or product that matches nothing gets a plain "nothing matches" with a link to the page where one is added; no record is ever invented. Naming their own sender profile as if it were the Customer gets an explanation of the difference and a question about which Customer to invoice, with no card; the Freelancer answers and the Conversation goes on. Every answer holds only this Freelancer's records.
 
-### Flow: US-03 — Pick an option with one press
+### Flow: US-03 — Answer a Question form
 
 ```mermaid
 flowchart TD
-    A["SCR-03 Conversation"] -->|"drafting request that needs a choice"| B{"What did the draft action find?"}
-    B -->|"1 to 8 options for one choice"| C["SCR-04 buttons under the reply, for one open choice only"]
-    B -->|"more than 8 options"| D["SCR-03 reply: how many match, type a more exact name; no buttons"]
-    D -->|"types a more exact name"| A
-    B -->|"a value to type, e.g. an amount"| E["SCR-03 reply asks for the value; no buttons"]
-    E -->|"types the value"| A
-    C -->|"types instead of pressing"| F["SCR-04 buttons become inactive, none marked chosen"]
-    F --> A
-    C -->|"presses an option"| G{"Allowance left?"}
-    G -->|"no"| H["SCR-03 allowance used up and when it renews; nothing marked chosen"]
-    G -->|"yes"| I{"Among the latest reply's stored options and still fitting?"}
-    I -->|"no: outdated, deleted, changed or someone else's"| J["SCR-03 this option is no longer available; choose again or type; not counted"]
-    J -->|"chooses again or types"| A
-    I -->|"yes"| K["SCR-03 the button's label sent as the Freelancer's message; counted; the option marked chosen"]
-    K --> L{"Another open choice?"}
-    L -->|"yes, e.g. a bank account"| C
-    L -->|"no"| M["SCR-05 Draft card for exactly the pressed record"]
-    N["SCR-01 reopens a past Conversation"] --> O["SCR-04 the same options, the chosen one marked"]
-    O -->|"latest reply, nothing pressed"| C
+    A["SCR-03 Conversation"] -->|"drafting request that needs details"| B{"What did the draft action find?"}
+    B -->|"details to choose or type"| C["SCR-04 one Question form at the end of the reply, all open questions together"]
+    B -->|"nothing missing"| M["SCR-05 Draft card"]
+    C -->|"picks an option, types in Other, or skips an optional question"| D["SCR-04 answers held in the form; counter shows answered of required"]
+    D -->|"a required question is unanswered or invalid"| E["SCR-04 Send disabled; the problem shown under the question"]
+    E --> D
+    D -->|"all required answered"| F["SCR-04 Send enabled"]
+    F -->|"types a message instead of pressing Send"| G["SCR-04 form closed, nothing taken from it"]
+    G --> A
+    F -->|"presses Send"| H{"Allowance left?"}
+    H -->|"no"| I["SCR-03 allowance used up and when it renews; the form stays open"]
+    H -->|"yes"| J{"Answers fit the stored questions?"}
+    J -->|"no: outdated, changed or someone else's"| K["SCR-03 this form is no longer available; ask again or type; not counted"]
+    K --> A
+    J -->|"yes"| L["SCR-03 the answers composed as the Freelancer's message, e.g. Customer: Acme GmbH; counted once; form shows the answers, read-only"]
+    L --> N{"More details needed?"}
+    N -->|"yes"| C
+    N -->|"no"| M
+    P["SCR-01 reopens a past Conversation"] --> Q["SCR-04 the same form, answers shown if sent, read-only if closed"]
+    Q -->|"latest reply, still open"| C
 ```
 
-A drafting request that leaves a choice among records or currencies gets a reply with buttons for that one choice only. The buttons come from what the draft action found, never from the reply's words; look-alike Customer names also show each Customer's email. More than 8 options get no buttons and a count with a request for a more exact name. A missing value such as an amount is asked for in words, with no buttons. If the Freelancer types instead of pressing, that reply's buttons become inactive and none is marked. Pressing a button with no allowance left is refused like a typed message, saying when it renews, and marks nothing. Pressing an option that is no longer among the latest reply's stored options gets one uniform "this option is no longer available" answer, whether it was outdated, deleted, changed or never theirs. It is not counted and never reaches the model. A valid press sends the button's label as the Freelancer's message, counts once and marks the option as chosen. If another choice is still open (for example a bank account after the Customer), the next reply offers buttons for it. Otherwise the draft card shows exactly the pressed record. Reopening a past Conversation shows the same options with the chosen one marked, and an unpressed latest reply can still be pressed (and goes through the same checks).
+A drafting request that leaves details open gets one Question form at the end of the reply, holding every open question together: choosing a Customer, a bank account, a product or a currency, or typing a value such as an amount or a date. The options come from what the draft action found, never from the reply's words. Look-alike Customer names also show each Customer's email. An "Other…" choice reveals a typed answer, and an optional question can be skipped. More matches than the form can list get a count and a request to type a more exact name. Each answer is checked in the browser, and Send stays disabled until every required question has a valid answer. If the Freelancer sends a typed message instead of pressing Send, the form closes and nothing is taken from it. Pressing Send with no allowance left is refused like a typed message, saying when it renews, and the form stays open. A Send whose answers no longer fit the latest reply's stored questions gets one uniform "no longer available" answer, is not counted and never reaches the model. A valid Send composes the answers into the Freelancer's message, counts once, and shows the form read-only with the answers given. If more details are still needed, the next reply holds a new form. Otherwise the draft card shows exactly the chosen records. Reopening a past Conversation shows the same form with its answers, and an unsent latest form can still be filled and sent through the same checks.
 
 ### Flow: US-04 — Work in a full-height chat
 
@@ -100,13 +103,14 @@ flowchart TD
     G -->|"no"| I["SCR-01 says no Conversation matches"]
     D -->|"picks a Conversation"| J["SCR-03 that Conversation"]
     D -->|"New chat"| K["SCR-02 New Conversation"]
+    D -->|"switches Conversation"| S["SCR-03 chat pane loads; SCR-01 persistent: not loaded again, scroll position and search text kept, picked one active"]
     J -->|"a reply is being written"| L{"End of messages within 48 px of view?"}
     L -->|"yes"| M["SCR-03 view follows the new text"]
     L -->|"no, scrolled up"| N["SCR-03 view stays put; a jump-to-latest control appears"]
     N -->|"presses jump to latest"| M
 ```
 
-A Visitor who tries to reach the AI section is sent to sign in, and nothing is processed or counted. A signed-in Freelancer sees the Conversation list, grouped Today / Yesterday / Previous 7 days / Older by last message, beside the open or new Conversation. The page itself never scrolls: scrolling the list moves only the list, and scrolling the messages moves only the messages while the message box stays visible at the bottom. Typing in the search narrows the list to matching titles (ignoring case, extra spaces and look-alike letters) or says that none match. Picking a Conversation opens it, and New chat (at the bottom of the list) opens an empty one. While a reply is being written, the view follows the new text if the end of the messages is within 48 px of view. If the Freelancer has scrolled further up, the view stays where it is and a control appears that jumps back to the latest message.
+A Visitor who tries to reach the AI section is sent to sign in, and nothing is processed or counted. A signed-in Freelancer sees the Conversation list, grouped Today / Yesterday / Previous 7 days / Older by last message, beside the open or new Conversation. The page itself never scrolls: scrolling the list moves only the list, and scrolling the messages moves only the messages while the message box stays visible at the bottom. Typing in the search narrows the list to matching titles (ignoring case, extra spaces and look-alike letters) or says that none match. Picking a Conversation opens it, and New chat (at the bottom of the list) opens an empty one. The list is persistent: switching Conversations changes only the chat pane, which shows a loading state, while the list is not loaded again and keeps its scroll position, search text and rows, with the picked Conversation marked active. The list changes later only when a Conversation is created, renamed or deleted, or when a new message moves a Conversation to the top. While a reply is being written, the view follows the new text if the end of the messages is within 48 px of view. If the Freelancer has scrolled further up, the view stays where it is and a control appears that jumps back to the latest message.
 
 ### Flow: US-05 — Start from a clear empty state
 
@@ -218,10 +222,13 @@ With messages left, the dashboard's AI block shows a prompt box, the three lates
 flowchart TD
     A["SCR-03 sends a message"] --> B["SCR-03 the reply's words appear progressively"]
     B --> C["SCR-03 the complete reply"]
-    D["SCR-01 reopens the Conversation later"] --> E["SCR-03 the saved reply shown whole at once"]
+    B --> F["SCR-03 Markdown formatting and in-app links shown as the text arrives"]
+    D["SCR-01 reopens the Conversation later"] --> E["SCR-03 the saved reply shown whole at once, same formatting and in-app links"]
 ```
 
 After a message is sent, the reply's words appear one after another as they are written. The text never shows up only once it is complete. Reopening the Conversation later shows the saved reply whole at once. Following the new text is shown in US-04.
+
+The reply is Markdown: lists, tables and bold text show formatted while it is written and after reopening, raw HTML is shown as text, and an in-app link (for example an invoice number) opens that page in the app. Any other address stays plain text.
 
 ### Flow: US-12 — Know what the chat keeps about me
 
@@ -250,15 +257,15 @@ A Visitor or a Freelancer reading the privacy page finds, in its AI section, whi
 | AC-05b | Flow US-01 → "names own sender profile as the Customer" branch | No card |
 | AC-06 | N/A: Personal-key MCP answer, no UI (US-02 out of scope) | Contract-tested in `api` / `plan-tests` |
 | AC-07 | Flow US-01 (chat side: answers hold own records only) | Personal-key side has no UI |
-| AC-08 | Flow US-03 → SCR-04 → valid press → SCR-05 | |
-| AC-08b | Flow US-03 → "another open choice" loop back to SCR-04 → SCR-05 | One choice per reply |
-| AC-09 | Flow US-03 → SCR-04 (buttons only from the draft action's findings) | Invariant of SCR-04's content; injection fixture in `plan-tests` |
-| AC-10 | Flow US-03 → SCR-04 (email on look-alike Customers) → valid press → SCR-05 | Exact record pressed |
-| AC-11 | Flow US-03 → valid press, then "Allowance left? no" branch | Nothing marked chosen |
-| AC-12 | Flow US-03 → "types instead of pressing" and the chosen mark after a valid press; reopen → SCR-04 | |
-| AC-12b | Flow US-03 → "no: outdated, deleted, changed or someone else's" branch | Uniform words, not counted, never reaches the model |
-| AC-13 | Flow US-03 → reopen (SCR-01 → SCR-04) → latest unpressed → press → "no longer available" | |
-| AC-14 | Flow US-03 → "more than 8 options" branch | |
+| AC-08 | Flow US-03 → Send → SCR-05 | Customer chosen in the form |
+| AC-08b | Flow US-03 → "More details needed?" loop back to SCR-04 → SCR-05 | One form per reply, Send enabled when all required answered |
+| AC-09 | Flow US-03 → SCR-04 (options only from the draft action's findings) | Invariant of SCR-04's content; injection fixture in `plan-tests` |
+| AC-10 | Flow US-03 → SCR-04 (email on look-alike Customers) → Send → SCR-05 | Exact record chosen |
+| AC-11 | Flow US-03 → "Allowance left? no" branch | Form stays open |
+| AC-12 | Flow US-03 → typed message closes the form; read-only answers after Send; reopen → SCR-04 |  |
+| AC-12b | Flow US-03 → "no: outdated, changed or someone else's" branch | Uniform words, not counted, never reaches the model |
+| AC-13 | Flow US-03 → reopen (SCR-01 → SCR-04) → latest unsent form → Send |  |
+| AC-14 | Flow US-03 → more matches than listed: type a more exact name |  |
 | AC-15 | Flow US-04 → scroll branches (E, F) | Page never scrolls |
 | AC-16 | Flow US-04 → "End of messages within 48 px of view?" decision | Jump-to-latest control |
 | AC-17 | Flow US-04 → grouped list D, search branches H / I | New chat at the list's bottom |
@@ -282,3 +289,5 @@ A Visitor or a Freelancer reading the privacy page finds, in its AI section, whi
 | AC-34 | Flow US-12 → export and account deletion branches | |
 | AC-35 | Flow US-12 → SCR-13 | Visitor or Freelancer |
 | AC-36 | Flow US-04 → "Signed in? no" → SCR-12 | Also covers the dashboard prompt (dashboard is signed-in only) |
+| AC-42 | Flow US-11 (Markdown formatting and in-app links) | Same while written and after reopening |
+| AC-52 | Flow US-04 → "switches Conversation" branch | Persistent list: not loaded again, scroll position and search text kept |

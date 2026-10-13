@@ -75,7 +75,7 @@
 | T66 | [Keep the Conversation list mounted in the AI layout and update it from chat events](./t66-keep-the-conversation-list-mounted-in-the.md) | ui | Dmytro Hopko | L | — | done |
 | T67 | [Align the list top row with the chat header, size every skeleton to its content, and level the avatar with the first line](./t67-align-the-list-top-row-with-the.md) | ui | Dmytro Hopko | M | T66 | done |
 | T68 | [Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines](./t68-add-e2e-through-ui-tests-for-forms.md) | tests | Dmytro Hopko | L | T60, T62, T67 | done |
-| T69 | [Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form](./t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md) | docs | Dmytro Hopko | S | T60, T62, T66 | todo |
+| T69 | [Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form](./t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md) | docs | Dmytro Hopko | S | T60, T62, T66 | done |
 
 **Total:** 69 tasks, ~33 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013).
 
