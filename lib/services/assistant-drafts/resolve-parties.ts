@@ -273,6 +273,18 @@ function resolveSenderAndAccount(
   };
 }
 
+/**
+ * ai-chat-v2 D-1 (AC-05b): a Customer name that is, once folded, exactly one of the Freelancer's own sender profile
+ * names gets that profile as a hint, so the chat explains the difference instead of offering to add a Customer.
+ */
+function withOwnProfileHint(issue: DraftIssue, request: DraftRequest, profiles: Profile[]): DraftIssue {
+  if (issue.kind !== 'CUSTOMER_NOT_FOUND' || request.customer === undefined) return issue;
+  const needle = foldName(request.customer);
+  const own = profiles.find((p) => foldName(p.name) === needle);
+  if (!own) return issue;
+  return { ...issue, ownSenderProfile: { senderProfileId: own.id, name: { freelancerText: own.name } } };
+}
+
 export async function resolveParties(
   actor: ActingFreelancer,
   request: DraftRequest,
@@ -304,7 +316,7 @@ export async function resolveParties(
   });
 
   const issues: DraftIssue[] = [];
-  if ('issue' in customerResult) issues.push(customerResult.issue);
+  if ('issue' in customerResult) issues.push(withOwnProfileHint(customerResult.issue, request, profiles));
   if ('issue' in partiesResult) issues.push(partiesResult.issue);
   if (issues.length > 0 || !('customer' in customerResult) || !('chosen' in partiesResult)) {
     return { ok: false, issues };

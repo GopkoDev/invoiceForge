@@ -218,6 +218,12 @@ The parent files are not edited.
 
 Result: 1 core ✗ (point 3), resolved in the contract with an upstream OQ, plus 5 supporting notes. The total is ≥ 3 flags, so the run would normally pause. Here every flag was resolved autonomously (decision log above) and stays open to owner veto.
 
+## B2. Changes after the api stage
+
+| Date | Stage | Change | Kind |
+|---|---|---|---|
+| 2026-10-13 | tasks (D-1) → implement T09 | `DraftIssueDelta`: `CUSTOMER_NOT_FOUND` gains optional `ownSenderProfile` (new schema `OwnSenderProfileHint` = `{ senderProfileId, name }`), set when the folded written name equals one of the acting Freelancer's sender profile names. Same for the chat, the Create press and MCP `DRAFT_ISSUES`. Makes AC-05b deterministic instead of model-only (sad.md §6 flag) | additive, compatible |
+
 ## C. Deviations from the api-skill defaults (all inherited from the parent contracts)
 
 | Default | Here | Why |

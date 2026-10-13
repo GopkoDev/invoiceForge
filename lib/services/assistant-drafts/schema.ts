@@ -176,7 +176,12 @@ export const draftIssueSchema = z.discriminatedUnion('kind', [
     defaultSenderProfileId: recordId,
     otherProfiles: z.array(z.object({ senderProfileId: recordId, name: freelancerText })),
   }),
-  z.object({ kind: z.literal('CUSTOMER_NOT_FOUND'), written: z.string() }),
+  z.object({
+    kind: z.literal('CUSTOMER_NOT_FOUND'),
+    written: z.string(),
+    // ai-chat-v2 D-1 (AC-05b): the written name is the Freelancer's own sender profile, not a Customer.
+    ownSenderProfile: z.object({ senderProfileId: recordId, name: freelancerText }).optional(),
+  }),
   z.object({ kind: z.literal('CUSTOMER_AMBIGUOUS'), written: z.string(), candidates }),
   z.object({ kind: z.literal('CUSTOMER_NEAR_MISS'), written: z.string(), candidates }),
   z.object({ kind: z.literal('LINE_AMOUNT_MISSING'), lineIndex, description: z.string() }),

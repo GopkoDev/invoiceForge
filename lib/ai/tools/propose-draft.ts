@@ -55,7 +55,10 @@ export function linksFor(issues: DraftIssue[]): AppLink[] {
     if (!links.some((l) => JSON.stringify(l) === key)) links.push(link);
   };
   for (const issue of issues) {
-    if (issue.kind === 'CUSTOMER_NOT_FOUND') add({ kind: 'page', page: 'new-customer' });
+    // No add-Customer link when the name is the Freelancer's own sender profile (D-1, screens.md SCR-03).
+    if (issue.kind === 'CUSTOMER_NOT_FOUND') {
+      if (!issue.ownSenderProfile) add({ kind: 'page', page: 'new-customer' });
+    }
     else if (issue.kind === 'NO_SENDER_PROFILE_WITH_ACCOUNT') {
       add({ kind: 'page', page: 'sender-profiles' });
       add({ kind: 'page', page: 'new-sender-profile' });

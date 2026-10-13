@@ -22,7 +22,9 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
       case 'DEFAULT_PROFILE_WITHOUT_ACCOUNT':
         return 'Your default sender profile has no bank account. Add one, or name another sender profile to draft under.';
       case 'CUSTOMER_NOT_FOUND':
-        return `You have no Customer called ${issue.written}. Add the Customer first.`;
+        return issue.ownSenderProfile
+          ? `${issue.ownSenderProfile.name.freelancerText} is your own sender profile — the business you invoice from. A Customer is the one who pays. Which Customer should this invoice go to?`
+          : `You have no Customer called ${issue.written}. Add the Customer first.`;
       case 'CUSTOMER_AMBIGUOUS':
         return `Several Customers match ${issue.written}: ${list(issue.candidates.map((c) => c.name.freelancerText))}. Which one do you mean?`;
       case 'CUSTOMER_NEAR_MISS':
@@ -71,7 +73,9 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
       case 'DEFAULT_PROFILE_WITHOUT_ACCOUNT':
         return 'У вашого профілю відправника за замовчуванням немає банківського рахунку. Додайте його або назвіть інший профіль.';
       case 'CUSTOMER_NOT_FOUND':
-        return `У вас немає клієнта ${issue.written}. Спершу додайте клієнта.`;
+        return issue.ownSenderProfile
+          ? `${issue.ownSenderProfile.name.freelancerText} — це ваш профіль відправника, бізнес, від імені якого ви виставляєте інвойси. Клієнт — це той, хто платить. Якому клієнту виставити цей інвойс?`
+          : `У вас немає клієнта ${issue.written}. Спершу додайте клієнта.`;
       case 'CUSTOMER_AMBIGUOUS':
         return `Під ${issue.written} підходить кілька клієнтів: ${list(issue.candidates.map((c) => c.name.freelancerText))}. Кого саме ви маєте на увазі?`;
       case 'CUSTOMER_NEAR_MISS':

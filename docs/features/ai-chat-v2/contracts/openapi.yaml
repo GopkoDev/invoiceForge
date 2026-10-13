@@ -584,7 +584,10 @@ components:
         - `SEVERAL_ACCOUNTS_IN_CURRENCY` / `BANK_ACCOUNT_NOT_FOUND` / `BANK_ACCOUNT_AMBIGUOUS` `.accounts[]`
           → BankAccountCandidate (+ `bankName`, `lastFour`, `currency`);
         - `PRODUCT_AMBIGUOUS` `.candidates[]` → ProductCandidate (+ `unit`, `price`, `currency`);
-        - `SENDER_PROFILE_NOT_FOUND` → + `profiles[]` (SenderProfileRef) beside the existing `options` names.
+        - `SENDER_PROFILE_NOT_FOUND` → + `profiles[]` (SenderProfileRef) beside the existing `options` names;
+        - `CUSTOMER_NOT_FOUND` → + optional `ownSenderProfile` (OwnSenderProfileHint), set only when the folded
+          written name equals the folded name of one of the acting Freelancer's sender profiles (tasks-stage
+          decision D-1, AC-05b). The chat then explains sender profile vs Customer and adds no add-Customer link.
         No other kind changes. Which kinds become offers is ADR-0002's table (sad.md §5).
     CustomerCandidate:
       type: object
@@ -616,6 +619,16 @@ components:
         price: { $ref: "#/components/schemas/DecimalString", description: "The rate the resolver would use: the Customer's Custom price when one exists, else Product.price." }
         currency: { $ref: "#/components/schemas/Currency", description: "The invoice currency (the candidates are in it)." }
     SenderProfileRef: { $ref: "../../mcp-server/contracts/openapi.yaml#/components/schemas/SenderProfileRef" }
+    OwnSenderProfileHint:
+      description: |
+        CUSTOMER_NOT_FOUND.ownSenderProfile (tasks-stage decision D-1, AC-05b): the Freelancer's own sender profile whose
+        folded name equals the written Customer name. Owner-scoped: never another Freelancer's profile. Absent otherwise.
+      type: object
+      required: [senderProfileId, name]
+      additionalProperties: false
+      properties:
+        senderProfileId: { $ref: "#/components/schemas/RecordId" }
+        name: { $ref: "#/components/schemas/FreelancerText" }
     AccountLastFour:
       description: The last four characters of BankAccount.accountNumber with spaces removed (fewer when the number is shorter). Built in the service; no output schema has a field for more.
       type: string
