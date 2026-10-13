@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FOLLOW_THRESHOLD_PX,
   isAtBottom,
-} from '@/components/ai/use-follow-latest';
+} from '@/components/ai-elements/use-follow-latest';
 
 describe('isAtBottom', () => {
   it('uses a 48 px threshold', () => {

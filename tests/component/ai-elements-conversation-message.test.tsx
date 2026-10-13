@@ -160,6 +160,51 @@ describe('Conversation (AC-16: follow within 48 px, jump control beyond it)', ()
     expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
   });
 
+  // Review R16-2 / T43 (screens.md SCR-03 «Following new text»: a visible-on-focus label).
+  it('the scroll button carries a text label shown on keyboard focus', () => {
+    const { container, rerender } = render(<Thread text="one" />);
+    const area = scrollArea(container);
+    act(() => {
+      area.scrollTop = 100;
+      fireEvent.scroll(area);
+    });
+    content = 1200;
+    rerender(<Thread text="one two" />);
+    const jump = screen.getByRole('button', { name: 'Jump to latest' });
+    const label = jump.querySelector<HTMLElement>(
+      '[data-slot="jump-to-latest-label"]'
+    );
+    expect(label?.textContent).toBe('Jump to latest');
+    expect(label?.className).toMatch(/group-focus-visible:opacity-100/);
+    expect(jump).toHaveClass('group');
+  });
+
+  it('a keyboard jump keeps focus in the conversation instead of dropping it to the body', async () => {
+    const { container, rerender } = render(<Thread text="one" />);
+    const area = scrollArea(container);
+    act(() => {
+      area.scrollTop = 100;
+      fireEvent.scroll(area);
+    });
+    content = 1200;
+    rerender(<Thread text="one two" />);
+    const jump = screen.getByRole('button', { name: 'Jump to latest' });
+    jump.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
+    expect(document.activeElement).toBe(area);
+    expect(area).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('the centred column is addressable as data-slot="conversation-column"', () => {
+    const { container } = render(<Thread text="one" />);
+    expect(
+      scrollArea(container).querySelector(
+        ':scope > [data-slot="conversation-column"]'
+      )
+    ).not.toBeNull();
+  });
+
   it('is a full-width scroll area holding a centred max-w-3xl column, with no role="log" live region', () => {
     const { container } = render(<Thread text="one" />);
     const area = scrollArea(container);

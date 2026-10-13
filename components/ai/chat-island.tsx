@@ -52,7 +52,7 @@ import {
 import { MessageList } from '@/components/ai/message-list';
 import { OfferedChoices } from '@/components/ai/offered-choices';
 import { StartPanel } from '@/components/ai/start-panel';
-import { useFollowLatest } from '@/components/ai/use-follow-latest';
+import { useFollowLatest } from '@/components/ai-elements/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

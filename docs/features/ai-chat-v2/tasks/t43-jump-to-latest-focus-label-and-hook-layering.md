@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/conversation.tsx", "components/ai-elements/
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T43 — Jump to latest shows its label on focus and keeps focus; the follow hook lives with the elements (review R16-2, R16-8)

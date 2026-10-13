@@ -18,7 +18,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { useFollowLatest } from '@/components/ai/use-follow-latest';
+import { useFollowLatest } from '@/components/ai-elements/use-follow-latest';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -86,11 +86,15 @@ export function ConversationContent({
   return (
     <div
       ref={scrollRef}
+      // Programmatic focus target after a keyboard jump (R16-2); not a tab stop.
+      tabIndex={-1}
+      data-conversation-scroll=""
       data-slot="conversation-content"
-      className={cn('min-h-0 flex-1 overflow-y-auto', className)}
+      className={cn('min-h-0 flex-1 overflow-y-auto outline-none', className)}
       {...props}
     >
       <div
+        data-slot="conversation-column"
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-4',
           columnClassName
@@ -145,7 +149,10 @@ export function ConversationEmptyState({
 
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
 
-/** Shown only while the end is more than 48 px out of view (AC-16); pressing it jumps back and hides it. */
+/**
+ * Shown only while the end is more than 48 px out of view (AC-16); pressing it jumps back and hides it. The text label
+ * shows above the button on keyboard focus (and hover), and focus moves to the scroll area, since the button unmounts.
+ */
 export function ConversationScrollButton({
   className,
   onClick,
@@ -158,18 +165,31 @@ export function ConversationScrollButton({
       variant="outline"
       size="icon"
       aria-label="Jump to latest"
-      title="Jump to latest"
       className={cn(
-        'dark:bg-background dark:hover:bg-muted absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-sm',
+        'group dark:bg-background dark:hover:bg-muted absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-sm',
         className
       )}
       onClick={(event) => {
         onClick?.(event);
+        const button = event.currentTarget;
         scrollToBottom();
+        const area = button
+          .closest('[data-slot="conversation"]')
+          ?.querySelector<HTMLElement>('[data-conversation-scroll]');
+        if (button.ownerDocument.activeElement === button) {
+          area?.focus({ preventScroll: true });
+        }
       }}
       {...props}
     >
       <ArrowDownIcon aria-hidden className="size-4" />
+      <span
+        aria-hidden
+        data-slot="jump-to-latest-label"
+        className="bg-popover text-popover-foreground pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-md border px-2 py-1 text-xs whitespace-nowrap opacity-0 shadow-sm group-hover:opacity-100 group-focus-visible:opacity-100 motion-safe:transition-opacity"
+      >
+        Jump to latest
+      </span>
     </Button>
   );
 }
