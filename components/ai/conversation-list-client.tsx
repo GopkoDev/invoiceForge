@@ -16,16 +16,19 @@ export function ConversationListClient(props: {
 }) {
   const router = useRouter();
   const openId = openConversationId(usePathname());
+  const newConversation = useNewConversation();
   // SCR-01 "deleted": when the open Conversation is among the deleted, leave for /ai; otherwise refresh the list.
   const { deleteOne, deleteAll } = useDeleteConversations({
     onGone: (target) => {
+      // A Conversation started in place heads the list until the server has it: once deleted it must not come back.
+      newConversation?.forget(target);
       const openGone = openId !== null && (target.kind === 'all' || target.id === openId);
       if (openGone) router.push(protectedRoutes.ai);
       else router.refresh();
     },
   });
 
-  const created = useNewConversation()?.created;
+  const created = newConversation?.created;
   // The Conversation just started in the island heads the list (in Today) until the server list includes it.
   const { conversations } = props;
   const listed =

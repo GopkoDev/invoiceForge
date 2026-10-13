@@ -48,6 +48,8 @@ vi.mock('@/lib/helpers/client-session-redirect', async (orig) => ({
 }));
 
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
+import { NewConversationProvider, useNewConversation } from '@/components/ai/new-conversation-context';
+import { useEffect } from 'react';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { AiModalContainer } from '@/components/modals/ai/ai-modal-container';
 import AiLayout from '@/app/(protected)/ai/layout';
@@ -114,6 +116,48 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
 
   // Review 2026-10-13 R1-U3, SCR-01 "deleted": deleting the open Conversation from the list (one, or all) leaves for
   // /ai instead of refreshing a page whose Conversation is gone (the not-found page).
+  // Review 2026-10-13 R2-U2: a Conversation started in place heads the list until the server list has it. Once it
+  // is deleted (alone or with "Delete all") it must not come back as a ghost row.
+  describe('a Conversation started in place, then deleted', () => {
+    function Announce() {
+      const ctx = useNewConversation();
+      useEffect(() => {
+        ctx?.announce({ id: 'cX', title: 'Started here' });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return null;
+    }
+    const renderStarted = () =>
+      render(
+        <>
+          <NewConversationProvider>
+            <Announce />
+            <ConversationListClient conversations={[]} timeZone="UTC" />
+          </NewConversationProvider>
+          <AiModalContainer />
+        </>
+      );
+
+    it('deleting its row removes it for good', async () => {
+      deleteConversationMock.mockResolvedValue(ok());
+      const user = userEvent.setup();
+      renderStarted();
+      await user.click(await screen.findByRole('button', { name: 'Delete conversation Started here' }));
+      await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByText('Started here')).toBeNull());
+    });
+
+    it('"Delete all" removes it and shows the empty list', async () => {
+      deleteAllConversationsMock.mockResolvedValue(ok({ deleted: 1 }));
+      const user = userEvent.setup();
+      renderStarted();
+      await screen.findByText('Started here');
+      const dialog = await openDeleteAll(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete all' }));
+      await waitFor(() => expect(screen.queryByText('Started here')).toBeNull());
+    });
+  });
+
   describe('from the list while a Conversation is open', () => {
     it('deleting the open row goes to /ai', async () => {
       pathname = '/ai/c1';
