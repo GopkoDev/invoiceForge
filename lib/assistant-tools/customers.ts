@@ -5,6 +5,7 @@ import { listCustomersForAssistant } from '@/lib/services/customers/customers';
 import { freelancerText, nullableFreelancerText } from './freelancer-text';
 import type { ReadOnlyToolDefinition, ReadOnlyToolHandler } from './types';
 import { pageInfoSchema } from './shared';
+import { inOutcomeSpan } from './outcome-span';
 
 const text = z.object({ freelancerText: z.string() });
 const input = z.object({
@@ -50,24 +51,26 @@ export const customersTool: ReadOnlyToolDefinition<typeof input, typeof output> 
   outputSchema: output,
 };
 
-export const customersHandler: ReadOnlyToolHandler<typeof input, typeof output> = async (args, { actor }) => {
-  const res = await listCustomersForAssistant(actor, args);
-  if (!res.success) return res;
-  return {
-    success: true,
-    data: {
-      pageInfo: res.data.pageInfo,
-      rows: res.data.rows.map((r) => ({
-        ...r,
-        name: freelancerText(r.name),
-        companyName: nullableFreelancerText(r.companyName),
-        phone: nullableFreelancerText(r.phone),
-        taxId: nullableFreelancerText(r.taxId),
-        address: nullableFreelancerText(r.address),
-        city: nullableFreelancerText(r.city),
-        country: nullableFreelancerText(r.country),
-        postalCode: nullableFreelancerText(r.postalCode),
-      })),
-    },
-  };
-};
+export const customersHandler: ReadOnlyToolHandler<typeof input, typeof output> = (args, { actor }) =>
+  // ai-chat-v2 (sad §7 Monitoring): metadata-only outcome span, like the other read questions.
+  inOutcomeSpan('assistant-tools.customers', async () => {
+    const res = await listCustomersForAssistant(actor, args);
+    if (!res.success) return res;
+    return {
+      success: true,
+      data: {
+        pageInfo: res.data.pageInfo,
+        rows: res.data.rows.map((r) => ({
+          ...r,
+          name: freelancerText(r.name),
+          companyName: nullableFreelancerText(r.companyName),
+          phone: nullableFreelancerText(r.phone),
+          taxId: nullableFreelancerText(r.taxId),
+          address: nullableFreelancerText(r.address),
+          city: nullableFreelancerText(r.city),
+          country: nullableFreelancerText(r.country),
+          postalCode: nullableFreelancerText(r.postalCode),
+        })),
+      },
+    };
+  });
