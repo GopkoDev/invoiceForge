@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
-import { formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
+import { composeForm, formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import { isCurrency } from '@/lib/services/assistant-drafts/offers';
 import {
   draftRequestSchema,
@@ -110,6 +110,14 @@ export function resolverFormFor(
   };
 }
 
+/**
+ * T72/T76: the fields the form will hold, as composeForm orders and caps them (F1 order, at most 6), so the model
+ * writes one prompt per field through ask_user and no more than the form keeps.
+ */
+export function askFieldsOf(questions: FormQuestionDraft[]): Array<{ field: string; lineIndex: number | null }> {
+  return composeForm(questions, []).map((q) => ({ field: q.field, lineIndex: q.lineIndex }));
+}
+
 const MAX_LISTED = 8;
 const NAME_NONE = 'Name none of the records counted here: their names are not in this answer.';
 const NO_BUTTONS = 'More than 8 options, so there are no buttons. ';
@@ -201,8 +209,7 @@ export function createProposeDraftTool(turn: TurnContext) {
           resolverCalls.set(turn, call);
         }
         // T72: the fields the form will ask, so the model writes one prompt per field through ask_user.
-        const askFields = questions.map((q) => ({ field: q.field, lineIndex: q.lineIndex }));
-        return { ...issuesAnswer(issues, matchCount, offered), askFields };
+        return { ...issuesAnswer(issues, matchCount, offered), askFields: askFieldsOf(questions) };
       }
       const { proposal } = resolved.data;
       const cardId = createId();

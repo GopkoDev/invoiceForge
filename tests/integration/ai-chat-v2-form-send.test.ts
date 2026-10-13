@@ -799,6 +799,48 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
     });
   });
 
+  // T76 (review R21-1, AC-08, F2): a pinned form Send that still resolves to ISSUES hands the model askFields, in the
+  // pinned propose_draft result and in the answer to a propose_draft re-call, so it writes one prompt per open field.
+  describe('T76: askFields on the pinned form-Send path', () => {
+    const proposeResults = (prompt: unknown) =>
+      (prompt as any[])
+        .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+        .filter((p) => p.type === 'tool-result' && p.toolName === 'propose_draft')
+        .map((p) => p.output?.value as any);
+
+    async function sendCustomerPick(email: string, step: (i: number) => StubStep) {
+      const user = await freelancer(email);
+      await profileWithAccounts(user.id); // two USD accounts: still undecided after the Customer is picked
+      const { corp, gmbh } = await acmePair(user.id);
+      const { conversationId, form } = await seedForm(user.id, {
+        questions: [customerQuestion([{ id: corp.id, label: 'Acme Corp' }, { id: gmbh.id, label: 'Acme GmbH' }], 0)],
+      });
+      script(step);
+      return sendForm(conversationId, form.id, [{ questionId: 0, optionId: 1 }]);
+    }
+
+    it('the pinned propose_draft result the model reads carries askFields with the open bank account', async () => {
+      const { response } = await sendCustomerPick('t76-pinned@example.com', textOnly('Which account?'));
+
+      expect(response.status).toBe(200);
+      const [pinned] = proposeResults(prompts[0]);
+      expect(pinned?.kind).toBe('ISSUES');
+      expect(pinned.askFields).toEqual([{ field: 'BANK_ACCOUNT', lineIndex: null }]);
+    });
+
+    it('a propose_draft re-call in that turn is answered with the same askFields', async () => {
+      const { response } = await sendCustomerPick('t76-recall@example.com', (i) =>
+        i === 0 ? { toolCall: { name: 'propose_draft', input: REQUEST } } : { text: 'Which account?' }
+      );
+
+      expect(response.status).toBe(200);
+      expect(streamCalls()).toBeGreaterThanOrEqual(2);
+      const results = proposeResults(prompts[prompts.length - 1]);
+      expect(results.length).toBeGreaterThanOrEqual(2); // the pinned step and the re-call
+      for (const r of results) expect(r.askFields).toEqual([{ field: 'BANK_ACCOUNT', lineIndex: null }]);
+    });
+  });
+
   describe('request validation', () => {
     it('a form without a conversationId is 400 with the exact sentence; nothing counted, no model call', async () => {
       const user = await freelancer('t57-400@example.com');

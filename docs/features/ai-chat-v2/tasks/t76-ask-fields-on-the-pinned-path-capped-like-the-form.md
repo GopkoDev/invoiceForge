@@ -9,7 +9,7 @@ files_hint: ["lib/ai/run-turn.ts", "lib/ai/tools/propose-draft.ts", "lib/service
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T76 — Carry askFields on the pinned form-Send path and derive them from the form as composed (cap 6, F1 order) (review R21-1, R21-2)

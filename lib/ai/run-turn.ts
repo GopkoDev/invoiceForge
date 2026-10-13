@@ -8,7 +8,7 @@ import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/rou
 import { createId } from '@paralleldrive/cuid2';
 import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
 import { createTurnContext, type PinnedResolution, type TurnContext } from '@/lib/ai/turn-context';
-import { issuesAnswer, linksFor, resolverFormFor } from '@/lib/ai/tools/propose-draft';
+import { askFieldsOf, issuesAnswer, linksFor, resolverFormFor } from '@/lib/ai/tools/propose-draft';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
@@ -205,13 +205,14 @@ function pinnedAnswer(
   pinned: PinnedResolution,
   cardId: string | undefined,
   matchCount?: number,
-  offered = false
+  offered = false,
+  askFields?: Array<{ field: string; lineIndex: number | null }>
 ): Record<string, unknown> {
   const { resolution } = pinned;
   if (resolution.kind === 'PROPOSAL') return { kind: 'CARD', cardId, resolution };
   const answer = issuesAnswer(resolution.issues, matchCount, offered);
   // Above 8 matches the resolution's own lists stay out of the model input too (AC-14).
-  return { ...answer, resolution: { kind: 'ISSUES', issues: answer.issues } };
+  return { ...answer, ...(askFields ? { askFields } : {}), resolution: { kind: 'ISSUES', issues: answer.issues } };
 }
 
 function pinnedStep(pinned: PinnedResolution, value: Record<string, unknown>): ModelMessage[] {
@@ -287,14 +288,16 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   // A press that still leaves an issue offers its next choice from the pinned resolution (AC-08b).
   let pinnedMatchCount: number | undefined;
   let pinnedOffered = false;
+  let pinnedAskFields: Array<{ field: string; lineIndex: number | null }> | undefined;
   if (input.pinned?.resolution.kind === 'ISSUES') {
     const built = resolverFormFor(input.pinned.resolution.issues, input.pinned.request, turn);
     turn.pending.resolver = { request: input.pinned.request, questions: built.questions };
     pinnedMatchCount = built.matchCount;
     pinnedOffered = built.offered;
+    pinnedAskFields = askFieldsOf(built.questions);
   }
   if (input.pinned) {
-    turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, pinnedOffered);
+    turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, pinnedOffered, pinnedAskFields);
   }
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);

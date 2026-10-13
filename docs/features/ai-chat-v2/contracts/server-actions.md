@@ -143,7 +143,7 @@ updateInvoiceStatus(actor, id: string, status: string, opts?: { expectedVersion?
 // offers.ts ★
 offerFromIssues(issues: DraftIssue[], ctx: { invoiceCurrency: Currency | null }):
   | { kind: 'OFFER'; offerKind: ChoiceOfferKind; lineIndex: number | null; options: StoredOfferOption[] } // 1..8
-  | { kind: 'TOO_MANY'; count: number }   // > 8: no offer, the reply states the count (AC-14). propose_draft's ISSUES answer drops every list longer than 8 in any issue and then carries `listCounts` and a `say` directive worded per issue kind; `matchCount` only for this TOO_MANY case; the fallback words say each count (review 2026-10-13 R2-B2, R3-B3, R4-B1, R4-B2). Since T72 it also carries `askFields: Array<{ field: FormField; lineIndex: number | null }>`, one per question the form will ask, so the chat writes each one-line prompt through ask_user (F2; review R20-11)
+  | { kind: 'TOO_MANY'; count: number }   // > 8: no offer, the reply states the count (AC-14). propose_draft's ISSUES answer drops every list longer than 8 in any issue and then carries `listCounts` and a `say` directive worded per issue kind; `matchCount` only for this TOO_MANY case; the fallback words say each count (review 2026-10-13 R2-B2, R3-B3, R4-B1, R4-B2). Since T72 it also carries `askFields: Array<{ field: FormField; lineIndex: number | null }>`, one per question the form will hold (composeForm order, F1, at most 6; T76), also on the pinned form-Send ISSUES answer and its propose_draft re-call, so the chat writes each one-line prompt through ask_user (F2; review R20-11)
   | { kind: 'NONE' };                     // no offer-able issue (value to type, link, mismatch)
 
 checkChoice(actor, input: { conversationId: string; offerId: string; optionId: number }):
