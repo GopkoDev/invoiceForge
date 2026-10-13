@@ -140,10 +140,15 @@ const PINNED_CALL_ID = 'pinned-choice';
  * tool call followed by its tool result. The result is data only, in the tool's own answer shape plus the
  * resolution the press produced. The same value answers a propose_draft re-call in the pressed turn (R1-S1).
  */
-function pinnedAnswer(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): Record<string, unknown> {
+function pinnedAnswer(
+  pinned: PinnedResolution,
+  cardId: string | undefined,
+  matchCount?: number,
+  offered = false
+): Record<string, unknown> {
   const { resolution } = pinned;
   if (resolution.kind === 'PROPOSAL') return { kind: 'CARD', cardId, resolution };
-  const answer = issuesAnswer(resolution.issues, matchCount);
+  const answer = issuesAnswer(resolution.issues, matchCount, offered);
   // Above 8 matches the resolution's own lists stay out of the model input too (AC-14).
   return { ...answer, resolution: { kind: 'ISSUES', issues: answer.issues } };
 }
@@ -225,7 +230,9 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     turn.pending.offer = built.offer;
     pinnedMatchCount = built.matchCount;
   }
-  if (input.pinned) turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount);
+  if (input.pinned) {
+    turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, turn.pending.offer !== null);
+  }
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 

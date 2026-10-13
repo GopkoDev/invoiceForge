@@ -48,7 +48,7 @@ describe('issuesAnswer', () => {
   it('with a match count it carries the count, the directive and the per-issue counts, and no names', () => {
     const answer = issuesAnswer(issues, 12);
     expect(answer).toMatchObject({ kind: 'ISSUES', matchCount: 12, listCounts: [12] });
-    expect(String(answer.say)).toMatch(/List none of them/);
+    expect(String(answer.say)).toContain('Name none of the records counted here');
     expect(JSON.stringify(answer)).not.toContain('Studio 1');
   });
 });
@@ -63,12 +63,16 @@ describe('issuesAnswer: long lists after the first issue, and the directive', ()
       { kind: 'CUSTOMER_AMBIGUOUS', written: 'Acme', candidates: many(2, customer) },
       { kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: many(12, product) },
     ] as unknown as DraftIssue[];
-    const answer = issuesAnswer(issues, undefined);
+    const answer = issuesAnswer(issues, undefined, true);
     expect(answer).toMatchObject({ kind: 'ISSUES', listCounts: [null, 12] });
     expect(answer).not.toHaveProperty('matchCount');
     expect(JSON.stringify(answer.issues)).not.toContain('Audit 1');
     expect(JSON.stringify(answer.issues)).toContain('Studio 1');
     expect(String(answer.say)).toContain('12 products match audit.');
+    // Review 2026-10-13 R5-B3: the buttons answer the first question; the directive covers only the counted records.
+    expect(String(answer.say)).toMatch(/^The buttons cover the first question; for the rest: /);
+    expect(String(answer.say)).toContain('Name none of the records counted here');
+    expect(String(answer.say)).not.toContain('ask for a more exact name');
   });
 
   it('a name that matched nothing is not described as matching in the directive', () => {
@@ -76,7 +80,7 @@ describe('issuesAnswer: long lists after the first issue, and the directive', ()
     const say = String(issuesAnswer(issues, 11).say);
     expect(say).toContain('No bank account matches Zeta. You have 11 bank accounts');
     expect(say).not.toMatch(/11 bank accounts match/);
-    expect(say).toMatch(/List none of them/);
+    expect(say).toContain('Name none of the records counted here');
   });
 
   it('nothing dropped: no counts and no directive', () => {

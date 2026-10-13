@@ -101,9 +101,9 @@ export function offerFor(
 }
 
 const MAX_LISTED = 8;
-const SAY_TAIL =
-  "Say this in the Freelancer's language and ask for a more exact name. List none of them: their names are not in this answer.";
+const NAME_NONE = 'Name none of the records counted here: their names are not in this answer.';
 const NO_BUTTONS = 'More than 8 options, so there are no buttons. ';
+const WITH_BUTTONS = 'The buttons cover the first question; for the rest: ';
 
 /**
  * AC-14 (review 2026-10-13 R2-B2, R3-B3): above 8 matches the answer carries counts, not lists, so neither the model
@@ -140,13 +140,19 @@ export function withoutLongLists(issues: DraftIssue[]): { issues: DraftIssue[]; 
  * is in (R4-B2); then the answer carries each dropped list's count and a directive in words that fit each issue's
  * kind (R4-B1). `matchCount` stays only when the reply's offer itself was dropped (no buttons, AC-14).
  */
-export function issuesAnswer(issues: DraftIssue[], matchCount: number | undefined): Record<string, unknown> {
+export function issuesAnswer(
+  issues: DraftIssue[],
+  matchCount: number | undefined,
+  offered = false
+): Record<string, unknown> {
   const { issues: shown, counts } = withoutLongLists(issues);
   const answer: Record<string, unknown> = { kind: 'ISSUES', issues: shown, links: linksFor(shown) };
   if (matchCount !== undefined) answer.matchCount = matchCount;
   if (counts.some((c) => c !== null)) {
     answer.listCounts = counts;
-    answer.say = `${matchCount !== undefined ? NO_BUTTONS : ''}${countSentences(shown, counts)} ${SAY_TAIL}`;
+    // R5-B3: the directive covers only the counted records; when the reply has buttons, they answer the first question.
+    const opening = matchCount !== undefined ? NO_BUTTONS : offered ? WITH_BUTTONS : '';
+    answer.say = `${opening}${countSentences(shown, counts)} Say this in the Freelancer's language. ${NAME_NONE}`;
   }
   return answer;
 }
@@ -183,7 +189,7 @@ export function createProposeDraftTool(turn: TurnContext) {
           turn.pending.offer = offer;
           offerCalls.set(turn, call);
         }
-        return issuesAnswer(issues, matchCount);
+        return issuesAnswer(issues, matchCount, offer !== null);
       }
       const { proposal } = resolved.data;
       const cardId = createId();
