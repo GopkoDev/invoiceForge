@@ -39,7 +39,8 @@ test.describe('Connect your AI: reach it, create a key, revoke it', () => {
 
   test('AC-01: the dashboard entry point opens the connect page', async () => {
     await page.goto(`${APP_E2E_URL}${protectedRoutes.dashboard}`);
-    await page.getByRole('link', { name: /Connect your AI/ }).click();
+    // ai-chat-v2 T25: the sidebar's "Connect your AI" item also matches a loose name; this is the banner entry.
+    await page.getByRole('link', { name: 'Connect your AI →', exact: true }).click();
     await expect(page).toHaveURL(
       new RegExp(`${protectedRoutes.settingsAssistants}$`)
     );

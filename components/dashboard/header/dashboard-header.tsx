@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, SparklesIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { buttonVariants } from '@/components/ui/button';
@@ -100,6 +100,12 @@ export function DashboardHeader({
             </TabsList>
           </Tabs>
         )}
+
+        {/* ai-chat-v2 T26 (SCR-09, AC-30): a new Conversation ready to draft, just before Create Invoice. */}
+        <Link href={protectedRoutes.aiStartDraftFromDashboard} className={buttonVariants({ variant: 'outline' })}>
+          <SparklesIcon className="size-4" aria-hidden="true" />
+          Create invoice with AI
+        </Link>
 
         <Link
           href={protectedRoutes.invoicesNew}

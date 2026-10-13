@@ -6,6 +6,7 @@ import { DashboardDebtors } from '@/components/dashboard/debtors/dashboard-debto
 import { DashboardExpectedPayments } from '@/components/dashboard/expected-payments/dashboard-expected-payments';
 import { DashboardSenderAccounts } from '@/components/dashboard/sender-accounts/dashboard-sender-accounts';
 import { DashboardRecentInvoices } from '@/components/dashboard/recent-invoices/dashboard-recent-invoices';
+import { DashboardAiBlock } from '@/components/dashboard/ai-block';
 import {
   getDashboardSummaryStats,
   getDashboardChartData,
@@ -13,6 +14,7 @@ import {
   getDashboardRecentInvoices,
   getDashboardDebtors,
   getDashboardExpectedPayments,
+  getDashboardAiBlock,
 } from '@/lib/actions/dashboard-actions';
 import { unwrapPageResult } from '@/components/layout/content-area';
 import type { DashboardLocalPeriod } from '@/lib/validations/search-params';
@@ -93,4 +95,10 @@ export async function RecentInvoicesSection({
   const result = await getDashboardRecentInvoices(currency);
   const invoices = unwrapPageResult(result);
   return <DashboardRecentInvoices invoices={invoices} timeZone={timeZone} />;
+}
+
+/** ai-chat-v2 T26 (SCR-09): the AI block - the prompt box, today's allowance and the latest three Conversations. */
+export async function AiBlockSection() {
+  const { allowance, latest, timeZone } = unwrapPageResult(await getDashboardAiBlock());
+  return <DashboardAiBlock allowance={allowance} latest={latest} timeZone={timeZone} />;
 }

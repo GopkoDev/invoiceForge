@@ -51,6 +51,7 @@ vi.mock('@/components/dashboard', () => ({
   DashboardExpectedPaymentsSkeleton: () => null,
   DashboardSenderAccountsSkeleton: () => null,
   DashboardRecentInvoicesSkeleton: () => null,
+  DashboardAiBlockSkeleton: () => null,
 }));
 vi.mock('@/app/(protected)/dashboard/_sections', () => ({
   StatsSection: () => null,
@@ -59,6 +60,7 @@ vi.mock('@/app/(protected)/dashboard/_sections', () => ({
   ExpectedPaymentsSection: () => null,
   SenderAccountsSection: () => null,
   RecentInvoicesSection: () => null,
+  AiBlockSection: () => null,
 }));
 
 import DashboardPage from '@/app/(protected)/dashboard/page';

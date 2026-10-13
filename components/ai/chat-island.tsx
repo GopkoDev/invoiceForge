@@ -7,8 +7,9 @@ import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
 import { ArrowDownIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
+import { HANDOFF_PARAM, hasHandoff, subscribeHandoffs, takeHandoff } from '@/components/ai/ai-handoff';
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
 import { ConversationListButton } from '@/components/ai/ai-workspace';
@@ -62,8 +63,11 @@ type ChatMessage = UIMessage<
 /** A press (ADR-0003): an option inside a stored offer, never a record id. */
 type Choice = { offerId: string; optionId: number };
 
+/** A dashboard prompt's first message (ADR-0009): origin DASHBOARD with startedFrom DASHBOARD_PROMPT. */
+type Origin = 'DASHBOARD';
+
 /** What the island sent last: the optimistic message id, its text and, for a press, the choice. */
-type Pending = { id: string; text: string; choice?: Choice };
+type Pending = { id: string; text: string; choice?: Choice; origin?: Origin };
 
 type Failure =
   | {
@@ -71,6 +75,7 @@ type Failure =
       userMessageId: string;
       text: string;
       choice?: Choice;
+      origin?: Origin;
     }
   | { kind: 'GONE' }
   | { kind: 'VALIDATION'; message: string }
@@ -156,6 +161,8 @@ interface ChatIslandProps {
   start?: 'draft';
   /** ai-chat-v2 T20: where a new Conversation was opened from; sent with its first message only (AI_SECTION is omitted). */
   startedFrom?: ConversationStartPoint;
+  /** ai-chat-v2 T26: `/ai?handoff={id}`, the dashboard prompt's one-time sessionStorage entry (ADR-0009). */
+  handoffId?: string;
 }
 
 /** True when the device asks for reduced motion (AC-18): the composer then jumps instead of moving. */
@@ -190,6 +197,7 @@ function ChatSession({
   allowance: initialAllowance,
   start,
   startedFrom = 'AI_SECTION',
+  handoffId,
 }: ChatIslandProps) {
   const router = useRouter();
   const newConversation = useNewConversation();
@@ -226,15 +234,19 @@ function ChatSession({
         fetch: chatFetch,
         prepareSendMessagesRequest: ({ messages }) => {
           const savedId = live.getConversationId();
-          const choice = live.getPending()?.choice;
+          const sent = live.getPending();
+          const choice = sent?.choice;
+          // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
+          const dashboard = !choice && savedId === null && sent?.origin === 'DASHBOARD';
           return {
             body: {
               conversationId: savedId,
               message: messages[messages.length - 1],
               // openapi ChatRequest: a press carries its choice and never an origin or a start point.
               ...(choice ? { choice } : {}),
+              ...(dashboard ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' } : {}),
               // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-              ...(!choice && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
+              ...(!choice && !dashboard && savedId === null && startedFrom !== 'AI_SECTION' ? { startedFrom } : {}),
             },
           };
         },
@@ -271,6 +283,7 @@ function ChatSession({
             userMessageId: sent.id,
             text: sent.text,
             choice: sent.choice,
+            origin: sent.origin,
           });
         }
       }
@@ -332,6 +345,7 @@ function ChatSession({
           userMessageId: sent.id,
           text: sent.text,
           choice: sent.choice,
+          origin: sent.origin,
         });
     },
     onFinish: () => {
@@ -354,12 +368,17 @@ function ChatSession({
 
   const inFlight = status === 'submitted' || status === 'streaming';
 
-  function send(raw: string, choice?: Choice) {
+  // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
+  const { scrollRef, showJump, jumpToLatest } = useFollowLatest(messages);
+
+  function send(raw: string, choice?: Choice, origin?: Origin) {
     const id = generateId();
-    live.setPending({ id, text: raw, choice });
+    live.setPending({ id, text: raw, choice, origin });
     setReplyDone(false);
     setFailure(null);
-    if (!started && conversationId === null) {
+    // A dashboard prompt opens straight into the Conversation layout: nothing moved, so nothing animates.
+    if (origin === 'DASHBOARD') setComposerMove('none');
+    else if (!started && conversationId === null) {
       const from = startRef.current?.querySelector('[data-slot="composer"]')?.getBoundingClientRect();
       moveFrom.current = from ? from.top : null;
       setComposerMove(prefersReducedMotion() ? 'none' : 'animated');
@@ -380,7 +399,7 @@ function ChatSession({
       const index = current.findIndex((m) => m.id === failed.userMessageId);
       return index === -1 ? current : current.slice(0, index);
     });
-    send(failed.text, failed.choice);
+    send(failed.text, failed.choice, failed.origin);
   }
 
   // SCR-04: a press sends the stored label as the optimistic message plus { offerId, optionId }.
@@ -388,8 +407,32 @@ function ChatSession({
     send(label, { offerId, optionId });
   }
 
-  // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
-  const { scrollRef, showJump, jumpToLatest } = useFollowLatest(messages);
+  // ai-chat-v2 T26 (ADR-0009; SCR-02 "handoff"): take the dashboard prompt once, drop ?handoff= from the address and
+  // send it; a missing, taken or blocked entry falls back to the plain start screen with nothing sent.
+  // While the entry waits (and on the server, which cannot see it) the start screen is not shown.
+  const awaitingHandoff = useSyncExternalStore(
+    subscribeHandoffs,
+    () => Boolean(handoffId) && conversationId === null && hasHandoff(handoffId!),
+    () => Boolean(handoffId) && conversationId === null
+  );
+  const handoffTaken = useRef(false);
+  // The hand-off effect reads the latest send without re-running when it changes.
+  const sendRef = useRef<typeof send | null>(null);
+  useLayoutEffect(() => {
+    sendRef.current = send;
+  });
+  useEffect(() => {
+    if (!handoffId || conversationId !== null || handoffTaken.current) return;
+    handoffTaken.current = true;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(HANDOFF_PARAM)) {
+      url.searchParams.delete(HANDOFF_PARAM);
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+    const prompt = takeHandoff(handoffId);
+    if (prompt !== null && prompt.trim()) sendRef.current?.(prompt.trim(), undefined, 'DASHBOARD');
+  }, [handoffId, conversationId]);
+
 
   // FLIP: start the docked composer where the centred one was, then let the transition carry it to the bottom.
   useLayoutEffect(() => {
@@ -405,7 +448,7 @@ function ChatSession({
     dock.style.transform = '';
   }, [started, composerMove]);
 
-  if (conversationId === null && !started) {
+  if (conversationId === null && !started && !awaitingHandoff) {
     return (
       <div ref={startRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         <ConversationListButton />
