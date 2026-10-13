@@ -177,6 +177,43 @@ describe.runIf(containerRuntimeAvailable)('runTurn from a pinned resolution (T01
     expect(turn.pending.card?.proposal).toEqual(resolution.proposal);
   });
 
+  // Review 2026-10-13 R1-S1: in a pressed turn the card and the offer come from code. A model re-call of propose_draft
+  // (with other lines, prices or names) is answered with the pinned result and changes neither.
+  it('a re-call with other lines in a pinned PROPOSAL turn keeps the pinned card exactly (same id, lines and prices)', async () => {
+    const { cyrillic, run, resolvePinned } = await setup();
+    const request = { customerId: cyrillic.id, currency: 'USD', lines: [{ description: 'Design', quantity: '1', price: '100' }] };
+    const resolution = await resolvePinned(request);
+    recordingModel((i) =>
+      i === 0
+        ? { toolCall: { name: 'propose_draft', input: { customer: 'Acme Corp', currency: 'USD', lines: [{ description: 'Hacked', quantity: '99', price: '1' }] } } }
+        : { text: 'Here it is.' }
+    );
+
+    const { result } = await run(LOOK_ALIKE, { request, resolution });
+
+    expect(result.pendingCard?.request).toEqual(request);
+    expect(result.pendingCard?.proposal).toEqual(resolution.proposal);
+    expect(JSON.stringify(result.pendingCard)).not.toContain('Hacked');
+  });
+
+  it('a re-call in a pinned ISSUES turn keeps the pinned offer and parks no card', async () => {
+    const { latin, run, resolvePinned } = await setup();
+    const request = { customer: 'Acme Corp', currency: 'USD', lines: [{ description: 'Design', quantity: '1', price: '100' }] };
+    const resolution = await resolvePinned(request);
+    expect(resolution.kind).toBe('ISSUES');
+    recordingModel((i) =>
+      i === 0
+        ? { toolCall: { name: 'propose_draft', input: { customerId: latin.id, currency: 'USD', lines: [{ description: 'Other', quantity: '5', price: '7' }] } } }
+        : { text: 'Which Customer do you mean?' }
+    );
+
+    const { result } = await run('Acme Corp', { request, resolution });
+
+    expect(result.pendingCard).toBeUndefined();
+    expect(result.pendingOffer?.request).toEqual(request);
+    expect(result.pendingOffer?.kind).toBe('CUSTOMER');
+  });
+
   it('a press is never refused as off-topic: the router reading the label off-topic still runs the pinned turn', async () => {
     const { cyrillic, run, resolvePinned } = await setup();
     const request = { customerId: cyrillic.id, currency: 'USD', lines: [{ description: 'Design', quantity: '1', price: '100' }] };

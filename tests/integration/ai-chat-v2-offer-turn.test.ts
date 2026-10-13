@@ -284,7 +284,9 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       expect(result.pendingOffer.options.map((o: any) => o.label)).toEqual(['Alpha Bank ••1111 · USD', 'Beta Bank ••2222 · USD']);
     });
 
-    it('a re-called propose_draft keeps the pinned Customer over the ambiguous name the model writes', async () => {
+    // Review 2026-10-13 R1-S1: a re-call cannot replace the code-built offer, not even with a bank account the model
+    // picked itself ("Alpha" was never the Freelancer's word): the account is still offered (AC-08b, no guessing).
+    it('a re-called propose_draft (other Customer name, a model-picked account) keeps the pinned offer and parks no card', async () => {
       const { cyrillic, run } = await setup();
       model = scriptedModel({
         verdict: { topic: 'in_scope', language: 'en', intent: 'draft' },
@@ -296,10 +298,10 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
 
       const result: any = await run();
 
-      expect(result.pendingCard?.proposal.customer.customerId).toBe(cyrillic.id);
-      expect(result.pendingCard?.request.customerId).toBe(cyrillic.id);
-      // The card wins: no offer is left over from the pinned issues.
-      expect(result.pendingOffer).toBeUndefined();
+      expect(result.pendingCard).toBeUndefined();
+      expect(result.pendingOffer.kind).toBe('BANK_ACCOUNT');
+      expect(result.pendingOffer.request.customerId).toBe(cyrillic.id);
+      expect(result.pendingOffer.request.bankAccount).toBeUndefined();
     });
   });
 });

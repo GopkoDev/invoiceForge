@@ -133,18 +133,21 @@ const PINNED_CALL_ID = 'pinned-choice';
  * tool call followed by its tool result. The result is data only, in the tool's own answer shape plus the
  * resolution the press produced.
  */
-function pinnedStep(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): ModelMessage[] {
+/** The propose_draft result of a pinned resolution: the prior step in the model input, and the answer to a re-call. */
+function pinnedAnswer(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): Record<string, unknown> {
   const { resolution } = pinned;
-  const value =
-    resolution.kind === 'PROPOSAL'
-      ? { kind: 'CARD', cardId, resolution }
-      : {
-          kind: 'ISSUES',
-          issues: resolution.issues,
-          links: linksFor(resolution.issues),
-          ...(matchCount !== undefined ? { matchCount } : {}),
-          resolution,
-        };
+  return resolution.kind === 'PROPOSAL'
+    ? { kind: 'CARD', cardId, resolution }
+    : {
+        kind: 'ISSUES',
+        issues: resolution.issues,
+        links: linksFor(resolution.issues),
+        ...(matchCount !== undefined ? { matchCount } : {}),
+        resolution,
+      };
+}
+
+function pinnedStep(pinned: PinnedResolution, value: Record<string, unknown>): ModelMessage[] {
   return [
     {
       role: 'assistant',
@@ -221,6 +224,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     turn.pending.offer = built.offer;
     pinnedMatchCount = built.matchCount;
   }
+  if (input.pinned) turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount);
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 
@@ -228,7 +232,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     ...(topic === 'MIXED' ? [{ role: 'system' as const, content: MIXED_INSTRUCTION }] : []),
     ...history,
     { role: 'user' as const, content: input.message },
-    ...(input.pinned ? pinnedStep(input.pinned, turn.pending.card?.id, pinnedMatchCount) : []),
+    ...(input.pinned && turn.pinnedAnswer ? pinnedStep(input.pinned, turn.pinnedAnswer) : []),
   ];
 
   let resolveResult!: (r: TurnResult) => void;

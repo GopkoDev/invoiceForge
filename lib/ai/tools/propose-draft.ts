@@ -138,6 +138,9 @@ export function createProposeDraftTool(turn: TurnContext) {
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
     inputSchema: z.preprocess(liftLineCurrency, draftRequestSchema),
     execute: async (rawRequest: unknown): Promise<Record<string, unknown>> => {
+      // A pressed turn's card or offer was resolved in code from the pinned choice: a re-call gets that same answer
+      // and changes neither, whatever lines, prices or names the model writes (SAD §11; review 2026-10-13 R1-S1).
+      if (turn.pinnedAnswer) return turn.pinnedAnswer;
       const request = applyPins(draftRequestSchema.parse(rawRequest), turn.pins);
       const call = callCounts.get(turn) ?? 0;
       callCounts.set(turn, call + 1);
