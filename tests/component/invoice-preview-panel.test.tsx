@@ -30,9 +30,10 @@ vi.mock('sonner', () => ({
   toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
 }));
 let search = new URLSearchParams();
+let pathname = '/ai/c1';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/ai/c1',
+  usePathname: () => pathname,
   useSearchParams: () => search,
 }));
 const goToSignIn = vi.fn();
@@ -139,6 +140,7 @@ const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined
 
 beforeEach(() => {
   search = new URLSearchParams('preview=card1');
+  pathname = '/ai/c1';
   loadInvoicePreview.mockReset();
   issueFromPreview.mockReset();
   toastSuccess.mockReset();
@@ -214,6 +216,14 @@ describe('InvoicePreviewPanel - no invoice (AC-21, AC-22)', () => {
     expect(await within(panel()).findByText(CANT_FIND)).toBeTruthy();
     expect(issueButton()).toBeNull();
     expect(screen.getByTestId('card').textContent).toContain('Draft INV-0043 created.');
+  });
+
+  // Review 2026-10-13 R10-1: at /ai there is no open Conversation, so a preview address is not found, with no read.
+  it('AC-22: at /ai (no Conversation) ?preview= shows not found without loading', async () => {
+    pathname = '/ai';
+    render(<InvoicePreviewPanel cardId="card1" />);
+    expect(await screen.findByText("This invoice can't be found.")).toBeTruthy();
+    expect(loadInvoicePreview).not.toHaveBeenCalled();
   });
 
   it('FAILED: the load error with "Try again", which loads again', async () => {

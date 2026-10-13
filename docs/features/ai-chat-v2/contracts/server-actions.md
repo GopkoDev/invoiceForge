@@ -82,22 +82,23 @@ listConversationSummaries(actor): Promise<ActionResult<{ items: ConversationSumm
 
 The result gains `offers: Record<string, OfferView>`, exactly as `getConversation` returns them. The island calls it after each finished reply (parent rule), which is how a freshly streamed `data-offer` gets its labels (ADR-0001 Neutral), and how a press's claimed offer shows as chosen. `NOT_FOUND` as in the parent.
 
-### `loadInvoicePreview(cardId: string, conversationId?: string)` ★ (critical flow 2; ADR-0006; AC-20, AC-21, AC-22)
+### `loadInvoicePreview(cardId: string, conversationId: string)` ★ (critical flow 2; ADR-0006; AC-20, AC-21, AC-22)
 
 ```ts
 type InvoicePreview =
   | { kind: 'AVAILABLE'; invoice: SerializedInvoice; version: number; state: LinkedInvoiceState } // DRAFT or ISSUED
   | { kind: 'UNAVAILABLE' };                                                                        // deleted since
-loadInvoicePreview(cardId: string, conversationId?: string): Promise<ActionResult<InvoicePreview>>;
-// conversationId: the open Conversation (the panel passes it from /ai/{id}); a card of another Conversation is
-// NOT_FOUND in the same words as AC-22 (review 2026-10-13 R9-2).
+loadInvoicePreview(cardId: string, conversationId: string): Promise<ActionResult<InvoicePreview>>;
+// conversationId: the open Conversation (the panel passes it from /ai/{id}; at /ai it calls nothing and shows not
+// found). A card of another Conversation, or a missing or invalid conversationId, is NOT_FOUND in the same words
+// as AC-22 (review 2026-10-13 R9-2, R10-1).
 ```
 
 | Outcome | Result |
 |---|---|
 | a `CREATED` Draft card of this Freelancer whose invoice exists | `ok({ kind: 'AVAILABLE', invoice, version, state })`. `invoice` is the owner-scoped `getInvoice` serialization the list's preview modal already renders with `PDFPreviewPanel` (with its sender profile, for the logo); `version` = `Invoice.version` as read, sent back by `issueFromPreview`; `state` feeds the workspace invoice-state store (ADR-0008). Issue is shown only while `state.state = 'DRAFT'` |
 | a `CREATED` card whose `invoiceId` was cleared (the invoice was deleted) | `ok({ kind: 'UNAVAILABLE' })`. The panel says "This invoice is no longer available." with no Issue; the card shows the same (AC-21) |
-| no card with this id for this Freelancer, another Freelancer's card, or a card that is not `CREATED` | `fail('NOT_FOUND', "This invoice can't be found.")` — the same words for every case (AC-22) |
+| no card with this id for this Freelancer, another Freelancer's card, a card that is not `CREATED`, or a card of another Conversation than `conversationId` (missing or invalid `conversationId` included; R9-2, R10-1) | `fail('NOT_FOUND', "This invoice can't be found.")` — the same words for every case (AC-22) |
 | unexpected failure | `fail('FAILED', "The preview couldn't be loaded. Try again.")` |
 
 Read-only, never a message, never counted (AC-27). The preview address is `?preview={cardId}` (ADR-0005); reopening with it calls this action again. The reload after `CHANGED_ELSEWHERE` is a second call. ≤ 1.5 s p95 from the press to a rendered preview (spec §6).

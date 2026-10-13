@@ -232,7 +232,7 @@ phone (< md): [☰] Invoice Acme for 20 h [⋯] header; messages full width; com
 ```text
 scrolled up (AC-16)                              choice unavailable (AC-12b, AC-13)
 | ...older messages in view...               |   | Which account? [Monobank ••4821 · USD]       |
-|                                            |   |                [Wise ••••7710 · USD]           |
+|                                            |   |                [Wise ••7710 · USD]             |
 |            [↓ Jump to latest]              |   | (i) This option is no longer available.        |
 |--------------------------------------------|   |     Choose again or type your request.         |
 | [ Ask a question or describe...    ] [Send]|   | 27 of 30 messages left today   <- unchanged    |
@@ -310,7 +310,7 @@ created, issued (AC-23, AC-26)                   created, no longer available (A
 
 ### SCR-06 — Invoice preview panel (side panel on a desktop, full-screen sheet on a phone)
 
-`NEW: InvoicePreviewPanel` (`components/ai/invoice-preview-panel.tsx`). It opens from `?preview={cardId}` and calls `loadInvoicePreview(cardId)` (ADR-0006) on open, on a reload with the parameter, and after `CHANGED_ELSEWHERE`. At `≥ md` it is a grid column (not a modal) with a left border, its own header and its own scroll. At `< md` it renders inside a `Sheet` (`side="bottom"`, `h-dvh`, full width). Back closes it (pushState), and so do `×` and Escape. Inside:
+`NEW: InvoicePreviewPanel` (`components/ai/invoice-preview-panel.tsx`). It opens from `?preview={cardId}` and calls `loadInvoicePreview(cardId, conversationId)` with the open Conversation from the address (ADR-0006; at `/ai`, with no Conversation, it shows not found without a call, review 2026-10-13 R9-2/R10-1) on open, on a reload with the parameter, and after `CHANGED_ELSEWHERE`. At `≥ md` it is a grid column (not a modal) with a left border, its own header and its own scroll. At `< md` it renders inside a `Sheet` (`side="bottom"`, `h-dvh`, full width). Back closes it (pushState), and so do `×` and Escape. Inside:
 - a header: "{invoiceNumber}" (or "Invoice preview" before load), the status (`Badge` "Draft" or `InvoiceStatusBadge`), and a close `×` button (`aria-label` "Close preview");
 - the body: `PDFPreviewPanel` with `source = { kind: 'issued', invoice }` and the invoice's sender profile, the same as the list's preview modal, with zoom controls (spec AC-20 "the same invoice preview the editor shows");
 - a footer, always visible: "Open in editor" (outline link to `/invoices/{id}/edit`) and, only while the invoice is a draft, "Issue invoice" (primary).
@@ -329,7 +329,7 @@ Opening the preview and issuing are never messages and never count (AC-27). The 
 | blocked | `VALIDATION` (AC-25): the dialog closes, and a destructive `Alert` "Can't issue this invoice" shows the result's `error` verbatim (the editor's message) and lists `fieldErrors` messages, if any, as a list. It stays a draft. "Open in editor" becomes the primary footer button and Issue becomes outline | `Alert`, `Button` | wireframe below |
 | issue failed | `FAILED`: the dialog closes, `toast.error` "The invoice couldn't be issued. Try again." verbatim, and the panel stays `draft`, so Issue is available again | `Sonner` | — |
 | no longer available | `loadInvoicePreview` → `UNAVAILABLE`, or `issueFromPreview` → `NOT_FOUND` (AC-21): `Empty` (file-x icon) "This invoice is no longer available." with no document, no Issue and no editor link. Only `×`. The store marks the card the same (SCR-05) | `Empty` | wireframe below |
-| not found | `loadInvoicePreview` → `NOT_FOUND` (AC-22; another Freelancer's card, an unknown id, or a card not created): `Empty` "This invoice can't be found." verbatim, the same for every cause. Only `×`. The card is not changed (it may not be this Conversation's) | `Empty` | wireframe below |
+| not found | `loadInvoicePreview` → `NOT_FOUND` (AC-22; another Freelancer's card, an unknown id, a card not created, or a card of another Conversation): `Empty` "This invoice can't be found." verbatim, the same for every cause. Only `×`. The card is not changed (it may not be this Conversation's) | `Empty` | wireframe below |
 | load failed | `loadInvoicePreview` → `FAILED`: a destructive `Alert` "The preview couldn't be loaded. Try again." verbatim with "Try again" (re-calls the action; `Spinner` while pending) | `Alert`, `Button`, `Spinner` | — |
 | logo warning | `PDFPreviewPanel`'s own logo-warning alert (existing behaviour) | `PDFPreviewPanel` | existing |
 | rejected | `UNAUTHORIZED` or a rejected call → `goToSignIn()` | — | SCR-12 |

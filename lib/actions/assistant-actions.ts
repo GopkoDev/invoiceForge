@@ -79,18 +79,19 @@ const ISSUE_FAILED = "The invoice couldn't be issued. Try again.";
  */
 export async function loadInvoicePreview(
   cardId: string,
-  conversationId?: string
+  conversationId: string
 ): Promise<ActionResult<InvoicePreview>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
   if (typeof cardId !== 'string' || cardId.length === 0 || cardId.length > 64) {
     return fail('NOT_FOUND', PREVIEW_NOT_FOUND);
   }
-  // The open Conversation, when the panel knows it: a card of another Conversation is not found (R9-2).
-  const scope =
-    typeof conversationId === 'string' && conversationId.length > 0 && conversationId.length <= 64 ? conversationId : undefined;
+  // The open Conversation: a card of another Conversation, or no valid Conversation at all, is not found (R9-2, R10-1).
+  if (typeof conversationId !== 'string' || conversationId.length === 0 || conversationId.length > 64) {
+    return fail('NOT_FOUND', PREVIEW_NOT_FOUND);
+  }
 
-  const result = await getCardInvoicePreview(actor.data, cardId, scope);
+  const result = await getCardInvoicePreview(actor.data, cardId, conversationId);
   if (!result.success && result.code === 'FAILED') return fail('FAILED', PREVIEW_FAILED);
   return result;
 }

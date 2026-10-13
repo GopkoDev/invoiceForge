@@ -53,16 +53,28 @@ describe('loadInvoicePreview / issueFromPreview result shapes (ai-chat-v2 T17)',
 
   it('AVAILABLE and UNAVAILABLE previews match the contract', async () => {
     getCardInvoicePreview.mockResolvedValueOnce({ success: true, data: { kind: 'AVAILABLE', invoice: { id: 'inv1' }, version: 4, state: DRAFT } });
-    expect(previewOk.safeParse(await loadInvoicePreview('card1')).success).toBe(true);
+    expect(previewOk.safeParse(await loadInvoicePreview('card1', 'c1')).success).toBe(true);
     getCardInvoicePreview.mockResolvedValueOnce({ success: true, data: { kind: 'UNAVAILABLE' } });
-    expect(previewOk.safeParse(await loadInvoicePreview('card1')).success).toBe(true);
+    expect(previewOk.safeParse(await loadInvoicePreview('card1', 'c1')).success).toBe(true);
   });
 
   it('preview refusals: NOT_FOUND and FAILED in the contract words', async () => {
     getCardInvoicePreview.mockResolvedValueOnce({ success: false, code: 'NOT_FOUND', error: "This invoice can't be found." });
-    expect(failure('NOT_FOUND', "This invoice can't be found.").safeParse(await loadInvoicePreview('card1')).success).toBe(true);
+    expect(failure('NOT_FOUND', "This invoice can't be found.").safeParse(await loadInvoicePreview('card1', 'c1')).success).toBe(true);
     getCardInvoicePreview.mockResolvedValueOnce({ success: false, code: 'FAILED', error: 'whatever the service said' });
-    expect(await loadInvoicePreview('card1')).toEqual({ success: false, code: 'FAILED', error: "The preview couldn't be loaded. Try again." });
+    expect(await loadInvoicePreview('card1', 'c1')).toEqual({ success: false, code: 'FAILED', error: "The preview couldn't be loaded. Try again." });
+  });
+
+  // Review 2026-10-13 R10-1: without a valid open Conversation the preview is not found, never unscoped.
+  it('a missing, empty or over-long conversationId is NOT_FOUND without a read', async () => {
+    for (const id of [undefined, '', 'x'.repeat(65)]) {
+      expect(await loadInvoicePreview('card1', id as unknown as string)).toEqual({
+        success: false,
+        code: 'NOT_FOUND',
+        error: "This invoice can't be found.",
+      });
+    }
+    expect(getCardInvoicePreview).not.toHaveBeenCalled();
   });
 
   it('the issue success matches the contract', async () => {
@@ -105,7 +117,7 @@ describe('loadInvoicePreview / issueFromPreview result shapes (ai-chat-v2 T17)',
 
   it('no session: UNAUTHORIZED, no service is called', async () => {
     actorResult.mockResolvedValue({ success: false, code: 'UNAUTHORIZED', error: 'Not signed in.' });
-    expect(await loadInvoicePreview('card1')).toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(await loadInvoicePreview('card1', 'c1')).toMatchObject({ code: 'UNAUTHORIZED' });
     expect(await issueFromPreview('inv1', 4)).toMatchObject({ code: 'UNAUTHORIZED' });
     expect(getCardInvoicePreview).not.toHaveBeenCalled();
     expect(issueInvoiceFromPreview).not.toHaveBeenCalled();

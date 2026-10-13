@@ -43,9 +43,12 @@ type Notice =
 const NO_LONGER_AVAILABLE = 'This invoice is no longer available.';
 const UNAVAILABLE: LinkedInvoiceState = { state: 'UNAVAILABLE' };
 
+/** The contract's not-found words (server-actions.md loadInvoicePreview, AC-22). */
+const PREVIEW_NOT_FOUND = "This invoice can't be found.";
+
 /**
  * ai-chat-v2 T24 (screens.md §SCR-06, §SCR-07; AC-19–AC-23, AC-25–AC-27; ADR-0005–ADR-0008): the invoice preview
- * of a created Draft card. Loads with loadInvoicePreview(cardId) on open (and after CHANGED_ELSEWHERE), shows the
+ * of a created Draft card. Loads with loadInvoicePreview(cardId, conversationId) on open (and after CHANGED_ELSEWHERE), shows the
  * document the editor shows, and issues through issueFromPreview(invoiceId, version) after the confirmation.
  * Every result is written to the workspace invoice-state store, so the card and its links change with it. Opening
  * and issuing are never messages and never count. `variant` "sheet" stacks the footer for the phone sheet.
@@ -70,9 +73,14 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
   /** Reads the preview and routes the result; the current document stays until the new one arrives. */
   const read = useCallback(async () => {
     const request = ++latest.current;
+    // At /ai there is no open Conversation: a preview address there is not found, without a read (R10-1).
+    if (conversationId === null) {
+      setLoad({ kind: 'not-found', message: PREVIEW_NOT_FOUND });
+      return;
+    }
     let result: Awaited<ReturnType<typeof loadInvoicePreview>>;
     try {
-      result = await loadInvoicePreview(cardId, conversationId ?? undefined);
+      result = await loadInvoicePreview(cardId, conversationId);
     } catch {
       goToSignIn();
       return;
