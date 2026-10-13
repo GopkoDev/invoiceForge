@@ -700,5 +700,39 @@ describe.runIf(containerRuntimeAvailable)(
         chosenOptionId: null,
       });
     });
+
+    // Review 2026-10-13 R1-B2: a typed turn in another tab saved its own OPEN offer while the press ran. The release
+    // must still give the slot back, and the claimed offer ends CLOSED (unmarked) instead of breaking the
+    // one-open-offer index and rolling the whole release back.
+    it('AC-11, AC-12: release() after a newer OPEN offer was saved gives the slot back and closes the claimed offer', async () => {
+      const { user, actor } = await freelancer();
+      const now = new Date();
+      await createMessageAllowanceDay(prisma, {
+        userId: user.id,
+        day: allowanceDay(now),
+        used: 7,
+        timeZone: TZ,
+      });
+      const { conversation, offer } = await offerFor(user.id, {
+        options: [opt(0, { customerId: 'x' })],
+      });
+      const r = await svc.reserveAndClaim(actor, now, offer.id, 0);
+      if (!r.ok || !('release' in r)) throw new Error('expected ok');
+      const newer = await createChoiceOffer(prisma, {
+        userId: user.id,
+        conversationId: conversation.id,
+        messageId: (await prisma.conversationMessage.create({
+          data: { conversationId: conversation.id, position: 99, role: 'ASSISTANT', parts: [] },
+        })).id,
+        options: [opt(0, { customerId: 'y' })],
+      });
+
+      const after = await r.release();
+
+      expect(after.used).toBe(7);
+      expect(await usedOf(user.id)).toBe(7);
+      expect(await offerRow(offer.id)).toMatchObject({ state: 'CLOSED', chosenOptionId: null });
+      expect(await offerRow(newer.id)).toMatchObject({ state: 'OPEN' });
+    });
   }
 );

@@ -263,11 +263,25 @@ export async function claimOffer(tx: Tx, actor: ActingFreelancer, offerId: strin
   return count === 1;
 }
 
-/** CHOSEN → OPEN after a press that was not counted; a no-op for any other state. */
+/**
+ * CHOSEN → OPEN after a press that was not counted; a no-op for any other state. When a newer message saved its own
+ * OPEN offer meanwhile (a typed turn in another tab), the released offer ends CLOSED and unmarked instead: there is
+ * at most one OPEN offer per Conversation, and the release must not fail and keep the slot (review 2026-10-13 R1-B2).
+ * The Conversation row is locked first, the same lock saveTurn takes, so no OPEN offer appears between the two steps.
+ */
 export async function releaseOffer(tx: Tx, offerId: string): Promise<void> {
+  const claimed = await tx.choiceOffer.findFirst({
+    where: { id: offerId, state: 'CHOSEN' },
+    select: { conversationId: true },
+  });
+  if (!claimed) return;
+  await tx.$queryRaw`SELECT 1 FROM "Conversation" WHERE id = ${claimed.conversationId} FOR UPDATE`;
+  const newerOpen = await tx.choiceOffer.count({
+    where: { conversationId: claimed.conversationId, state: 'OPEN', id: { not: offerId } },
+  });
   await tx.choiceOffer.updateMany({
     where: { id: offerId, state: 'CHOSEN' },
-    data: { state: 'OPEN', chosenOptionId: null },
+    data: { state: newerOpen > 0 ? 'CLOSED' : 'OPEN', chosenOptionId: null },
   });
 }
 
