@@ -47,7 +47,12 @@
 | T39 | [Build the dashboard AI block prompt box on the PromptInput element](./t39-dashboard-ai-block-on-prompt-input.md) | ui | Dmytro Hopko | S | T34 | done |
 | T40 | [Register the AI elements and the changed AI components in the design system](./t40-register-ai-elements-in-design-system.md) | docs | Dmytro Hopko | S | T36, T37, T38, T39 | done |
 | T41 | [Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines](./t41-e2e-selectors-and-linux-baselines-retake.md) | tests | Dmytro Hopko | M | T35, T36, T37, T38, T39 | done |
+| T42 | [Redraw the Conversation page loading skeleton inside the workspace container (review R16-1)](./t42-conversation-loading-skeleton-container.md) | ui | Dmytro Hopko | S | T35 | todo |
+| T43 | [Jump to latest shows its label on focus and keeps focus; the follow hook lives with the elements (review R16-2, R16-8)](./t43-jump-to-latest-focus-label-and-hook-layering.md) | ui | Dmytro Hopko | S | T33 | todo |
+| T44 | [PromptInput on InputGroup, IME-safe Enter in Safari, and a decorative spinner in the submit (review R16-5, R16-6, R16-7)](./t44-prompt-input-input-group-ime-and-submit-spinner.md) | ui | Dmytro Hopko | S | T34 | todo |
+| T45 | [Start panel: used-up from Create with AI keeps the default heading, chips wrap on phones, greeting slot, one session read (review R16-3, R16-9, R16-10)](./t45-start-panel-used-up-draft-chips-wrap-session-read.md) | ui | Dmytro Hopko | S | T37 | todo |
+| T46 | [E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)](./t46-e2e-dark-contrast-phone-overflow-data-slot-selectors.md) | tests | Dmytro Hopko | S | T43, T45 | todo |
 
-**Total:** 41 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010).
+**Total:** 46 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46 are its review round 16 follow-ups).
 
 **Owner gates outside `implement`:** T28 privacy wording review and the spec §8 terms-page question (before `ship`); the real-model evaluation run (T29 rows) and the read/issue load scenarios (pre-release).
