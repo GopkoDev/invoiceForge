@@ -9,7 +9,7 @@ files_hint: ["components/ai-elements/conversation.tsx", "components/ai-elements/
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;

@@ -1,0 +1,40 @@
+Invoice Forge — AI chat elements (components/ai-elements/)
+
+This directory contains work derived from Vercel AI Elements.
+
+  Source:     https://github.com/vercel/ai-elements
+  Files:      packages/elements/src/conversation.tsx, message.tsx,
+              prompt-input.tsx, suggestion.tsx (and shimmer.tsx as the
+              element that loader.tsx replaces)
+  Commit:     6a9d5b1
+  Copyright:  Copyright 2023 Vercel, Inc.
+  Licence:    Apache License, Version 2.0 (full text in ./LICENSE)
+
+The upstream repository has no NOTICE file; this NOTICE is ours and
+records the source and the changes (Apache-2.0 §4(a)–(b)).
+
+Modifications (see docs/features/ai-chat-v2/adr/0010-build-the-ai-section-
+from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md):
+
+- Rebuilt on @base-ui/react through this project's components/ui
+  primitives (shadcn "base-vega" style) instead of Radix-based shadcn
+  components; Radix-only APIs (asChild, Slot) replaced by Base UI's
+  `render` prop or plain composition.
+- conversation.tsx: driven by the project's useFollowLatest hook (48 px
+  follow threshold, reduced motion, jump control) instead of
+  use-stick-to-bottom; no role="log" (it would announce every streamed
+  delta); ConversationContent is a full-width scroll area with a centred
+  max-w-3xl column; ConversationDownload not ported.
+- message.tsx: MessageResponse renders plain text with line breaks kept
+  (no streamdown, no Markdown, no HTML, no links); MessageAvatar taken
+  from the earlier upstream API; MessageAction shows a visible label;
+  the branch selector and toolbar are not ported.
+- prompt-input.tsx: no attachments, screenshots, referenced sources,
+  action menu, model select, hover card, command palette or nanoid;
+  the caller owns the text and its validation; the submit button shows a
+  Loader while a reply is in flight and sends no stop request.
+- suggestion.tsx: wraps onto lines instead of a horizontal ScrollArea.
+- loader.tsx: replaces upstream Shimmer (which needs motion) with the
+  project's Spinner, static under prefers-reduced-motion.
+- Styling adjusted to the project's design tokens and the AI section's
+  screen manifest (docs/features/ai-chat-v2/screens.md).
