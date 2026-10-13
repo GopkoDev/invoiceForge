@@ -217,38 +217,38 @@ describe.runIf(containerRuntimeAvailable)(
         expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
       });
 
-      it('AC-13: a BANK_ACCOUNT press with the currency written as "€" does not fit a USD account', async () => {
+      it('AC-13 (T70): a BANK_ACCOUNT press is ACCEPTED when the account is unchanged, even if the request wrote "€" (the resolver judges the fit after Send)', async () => {
         const { user, actor } = await freelancer();
         const sp = await createSenderProfile(prisma, user.id);
         const acc = await createBankAccount(prisma, sp.id, { currency: 'USD' });
         const { conversation, form } = await formOf(user.id, {
           field: 'BANK_ACCOUNT',
-          options: [opt(0, { bankAccountId: acc.id })],
+          options: [opt(0, { bankAccountId: acc.id, accountCurrency: 'USD' })],
           request: { customer: 'Acme', currency: '€' },
         });
 
-        expect(await checkF(actor, conversation.id, form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
       });
 
-      it('AC-13: a BANK_ACCOUNT of a profile named in the request no longer fits once that profile is renamed', async () => {
+      it('AC-13: (T70) a BANK_ACCOUNT of a profile named in the request stays ACCEPTED after that profile is renamed, the account itself being unchanged', async () => {
         const { user, actor } = await freelancer();
         const consulting = await createSenderProfile(prisma, user.id, { name: 'Consulting FOP', isDefault: false });
         await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
         const acc = await createBankAccount(prisma, consulting.id, { currency: 'USD' });
         const { conversation, form } = await formOf(user.id, {
           field: 'BANK_ACCOUNT',
-          options: [opt(0, { bankAccountId: acc.id })],
+          options: [opt(0, { bankAccountId: acc.id, accountCurrency: 'USD' })],
           request: { customer: 'Acme', currency: 'USD', senderProfile: 'consulting  fop' },
         });
         expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
         await prisma.senderProfile.update({ where: { id: consulting.id }, data: { name: 'Studio' } });
 
-        expect(await checkF(actor, conversation.id, form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
       });
 
       // Review 2026-10-13 R13-2: a request with no currency drafts in the default account's currency. Once that moves to
       // another currency, a product priced in the old one no longer fits.
-      it('AC-13: a PRODUCT for a request with no currency no longer fits once the default account is in another currency', async () => {
+      it('AC-13: (T70) a PRODUCT for a request with no currency stays ACCEPTED once the default account is in another currency, the product being unchanged', async () => {
         const { user, actor } = await freelancer();
         const sp = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
         const usd = await createBankAccount(prisma, sp.id, { currency: 'USD', isDefault: true });
@@ -264,7 +264,7 @@ describe.runIf(containerRuntimeAvailable)(
         await prisma.bankAccount.update({ where: { id: usd.id }, data: { isDefault: false } });
         await prisma.bankAccount.update({ where: { id: eur.id }, data: { isDefault: true } });
 
-        expect(await checkF(actor, conversation.id, form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
       });
 
       it('AC-08b: a PRODUCT press with the currency written as "€" fits a EUR product', async () => {
@@ -329,40 +329,40 @@ describe.runIf(containerRuntimeAvailable)(
         expect(await checkF(actor, profile.conversation.id, profile.form.id)).toStrictEqual(UNAVAILABLE);
       });
 
-      it("AC-13: a BANK_ACCOUNT now in another currency than the request's, or of another profile than the request's, is UNAVAILABLE", async () => {
+      it("AC-13 (T70): a BANK_ACCOUNT whose currency changed since the form is UNAVAILABLE; one of another profile than the request's is ACCEPTED", async () => {
         const { user, actor } = await freelancer();
         const wanted = await createSenderProfile(prisma, user.id);
         const second = await createSenderProfile(prisma, user.id);
         const acc = await createBankAccount(prisma, wanted.id, { currency: 'USD' });
         const accSecond = await createBankAccount(prisma, second.id, { currency: 'USD' });
         const request = { customer: 'Acme', currency: 'USD', senderProfileId: wanted.id };
-        const currency = await formOf(user.id, { field: 'BANK_ACCOUNT', options: [opt(0, { bankAccountId: acc.id })], request });
-        const profile = await formOf(user.id, { field: 'BANK_ACCOUNT', options: [opt(0, { bankAccountId: accSecond.id })], request });
+        const currency = await formOf(user.id, { field: 'BANK_ACCOUNT', options: [opt(0, { bankAccountId: acc.id, accountCurrency: 'USD' })], request });
+        const profile = await formOf(user.id, { field: 'BANK_ACCOUNT', options: [opt(0, { bankAccountId: accSecond.id, accountCurrency: 'USD' })], request });
         expect((await checkF(actor, currency.conversation.id, currency.form.id)).ok).toBe(true);
         await prisma.bankAccount.update({ where: { id: acc.id }, data: { currency: 'EUR' } });
 
         expect(await checkF(actor, currency.conversation.id, currency.form.id)).toStrictEqual(UNAVAILABLE);
-        expect(await checkF(actor, profile.conversation.id, profile.form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, profile.conversation.id, profile.form.id)).ok).toBe(true);
       });
 
-      it('AC-13: a BANK_ACCOUNT of the default profile no longer fits once another profile is the default', async () => {
+      it('AC-13 (T70): a BANK_ACCOUNT of the default profile stays ACCEPTED once another profile is the default, the account being unchanged', async () => {
         const { user, actor } = await freelancer();
         const main = await createSenderProfile(prisma, user.id, { name: 'Main', isDefault: true });
         const second = await createSenderProfile(prisma, user.id, { name: 'Second', isDefault: false });
         const acc = await createBankAccount(prisma, main.id, { currency: 'USD' });
         const { conversation, form } = await formOf(user.id, {
           field: 'BANK_ACCOUNT',
-          options: [opt(0, { bankAccountId: acc.id })],
+          options: [opt(0, { bankAccountId: acc.id, accountCurrency: 'USD' })],
           request: { customer: 'Acme', currency: 'USD' },
         });
         expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
         await prisma.senderProfile.update({ where: { id: main.id }, data: { isDefault: false } });
         await prisma.senderProfile.update({ where: { id: second.id }, data: { isDefault: true } });
 
-        expect(await checkF(actor, conversation.id, form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, conversation.id, form.id)).ok).toBe(true);
       });
 
-      it('AC-13: a PRODUCT archived, or priced in another currency than the request\'s, is UNAVAILABLE', async () => {
+      it('AC-13: (T70) a PRODUCT archived is UNAVAILABLE; one priced in another currency than the request\'s is ACCEPTED', async () => {
         const { user, actor } = await freelancer();
         const archived = await createProduct(prisma, user.id, { currency: 'USD' });
         const eur = await createProduct(prisma, user.id, { currency: 'EUR' });
@@ -375,7 +375,7 @@ describe.runIf(containerRuntimeAvailable)(
         await prisma.product.update({ where: { id: archived.id }, data: { isActive: false } });
 
         expect(await checkF(actor, a.conversation.id, a.form.id)).toStrictEqual(UNAVAILABLE);
-        expect(await checkF(actor, b.conversation.id, b.form.id)).toStrictEqual(UNAVAILABLE);
+        expect((await checkF(actor, b.conversation.id, b.form.id)).ok).toBe(true);
       });
 
       it('AC-12b: checkForm changes no row, ok or not', async () => {

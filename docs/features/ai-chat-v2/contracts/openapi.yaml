@@ -523,7 +523,9 @@ components:
         - type: object
           required: [bankAccountId]
           additionalProperties: false
-          properties: { bankAccountId: { $ref: "#/components/schemas/RecordId" } }
+          properties:
+            bankAccountId: { $ref: "#/components/schemas/RecordId" }
+            accountCurrency: { type: string, enum: [UAH, USD, EUR, GBP, PLN], description: "The account's currency when the form was made (T70); absent on older refs." }
         - type: object
           required: [productId]
           additionalProperties: false

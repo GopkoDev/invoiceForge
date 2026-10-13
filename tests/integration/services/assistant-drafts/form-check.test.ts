@@ -431,7 +431,9 @@ describe.runIf(containerRuntimeAvailable)('Checking, claiming and releasing a se
     expect(await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).toStrictEqual(UNAVAILABLE);
   });
 
-  it("AC-13: a bank account of another sender profile than the stored request's is UNAVAILABLE", async () => {
+  // T70 (review R20-1): a FORM row checks a picked record for existing, being the actor's, being the asked kind and not
+  // having changed since the form was made; fitting the stored request is the resolver's job after pinAnswers (F6).
+  it("AC-13: a bank account of another sender profile than the stored request's is ACCEPTED (T70)", async () => {
     const { user, actor } = await freelancer();
     const wanted = await createSenderProfile(prisma, user.id);
     const second = await createSenderProfile(prisma, user.id);
@@ -441,7 +443,95 @@ describe.runIf(containerRuntimeAvailable)('Checking, claiming and releasing a se
       request: { customer: 'Acme', currency: 'USD', senderProfileId: wanted.id },
     });
 
+    expect((await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).ok).toBe(true);
+  });
+
+  it('AC-13: a profile picked together with its own account in the same form is ACCEPTED (T70)', async () => {
+    const { user, actor } = await freelancer();
+    const first = await createSenderProfile(prisma, user.id);
+    const second = await createSenderProfile(prisma, user.id);
+    const acc = await createBankAccount(prisma, second.id, { currency: 'USD' });
+    const { conversation, form } = await formFor(user.id, {
+      questions: [
+        q(0, 'SENDER_PROFILE', {
+          options: [
+            { optionId: 0, label: 'First', ref: { senderProfileId: first.id } },
+            { optionId: 1, label: 'Second', ref: { senderProfileId: second.id } },
+          ],
+        }),
+        q(1, 'BANK_ACCOUNT', { options: [{ optionId: 0, label: 'Mono', ref: { bankAccountId: acc.id } }] }),
+      ],
+      request: { customer: 'Acme', currency: 'USD' },
+    });
+
+    const r = await check(actor, conversation.id, form.id, [
+      { questionId: 0, optionId: 1 },
+      { questionId: 1, optionId: 0 },
+    ]);
+
+    expect(r.ok).toBe(true);
+  });
+
+  it('AC-13: a product priced in another currency than the drafting currency is ACCEPTED (T70)', async () => {
+    const { user, actor } = await freelancer();
+    const p = await createProduct(prisma, user.id, { currency: 'EUR' });
+    const { conversation, form } = await formFor(user.id, {
+      questions: [q(0, 'PRODUCT', { lineIndex: 0, options: [{ optionId: 0, label: 'Audit', ref: { productId: p.id } }] })],
+      request: { customer: 'Acme', currency: 'USD', lines: [{ description: 'Audit', quantity: '1' }] },
+    });
+
+    expect((await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).ok).toBe(true);
+  });
+
+  it("AC-13: another Freelancer's bank account, product and sender profile are UNAVAILABLE (T70)", async () => {
+    const { user, actor } = await freelancer('t56-a@example.com');
+    const other = await createFreelancer(prisma, { email: 't56-b@example.com', timeZone: TZ });
+    const theirProfile = await createSenderProfile(prisma, other.id);
+    const theirAccount = await createBankAccount(prisma, theirProfile.id, { currency: 'USD' });
+    const theirProduct = await createProduct(prisma, other.id, { currency: 'USD' });
+    const refs: Array<[string, Record<string, string>]> = [
+      ['BANK_ACCOUNT', { bankAccountId: theirAccount.id }],
+      ['PRODUCT', { productId: theirProduct.id }],
+      ['SENDER_PROFILE', { senderProfileId: theirProfile.id }],
+    ];
+    for (const [field, ref] of refs) {
+      const { conversation, form } = await formFor(user.id, {
+        questions: [q(0, field, { lineIndex: field === 'PRODUCT' ? 0 : null, options: [{ optionId: 0, label: 'Theirs', ref }] })],
+      });
+      expect(await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).toStrictEqual(UNAVAILABLE);
+    }
+  });
+
+  it('AC-13: an account of another profile whose currency changed since the form was made is UNAVAILABLE (T70)', async () => {
+    const { user, actor } = await freelancer();
+    const wanted = await createSenderProfile(prisma, user.id);
+    const second = await createSenderProfile(prisma, user.id);
+    const acc = await createBankAccount(prisma, second.id, { currency: 'USD' });
+    // The option is built by the production builder, so its ref records whatever the app records for "unchanged".
+    const { accountOptions } = await import('@/lib/services/assistant-drafts/offers');
+    const [built] = accountOptions([{ bankAccountId: acc.id, bankName: { freelancerText: 'Mono' }, lastFour: '1234', currency: 'USD' }]);
+    const { conversation, form } = await formFor(user.id, {
+      questions: [q(0, 'BANK_ACCOUNT', { options: [{ optionId: 0, label: built.label, ref: built.ref }] })],
+      request: { customer: 'Acme', currency: 'USD', senderProfileId: wanted.id },
+    });
+    expect((await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).ok).toBe(true);
+    await prisma.bankAccount.update({ where: { id: acc.id }, data: { currency: 'EUR' } });
+
     expect(await check(actor, conversation.id, form.id, [{ questionId: 0, optionId: 0 }])).toStrictEqual(UNAVAILABLE);
+  });
+
+  it("F9a: a legacy BANK_ACCOUNT offer of another sender profile than the stored request's stays UNAVAILABLE (request-based rule, T70)", async () => {
+    const { user, actor } = await freelancer();
+    const wanted = await createSenderProfile(prisma, user.id);
+    const second = await createSenderProfile(prisma, user.id);
+    const acc = await createBankAccount(prisma, second.id, { currency: 'USD' });
+    const { conversation, offer } = await legacyFor(user.id, {
+      kind: 'BANK_ACCOUNT',
+      refs: [{ bankAccountId: acc.id }],
+      request: { customer: 'Acme', currency: 'USD', senderProfileId: wanted.id },
+    });
+
+    expect(await check(actor, conversation.id, offer.id, [{ questionId: 0, optionId: 0 }])).toStrictEqual(UNAVAILABLE);
   });
 
   it('AC-13: an archived product is UNAVAILABLE', async () => {

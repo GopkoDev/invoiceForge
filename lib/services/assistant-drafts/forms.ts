@@ -17,6 +17,7 @@ import {
   accountOptions,
   customerOptions,
   db,
+  currencyFits,
   isCurrency,
   offerOptionRefSchema,
   offerRowToFormView,
@@ -25,6 +26,7 @@ import {
   storedOfferOptionsSchema,
   stillFits,
   type Currency,
+  type OfferOptionRef,
 } from '@/lib/services/assistant-drafts/offers';
 import { formHeading, LINE_FIELDS } from '@/lib/services/assistant-drafts/form-headings';
 import { draftRequestShape, type DraftIssue, type DraftRequest } from '@/lib/services/assistant-drafts/schema';
@@ -545,6 +547,30 @@ function questionsOfRow(row: {
   ];
 }
 
+/**
+ * A FORM row's picked record: still there, the actor's and unchanged per its ref (T70). Fitting the stored request is the
+ * resolver's job after pinAnswers (F6); only legacy F9a rows (request passed) keep the request-based rule.
+ */
+async function refUnchanged(
+  actor: ActingFreelancer,
+  ref: OfferOptionRef,
+  request: DraftRequest | null,
+  legacy: boolean
+) {
+  if (legacy) return stillFits(actor, ref, request);
+  if ('bankAccountId' in ref) {
+    const account = await (await db()).bankAccount.findFirst({
+      where: { id: ref.bankAccountId, senderProfile: { userId: actor.userId } },
+      select: { currency: true },
+    });
+    if (account === null) return false;
+    if (ref.accountCurrency !== undefined) return account.currency === ref.accountCurrency;
+    // A ref stored before the currency was recorded: the stored request's currency is the only baseline left.
+    return request?.currency === undefined || currencyFits(account.currency, request.currency);
+  }
+  return stillFits(actor, ref, null);
+}
+
 async function checkFormRow(
   actor: ActingFreelancer,
   input: { conversationId: string; form: { formId: string; answers: FormAnswer[] } }
@@ -583,7 +609,7 @@ async function checkFormRow(
   for (const option of picked) {
     const ref = option.ref;
     if ('date' in ref || 'daysAfterIssue' in ref) continue;
-    if (!(await stillFits(actor, ref, request))) return FORM_UNAVAILABLE;
+    if (!(await refUnchanged(actor, ref, request, row.kind !== 'FORM'))) return FORM_UNAVAILABLE;
   }
 
   const errors = formFormatErrors(questions, answers, {

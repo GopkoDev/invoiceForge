@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/forms.ts", "lib/services/assistant-d
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T70 — A sent form checks a picked record only for still existing, being the actor's and unchanged, not for fitting the stored request (review R20-1)

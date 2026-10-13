@@ -457,7 +457,7 @@ describe.runIf(containerRuntimeAvailable)('form safety: uniform refusals, one cl
       // Refs point at exactly the Freelancer's own checked records.
       const refs = (field: string) => stored.find((q) => q.field === field).options.map((o: any) => o.ref);
       expect(refs('CUSTOMER')).toEqual([s.globex.id, s.acmeOne.id, s.acmeTwo.id].map((customerId) => ({ customerId })));
-      expect(refs('BANK_ACCOUNT')).toEqual([{ bankAccountId: s.account.id }]);
+      expect(refs('BANK_ACCOUNT')).toEqual([{ bankAccountId: s.account.id, accountCurrency: 'USD' }]);
 
       const allLabels: string[] = views[0].questions.flatMap((q: any) => q.options.map((o: any) => o.label));
       // The stored Customer name is the Freelancer's own text (it carries the injection note); every other label is free of it.

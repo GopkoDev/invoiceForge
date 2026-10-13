@@ -98,8 +98,8 @@ describe('formFromIssues: every resolver issue becomes a question (T52)', () => 
 
     it('bank-only issues ask for the account with the server labels', () => {
       expect(only([severalAccounts()]).options).toEqual([
-        { optionId: 0, label: 'Mono ••1234 · USD', ref: { bankAccountId: 'b1' } },
-        { optionId: 1, label: 'Privat ••5678 · USD', ref: { bankAccountId: 'b2' } },
+        { optionId: 0, label: 'Mono ••1234 · USD', ref: { bankAccountId: 'b1', accountCurrency: 'USD' } },
+        { optionId: 1, label: 'Privat ••5678 · USD', ref: { bankAccountId: 'b2', accountCurrency: 'USD' } },
       ]);
     });
 
@@ -131,7 +131,10 @@ describe('formFromIssues: every resolver issue becomes a question (T52)', () => 
     });
 
     it('never offers an account the issue did not carry', () => {
-      expect(only([severalAccounts()]).options.map((o) => o.ref)).toEqual([{ bankAccountId: 'b1' }, { bankAccountId: 'b2' }]);
+      expect(only([severalAccounts()]).options.map((o) => o.ref)).toEqual([
+        { bankAccountId: 'b1', accountCurrency: 'USD' },
+        { bankAccountId: 'b2', accountCurrency: 'USD' },
+      ]);
     });
   });
 

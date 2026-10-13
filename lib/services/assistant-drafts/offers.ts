@@ -20,7 +20,8 @@ const recordId = z.string().min(1).max(64);
 export const offerOptionRefSchema = z.union([
   z.object({ customerId: recordId }).strict(),
   z.object({ senderProfileId: recordId }).strict(),
-  z.object({ bankAccountId: recordId }).strict(),
+  // accountCurrency: the account's currency when the form was made; absent on legacy refs (T70).
+  z.object({ bankAccountId: recordId, accountCurrency: z.enum(CURRENCIES).optional() }).strict(),
   z.object({ productId: recordId }).strict(),
   z.object({ currency: z.enum(CURRENCIES) }).strict(),
 ]);
@@ -60,7 +61,9 @@ export const accountOptions = (
 ) =>
   accounts.map((a) => ({
     label: `${a.bankName.freelancerText} ••${a.lastFour} · ${a.currency}`,
-    ref: { bankAccountId: a.bankAccountId },
+    ref: isCurrency(a.currency)
+      ? { bankAccountId: a.bankAccountId, accountCurrency: a.currency }
+      : { bankAccountId: a.bankAccountId },
   }));
 
 /** A product option: name, unit and the price in the invoice currency (spec §1 "What a button shows"). */
@@ -132,7 +135,7 @@ export const db = async () => (await import('@/prisma')).prisma;
  * Freelancer wrote it ("$", "€", "dollars"), so it is read the way the resolver read it (review 2026-10-13 R1-B1);
  * a reading that stays unclear fits nothing.
  */
-function currencyFits(code: string, written: string | undefined): boolean {
+export function currencyFits(code: string, written: string | undefined): boolean {
   if (written === undefined) return true;
   const reading = interpretCurrency(written, code);
   return reading.kind === 'RESOLVED' && reading.currency === code.trim().toUpperCase();
