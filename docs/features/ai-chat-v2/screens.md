@@ -41,6 +41,12 @@ updated_at: "2026-10-13"
   - **Errors are messages.** Every failure tied to a turn (`could-not-complete`, `ai-unavailable`, `conversation-gone`, `choice unavailable`) renders as an assistant `Message` in the reply position: the avatar, an inline `Alert` (`destructive` for failures, default with an info icon for `choice unavailable`) holding the copy verbatim, and, where the row offers it, `MessageActions` with a `MessageAction` "Try again" (rotate icon, labelled, not icon-only). No bare full-width card.
   - **Composer.** `PromptInput` is a card on the `InputGroup` primitive (`rounded-2xl border bg-background shadow-xs`): an auto-growing `PromptInputTextarea` (1–8 rows), then a `PromptInputFooter` with `PromptInputTools` on the left (the `AllowanceNotice` counter, `text-xs text-muted-foreground`) and a round `PromptInputSubmit` (`size-8 rounded-full`, arrow-up icon, `aria-label` "Send") on the right. `status` maps `ready` → arrow, `submitted`/`streaming` → disabled with a decorative spinner (no status region of its own: the waiting row's "Thinking…" and the chat's status announce the wait once; the chat sends no stop request; behaviour unchanged), `error` → arrow. The too-long `FieldError` and "{n} / 2,000" sit inside the footer above the tools.
   - **Header.** The chat pane header (`h-12`, bottom border) shows only when there is something to show: the Conversation title (truncated) and the "Conversation actions" `⋯` menu for a saved Conversation; the list button below `md` and in the `md`–`xl` preview layout. On `/ai` before the first save the header is not rendered at `≥ md` (no empty header bar); below `md` it holds only the list button, as before.
+- **Owner feedback revision (2026-10-13; spec §1 F10, F13; ADR-0012, ADR-0013).** These rules override the rows they touch below; references: `ref/feedback-2026-10-13-*.png`.
+  - **Formatted replies (F10, AC-42–AC-44).** `MessageResponse` renders safe Markdown (ADR-0012), styled with the app tokens, `text-sm leading-6`: paragraphs `my-2` (first/last `0`); `**bold**` `font-semibold`; lists `pl-5 my-2 space-y-1` (`list-disc` / `list-decimal`); tables inside a `overflow-x-auto` wrapper with `rounded-md border`, `text-sm`, header `bg-muted/50 font-medium`, cells `px-3 py-1.5 border-b`, numbers right-aligned when the column is numeric (no auto-detection required; plain left is acceptable); inline code `rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]`; code blocks `rounded-md bg-muted p-3 overflow-x-auto font-mono text-xs`; blockquote `border-l-2 pl-3 text-muted-foreground`; links `text-primary underline underline-offset-4` through `next/link`; a disallowed link renders its text only (no underline, no `title` with the address). No heading larger than `text-base font-semibold` (`h1`–`h3` map to that). Raw HTML shows as literal text. While streaming, an unclosed `**`, `_` or `` ` `` tail renders as typed text (AC-44).
+  - **Header line (F13, AC-50).** From `md` the list's top row and the chat header are both `h-12` (48 px) with `border-b`; the search `InputGroup` is `h-8` and the `⋯` button `size-8`, centred vertically with `px-2`. The chat header keeps `h-12`. Both borders sit at y = 48 px of the container.
+  - **Persistent list (F13, AC-52; ADR-0013).** The list (SCR-01) is rendered by `ai/layout.tsx` and stays mounted while Conversations are switched; scroll position, search text and row identity are kept; the active row follows the URL at once. Picking a row shows the chat-pane loading state (SCR-03 `loading`) only. List rows change only on the list events (created, touched → moved to the top of Today, renamed, deleted).
+  - **Skeletons at final size (F13, AC-51).** Every skeleton reuses the real component's box: list loading lives only on a hard load (top row `h-12`, group label `h-7` = `pt-4 pb-1` + `text-xs` line, rows `h-9` with the real `gap-0.5`, footer with the real button `h-9` and notice lines); the chat pane loading has the real `h-12` header, the real `max-w-3xl px-4` column with message placeholders whose avatar and bubble boxes equal the real ones, and the composer placeholder at the real composer's min height (`min-h-[7.25rem]` incl. footer) with the same bottom padding. `/ai` loading draws the SCR-02 centred greeting/composer at their final positions.
+  - **Avatar on the first line (F13, AC-53).** An assistant `Message` is `flex items-start gap-3`; `MessageAvatar` sits in a `h-6` box (one `leading-6` line) with the 24 px avatar centred, so its middle is the first line's middle for one-line and multi-line replies; Markdown's first block has no top margin.
 - **Layout and breakpoints** (spec §1, sad.md §5 "Full-height workspace"). `/ai/layout.tsx` drops the scrolling `ContentArea`. `AiWorkspace` (changed) owns the grid: the workspace is a grid of height `calc(100dvh - var(--header-height))` with `overflow-hidden`. Every pane is `min-h-0` with its own `overflow-y-auto` (`ScrollArea`). Breakpoints move from `lg` to `md` (768 px) and `xl` (1280 px):
 
   | Width | Preview closed | Preview open |
@@ -62,7 +68,8 @@ updated_at: "2026-10-13"
 
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
 |---|---|---|---|
-| loading | The page request is in flight: the existing `ai/loading.tsx` is redrawn as the full-height grid, with a search skeleton, two group-heading skeletons and six row skeletons in the list pane | `Skeleton` | wireframe below |
+| loading | *(revised 2026-10-13)* Only on a hard load of the AI section (the layout's loading): the `h-12` top row, two group-label skeletons (`h-7` boxes) and six `h-9` row skeletons at the real gaps, and the real footer. Never shown when switching Conversations (AC-51, AC-52) | `Skeleton` | wireframe below |
+| switching | *(2026-10-13)* Another row picked: the list keeps its scroll, search and rows; the picked row becomes current at once; only the chat pane loads (AC-52) | `ConversationList` | — |
 | default | Signed in with at least one Conversation (AC-15, AC-17; Flow 8). Rows sit under the headings "Today", "Yesterday", "Previous 7 days" (2–7 days before today) and "Older" (8+), in the Freelancer time zone, newest first inside each group (labels per spec §1, unchanged). A group with no rows is not rendered. Only the list scrolls; the search row and the footer stay put | `ConversationList` (changed), `InputGroup`, `ScrollArea`, `DropdownMenu`, `Button` | wireframe below |
 | searching | The search has text: the rows whose folded title contains the folded query (case, extra spaces and look-alike letters ignored, AC-17). The grouping is kept and empty groups are hidden. Filtering is instant (client-side), with no debounce and no request | `InputGroup`, `Item` | wireframe below |
 | search no match | No title matches: `Empty` (compact, no icon) "No conversation matches "{query}"." with a "Clear search" link button. The footer stays (AC-17) | `Empty`, `Button` (link) | wireframe below |
@@ -221,7 +228,7 @@ sending: the composer moves from the middle to the bottom (≈250 ms, none under
 | answered — own profile named | AC-05b: an explanation plus a question about which Customer to invoice. No card and no buttons. Text only | — | — |
 | answered — too many | AC-14: "12 Customers match "Studio". Type a more exact name." No buttons | — | — |
 | answered — only you can issue | AC-24: the parent answer. The invoice `ChatLink` opens the editor, and the card's Preview (SCR-05) stays the way to issue | `ChatLink` | — |
-| choice unavailable | `/api/chat` `409` `CHOICE_UNAVAILABLE` after a press (AC-12b, AC-13). The optimistic pressed message is removed. In the reply position, an assistant `Message` holds a non-destructive inline `Alert` (info icon) with the contract sentence verbatim: "This option is no longer available. Choose again or type your request." No "Try again". The buttons stay exactly as they were, and the counter is unchanged (not counted). Nothing is saved, so a reload drops the notice | `Message`, `Alert` | wireframe below |
+| choice unavailable | `/api/chat` `409` `CHOICE_UNAVAILABLE` after a press (AC-12b, AC-13). The optimistic pressed message is removed. In the reply position, an assistant `Message` holds a non-destructive inline `Alert` (info icon) with the contract sentence verbatim: "This form is no longer available. Answer the latest questions or type your request." (revised 2026-10-13; the pre-revision sentence was "This option is no longer available. Choose again or type your request.") No "Try again". The form keeps its picks, and the counter is unchanged (not counted). Nothing is saved, so a reload drops the notice | `Message`, `Alert` | wireframe below |
 | could-not-complete / ai-unavailable | As the parent (copy verbatim, live-region announcement unchanged), for a typed message and a press alike, but rendered as an assistant `Message` in the reply position: the avatar, an inline destructive `Alert` (alert-circle icon, the parent's sentence, e.g. "The reply couldn't be completed. Try again."), and `MessageActions` with a `MessageAction` "Try again" (rotate icon + text). The Freelancer's message above it stays a normal user bubble. After a failed press, the offer is released (ADR-0003), so its buttons are pressable again with nothing marked. "Try again" re-sends the same thing: the text, or the same `{ offerId, optionId }`. A new message or a press instead of Try again keeps the failed exchange discarded (review 2026-10-13 R7-4) | `Message`, `MessageAvatar`, `Alert` (destructive), `MessageActions`, `MessageAction` | wireframe below |
 | too-long | As the parent (`FieldError`, count, Send disabled) | `Composer`, `FieldError` | parent |
 | used-up | As the parent: `left = 0` on load, or `429` on a typed message **or a press** (AC-11). On a refused press, the optimistic message is removed and nothing is marked chosen (SCR-04 stays `pressable`). The composer is replaced by `AllowanceNotice` (used-up), docked at the bottom. Draft cards, Preview and Issue keep working (AC-27) | `AllowanceNotice` (used-up) | parent |
@@ -285,6 +292,8 @@ answered — reads (AC-01)                         answered — nothing matches 
 
 ### SCR-04 — Offered choices (inline under a reply in SCR-03)
 
+> **Superseded 2026-10-13** by "SCR-04 (revision 2026-10-13) — Question form" below (ADR-0011). Kept for history; `OfferedChoices` is removed.
+
 `NEW: OfferedChoices` (`components/ai/offered-choices.tsx`, sad.md §5). It renders one `OfferView` (`contracts/server-actions.md`) for each `data-offer` part, directly under the reply's text and before any card. The buttons are a wrapping row (`flex-wrap gap-2`) of outline `Button`s, `size="sm"`, inside a `role="group"` with an `aria-label` by kind: "Choose a Customer", "Choose a bank account", "Choose a product", "Choose a sender profile" or "Choose a currency". There are 1 to 8 buttons, each with the server's stored `label` verbatim (spec §1 "What a button shows"). Look-alike Customers carry their email in the label ("Acme Corp (billing@acme.com)" or "Аcme Corp (no email)", openapi.yaml `OfferOptionLabel`, AC-10). The UI never builds or edits a label. A press sends `{ conversationId, message: label, choice: { offerId, optionId } }` with no `origin` (openapi.yaml `ChatRequest`). On a phone the buttons wrap. A label longer than the row truncates with its full text in `title`. Presentation (ADR-0010): the group sits inside the assistant `MessageContent`, under the `MessageResponse` text with an 8 px gap, aligned with the text (not under the avatar). Buttons are `rounded-full` outline chips, the same shape as the SCR-02 `Suggestion` chips, so a choice reads as part of the reply; states, labels, ARIA and the press contract are unchanged.
 
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
@@ -315,6 +324,71 @@ labels by kind (stored, verbatim):               | [Acme Corp] [Acme GmbH]   (di
 | Product:      [Consulting · hours · 50.00 USD]
 | Sender prof.: [Consulting FOP]             |
 | Currency:     [USD] [UAH]                  |
+```
+
+### SCR-04 (revision 2026-10-13) — Question form (inline at the end of a reply in SCR-03)
+
+`NEW: QuestionForm` (`components/ai/question-form.tsx`, replaces `OfferedChoices`; ADR-0011; spec §1 F1–F9a). It renders one `FormView` (`contracts/server-actions.md` revision) for the reply's `data-offer` part, inside the assistant `MessageContent`, after the `MessageResponse` text (8 px gap) and before any link, aligned with the text. A Base UI `Fieldset`-like `role="group"` with `aria-labelledby` the form title "A few details" (sr-only) holds 1–6 questions stacked with `gap-4`, then a footer row with the **Send** `Button` (default, `size="sm"`, arrow-up icon) right-aligned and, left, a muted counter "{answered} of {required} answered". Container: `rounded-xl border bg-card p-4`, full column width.
+
+Each question: a heading line (`text-xs font-medium text-muted-foreground uppercase tracking-wide`: the server's `heading`, e.g. "Customer", "Line 1 · Price", "Issue date"; "Optional" suffix when `skippable`), the `prompt` as plain text (`text-sm`, never Markdown), then:
+- **options** (`options.length > 0`): a single-select `role="radiogroup"` of `rounded-full` outline chips (`Button size="sm"`, same shape as `Suggestion`); the picked chip is `variant="secondary"` + check icon + `aria-checked="true"`; labels verbatim from the server; arrow keys move inside the group;
+- **Other…** (when `input ≠ NONE` and options exist): a last chip "Other…"; picking it reveals the input below the chips and focuses it;
+- **input only** (`options.length = 0`): the input is shown directly. `matchCount` set → the helper text "{matchCount} match. Type a more exact name." above it (AC-14);
+- the input by `input`: `TEXT` → `Input` (record names, PO number, payment terms) or `Textarea` (notes, free answers, 1–4 rows); `AMOUNT` / `RATE` / `DISCOUNT` → `Input inputMode="decimal"` with the unit suffix (invoice currency or "%") when known; `DATE` → the app's date picker (`Popover` + `Calendar`, the editor's) with the `YYYY-MM-DD` value;
+- **Skip** (`skippable`): a ghost chip "Skip" in the option row, picked like an option.
+
+Validation (spec F6) runs on blur and on Send in the browser with the per-kind rule, the message under the question in `FieldError` (`aria-describedby`): "Enter a number greater than 0, with at most 2 decimals." · "Enter a rate from 0 to 100." · "Enter 0 or more, with at most 2 decimals." · "Pick a real day." · "The due date can't be before the issue date." · "Keep it under {n} characters.". A server `400` with `fieldErrors['form.answers.<id>']` shows the same way. Send is `disabled` (with `aria-disabled` and a tooltip "Answer the required questions first") until every required question has a valid answer.
+
+Sending posts `{ conversationId, message: <composed preview text>, form: { formId, answers } }` (openapi `ChatForm`); the optimistic user bubble shows the composed lines ("Customer: Acme GmbH", "Line 1 · Price: 40") and is replaced by the saved text on finish.
+
+| State | Trigger / condition | Components (from the inventory) | Source-ref |
+|---|---|---|---|
+| labels loading | `data-offer` streamed with only its id; `FormView` arrives with `loadConversationCards` after `finish`. A card-shaped `Skeleton` of the form's final height for 2 questions (`h-40`), replaced in place with no shift beyond the real height (AC-51) | `Skeleton` | wireframe below |
+| unanswered | `state = OPEN`, latest reply, nothing picked: chips enabled, Send disabled, counter "0 of N answered" (AC-08, AC-37) | `NEW: QuestionForm`, `Button`, `Input` | wireframe below |
+| partially filled | Some required questions answered: picks shown, counter updated, Send disabled (AC-08b, AC-40). Picks live only in the island's state: lost on reload, on leaving the Conversation and on a typed message (F8) | `NEW: QuestionForm` | wireframe below |
+| Other input | "Other…" picked: input revealed and focused; Escape or picking an option hides it and clears its text (AC-38) | `Input` / `Textarea` / date picker | wireframe below |
+| field invalid | A typed answer fails its kind's check: `FieldError` under the question, `aria-invalid`, Send disabled (AC-38) | `Field`, `FieldError` | wireframe below |
+| ready | Every required question has a valid answer: Send enabled | `Button` | — |
+| sending | Send pressed: the composed message appears as the Freelancer's bubble at once; the whole form and the composer are disabled; Send shows a `Spinner` | `Spinner` | — |
+| answered (read-only) | `state = CHOSEN` (after the turn, and on reopen): every question shows only its answer — the picked chip (secondary + check) with the other chips disabled and muted, typed text as a quote line (`text-sm`, left border), "Skipped" for a skip; no inputs, no Send; counter replaced by "Sent" (AC-12, AC-13, F9) | `Button` (disabled), `Badge` | wireframe below |
+| closed (read-only, unanswered) | `state = CLOSED` or not the latest reply: chips disabled and muted, nothing marked, inputs hidden, footer "Not answered" (AC-12, AC-40) | `Button` (disabled) | wireframe below |
+| legacy one-question | A pre-revision offer (F9a): rendered by the same component as a one-question form; pressed ones read "answered" | `NEW: QuestionForm` | — |
+| refused — unavailable | `409`: back to the previous picks (not cleared), nothing marked; SCR-03 `choice unavailable` row shows "This form is no longer available. Answer the latest questions or type your request." (AC-12b, AC-13) | `Alert` | SCR-03 |
+| refused — invalid | `400` with field errors: back to `field invalid` on those questions, nothing counted | `FieldError` | — |
+| refused — used up | `429`: picks kept, SCR-03 `used-up` (AC-11) | `AllowanceNotice` | SCR-03 |
+| failed | `COULD_NOT_COMPLETE` / `AI_UNAVAILABLE` after the claim: released, back to `ready` with the picks kept | — | SCR-03 |
+| empty | N/A: a form always has 1–6 questions (openapi `FormView`) | — | — |
+| error | N/A: no request of its own; outcomes route to SCR-03 | — | — |
+
+```text
+unanswered → partially filled (AC-37 / AC-08b)
+| Here are your 4 Customers: … (Markdown list)                         |
+| ┌─────────────────────────────────────────────────────────────────┐ |
+| │ CUSTOMER                                                        │ |
+| │ Which Customer is this invoice for?                             │ |
+| │ (My New Customer) (TEST 2) (test) (✓ Oohn Doe) (Other…)         │ |
+| │                                                                 │ |
+| │ LINE 1 · PRICE                                                  │ |
+| │ What is the hourly rate for web dev?                            │ |
+| │ [ 40                                    ] USD                   │ |
+| │                                                                 │ |
+| │ ISSUE DATE                                                      │ |
+| │ (Today · 13 Oct 2026) (Yesterday · 12 Oct 2026) (Other…)        │ |
+| │                                                                 │ |
+| │ 2 of 3 answered                                   [ Send ↑ ] ░  │ |   Send disabled
+| └─────────────────────────────────────────────────────────────────┘ |
+
+Other input + field invalid (AC-38)           answered (read-only, reopen)
+| CUSTOMER                                |   | CUSTOMER                                 |
+| (Acme Corp) (Acme GmbH) (✓ Other…)     |   | (Acme Corp) (✓ Acme GmbH)   muted/disabled|
+| [ Оohn  Doe                         ]   |   | LINE 1 · PRICE                           |
+| LINE 1 · PRICE                          |   | ▏40                                      |
+| [ forty                             ]   |   | NOTES · OPTIONAL                         |
+| ⚠ Enter a number greater than 0, with  |   | Skipped                                  |
+|   at most 2 decimals.                   |   | Sent                                     |
+
+closed, unanswered (a typed message came instead, AC-40)
+| (Acme Corp) (Acme GmbH)  muted, disabled, none marked      Not answered |
 ```
 
 ### SCR-05 — Draft card (inline in SCR-03, existing, extended)
@@ -604,7 +678,10 @@ The UI is unchanged. They are reached from the "Add a Customer →" / "Add a pro
 
 | Component | Why no existing primitive fits | Registered in design-system |
 |---|---|---|
-| `OfferedChoices` | No component renders a server-built set of 1..8 options with a server-owned state (pressable / chosen / inactive), an optimistic pressing state and a structured press `{ offerId, optionId }` rather than text. A `ButtonGroup` or plain `Button`s carry no offer state, chosen mark or kind-based group label. Contract: props `offer: OfferView \| undefined` (undefined → skeleton), `isLatest: boolean`, `pendingOptionId: number \| null`, `onPress(offerId, optionId, label)`; pressable only when `offer.state = 'OPEN' && isLatest`; labels verbatim; `role="group"` with a kind-based `aria-label`; the chosen button secondary + check + sr-only "(chosen)" (SCR-04) | registered (docs/design-system.md) |
+| `OfferedChoices` *(removed 2026-10-13, replaced by `QuestionForm`)* | No component renders a server-built set of 1..8 options with a server-owned state (pressable / chosen / inactive), an optimistic pressing state and a structured press `{ offerId, optionId }` rather than text. A `ButtonGroup` or plain `Button`s carry no offer state, chosen mark or kind-based group label. Contract: props `offer: OfferView \| undefined` (undefined → skeleton), `isLatest: boolean`, `pendingOptionId: number \| null`, `onPress(offerId, optionId, label)`; pressable only when `offer.state = 'OPEN' && isLatest`; labels verbatim; `role="group"` with a kind-based `aria-label`; the chosen button secondary + check + sr-only "(chosen)" (SCR-04) | registered (docs/design-system.md) |
+| `QuestionForm` *(2026-10-13)* | No primitive renders a server-built multi-question form with single-select option chips, an "Other…" input per question, per-kind validation, a server-owned state (open / answered / closed) and one structured submit `{ formId, answers }`. `Field` + `RadioGroup` + `Input` give the parts, not the state machine or the read-only answered view. Contract: props `form: FormView \| undefined` (undefined → skeleton), `isLatest: boolean`, `pending: boolean`, `invoiceCurrency?: Currency`, `onSend(formId, answers, composedText)`; editable only when `form.state = 'OPEN' && isLatest`; labels, headings and prompts verbatim as plain text; SCR-04 revision states | to register (docs/design-system.md) by the implementing task |
+| `ConversationListProvider` *(2026-10-13)* | Non-visual (ADR-0013). `NewConversationProvider` carries only the unsaved new row; the list now lives in the layout and must take events from the chat pane. Contract: seeded with `{ items, timeZone }`; `conversationCreated`, `conversationTouched`, `conversationRenamed`, `conversationsDeleted`; `useConversationList()` | to register by the implementing task |
+| `MessageResponse` *(changed 2026-10-13)* | Renders safe Markdown (ADR-0012) instead of plain text; contract `children: string`, `streaming?: boolean` (enables the unfinished-tail rule) | update the registry row |
 | `InvoicePreviewPanel` | The existing `InvoicePdfPreviewModal` is a modal `Dialog` from the global modal store. It would cover the messages (AC-20 needs them visible) and has Download/Print instead of Open in editor / Issue, plus none of the unavailable / not-found / outdated / blocked states. `PDFPreviewPanel` (the document) is reused inside. Contract: props `cardId`, `variant?: 'column' \| 'sheet'` (closing goes through the address, `closePreview`); loads with `loadInvoicePreview`, renders as a grid column at `≥ md` and a full-screen `Sheet` below, feeds the invoice-state store, opens SCR-07, and renders every SCR-06 state | registered (docs/design-system.md) |
 | `IssueConfirmation` | `ConfirmationModal` takes a `body` slot. This is that body: Customer, total and currency from the loaded preview plus the fixed "can no longer change" sentence, so every issue path shows the same figures (AC-23, AC-26b). Contract: props `customerName`, `total`, `currency` | registered (docs/design-system.md) |
 | `InvoiceStateProvider` | Non-visual (ADR-0008). The card, the chat links and the panel are siblings in the island and must show one invoice status fed by loads and action results. `NewConversationProvider` carries Conversation rows only. Contract: `useInvoiceState(invoiceId)` → `LinkedInvoiceState \| undefined`; `apply(invoiceId, state)` from loads, `createDraftFromCard`, `loadInvoicePreview` and `issueFromPreview` results | registered (docs/design-system.md) |
