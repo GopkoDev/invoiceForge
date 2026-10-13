@@ -734,5 +734,34 @@ describe.runIf(containerRuntimeAvailable)(
       expect(await offerRow(offer.id)).toMatchObject({ state: 'CLOSED', chosenOptionId: null });
       expect(await offerRow(newer.id)).toMatchObject({ state: 'OPEN' });
     });
+
+    // Review 2026-10-13 R2-B1: a typed turn in another tab saved a newer message with no offer while the press ran.
+    // Reopening the claimed offer would make an older reply's buttons pressable again: it ends CLOSED.
+    it('AC-12: release() after a newer message (no offer) was saved gives the slot back and closes the claimed offer', async () => {
+      const { user, actor } = await freelancer();
+      const now = new Date();
+      await createMessageAllowanceDay(prisma, {
+        userId: user.id,
+        day: allowanceDay(now),
+        used: 7,
+        timeZone: TZ,
+      });
+      const { conversation, offer } = await offerFor(user.id, {
+        options: [opt(0, { customerId: 'x' })],
+      });
+      const r = await svc.reserveAndClaim(actor, now, offer.id, 0);
+      if (!r.ok || !('release' in r)) throw new Error('expected ok');
+      await prisma.conversationMessage.createMany({
+        data: [
+          { conversationId: conversation.id, position: 50, role: 'USER', origin: 'TYPED', parts: [] },
+          { conversationId: conversation.id, position: 51, role: 'ASSISTANT', parts: [] },
+        ],
+      });
+
+      await r.release();
+
+      expect(await usedOf(user.id)).toBe(7);
+      expect(await offerRow(offer.id)).toMatchObject({ state: 'CLOSED', chosenOptionId: null });
+    });
   }
 );

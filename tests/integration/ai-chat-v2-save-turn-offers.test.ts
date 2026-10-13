@@ -366,6 +366,35 @@ describe.runIf(containerRuntimeAvailable)(
       ]);
     });
 
+    // Review 2026-10-13 R2-B1: another tab stored an OPEN offer while the press ran. The pressed message is newer, so
+    // that offer closes, and the press's own next offer is stored without breaking the one-open-offer rule.
+    it('AC-12: a pressed message closes an offer another tab stored meanwhile and stores its own open', async () => {
+      const { user, actor } = await freelancer();
+      const { conversation, offer: claimed } = await conversationWithOffer(user.id, 'CHOSEN', 1);
+      const otherReply = await prisma.conversationMessage.create({
+        data: { conversationId: conversation.id, position: 10, role: 'ASSISTANT', parts: [] },
+      });
+      const other = await createChoiceOffer(prisma, {
+        userId: user.id,
+        conversationId: conversation.id,
+        messageId: otherReply.id,
+        kind: 'BANK_ACCOUNT',
+        options: ACCOUNTS,
+      });
+      const req = withOffer(conversation.id, false, { userOrigin: 'PRESSED' });
+
+      const result = await svc.saveTurn(actor, req);
+
+      expect(result.success).toBe(true);
+      expect(await offerStates(conversation.id)).toEqual(
+        expect.arrayContaining([
+          [claimed.id, 'CHOSEN', 1],
+          [other.id, 'CLOSED', null],
+          [req.offer.id, 'OPEN', null],
+        ])
+      );
+    });
+
     it('AC-12: a typed turn with no offer still closes the open offer and stores no offer row', async () => {
       const { user, actor } = await freelancer();
       const { conversation, offer: earlier } = await conversationWithOffer(

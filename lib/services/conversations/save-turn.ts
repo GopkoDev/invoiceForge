@@ -73,13 +73,12 @@ export async function saveTurn(
         nextPosition = (last._max.position ?? -1) + 1;
       }
 
-      // A press keeps the offer it claimed; any other message makes the earlier buttons inactive (AC-12).
-      if (input.userOrigin !== 'PRESSED') {
-        await tx.choiceOffer.updateMany({
-          where: { conversationId: conversation.id, state: 'OPEN' },
-          data: { state: 'CLOSED', chosenOptionId: null },
-        });
-      }
+      // Every new message makes the earlier buttons inactive (AC-12). A press's own offer is already CHOSEN, so this
+      // closes only an offer another tab stored meanwhile (review 2026-10-13 R2-B1).
+      await tx.choiceOffer.updateMany({
+        where: { conversationId: conversation.id, state: 'OPEN' },
+        data: { state: 'CLOSED', chosenOptionId: null },
+      });
       await tx.conversationMessage.createMany({
         data: [
           {

@@ -268,24 +268,25 @@ export async function claimOffer(tx: Tx, actor: ActingFreelancer, offerId: strin
 }
 
 /**
- * CHOSEN → OPEN after a press that was not counted; a no-op for any other state. When a newer message saved its own
- * OPEN offer meanwhile (a typed turn in another tab), the released offer ends CLOSED and unmarked instead: there is
- * at most one OPEN offer per Conversation, and the release must not fail and keep the slot (review 2026-10-13 R1-B2).
- * The Conversation row is locked first, the same lock saveTurn takes, so no OPEN offer appears between the two steps.
+ * CHOSEN → OPEN after a press that was not counted; a no-op for any other state. When a newer message was saved
+ * meanwhile (a typed turn in another tab, with or without its own offer), the released offer ends CLOSED and
+ * unmarked instead: its reply is no longer the latest, so its buttons must not become pressable again, and there is
+ * at most one OPEN offer per Conversation (review 2026-10-13 R1-B2, R2-B1). The Conversation row is locked first,
+ * the same lock saveTurn takes, so no message appears between the check and the update.
  */
 export async function releaseOffer(tx: Tx, offerId: string): Promise<void> {
   const claimed = await tx.choiceOffer.findFirst({
     where: { id: offerId, state: 'CHOSEN' },
-    select: { conversationId: true },
+    select: { conversationId: true, message: { select: { position: true } } },
   });
   if (!claimed) return;
   await tx.$queryRaw`SELECT 1 FROM "Conversation" WHERE id = ${claimed.conversationId} FOR UPDATE`;
-  const newerOpen = await tx.choiceOffer.count({
-    where: { conversationId: claimed.conversationId, state: 'OPEN', id: { not: offerId } },
+  const newer = await tx.conversationMessage.count({
+    where: { conversationId: claimed.conversationId, position: { gt: claimed.message.position } },
   });
   await tx.choiceOffer.updateMany({
     where: { id: offerId, state: 'CHOSEN' },
-    data: { state: newerOpen > 0 ? 'CLOSED' : 'OPEN', chosenOptionId: null },
+    data: { state: newer > 0 ? 'CLOSED' : 'OPEN', chosenOptionId: null },
   });
 }
 

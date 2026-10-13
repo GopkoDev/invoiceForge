@@ -173,7 +173,7 @@ saveTurn(actor, input: {
 }): Promise<ActionResult<{ conversationId: string; title: string }>>;
 ```
 
-One transaction under the Conversation row lock, in this order: create the Conversation (with `startedFrom`) when `conversationId` is null; when `userOrigin` is not `PRESSED`, close the Conversation's `OPEN` offer (`CLOSED`, no choice; AC-12); append the two messages (`origin` on the USER row, `NULL` on the ASSISTANT row); insert the turn's offer `OPEN` tied to the reply; move `lastMessageAt`. A failed or unavailable turn saves only the metadata, as in the parent, and so closes nothing.
+One transaction under the Conversation row lock, in this order: create the Conversation (with `startedFrom`) when `conversationId` is null; close the Conversation's `OPEN` offer (`CLOSED`, no choice; AC-12; for a press this is only an offer another tab stored meanwhile, its own is `CHOSEN`); append the two messages (`origin` on the USER row, `NULL` on the ASSISTANT row); insert the turn's offer `OPEN` tied to the reply; move `lastMessageAt`. A failed or unavailable turn saves only the metadata, as in the parent, and so closes nothing.
 
 ### Route order for a press (critical flow 1)
 
