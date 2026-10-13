@@ -189,6 +189,7 @@ for (const viewport of [
   { width: 768, height: 1024 },
   { width: 1280, height: 800 },
   { width: 1440, height: 900 },
+  { width: 2560, height: 1440 }, // the spec §6 upper bound (review 2026-10-13 R1-U6)
 ]) {
   test(`AC-15: at ${viewport.width} x ${viewport.height} with 40 Conversations and 60 messages only the panes scroll`, async ({
     browser,

@@ -25,6 +25,10 @@ ambiguous or contradicts the code, open the named file and follow it. Do not inv
 - **Wave:** 8 (longest dependency chain); linear position T21 of T31 for the sequential in-place run.
 - **Lane:** shares `components/ai/chat-island.tsx` with T20; `components/ai/chat-island.tsx` with T22; `components/ai/chat-island.tsx` with T23; `components/ai/chat-island.tsx` with T24; `components/ai/chat-island.tsx` with T26 — serialized in id order.
 
+## Screens
+
+- **SCR-03** states `streaming`, `following` and `scrolled up` (screens.md §SCR-03; traceability added by review 2026-10-13 R1-U7).
+
 ## Why (user story)
 
 > **As a** Freelancer
