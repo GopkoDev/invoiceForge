@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/migrations/06_add_form_enum_values.up.sql
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T50 — Promote staged migrations 06–08, apply the Prisma schema edits for the Question form and extend the factories

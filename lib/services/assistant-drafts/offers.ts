@@ -187,6 +187,7 @@ const REF_KEY: Record<ChoiceOfferKind, string> = {
   CURRENCY: 'currency',
   BANK_ACCOUNT: 'bankAccountId',
   PRODUCT: 'productId',
+  FORM: '', // a Question form is checked by checkForm (ADR-0011), never as a single offer
 };
 
 function refFitsKind(ref: OfferOptionRef, kind: ChoiceOfferKind, lineIndex: number | null, request: DraftRequest) {

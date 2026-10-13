@@ -36,9 +36,9 @@ describe('ai-chat-v2 shared result and assistant types (T04)', () => {
   });
 
   it('the offer, origin and start-point unions match the contract', () => {
-    expectTypeOf<ChoiceOfferKind>().toEqualTypeOf<'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT'>();
+    expectTypeOf<ChoiceOfferKind>().toEqualTypeOf<'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT' | 'FORM'>();
     expectTypeOf<ChoiceOfferState>().toEqualTypeOf<'OPEN' | 'CHOSEN' | 'CLOSED'>();
-    expectTypeOf<MessageOrigin>().toEqualTypeOf<'TYPED' | 'PRESSED' | 'DASHBOARD'>();
+    expectTypeOf<MessageOrigin>().toEqualTypeOf<'TYPED' | 'PRESSED' | 'DASHBOARD' | 'FORM'>();
     expectTypeOf<ConversationStartPoint>().toEqualTypeOf<'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE'>();
   });
 

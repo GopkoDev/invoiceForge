@@ -40,5 +40,7 @@ export function pinChoice(
       const productId = refValue(ref, 'productId');
       return { ...request, lines: request.lines.map((l, i) => (i === lineIndex ? { ...l, productId } : l)) };
     }
+    case 'FORM':
+      throw new Error('A Question form is pinned per answer (form-pin), never as a single offer.');
   }
 }

@@ -14,6 +14,7 @@ const GROUP_LABEL: Record<ChoiceOfferKind, string> = {
   PRODUCT: 'Choose a product',
   SENDER_PROFILE: 'Choose a sender profile',
   CURRENCY: 'Choose a currency',
+  FORM: 'Answer the questions',
 };
 
 /**

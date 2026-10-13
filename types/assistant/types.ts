@@ -24,10 +24,11 @@ export type DraftCardView = {
 export type ConversationSummary = { id: string; title: string; lastMessageAt: string };
 
 // ai-chat-v2 (contracts/server-actions.md §Shared types): Offered choices, message origin, start point.
-export type ChoiceOfferKind = 'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT';
+/** `FORM`: every row written after the revision 2026-10-13 (ADR-0011); the legacy kinds name a backfilled question. */
+export type ChoiceOfferKind = 'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT' | 'FORM';
 export type ChoiceOfferState = 'OPEN' | 'CHOSEN' | 'CLOSED';
-/** Who or what sent a Freelancer message; NULL on Assistant replies. Set by the server only. */
-export type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD';
+/** Who or what sent a Freelancer message; NULL on Assistant replies. Set by the server only. `PRESSED` is history (ADR-0011). */
+export type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD' | 'FORM';
 export type ConversationStartPoint = 'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE';
 
 /**

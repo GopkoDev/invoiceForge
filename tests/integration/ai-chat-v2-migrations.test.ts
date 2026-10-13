@@ -16,7 +16,7 @@ import { assertNotEnvDatabase } from './../support/db/env-guard';
 import { truncateAllTables } from './../support/db/truncate';
 import { createFreelancer } from './../support/factories/user';
 import { createConversation } from './../support/factories/conversation';
-import { createChoiceOffer } from './../support/factories/choice-offer';
+import { createChoiceOffer, createQuestionForm } from './../support/factories/choice-offer';
 import { createSenderProfile } from './../support/factories/sender-profile';
 import { createCustomer } from './../support/factories/customer';
 import { createBankAccount } from './../support/factories/bank-account';
@@ -33,6 +33,10 @@ const NAMES = [
   '03_backfill_conversation_message_origin',
   '04_add_conversation_started_from',
   '05_add_invoice_issued_from_chat',
+  // T50 (revision 2026-10-13, ADR-0011): the Question form.
+  '06_add_form_enum_values',
+  '07_add_choice_offer_form_columns',
+  '08_backfill_choice_offer_questions',
 ];
 const UP = NAMES.map((n) => staged(`${n}.up.sql`));
 const DOWN = NAMES.map((n) => staged(`${n}.down.sql`));
@@ -43,9 +47,27 @@ describe.runIf(containerRuntimeAvailable)('ai-chat-v2 migrations (T02, AC-34)', 
   let prisma: PrismaClient;
   let promoted = false;
 
-  async function psql(sql: string): Promise<void> {
+  async function psql(sql: string): Promise<string> {
     const result = await db.container.exec(['psql', '-v', 'ON_ERROR_STOP=1', '-U', 'test', '-d', 'invoice_forge_test', '-c', sql]);
     if (result.exitCode !== 0) throw new Error(`psql failed: ${result.output}`);
+    return result.output;
+  }
+
+  async function enumValues(type: string): Promise<string[]> {
+    const rows = await prisma.$queryRawUnsafe<{ v: string }[]>(
+      `SELECT e.enumlabel AS v FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = $1 ORDER BY e.enumsortorder`,
+      type
+    );
+    return rows.map((r) => r.v);
+  }
+
+  async function nullable(table: string, column: string): Promise<boolean> {
+    const rows = await prisma.$queryRawUnsafe<{ is_nullable: string }[]>(
+      `SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+      table,
+      column
+    );
+    return rows[0]?.is_nullable === 'YES';
   }
 
   async function tableExists(name: string): Promise<boolean> {
@@ -227,6 +249,127 @@ describe.runIf(containerRuntimeAvailable)('ai-chat-v2 migrations (T02, AC-34)', 
 
     expect(await count('ChoiceOffer')).toBe(0);
     expect(await count('ConversationMessage')).toBe(0);
+  });
+
+  it('T50: 06–08 add FORM to both enums, questions/answers JSONB and a nullable request', async () => {
+    expect(await enumValues('ChoiceOfferKind')).toEqual(['CUSTOMER', 'SENDER_PROFILE', 'CURRENCY', 'BANK_ACCOUNT', 'PRODUCT', 'FORM']);
+    expect(await enumValues('MessageOrigin')).toEqual(['TYPED', 'PRESSED', 'DASHBOARD', 'FORM']);
+    expect(await columnNames('ChoiceOffer')).toEqual(expect.arrayContaining(['questions', 'answers']));
+    expect(await nullable('ChoiceOffer', 'request')).toBe(true);
+    expect(await nullable('ChoiceOffer', 'questions')).toBe(true);
+    expect(await nullable('ChoiceOffer', 'answers')).toBe(true);
+  });
+
+  it('T50: 08 backfills legacy offers into one-question forms (OPEN → no answers, CHOSEN → its option), re-run is a no-op', async () => {
+    const owner = await createFreelancer(prisma);
+    const conversation = await createConversation(prisma, {
+      userId: owner.id,
+      messages: [
+        { role: 'ASSISTANT', id: 'legacy-chosen', text: 'Which one?' },
+        { role: 'USER', origin: 'PRESSED', text: 'Acme GmbH' },
+        { role: 'ASSISTANT', id: 'legacy-open', text: 'Which account?' },
+      ],
+    });
+    // Pre-revision rows: written before 08 ran, so questions/answers are NULL.
+    await createChoiceOffer(prisma, {
+      userId: owner.id, conversationId: conversation.id, messageId: 'legacy-chosen', state: 'CHOSEN', chosenOptionId: 1,
+      options: [
+        { optionId: 0, label: 'Acme Corp (billing@acme.example.test)', ref: { customerId: 'fixture-acme-corp' } },
+        { optionId: 1, label: 'Acme GmbH (no email)', ref: { customerId: 'fixture-acme-gmbh' } },
+      ],
+    });
+    await createChoiceOffer(prisma, {
+      userId: owner.id, conversationId: conversation.id, messageId: 'legacy-open', kind: 'PRODUCT', lineIndex: 0,
+      options: [{ optionId: 0, label: 'Design · hour · 50.00 USD', ref: { productId: 'fixture-product' } }],
+    });
+
+    expect(await psql(staged('08_backfill_choice_offer_questions.up.sql'))).toContain('UPDATE 2');
+    const rows = await prisma.choiceOffer.findMany({ where: { conversationId: conversation.id }, orderBy: { messageId: 'asc' } });
+    const [chosen, open] = rows;
+    expect(chosen.messageId).toBe('legacy-chosen');
+    expect(chosen.questions).toEqual([
+      {
+        questionId: 0, field: 'CUSTOMER', lineIndex: null, prompt: null, input: 'NONE', required: true, skippable: false,
+        matchCount: null, source: 'RESOLVER', options: chosen.options,
+      },
+    ]);
+    expect(chosen.answers).toEqual([{ questionId: 0, optionId: 1 }]);
+    expect(open.messageId).toBe('legacy-open');
+    expect(open.questions).toEqual([
+      expect.objectContaining({ questionId: 0, field: 'PRODUCT', lineIndex: 0, input: 'NONE', source: 'RESOLVER', options: open.options }),
+    ]);
+    expect(open.answers).toBeNull();
+
+    // Idempotent: a second run touches 0 rows and changes nothing.
+    expect(await psql(staged('08_backfill_choice_offer_questions.up.sql'))).toContain('UPDATE 0');
+    expect(await prisma.choiceOffer.findMany({ where: { conversationId: conversation.id }, orderBy: { messageId: 'asc' } })).toEqual(rows);
+  });
+
+  it('T50: down 08 → 07 → 06 restores the pre-revision shape (FORM rows dropped, FORM messages → TYPED), then re-applies', async () => {
+    const owner = await createFreelancer(prisma);
+    const conversation = await createConversation(prisma, {
+      userId: owner.id,
+      messages: [
+        { role: 'ASSISTANT', id: 'legacy-reply', text: 'Which one?' },
+        { role: 'ASSISTANT', id: 'form-reply', text: 'A few questions' },
+        { role: 'ASSISTANT', id: 'free-reply', text: 'Which period?' },
+        { role: 'USER', origin: 'FORM', text: 'Customer: Acme GmbH' },
+      ],
+    });
+    await createChoiceOffer(prisma, { userId: owner.id, conversationId: conversation.id, messageId: 'legacy-reply', state: 'CLOSED' });
+    await psql(staged('08_backfill_choice_offer_questions.up.sql'));
+    await createQuestionForm(prisma, { userId: owner.id, conversationId: conversation.id, messageId: 'form-reply', state: 'CLOSED' });
+    await createQuestionForm(prisma, { userId: owner.id, conversationId: conversation.id, messageId: 'free-reply', request: null });
+
+    await psql(staged('08_backfill_choice_offer_questions.down.sql'));
+    const legacy = await prisma.choiceOffer.findUniqueOrThrow({ where: { messageId: 'legacy-reply' } });
+    expect(legacy.questions).toBeNull();
+    expect(legacy.answers).toBeNull();
+    expect((await prisma.choiceOffer.findUniqueOrThrow({ where: { messageId: 'form-reply' } })).questions).not.toBeNull();
+
+    await psql(staged('07_add_choice_offer_form_columns.down.sql'));
+    expect(await columnNames('ChoiceOffer')).not.toContain('questions');
+    expect(await columnNames('ChoiceOffer')).not.toContain('answers');
+    expect(await nullable('ChoiceOffer', 'request')).toBe(false);
+    expect(await count('ChoiceOffer')).toBe(2); // the free-question form (request NULL) is gone
+
+    await psql(staged('06_add_form_enum_values.down.sql'));
+    expect(await enumValues('ChoiceOfferKind')).not.toContain('FORM');
+    expect(await enumValues('MessageOrigin')).not.toContain('FORM');
+    const left = await prisma.$queryRawUnsafe<{ messageId: string }[]>(`SELECT "messageId" FROM "ChoiceOffer"`);
+    expect(left).toEqual([{ messageId: 'legacy-reply' }]);
+    const origins = await prisma.$queryRawUnsafe<{ origin: string | null }[]>(
+      `SELECT origin::text AS origin FROM "ConversationMessage" WHERE "conversationId" = $1 AND role = 'USER'`,
+      conversation.id
+    );
+    expect(origins).toEqual([{ origin: 'TYPED' }]);
+
+    for (const name of NAMES.slice(5)) await psql(staged(`${name}.up.sql`));
+    expect(await enumValues('ChoiceOfferKind')).toContain('FORM');
+    expect(await enumValues('MessageOrigin')).toContain('FORM');
+    expect(await nullable('ChoiceOffer', 'request')).toBe(true);
+    const reapplied = await prisma.choiceOffer.findUniqueOrThrow({ where: { messageId: 'legacy-reply' } });
+    expect(reapplied.questions).toEqual([expect.objectContaining({ questionId: 0, field: 'CUSTOMER', source: 'RESOLVER' })]);
+  });
+
+  it('T50: createQuestionForm writes a FORM row with the default Customer question and a "Line 1 · Price" input question', async () => {
+    const owner = await createFreelancer(prisma);
+    const conversation = await createConversation(prisma, {
+      userId: owner.id,
+      messages: [{ role: 'USER' }, { role: 'ASSISTANT', id: 'reply-form', text: 'Two questions' }],
+    });
+    const form = await createQuestionForm(prisma, { userId: owner.id, conversationId: conversation.id, messageId: 'reply-form' });
+    expect(form.kind).toBe('FORM');
+    expect(form.state).toBe('OPEN');
+    expect(form.answers).toBeNull();
+    expect(form.options).toEqual([]);
+    const questions = form.questions as Array<{ questionId: number; field: string; heading: string; input: string; options: Array<{ label: string }> }>;
+    expect(questions.map((q) => [q.questionId, q.field, q.heading, q.input])).toEqual([
+      [0, 'CUSTOMER', 'Customer', 'TEXT'],
+      [1, 'PRICE', 'Line 1 · Price', 'AMOUNT'],
+    ]);
+    expect(questions[0].options.map((o) => o.label)).toEqual(['Acme Corp', 'Acme GmbH']);
+    expect(questions[1].options).toEqual([]);
   });
 
   it('prisma migrate diff between the migrated database and prisma/schema stays empty (no drift)', () => {

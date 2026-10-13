@@ -17,6 +17,7 @@ enum MessageOrigin {
     TYPED // typed into the message box
     PRESSED // an Offered choice was pressed; set by the server only from a valid choice (ADR-0003)
     DASHBOARD // the dashboard prompt box (ADR-0009)
+    FORM // revision 2026-10-13 (ADR-0011): composed by the server from a sent Question form; PRESSED is history only
 }
 
 // ai-chat-v2: where a Conversation was started (spec §1, §7). Set with the first message, never changed.
@@ -34,6 +35,7 @@ enum ChoiceOfferKind {
     CURRENCY
     BANK_ACCOUNT
     PRODUCT
+    FORM // revision 2026-10-13 (ADR-0011): every row written after the revision; the legacy kinds name a backfilled question's field
 }
 
 // ai-chat-v2 (ADR-0001): one offer's life.
@@ -131,10 +133,12 @@ model ChoiceOffer {
     messageId      String           @unique // the ASSISTANT reply that shows the buttons; one offer per reply at most
     kind           ChoiceOfferKind
     lineIndex      Int? // the invoice line the choice fills (PRODUCT only); NULL for the other kinds
-    request        Json // the stored DraftRequest the offer continues; the chosen record is pinned into it (ADR-0003)
-    options        Json // 1..8 frozen options: { optionId (position), label, ref }; never model text (ADR-0002)
+    request        Json? // the stored draft request the form continues; answers are pinned into it (ADR-0011). NULL: a free-question form
+    options        Json // legacy (pre-revision rows): 1..8 frozen options { optionId, label, ref }; FORM rows write '[]'
+    questions      Json? // ADR-0011: 1..6 frozen questions with options and server labels (zod formQuestionSchema); set on every row after 08
+    answers        Json? // ADR-0011: the answers sent, written with CHOSEN, cleared on release; NULL otherwise. Exported (AC-34)
     state          ChoiceOfferState @default(OPEN)
-    chosenOptionId Int? // set with CHOSEN, cleared on release; NULL while OPEN or CLOSED
+    chosenOptionId Int? // legacy: set with CHOSEN on pre-revision rows; NULL on FORM rows
 
     user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
     conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
