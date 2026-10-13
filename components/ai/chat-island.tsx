@@ -15,6 +15,7 @@ import { ConversationListButton } from '@/components/ai/ai-workspace';
 import { ConversationHeaderClient } from '@/components/ai/conversation-header-client';
 import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
+import { InvoiceStateProvider, useSeedInvoiceStates } from '@/components/ai/invoice-state-context';
 import { MessageList } from '@/components/ai/message-list';
 import { OfferedChoices } from '@/components/ai/offered-choices';
 import { StartPanel } from '@/components/ai/start-panel';
@@ -170,7 +171,12 @@ export function ChatIsland(props: ChatIslandProps) {
   if (seen.pathname !== pathname) {
     setSeen({ pathname, chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat });
   }
-  return <ChatSession key={seen.chat} {...props} />;
+  // ai-chat-v2 T23 (ADR-0008): the island shares the workspace's invoice-state store (or holds its own outside it).
+  return (
+    <InvoiceStateProvider>
+      <ChatSession key={seen.chat} {...props} />
+    </InvoiceStateProvider>
+  );
 }
 
 const NO_OFFERS: Record<string, OfferView> = {};
@@ -205,6 +211,8 @@ function ChatSession({
   const cards = loaded?.cards ?? initialCards;
   const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
   const offers = loaded?.offers ?? initialOffers;
+  // ai-chat-v2 T23: every page load (and the post-reply read on /ai) seeds the shared invoice-state store.
+  useSeedInvoiceStates(invoiceLinks, cards);
   // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
   // screen to the bottom (FLIP over a translate transition), or jumps there under reduced motion.
   const startRef = useRef<HTMLDivElement>(null);

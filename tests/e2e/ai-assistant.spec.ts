@@ -126,7 +126,7 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
     draftNumber = (await created.innerText()).match(/Draft (\S+) created\./)![1];
     await expect(page.getByText('Created', { exact: true })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Open draft →' }).click();
+    await page.getByRole('link', { name: 'Open in editor →' }).click();
     await expect(page).toHaveURL(/\/invoices\/[^/]+\/edit$/);
   });
 

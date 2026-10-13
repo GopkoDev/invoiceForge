@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useInvoiceState } from '@/components/ai/invoice-state-context';
 import { buttonVariants } from '@/components/ui/button';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { protectedRoutes } from '@/config/routes.config';
@@ -15,8 +18,11 @@ interface ChatLinkProps {
 const linkClass = buttonVariants({ variant: 'link' });
 
 // A link the Assistant attached to a reply. Targets come only from the fixed app map or the
-// invoice's current state, never from model-written text (AC-07, AC-36).
-export function ChatLink({ link, state }: ChatLinkProps) {
+// invoice's current state, never from model-written text (AC-07, AC-36). ai-chat-v2 T23 (ADR-0008): the workspace
+// store's state wins over the one passed in, so a link changes with the card and the preview.
+export function ChatLink({ link, state: loadedState }: ChatLinkProps) {
+  const stored = useInvoiceState(link.kind === 'invoice' ? link.invoiceId : null);
+  const state = stored ?? loadedState;
   if (link.kind === 'page') {
     // A bank-accounts link stored without its profile id (before fix 2026-10-12) opens the profiles list.
     const page =

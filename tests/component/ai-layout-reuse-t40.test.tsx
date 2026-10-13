@@ -197,7 +197,7 @@ describe('R-28: shared link style and route', () => {
       invoice: { state: 'DRAFT', invoiceId: 'inv43', invoiceNumber: 'INV-0043' },
     } as unknown as DraftCardView;
     render(<DraftCard card={card} />);
-    const cls = screen.getByRole('link', { name: /Open draft/ }).className.split(/\s+/);
+    const cls = screen.getByRole('link', { name: /Open in editor/ }).className.split(/\s+/);
     for (const t of linkTokens) expect(cls).toContain(t);
   });
 

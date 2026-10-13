@@ -253,7 +253,7 @@ describe('DraftCard - Create (AC-13, AC-14, AC-11c)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     expect(await screen.findByText('Draft INV-0043 created.')).toBeInTheDocument();
     expect(screen.getByText('Created')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open draft →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
+    expect(screen.getByRole('link', { name: /Open in editor →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
     expect(createBtn()).not.toBeInTheDocument();
     expect(text(container)).toContain('Acme Corp');
   });
@@ -266,7 +266,7 @@ describe('DraftCard - Create (AC-13, AC-14, AC-11c)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     expect(await screen.findByText('Draft INV-0043 created.')).toBeInTheDocument();
     expect(screen.getByText('Created')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open draft →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
+    expect(screen.getByRole('link', { name: /Open in editor →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
     expect(createDraftFromCard).toHaveBeenCalledTimes(1);
   });
 
@@ -303,7 +303,7 @@ describe('DraftCard - Create (AC-13, AC-14, AC-11c)', () => {
     );
     expect(screen.getByText('Created')).toBeInTheDocument();
     expect(screen.getByText('Draft INV-0043 created.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open draft →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
+    expect(screen.getByRole('link', { name: /Open in editor →/ })).toHaveAttribute('href', '/invoices/inv43/edit');
     expect(createBtn()).not.toBeInTheDocument();
     expect(createDraftFromCard).not.toHaveBeenCalled();
   });

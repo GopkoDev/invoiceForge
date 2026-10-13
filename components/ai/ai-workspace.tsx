@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { PanelLeftIcon } from 'lucide-react';
 import { ConversationListClient } from '@/components/ai/conversation-list-client';
+import { InvoiceStateProvider } from '@/components/ai/invoice-state-context';
 import { NewConversationProvider } from '@/components/ai/new-conversation-context';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -36,7 +37,7 @@ export function ConversationListButton({ className }: { className?: string }) {
  * section's grid. It fills the viewport-height shell of `/ai/layout.tsx`; every pane is `min-h-0` and scrolls on its
  * own, so the page never scrolls. From md (768 px) the list pane (18rem) sits before the chat in DOM and visual
  * order; below md the same list opens as a left Sheet from ConversationListButton and closes on a pick, ×, Escape
- * or the overlay. Wraps the children in NewConversationProvider.
+ * or the overlay. Wraps the children in NewConversationProvider and the invoice-state store (ADR-0008).
  */
 export function AiWorkspace({
   conversations,
@@ -52,6 +53,7 @@ export function AiWorkspace({
 
   return (
     <NewConversationProvider>
+      <InvoiceStateProvider>
       <ListSheetContext.Provider value={sheet}>
         <div data-slot="ai-workspace" className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[18rem_minmax(0,1fr)]">
           <aside aria-label="Conversation list" className="hidden min-h-0 min-w-0 border-r md:flex md:flex-col">
@@ -66,6 +68,7 @@ export function AiWorkspace({
           </SheetContent>
         </Sheet>
       </ListSheetContext.Provider>
+      </InvoiceStateProvider>
     </NewConversationProvider>
   );
 }
