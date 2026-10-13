@@ -9,7 +9,7 @@ files_hint: ["tests/e2e/ai-chat-v2-chat.spec.ts", "tests/e2e/ai-chat-v2-preview-
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;
