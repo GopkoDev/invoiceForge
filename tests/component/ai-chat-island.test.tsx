@@ -1386,7 +1386,7 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
                 field: 'BANK_ACCOUNT',
                 lineIndex: null,
                 heading: 'Bank account',
-                prompt: null,
+                prompt: 'Which bank account?',
                 options: [{ optionId: 0, label: 'Monobank ••••4821 · USD' }],
                 input: 'NONE',
                 required: true,
@@ -1416,7 +1416,7 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
       'card card1'
     );
     expect(
-      await screen.findByRole('radiogroup', { name: 'Bank account' })
+      await screen.findByRole('radiogroup', { name: 'Which bank account?' })
     ).toBeTruthy();
     expect(loadConversationCards).toHaveBeenCalledWith('cCards');
     expect(loadConversationCards).toHaveBeenCalledTimes(1);
@@ -1754,8 +1754,7 @@ describe('sending after a failed reply', () => {
               questionId: 0,
               field: 'CUSTOMER',
               lineIndex: null,
-              heading: 'Customer',
-              prompt: null,
+              prompt: 'Which customer?',
               options: [
                 { optionId: 0, label: 'Acme Corp' },
                 { optionId: 1, label: 'Acme GmbH' },
@@ -1771,9 +1770,9 @@ describe('sending after a failed reply', () => {
       },
     });
   const answerAndSend = async (user: ReturnType<typeof userEvent.setup>) => {
-    const form = screen.getByRole('group', { name: 'A few details' });
-    await user.click(within(form).getByRole('radio', { name: 'Acme GmbH' }));
-    await user.click(within(form).getByRole('button', { name: /^send/i }));
+    // T79: the form is docked above the composer and the last pick sends it.
+    const dock = document.querySelector('[data-slot="question-dock"]') as HTMLElement;
+    await user.click(within(dock).getByRole('radio', { name: /Acme GmbH/ }));
   };
 
   it('a form sent after a typed failure sends its answers and keeps the failed exchange discarded', async () => {

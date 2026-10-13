@@ -487,6 +487,8 @@ function ChatSession({
   } | null>(null);
   // Bumped by a typed send: the open form is remounted read-only without its unsent picks (F8, AC-40).
   const [formEpoch, setFormEpoch] = useState(0);
+  // Forms the Freelancer closed with the × (T79); the composer stays as it was.
+  const [closedForms, setClosedForms] = useState<Record<string, boolean>>({});
   // ai-chat-v2 T23: every page load (and the post-reply read on /ai) seeds the shared invoice-state store.
   useSeedInvoiceStates(invoiceLinks, cards);
   // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
@@ -804,6 +806,14 @@ function ChatSession({
   const latestReplyId =
     !inFlight && tail?.role === 'assistant' ? tail.id : null;
   const sentFormId = inFlight ? live.getPending()?.form?.formId : undefined;
+  // ai-chat-v2 T79 (AC-55): the newest reply's open form is docked above the composer, not shown in the stream.
+  const tailOffer = tail?.role === 'assistant' ? [...tail.parts].reverse().find((p) => p.type === 'data-offer') : undefined;
+  const dockFormId = sentFormId ?? (latestReplyId !== null && tailOffer?.type === 'data-offer' ? tailOffer.data.offerId : null);
+  const dockForm = dockFormId !== null ? forms[dockFormId] : undefined;
+  const showDock =
+    dockFormId !== null &&
+    !closedForms[dockFormId] &&
+    (dockForm === undefined || dockForm.state === 'OPEN');
 
   // A failed reply, a refused press or a vanished Conversation is shown as an assistant message in the reply position
   // (screens.md «Errors are messages»): the avatar, an inline alert with the copy verbatim and, for a failure, Try again.
@@ -883,18 +893,6 @@ function ChatSession({
           <MessageList
             messages={visible}
             invoiceLinks={invoiceLinks}
-            renderOffer={(formId, messageId) => (
-              <QuestionForm
-                key={`${formId}:${formEpoch}`}
-                form={forms[formId]}
-                isLatest={messageId === latestReplyId}
-                pending={sentFormId === formId}
-                onSend={sendForm}
-                fieldErrors={
-                  formErrors?.formId === formId ? formErrors.errors : undefined
-                }
-              />
-            )}
             renderCard={(id) =>
               cards[id] ? (
                 <DraftCard card={cards[id]} cards={cards} />
@@ -934,6 +932,25 @@ function ChatSession({
         className="shrink-0 transition-transform duration-[250ms] ease-out motion-reduce:transition-none"
       >
         <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+          {showDock ? (
+            <div data-slot="question-dock" className="pb-2">
+              <QuestionForm
+                key={`${dockFormId}:${formEpoch}`}
+                form={dockForm}
+                isLatest={latestReplyId !== null}
+                pending={sentFormId === dockFormId}
+                onSend={sendForm}
+                onClose={() =>
+                  setClosedForms((prev) => ({ ...prev, [dockFormId]: true }))
+                }
+                fieldErrors={
+                  formErrors?.formId === dockFormId
+                    ? formErrors.errors
+                    : undefined
+                }
+              />
+            </div>
+          ) : null}
           {allowance.left === 0 ? (
             <AllowanceNotice
               state={allowance}

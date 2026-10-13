@@ -42,10 +42,8 @@ const userBubbles = (page: Page) => page.locator('[data-role="user"]');
 const replies = (page: Page) => page.locator('[data-role="assistant"]');
 const allowanceText = (page: Page) =>
   page.getByText(/\d+ of 30 messages left today/).first();
-const questionForm = (page: Page) =>
-  page.getByRole('group', { name: 'A few details' });
-const formSend = (page: Page) =>
-  questionForm(page).getByRole('button', { name: 'Send', exact: true });
+// T79 (AC-55): the Question form is docked above the composer, one question at a time; the last answer sends it.
+const questionForm = (page: Page) => page.locator('[data-slot="question-dock"]');
 
 async function withDb<T>(
   run: (prisma: PrismaClient) => Promise<T>
@@ -89,7 +87,7 @@ async function seedOpenForm(
   return conversation.id;
 }
 
-test('AC-08b: one form with the Customer and the bank account questions; Send waits for both; one Send gives the card and counts one message', async ({
+test('AC-08b: one form with the Customer and the bank account questions, asked one at a time; the last answer gives the card and counts one message', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
@@ -128,34 +126,29 @@ test('AC-08b: one form with the Customer and the bank account questions; Send wa
     });
 
     await page.goto(`${APP_E2E_URL}/ai/${id}`);
-    // One form holds both questions.
+    // One form holds both questions, shown one at a time with a pager.
     await expect(questionForm(page)).toHaveCount(1);
-    const customer = questionForm(page).getByRole('radiogroup', {
-      name: 'Customer',
-    });
-    const account = questionForm(page).getByRole('radiogroup', {
-      name: 'Bank account',
-    });
-    await expect(customer.getByRole('radio')).toHaveText([
-      'Acme Corp',
-      'Acme GmbH',
-      'Other…',
-    ]);
-    await expect(account.getByRole('radio')).toHaveCount(2);
-    await expect(page.getByText('0 of 2 answered')).toBeVisible();
+    await expect(questionForm(page).getByText('1 of 2')).toBeVisible();
+    await expect(questionForm(page).getByText('Which Acme do you mean?')).toBeVisible();
+    await expect(
+      questionForm(page).getByRole('radiogroup').getByRole('radio')
+    ).toHaveText([/Acme Corp/, /Acme GmbH/, /Something else/]);
 
-    // Send stays disabled until both are answered.
-    await expect(formSend(page)).toBeDisabled();
-    await customer.getByRole('radio', { name: 'Acme GmbH', exact: true }).click();
-    await expect(formSend(page)).toBeDisabled();
-    await account.getByRole('radio', { name: /Second Bank/ }).click();
-    await expect(page.getByText('2 of 2 answered')).toBeVisible();
-    await expect(formSend(page)).toBeEnabled();
-    await formSend(page).click();
+    // Picking advances; nothing is sent until the last question is answered.
+    await questionForm(page)
+      .getByRole('radio', { name: /Acme GmbH/ })
+      .click();
+    await expect(questionForm(page).getByText('2 of 2')).toBeVisible();
+    await expect(questionForm(page).getByText('Which account should be paid into?')).toBeVisible();
+    await expect(questionForm(page).getByRole('radio')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Create draft' })).toHaveCount(0);
+    await questionForm(page)
+      .getByRole('radio', { name: /Second Bank/ })
+      .click();
 
     await expect(page.getByRole('button', { name: 'Create draft' })).toBeVisible();
-    await expect(userBubbles(page).last()).toContainText('Customer: Acme GmbH');
-    await expect(userBubbles(page).last()).toContainText('Bank account: Second Bank');
+    await expect(userBubbles(page).last()).toContainText('Which Acme do you mean? — Acme GmbH');
+    await expect(userBubbles(page).last()).toContainText('Which account should be paid into? — Second Bank');
     // That one Send counted as one message.
     await expect(allowanceText(page)).toHaveText('29 of 30 messages left today');
     await withDb(async (prisma) => {
@@ -173,7 +166,7 @@ test('AC-08b: one form with the Customer and the bank account questions; Send wa
   }
 });
 
-test('AC-37: a typed "Other…" answer, a typed price and a skip go in one Send; one message is counted, one line per answer, then the card', async ({
+test('AC-37: a typed "Something else" answer, a typed price and a skip go in one send; one message is counted, one line per answer, then the card', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
@@ -193,7 +186,7 @@ test('AC-37: a typed "Other…" answer, a typed price and a skip go in one Send;
         field: 'PO_NUMBER',
         lineIndex: null,
         heading: 'PO number',
-        prompt: null,
+        prompt: 'PO number?',
         options: [],
         input: 'TEXT',
         required: false,
@@ -206,48 +199,41 @@ test('AC-37: a typed "Other…" answer, a typed price and a skip go in one Send;
 
     await page.goto(`${APP_E2E_URL}/ai/${id}`);
     await expect(questionForm(page)).toBeVisible();
-    await expect(formSend(page)).toBeDisabled();
-    await expect(page.getByText('0 of 2 answered')).toBeVisible();
+    await expect(questionForm(page).getByText('1 of 3')).toBeVisible();
 
-    // Customer by "Other…": the input opens and takes the typed name.
-    const customer = questionForm(page).getByRole('radiogroup', {
-      name: 'Customer',
-    });
-    await customer.getByRole('radio', { name: 'Other…' }).click();
+    // Customer by "Something else": the input opens and takes the typed name.
+    await questionForm(page).getByRole('radio', { name: 'Something else' }).click();
     const typedCustomer = questionForm(page).getByRole('textbox', {
-      name: 'Customer',
+      name: 'Something else',
     });
     await expect(typedCustomer).toBeFocused();
     await typedCustomer.fill('Acme GmbH');
-    await expect(formSend(page)).toBeDisabled();
+    await typedCustomer.press('Enter');
 
     // Price is typed only; a bad amount is stopped in the form, next to the question.
+    await expect(questionForm(page).getByText('2 of 3')).toBeVisible();
     const price = questionForm(page).getByRole('textbox', {
-      name: 'Line 1 · Price',
+      name: 'What is the hourly price?',
     });
     await price.fill('abc');
-    await price.blur();
+    await price.press('Enter');
     await expect(questionForm(page).getByRole('alert')).toBeVisible();
-    await expect(formSend(page)).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Create draft' })).toHaveCount(0);
     await price.fill('62.5');
     await expect(questionForm(page).getByRole('alert')).toHaveCount(0);
+    await price.press('Enter');
 
-    // The optional question is skipped.
-    await questionForm(page)
-      .getByRole('radiogroup', { name: 'PO number' })
-      .getByRole('radio', { name: 'Skip' })
-      .click();
-    await expect(page.getByText('2 of 2 answered')).toBeVisible();
-    await expect(formSend(page)).toBeEnabled();
-    await formSend(page).click();
+    // The optional question is skipped, which sends the form.
+    await expect(questionForm(page).getByText('3 of 3')).toBeVisible();
+    await questionForm(page).getByRole('button', { name: 'Skip' }).click();
 
     const sentLines = await userBubbles(page)
       .last()
       .evaluate((el) => (el as HTMLElement).innerText.split('\n'));
     expect(sentLines).toEqual([
-      'Customer: Acme GmbH',
-      'Line 1 · Price: 62.5',
-      'PO number: Skipped',
+      'Which Acme do you mean? — Acme GmbH',
+      'What is the hourly price? — 62.5',
+      'PO number? — Skipped',
     ]);
     await expect(page.getByRole('button', { name: 'Create draft' })).toBeVisible();
     await expect(allowanceText(page)).toHaveText('29 of 30 messages left today');
@@ -308,30 +294,17 @@ test('AC-40: two of three questions answered, a typed message sent instead: the 
 
     await page.goto(`${APP_E2E_URL}/ai/${id}`);
     await expect(questionForm(page)).toBeVisible();
-    await questionForm(page)
-      .getByRole('radiogroup', { name: 'Customer' })
-      .getByRole('radio', { name: 'Acme Corp', exact: true })
-      .click();
-    await questionForm(page)
-      .getByRole('radiogroup', { name: 'Bank account' })
-      .getByRole('radio', { name: /Beta Bank/ })
-      .click();
-    await expect(page.getByText('2 of 3 answered')).toBeVisible();
-    await expect(formSend(page)).toBeDisabled();
+    await questionForm(page).getByRole('radio', { name: /Acme Corp/ }).click();
+    await questionForm(page).getByRole('radio', { name: /Beta Bank/ }).click();
+    await expect(questionForm(page).getByText('3 of 3')).toBeVisible();
 
     await message(page).fill(TYPED);
     await send(page).click();
 
     await expect(userBubbles(page).last()).toHaveText(TYPED);
-    const form = page.locator('[data-slot="question-form"]');
-    await expect(form).not.toHaveAttribute('data-state', 'OPEN');
-    await expect(form.getByText('Not answered')).toBeVisible();
-    await expect(
-      form.getByRole('button', { name: 'Send', exact: true })
-    ).toHaveCount(0);
-    await expect(form.getByRole('radio', { checked: true })).toHaveCount(0);
-    for (const radio of await form.getByRole('radio').all())
-      await expect(radio).toBeDisabled();
+    // The typed message closes the form: nothing of it is shown any more, and nothing was sent for it.
+    await expect(page.locator('[data-slot="question-form"]')).toHaveCount(0);
+    await expect(questionForm(page)).toHaveCount(0);
     await expect(allowanceText(page)).toHaveText('29 of 30 messages left today');
     await withDb(async (prisma) => {
       const row = await prisma.choiceOffer.findFirstOrThrow({

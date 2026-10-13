@@ -244,13 +244,12 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
           .locator('[data-slot="start-composer"]')
           .getByRole('button', { name: 'Send', exact: true })
           .click();
-        const form = page.getByRole('group', { name: 'A few details' });
-        const customer = form.getByRole('radiogroup', { name: 'Customer' });
-        await expect(customer.getByRole('radio', { name: 'Acme Corp', exact: true })).toBeEnabled();
+        const form = page.locator('[data-slot="question-dock"]');
+        const customer = form.getByRole('radiogroup');
+        await expect(customer.getByRole('radio', { name: /Acme Corp/ })).toBeEnabled();
         await expectNoSeriousViolations(page, testInfo, `AI section, Question form (${vp.name})`);
 
-        await customer.getByRole('radio', { name: 'Acme Corp', exact: true }).click();
-        await form.getByRole('button', { name: 'Send', exact: true }).click();
+        await customer.getByRole('radio', { name: /Acme Corp/ }).click();
         await page.getByRole('button', { name: 'Create draft' }).click();
         await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
         await page.getByRole('button', { name: 'Preview', exact: true }).click();

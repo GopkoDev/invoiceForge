@@ -80,38 +80,28 @@ test('AC-08: answering the Customer question and pressing Send posts "Customer: 
     await message(page).fill(AMBIGUOUS);
     await send(page).click();
 
-    const form = page.getByRole('group', { name: 'A few details' });
+    // T79 (AC-55): the form is docked above the composer, one question at a time; the last pick sends it.
+    const form = page.locator('[data-slot="question-dock"]');
     await expect(form).toBeVisible();
-    const customer = form.getByRole('radiogroup', { name: 'Customer' });
+    const customer = form.getByRole('radiogroup');
     await expect(customer.getByRole('radio')).toHaveText([
-      'Acme Corp',
-      'Acme GmbH',
-      'Other…',
+      /Acme Corp/,
+      /Acme GmbH/,
+      /Something else/,
     ]);
-    // Send stays disabled until the required question is answered; no card yet.
-    const formSend = form.getByRole('button', { name: 'Send', exact: true });
-    await expect(formSend).toBeDisabled();
+    // Nothing is sent by looking at it; no card yet.
     await expect(
       page.getByRole('button', { name: 'Create draft' })
     ).toHaveCount(0);
 
-    await customer.getByRole('radio', { name: 'Acme GmbH', exact: true }).click();
-    await expect(formSend).toBeEnabled();
-    await formSend.click();
+    await customer.getByRole('radio', { name: /Acme GmbH/ }).click();
 
-    await expect(userBubbles(page).last()).toHaveText('Customer: Acme GmbH');
+    await expect(userBubbles(page).last()).toContainText('Acme GmbH');
     await expect(
       page.getByRole('button', { name: 'Create draft' })
     ).toBeVisible();
-    await expect(
-      customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
-    ).toHaveAttribute('aria-checked', 'true');
-    await expect(
-      customer.getByRole('radio', { name: 'Acme Corp', exact: true })
-    ).toBeDisabled();
-    await expect(
-      form.getByRole('button', { name: 'Send', exact: true })
-    ).toHaveCount(0);
+    // A sent form is gone from the dock.
+    await expect(form).toHaveCount(0);
 
     // The Send was saved as a FORM message with the composed text, and the card is for exactly Acme GmbH.
     await withDb(async (prisma) => {
@@ -209,35 +199,20 @@ test('AC-13: a reopened Conversation shows the sent form with three accounts and
     await page.locator(`a[href="/ai/${conversationId}"]:visible`).click();
     await expect(page).toHaveURL(new RegExp(`/ai/${conversationId}$`));
 
-    const forms = page.getByRole('group', { name: 'A few details' });
-    await expect(forms).toHaveCount(2);
-    const earlier = forms.first();
-    const accounts = earlier.getByRole('radiogroup', { name: 'Bank account' });
-    await expect(accounts.getByRole('radio')).toHaveCount(3);
-    await expect(
-      accounts.getByRole('radio', { name: 'Beta Bank ••2222 · USD' })
-    ).toHaveAttribute('aria-checked', 'true');
-    for (const radio of await accounts.getByRole('radio').all())
-      await expect(radio).toBeDisabled();
-    // The typed price is shown as sent, and there is no way to change or send it again.
-    await expect(earlier.getByText(SENT_PRICE, { exact: true })).toBeVisible();
-    await expect(earlier.getByRole('textbox')).toHaveCount(0);
-    await expect(
-      earlier.getByRole('button', { name: 'Send', exact: true })
-    ).toHaveCount(0);
-
+    // T79: the sent (earlier) form renders nothing; only the latest reply's open form is docked above the composer.
+    const latest = page.locator('[data-slot="question-dock"]');
+    await expect(page.locator('[data-slot="question-form"]')).toHaveCount(1);
+    await expect(latest).toBeVisible();
     // The latest reply's form can still be answered; the deleted account's pick is turned down without counting.
-    const latest = forms.last();
     await expect(
-      latest.getByRole('radio', { name: 'Gamma Bank ••3333 · USD' })
+      latest.getByRole('radio', { name: /Gamma Bank ••3333 · USD/ })
     ).toBeEnabled();
     const before = await allowanceText(page).textContent();
-    await latest
-      .getByRole('radio', { name: 'Gamma Bank ••3333 · USD' })
-      .click();
-    await latest.getByRole('textbox', { name: 'Line 1 · Price' }).fill('70');
-    await latest.getByRole('button', { name: 'Send', exact: true }).click();
+    await latest.getByRole('radio', { name: /Gamma Bank ••3333 · USD/ }).click();
+    await latest.getByRole('textbox').fill('70');
+    await latest.getByRole('textbox').press('Enter');
     await expect(page.getByText(UNAVAILABLE)).toBeVisible();
+    await latest.getByRole('button', { name: 'Previous question' }).click();
     await expect(
       latest.getByRole('radio', { checked: true, name: /Gamma/ })
     ).toHaveCount(1);
@@ -638,10 +613,10 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with the SCR-04 Ques
 
       await message(page).fill(AMBIGUOUS);
       await send(page).click();
-      const form = page.getByRole('group', { name: 'A few details' });
-      const customer = form.getByRole('radiogroup', { name: 'Customer' });
+      const form = page.locator('[data-slot="question-dock"]');
+      const customer = form.getByRole('radiogroup');
       await expect(
-        customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
+        customer.getByRole('radio', { name: /Acme GmbH/ })
       ).toBeEnabled();
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveScreenshot('ai-v2-question-form-open.png', {
@@ -649,11 +624,8 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with the SCR-04 Ques
         mask: volatile(),
       });
 
-      await customer.getByRole('radio', { name: 'Acme GmbH', exact: true }).click();
-      await form.getByRole('button', { name: 'Send', exact: true }).click();
-      await expect(
-        customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
-      ).toHaveAttribute('aria-checked', 'true');
+      await customer.getByRole('radio', { name: /Acme GmbH/ }).click();
+      await expect(form).toHaveCount(0);
       await expect(
         page.getByRole('button', { name: 'Create draft' })
       ).toBeVisible();
