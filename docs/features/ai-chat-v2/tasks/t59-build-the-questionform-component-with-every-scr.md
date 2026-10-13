@@ -9,7 +9,7 @@ files_hint: ["components/ai/question-form.tsx", "tests/component/"]
 owner: "Dmytro Hopko"
 estimate: "L"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T59 — Build the QuestionForm component with every SCR-04 revision state
