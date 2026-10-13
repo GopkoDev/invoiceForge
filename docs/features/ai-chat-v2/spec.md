@@ -246,6 +246,8 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 ### AC-08 (US-03) — happy path
 
+*Amended 2026-10-14: the form shows one question at a time above the message box (AC-55); "press Send" reads "pick the answer to the last question".*
+
 *Changed by owner feedback 2026-10-13 (F1, F5): buttons became a Question form answered with Send.*
 
 **Given** a Freelancer with two Customers, Acme Corp and Acme GmbH
@@ -261,6 +263,8 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 **Then** the reply holds one form with two questions, the Customer (Acme Corp, Acme GmbH) and the bank account (the two USD accounts); Send stays disabled until both are answered; after one Send the chat shows a draft card for the chosen Customer with the chosen account, and that Send counted as one message
 
 ### AC-09 (US-03) — domain invariant
+
+*Amended 2026-10-14 (fix 2026-10-14-question-form-ux): when the chat names no records for a record question, the system fills the options itself from the Freelancer's own records (AC-54); the checks below apply to those options too.*
 
 *Changed by owner feedback 2026-10-13 (F3): also covers questions the chat adds itself.*
 
@@ -408,11 +412,15 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 ### AC-29 (US-10) — happy path
 
+*Removed by owner 2026-10-14 (fix [2026-10-14-question-form-ux](_fixes/2026-10-14-question-form-ux.md)): the dashboard AI block (SCR-09 part 2) is gone; this criterion no longer applies. Origin `DASHBOARD` / `DASHBOARD_PROMPT` stay readable for history.*
+
 **Given** a Freelancer on the dashboard with messages left today
 **When** they type "who owes me money?" into the dashboard's prompt box and send it
 **Then** the AI section opens on a new Conversation in which that message is already sent and the reply is being written; the message counts toward the allowance once
 
 ### AC-30 (US-10) — happy path
+
+*Amended by owner 2026-10-14: the latest-Conversations list was part of the removed dashboard AI block; only the "Create invoice with AI" action remains in force.*
 
 **Given** a Freelancer with five Conversations
 **When** they open the dashboard
@@ -420,11 +428,15 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 ### AC-31 (US-10) — error
 
+*Removed by owner 2026-10-14 (fix [2026-10-14-question-form-ux](_fixes/2026-10-14-question-form-ux.md)): the dashboard AI block (SCR-09 part 2) is gone; this criterion no longer applies. Origin `DASHBOARD` / `DASHBOARD_PROMPT` stay readable for history.*
+
 **Given** a Freelancer on the dashboard
 **When** they send an empty prompt, or one longer than the chat's message limit
 **Then** nothing is sent and no Conversation is created; the prompt box explains that a message is needed, or how long a message may be
 
 ### AC-32 (US-10) — cross-context
+
+*Removed by owner 2026-10-14 (fix [2026-10-14-question-form-ux](_fixes/2026-10-14-question-form-ux.md)): the dashboard AI block (SCR-09 part 2) is gone; this criterion no longer applies. Origin `DASHBOARD` / `DASHBOARD_PROMPT` stay readable for history.*
 
 **Given** a Freelancer who has used their whole Daily message allowance today
 **When** they open the dashboard
@@ -460,6 +472,8 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 
 ### AC-37 (US-03) — happy path
 
+*Amended 2026-10-14: the Customer options are the Freelancer's records whether the chat named them or the system filled them (AC-54).*
+
 *Added by owner feedback 2026-10-13 (F1, F2, F4, F5; screenshot 22).*
 
 **Given** a Freelancer with four Customers, one sender profile, and no catalogue product "web dev"
@@ -483,6 +497,8 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 **Then** the options showed "Yesterday · 12 Oct 2026" and "14 days after the issue date", and the draft card shows the issue date 12 October 2026 and the due date 26 October 2026
 
 ### AC-40 (US-03) — domain invariant
+
+*Amended 2026-10-14: with one question shown at a time, "Send stays disabled" reads "nothing is sent until the last question is answered".*
 
 *Added by owner feedback 2026-10-13 (F1, F5).*
 
@@ -594,6 +610,27 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 **When** they are shown
 **Then** each avatar is level with the first line of its message: the avatar's middle and the first line's middle are at the same height
 
+### AC-54 (US-03) — domain invariant
+<!-- added-by-fix: 2026-10-14 -->
+
+**Given** a Freelancer with 10 Customers, 3 products in EUR and 2 in USD, and a chat that asks for the Customer and for the product of line 1 of a EUR invoice without naming any record
+**When** the reply's form is shown
+**Then** the Customer question offers the Freelancer's 8 most recently updated Customers and the product question offers the 3 EUR products, each labelled by the system's label rules with a second, muted line (Customer: email, else country; product: price and currency; sender profile: country; bank account: currency and last four digits), plus "Other…"; no other Freelancer's record is ever offered; a Freelancer with no such records gets the input only; more than 8 matches of a name the Freelancer wrote still shows the count and the input only (AC-14)
+
+### AC-55 (US-03) — happy path
+<!-- added-by-fix: 2026-10-14 -->
+
+**Given** a reply whose form has four questions (refs: `ref/form-wanted-claude.png`, `ref/form-wanted-series.png`)
+**When** the Freelancer answers it
+**Then** the form sits directly above the message box (the reply text stays in the message stream) and shows one question at a time: the question on the left of its header and, on the right, a pager "‹ 1 of 4 ›" and a close ×; the options are numbered rows (number, label, muted second line), the focused row is highlighted with an → arrow, arrow keys move between rows, Enter or a number key 1–9 picks; a last row "Other…" with a pencil turns into an inline input; optional questions have Skip; picking an answer moves to the next question and the pager keeps earlier picks; answering the last question sends all answers as one message (one counted message, as AC-11); × closes the form without sending, and typing in the message box instead stays allowed (AC-40); a sent or closed form shows in the history only as the compact answer message
+
+### AC-56 (US-03) — happy path
+<!-- added-by-fix: 2026-10-14 -->
+
+**Given** a Freelancer writing in Ukrainian, today being 14 October 2026
+**When** the chat shows a form asking for the Customer, the issue date and the due date
+**Then** the headings, the date options ("Сьогодні · 14 жовт. 2026", "7 днів після дати виставлення"), the pager, "Щось інше", "Пропустити", "Назад" and the sent state are in Ukrainian; in a conversation written in English they are in English
+
 ## 6. Non-functional requirements
 
 | Aspect | Target | Measurement |
@@ -607,7 +644,7 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 | Bank account exposure | 0 full account numbers in any read answer, chat reply or MCP answer | contract test over every read question's output |
 | Preview open, p95 | ≤ 1.5 s from the press to a rendered preview | e2e timing + web vitals |
 | Issue from the chat, p95 | ≤ 2 s server-side from the confirmation | spans in error tracking |
-| Accessibility | 0 serious or critical violations in the automated accessibility check of the AI section, the preview panel and the dashboard AI block; every button and panel reachable by keyboard | existing e2e accessibility suite |
+| Accessibility | 0 serious or critical violations in the automated accessibility check of the AI section, the preview panel and the Question form (dashboard AI block removed 2026-10-14); every button and panel reachable by keyboard | existing e2e accessibility suite |
 | Question form options | 100 % of options are the Freelancer's own records checked by the system, supported currencies, or system-computed dates, each with the system's label; 0 options or labels from model text | contract test of the stream + the injection fixture + a forged-id fixture (another Freelancer's ids, unknown ids) |
 | Form answer check before the model, p95 | ≤ 300 ms server-side from receiving a sent form to the decision (refused, or applied and handed to the turn) | span `chat.form-check` in error tracking; integration timing |
 | Refused form answers | 100 % of forged, outdated or foreign answers refused with the same words, 0 counted, 0 model calls | route integration tests per cause (allowance row unchanged, scripted model records 0 calls) |

@@ -328,6 +328,8 @@ labels by kind (stored, verbatim):               | [Acme Corp] [Acme GmbH]   (di
 
 ### SCR-04 (revision 2026-10-13) — Question form (inline at the end of a reply in SCR-03)
 
+> **Superseded in layout 2026-10-14** (fix 2026-10-14-question-form-ux; AC-55, AC-56; refs `ref/form-wanted-claude.png`, `ref/form-wanted-series.png`, `ref/form-wanted-pager.png`). The open form of the latest reply is docked directly above the composer (same `max-w-3xl` column), not inside the message: `rounded-xl border bg-card`, header row = the current question (`prompt`, else `heading`) on the left, pager `‹ {n} of {total} ›` (chevron icon buttons + counter, "з" in Ukrainian) and a close × on the right; body = a `role="radiogroup"` of numbered rows (number badge, label, muted `detail` line), the focused/active row `bg-muted` with a → arrow; ↑/↓ move, Enter or 1–9 pick; last row = pencil + "Other…" ("Щось інше") that becomes an inline input (Enter confirms), with Skip ("Пропустити") on the right for optional questions. Picking advances; the last pick sends all answers as one Send. The composer stays below (placeholder "Or answer directly…" while a form is open). A sent/closed form renders nothing in the stream beyond the answer message. Chrome strings follow `FormView.language`. The details below (validation messages, input kinds) still apply.
+
 `NEW: QuestionForm` (`components/ai/question-form.tsx`, replaces `OfferedChoices`; ADR-0011; spec §1 F1–F9a). It renders one `FormView` (`contracts/server-actions.md` revision) for the reply's `data-offer` part, inside the assistant `MessageContent`, after the `MessageResponse` text (8 px gap) and before any link, aligned with the text. A Base UI `Fieldset`-like `role="group"` with `aria-labelledby` the form title "A few details" (sr-only) holds 1–6 questions stacked with `gap-4`, then a footer row with the **Send** `Button` (default, `size="sm"`, arrow-up icon) right-aligned and, left, a muted counter "{answered} of {required} answered". Container: `rounded-xl border bg-card p-4`, full column width.
 
 Each question: a heading line (`text-xs font-medium text-muted-foreground uppercase tracking-wide`: the server's `heading`, e.g. "Customer", "Line 1 · Price", "Issue date"; "Optional" suffix when `skippable`), the `prompt` as plain text (`text-sm`, never Markdown), then:
@@ -567,6 +569,8 @@ default (AC-23)
 ```
 
 ### SCR-09 — Dashboard AI block (existing dashboard, extended)
+
+> **Removed by owner 2026-10-14** (fix 2026-10-14-question-form-ux): part 2 (`DashboardAiBlock`, the "Ask AI" card) is deleted; part 1 (the header's "Create invoice with AI") and the Connect-AI banner stay.
 
 Two additions to the existing dashboard:
 1. **`DashboardHeader`:** a "Create invoice with AI" `buttonVariants({ variant: 'outline' })` link (sparkles icon) placed just before the existing "Create Invoice" button, linking to `/ai?start=draft&from=dashboard` (AC-30). On a phone both buttons wrap under the filters.

@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
@@ -57,6 +57,14 @@ The owner tested the built chat (spec §1 "Owner feedback revision", screenshots
 **Neutral**
 - "Today" in a form is frozen at the day the form was made (the label shows the date), so a form answered days later uses the shown date, which is exact rather than relative.
 - The columns `options`, `kind`'s old values and `chosenOptionId` become legacy; a later contract-phase migration may drop them once no build reads them.
+
+## Amended 2026-10-14
+
+Owner feedback (fix [2026-10-14-question-form-ux](../_fixes/2026-10-14-question-form-ux.md); refs `ref/form-as-built.png`, `ref/form-wanted-claude.png`, `ref/form-wanted-series.png`):
+
+- **Server-filled record options.** A record question (`CUSTOMER`, `SENDER_PROFILE`, `BANK_ACCOUNT`, `PRODUCT`) that reaches the end of the turn with no options and no `matchCount` — from `ask_user` without `recordIds`, a resolver issue without candidates, or the fallback form — is filled by `fillRecordOptions` from the Freelancer's own records: owner-scoped, up to 8, most recently updated first; products of the form's currency when known; bank accounts of the request's sender profile and currency when known. Labels come from the same label rules; each option may carry a server-written `detail` (second line). With no records the question stays input-only. The model is told it may omit `recordIds`. All ADR-0011 checks stand: ids the model passes are still loaded owner-scoped by kind with the uniform refusal; the browser still sees labels only and answers by option id.
+- **Language.** Headings, date-option labels and the form's chrome follow the turn's detected language (`uk` or `en`, from the router). The stored question carries an optional `language`; `FormView.language` exposes it. JSON column only, no migration.
+- **One question at a time.** The browser shows the form docked above the composer, one question per step with a pager, numbered rows and keyboard picks; the request contract (`form: { formId, answers[] }`) is unchanged — the last answer sends all answers at once.
 
 ## Links
 
