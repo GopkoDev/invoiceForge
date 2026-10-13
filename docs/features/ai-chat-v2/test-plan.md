@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Dmytro Hopko", "Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ---
 
@@ -26,6 +26,8 @@ The second iteration of the in-app AI chat adds three read questions shared by t
 | E2E-through-UI | The flows from `ux-flows.md`: US-03 press an Offered choice to a card, and reopen with the chosen mark; US-04 full-height layout at three sizes; US-05 empty state to first reply; US-06 phone sheets; US-07 and US-08 preview and issue, including the two-tab cases; US-09 navigation group; US-10 dashboard prompt and Create invoice with AI; US-11 streamed reply; the accessibility pass over the AI section, the preview panel and the dashboard AI block. | Drive the real UI in a browser against a throwaway database with the scripted model; one test per flow. |
 
 ## AC coverage
+
+> **Owner feedback revision (2026-10-13).** The rows for AC-08–AC-14 below describe the pre-revision button flow. They are **superseded** by the rows in *Revision 2026-10-13 — AC coverage* at the end of this table group: the tests behind them are **rewritten** for the Question form (same test files, new assertions), never deleted silently; a superseded row whose behaviour no longer exists (e.g. "one choice per reply") is replaced by its revision row with the old test renamed and rewritten. AC-34 and AC-35 rows are extended, not replaced.
 
 | AC (spec.md §5) | Test name (intent-based) | Level | Expected outcome |
 |---|---|---|---|
@@ -264,3 +266,91 @@ The evaluation run (`evals/assistant/`, opt-in, real model) is the only level th
 - Pre-release, locally before `ship` (the repo runs no e2e in CI): e2e, e2e-through-UI, visual-regression (Linux baselines) and the accessibility pass. Keep the machine awake during the run, and check the container runtime before reading a red as a regression.
 - The evaluation run: locally with the model key, before release and on every change to the chat instructions, the read registry or the model setting. The AC-05b, AC-05, AC-24 and pressed-record fixtures are part of it.
 - The read and issue load scenarios: against a preview deployment before `ship`.
+
+## Revision 2026-10-13 — AC coverage
+
+| AC (spec.md §5) | Test name (intent-based) | Level | Expected outcome |
+|---|---|---|---|
+| AC-08 happy path (changed) | an ambiguous Customer becomes a Customer question with two options and Other | unit | `formFromIssues` maps `CUSTOMER_AMBIGUOUS` to one question, field CUSTOMER, options "Acme Corp", "Acme GmbH", input TEXT |
+| AC-08 happy path (changed) | sending the form with "Acme GmbH" claims it, saves "Customer: Acme GmbH" with origin form and continues to the card | integration | row CHOSEN with the answer; message text composed from the stored label; origin FORM; one slot used; card for Acme GmbH |
+| AC-08 happy path (changed) | the form request and the form part match the contract | contract | `form { formId, answers }` and `data-offer` → `FormView` match `openapi.yaml` 0.3.0; a request with `choice` is refused as malformed |
+| AC-08 happy path (changed) | Freelancer answers the Customer question and sends | e2e-through-UI | form under the reply; after Send the bubble reads "Customer: Acme GmbH" and a card for Acme GmbH shows |
+| AC-08b happy path (changed) | Customer and bank account questions in one form, one Send, one count | integration | one stored form with two questions (CUSTOMER, BANK_ACCOUNT); after one Send: one slot used, card with both picks |
+| AC-08b happy path (changed) | Send stays disabled until both are answered | component | Send `aria-disabled` with one answer; enabled with two |
+| AC-09 domain invariant (changed) | ask_user naming another Freelancer's account or an unknown id is refused whole, same words | integration | tool answer `OPTIONS_UNAVAILABLE` identical for both; no form stored; no foreign label in the stream |
+| AC-09 domain invariant (changed) | option labels always equal the server's label for the record | contract | stream + injection fixture + forged-id fixture: every `FormView` option label equals the label rule's output; none from model text |
+| AC-10 domain invariant (changed) | look-alike Customers carry the email and the pick is pinned by id | integration | labels "Acme Corp (…)", "Аcme Corp (…)"; the card's Customer id is the picked one |
+| AC-11 domain invariant (changed) | a three-question Send counts once; the next Send with no slot left is refused unmarked | integration | allowance +1 after the first; the second gets the used-up answer, row stays OPEN with no answers, 0 model calls |
+| AC-12 domain invariant (changed) | a typed message closes the open form unanswered; sent forms show answers | integration | CLOSED with null answers after a typed message; CHOSEN forms keep answers |
+| AC-12 domain invariant (changed) | answered and closed forms render read-only | component | answered: picks marked, typed text shown, no inputs or Send; closed: muted, none marked, "Not answered" |
+| AC-12b authorization (changed) | forged form answers are refused uniformly before any count or model call | integration | for each cause (older form, unknown question, unknown option, foreign form, foreign record, required missing) the same 409 sentence, allowance unchanged, scripted model 0 calls, row unchanged |
+| AC-12b authorization (changed) | a typed answer with a bad format is refused per question, uncounted | integration | `VALIDATION` with `form.answers.<id>` errors; allowance unchanged; 0 model calls |
+| AC-13 cross-context (changed) | reopen shows the form, the picked account and the typed price; an unsent latest form naming a deleted account is refused | integration | `getConversation` returns the `FormView` with answers; Send after deleting the account → the uniform refusal, uncounted |
+| AC-13 cross-context (changed) | pre-revision offers read as one-question forms (backfill 08) | integration | a legacy CHOSEN row reads with its answer; a legacy OPEN row can be sent as a form |
+| AC-14 error (changed) | more than 8 matching Customers give an input-only question with the count | unit | question with no options, `matchCount` 12, input TEXT |
+| AC-14 error (changed) | the typed name is matched like typed text | integration | Send with text "Studio North" → the resolver matches it by name |
+| AC-34 cross-context (changed) | export includes forms, answers with typed text, and origin form | integration | export holds questions, labels, answers (typed text included) and `origin: FORM`; deleting the account removes them |
+| AC-35 happy path (changed) | the privacy page lists Question forms and their answers | component | the AI section names forms, options and answers including typed text |
+| AC-37 happy path | a drafting request with no Customer and no price gets one form, no prose questions | integration | scripted model: `ask_user` with four Customer ids and a price question → one stored form (CUSTOMER, PRICE), lead-in text without question lines |
+| AC-37 happy path | the real model asks with a form, not in prose | e2e | evaluation row `form-not-prose-uk` / `-en` (below) |
+| AC-37 happy path | answering both questions yields a card | e2e-through-UI | form with two questions; one Send; card with the picked Customer and price |
+| AC-38 happy path | "Other…" Customer name is matched as words; bad price blocked in the form | component | "forty" and "-5" show the amount error, Send disabled; "40" clears it |
+| AC-38 happy path | the Other Customer text pins as a name, not an id | unit | `pinAnswers` sets `customer` to the typed text and removes `customerId` |
+| AC-39 happy path | date options computed in the time zone and pinned | unit | with today 2026-10-13 Europe/Kyiv: issue options 2026-10-13 and 2026-10-12; "14 days after" pins due 2026-10-26 after issue 2026-10-12 |
+| AC-39 happy path | a form sent on a later day applies the shown date | integration | form made on 13 Oct, sent with the clock on 15 Oct: issue date 2026-10-12 |
+| AC-40 domain invariant | partial picks are not saved when a message is typed instead | e2e-through-UI | two of three picked, typed message sent: form closed, no answers stored, typed message origin TYPED |
+| AC-41 domain invariant | a card turn stores no form; never two forms per reply | integration | propose_draft PROPOSAL + ask_user in one turn: card part only, no form row; two ask_user calls → one form |
+| AC-41 domain invariant | the form composer keeps ≤ 6 questions in the F1 order and deduplicates fields | unit | 9 open questions → first 6 in order; resolver question wins over a chat question for the same field and line |
+| AC-42 happy path | replies render lists, tables, bold and in-app links, streamed and reopened alike | component | the rendered tree has `ul`, `table`, `strong` and an anchor to `/invoices/{id}/edit`; same output for a streamed and a saved reply |
+| AC-42 happy path | formatted reply as approved | visual-regression | SCR-03 with a list and a table, no unintended diff |
+| AC-43 authorization | hostile reply text never renders HTML or an outside link | component | over ≥ 30 fixtures (script, img onerror, iframe, `javascript:`, protocol-relative, own-domain absolute, data URL, encoded variants): 0 HTML elements from text, 0 outside anchors, link text kept as text |
+| AC-43 authorization | the in-app link allowlist accepts only the app's route patterns | unit | each allowed pattern accepted; query strings, fragments, `..`, unknown paths refused |
+| AC-44 happy path | an unclosed formatting mark streams as text and turns into formatting | component | replaying "**Total:** 1,000.00 USD" one character at a time: never an empty `strong`; final output bold |
+| AC-45 happy path | the turn tells the model today, weekday and time zone | unit | the per-turn note for 2026-10-13 Europe/Kyiv reads "Tuesday, 2026-10-13 … Europe/Kyiv"; the frozen instructions are unchanged |
+| AC-45 happy path | "dated yesterday" drafts with yesterday's date | e2e | evaluation row `yesterday-date` (below) |
+| AC-46 happy path | a create request missing values gets a card or a form, never prose questions | e2e | evaluation rows `form-not-prose-*`, `single-profile-not-asked` |
+| AC-46 happy path | the router marks "issue/виставити an invoice" as draft intent | unit | the router fixture set: those wordings → intent draft |
+| AC-47 happy path | the chat searches before saying a record is missing | e2e | evaluation row `search-before-add` |
+| AC-48 happy path | the chat links a draft when asked | e2e | evaluation row `link-to-draft`: the reply holds a Markdown link to the draft's `/invoices/{id}/edit`; no "can't" wording |
+| AC-48 happy path | search rows carry the in-app path | contract | `search_invoices` rows match `SearchInvoicesRowDelta` with `path` |
+| AC-49 happy path | search_invoices filters by created date and sorts by it | integration | drafts created 5, 20, 28 Jan and 3 Feb 2026: `status [draft]`, `createdFrom 2026-01-01`, `createdTo 2026-01-31`, `sort createdAt` → the 28 Jan draft first; issue-date filters unchanged |
+| AC-49 happy path | "the last draft created in January" finds it | e2e | evaluation row `last-draft-january` |
+| AC-50 happy path | list top row and chat header bottoms align | e2e-through-UI | bounding boxes at 768 × 1024 and 1440 × 900: equal bottom y (0 px) |
+| AC-51 happy path | nothing moves when skeletons are replaced | e2e-through-UI | with a delayed server response, boxes of list rows, header, first message and composer differ by ≤ 1 px between skeleton and content; layout shift ≤ 0.01 |
+| AC-52 happy path | switching keeps the list mounted and unloaded | e2e-through-UI | after scrolling and typing "inv", picking a row: 0 list requests, the list element is the same node, scroll offset and search text kept, picked row current, chat pane shows its loading state |
+| AC-52 happy path | list events reorder, add, rename and remove rows without a refetch | component | `ConversationListProvider` events produce the expected order; no load call |
+| AC-53 happy path | the avatar is level with the first line | e2e-through-UI | one-line and five-line replies: avatar middle within 1 px of the first line's middle |
+
+### Revision 2026-10-13 — edge cases
+
+- A form whose stored request is NULL (free questions): answers reach the turn as a prior `ask_user` step; no draft action runs (integration).
+- A mixed form (draft questions + one free question): draft answers pinned, free answer present in the composed message (integration).
+- A release after a failed turn clears the answers and reopens the form; with a newer message saved meanwhile it closes (integration, as R1-B2/R2-B1).
+- `ask_user` refused twice in a turn → the fallback input-only form, never prose (integration).
+- Two tabs sending the same form: exactly one claim, the other the uniform refusal, one count (integration).
+- Due date before issue date typed in one form: blocked in the form (component); combined across forms: the resolver's issue becomes the next form (integration).
+- Optional field skipped: the pinned request has no value; the card shows the editor default (unit + integration).
+- Migrations 06–08: forward, backfill of legacy rows (idempotent re-run), rollback (integration).
+
+### Revision 2026-10-13 — evaluation fixtures
+
+All on the real model, opt-in run, invented data; each row must pass in ≥ 4 of 5 runs (spec §6 "Chat behaviour").
+
+- New setup `four-customers-one-profile`: four Customers ("My New Customer", "TEST 2", "test", "Оohn Doe"), one sender profile with one USD account, no product "web dev"; clock 2026-10-13 Europe/Kyiv.
+- `{"id":"form-not-prose-uk","ac":"AC-37","text":"вистав інвойс веб дев 10 годин, але покажи список кастомерів","setup":"four-customers-one-profile","expect":"form","lang":"uk"}` — passes when the turn stores one form with a CUSTOMER and a PRICE question, the reply text has no question line ("?" line or "- " list item asking for a value), and no sender-profile question.
+- `{"id":"form-not-prose-en","ac":"AC-46","text":"create an invoice for web dev, 10 hours","setup":"four-customers-one-profile","expect":"form","lang":"en"}`.
+- `{"id":"single-profile-not-asked","ac":"AC-46","text":"invoice My New Customer for 10 hours at 40 USD","setup":"four-customers-one-profile","expect":"card","lang":"en"}` — a card, no form.
+- `{"id":"yesterday-date","ac":"AC-45","text":"створи мені інвойс на послуги веб дев для my new customer на 176 годин по 30 USD, вчорашнім числом","setup":"four-customers-one-profile","expect":"card","lang":"uk"}` — card issue date 2026-10-12; no question about the date.
+- `{"id":"search-before-add","ac":"AC-47","text":"invoice my new customer for web development, 10 hours","setup":"four-customers-one-profile+product-web-development","expect":"card-or-form","lang":"en"}` — a `list_customers` (or resolver match) precedes any reply; no "add a Customer" link.
+- `{"id":"link-to-draft","ac":"AC-48","text":"give me a link to that draft","setup":"draft-inv-0042","history":"draft created","expect":"none","lang":"en"}` — reply contains an allowed Markdown link to the draft; scorer rejects "can't"/"не можу" + "link"/"посилання".
+- `{"id":"last-draft-january","ac":"AC-49","text":"останній створений драфт в січні","setup":"drafts-january","expect":"none","lang":"uk"}` — reply names and links the 28 Jan 2026 draft.
+- Scorer additions: `expect: "form"` (a form row stored, no prose question lines), `expect: "card-or-form"`, a link check (allowed in-app href present), a date check on the card.
+
+### Revision 2026-10-13 — NFR validation
+
+- Form check p95 ≤ 300 ms: integration timing over 200 sends on a seeded Freelancer (2,000 Customers) plus the `chat.form-check` span; threshold 300 ms p95.
+- Renderer size ≤ 60 kB gzip: build-output comparison of the AI section's client chunks before and after (pre-release).
+- Switching p95 ≤ 1 s, layout shift ≤ 0.01: e2e timing over 20 switches with 40 Conversations at 1440 × 900.
+- Chat behaviour: evaluation run above before ship (not in CI).
+
+CI placement unchanged: unit, component and contract on every PR; integration with the throwaway database on every PR where Docker is available; e2e-through-UI, visual-regression and the evaluation run locally before ship (owner decision: no e2e in CI).
