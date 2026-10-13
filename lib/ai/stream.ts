@@ -45,7 +45,7 @@ export function chatValidationFailure(error: ZodError) {
   };
 }
 
-/** The visible content of the Assistant message that is saved: its text, its links and its card. */
+/** The visible content of the Assistant message that is saved: its text, its links, its card and its offer. */
 export function assistantPartsOf(
   result: TurnResult
 ): ConversationMessageView['parts'] {
@@ -59,6 +59,10 @@ export function assistantPartsOf(
       id: result.pendingCard.id,
       data: { cardId: result.pendingCard.id },
     });
+  }
+  // ai-chat-v2: the Offered choices by reference only (ADR-0001); labels are read with the offer.
+  if (result.pendingOffer) {
+    parts.push({ type: 'data-offer', id: result.pendingOffer.id, data: { offerId: result.pendingOffer.id } });
   }
   return parts;
 }

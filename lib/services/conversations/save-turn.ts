@@ -11,11 +11,9 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { insertLiveCard } from '@/lib/services/assistant-drafts/cards';
 import { writeTurnRow } from '@/lib/services/assistant-usage/turn-row';
-import { storedOfferOptionsSchema, type StoredOfferOption } from '@/lib/services/assistant-drafts/offers';
-import type { DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import { storedOfferOptionsSchema, type PendingOffer } from '@/lib/services/assistant-drafts/offers';
 import type {
   AssistantTurnMetadata,
-  ChoiceOfferKind,
   ConversationMessageView,
   ConversationStartPoint,
   MessageOrigin,
@@ -23,15 +21,6 @@ import type {
 
 const NOT_FOUND_MESSAGE = "This conversation can't be found.";
 const TITLE_LENGTH = 80;
-
-/** The turn's Offered choices; `id` is pre-generated so the streamed `data-offer` part can carry it. */
-export type PendingOffer = {
-  id: string;
-  kind: ChoiceOfferKind;
-  lineIndex: number | null;
-  request: DraftRequest;
-  options: StoredOfferOption[];
-};
 
 export type SaveTurnInput = {
   conversation: { id: string; isNew: boolean };

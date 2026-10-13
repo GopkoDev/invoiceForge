@@ -5,10 +5,12 @@ import { z } from 'zod';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
+import { offerFromIssues, type PendingOffer } from '@/lib/services/assistant-drafts/offers';
 import {
   draftRequestSchema,
   type DraftIssue,
   type DraftProposal,
+  type DraftRequest,
 } from '@/lib/services/assistant-drafts/schema';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 import type { TurnContext } from '@/lib/ai/turn-context';
@@ -82,6 +84,51 @@ function summarize(proposal: DraftProposal) {
 }
 
 /**
+ * ai-chat-v2 T13 (ADR-0002, AC-08, AC-09, AC-14): the Offered choices code builds from the resolver's issues - never
+ * from the model's words. More than 8 options give no offer, only the count for the reply (AC-14).
+ */
+export function offerFor(
+  issues: DraftIssue[],
+  request: DraftRequest
+): { offer: PendingOffer | null; matchCount?: number } {
+  const built = offerFromIssues(issues, { invoiceCurrency: request.currency ?? null });
+  if (built.kind === 'TOO_MANY') return { offer: null, matchCount: built.count };
+  if (built.kind === 'NONE') return { offer: null };
+  return {
+    offer: { id: createId(), kind: built.offerKind, lineIndex: built.lineIndex, request, options: built.options },
+  };
+}
+
+/**
+ * ai-chat-v2 T13 (ADR-0003, AC-10): in a pressed turn the chosen record stays pinned when the model calls
+ * propose_draft again, whatever name it writes.
+ */
+export function applyPins(request: DraftRequest, pins: DraftRequest | null): DraftRequest {
+  if (!pins) return request;
+  const pinned: DraftRequest = { ...request };
+  if (pins.customerId !== undefined) {
+    pinned.customerId = pins.customerId;
+    delete pinned.customer;
+  }
+  if (pins.senderProfileId !== undefined) {
+    pinned.senderProfileId = pins.senderProfileId;
+    delete pinned.senderProfile;
+  }
+  if (pins.currency !== undefined) pinned.currency = pins.currency;
+  if (pins.bankAccount !== undefined) pinned.bankAccount = pins.bankAccount;
+  pinned.lines = request.lines.map((line, i) => {
+    const productId = pins.lines[i]?.productId;
+    return productId ? { ...line, productId } : line;
+  });
+  return pinned;
+}
+
+// One offer per reply: the earliest propose_draft call of the turn that found one keeps it, even when parallel
+// calls finish out of order.
+const callCounts = new WeakMap<TurnContext, number>();
+const offerCalls = new WeakMap<TurnContext, number>();
+
+/**
  * The chat's only write-shaped tool (ADR-0006/0007). It resolves the Freelancer's words and parks
  * a pending card on the turn; saveTurn persists it. It never creates an invoice.
  */
@@ -91,14 +138,21 @@ export function createProposeDraftTool(turn: TurnContext) {
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
     inputSchema: z.preprocess(liftLineCurrency, draftRequestSchema),
     execute: async (rawRequest: unknown): Promise<Record<string, unknown>> => {
-      const request = draftRequestSchema.parse(rawRequest);
+      const request = applyPins(draftRequestSchema.parse(rawRequest), turn.pins);
+      const call = callCounts.get(turn) ?? 0;
+      callCounts.set(turn, call + 1);
       // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
       if (!turn.draftIntent) return { kind: 'NOT_REQUESTED', message: NOT_REQUESTED };
       const resolved = await resolveDraftRequest(turn.actor, request, turn.today);
       if (!resolved.success) return { ...toToolError(resolved) };
       if (resolved.data.kind === 'ISSUES') {
         const { issues } = resolved.data;
-        return { kind: 'ISSUES', issues, links: linksFor(issues) };
+        const { offer, matchCount } = offerFor(issues, request);
+        if (offer && (turn.pending.offer === null || call < (offerCalls.get(turn) ?? Infinity))) {
+          turn.pending.offer = offer;
+          offerCalls.set(turn, call);
+        }
+        return { kind: 'ISSUES', issues, links: linksFor(issues), ...(matchCount !== undefined ? { matchCount } : {}) };
       }
       const { proposal } = resolved.data;
       const cardId = createId();

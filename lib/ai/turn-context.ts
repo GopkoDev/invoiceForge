@@ -1,6 +1,7 @@
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { createId } from '@paralleldrive/cuid2';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import type { PendingOffer } from '@/lib/services/assistant-drafts/offers';
 
 /**
  * ai-chat-v2 T01 (ADR-0003): what the press path resolved in code before the turn - the draft request with the
@@ -26,7 +27,14 @@ export interface TurnContext {
   origin: string;
   /** True only when the router judged the Freelancer's own message to ask for a draft; propose_draft parks no card otherwise (AC-15). */
   draftIntent: boolean;
-  pending: { card: { id: string; request: DraftRequest; proposal: DraftProposal } | null };
+  /**
+   * `offer` (ai-chat-v2, ADR-0001/0002): the turn's Offered choices, built in code from the first offer-able
+   * propose_draft issue (or the pinned issues); saveTurn stores it. A card, when there is one, wins.
+   */
+  pending: {
+    card: { id: string; request: DraftRequest; proposal: DraftProposal } | null;
+    offer: PendingOffer | null;
+  };
   /** The pinned draft request of a pressed choice (ADR-0003), or null; propose_draft re-applies it on a re-call (T13). */
   pins: DraftRequest | null;
 }
@@ -50,7 +58,7 @@ export function createTurnContext(input: {
     origin: input.origin ?? DEFAULT_ORIGIN,
     // A press continues a draft the Freelancer asked for, whatever the router reads in the button label.
     draftIntent: pinned ? true : (input.draftIntent ?? false),
-    pending: { card },
+    pending: { card, offer: null },
     pins: pinned?.request ?? null,
   };
 }

@@ -186,6 +186,14 @@ export async function POST(request: NextRequest) {
         data: { cardId: result.pendingCard.id },
       });
     }
+    // At most one per reply, after the text and before the outcome; the island reads its labels afterwards.
+    if (result.pendingOffer) {
+      write({
+        type: 'data-offer',
+        id: result.pendingOffer.id,
+        data: { offerId: result.pendingOffer.id },
+      });
+    }
 
     let { outcome, counted } = chatOutcomeOf(result);
     const turn: AssistantTurnMetadata = {
@@ -208,7 +216,7 @@ export async function POST(request: NextRequest) {
         userOrigin: 'TYPED',
         assistantMessageId: createId(),
         assistantParts: assistantPartsOf(result),
-        offer: null,
+        offer: result.pendingOffer ?? null,
         turn,
         proposedCard: result.pendingCard,
       });

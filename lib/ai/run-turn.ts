@@ -6,12 +6,13 @@ import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createTurnContext, type PinnedResolution } from '@/lib/ai/turn-context';
-import { linksFor } from '@/lib/ai/tools/propose-draft';
+import { linksFor, offerFor } from '@/lib/ai/tools/propose-draft';
 import { isProviderFault } from '@/lib/ai/provider-fault';
 import { issuesText } from '@/lib/ai/issue-text';
 import { gatewayCostOf, sumCosts } from '@/lib/ai/gateway-cost';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import type { PendingOffer } from '@/lib/services/assistant-drafts/offers';
 import type { ConversationMessageView } from '@/types/assistant/types';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 
@@ -52,6 +53,8 @@ export interface TurnResult {
   /** Gateway-reported USD cost of every model call of the turn, router included; 0 when none is reported. */
   costUsd: number;
   pendingCard?: { id: string; request: DraftRequest; proposal: DraftProposal };
+  /** ai-chat-v2: the reply's Offered choices, built in code; absent when the turn ends with a card (card wins). */
+  pendingOffer?: PendingOffer;
   links: AppLink[];
   text: string;
 }
@@ -130,12 +133,18 @@ const PINNED_CALL_ID = 'pinned-choice';
  * tool call followed by its tool result. The result is data only, in the tool's own answer shape plus the
  * resolution the press produced.
  */
-function pinnedStep(pinned: PinnedResolution, cardId: string | undefined): ModelMessage[] {
+function pinnedStep(pinned: PinnedResolution, cardId: string | undefined, matchCount?: number): ModelMessage[] {
   const { resolution } = pinned;
   const value =
     resolution.kind === 'PROPOSAL'
       ? { kind: 'CARD', cardId, resolution }
-      : { kind: 'ISSUES', issues: resolution.issues, links: linksFor(resolution.issues), resolution };
+      : {
+          kind: 'ISSUES',
+          issues: resolution.issues,
+          links: linksFor(resolution.issues),
+          ...(matchCount !== undefined ? { matchCount } : {}),
+          resolution,
+        };
   return [
     {
       role: 'assistant',
@@ -205,6 +214,13 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     draftIntent: verdict.intent === 'draft',
     pinned: input.pinned,
   });
+  // A press that still leaves an issue offers its next choice from the pinned resolution (AC-08b).
+  let pinnedMatchCount: number | undefined;
+  if (input.pinned?.resolution.kind === 'ISSUES') {
+    const built = offerFor(input.pinned.resolution.issues, input.pinned.request);
+    turn.pending.offer = built.offer;
+    pinnedMatchCount = built.matchCount;
+  }
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 
@@ -212,7 +228,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     ...(topic === 'MIXED' ? [{ role: 'system' as const, content: MIXED_INSTRUCTION }] : []),
     ...history,
     { role: 'user' as const, content: input.message },
-    ...(input.pinned ? pinnedStep(input.pinned, turn.pending.card?.id) : []),
+    ...(input.pinned ? pinnedStep(input.pinned, turn.pending.card?.id, pinnedMatchCount) : []),
   ];
 
   let resolveResult!: (r: TurnResult) => void;
@@ -337,6 +353,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
       usage,
       costUsd,
       pendingCard: turn.pending.card ?? undefined,
+      pendingOffer: turn.pending.card ? undefined : (turn.pending.offer ?? undefined),
       links,
       text,
     });

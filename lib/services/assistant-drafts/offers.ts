@@ -39,6 +39,15 @@ export type StoredOfferOption = z.infer<typeof storedOfferOptionSchema>;
 
 export const storedOfferOptionsSchema = z.array(storedOfferOptionSchema).min(1).max(MAX_OFFER_OPTIONS);
 
+/** A turn's Offered choices before saveTurn stores them; `id` is pre-generated so the `data-offer` part can carry it. */
+export type PendingOffer = {
+  id: string;
+  kind: ChoiceOfferKind;
+  lineIndex: number | null;
+  request: DraftRequest;
+  options: StoredOfferOption[];
+};
+
 export type OfferFromIssues =
   | { kind: 'OFFER'; offerKind: ChoiceOfferKind; lineIndex: number | null; options: StoredOfferOption[] }
   | { kind: 'TOO_MANY'; count: number }
