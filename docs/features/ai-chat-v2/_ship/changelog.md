@@ -1,27 +1,32 @@
 # Changelog — ai-chat-v2
 
-## ai-chat-v2 — choices as buttons, preview and issue in the chat, and a full-height AI workspace
+## ai-chat-v2 — one Question form for every open question, formatted replies, preview and issue in the chat, and a full-height AI workspace
 
-**What:** The AI chat now finishes a draft without leaving the chat and without retyping. The Freelancer can check and issue the draft right where it was made. The AI is easy to find from the navigation and the dashboard. Every rule of the first iteration ([ai-assistant](../../ai-assistant/_ship/changelog.md)) stays: nothing is guessed, a draft exists only after **Create**, the Daily message allowance applies, and the AI never issues an invoice.
+**What:** The AI chat now finishes a draft without leaving the chat and without retyping. When it needs something, it asks every open question at once in one form, and the Freelancer answers with one **Send**. The Freelancer can check and issue the draft right where it was made. Replies are formatted, and they can link to the Freelancer's invoices. The AI is easy to find from the navigation and the dashboard. Every rule of the first iteration ([ai-assistant](../../ai-assistant/_ship/changelog.md)) stays: nothing is guessed, a draft exists only after **Create**, the Daily message allowance applies, and the AI never issues an invoice.
 
 - **Three new read questions,** shared by the chat and MCP and open to every Personal key (no Draft permission needed):
   - `list_sender_profiles` returns the sender profiles with their bank accounts. Each account shows the bank name, the last four digits, the currency and the default mark. A full account number, other bank details and tax numbers are never returned.
   - `list_products` returns the catalogue with the prices per currency. When a Customer is named by its id, it also returns that Customer's custom prices.
   - `list_customers` searches Customers by name. The search ignores case, extra spaces and letters that look the same in Latin and Cyrillic.
 
-  Each answer holds at most 20 records and the total number of matches. The chat instructions now say what the chat can really read. They also explain that a sender profile is the Freelancer's own business, and a Customer is the party who pays.
-- **Offered choices as buttons.** The draft action may need a choice: several matching Customers or products, a "did you mean" Customer, several bank accounts in a currency, a sender profile or account that matched none or several, or an unclear currency. The reply then shows the options as buttons.
-  - The buttons are built in code from the draft action's own findings, never from the model's text. A stored note cannot add a button.
-  - One choice is offered at a time, with at most 8 buttons. When more records match, the reply gives the count and asks for a more exact name.
-  - A press is sent as a reference to the stored option, so the chat uses exactly the record pressed and never a look-alike. Look-alike Customer names also show the email.
-  - A press is a message. It counts toward the allowance and is refused when the allowance is used up.
-  - A press that cannot be applied is turned down before the model sees it and is not counted. This covers an option from an older reply, another Freelancer's record, or a deleted record. The chat answers in the same words in every case.
-  - Only the latest reply's buttons can be pressed. Older ones stay visible and show the chosen option. Buttons are saved with the Conversation and shown again when it is reopened.
-- **A full-height AI workspace.** The page itself never scrolls.
+  Each answer holds at most 20 records and the total number of matches. `search_invoices` (both channels) can now also filter by the day an invoice was created and sort by it, and each row carries the invoice's in-app path.
+- **One Question form per reply.** When the chat needs the Freelancer to decide or supply something, its reply ends with one form of up to 6 questions, answered with one **Send**. It never asks those questions in prose.
+  - A question asks for a record (Customer, sender profile, bank account, the product of a line), a currency, a date (issue or due), a value to type (quantity, price, tax rate, discount, PO number, payment terms, notes) or a free question. Each shows a heading fixed by the app and one line of plain question text.
+  - The options are records the server loaded for this Freelancer and labelled from the stored record, never words of the model. They come from the draft action's own findings, or from ids the chat names through its `ask_user` tool, which the server loads owner-scoped and by kind. One foreign or unknown id fails the whole call. Date options ("Today", "Yesterday · 12 Oct 2026", "14 days after the issue date") are computed by the server in the Freelancer time zone.
+  - At most 8 options per question. Record, currency and date questions also have **Other…** for a typed answer. When more than 8 records match, the question says how many and asks for a more exact name. Optional values have **Skip**.
+  - Typed answers are checked in the form, next to the question, before anything is sent: amounts, real calendar days, a due date not before the issue date, and lengths.
+  - **Send** is enabled once every required question has an answer. One Send is one message: it counts once, is refused when the allowance is used up, and shows one "heading: answer" line per answer, built by the server.
+  - The server applies the answers itself: a picked record is used exactly (look-alike Customers also show the email), and an "Other…" name is matched like a typed message. It then runs the draft action, and the reply shows the card or the next form. A reply with a card has no form.
+  - A sent form that cannot be applied (an older reply's form, another Freelancer's, a question or option it does not hold, a record deleted since) is turned down before the model sees it, is not counted, and always gets the same words: "This form is no longer available. Answer the latest questions or type your request."
+  - Only the latest reply's form can be answered. Older forms stay visible, read-only, with the answers that were sent. Picks that were never sent are not saved. Forms are saved with the Conversation and shown again when it is reopened. Offered choices saved by an earlier build of this branch show as one-question forms.
+- **Formatted replies.** Assistant replies show bold, italic, lists, tables, code and links. A link stays a link only when its address is a path of one of this app's pages. Any other address, including outside sites and full addresses on the app's own domain, shows as plain text. HTML in a reply shows as text and never runs. A formatting mark that is not closed yet shows as typed while the reply streams. The Freelancer's own messages stay plain text.
+- **A chat that drafts instead of interrogating.** Each turn tells the chat today's date, the weekday and the Freelancer time zone, so "yesterday" or "last Friday" mean real days. The chat searches before it says that a Customer or product does not exist. It can link to the Freelancer's invoices and drafts, and it finds "the last draft created in January".
+- **A full-height AI workspace,** built from our own chat elements ported from Vercel AI Elements onto Base UI (Apache-2.0, with `LICENSE` and `NOTICE` in `components/ai-elements/`). The page itself never scrolls.
   - The Conversation list scrolls on its own. It is grouped into Today, Yesterday, Previous 7 days and Older, and it has a search that ignores look-alike letters and a New chat button.
+  - The list stays mounted when the Freelancer picks another Conversation. Only the chat pane loads, and the list keeps its scroll, search text and rows. It changes only when a Conversation is created, renamed or deleted, or when a new message moves it to the top.
   - The messages scroll on their own. They follow new text while the Freelancer is at the bottom (within 48 px), and offer "Jump to latest" after they scroll up.
-  - The message box is always visible.
-  - A new Conversation shows a greeting, the message box in the middle and suggested requests. After the first message the box moves down with an animation, or without one under reduced motion. An empty Conversation is never saved.
+  - The message box is always visible. The list's search row and the chat header end on one line, each loading placeholder has the size of what replaces it, and an avatar is level with the first line of its message.
+  - A new Conversation shows a greeting, the message box in the middle and suggested requests. After the first message the box moves down, with no animation under reduced motion. An empty Conversation is never saved.
   - On a phone (under 768 px) the list opens as a sheet and the preview as a full-screen sheet.
 - **Preview and issue from the chat.** A created draft's card has a **Preview** button. It opens the same invoice preview the editor shows, an "Open in editor" link and, while the invoice is a draft, **Issue invoice**.
   - Issuing asks for one confirmation that names the Customer, the total and the currency. It then follows the editor's issuing path and every invoice-integrity rule.
@@ -30,47 +35,56 @@
   - Opening a preview and issuing are not messages and never count.
   - The card, the preview and every link to that invoice in the Conversation show it as issued.
 - **Findable AI.** The navigation has an "AI" group with "AI chat" and "Connect your AI". The dashboard has a prompt box that opens the AI section with the Conversation already running. It also shows the 3 latest Conversations and a "Create invoice with AI" action. When the allowance is used up, the prompt box says so up front.
-- **Streamed replies are a requirement.** A reply appears word by word, and a browser test pins this. A reopened reply is shown whole.
-- **Honest data notice.** The data export now includes the Offered choices and the chosen ones, where each message came from (typed, pressed or dashboard) and where each Conversation was started. Account deletion removes all of it. The privacy page's AI section describes what this iteration stores and shares (wording pending the owner's approval, see below).
+- **Streamed replies are a requirement.** A reply appears word by word, and a browser test pins this. A reopened reply is shown whole and with the same formatting.
+- **Honest data notice.** The data export (v2.4) now includes every Question form with its questions, options and the answers sent (typed text included), the earlier Offered choices and the chosen ones, where each message came from (typed, pressed, sent from a form or dashboard) and where each Conversation was started. Account deletion removes all of it. The privacy page's AI section describes what this iteration stores and shares (wording pending the owner's approval, see below).
 
-**Why:** In the first iteration the drafting flow stalled whenever the Freelancer had to choose. The chat could not read sender profiles, accounts or products. A retyped name could match the wrong record again. The page scrolled as a whole, and a draft could only be checked in the editor. See [spec](../spec.md) §1–§2.
+**Why:** In the first iteration the drafting flow stalled whenever the Freelancer had to choose. The chat could not read sender profiles, accounts or products, and a retyped name could match the wrong record again. The page scrolled as a whole, and a draft could only be checked in the editor. When the owner tried the first build of this branch, the chat still asked several questions in prose that could not be answered by pressing, did not know what "yesterday" was, said it could not link invoices, and the workspace jumped while it loaded. See [spec](../spec.md) §1 (including "Owner feedback revision", F1–F13) and §2.
 
 The key decisions:
 
-- [ADR-0001](../adr/0001-store-each-set-of-offered-choices-as-a-server-side-offer-row-tied-to-its-reply.md): each set of Offered choices is a server-side offer row tied to its reply.
-- [ADR-0002](../adr/0002-build-offered-choices-in-code-from-the-draft-resolvers-typed-issues.md): the choices are built in code from the draft resolver's typed issues. The model only words the question.
-- [ADR-0003](../adr/0003-send-a-press-as-an-option-reference-and-pin-the-chosen-record-into-the-draft-request-in-code.md): a press is an option reference, and the chosen record is pinned into the draft request in code.
+- [ADR-0001](../adr/0001-store-each-set-of-offered-choices-as-a-server-side-offer-row-tied-to-its-reply.md): a server-side offer row tied to its reply. ADR-0011 now stores a Question form in it.
+- [ADR-0002](../adr/0002-build-offered-choices-in-code-from-the-draft-resolvers-typed-issues.md): options are built in code from the draft resolver's typed issues. The model only words the question.
+- [ADR-0003](../adr/0003-send-a-press-as-an-option-reference-and-pin-the-chosen-record-into-the-draft-request-in-code.md): the chosen record is pinned into the draft request in code. ADR-0011 carries this to form answers.
 - [ADR-0004](../adr/0004-match-look-alike-names-in-the-app-with-one-shared-fold-without-a-stored-search-key.md): one shared name fold for look-alike matching, with no stored search key.
 - [ADR-0005](../adr/0005-give-a-saved-conversation-and-an-open-preview-their-own-addresses-and-keep-a-new-conversation-at-ai.md): a saved Conversation and an open preview have their own addresses. A new Conversation stays at `/ai`.
 - [ADR-0006](../adr/0006-load-the-chats-invoice-preview-through-an-owner-scoped-server-action-and-the-shared-document-model.md): the preview loads through an owner-scoped server action and the shared document model.
 - [ADR-0007](../adr/0007-issue-from-the-preview-through-the-invoice-status-service-guarded-by-the-version-the-preview-showed.md): issuing goes through the invoice status service and is guarded by the version that the preview showed.
 - [ADR-0008](../adr/0008-keep-invoice-states-in-one-workspace-store-fed-by-loads-and-action-results-without-push.md): invoice states live in one workspace store, fed by loads and action results.
 - [ADR-0009](../adr/0009-hand-the-dashboard-prompt-to-the-ai-section-through-a-one-time-session-storage-entry.md): the dashboard prompt reaches the AI section through a one-time session-storage entry.
+- [ADR-0010](../adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md): the AI section is built from our own chat elements, ported from Vercel AI Elements onto Base UI, with no new runtime dependency for the port.
+- [ADR-0011](../adr/0011-ask-every-open-question-in-one-server-checked-question-form-answered-with-one-send.md): every open question goes into one server-checked Question form, answered with one Send. The `choice` field is replaced by `form`.
+- [ADR-0012](../adr/0012-render-replies-as-safe-markdown-with-react-markdown-and-an-in-app-link-allowlist.md): replies render as safe Markdown with `react-markdown` and an in-app link allowlist. For the in-app chat this supersedes ai-assistant AC-07's plain-text rule.
+- [ADR-0013](../adr/0013-keep-the-conversation-list-mounted-in-the-ai-layout-and-update-it-from-chat-events.md): the Conversation list stays mounted in the AI layout and is updated from chat events, with no refetch.
 
-**How to use:** Write *"invoice Acme for 20 hours at $50"* in **AI chat**. If two Customers match, press the right button. Press **Create draft**, then **Preview** on the card, and **Issue invoice** after checking it. You can also type a question into the dashboard's prompt box. An MCP client can call `list_sender_profiles`, `list_products` and `list_customers` with any Personal key. The chat request fields (`choice`, `origin`, `startedFrom`) and the MCP tools are in [openapi.yaml](../contracts/openapi.yaml). The new web actions (`loadInvoicePreview`, `issueFromPreview`, `listConversationSummaries`, `listLatestConversations`) are in [server-actions.md](../contracts/server-actions.md).
+**How to use:** Write *"invoice Acme for 20 hours at $50"* in **AI chat**. If two Customers match and you have two USD accounts, the reply holds one form with both questions. Pick both and press **Send**. Press **Create draft**, then **Preview** on the card, and **Issue invoice** after checking it. Ask *"give me a link to the last draft created in January"* to get a link that opens it in the editor. You can also type a question into the dashboard's prompt box. An MCP client can call `list_sender_profiles`, `list_products` and `list_customers` with any Personal key. The chat request fields (`form`, `origin`, `startedFrom`), the chat-only `ask_user` tool, the `search_invoices` additions and the MCP tools are in [openapi.yaml](../contracts/openapi.yaml) (0.3.0). The new web actions (`loadInvoicePreview`, `issueFromPreview`, `listConversationSummaries`, `listLatestConversations`) and the list events are in [server-actions.md](../contracts/server-actions.md).
 
 **Operational notes:**
-- **Migrations:** five migrations run on deploy with `prisma migrate deploy`:
+- **Migrations:** eight migrations run on deploy with `prisma migrate deploy`:
   - `20261013100000_create_choice_offer` creates the `ChoiceOffer` table and its two enums;
   - `20261013101000_add_conversation_message_origin` adds a nullable column;
   - `20261013102000_backfill_conversation_message_origin` is a data step that sets `TYPED` on existing Freelancer messages;
   - `20261013103000_add_conversation_started_from` adds a column with the default `AI_SECTION`;
-  - `20261013104000_add_invoice_issued_from_chat` adds a column with the default `false`.
+  - `20261013104000_add_invoice_issued_from_chat` adds a column with the default `false`;
+  - `20261013105000_add_form_enum_values` adds the enum value `FORM` to `ChoiceOfferKind` and `MessageOrigin`. It is its own migration, because PostgreSQL cannot use a new enum value in the same transaction;
+  - `20261013106000_add_choice_offer_form_columns` adds the nullable `questions` and `answers` JSONB columns and makes `request` nullable (catalog-only, no table rewrite);
+  - `20261013107000_backfill_choice_offer_questions` is a data step that turns earlier offer rows into one-question forms. Production has no such rows, so it only changes development data.
 
-  All five are idempotent and additive. The down scripts are in [`migrations/`](../migrations/).
-- **Settings, cron, services:** none new. The ai-assistant settings (`AI_GATEWAY_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, optional `AI_CHAT_MODEL`) still apply. Offers are deleted with their Conversation, so the existing 90-day purge and account deletion cover them.
+  All eight are idempotent and additive. The down scripts are in [`migrations/`](../migrations/).
+- **New dependencies:** `react-markdown` 10.1.0 and `remark-gfm` 4.0.1 (runtime, exact pins, loaded on the AI section only), and `axe-core` 4.13.0 (dev, exact pin). The lockfile change for `axe-core` is limited to that package.
+- **Settings, cron, services:** none new. The ai-assistant settings (`AI_GATEWAY_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, optional `AI_CHAT_MODEL`) still apply. Forms are deleted with their Conversation, so the existing 90-day purge and account deletion cover them.
 - **Depends on ai-assistant:** this branch is built on `feat/ai-assistant` (PR #10). Merge that first.
-- **Before release (owner):** run the real-model evaluation `pnpm eval:assistant` with the gateway key. It includes the new AC-05b, AC-14 `many-studios`, AC-24 and pressed-record rows. Also run the read/issue load scenarios from the [test plan](../test-plan.md).
-- **Rollback:** redeploy the previous build. The new table and columns are unused by the old code and can stay. To remove them, run the down scripts in reverse order (05 → 01). Down 05 drops the "issued from the chat" KPI history. Down 01 drops every stored Offered choice.
+- **Before release (owner):** run the real-model evaluation `pnpm eval:assistant` with the gateway key. It includes the AC-05b, AC-14 `many-studios` and AC-24 rows and the new form rows (`form-not-prose-uk`/`-en`, `single-profile-not-asked`, `yesterday-date`, `search-before-add`, `link-to-draft`, `last-draft-january`). Also run the read/issue load scenarios from the [test plan](../test-plan.md).
+- **Rollback:** redeploy the previous build. The new table and columns are not used by the old code and can stay. To remove them, run the down scripts in reverse order (08 → 01). Down 06 deletes the forms and maps the `FORM` messages back to `TYPED`. Down 05 drops the "issued from the chat" KPI history. Down 01 drops every stored form and Offered choice.
 
-**Acceptance criteria delivered:** AC-01 – AC-36, including AC-05b, AC-08b, AC-12b and AC-26b (40 criteria). AC-35 (the privacy page) is implemented, and its wording waits for the owner's approval.
+**Acceptance criteria delivered:** AC-01 – AC-53, including AC-05b, AC-08b, AC-12b and AC-26b (57 criteria). AC-35 (the privacy page) is implemented, and its wording waits for the owner's approval. The model-behaviour parts of AC-37 and AC-45 – AC-49 are covered in code and by the scripted model, and they need the real-model evaluation for confirmation.
 
 | ACs | What they guarantee |
 |---|---|
 | AC-01 – AC-07 | The chat and MCP read sender profiles, accounts (never a full number), products with custom prices and look-alike Customer names, only the Freelancer's own. A sender profile is never taken for a Customer |
-| AC-08 – AC-14 | Choices are buttons built from the draft action's findings, one choice at a time, at most 8. A press is exact, counted, refused when the allowance is used up, and turned down without counting when it cannot be applied. Reopened Conversations keep their choices |
-| AC-15 – AC-19, AC-36 | A full-height workspace with scrolling panes, follow-to-latest, grouped and searchable Conversations, a greeting start screen and a phone layout. A Visitor is sent to sign in |
+| AC-08 – AC-14, AC-37 – AC-41 | One Question form per reply with every open question, built from server-checked records. One Send is one counted message, refused when the allowance is used up. Picks are exact, "Other…" text is matched as words, and typed values are checked in the form. A form that cannot be applied is turned down without counting. Reopened Conversations keep their forms. A card turn has no form |
+| AC-15 – AC-19, AC-36, AC-50 – AC-53 | A full-height workspace with scrolling panes, follow-to-latest, grouped and searchable Conversations, a greeting start screen and a phone layout. Aligned header, placeholders that do not move, a list that stays mounted on a switch, and level avatars. A Visitor is sent to sign in |
 | AC-20 – AC-27 | Preview and issue from the chat through the editor's rules, after one confirmation. No issue from an outdated view and no issue twice. Nothing counted. The AI still never issues |
 | AC-28 – AC-32 | The AI group in the navigation, and the dashboard prompt, latest Conversations and "Create invoice with AI" |
-| AC-33 | Replies appear word by word |
-| AC-34 – AC-35 | The export and account deletion cover the choices and origins, and the privacy page says what is stored and shared |
+| AC-33, AC-42 – AC-44 | Replies appear word by word, formatted, with in-app links only. HTML never renders. Reopened replies look the same |
+| AC-34 – AC-35 | The export and account deletion cover forms, answers, choices and origins, and the privacy page says what is stored and shared |
+| AC-45 – AC-49 | The chat knows today and the time zone, drafts or asks with a form instead of in prose, searches before it says a record is missing, links invoices, and filters by the day created |
