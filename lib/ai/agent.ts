@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
 import { getChatModel } from '@/lib/ai/model';
 import { withProviderFaults } from '@/lib/ai/provider-fault';
+import { createAskUserTool } from '@/lib/ai/tools/ask-user';
 import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
 import { createProposeDraftTool } from '@/lib/ai/tools/propose-draft';
 import { createReadTools } from '@/lib/ai/tools/read-tools';
@@ -22,6 +23,7 @@ export function createChatTools(turn: TurnContext) {
     ...createReadTools(turn),
     find_in_app: createFindInAppTool(),
     propose_draft: createProposeDraftTool(turn),
+    ask_user: createAskUserTool(turn),
   };
 }
 

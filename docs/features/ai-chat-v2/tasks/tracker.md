@@ -60,7 +60,7 @@
 | T51 | [Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms](./t51-add-the-question-form-types-and-zod.md) | domain | Dmytro Hopko | M | T50 | done |
 | T52 | [Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)](./t52-build-the-form-from-resolver-issues-and.md) | domain | Dmytro Hopko | L | T51 | done |
 | T53 | [Check typed answers per kind, pin answers into a stored draft request, and compose the answer message](./t53-check-typed-answers-per-kind-pin-answers.md) | domain | Dmytro Hopko | M | T51 | done |
-| T54 | [Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels](./t54-add-the-chat-only-ask-user-tool.md) | app | Dmytro Hopko | M | T52 | todo |
+| T54 | [Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels](./t54-add-the-chat-only-ask-user-tool.md) | app | Dmytro Hopko | M | T52 | done |
 | T55 | [Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen](./t55-compose-the-turn-s-one-form-stream.md) | app | Dmytro Hopko | L | T52, T54 | todo |
 | T56 | [Check a sent form before any count and claim or release it with the allowance slot](./t56-check-a-sent-form-before-any-count.md) | infra | Dmytro Hopko | M | T53, T55 | todo |
 | T57 | [Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM](./t57-run-the-form-path-in-the-chat.md) | ports | Dmytro Hopko | L | T56 | todo |

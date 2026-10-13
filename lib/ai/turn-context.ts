@@ -1,6 +1,9 @@
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { createId } from '@paralleldrive/cuid2';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import type { FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
+import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
+import type { FormField } from '@/types/assistant/types';
 import type { PendingOffer } from '@/lib/services/assistant-drafts/offers';
 
 /**
@@ -34,6 +37,10 @@ export interface TurnContext {
   pending: {
     card: { id: string; request: DraftRequest; proposal: DraftProposal } | null;
     offer: PendingOffer | null;
+    /** T54: the questions of the turn's last valid ask_user call, and the partial draft they were asked against. */
+    ask: { questions: FormQuestionDraft[]; draft: DraftRequestPartial | null } | null;
+    /** T54: the questions of a refused ask_user call, for the inputs-only fallback form. */
+    askRefused: Array<{ field: FormField; lineIndex: number | null; prompt: string; optional: boolean }> | null;
   };
   /**
    * In a pressed turn, the pinned propose_draft result the model already holds. A re-call is answered with it and
@@ -61,7 +68,7 @@ export function createTurnContext(input: {
     origin: input.origin ?? DEFAULT_ORIGIN,
     // A press continues a draft the Freelancer asked for, whatever the router reads in the button label.
     draftIntent: pinned ? true : (input.draftIntent ?? false),
-    pending: { card, offer: null },
+    pending: { card, offer: null, ask: null, askRefused: null },
     pinnedAnswer: null,
   };
 }

@@ -27,7 +27,7 @@ export const draftRequestLineSchema = z
 
 // spec.md §1 "What a request may set": every field the editor has. The invoice domain's rules (tax 0-100 %,
 // discount cap, amount bounds, due >= issue) are checked by the resolver, which reuses the editor's own.
-const draftRequestShape = {
+export const draftRequestShape = {
   customer: z.string().min(1).max(200).optional(),
   customerId: recordId.optional(),
   senderProfile: z

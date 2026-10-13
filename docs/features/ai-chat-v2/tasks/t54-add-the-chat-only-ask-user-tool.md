@@ -9,7 +9,7 @@ files_hint: ["lib/ai/tools/ask-user.ts", "lib/ai/agent.ts", "lib/services/assist
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T54 — Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels

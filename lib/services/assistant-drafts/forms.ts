@@ -5,6 +5,9 @@
 import 'server-only';
 import { z } from 'zod';
 import { addDaysToDay, isCalendarDay } from '@/lib/helpers/calendar-day';
+import { accountLastFour } from '@/lib/helpers/account-last-four';
+import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
+import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
 import {
   accountOptions,
   customerOptions,
@@ -16,7 +19,7 @@ import {
   type Currency,
 } from '@/lib/services/assistant-drafts/offers';
 import { formHeading, LINE_FIELDS } from '@/lib/services/assistant-drafts/form-headings';
-import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
+import { draftRequestShape, type DraftIssue } from '@/lib/services/assistant-drafts/schema';
 import { FORM_MAX_OPTIONS, FORM_MAX_QUESTIONS, formAnswersSchema } from '@/lib/validations/assistant-chat';
 import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormInput, FormView } from '@/types/assistant/types';
 
@@ -350,3 +353,119 @@ export function composeForm(
   return ordered.map(({ q }, questionId) => ({ questionId, heading: formHeading(q.field, q.lineIndex), ...q }));
 }
 
+
+// ---------- T54: the chat-only ask_user tool's check (ADR-0011 "Sources of questions" (b); AC-09, AC-37) ----------
+
+const RECORD_FIELDS: ReadonlySet<FormField> = new Set<FormField>(['CUSTOMER', 'SENDER_PROFILE', 'BANK_ACCOUNT', 'PRODUCT']);
+const CURRENCY_CODES = ['UAH', 'USD', 'EUR', 'GBP', 'PLN'] as const;
+
+export const askUserInputSchema = z
+  .object({
+    draft: z
+      .object({ ...draftRequestShape, lines: draftRequestShape.lines.optional() })
+      .strict()
+      .optional()
+      .describe('What the Freelancer already said, as a partial draft request. Every field is optional.'),
+    questions: z
+      .array(
+        z
+          .object({
+            field: z.enum(FORM_FIELDS),
+            lineIndex: z.number().int().min(0).max(49).optional(),
+            prompt: z.string().min(1).max(140),
+            recordIds: z.array(z.string().min(1).max(64)).max(FORM_MAX_OPTIONS).optional(),
+            currencies: z.array(z.enum(CURRENCY_CODES)).max(5).optional(),
+            optional: z.boolean().optional(),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(FORM_MAX_QUESTIONS),
+  })
+  .strict();
+export type AskUserInput = z.infer<typeof askUserInputSchema>;
+
+export type AskUserChecked =
+  | { ok: true; questions: FormQuestionDraft[]; draft: DraftRequestPartial | null }
+  | { ok: false; error: 'OPTIONS_UNAVAILABLE' };
+
+const REFUSED: AskUserChecked = { ok: false, error: 'OPTIONS_UNAVAILABLE' };
+
+/**
+ * Checks one ask_user call: every record id is loaded owner-scoped and by the question's kind, and labelled by the
+ * server; one failing id (missing, foreign, wrong kind, or ids on a value question) fails the whole call alike.
+ */
+export async function checkAskUser(actor: ActingFreelancer, raw: unknown, ctx: { today: string }): Promise<AskUserChecked> {
+  const parsed = askUserInputSchema.safeParse(raw);
+  if (!parsed.success) return REFUSED;
+  const input = parsed.data;
+  const { prisma } = await import('@/prisma');
+  const userId = actor.userId;
+  const draft = (input.draft ?? null) as DraftRequestPartial | null;
+
+  if (draft) {
+    if (draft.customerId !== undefined && (await prisma.customer.count({ where: { id: draft.customerId, userId } })) !== 1) return REFUSED;
+    if (draft.senderProfileId !== undefined && (await prisma.senderProfile.count({ where: { id: draft.senderProfileId, userId } })) !== 1) return REFUSED;
+    const productIds = [...new Set((draft.lines ?? []).flatMap((l) => (l.productId ? [l.productId] : [])))];
+    if (productIds.length > 0 && (await prisma.product.count({ where: { id: { in: productIds }, userId } })) !== productIds.length) return REFUSED;
+  }
+
+  const questions: FormQuestionDraft[] = [];
+  for (const q of input.questions) {
+    let options: DraftOption[] = [];
+    const ids = q.recordIds ?? [];
+    if (ids.length > 0 && !RECORD_FIELDS.has(q.field)) return REFUSED;
+    if (new Set(ids).size !== ids.length) return REFUSED;
+    if (ids.length > 0) {
+      const inOrder = <T extends { id: string }>(rows: T[]): T[] | null => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        const ordered = ids.map((id) => byId.get(id));
+        return ordered.every((r) => r !== undefined) ? (ordered as T[]) : null;
+      };
+      if (q.field === 'CUSTOMER') {
+        const rows = inOrder(await prisma.customer.findMany({ where: { id: { in: ids }, userId } }));
+        if (!rows) return REFUSED;
+        options = customerOptions(rows.map((r) => ({ customerId: r.id, name: { freelancerText: r.name }, email: r.email })));
+      } else if (q.field === 'SENDER_PROFILE') {
+        const rows = inOrder(await prisma.senderProfile.findMany({ where: { id: { in: ids }, userId } }));
+        if (!rows) return REFUSED;
+        options = profileOptions(rows.map((r) => ({ senderProfileId: r.id, name: { freelancerText: r.name } })));
+      } else if (q.field === 'BANK_ACCOUNT') {
+        const rows = inOrder(await prisma.bankAccount.findMany({ where: { id: { in: ids }, senderProfile: { userId } } }));
+        if (!rows) return REFUSED;
+        options = accountOptions(
+          rows.map((r) => ({
+            bankAccountId: r.id,
+            bankName: { freelancerText: r.bankName },
+            lastFour: accountLastFour(r.accountNumber),
+            currency: r.currency,
+          }))
+        );
+      } else {
+        const rows = inOrder(await prisma.product.findMany({ where: { id: { in: ids }, userId, isActive: true } }));
+        if (!rows) return REFUSED;
+        options = productOptions(
+          rows.map((r) => ({
+            productId: r.id,
+            name: { freelancerText: r.name },
+            unit: r.unit,
+            price: Number(r.price).toFixed(2),
+            currency: r.currency,
+          }))
+        );
+      }
+    } else if (q.field === 'CURRENCY' && q.currencies) {
+      options = q.currencies.map((code) => ({ label: code, ref: { currency: code } }));
+    } else if (q.field === 'ISSUE_DATE' || q.field === 'DUE_DATE') {
+      options = dateOptions(q.field, { today: ctx.today, issueDate: draft?.issueDate ?? null }).map(({ label, ref }) => ({ label, ref }));
+    }
+    questions.push(
+      question(q.field, q.lineIndex ?? null, options, {
+        prompt: q.prompt,
+        optional: q.field === 'FREE' ? (q.optional ?? false) : OPTIONAL_FIELDS.has(q.field),
+        source: 'CHAT',
+      })
+    );
+  }
+  return { ok: true, questions, draft };
+}
