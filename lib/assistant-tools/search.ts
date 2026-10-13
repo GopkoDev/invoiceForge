@@ -29,6 +29,9 @@ const input = z.object({
   issueDateTo: day.optional(),
   dueDateFrom: day.optional(),
   dueDateTo: day.optional(),
+  createdFrom: day.optional().describe('Created on or after this day, Freelancer time zone.'),
+  createdTo: day.optional().describe('Created on or before this day, Freelancer time zone.'),
+  sort: z.enum(['issueDate', 'createdAt']).optional().describe('Newest first by issue date (default) or by the day created.'),
 });
 const output = z.object({
   ...outputBase,
@@ -44,9 +47,11 @@ const output = z.object({
         currency: z.string(),
         dueDate: day,
         daysOverdue: z.number().int().nullable(),
+        createdAt: day,
+        path: z.string().regex(/^\/invoices\/[A-Za-z0-9_-]{1,64}\/edit$/),
       })
     )
-    .describe('Invoices by issue date, newest first. At most 50 per page. Notes and lines are not searched.'),
+    .describe('Invoices newest first, by issue date or (sort createdAt) by day created. At most 50 per page. Notes and lines are not searched.'),
   totals: z.array(currencyTotalSchema).describe('Total and count per currency over every match.'),
   pageInfo: pageInfoSchema,
 });
