@@ -115,6 +115,15 @@ describe.runIf(containerRuntimeAvailable)('list_products (ai-chat-v2 T06)', () =
     expect((viaMcp.structuredContent as any).pageInfo.total).toBe(0);
   });
 
+  // Review 2026-10-13 R1-B3/U5: the add-a-product link comes from code when a named read matches nothing.
+  it('AC-05: in the chat, a name that matches no product carries the add-a-product link; a match carries none', async () => {
+    const tools = await chatTools();
+    const none = await tools.list_products.execute!({ name: 'audit' }, {});
+    expect(none.links).toEqual([{ kind: 'page', page: 'new-product' }]);
+    const some = await tools.list_products.execute!({ name: 'Consulting' }, {});
+    expect(some.links).toEqual([]);
+  });
+
   it('more than 20 matches: 20 rows and a total of all of them', async () => {
     for (let i = 0; i < 22; i++) await createProduct(h.factoryPrisma, userId, { name: `Widget ${String(i).padStart(2, '0')}`, price: 5 });
     const viaMcp = await h.call(fullKey, 'list_products', { name: 'widget' });

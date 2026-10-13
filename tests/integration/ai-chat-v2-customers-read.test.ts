@@ -127,6 +127,16 @@ describe.runIf(containerRuntimeAvailable)(
       expect((viaMcp.structuredContent as any).pageInfo.total).toBe(0);
     });
 
+    // Review 2026-10-13 R1-B3/U5: a named read that matches nothing carries the add-a-Customer page link from code,
+    // not only when the model also calls find_in_app (SCR-03 "answered — nothing matches").
+    it('AC-05: in the chat, a name that matches no Customer carries the add-a-Customer link; a match carries none', async () => {
+      const tools = await chatTools();
+      const none = await tools.list_customers.execute!({ name: 'Globex' }, {});
+      expect(none.links).toEqual([{ kind: 'page', page: 'new-customer' }]);
+      const all = await tools.list_customers.execute!({}, {});
+      expect(all.links).toEqual([]);
+    });
+
     it("AC-07: another Freelancer's Customers never appear, on MCP or in the chat", async () => {
       const tools = await chatTools();
       const viaChat = await tools.list_customers.execute!(

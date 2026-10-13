@@ -24,9 +24,24 @@ function invoiceLinks(answer: Record<string, unknown>): AppLink[] {
   return links;
 }
 
+/** The page to add the record a named read found nothing for (AC-05, SCR-03 "answered — nothing matches"). */
+const ADD_PAGE_WHEN_NONE: Partial<Record<string, AppLink>> = {
+  list_customers: { kind: 'page', page: 'new-customer' },
+  list_products: { kind: 'page', page: 'new-product' },
+};
+
+/** The add page when a read filtered by a name matched nothing; the link comes from code, not from the model. */
+function addPageLinks(tool: string, args: Record<string, unknown>, answer: Record<string, unknown>): AppLink[] {
+  const link = ADD_PAGE_WHEN_NONE[tool];
+  const named = typeof args.name === 'string' && args.name.trim() !== '';
+  const total = (answer.pageInfo as { total?: unknown } | undefined)?.total;
+  return link && named && total === 0 ? [link] : [];
+}
+
 /**
  * The shared read questions (READ_QUESTIONS) as chat tools bound to this turn's Freelancer (ADR-0010). The
- * handlers are the MCP ones; the answer is theirs unchanged plus the invoice links.
+ * handlers are the MCP ones; the answer is theirs unchanged plus the invoice links
+ * and, for a named Customer or product read that matched nothing, the page to add one.
  */
 export function createReadTools(turn: TurnContext) {
   const context = { actor: turn.actor, keyId: CHAT_KEY_ID, origin: turn.origin };
@@ -43,7 +58,7 @@ export function createReadTools(turn: TurnContext) {
           const outcome = await handler(args, context);
           if (!outcome.success) return { ...toToolError(outcome) };
           const answer = outcome.data as Record<string, unknown>;
-          return { ...answer, links: invoiceLinks(answer) };
+          return { ...answer, links: [...invoiceLinks(answer), ...addPageLinks(definition.name, args, answer)] };
         },
       }),
     ])

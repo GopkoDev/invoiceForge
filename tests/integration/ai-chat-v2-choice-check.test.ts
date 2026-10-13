@@ -247,7 +247,7 @@ describe.runIf(containerRuntimeAvailable)(
     ])('AC-08b: a BANK_ACCOUNT press with the currency written as "%s" fits a %s account', async (written, code) => {
       const { user, actor } = await freelancer();
       const sp = await createSenderProfile(prisma, user.id);
-      const acc = await createBankAccount(prisma, sp.id, { currency: code });
+      const acc = await createBankAccount(prisma, sp.id, { currency: code as 'USD' });
       const { conversation, offer } = await offerFor(user.id, {
         kind: 'BANK_ACCOUNT',
         options: [opt(0, { bankAccountId: acc.id })],

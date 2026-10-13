@@ -37,7 +37,7 @@ export const APP_MAP: readonly AppMapEntry[] = [
   },
   {
     page: 'new-customer',
-    title: 'New customer',
+    title: 'Add a Customer',
     whatIsSetThere: 'Add a customer: name, company, tax id and address.',
     keywords: ['new', 'add', 'create', 'customer', 'client'],
   },
@@ -46,6 +46,12 @@ export const APP_MAP: readonly AppMapEntry[] = [
     title: 'Products',
     whatIsSetThere: 'Products and services you invoice for, their prices and custom prices per customer.',
     keywords: ['product', 'products', 'service', 'services', 'price', 'prices', 'catalog', 'unit'],
+  },
+  {
+    page: 'new-product',
+    title: 'Add a product',
+    whatIsSetThere: 'Add a product or service to the catalogue: name, unit, price and currency.',
+    keywords: ['new', 'add', 'create', 'product', 'service'],
   },
   {
     page: 'sender-profiles',
@@ -106,6 +112,8 @@ export function appPageRoute(page: AppPageKey, senderProfileId?: string): string
       return protectedRoutes.customersNew;
     case 'products':
       return protectedRoutes.products;
+    case 'new-product':
+      return protectedRoutes.productsNew;
     case 'sender-profiles':
       return protectedRoutes.senderProfiles;
     case 'new-sender-profile':

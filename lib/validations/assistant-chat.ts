@@ -11,6 +11,7 @@ export const appPageKeySchema = z.enum([
   'customers',
   'new-customer',
   'products',
+  'new-product',
   'sender-profiles',
   'new-sender-profile',
   'sender-profile-bank-accounts',

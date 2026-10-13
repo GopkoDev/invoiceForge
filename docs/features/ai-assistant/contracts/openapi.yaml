@@ -425,6 +425,7 @@ components:
         - customers
         - new-customer
         - products
+        - new-product # ai-chat-v2 AC-05 (review 2026-10-13 R1-U5)
         - sender-profiles
         - new-sender-profile
         - sender-profile-bank-accounts
