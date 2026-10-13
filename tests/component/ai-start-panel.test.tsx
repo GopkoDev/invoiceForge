@@ -114,7 +114,7 @@ vi.mock('@/lib/actions/assistant-actions', () => ({
   deleteAllConversations: vi.fn(),
   loadConversationCards: async () => ({
     success: true,
-    data: { cards: {}, invoiceLinks: {}, offers: {} },
+    data: { cards: {}, invoiceLinks: {}, forms: {} },
   }),
 }));
 

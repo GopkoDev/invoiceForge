@@ -31,18 +31,6 @@ export type ChoiceOfferState = 'OPEN' | 'CHOSEN' | 'CLOSED';
 export type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD' | 'FORM';
 export type ConversationStartPoint = 'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE';
 
-/**
- * Offered choices as the browser sees them: 1..8 options of position + label only. No record reference and no
- * stored request ever leave the server (ADR-0001, ADR-0003).
- */
-export type OfferView = {
-  offerId: string;
-  kind: ChoiceOfferKind;
-  state: ChoiceOfferState;
-  chosenOptionId: number | null;
-  options: Array<{ optionId: number; label: string }>;
-};
-
 // ai-chat-v2 revision 2026-10-13 (ADR-0011; openapi FormField, FormInput, FormAnswer, FormView): the Question form.
 /** Which draft field (or none, FREE) a question fills. */
 export type FormField =

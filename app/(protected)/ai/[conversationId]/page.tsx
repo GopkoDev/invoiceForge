@@ -13,7 +13,7 @@ interface ConversationPageProps {
 export default async function ConversationPage({ params }: ConversationPageProps) {
   const { conversationId } = await params;
   const actor = unwrapPageResult(await actingFreelancerFromSession());
-  const { conversation, messages, invoiceLinks, cards, offers } = unwrapPageResult(await getConversation(actor, conversationId));
+  const { conversation, messages, invoiceLinks, cards, forms } = unwrapPageResult(await getConversation(actor, conversationId));
 
   const summaries = unwrapPageResult(await listConversationSummaries(actor));
   const allowance = unwrapPageResult(await getAllowanceState(actor));
@@ -26,7 +26,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
         initialMessages={messages}
         invoiceLinks={invoiceLinks}
         cards={cards}
-        offers={offers}
+        forms={forms}
         allowance={allowance}
       />
     </AiWorkspace>

@@ -15,7 +15,7 @@ import { zodValidationFailure } from '@/lib/services/_shared/result-helpers';
 import type { InvoiceStatus } from '@prisma/client';
 import { getConversation } from '@/lib/services/conversations/conversations';
 import { deleteConversation as deleteConversationSvc, deleteAllConversations as deleteAllConversationsSvc } from '@/lib/services/conversations/delete';
-import type { DraftCardView, FormView, LinkedInvoiceState, OfferView } from '@/types/assistant/types';
+import type { DraftCardView, FormView, LinkedInvoiceState } from '@/types/assistant/types';
 import { fail, ok, type ActionResult } from '@/types/result';
 
 /** The Create press on a Draft card (critical flow 2): not a message, so the allowance is untouched. */
@@ -31,7 +31,7 @@ export async function createDraftFromCard(cardId: string): Promise<ActionResult<
 /**
  * The Draft cards and invoice-link states of a Conversation the chat started on /ai (fix 2026-10-12): the
  * island stays mounted there while the address becomes /ai/{id}, so it reads them here instead of navigating.
- * ai-chat-v2 T11: also the Question forms (T55) and the legacy Offered choices, exactly as getConversation returns them (AC-12, AC-13).
+ * ai-chat-v2 T11: also the Question forms (T55) and exactly as getConversation returns them (AC-12, AC-13).
  */
 export async function loadConversationCards(
   id: string
@@ -39,7 +39,6 @@ export async function loadConversationCards(
   ActionResult<{
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
-    offers: Record<string, OfferView>;
     forms: Record<string, FormView>;
   }>
 > {
@@ -48,7 +47,7 @@ export async function loadConversationCards(
 
   const result = await getConversation(actor.data, id);
   if (!result.success) return result;
-  return ok({ cards: result.data.cards, invoiceLinks: result.data.invoiceLinks, offers: result.data.offers, forms: result.data.forms });
+  return ok({ cards: result.data.cards, invoiceLinks: result.data.invoiceLinks, forms: result.data.forms });
 }
 
 export async function deleteConversation(id: string): Promise<ActionResult<void>> {

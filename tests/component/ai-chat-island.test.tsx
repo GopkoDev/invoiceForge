@@ -236,7 +236,11 @@ function expectFailureMessage(alert: HTMLElement) {
   expect(rows[rows.length - 1]).toBe(message);
   expect(rows[rows.length - 2].getAttribute('data-role')).toBe('user');
 }
-const sendBtn = () => screen.getByRole('button', { name: 'Send' });
+// A Question form has its own Send: the composer's is the one inside the dock.
+const sendBtn = () => {
+  const dock = document.querySelector('[data-slot="composer-dock"]');
+  return within((dock as HTMLElement | null) ?? document.body).getByRole('button', { name: 'Send' });
+};
 
 async function send(user: ReturnType<typeof userEvent.setup>, text: string) {
   await user.type(box(), text);
@@ -1330,7 +1334,7 @@ describe('the /ai page restored at the address of a live Conversation', () => {
 // Review 2026-10-13 R4-U1: the /ai page that takes a live chat over at its Conversation's address loads that
 // Conversation's cards and choices, instead of leaving their skeletons until the next reply.
 describe('the /ai page restored at a live Conversation: cards and choices', () => {
-  it('loads the Conversation cards and offers once and shows them', async () => {
+  it('loads the Conversation cards and forms once and shows them', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         START,
@@ -1367,13 +1371,25 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
       data: {
         cards: { card1: { id: 'card1' } },
         invoiceLinks: {},
-        offers: {
+        forms: {
           off1: {
-            offerId: 'off1',
-            kind: 'BANK_ACCOUNT',
+            formId: 'off1',
             state: 'OPEN',
-            chosenOptionId: null,
-            options: [{ optionId: 0, label: 'Monobank ••••4821 · USD' }],
+            questions: [
+              {
+                questionId: 0,
+                field: 'BANK_ACCOUNT',
+                lineIndex: null,
+                heading: 'Bank account',
+                prompt: null,
+                options: [{ optionId: 0, label: 'Monobank ••••4821 · USD' }],
+                input: 'NONE',
+                required: true,
+                skippable: false,
+                matchCount: null,
+              },
+            ],
+            answers: null,
           },
         },
       },
@@ -1395,7 +1411,7 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
       'card card1'
     );
     expect(
-      await screen.findByRole('group', { name: 'Choose a bank account' })
+      await screen.findByRole('radiogroup', { name: 'Bank account' })
     ).toBeTruthy();
     expect(loadConversationCards).toHaveBeenCalledWith('cCards');
     expect(loadConversationCards).toHaveBeenCalledTimes(1);
@@ -1701,9 +1717,9 @@ describe('sending after a failed reply', () => {
     expect(screen.getByText('second try')).toBeTruthy();
   });
 
-  // Review 2026-10-13 R8-2: pressing an option while a typed failure shows still sends the choice, and the failed
-  // exchange stays discarded, also when that press is refused (409).
-  const withOffer = () =>
+  // Review 2026-10-13 R8-2 (T60: for forms): sending a form while a typed failure shows still sends the form, and the
+  // failed exchange stays discarded, also when that send is refused (409).
+  const withForm = () =>
     island({
       initialMessages: [
         {
@@ -1719,26 +1735,43 @@ describe('sending after a failed reply', () => {
           origin: null,
           parts: [
             { type: 'text', text: 'Which one?' },
-            { type: 'data-offer', id: 'off1', data: { offerId: 'off1' } },
+            { type: 'data-offer', id: 'f1', data: { offerId: 'f1' } },
           ],
           createdAt: '',
         },
       ],
-      offers: {
-        off1: {
-          offerId: 'off1',
-          kind: 'CUSTOMER',
+      forms: {
+        f1: {
+          formId: 'f1',
           state: 'OPEN',
-          chosenOptionId: null,
-          options: [
-            { optionId: 0, label: 'Acme Corp' },
-            { optionId: 1, label: 'Acme GmbH' },
+          questions: [
+            {
+              questionId: 0,
+              field: 'CUSTOMER',
+              lineIndex: null,
+              heading: 'Customer',
+              prompt: null,
+              options: [
+                { optionId: 0, label: 'Acme Corp' },
+                { optionId: 1, label: 'Acme GmbH' },
+              ],
+              input: 'NONE',
+              required: true,
+              skippable: false,
+              matchCount: null,
+            },
           ],
+          answers: null,
         },
       },
     });
+  const answerAndSend = async (user: ReturnType<typeof userEvent.setup>) => {
+    const form = screen.getByRole('group', { name: 'A few details' });
+    await user.click(within(form).getByRole('radio', { name: 'Acme GmbH' }));
+    await user.click(within(form).getByRole('button', { name: /^send/i }));
+  };
 
-  it('a press after a typed failure sends its choice and keeps the failed exchange discarded', async () => {
+  it('a form sent after a typed failure sends its answers and keeps the failed exchange discarded', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         START,
@@ -1748,7 +1781,7 @@ describe('sending after a failed reply', () => {
       ])
     );
     const user = userEvent.setup();
-    withOffer();
+    withForm();
     await send(user, 'never mind');
     await screen.findByRole('alert');
 
@@ -1760,18 +1793,20 @@ describe('sending after a failed reply', () => {
         FINISH,
       ])
     );
-    await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await answerAndSend(user);
     await screen.findByText('Draft for Acme GmbH.');
 
-    expect((bodyOf(1) as unknown as { choice: unknown }).choice).toEqual({
-      offerId: 'off1',
-      optionId: 1,
+    const body = bodyOf(1) as unknown as Record<string, unknown>;
+    expect(body.form).toEqual({
+      formId: 'f1',
+      answers: [{ questionId: 0, optionId: 1 }],
     });
+    expect(body).not.toHaveProperty('choice');
     expect(screen.queryByText('never mind')).toBeNull();
     expect(screen.queryByText('half an answer')).toBeNull();
   });
 
-  it('a refused press (409) after a typed failure shows the notice, no Try again, and nothing discarded comes back', async () => {
+  it('a refused form (409) after a typed failure shows the notice, no Try again, and nothing discarded comes back', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         START,
@@ -1781,12 +1816,12 @@ describe('sending after a failed reply', () => {
       ])
     );
     const user = userEvent.setup();
-    withOffer();
+    withForm();
     await send(user, 'never mind');
     await screen.findByRole('alert');
 
     const notice =
-      'This option is no longer available. Choose again or type your request.';
+      'This form is no longer available. Answer the latest questions or type your request.';
     fetchMock.mockResolvedValueOnce(
       json(409, {
         success: false,
@@ -1795,7 +1830,7 @@ describe('sending after a failed reply', () => {
         details: { kind: 'CHOICE_UNAVAILABLE' },
       })
     );
-    await user.click(screen.getByRole('button', { name: 'Acme GmbH' }));
+    await answerAndSend(user);
 
     expect(await screen.findByText(notice)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();

@@ -18,7 +18,7 @@ vi.mock('@/lib/helpers/client-session-redirect', () => ({
 vi.mock('@/lib/actions/assistant-actions', () => ({
   loadConversationCards: vi.fn(async () => ({
     success: true,
-    data: { cards: {}, invoiceLinks: {}, offers: {} },
+    data: { cards: {}, invoiceLinks: {}, forms: {} },
   })),
 }));
 vi.mock('@/lib/services/conversations', () => ({

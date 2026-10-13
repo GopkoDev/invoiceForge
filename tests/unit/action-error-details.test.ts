@@ -9,7 +9,8 @@ import type {
   ConversationStartPoint,
   LinkedInvoiceState,
   MessageOrigin,
-  OfferView,
+  FormQuestionView,
+  FormView,
 } from '@/types/assistant/types';
 
 describe('ai-chat-v2 shared result and assistant types (T04)', () => {
@@ -43,17 +44,29 @@ describe('ai-chat-v2 shared result and assistant types (T04)', () => {
     expectTypeOf<ConversationStartPoint>().toEqualTypeOf<'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE'>();
   });
 
-  it('OfferView sent to the browser carries only optionId + label per option: no record reference, no stored request', () => {
-    expectTypeOf<OfferView['options'][number]>().toEqualTypeOf<{ optionId: number; label: string }>();
-    expectTypeOf<keyof OfferView>().toEqualTypeOf<'offerId' | 'kind' | 'state' | 'chosenOptionId' | 'options'>();
-    const view: OfferView = {
-      offerId: 'offer-1',
-      kind: 'CUSTOMER',
+  it('FormView sent to the browser carries only optionId + label per option: no record reference, no stored request', () => {
+    expectTypeOf<FormQuestionView['options'][number]>().toEqualTypeOf<{ optionId: number; label: string }>();
+    expectTypeOf<keyof FormView>().toEqualTypeOf<'formId' | 'state' | 'questions' | 'answers'>();
+    const view: FormView = {
+      formId: 'form-1',
       state: 'OPEN',
-      chosenOptionId: null,
-      options: [{ optionId: 0, label: 'Acme Corp (billing@acme.example.test)' }],
+      questions: [
+        {
+          questionId: 0,
+          field: 'CUSTOMER',
+          lineIndex: null,
+          heading: 'Customer',
+          prompt: null,
+          options: [{ optionId: 0, label: 'Acme Corp (billing@acme.example.test)' }],
+          input: 'NONE',
+          required: true,
+          skippable: false,
+          matchCount: null,
+        },
+      ],
+      answers: null,
     };
-    expect(Object.keys(view.options[0]).sort()).toEqual(['label', 'optionId']);
+    expect(Object.keys(view.questions[0].options[0]).sort()).toEqual(['label', 'optionId']);
   });
 
   it('ConversationMessageView gains origin and the data-offer part', () => {

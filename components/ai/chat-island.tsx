@@ -50,7 +50,7 @@ import {
   useSeedInvoiceStates,
 } from '@/components/ai/invoice-state-context';
 import { MessageList } from '@/components/ai/message-list';
-import { OfferedChoices } from '@/components/ai/offered-choices';
+import { QuestionForm } from '@/components/ai/question-form';
 import { StartPanel } from '@/components/ai/start-panel';
 import { useFollowLatest } from '@/components/ai-elements/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -66,8 +66,9 @@ import type {
   ConversationMessageView,
   ConversationStartPoint,
   DraftCardView,
+  FormAnswer,
+  FormView,
   LinkedInvoiceState,
-  OfferView,
 } from '@/types/assistant/types';
 
 const COULD_NOT_COMPLETE = "The reply couldn't be completed. Try again.";
@@ -93,32 +94,36 @@ type ChatMessage = UIMessage<
   }
 >;
 
-/** A press (ADR-0003): an option inside a stored offer, never a record id. */
-type Choice = { offerId: string; optionId: number };
+/** A sent Question form (ADR-0011): the form id and the structured answers, never a record id. */
+type SentForm = { formId: string; answers: FormAnswer[] };
 
 /** A dashboard prompt's first message (ADR-0009): origin DASHBOARD with startedFrom DASHBOARD_PROMPT. */
 type Origin = 'DASHBOARD';
 
-/** What the island sent last: the optimistic message id, its text and, for a press, the choice. */
-type Pending = { id: string; text: string; choice?: Choice; origin?: Origin };
+/** What the island sent last: the optimistic message id, its text and, for a form, the form with its answers. */
+type Pending = { id: string; text: string; form?: SentForm; origin?: Origin };
 
 type Failure =
   | {
       kind: 'COULD_NOT_COMPLETE' | 'AI_UNAVAILABLE';
       userMessageId: string;
       text: string;
-      choice?: Choice;
+      form?: SentForm;
       origin?: Origin;
     }
   | { kind: 'GONE' }
   | { kind: 'VALIDATION'; message: string }
-  /** 409 CHOICE_UNAVAILABLE after a press (AC-12b, AC-13): the contract sentence, verbatim. */
+  /** 409 CHOICE_UNAVAILABLE after a form send (AC-12b, AC-13): the contract sentence, verbatim. */
   | { kind: 'CHOICE_UNAVAILABLE'; message: string };
 
 class ChatHttpError extends Error {
   constructor(
     readonly status: number,
-    readonly body: { error?: string; details?: unknown } | null
+    readonly body: {
+      error?: string;
+      details?: unknown;
+      fieldErrors?: Record<string, string[]>;
+    } | null
   ) {
     super(body?.error ?? `Request failed with ${status}`);
   }
@@ -232,21 +237,21 @@ function createLiveSession(
     prepareSendMessagesRequest: ({ messages }) => {
       const savedId = live.getConversationId();
       const sent = live.getPending();
-      const choice = sent?.choice;
+      const form = sent?.form;
       // openapi ChatRequest: origin DASHBOARD <=> startedFrom DASHBOARD_PROMPT, a new Conversation's first message only.
       const dashboard =
-        !choice && savedId === null && sent?.origin === 'DASHBOARD';
+        !form && savedId === null && sent?.origin === 'DASHBOARD';
       return {
         body: {
           conversationId: savedId,
           message: messages[messages.length - 1],
-          // openapi ChatRequest: a press carries its choice and never an origin or a start point.
-          ...(choice ? { choice } : {}),
+          // openapi ChatRequest: a form carries its answers and never an origin or a start point.
+          ...(form ? { form } : {}),
           ...(dashboard
             ? { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }
             : {}),
           // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-          ...(!choice &&
+          ...(!form &&
           !dashboard &&
           savedId === null &&
           startedFrom !== 'AI_SECTION'
@@ -359,7 +364,7 @@ function toView(message: ChatMessage): ConversationMessageView {
   return {
     id: message.id,
     role: message.role === 'user' ? 'user' : 'assistant',
-    // The server sets the stored origin; the client never sends one for a press (PRESSED is server-only).
+    // The server sets the stored origin (FORM for a sent form); the client never sends one.
     origin: message.role === 'user' ? 'TYPED' : null,
     parts,
     createdAt: '',
@@ -371,8 +376,8 @@ interface ChatIslandProps {
   initialMessages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   cards: Record<string, DraftCardView>;
-  /** ai-chat-v2 T22: the Conversation's Offered choices by offer id (getConversation), restored on reopen (AC-13). */
-  offers?: Record<string, OfferView>;
+  /** ai-chat-v2 T60: the Conversation's Question forms by form id (getConversation), restored on reopen (AC-13). */
+  forms?: Record<string, FormView>;
   allowance: AllowanceState;
   start?: 'draft';
   /** ai-chat-v2 T20: where a new Conversation was opened from; sent with its first message only (AI_SECTION is omitted). */
@@ -426,14 +431,14 @@ export function ChatIsland(props: ChatIslandProps) {
   );
 }
 
-const NO_OFFERS: Record<string, OfferView> = {};
+const NO_FORMS: Record<string, FormView> = {};
 
 function ChatSession({
   conversationId,
   initialMessages,
   invoiceLinks: initialInvoiceLinks,
   cards: initialCards,
-  offers: initialOffers = NO_OFFERS,
+  forms: initialForms = NO_FORMS,
   allowance: initialAllowance,
   start,
   startedFrom = 'AI_SECTION',
@@ -486,11 +491,18 @@ function ChatSession({
   const [loaded, setLoaded] = useState<{
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
-    offers: Record<string, OfferView>;
+    forms: Record<string, FormView>;
   } | null>(null);
   const cards = loaded?.cards ?? initialCards;
   const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
-  const offers = loaded?.offers ?? initialOffers;
+  const forms = loaded?.forms ?? initialForms;
+  // The 400 field errors of the last form send, by question (`form.answers.<id>`); picks stay in the form.
+  const [formErrors, setFormErrors] = useState<{
+    formId: string;
+    errors: Record<string, string[]>;
+  } | null>(null);
+  // Bumped by a typed send: the open form is remounted read-only without its unsent picks (F8, AC-40).
+  const [formEpoch, setFormEpoch] = useState(0);
   // ai-chat-v2 T23: every page load (and the post-reply read on /ai) seeds the shared invoice-state store.
   useSeedInvoiceStates(invoiceLinks, cards);
   // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
@@ -531,7 +543,7 @@ function ChatSession({
             kind: outcome,
             userMessageId: sent.id,
             text: sent.text,
-            choice: sent.choice,
+            form: sent.form,
             origin: sent.origin,
           });
         }
@@ -573,7 +585,7 @@ function ChatSession({
           return;
         }
         if (error.status === 409) {
-          // AC-12b, AC-13: the press is not applied; drop the optimistic message, leave the buttons as they were.
+          // AC-12b, AC-13: the form is not applied; drop the optimistic message, leave the picks as they were.
           if (sent)
             setMessages((current) => current.filter((m) => m.id !== sent.id));
           setFailure({ kind: 'CHOICE_UNAVAILABLE', message: error.message });
@@ -582,8 +594,16 @@ function ChatSession({
         if (error.status === 400) {
           if (sent) {
             setMessages((current) => current.filter((m) => m.id !== sent.id));
-            // A press's label is never put into the box: only typed text is given back.
-            if (!sent.choice) setText(sent.text);
+            // A form's composed text is never put into the box: only typed text is given back.
+            if (!sent.form) setText(sent.text);
+          }
+          if (sent?.form) {
+            // The server's per-question errors show under the questions; the picks stay.
+            setFormErrors({
+              formId: sent.form.formId,
+              errors: error.body?.fieldErrors ?? {},
+            });
+            return;
           }
           setFailure({ kind: 'VALIDATION', message: error.message });
           return;
@@ -594,7 +614,7 @@ function ChatSession({
           kind: 'COULD_NOT_COMPLETE',
           userMessageId: sent.id,
           text: sent.text,
-          choice: sent.choice,
+          form: sent.form,
           origin: sent.origin,
         });
     },
@@ -607,7 +627,7 @@ function ChatSession({
         void loadConversationCards(savedId).then(
           (result) => {
             if (result.success)
-              setLoaded({ ...result.data, offers: result.data.offers ?? {} });
+              setLoaded(result.data);
           },
           () => undefined
         );
@@ -661,7 +681,7 @@ function ChatSession({
     void loadConversationCards(id).then(
       (result) => {
         if (result.success)
-          setLoaded({ ...result.data, offers: result.data.offers ?? {} });
+          setLoaded(result.data);
       },
       () => undefined
     );
@@ -677,7 +697,7 @@ function ChatSession({
   const follow = useFollowLatest(messages);
   const { jumpToLatest } = follow;
 
-  function send(raw: string, choice?: Choice, origin?: Origin) {
+  function send(raw: string, form?: SentForm, origin?: Origin) {
     // A failed reply stays discarded whatever comes next (parent SCR-02): its message and partial text go before the
     // new message is added, as Try again does (review 2026-10-13 R7-4).
     if (failure && 'userMessageId' in failure) {
@@ -688,9 +708,11 @@ function ChatSession({
       });
     }
     const id = generateId();
-    live.setPending({ id, text: raw, choice, origin });
+    live.setPending({ id, text: raw, form, origin });
     setReplyDone(false);
     setFailure(null);
+    setFormErrors(null);
+    if (!form) setFormEpoch((n) => n + 1);
     // A dashboard prompt opens straight into the Conversation layout: nothing moved, so nothing animates.
     if (origin === 'DASHBOARD') setComposerMove('none');
     else if (!started && conversationId === null) {
@@ -716,12 +738,12 @@ function ChatSession({
       const index = current.findIndex((m) => m.id === failed.userMessageId);
       return index === -1 ? current : current.slice(0, index);
     });
-    send(failed.text, failed.choice, failed.origin);
+    send(failed.text, failed.form, failed.origin);
   }
 
-  // SCR-04: a press sends the stored label as the optimistic message plus { offerId, optionId }.
-  function press(offerId: string, optionId: number, label: string) {
-    send(label, { offerId, optionId });
+  // SCR-04: Send on a Question form posts its answers with the composed text as the optimistic message.
+  function sendForm(formId: string, answers: FormAnswer[], composed: string) {
+    send(composed, { formId, answers });
   }
 
   // ai-chat-v2 T26 (ADR-0009; SCR-02 "handoff"): take the dashboard prompt once, drop ?handoff= from the address and
@@ -812,12 +834,12 @@ function ChatSession({
       : '';
   const waiting =
     inFlight && !(failedIndex !== -1) && last?.role !== 'assistant';
-  // SCR-04: only the newest reply's choices can be pressed, and not while a turn is in flight. A failed message
-  // left in view (could-not-complete) does not count as newer: the offer was released, so it is pressable again.
+  // SCR-04: only the newest reply's form can be answered, and not while a turn is in flight. A failed message
+  // left in view (could-not-complete) does not count as newer: the form was released, so it is answerable again.
   const tail = failedIndex !== -1 ? visible[visible.length - 2] : last;
   const latestReplyId =
     !inFlight && tail?.role === 'assistant' ? tail.id : null;
-  const sentChoice = inFlight ? live.getPending()?.choice : undefined;
+  const sentFormId = inFlight ? live.getPending()?.form?.formId : undefined;
 
   // A failed reply, a refused press or a vanished Conversation is shown as an assistant message in the reply position
   // (screens.md «Errors are messages»): the avatar, an inline alert with the copy verbatim and, for a failure, Try again.
@@ -897,14 +919,16 @@ function ChatSession({
           <MessageList
             messages={visible}
             invoiceLinks={invoiceLinks}
-            renderOffer={(offerId, messageId) => (
-              <OfferedChoices
-                offer={offers[offerId]}
+            renderOffer={(formId, messageId) => (
+              <QuestionForm
+                key={`${formId}:${formEpoch}`}
+                form={forms[formId]}
                 isLatest={messageId === latestReplyId}
-                pendingOptionId={
-                  sentChoice?.offerId === offerId ? sentChoice.optionId : null
+                pending={sentFormId === formId}
+                onSend={sendForm}
+                fieldErrors={
+                  formErrors?.formId === formId ? formErrors.errors : undefined
                 }
-                onPress={press}
               />
             )}
             renderCard={(id) =>

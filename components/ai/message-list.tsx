@@ -16,13 +16,13 @@ interface MessageListProps {
   messages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   renderCard?: (cardId: string) => ReactNode;
-  /** ai-chat-v2 T22: renders a reply's Offered choices (SCR-04) for a data-offer part. */
+  /** ai-chat-v2 T60: renders a reply's Question form (SCR-04) for a data-offer part (its offerId is the form id). */
   renderOffer?: (offerId: string, messageId: string) => ReactNode;
 }
 
 /**
  * The messages of a Conversation, composed from the chat elements (ai-chat-v2 T36, ADR-0010): a Freelancer message is
- * a right-aligned secondary bubble; a reply is the avatar and plain text, followed by its links, Offered choices and
+ * a right-aligned secondary bubble; a reply is the avatar and plain text, followed by its links, Question forms and
  * Draft cards in part order inside the same content column.
  *
  * Message text is always plain text with line breaks kept: never Markdown, HTML or an anchor (AC-07). Links come only

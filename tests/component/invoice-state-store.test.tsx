@@ -16,7 +16,7 @@ import { ok } from '@/types/actions';
 const createDraftFromCard = vi.fn();
 vi.mock('@/lib/actions/assistant-actions', () => ({
   createDraftFromCard: (...a: unknown[]) => createDraftFromCard(...a),
-  loadConversationCards: vi.fn(async () => ({ success: true, data: { cards: {}, invoiceLinks: {}, offers: {} } })),
+  loadConversationCards: vi.fn(async () => ({ success: true, data: { cards: {}, invoiceLinks: {}, forms: {} } })),
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 let search = new URLSearchParams();

@@ -104,7 +104,7 @@ async function renderConversationPage() {
       messages: [],
       cards: {},
       invoiceLinks: {},
-      offers: {},
+      forms: {},
     },
   });
   return render(
