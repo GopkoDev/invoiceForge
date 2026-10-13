@@ -117,6 +117,21 @@ describe('the ai-chat-v2 spans carry metadata only', () => {
     expect(expectMetadataOnly('chat.form-check')).toEqual([['outcome', 'unavailable']]);
   });
 
+  it('T58 chat.form-check (refused on a typed answer to a form without that question): outcome only, no typed text, label or record id', async () => {
+    const { checkForm } = await import('@/lib/services/assistant-drafts/forms');
+    prismaFake.choiceOffer.findFirst.mockResolvedValue({
+      ...formRow,
+      questions: [
+        { questionId: 0, field: 'BANK_ACCOUNT', lineIndex: null, heading: 'Bank account', prompt: null, options: [{ optionId: 0, label: LABEL, ref: { bankAccountId: ACCOUNT_ID } }], input: 'NONE', required: true, skippable: false, matchCount: null, source: 'RESOLVER' },
+      ],
+    });
+    // Unknown question id carrying typed text, the canary label and a forged record id: refused alike.
+    const result = await checkForm(actor, { conversationId: 'conv1', form: { formId: OFFER_ID, answers: [{ questionId: 7, text: `${LABEL} ${CUSTOMER_ID}` }] } });
+
+    expect(result).toEqual({ ok: false, kind: 'UNAVAILABLE' });
+    expect(expectMetadataOnly('chat.form-check')).toEqual([['outcome', 'unavailable']]);
+  });
+
   it('chat.form-check (store failure): outcome=failed, no error text in the span', async () => {
     const { checkForm } = await import('@/lib/services/assistant-drafts/forms');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

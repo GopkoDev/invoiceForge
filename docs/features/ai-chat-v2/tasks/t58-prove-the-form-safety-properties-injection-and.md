@@ -9,7 +9,7 @@ files_hint: ["tests/integration/", "tests/contract/"]
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T58 — Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans
