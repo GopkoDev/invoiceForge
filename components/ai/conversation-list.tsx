@@ -131,7 +131,7 @@ export function ConversationList({ conversations, timeZone, onDelete, onPick }: 
                   {group.items.map((c) => {
                     const current = c.id === currentId;
                     return (
-                      <Item key={c.id} size="sm" variant="outline" className={cn(current && 'bg-accent')}>
+                      <Item key={c.id} role="listitem" size="sm" variant="outline" className={cn(current && 'bg-accent')}>
                         <ItemContent className="min-w-0">
                           <Link
                             href={protectedRoutes.aiConversation(c.id)}
@@ -142,7 +142,10 @@ export function ConversationList({ conversations, timeZone, onDelete, onPick }: 
                             <ItemTitle className="block w-full truncate" title={c.title}>
                               {c.title}
                             </ItemTitle>
-                            <ItemDescription>{formatLastMessage(c.lastMessageAt, timeZone)}</ItemDescription>
+                            {/* On the open row's accent background the muted colour fails contrast (axe, T31). */}
+                            <ItemDescription className={cn(current && 'text-accent-foreground')}>
+                              {formatLastMessage(c.lastMessageAt, timeZone)}
+                            </ItemDescription>
                           </Link>
                         </ItemContent>
                         <ItemActions>

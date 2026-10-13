@@ -122,6 +122,16 @@ describe('ConversationList - default (AC-17, SCR-01)', () => {
     expect(newChat.compareDocumentPosition(screen.getByText(RETENTION)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('every row of a group list is a listitem (axe aria-required-children, T31)', () => {
+    renderList();
+    const lists = screen.getAllByRole('list');
+    expect(lists.length).toBeGreaterThan(0);
+    for (const list of lists) {
+      expect(Array.from(list.children).every((child) => child.getAttribute('role') === 'listitem')).toBe(true);
+      expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0);
+    }
+  });
+
   it('has no pagination and no ?page links', () => {
     renderList();
     expect(screen.queryByRole('navigation', { name: /pagination/i })).toBeNull();
