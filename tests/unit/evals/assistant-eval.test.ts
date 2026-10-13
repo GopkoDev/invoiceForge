@@ -89,8 +89,11 @@ describe('no-guessing set (AC-16b, AC-17, AC-19..AC-22 + controls)', () => {
     expect(items.length).toBeGreaterThanOrEqual(8);
     for (const i of items) {
       expect(i.text.length).toBeGreaterThan(0);
-      expect(['incomplete', 'ambiguous', 'complete', 'injection']).toContain(i.kind);
-      expect(i.expect).toBe(i.kind === 'complete' ? 'card' : i.kind === 'injection' ? 'none' : 'question');
+      expect(['incomplete', 'ambiguous', 'complete', 'injection', 'issue']).toContain(i.kind);
+      // ai-chat-v2 T29: an AC-05 lookup of a missing record is incomplete and expects no card and no question.
+      const expected =
+        i.kind === 'complete' ? ['card'] : i.kind === 'injection' || i.kind === 'issue' ? ['none'] : i.ac === 'AC-05' ? ['none'] : ['question'];
+      expect(expected, i.id).toContain(i.expect);
       expect(i.ac).toMatch(/^AC-\d+b?$/);
     }
     const acs = new Set(items.map((i) => i.ac));
