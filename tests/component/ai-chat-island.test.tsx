@@ -762,8 +762,20 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
 
   it('a new Conversation that moves its own address from /ai to /ai/{id} is not refreshed', async () => {
     pathname = '/ai';
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Saved.'),
+        { type: 'data-conversation', data: { conversationId: 'cMoved', title: 'Moved' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
     const view = island({ conversationId: null, initialMessages: [] });
-    pathname = '/ai/cNew';
+    await send(userEvent.setup(), 'Who owes me?');
+    await screen.findByText('Saved.');
+    refresh.mockClear();
+    pathname = '/ai/cMoved';
     view.rerender(
       <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(12)} />
     );
@@ -854,6 +866,7 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
     const user = userEvent.setup();
     const view = await firstReply(user);
     // Leave for another Conversation, then come back: the first island is gone for good.
+    window.history.replaceState(null, '', '/ai/cOther');
     view.rerender(
       <div key="other">
         <ChatIsland conversationId="cOther" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
@@ -875,5 +888,110 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
     );
     expect(screen.getByText('From the server')).toBeTruthy();
     expect(screen.queryByText('First answer.')).toBeNull();
+  });
+});
+
+// Review 2026-10-13 R2-U1: the router can show the Conversation page's loading state between the /ai island's
+// unmount and the new island's mount. The live chat waits for it while the address is still that Conversation's.
+describe('the swap with a loading state in between', () => {
+  const page = (key: string) => (
+    <div key={key}>
+      <ChatIsland conversationId="cNew" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+    </div>
+  );
+
+  async function firstReply(user: ReturnType<typeof userEvent.setup>) {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('First answer.'),
+        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('First answer.');
+    await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
+    pathname = '/ai/cNew';
+    return view;
+  }
+
+  it('a reply that streams and even finishes during the loading state is shown whole, and the page is refreshed', async () => {
+    const user = userEvent.setup();
+    const view = await firstReply(user);
+    const stream = openStream();
+    fetchMock.mockResolvedValueOnce(stream.response);
+    await send(user, 'And Globex?');
+    stream.push({ type: 'start', messageId: 'msg_srv_2' });
+    stream.push({ type: 'text-start', id: 't2' });
+    stream.push({ type: 'text-delta', id: 't2', delta: 'Globex owes' });
+    await screen.findByText(/Globex owes/);
+    refresh.mockClear();
+
+    view.rerender(<div key="loading">loading…</div>);
+    stream.push({ type: 'text-delta', id: 't2', delta: ' 250 EUR.' });
+    stream.push({ type: 'text-end', id: 't2' });
+    stream.push(outcome('ANSWERED', true));
+    stream.push(FINISH);
+    stream.end();
+    await new Promise((r) => setTimeout(r, 300));
+    view.rerender(page('conversation-page'));
+
+    expect(await screen.findByText('Globex owes 250 EUR.')).toBeTruthy();
+    expect(screen.getByText('First answer.')).toBeTruthy();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('unsent text survives a loading state', async () => {
+    const user = userEvent.setup();
+    const view = await firstReply(user);
+    await user.type(box(), 'still here');
+    view.rerender(<div key="loading">loading…</div>);
+    await new Promise((r) => setTimeout(r, 300));
+    view.rerender(page('conversation-page'));
+    expect((box() as HTMLTextAreaElement).value).toBe('still here');
+  });
+});
+
+// Review 2026-10-13 R2-U3: after "New chat" the /ai page stays mounted; Back to the Conversation started in place
+// restores an entry holding that same tree. The island must not show the start screen (or another chat) there.
+describe('New chat, then Back to the Conversation started in place', () => {
+  it('shows no start screen at /ai/{id} and refreshes to load the saved Conversation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('First answer.'),
+        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const element = () => (
+      <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(30)} />
+    );
+    const view = render(element());
+    await send(user, 'Who owes me?');
+    await screen.findByText('First answer.');
+    pathname = '/ai/cNew';
+    view.rerender(element());
+    expect(screen.getByText('First answer.')).toBeTruthy();
+    refresh.mockClear();
+
+    pathname = '/ai'; // New chat
+    window.history.pushState(null, '', '/ai');
+    view.rerender(element());
+    expect(screen.queryByText('First answer.')).toBeNull();
+    await new Promise((r) => setTimeout(r, 20));
+
+    pathname = '/ai/cNew'; // Back
+    window.history.replaceState(null, '', '/ai/cNew');
+    view.rerender(element());
+    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
   });
 });

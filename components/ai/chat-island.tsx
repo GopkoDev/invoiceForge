@@ -149,8 +149,31 @@ interface LiveSession {
   handlers: { current: ChatHandlers };
   /** Set by every render of the island showing it; null until the first. */
   ui: SessionUi | null;
-  /** Islands showing it now; when none is left after a commit, the session ends (its stream is stopped). */
+  /** Islands showing it now; when none is left, the session waits for the next one at its address, then ends. */
   mounted: number;
+  /** What the Chat reported while no island showed it (the router's loading state), replayed to the next island. */
+  queued: ChatEvent[];
+}
+
+type ChatEvent =
+  | { kind: 'data'; part: Parameters<NonNullable<ChatHandlers['onData']>>[0] }
+  | { kind: 'error'; error: Error }
+  | { kind: 'finish'; finished: Parameters<NonNullable<ChatHandlers['onFinish']>>[0] };
+
+/** How long a session with no island waits at its Conversation's address for the router to mount the next island. */
+const HANDOVER_GRACE_MS = 5000;
+const HANDOVER_CHECK_MS = 100;
+
+function deliver(handlers: ChatHandlers, event: ChatEvent): void {
+  if (event.kind === 'data') handlers.onData?.(event.part);
+  else if (event.kind === 'error') handlers.onError?.(event.error);
+  else handlers.onFinish?.(event.finished);
+}
+
+/** To the island showing the session, or queued for the next one while none does. */
+function report(session: LiveSession, event: ChatEvent): void {
+  if (session.mounted > 0) deliver(session.handlers.current, event);
+  else session.queued.push(event);
 }
 
 /** Live sessions by the Conversation they saved, for the island the router mounts at that Conversation's address. */
@@ -185,14 +208,15 @@ function createLiveSession(
       };
     },
   });
-  const chat = new Chat<ChatMessage>({
+  const session: LiveSession = { chat: undefined as unknown as Chat<ChatMessage>, live, handlers, ui: null, mounted: 0, queued: [] };
+  session.chat = new Chat<ChatMessage>({
     transport,
     messages: initialMessages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage),
-    onData: (part) => handlers.current.onData?.(part),
-    onError: (error) => handlers.current.onError?.(error),
-    onFinish: (finished) => handlers.current.onFinish?.(finished),
+    onData: (part) => report(session, { kind: 'data', part }),
+    onError: (error) => report(session, { kind: 'error', error }),
+    onFinish: (finished) => report(session, { kind: 'finish', finished }),
   });
-  return { chat, live, handlers, ui: null, mounted: 0 };
+  return session;
 }
 
 /** The island showing `session` now: its handlers answer the Chat, and what it shows is kept for a hand-over. */
@@ -201,19 +225,33 @@ function showSession(session: LiveSession, handlers: ChatHandlers, ui: SessionUi
   session.ui = ui;
 }
 
+function endSession(session: LiveSession): void {
+  session.chat.stop();
+  session.queued = [];
+  for (const [id, held] of liveSessions) if (held === session) liveSessions.delete(id);
+}
+
 /**
- * An island holds `session` while mounted. The session ends with the last island showing it, after the commit that
- * may hand it to the next one: its stream is stopped and it is no longer offered at any address.
+ * An island holds `session` while mounted; what the Chat reported while no island showed it is replayed to it first.
+ * When the last island lets go, the session waits while the address is still its Conversation's: the router may show
+ * that page's loading state before it mounts the next island (review 2026-10-13 R2-U1). It ends (its stream is
+ * stopped, it is offered nowhere) once the address leaves, or after HANDOVER_GRACE_MS.
  */
 function holdSession(session: LiveSession): () => void {
   session.mounted += 1;
+  for (const event of session.queued.splice(0)) deliver(session.handlers.current, event);
   return () => {
     session.mounted -= 1;
-    setTimeout(() => {
+    const deadline = Date.now() + HANDOVER_GRACE_MS;
+    const check = () => {
       if (session.mounted > 0) return;
-      session.chat.stop();
-      for (const [id, held] of liveSessions) if (held === session) liveSessions.delete(id);
-    }, 0);
+      const id = session.live.getConversationId();
+      const waiting =
+        id !== null && window.location.pathname === protectedRoutes.aiConversation(id) && Date.now() < deadline;
+      if (waiting) setTimeout(check, HANDOVER_CHECK_MS);
+      else endSession(session);
+    };
+    setTimeout(check, 0);
   };
 }
 
@@ -274,10 +312,11 @@ export function ChatIsland(props: ChatIslandProps) {
     setSeen({ pathname, chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat });
   }
   // ai-chat-v2 T31 finding: a Conversation started in place keeps the /ai page's tree in its history entry, so Back
-  // then Forward to /ai/{id} mounts /ai's page again. Mounted with no Conversation at a Conversation address, the
-  // island shows a skeleton and refreshes once: the server then renders the saved Conversation's page.
-  const [mountedAt] = useState(pathname);
-  const staleEntry = props.conversationId === null && mountedAt.startsWith(`${protectedRoutes.ai}/`);
+  // then Forward to /ai/{id} mounts /ai's page again, and after "New chat" Back reaches /ai/{id} on the same mounted
+  // page (review 2026-10-13 R2-U3). At a Conversation address the /ai page shows only the live chat that saved that
+  // Conversation; otherwise the island shows a skeleton and refreshes once, so the server renders the saved page.
+  const openId = pathname?.startsWith(`${protectedRoutes.ai}/`) ? pathname.slice(protectedRoutes.ai.length + 1) : null;
+  const staleEntry = props.conversationId === null && openId !== null && !liveSessions.has(openId);
   useEffect(() => {
     if (staleEntry) router.refresh();
   }, [staleEntry, router]);
