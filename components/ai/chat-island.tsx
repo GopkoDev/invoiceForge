@@ -672,7 +672,8 @@ function ChatSession({
         <ConversationHeaderClient conversationId={saved.id} title={saved.title} />
       ) : conversationId === null ? (
         // Below md the list stays reachable from the first send, also when it fails and nothing is saved (R5-U3).
-        <div className="flex shrink-0 items-center">
+        // md:hidden like the button itself, so the desktop layout keeps no empty row.
+        <div className="flex shrink-0 items-center md:hidden">
           <ConversationListButton />
         </div>
       ) : null}
