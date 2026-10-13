@@ -39,8 +39,10 @@ describe('withoutLongLists', () => {
 describe('issuesAnswer', () => {
   const issues = [{ kind: 'CUSTOMER_AMBIGUOUS', written: 'Studio', candidates: many(12, customer) }] as unknown as DraftIssue[];
 
-  it('with no match count the answer carries the issues whole', () => {
-    expect(issuesAnswer(issues, undefined)).toMatchObject({ kind: 'ISSUES', issues });
+  it('with no match count (the offer was not dropped) a long list is still dropped, with no matchCount (R4-B2)', () => {
+    const answer = issuesAnswer(issues, undefined);
+    expect(answer).toMatchObject({ kind: 'ISSUES', listCounts: [12] });
+    expect(answer).not.toHaveProperty('matchCount');
   });
 
   it('with a match count it carries the count, the directive and the per-issue counts, and no names', () => {
@@ -48,5 +50,39 @@ describe('issuesAnswer', () => {
     expect(answer).toMatchObject({ kind: 'ISSUES', matchCount: 12, listCounts: [12] });
     expect(String(answer.say)).toMatch(/List none of them/);
     expect(JSON.stringify(answer)).not.toContain('Studio 1');
+  });
+});
+
+// Review 2026-10-13 R4-B1, R4-B2: any list above 8 is dropped, whichever issue comes first, and the directive to the
+// model says each dropped list's count in words that fit its kind.
+describe('issuesAnswer: long lists after the first issue, and the directive', () => {
+  const product = (i: number) => ({ productId: `p${i}`, name: { freelancerText: `Audit ${i}` }, unit: 'h', price: '1.00', currency: 'USD' });
+
+  it('a long list in a later issue is dropped even when the first issue has buttons (no match count)', () => {
+    const issues = [
+      { kind: 'CUSTOMER_AMBIGUOUS', written: 'Acme', candidates: many(2, customer) },
+      { kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: many(12, product) },
+    ] as unknown as DraftIssue[];
+    const answer = issuesAnswer(issues, undefined);
+    expect(answer).toMatchObject({ kind: 'ISSUES', listCounts: [null, 12] });
+    expect(answer).not.toHaveProperty('matchCount');
+    expect(JSON.stringify(answer.issues)).not.toContain('Audit 1');
+    expect(JSON.stringify(answer.issues)).toContain('Studio 1');
+    expect(String(answer.say)).toContain('12 products match audit.');
+  });
+
+  it('a name that matched nothing is not described as matching in the directive', () => {
+    const issues = [{ kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Zeta', accounts: many(11, account) }] as unknown as DraftIssue[];
+    const say = String(issuesAnswer(issues, 11).say);
+    expect(say).toContain('No bank account matches Zeta. You have 11 bank accounts');
+    expect(say).not.toMatch(/11 bank accounts match/);
+    expect(say).toMatch(/List none of them/);
+  });
+
+  it('nothing dropped: no counts and no directive', () => {
+    const issues = [{ kind: 'CUSTOMER_AMBIGUOUS', written: 'Acme', candidates: many(2, customer) }] as unknown as DraftIssue[];
+    const answer = issuesAnswer(issues, undefined);
+    expect(answer).not.toHaveProperty('listCounts');
+    expect(answer).not.toHaveProperty('say');
   });
 });

@@ -195,7 +195,7 @@ enum ChoiceOfferKind {
 // ai-chat-v2 (ADR-0001): one offer's life.
 enum ChoiceOfferState {
     OPEN // the latest reply's buttons; at most one per Conversation
-    CHOSEN // a press claimed it (released back to OPEN on a non-counted failure)
+    CHOSEN // a press claimed it (released back to OPEN on a non-counted failure, or CLOSED when a newer message exists)
     CLOSED // a newer message was saved (or a release found one); no choice
 }
 ```
@@ -220,8 +220,8 @@ New model (before `MessageAllowanceDay`):
 
 ```prisma
 // ai-chat-v2 (ADR-0001, ADR-0002, ADR-0003): one set of Offered choices, built in code from a resolver issue and tied to
-// the reply that shows it. A press claims it OPEN -> CHOSEN; a non-counted failure releases it; a newer typed or
-// dashboard message closes it. Deleted with its Conversation.
+// the reply that shows it. A press claims it OPEN -> CHOSEN; a non-counted failure releases it (OPEN, or CLOSED when a
+// newer message exists); any newer message closes it. Deleted with its Conversation.
 model ChoiceOffer {
     id             String           @id @default(cuid())
     userId         String

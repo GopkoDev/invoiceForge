@@ -126,6 +126,7 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
  */
 function countSentence(issue: DraftIssue, count: number, language: Language): string | null {
   const uk = language === 'uk';
+  const plain = SENTENCES[language];
   switch (issue.kind) {
     case 'CUSTOMER_AMBIGUOUS':
       return uk
@@ -156,12 +157,31 @@ function countSentence(issue: DraftIssue, count: number, language: Language): st
         ? `Профілю відправника ${issue.written} немає. У вас ${count} профілів відправника: напишіть точнішу назву.`
         : `You have no sender profile called ${issue.written}. You have ${count} sender profiles: type a more exact name.`;
     case 'NO_ACCOUNT_IN_CURRENCY':
+      // What the profile's own accounts allow stays; the other profiles are counted, not named (R4-B3).
       return uk
-        ? `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Спершу додайте його. Рахунок у ${issue.currency} мають ${count} інших ваших профілів відправника: назвіть один, щоб створити інвойс від нього.`
-        : `This sender profile has no bank account in ${issue.currency}. Add one first. ${count} of your other sender profiles have a ${issue.currency} account: name one to draft from it.`;
+        ? `${plain({ ...issue, otherProfiles: [] })} Рахунок у ${issue.currency} мають ${count} інших ваших профілів відправника: назвіть один, щоб створити інвойс від нього.`
+        : `${plain({ ...issue, otherProfiles: [] })} ${count} of your other sender profiles have a ${issue.currency} account: name one to draft from it.`;
+    case 'DEFAULT_PROFILE_WITHOUT_ACCOUNT':
+      return uk
+        ? `У вашого профілю відправника за замовчуванням немає банківського рахунку. Додайте його або назвіть один із ${count} інших ваших профілів.`
+        : `Your default sender profile has no bank account. Add one, or name one of your ${count} other sender profiles to draft under.`;
     default:
       return null;
   }
+}
+
+/**
+ * The count sentences of the issues whose lists were dropped (null counts are skipped), for the directive that goes
+ * to the model with the answer (review 2026-10-13 R4-B1). English: the model replies in the Freelancer's language.
+ */
+export function countSentences(issues: DraftIssue[], counts: ReadonlyArray<number | null>): string {
+  return issues
+    .flatMap((issue, i) => {
+      const count = counts[i];
+      const sentence = typeof count === 'number' ? countSentence(issue, count, 'en') : null;
+      return sentence ? [sentence] : [];
+    })
+    .join(' ');
 }
 
 /**

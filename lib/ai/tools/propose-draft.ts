@@ -14,6 +14,7 @@ import {
 } from '@/lib/services/assistant-drafts/schema';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 import type { TurnContext } from '@/lib/ai/turn-context';
+import { countSentences } from '@/lib/ai/issue-text';
 
 const DESCRIPTION =
   "Prepare a Draft invoice card from the Freelancer's own message. Pass the Customer, lines, currency, dates, sender profile, bank account, tax, discount, shipping, PO number, payment terms, notes and terms exactly as the Freelancer wrote them; never fill in a value they did not give. " +
@@ -100,8 +101,9 @@ export function offerFor(
 }
 
 const MAX_LISTED = 8;
-const TOO_MANY_SAY =
-  'More than 8 records match, so there are no buttons: say how many match (matchCount) and ask for a more exact name. List none of them.';
+const SAY_TAIL =
+  "Say this in the Freelancer's language and ask for a more exact name. List none of them: their names are not in this answer.";
+const NO_BUTTONS = 'More than 8 options, so there are no buttons. ';
 
 /**
  * AC-14 (review 2026-10-13 R2-B2, R3-B3): above 8 matches the answer carries counts, not lists, so neither the model
@@ -133,11 +135,20 @@ export function withoutLongLists(issues: DraftIssue[]): { issues: DraftIssue[]; 
   return { issues: shown, counts };
 }
 
-/** The ISSUES answer of propose_draft (and of a pinned resolution): above 8 matches, the counts and a directive. */
+/**
+ * The ISSUES answer of propose_draft (and of a pinned resolution). Every list above 8 is dropped, whichever issue it
+ * is in (R4-B2); then the answer carries each dropped list's count and a directive in words that fit each issue's
+ * kind (R4-B1). `matchCount` stays only when the reply's offer itself was dropped (no buttons, AC-14).
+ */
 export function issuesAnswer(issues: DraftIssue[], matchCount: number | undefined): Record<string, unknown> {
-  if (matchCount === undefined) return { kind: 'ISSUES', issues, links: linksFor(issues) };
   const { issues: shown, counts } = withoutLongLists(issues);
-  return { kind: 'ISSUES', issues: shown, links: linksFor(shown), matchCount, listCounts: counts, say: TOO_MANY_SAY };
+  const answer: Record<string, unknown> = { kind: 'ISSUES', issues: shown, links: linksFor(shown) };
+  if (matchCount !== undefined) answer.matchCount = matchCount;
+  if (counts.some((c) => c !== null)) {
+    answer.listCounts = counts;
+    answer.say = `${matchCount !== undefined ? NO_BUTTONS : ''}${countSentences(shown, counts)} ${SAY_TAIL}`;
+  }
+  return answer;
 }
 
 // One offer per reply: the earliest propose_draft call of the turn that found one keeps it, even when parallel

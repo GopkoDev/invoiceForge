@@ -191,4 +191,24 @@ describe('issuesText with list counts (AC-14)', () => {
   it('an issue with no count reads as before', () => {
     expect(issuesText([studios], 'en', [null])).toBe('Several Customers match Studio: . Which one do you mean?');
   });
+
+  // Review 2026-10-13 R4-B3: the two "other sender profiles" kinds keep what they said, plus the count.
+  it('a default profile without an account says how many other profiles there are', () => {
+    const issue = { kind: 'DEFAULT_PROFILE_WITHOUT_ACCOUNT', defaultSenderProfileId: 'sp', otherProfiles: [] } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'Your default sender profile has no bank account. Add one, or name one of your 9 other sender profiles to draft under.'
+    );
+  });
+
+  it('no account in the currency keeps the profile own accounts clause with the count', () => {
+    const issue = {
+      kind: 'NO_ACCOUNT_IN_CURRENCY',
+      currency: 'EUR',
+      accounts: [{ bankAccountId: 'b1', label: 'Mono ••1234', currency: 'USD' }],
+      otherProfiles: [],
+    } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'This sender profile has no bank account in EUR. Its accounts: Mono ••1234 (USD). Add a EUR account, or draft the invoice in the currency of one of these. 9 of your other sender profiles have a EUR account: name one to draft from it.'
+    );
+  });
 });

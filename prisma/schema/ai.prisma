@@ -122,8 +122,8 @@ model DraftCard {
 }
 
 // ai-chat-v2 (ADR-0001, ADR-0002, ADR-0003): one set of Offered choices, built in code from a resolver issue and tied to
-// the reply that shows it. A press claims it OPEN -> CHOSEN; a non-counted failure releases it; a newer typed or
-// dashboard message closes it. Deleted with its Conversation.
+// the reply that shows it. A press claims it OPEN -> CHOSEN; a non-counted failure releases it (OPEN, or CLOSED when a
+// newer message exists); any newer message closes it. Deleted with its Conversation.
 model ChoiceOffer {
     id             String           @id @default(cuid())
     userId         String

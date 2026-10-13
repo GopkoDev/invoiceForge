@@ -158,7 +158,7 @@ paths:
            together for the dashboard prompt; `choice` and `origin` never together).
         3. **Conversation** — `404 NOT_FOUND`, unknown or another Freelancer's, worded alike (ai-assistant AC-41).
         4. **Choice** (only with `choice`) — the offer must be this Freelancer's, in this Conversation, `OPEN`
-           (so it is the latest offering reply's: a newer typed or dashboard message closed it), contain
+           (so it is the latest offering reply's: any newer message closed it), contain
            `optionId`, and its record must still exist, be owned and still fit (for example an account still
            in the currency). Any failure → `409 CONFLICT` + `CHOICE_UNAVAILABLE`, the same words for every
            cause: outdated, closed, already chosen, deleted, changed, foreign or never existed (AC-12b, AC-13).
@@ -178,7 +178,7 @@ paths:
         message was saved meanwhile, review 2026-10-13 R1-B2/R2-B1), so nothing is marked (AC-11); as in the
         parent, such a turn saves only its metadata row.
 
-        **A typed or dashboard message** that is saved closes the Conversation's open offer with no choice
+        **Any new message** that is saved closes the Conversation's open offer with no choice (for a press, only an offer another tab stored; its own is CHOSEN)
         (AC-12), inside the turn's save, before the turn's own offer is stored. A failed turn closes nothing.
 
         **New stream part** `data-offer` (OfferPart): at most one per reply, persistent, by reference only;

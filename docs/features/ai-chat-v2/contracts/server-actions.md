@@ -148,7 +148,7 @@ checkChoice(actor, input: { conversationId: string; offerId: string; optionId: n
             option: StoredOfferOption } | { ok: false }>;              // { ok: false } ⇒ 409 CHOICE_UNAVAILABLE
 
 claimOffer(tx, actor, offerId: string, optionId: number): Promise<boolean>;    // OPEN → CHOSEN; false = lost the race
-releaseOffer(tx, offerId: string): Promise<void>;                              // CHOSEN → OPEN, chosenOptionId = NULL
+releaseOffer(tx, offerId: string): Promise<void>;                              // CHOSEN → OPEN (CLOSED when a newer message exists), chosenOptionId = NULL
 
 // pin.ts ★
 pinChoice(request: DraftRequest, kind: ChoiceOfferKind, lineIndex: number | null, ref: OfferOptionRef): DraftRequest;
