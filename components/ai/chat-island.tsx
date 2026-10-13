@@ -579,6 +579,10 @@ function ChatSession({
           // AC-12b, AC-13: the form is not applied; drop the optimistic message, leave the picks as they were.
           if (sent)
             setMessages((current) => current.filter((m) => m.id !== sent.id));
+          if (sent?.form) {
+            const reopen = sent.form.formId;
+            setClosedForms((prev) => ({ ...prev, [reopen]: false }));
+          }
           setFailure({ kind: 'CHOICE_UNAVAILABLE', message: error.message });
           return;
         }
@@ -595,7 +599,9 @@ function ChatSession({
             if (
               Object.keys(errors).some((k) => k.startsWith('form.answers.'))
             ) {
-              setFormErrors({ formId: sent.form.formId, errors });
+              const reopen = sent.form.formId;
+              setClosedForms((prev) => ({ ...prev, [reopen]: false }));
+              setFormErrors({ formId: reopen, errors });
               return;
             }
           }

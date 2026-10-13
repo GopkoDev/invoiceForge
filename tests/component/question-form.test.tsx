@@ -263,3 +263,46 @@ describe('close, pending, language, read-only', () => {
     expect(screen.queryByRole('radio')).toBeNull();
   });
 });
+
+describe('R2 close while sending (T82)', () => {
+  it('the × is disabled while the form is sending', () => {
+    renderForm(makeForm([bankQ()]), { pending: true });
+    expect(screen.getByRole('button', { name: 'Close questions' })).toBeDisabled();
+  });
+});
+
+describe('R3 focus management (T82)', () => {
+  const inputQ = () => priceQ({ questionId: 1 });
+
+  it('does not steal focus on first mount, even for an input-only question', () => {
+    renderForm(makeForm([inputQ()]));
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('after a pick advances to an input-only question, focus moves to its input', async () => {
+    const { user } = renderForm(makeForm([bankQ({ questionId: 0 }), inputQ()]));
+    await user.click(row(/Wise/));
+    expect(screen.getByRole('textbox')).toHaveFocus();
+  });
+
+  it('after advancing to an options question, focus moves to its first row', async () => {
+    const { user } = renderForm(makeForm(three()));
+    await user.click(row(/Acme GmbH/));
+    expect(screen.getByText('Which bank account should the invoice use?')).toBeInTheDocument();
+    expect(row(/Monobank/)).toHaveFocus();
+  });
+
+  it('the question title is announced politely (aria-live)', () => {
+    renderForm(makeForm(three()));
+    const title = screen.getByText('Which Customer is this invoice for?');
+    expect(title).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('keyboard 1-9 still works after advancing', async () => {
+    const { user, onSend } = renderForm(makeForm([customerQ(), bankQ()]));
+    await user.click(row(/Acme GmbH/));
+    await user.keyboard('2');
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend.mock.calls[0][1]).toEqual([{ questionId: 0, optionId: 1 }, { questionId: 1, optionId: 1 }]);
+  });
+});

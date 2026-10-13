@@ -525,6 +525,54 @@ describe('ChatIsland - refused form sends', () => {
   });
 });
 
+describe('ChatIsland - close while sending (R2, T82)', () => {
+  it('the × is disabled while the answers are in flight', async () => {
+    const stream = openStream();
+    fetchMock.mockResolvedValueOnce(stream.response);
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(within(questionDock()!).getByRole('button', { name: 'Close questions' })).toBeDisabled();
+    stream.end();
+  });
+
+  it('a 400 with form.answers.* errors after a send shows the dock with the error, even if × was clicked in flight', async () => {
+    let resolve!: (r: Response) => void;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)));
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await user.click(within(questionDock()!).getByRole('button', { name: 'Close questions' }));
+    await act(async () => {
+      resolve(
+        json(400, {
+          success: false,
+          code: 'VALIDATION',
+          error: 'Check the answers.',
+          fieldErrors: { 'form.answers.0': ['That option is not on this form.'] },
+        })
+      );
+    });
+    expect(await within(questionDock()!).findByText('That option is not on this form.')).toBeTruthy();
+  });
+
+  it('a 409 for the form shows the dock again with the server sentence, even if × was clicked in flight', async () => {
+    let resolve!: (r: Response) => void;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)));
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await user.click(within(questionDock()!).getByRole('button', { name: 'Close questions' }));
+    await act(async () => resolve(unavailable()));
+    await screen.findByText(UNAVAILABLE);
+    expect(questionDock()).not.toBeNull();
+    expect(within(questionDock()!).getAllByRole('radio').length).toBeGreaterThan(0);
+  });
+});
+
 describe('Reopen (AC-13)', () => {
   const page = async (forms: Record<string, FormView>, extra: ConversationMessageView[] = []) => {
     getConversation.mockResolvedValue({

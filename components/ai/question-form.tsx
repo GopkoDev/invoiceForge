@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import {
   ArrowRightIcon,
   CalendarIcon,
@@ -82,6 +82,17 @@ export function QuestionForm({
   const [touched, setTouched] = useState<Record<number, boolean>>({});
   const [focusAt, setFocusAt] = useState<Record<number, number>>({});
   const [seenErrors, setSeenErrors] = useState(fieldErrors);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Focus follows only a change the Freelancer made; a first mount or a server-driven jump leaves focus alone (T82, R3).
+  const moveFocus = useRef(false);
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    const root = rootRef.current;
+    const target =
+      root?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]') ?? root?.querySelector<HTMLElement>('input');
+    target?.focus();
+  }, [cur]);
 
   if (!form) return <Skeleton className="h-40 w-full rounded-xl" aria-busy="true" />;
 
@@ -138,6 +149,11 @@ export function QuestionForm({
     onSend(form.formId, answers, composeAnswerMessage(questions, answers));
   };
 
+  const goTo = (to: number) => {
+    moveFocus.current = true;
+    setCur(to);
+  };
+
   const commit = (question: FormQuestionView, value: Pick) => {
     if (locked) return;
     const next = { ...picks, [question.questionId]: value };
@@ -146,9 +162,9 @@ export function QuestionForm({
     const answered = (x: FormQuestionView) => !!next[x.questionId];
     if (questions.every(answered)) return send(next);
     const later = questions.findIndex((x, i) => i > at && !answered(x));
-    if (later >= 0) return setCur(later);
+    if (later >= 0) return goTo(later);
     if (questions.every((x) => !x.required || answered(x))) return send(next);
-    setCur(questions.findIndex((x) => !answered(x)));
+    goTo(questions.findIndex((x) => !answered(x)));
   };
 
   const commitText = (value: string) => {
@@ -163,7 +179,7 @@ export function QuestionForm({
     commit(q, { kind: 'option', optionId });
   };
 
-  const go = (to: number) => setCur(Math.max(0, Math.min(questions.length - 1, to)));
+  const go = (to: number) => goTo(Math.max(0, Math.min(questions.length - 1, to)));
 
   const onGroupKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -207,7 +223,7 @@ export function QuestionForm({
         key={qid}
         id={inputId}
         value={draft}
-        autoFocus
+        autoFocus={!inputOnly}
         disabled={locked}
         inputMode={decimal ? 'decimal' : undefined}
         aria-label={inputOnly ? title : t.other}
@@ -286,11 +302,12 @@ export function QuestionForm({
       data-slot="question-form"
       data-state={form.state}
       aria-busy={pending || undefined}
+      ref={rootRef}
       onKeyDown={onRootKeyDown}
       className="bg-card flex w-full min-w-0 flex-col gap-1 rounded-xl border p-3"
     >
       <div className="flex items-start justify-between gap-2">
-        <p id={titleId} className="min-w-0 flex-1 px-1 pt-1.5 text-sm font-medium break-words">
+        <p id={titleId} aria-live="polite" className="min-w-0 flex-1 px-1 pt-1.5 text-sm font-medium break-words">
           {title}
         </p>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -319,7 +336,7 @@ export function QuestionForm({
               </Button>
             </>
           ) : null}
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t.close} onClick={() => onClose?.()}>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={t.close} disabled={pending} onClick={() => onClose?.()}>
             <XIcon aria-hidden />
           </Button>
         </div>
