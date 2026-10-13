@@ -147,6 +147,30 @@ describe('SCR-04 delete Conversations dialog (T30, AC-37)', () => {
       await waitFor(() => expect(screen.queryByText('Started here')).toBeNull());
     });
 
+    // Review 2026-10-13 R3-U1: the same from the Conversation's own header (the /ai page stays mounted).
+    it('deleting it from its header removes its row too', async () => {
+      deleteConversationMock.mockResolvedValue(ok());
+      const user = userEvent.setup();
+      render(
+        <>
+          <NewConversationProvider>
+            <Announce />
+            <ConversationListClient conversations={[]} timeZone="UTC" />
+            <ConversationHeaderClient conversationId="cX" title="Started here" />
+          </NewConversationProvider>
+          <AiModalContainer />
+        </>
+      );
+      await screen.findByRole('button', { name: 'Delete conversation Started here' });
+      const menus = screen.getAllByRole('button', { name: 'Conversation actions' });
+      await user.click(menus[menus.length - 1]); // the header's menu
+      await user.click(await screen.findByRole('menuitem', { name: 'Delete conversation' }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/ai'));
+      expect(screen.queryByRole('button', { name: 'Delete conversation Started here' })).toBeNull();
+    });
+
     it('"Delete all" removes it and shows the empty list', async () => {
       deleteAllConversationsMock.mockResolvedValue(ok({ deleted: 1 }));
       const user = userEvent.setup();

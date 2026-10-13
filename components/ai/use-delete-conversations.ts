@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { deleteAllConversations, deleteConversation } from '@/lib/actions/assistant-actions';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
 import { useModal } from '@/store/use-modal-store';
+import { useNewConversation } from '@/components/ai/new-conversation-context';
 import type { ActionResult } from '@/types/result';
 
 export type DeletedTarget = { kind: 'one'; id: string } | { kind: 'all' };
@@ -16,6 +17,12 @@ interface DeleteHandlers {
 /** SCR-04: opens the delete dialog for one Conversation or for all of them. */
 export function useDeleteConversations({ onGone }: DeleteHandlers) {
   const confirmationModal = useModal('confirmationModal');
+  // Every delete path forgets a Conversation started in place, so it never comes back as a ghost row (R2-U2, R3-U1).
+  const newConversation = useNewConversation();
+  const gone = (target: DeletedTarget) => {
+    newConversation?.forget(target);
+    onGone(target);
+  };
 
   const confirm = (
     target: DeletedTarget,
@@ -34,7 +41,7 @@ export function useDeleteConversations({ onGone }: DeleteHandlers) {
         if (result.success) {
           confirmationModal.close();
           toast.success(copy.success);
-          onGone(target);
+          gone(target);
           return;
         }
         if (result.code === 'UNAUTHORIZED') {
@@ -44,7 +51,7 @@ export function useDeleteConversations({ onGone }: DeleteHandlers) {
         if (result.code === 'NOT_FOUND') {
           confirmationModal.close();
           toast.error(result.error);
-          onGone(target);
+          gone(target);
           return;
         }
         confirmationModal.close();
