@@ -529,13 +529,37 @@ export function PrivacyPolicyContent() {
               </div>
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>
+                  <strong>What we store:</strong> Your Conversations with their
+                  messages and draft cards; the options the chat offered as
+                  buttons and the one you chose; prompts you send from the
+                  dashboard (saved as the first message of the Conversation
+                  they start); whether each message was typed, pressed or sent
+                  from the dashboard; and where each Conversation was started.
+                </li>
+                <li>
                   <strong>Retention:</strong> A Conversation is kept for 90
-                  days after its last message, then deleted.
+                  days after its last message, or until you delete it or your
+                  account, whichever comes first. Then it is deleted.
+                </li>
+                <li>
+                  <strong>Who processes your message text:</strong> Only the
+                  Google Gemini model through the Vercel AI Gateway, as
+                  described above. The chat adds no other company that
+                  processes your messages.
                 </li>
                 <li>
                   <strong>Your control:</strong> You can delete a Conversation
-                  at any time. Conversations are included in your data export
-                  and are removed when you delete your account.
+                  at any time. Conversations, the options offered and chosen,
+                  and where each message came from are included in your data
+                  export and are removed when you delete your account.
+                </li>
+                <li>
+                  <strong>Connected AI clients:</strong> If you connect your
+                  own AI client with a Personal key, it can read your sender
+                  profile names and defaults; for each bank account, the bank
+                  name, the last four digits and the currency, never a full
+                  account number; your products with their prices and Custom
+                  prices; and Customers found by name.
                 </li>
                 <li>
                   <strong>Debugging traces:</strong> Traces hold metadata only

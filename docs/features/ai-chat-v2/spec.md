@@ -434,6 +434,7 @@ Decisions taken during the interview, recorded for traceability:
 ## 8. Open questions
 
 - [ ] Does the terms page need an AI clause (for example that the Freelancer reviews and issues every Assistant draft)? Default now: no change unless the terms page contradicts the chat; the check runs with the privacy update. — owner: Dmytro Hopko, due: before `sdd:ship`
+  - *Terms check (T28, implement, 2026-10-13): checked, no change.* Nothing in `constants/public-pages-content.ts` `termsContent` contradicts the chat: §1 and §3 already make the Freelancer the issuer who verifies all data, which covers reviewing and issuing every Assistant draft. One pre-existing gap, not caused by this feature, for the owner: §10 "Infrastructure Providers (Sub-processors)" lists Vercel, Neon and Auth.js but not the model provider (Google Gemini through the Vercel AI Gateway) that the privacy page names since ai-assistant. Left open for the owner.
 
 ## Clarifications
 
