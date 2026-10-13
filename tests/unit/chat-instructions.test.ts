@@ -9,7 +9,8 @@ vi.mock('@/lib/services/products/products', () => ({}));
 vi.mock('@/lib/services/invoices/assistant-search', () => ({}));
 vi.mock('@/lib/services/invoices/find-by-reference', () => ({}));
 
-const OTHER_TOOLS = ['propose_draft', 'find_in_app'];
+// T63: ask_user (the chat-only Question form tool, T54) joins the known non-read tools.
+const OTHER_TOOLS = ['propose_draft', 'find_in_app', 'ask_user'];
 
 async function load() {
   const { READ_QUESTIONS } = await import('@/lib/assistant-tools');
@@ -50,5 +51,64 @@ describe('CHAT_INSTRUCTIONS (ai-chat-v2 T09)', () => {
     for (const n of names) {
       expect(n).not.toMatch(/(^|_)(issue|send|edit|update|delete|cancel|mark|status)(_|$)/i);
     }
+  });
+});
+
+// ai-chat-v2 T63 (AC-45..AC-48, spec F11/F12, ADR-0011, ADR-0012): the instructions teach forms over prose questions,
+// search before "add one", allowlisted in-app links with the tools' paths, and the created-date filters.
+describe('CHAT_INSTRUCTIONS (ai-chat-v2 T63)', () => {
+  it('AC-05: names ask_user as a known tool', async () => {
+    const { text } = await load();
+    expect(text).toContain('ask_user');
+  });
+
+  it('AC-46: a draft request is answered with propose_draft or an ask_user form, never a list of prose questions', async () => {
+    const { text } = await load();
+    expect(text).toContain('propose_draft');
+    expect(text).toMatch(/ask_user/);
+    expect(text).toMatch(/prose/i);
+    expect(text).toMatch(/(never|not|instead of)[^.]*prose|prose[^.]*(never|not)/i);
+    expect(text).toMatch(/(never|not) ask[^.]*(find|look up|search)/i);
+  });
+
+  it('AC-47: searches for a named Customer or product before saying it is missing or telling to add one', async () => {
+    const { text } = await load();
+    expect(text).toMatch(/search/i);
+    expect(text).toMatch(/before[^.]*(add|does not exist|no such|nothing matches)/i);
+    expect(text).toMatch(/only after[^.]*search/i);
+  });
+
+  it('AC-48: allows Markdown links to the allowlisted in-app paths and to search row paths; never says it cannot link', async () => {
+    const { text } = await load();
+    expect(text).toMatch(/Markdown link/i);
+    expect(text).toMatch(/\bpath\b/i);
+    expect(text).toMatch(/search_invoices[^\n]*path|path[^\n]*search_invoices/i);
+    expect(text).toMatch(/only[^\n]*(allowed|allowlist)|allowlist/i);
+    expect(text).toMatch(/never say[^.]*(cannot|can't|unable)[^.]*link/i);
+  });
+
+  it('F12: tells the model to use createdFrom / createdTo and the created-date sort for "created in January" questions', async () => {
+    const { text } = await load();
+    expect(text).toContain('createdFrom');
+    expect(text).toContain('createdTo');
+    expect(text).toMatch(/created/i);
+  });
+
+  it('F11: date rules - month without year is the latest one not after today, a period means the issue date, "created" the creation day', async () => {
+    const { text } = await load();
+    expect(text).toMatch(/not after today/i);
+    expect(text).toMatch(/issue date/i);
+    expect(text).toMatch(/last <?weekday>?|last (Monday|weekday)/i);
+  });
+
+  it('supersedes the old style rules: tables/markup ban and "Link ... by naming them" are gone', async () => {
+    const { text } = await load();
+    expect(text).not.toMatch(/Do not use tables, headings or other markup/);
+    expect(text).not.toMatch(/by naming them/);
+  });
+
+  it('AC-24 stays: the model still has no issuing tool and says only the Freelancer can issue', async () => {
+    const { text } = await load();
+    expect(text).toMatch(/only the Freelancer can issue/i);
   });
 });

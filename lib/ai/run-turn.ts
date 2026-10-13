@@ -151,6 +151,12 @@ function pendingFormOf(turn: TurnContext): TurnResult['pendingForm'] {
   return { id: createId(), request: resolver?.request ?? ask?.draft ?? null, questions };
 }
 
+/** T63 (AC-45): the per-turn date note. It is a separate message, so the frozen instructions stay identical across days. */
+function todayNote(today: string, timeZone: string): string {
+  const weekday = new Date(`${today}T00:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  return `Today is ${weekday}, ${today} in ${timeZone}.`;
+}
+
 const PINNED_CALL_ID = 'pinned-choice';
 const PRIOR_ASK_CALL_ID = 'prior-form-answers';
 
@@ -292,6 +298,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
 
   const messages: ModelMessage[] = [
     ...(topic === 'MIXED' ? [{ role: 'system' as const, content: MIXED_INSTRUCTION }] : []),
+    { role: 'system' as const, content: todayNote(input.today, input.actor.timeZone) },
     ...history,
     { role: 'user' as const, content: input.message },
     ...(input.pinned && turn.pinnedAnswer ? pinnedStep(input.pinned, turn.pinnedAnswer) : []),

@@ -69,7 +69,7 @@
 | T60 | [Wire QuestionForm into the chat island, send forms, remove OfferedChoices](./t60-wire-questionform-into-the-chat-island-send.md) | ui | Dmytro Hopko | M | T57, T59 | done |
 | T61 | [Cover forms, answers and origin FORM in the data export, account deletion and the privacy page](./t61-cover-forms-answers-and-origin-form-in.md) | app | Dmytro Hopko | S | T55 | done |
 | T62 | [Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist](./t62-render-replies-as-safe-markdown-with-react.md) | ui | Dmytro Hopko | L | — | done |
-| T63 | [Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links](./t63-tell-the-model-today-and-the-time.md) | app | Dmytro Hopko | M | T54, T64 | todo |
+| T63 | [Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links](./t63-tell-the-model-today-and-the-time.md) | app | Dmytro Hopko | M | T54, T64 | done |
 | T64 | [Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels](./t64-add-created-date-filters-a-created-date.md) | app | Dmytro Hopko | M | — | done |
 | T65 | [Extend the evaluation harness with form, card-or-form, link and date checks and the owner-feedback rows](./t65-extend-the-evaluation-harness-with-form-card.md) | tests | Dmytro Hopko | M | T60, T63, T64 | todo |
 | T66 | [Keep the Conversation list mounted in the AI layout and update it from chat events](./t66-keep-the-conversation-list-mounted-in-the.md) | ui | Dmytro Hopko | L | — | todo |
