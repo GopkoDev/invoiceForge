@@ -235,6 +235,13 @@ function showSession(session: LiveSession, handlers: ChatHandlers, ui: SessionUi
   session.ui = ui;
 }
 
+/** The live chat's messages up to a failed one: a failed message and its reply were never saved (R7-2). */
+function savedLength(messages: readonly ChatMessage[], failure: Failure | null): number {
+  if (!failure || !('userMessageId' in failure)) return messages.length;
+  const index = messages.findIndex((m) => m.id === failure.userMessageId);
+  return index === -1 ? messages.length : index;
+}
+
 function nameSession(session: LiveSession, title: string): void {
   session.title = title;
 }
@@ -526,7 +533,9 @@ function ChatSession({
       handedOver !== null &&
       session.chat.status !== 'submitted' &&
       session.chat.status !== 'streaming' &&
-      session.chat.messages.length > initialMessages.length
+      // A finish waiting in the queue refreshes the page itself when replayed (R7-1).
+      !session.queued.some((e) => e.kind === 'finish') &&
+      savedLength(session.chat.messages, handedOver.failure) > initialMessages.length
   );
   useEffect(() => {
     if (!staleProps.current) return;
@@ -555,6 +564,15 @@ function ChatSession({
   const { scrollRef, showJump, jumpToLatest } = useFollowLatest(messages);
 
   function send(raw: string, choice?: Choice, origin?: Origin) {
+    // A failed reply stays discarded whatever comes next (parent SCR-02): its message and partial text go before the
+    // new message is added, as Try again does (review 2026-10-13 R7-4).
+    if (failure && 'userMessageId' in failure) {
+      const failedId = failure.userMessageId;
+      setMessages((current) => {
+        const index = current.findIndex((m) => m.id === failedId);
+        return index === -1 ? current : current.slice(0, index);
+      });
+    }
     const id = generateId();
     live.setPending({ id, text: raw, choice, origin });
     setReplyDone(false);

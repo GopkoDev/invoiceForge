@@ -950,6 +950,9 @@ describe('the swap with a loading state in between', () => {
     expect(screen.getByText('First answer.')).toBeTruthy();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // R7-1: the replayed finish refreshes once; the takeover check does not add a second refresh.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('unsent text survives a loading state', async () => {
@@ -1233,3 +1236,67 @@ describe('the phone list button before the Conversation is saved', () => {
     expect(screen.getByRole('button', { name: 'Open conversations' })).toBeTruthy();
   });
 });
+
+// Review 2026-10-13 R7-2: a failed reply's messages were never saved, so they do not make the page's props "older".
+describe('a swap while a failed reply shows', () => {
+  it('does not refresh for the unsaved failed messages', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Saved answer.'),
+        { type: 'data-conversation', data: { conversationId: 'cFailSwap', title: 'Fail swap' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('Saved answer.');
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('partial'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    await send(user, 'And Globex?');
+    await screen.findByRole('alert');
+    pathname = '/ai/cFailSwap';
+    refresh.mockClear();
+
+    view.rerender(
+      <div key="conversation-page">
+        <ChatIsland
+          conversationId="cFailSwap"
+          initialMessages={[
+            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'Who owes me?' }], createdAt: '' },
+            { id: 's2', role: 'assistant', origin: null, parts: [{ type: 'text', text: 'Saved answer.' }], createdAt: '' },
+          ]}
+          invoiceLinks={{}}
+          cards={{}}
+          allowance={allowance(28)}
+        />
+      </div>
+    );
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+// Review 2026-10-13 R7-4: a new message after a failed reply (instead of Try again) does not bring the discarded
+// exchange back: the failed message and its partial text stay discarded (parent SCR-02).
+describe('sending after a failed reply', () => {
+  it('keeps the failed message and its partial reply discarded', async () => {
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('half an answer'), outcome('COULD_NOT_COMPLETE', false), FINISH]));
+    const user = userEvent.setup();
+    island();
+    await send(user, 'first try');
+    await screen.findByRole('alert');
+    expect(screen.queryByText('half an answer')).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(sse([START, ...textChunks('A fresh answer.'), outcome('ANSWERED', true), FINISH]));
+    await send(user, 'second try');
+    await screen.findByText('A fresh answer.');
+
+    expect(screen.queryByText('half an answer')).toBeNull();
+    expect(screen.queryByText('first try')).toBeNull();
+    expect(screen.getByText('second try')).toBeTruthy();
+  });
+});
+
