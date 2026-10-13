@@ -323,7 +323,7 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
           description=""
           body={
             <IssueConfirmation
-              customerName={available.invoice.customer?.name ?? ''}
+              customerName={available.invoice.customerName}
               total={available.invoice.total}
               currency={available.invoice.currency}
             />

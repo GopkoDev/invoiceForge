@@ -81,6 +81,7 @@ const invoice = (over: Partial<Record<string, unknown>> = {}) =>
     status: 'DRAFT',
     total: 1000,
     currency: 'USD',
+    customerName: 'Acme Corp',
     customer: { id: 'cust1', name: 'Acme Corp' },
     ...over,
   }) as unknown as SerializedInvoice;
@@ -248,6 +249,18 @@ describe('Issue (AC-23, AC-27)', () => {
     expect(issueFromPreview).not.toHaveBeenCalled();
   });
 
+  // Review 2026-10-13 R1-S2: the dialog names the invoice's own copy of the Customer (what the document shows), not
+  // the Customer record, which may have been renamed since the draft was made.
+  it('AC-23: the dialog names the Customer as the invoice shows it, not the renamed Customer record', async () => {
+    loadInvoicePreview.mockResolvedValue(available({ customerName: 'Acme Corp', customer: { id: 'cust1', name: 'Acme Renamed' } }));
+    render(<InvoicePreviewPanel cardId="card1" />);
+    await screen.findByRole('heading', { name: 'INV-0043' });
+    await userEvent.setup().click(issueButton()!);
+    const text = ((await screen.findByRole('dialog')).textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('Acme Corp');
+    expect(text).not.toContain('Acme Renamed');
+  });
+
   it('issued now: issueFromPreview(invoiceId, version), a toast, and the panel, card and link all show it issued', async () => {
     loadInvoicePreview
       .mockResolvedValueOnce(available())
@@ -295,7 +308,7 @@ describe('Issue refused (AC-25, AC-26, AC-26b)', () => {
   it('AC-26b: CHANGED_ELSEWHERE reloads the current draft with the warning; the next confirmation names the current figures', async () => {
     loadInvoicePreview
       .mockResolvedValueOnce(available())
-      .mockResolvedValueOnce(available({ total: 1200, customer: { id: 'cust2', name: 'Acme GmbH' }, currency: 'EUR' }, 7));
+      .mockResolvedValueOnce(available({ total: 1200, customerName: 'Acme GmbH', customer: { id: 'cust2', name: 'Acme GmbH' }, currency: 'EUR' }, 7));
     issueFromPreview
       .mockResolvedValueOnce(fail('CONFLICT', CHANGED, { details: { kind: 'CHANGED_ELSEWHERE', currentVersion: 7 } }))
       .mockReturnValueOnce(new Promise(() => undefined));
