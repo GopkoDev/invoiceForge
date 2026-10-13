@@ -9,7 +9,7 @@ files_hint: ["docs/design-system.md", "docs/features/ai-chat-v2/screens.md"]
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;

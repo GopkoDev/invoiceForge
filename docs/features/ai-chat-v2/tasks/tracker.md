@@ -45,7 +45,7 @@
 | T37 | [Rebuild the empty state with the time-of-day greeting, the PromptInput composer and suggestion chips](./t37-empty-state-greeting-and-prompt-input-composer.md) | ui | Dmytro Hopko | M | T34, T36 | done |
 | T38 | [Align Offered choices, the Draft card and the preview panel with the message layout](./t38-offered-choices-card-and-preview-visual-alignment.md) | ui | Dmytro Hopko | S | T36 | done |
 | T39 | [Build the dashboard AI block prompt box on the PromptInput element](./t39-dashboard-ai-block-on-prompt-input.md) | ui | Dmytro Hopko | S | T34 | done |
-| T40 | [Register the AI elements and the changed AI components in the design system](./t40-register-ai-elements-in-design-system.md) | docs | Dmytro Hopko | S | T36, T37, T38, T39 | todo |
+| T40 | [Register the AI elements and the changed AI components in the design system](./t40-register-ai-elements-in-design-system.md) | docs | Dmytro Hopko | S | T36, T37, T38, T39 | done |
 | T41 | [Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines](./t41-e2e-selectors-and-linux-baselines-retake.md) | tests | Dmytro Hopko | M | T35, T36, T37, T38, T39 | todo |
 
 **Total:** 41 tasks, ~21.5 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010).
