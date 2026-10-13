@@ -753,7 +753,216 @@
         "lib/services/assistant-drafts/offers.ts",
         "tests/integration/ai-chat-v2-resolver-delta.test.ts"
       ],
-      "file": "tasks/t32-drafting-currency-on-customer-not-found.md"
+      "file": "docs/features/ai-chat-v2/tasks/t32-drafting-currency-on-customer-not-found.md"
+    },
+    {
+      "id": "T33",
+      "title": "Port the Conversation, Message and Loader elements from Vercel AI Elements onto Base UI, with the licence files",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-16",
+        "AC-33"
+      ],
+      "dod": "components/ai-elements/conversation.tsx, message.tsx and loader.tsx export the ADR-0010 anatomy built only on components/ui and @base-ui/react (no Radix, no new package), Conversation is driven by useFollowLatest (48 px) and MessageResponse renders plain text, each file carries the Apache-2.0 attribution header, LICENSE and NOTICE exist, and component tests written first prove follow/jump, alignment by role, plain text and the reduced-motion loader.",
+      "files_hint": [
+        "components/ai-elements/conversation.tsx",
+        "components/ai-elements/message.tsx",
+        "components/ai-elements/loader.tsx",
+        "components/ai-elements/LICENSE",
+        "components/ai-elements/NOTICE",
+        "tests/component/ai-elements-conversation-message.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t33-port-conversation-and-message-elements.md"
+    },
+    {
+      "id": "T34",
+      "title": "Port the PromptInput and Suggestion elements onto Base UI",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-18",
+        "AC-31"
+      ],
+      "dod": "components/ai-elements/prompt-input.tsx and suggestion.tsx export the ADR-0010 anatomy on InputGroup, Textarea and Button with the attribution header, PromptInputSubmit reflects ready/submitted/streaming/error, Enter submits and Shift+Enter adds a line, a Suggestion only reports its text, and component tests written first prove each.",
+      "files_hint": [
+        "components/ai-elements/prompt-input.tsx",
+        "components/ai-elements/suggestion.tsx",
+        "tests/component/ai-elements-prompt-input.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t34-port-prompt-input-and-suggestion-elements.md"
+    },
+    {
+      "id": "T35",
+      "title": "Rebuild the workspace as a bordered container and the Conversation list as plain rows with a row menu for delete",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-15",
+        "AC-17",
+        "AC-19"
+      ],
+      "dod": "At md and wider the AI section is one rounded bordered container in the content area with zero page scroll, the list pane shows the search row with the actions menu, small muted group labels, plain one-line truncated rows with no visible delete icon, a row ⋯ menu leading to the unchanged delete dialog, and New chat full width at the bottom, every SCR-01 state still renders, and the updated component tests pass.",
+      "files_hint": [
+        "app/(protected)/ai/layout.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "tests/component/ai-conversation-list.test.tsx",
+        "tests/component/ai-delete-conversations.test.tsx",
+        "tests/component/ai-workspace-t44.test.tsx",
+        "tests/component/ai-layout-reuse-t40.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t35-workspace-container-and-conversation-list.md"
+    },
+    {
+      "id": "T36",
+      "title": "Rebuild the message list and chat pane on the elements: centred column, bubbles, avatar, errors as assistant messages with Try again",
+      "layer": "ui",
+      "deps": [
+        "T33",
+        "T35"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-15",
+        "AC-16",
+        "AC-33"
+      ],
+      "dod": "SCR-03 renders through Conversation and Message in a centred max-w-3xl column with the composer docked at the same width, user messages as right-aligned secondary bubbles, assistant replies with the avatar and plain text, waiting with Loader, the scroll button from useFollowLatest, could-not-complete and ai-unavailable as an assistant message with an inline destructive alert and a Try again action that re-sends the same text or choice, choice unavailable and conversation gone as assistant messages, no empty header bar on /ai at md and wider, and the existing chat component tests stay green.",
+      "files_hint": [
+        "components/ai/message-list.tsx",
+        "components/ai/chat-island.tsx",
+        "components/ai/conversation-header.tsx",
+        "components/ai/conversation-header-client.tsx",
+        "tests/component/ai-conversation-page.test.tsx",
+        "tests/component/ai-chat-island.test.tsx",
+        "tests/component/ai-follow-latest.test.tsx",
+        "tests/component/ai-streamed-text.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t36-message-list-and-chat-pane-on-elements.md"
+    },
+    {
+      "id": "T37",
+      "title": "Rebuild the empty state with the time-of-day greeting, the PromptInput composer and suggestion chips",
+      "layer": "ui",
+      "deps": [
+        "T34",
+        "T36"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30",
+        "AC-31"
+      ],
+      "dod": "/ai shows the two-line greeting computed on the server in the Freelancer time zone with the first name and the accent span, a centred PromptInput card with the counter and round send button, and the four Suggestion chips that only fill the box; start=draft, used-up, handoff and the composer move with its reduced-motion variant behave as before; Composer keeps its validation on PromptInput; a unit test pins the greeting rule and the start-panel and handoff component tests stay green.",
+      "files_hint": [
+        "components/ai/start-panel.tsx",
+        "components/ai/composer.tsx",
+        "components/ai/chat-island.tsx",
+        "app/(protected)/ai/page.tsx",
+        "lib/helpers/greeting.ts",
+        "app/globals.css",
+        "tests/unit/greeting.test.ts",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/component/ai-handoff.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t37-empty-state-greeting-and-prompt-input-composer.md"
+    },
+    {
+      "id": "T38",
+      "title": "Align Offered choices, the Draft card and the preview panel with the message layout",
+      "layer": "ui",
+      "deps": [
+        "T36"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-20"
+      ],
+      "dod": "Offered choices render as rounded-full chips inside the assistant MessageContent, the Draft card spans the centred column with the container border colour, the preview panel at md and wider is the right-most pane with an h-12 header aligned with the chat header and no own outer border, every SCR-04/05/06 state and label is unchanged, and the offered-choices, draft-card and preview-panel component tests stay green.",
+      "files_hint": [
+        "components/ai/offered-choices.tsx",
+        "components/ai/draft-card.tsx",
+        "components/ai/invoice-preview-panel.tsx",
+        "tests/component/offered-choices.test.tsx",
+        "tests/component/draft-card.test.tsx",
+        "tests/component/invoice-preview-panel.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t38-offered-choices-card-and-preview-visual-alignment.md"
+    },
+    {
+      "id": "T39",
+      "title": "Build the dashboard AI block prompt box on the PromptInput element",
+      "layer": "ui",
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-30",
+        "AC-31"
+      ],
+      "dod": "The dashboard prompt box is a PromptInput card with the counter in its footer and a round submit labelled \"Send to AI\", empty and too-long prompts show the same verbatim FieldError and create nothing, a valid prompt hands off exactly as before, and dashboard-ai-block component tests stay green.",
+      "files_hint": [
+        "components/dashboard/ai-block.tsx",
+        "tests/component/dashboard-ai-block.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t39-dashboard-ai-block-on-prompt-input.md"
+    },
+    {
+      "id": "T40",
+      "title": "Register the AI elements and the changed AI components in the design system",
+      "layer": "docs",
+      "deps": [
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "docs/design-system.md lists Conversation, Message, PromptInput, Suggestion and Loader from components/ai-elements with their contracts, Base UI basis and the ADR-0010 deviations and licence note, updates the AiWorkspace, ConversationList, ChatIsland, Composer, StartPanel, OfferedChoices, DraftCard, InvoicePreviewPanel and DashboardAiBlock rows to the new presentation, and screens.md §New components marks each element registered.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/ai-chat-v2/screens.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t40-register-ai-elements-in-design-system.md"
+    },
+    {
+      "id": "T41",
+      "title": "Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines",
+      "layer": "tests",
+      "deps": [
+        "T35",
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18",
+        "AC-19",
+        "AC-20",
+        "AC-30",
+        "AC-33"
+      ],
+      "dod": "All AI e2e specs pass locally against the new presentation with selectors updated only where markup changed, new checks prove the centred column is at most 768 px wide at 1440x900, no delete button is visible without hover, and the could-not-complete state shows Try again inside an assistant message, the accessibility scan has no serious or critical violation, and the eight AI Linux baselines are retaken with every diff inspected and recorded.",
+      "files_hint": [
+        "tests/e2e/ai-chat-v2-chat.spec.ts",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts",
+        "tests/e2e/ai-assistant-flows.spec.ts",
+        "tests/e2e/ai-assistant.spec.ts",
+        "tests/e2e/ai-chat-v2-chat.spec.ts-snapshots/",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts-snapshots/",
+        "tests/e2e/ai-assistant-flows.spec.ts-snapshots/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t41-e2e-selectors-and-linux-baselines-retake.md"
     }
   ]
 }

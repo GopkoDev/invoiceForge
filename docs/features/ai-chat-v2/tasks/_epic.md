@@ -9,11 +9,12 @@ Ship the second iteration of the in-app AI chat without loosening any first-iter
 ## Scope
 
 - **In:** `lib/assistant-tools` (3 reads), `lib/services/assistant-drafts` (resolver delta, offers, pins, own-profile hint), `lib/services/conversations` (origin, start point, offers, summaries), `lib/services/invoices` (expectedVersion, issuedFromChat), `lib/ai` (pinned turn, offers in `propose_draft`, instructions), `app/api/chat` (press path), `lib/actions/assistant-actions` (preview, issue), `components/ai` + `components/dashboard` + navigation config, privacy page, export, five staged migrations, eval harness, e2e.
+- **In (presentation rewrite, T33–T41):** `components/ai-elements/` (Conversation, Message, PromptInput, Suggestion, Loader ported from Vercel AI Elements onto Base UI, Apache-2.0 LICENSE + NOTICE), the AI section's layout and components in `components/ai` and `components/dashboard/ai-block.tsx`, `docs/design-system.md`, the AI e2e selectors and Linux baselines. No behaviour, contract, schema or copy change beyond screens.md's presentation revision.
 - **Out (spec §3):** the AI issuing, sending, editing or deleting an invoice; editing a draft inside the chat panel; free-form buttons written by the model; full bank account numbers in any answer; rewriting the first iteration's documents.
 
 ## Execution order
 
-Implementation runs **sequentially, in place, in id order** (T01 → T31; no worktrees). Every task's `deps` point only to smaller ids, so id order is a valid topological order. The `Wave` in each task file is the longest dependency chain, shown only to make the parallel branches visible (for example T25 and T28 have no dependency and could run any time).
+Implementation runs **sequentially, in place, in id order** (T01 → T31; no worktrees). The presentation rewrite (T33–T41, added 2026-10-13 after the owner rejected the built AI section UI; ADR-0010) follows the same rule: id order is a valid topological order, waves inside it are T33/T34/T35 → T36/T39 → T37/T38 → T40/T41. Every task's `deps` point only to smaller ids, so id order is a valid topological order. The `Wave` in each task file is the longest dependency chain, shown only to make the parallel branches visible (for example T25 and T28 have no dependency and could run any time).
 
 ## Task map
 
@@ -50,6 +51,16 @@ flowchart LR
     T29["T29 tests: eval harness"]
     T30["T30 tests: e2e chat flows"]
     T31["T31 tests: e2e preview/dashboard/a11y"]
+    T32["T32 app: drafting currency fix"]
+    T33["T33 ui: port Conversation/Message/Loader"]
+    T34["T34 ui: port PromptInput/Suggestion"]
+    T35["T35 ui: container + list rows"]
+    T36["T36 ui: message list on elements"]
+    T37["T37 ui: greeting empty state"]
+    T38["T38 ui: choices/card/preview align"]
+    T39["T39 ui: dashboard box on PromptInput"]
+    T40["T40 docs: design-system registration"]
+    T41["T41 tests: e2e + Linux baselines"]
     T03 --> T06
     T05 --> T06
     T03 --> T07
@@ -97,6 +108,23 @@ flowchart LR
     T26 --> T31
     T28 --> T31
     T30 --> T31
+    T08 --> T32
+    T12 --> T32
+    T33 --> T36
+    T35 --> T36
+    T34 --> T37
+    T36 --> T37
+    T36 --> T38
+    T34 --> T39
+    T36 --> T40
+    T37 --> T40
+    T38 --> T40
+    T39 --> T40
+    T35 --> T41
+    T36 --> T41
+    T37 --> T41
+    T38 --> T41
+    T39 --> T41
 ```
 
 ## Tasks
@@ -136,6 +164,16 @@ See [tracker.md](./tracker.md) for status. Machine contract: [tasks.json](../tas
 | T29 | [Extend the evaluation harness with explains and press fields, the own-profile-name setup and this feature's fixtures](./t29-eval-harness-extension.md) | tests | T09, T14 | The dataset type accepts optional explains and press fields and the own-profile-name setup, the harness replays a press through the route's press … |
 | T30 | [Add e2e-through-UI tests for presses, reopen, full-height layout, empty start, phone sheets and streaming](./t30-e2e-chat-flows.md) | tests | T19, T21, T22 | Playwright tests against a throwaway database with the scripted model show a Customer press ending in the right card, a reopened Conversation with … |
 | T31 | [Add e2e tests for preview and issue (two tabs), navigation, dashboard prompt, privacy, MCP reads and accessibility](./t31-e2e-preview-dashboard-nav-a11y.md) | tests | T07, T24, T25, T26, T28, T30 | Playwright and outside-caller tests show the preview opens beside the messages within 1.5 s, issuing updates panel, card and links, the two-tab … |
+| T32 | [Product candidates follow the drafting currency when only the Customer fails (review R14-1)](./t32-drafting-currency-on-customer-not-found.md) | app | T08, T12 | With a Customer not saved yet and no written currency, the resolver gives resolveLines the drafting currency … |
+| T33 | [Port the Conversation, Message and Loader elements from Vercel AI Elements onto Base UI, with the licence files](./t33-port-conversation-and-message-elements.md) | ui | — | components/ai-elements/conversation.tsx, message.tsx and loader.tsx export the ADR-0010 anatomy built only on components/ui and @base-ui/react (no … |
+| T34 | [Port the PromptInput and Suggestion elements onto Base UI](./t34-port-prompt-input-and-suggestion-elements.md) | ui | — | components/ai-elements/prompt-input.tsx and suggestion.tsx export the ADR-0010 anatomy on InputGroup, Textarea and Button with the attribution … |
+| T35 | [Rebuild the workspace as a bordered container and the Conversation list as plain rows with a row menu for delete](./t35-workspace-container-and-conversation-list.md) | ui | — | At md and wider the AI section is one rounded bordered container in the content area with zero page scroll, the list pane shows the search row … |
+| T36 | [Rebuild the message list and chat pane on the elements: centred column, bubbles, avatar, errors as assistant messages with Try again](./t36-message-list-and-chat-pane-on-elements.md) | ui | T33, T35 | SCR-03 renders through Conversation and Message in a centred max-w-3xl column with the composer docked at the same width, user messages as … |
+| T37 | [Rebuild the empty state with the time-of-day greeting, the PromptInput composer and suggestion chips](./t37-empty-state-greeting-and-prompt-input-composer.md) | ui | T34, T36 | /ai shows the two-line greeting computed on the server in the Freelancer time zone with the first name and the accent span, a centred PromptInput … |
+| T38 | [Align Offered choices, the Draft card and the preview panel with the message layout](./t38-offered-choices-card-and-preview-visual-alignment.md) | ui | T36 | Offered choices render as rounded-full chips inside the assistant MessageContent, the Draft card spans the centred column with the container … |
+| T39 | [Build the dashboard AI block prompt box on the PromptInput element](./t39-dashboard-ai-block-on-prompt-input.md) | ui | T34 | The dashboard prompt box is a PromptInput card with the counter in its footer and a round submit labelled "Send to AI", empty and too-long prompts … |
+| T40 | [Register the AI elements and the changed AI components in the design system](./t40-register-ai-elements-in-design-system.md) | docs | T36, T37, T38, T39 | docs/design-system.md lists Conversation, Message, PromptInput, Suggestion and Loader from components/ai-elements with their contracts, Base UI … |
+| T41 | [Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines](./t41-e2e-selectors-and-linux-baselines-retake.md) | tests | T35, T36, T37, T38, T39 | All AI e2e specs pass locally against the new presentation with selectors updated only where markup changed, new checks prove the centred column … |
 
 ## Decisions
 
@@ -149,7 +187,13 @@ Taken at the tasks stage for the owner (autonomous run, 2026-10-13); the owner c
 - **D-6 — Design-system registration inside UI tasks.** T19, T20, T22, T23, T24 and T26 each update `docs/design-system.md` for the components they add or change (`OfferedChoices`, `InvoicePreviewPanel`, `IssueConfirmation`, `InvoiceStateProvider`, `DashboardAiBlock`, changed `AiWorkspace`, `ConversationList`, `StartPanel`, `ChatIsland`, `DraftCard`, `ChatLink`).
 - **D-7 — Privacy wording reviewed by the owner.** T28 writes the AI section and checks the terms page (spec §8); the owner's review blocks `ship`, not `implement`.
 - **D-8 — Load scenarios stay with ship.** The k6/Locust scenarios against a preview deployment are pre-release steps (test-plan.md §CI placement); per-PR read timing is in T07. No separate task.
-- **D-9 — 31 tasks for an L feature.** Above the 8–20 guide because the feature has 40 acceptance criteria across two surfaces; the first iteration took 46. Each task is ≤ 1 day.
+- **D-9 — 31 tasks for an L feature** (41 with the T32 review follow-up and the T33–T41 presentation rewrite). Above the 8–20 guide because the feature has 40 acceptance criteria across two surfaces; the first iteration took 46. Each task is ≤ 1 day.
+
+- **D-10 — Presentation rewrite as follow-up tasks T33–T41 (2026-10-13).** The owner rejected the built AI section UI (`ref/current-as-built-bad.png`) and chose our own chat elements ported from Vercel AI Elements onto Base UI (ADR-0010) with the layout of `ref/reference-empty-state.png`. Done tasks T19–T26, T30 and T31 are not reopened; the follow-ups change their presentation only, and every existing AC test must stay green without being weakened.
+- **D-11 — No new dependency.** `use-stick-to-bottom` (fixed 70 px threshold vs the 48 px rule) and `streamdown` (Markdown vs ai-assistant AC-07's plain text) are not adopted; `motion` and `nanoid` are dropped with the parts that need them (ADR-0010).
+- **D-12 — Spec-language group labels win over the reference.** The list keeps "Today / Yesterday / Previous 7 days / Older" (spec §1, AC-17), not the reference's "7 Days Ago".
+- **D-13 — Registration as its own docs task.** Unlike D-6, the element set is registered in one place (T40) after all UI follow-ups, so the contracts are written once against the reviewed code.
+- **D-14 — Baselines retaken in their own commit after a full local e2e run** (T41), with each diff inspected against the reference image.
 
 ## Risks / Hard rules
 
@@ -160,6 +204,7 @@ Taken at the tasks stage for the owner (autonomous run, 2026-10-13); the owner c
 - **Owner-scoped everything:** another Freelancer's offer, card, Conversation or record answers exactly as one that does not exist (sad.md §8).
 - **Preview and issue are never messages** and touch no counter (AC-27).
 - **Prompt text never appears in a URL** (ADR-0009).
-- **No new runtime dependency** (sad.md §2).
+- **No new runtime dependency** (sad.md §2; ADR-0010 for the AI elements — no Radix, no `streamdown`, no `use-stick-to-bottom`).
+- **Presentation rewrite changes no behaviour** (T33–T41): every state, AC, address, hand-off, allowance notice, breakpoint, the 48 px follow and reduced motion stay as specified; replies stay plain text.
 - **Database safety:** integration and migration tests run only on throwaway containers; `.env` is dev, `.env.prod` is prod — never targeted.
 - **e2e runs locally before ship** (no e2e in CI): check `docker info`, keep the machine awake, clean leaked testcontainers.
