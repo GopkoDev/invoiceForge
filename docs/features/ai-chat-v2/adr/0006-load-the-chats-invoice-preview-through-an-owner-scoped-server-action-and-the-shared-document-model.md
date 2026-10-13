@@ -55,3 +55,7 @@ The preview panel must show "the same invoice preview the editor shows" (AC-20) 
 - Spec: [[../spec.md]] AC-20, AC-21, AC-22; §6 "Preview open"
 - SAD: [[../sad.md]] §4, §5, §6 flow 2
 - Related ADR: [[0005-give-a-saved-conversation-and-an-open-preview-their-own-addresses-and-keep-a-new-conversation-at-ai]], [[0007-issue-from-the-preview-through-the-invoice-status-service-guarded-by-the-version-the-preview-showed]], [[0008-keep-invoice-states-in-one-workspace-store-fed-by-loads-and-action-results-without-push]]; editor-ux ADR-0002
+
+## As built (review 2026-10-13)
+
+The preview read is scoped to the open Conversation as well as the owner: `loadInvoicePreview(cardId, conversationId)` with the Conversation from `/ai/{id}`. A card of another Conversation, or a missing or invalid `conversationId`, reads NOT_FOUND in the same words as AC-22, and at `/ai` (no Conversation) the panel shows not found without a read (R9-2, R10-1).

@@ -4,7 +4,7 @@
 //
 // Seams:
 //   components/ai/invoice-preview-panel.tsx -> InvoicePreviewPanel({ cardId, variant?: 'column' | 'sheet' }) (client).
-//     Calls loadInvoicePreview(cardId) on open; routes every loadInvoicePreview / issueFromPreview result to a
+//     Calls loadInvoicePreview(cardId, conversationId) on open (not found without a call at /ai); routes every loadInvoicePreview / issueFromPreview result to a
 //     SCR-06 state with the contract texts verbatim and writes the states to the invoice-state store (ADR-0008);
 //     "×" (aria-label "Close preview") and Escape close it through the address.
 //   components/ai/ai-workspace.tsx -> reads ?preview=: from md a grid column beside the chat (the list pane hidden

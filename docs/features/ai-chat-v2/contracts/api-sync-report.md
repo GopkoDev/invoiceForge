@@ -132,10 +132,10 @@ The parent files are not edited.
 
 | schema_path | origin | confidence |
 |---|---|---|
-| loadInvoicePreview(cardId) | ADR-0006; critical flow 2 | high |
+| loadInvoicePreview(cardId, conversationId) | ADR-0006; critical flow 2 | high |
 | InvoicePreview AVAILABLE {invoice, version, state} | ADR-0006 "serialized invoice with its status and version"; existing `SerializedInvoice` (includes the sender profile for the logo), `Invoice.version` | high |
 | UNAVAILABLE (card `invoiceId` NULL) | ADR-0006; critical flow 2 alt "invoice was deleted since"; AC-21 | high |
-| NOT_FOUND (foreign, unknown, not CREATED) | critical flow 2 alt; AC-22; D-11 | high |
+| NOT_FOUND (foreign, unknown, not CREATED, a card of another Conversation, or a missing or invalid conversationId; R9-2, R10-1) | critical flow 2 alt; AC-22; D-11 | high |
 | issueFromPreview(invoiceId, expectedVersion) | ADR-0007; SAD §5 | high |
 | ALREADY_ISSUED / CHANGED_ELSEWHERE / VALIDATION / issued | critical flow 2 alts; AC-23, AC-25, AC-26, AC-26b; existing `CHANGED_ELSEWHERE {currentVersion}`; D-9 | high |
 | NOT_FOUND when the invoice is gone at issue time | contract addition; existing `lockInvoiceRow` NOT_FOUND (F-6) | medium |

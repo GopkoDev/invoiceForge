@@ -198,7 +198,7 @@ lib/
 │   ├── conversations/                       CHANGED  message origin, start point; full summary list for grouping and search
 │   ├── invoices/invoices.ts                 CHANGED  updateInvoiceStatus(…, { expectedVersion }) → ALREADY_ISSUED / CHANGED_ELSEWHERE
 │   └── account/                             CHANGED  export + deletion cover offers and origins
-├── actions/assistant-actions.ts             CHANGED  NEW loadInvoicePreview(cardId), issueFromPreview(invoiceId, version)
+├── actions/assistant-actions.ts             CHANGED  NEW loadInvoicePreview(cardId, conversationId), issueFromPreview(invoiceId, version)
 └── validations/assistant-chat.ts            CHANGED  chatRequestSchema + choice { offerId, optionId }, origin, startedFrom
 prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; ConversationMessage.origin; Conversation.startedFrom
 ```
