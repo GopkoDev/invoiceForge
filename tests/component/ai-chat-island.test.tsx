@@ -745,3 +745,37 @@ describe('T39 R-22 - live regions', () => {
 
 // T39 R-23 (scroll to the newest message on open, on send and while a reply streams) is superseded by ai-chat-v2
 // T21's follow-to-latest hook and its 48 px rule: see tests/component/ai-follow-latest.test.tsx.
+
+// ai-chat-v2 T31 finding: a Conversation started in place keeps the /ai page's tree in its history entry. Back then
+// Forward to /ai/{id} mounted that page again: the empty start screen under a saved Conversation's address. The
+// island now notices it mounted with no Conversation at a Conversation address, shows a skeleton and refreshes, so
+// the server renders the saved Conversation.
+describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
+  it('shows no start screen and refreshes once to load the saved Conversation', async () => {
+    pathname = '/ai/cSaved';
+    island({ conversationId: null, initialMessages: [] });
+    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('a new Conversation that moves its own address from /ai to /ai/{id} is not refreshed', async () => {
+    pathname = '/ai';
+    const view = island({ conversationId: null, initialMessages: [] });
+    pathname = '/ai/cNew';
+    view.rerender(
+      <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(12)} />
+    );
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a saved Conversation page (conversationId set) is never refreshed on mount', async () => {
+    pathname = '/ai/c1';
+    island();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});

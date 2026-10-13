@@ -17,9 +17,11 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 
 const refresh = vi.fn();
+// The address the page is rendered at; the /ai page renders at /ai (ai-chat-v2 T31: /ai's island at /ai/{id} is a stale entry).
+let mockPathname = '/ai/c1';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh, replace: vi.fn() }),
-  usePathname: () => '/ai/c1',
+  usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('@/lib/helpers/client-session-redirect', () => ({ goToSignIn: vi.fn() }));
@@ -234,6 +236,7 @@ function island(over: Partial<Parameters<typeof ChatIsland>[0]> = {}) {
 const group = () => screen.getByRole('group', { name: 'Choose a Customer' });
 
 beforeEach(() => {
+  mockPathname = '/ai/c1';
   fetchMock.mockReset();
   refresh.mockReset();
   loadConversationCards.mockReset();
@@ -318,6 +321,7 @@ describe('ChatIsland - Offered choices under a reply (AC-08)', () => {
   });
 
   it('a data-offer part streamed with only its id shows a skeleton until loadConversationCards brings the labels (/ai)', async () => {
+    mockPathname = '/ai';
     let resolveCards!: (v: unknown) => void;
     loadConversationCards.mockReturnValueOnce(new Promise((r) => (resolveCards = r)));
     fetchMock.mockResolvedValueOnce(

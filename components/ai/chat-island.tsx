@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { replaceAddress } from '@/components/ai/preview-address';
 import { protectedRoutes } from '@/config/routes.config';
 import { loadConversationCards } from '@/lib/actions/assistant-actions';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
@@ -174,10 +175,20 @@ export function ChatIsland(props: ChatIslandProps) {
   // On /ai the island becomes the new Conversation in place, so going back to /ai (the sidebar, "New
   // conversation") reaches the same mounted page: a fresh chat starts whenever the address returns to /ai.
   const pathname = usePathname();
+  const router = useRouter();
   const [seen, setSeen] = useState({ pathname, chat: 0 });
   if (seen.pathname !== pathname) {
     setSeen({ pathname, chat: pathname === protectedRoutes.ai ? seen.chat + 1 : seen.chat });
   }
+  // ai-chat-v2 T31 finding: a Conversation started in place keeps the /ai page's tree in its history entry, so Back
+  // then Forward to /ai/{id} mounts /ai's page again. Mounted with no Conversation at a Conversation address, the
+  // island shows a skeleton and refreshes once: the server then renders the saved Conversation's page.
+  const [mountedAt] = useState(pathname);
+  const staleEntry = props.conversationId === null && mountedAt.startsWith(`${protectedRoutes.ai}/`);
+  useEffect(() => {
+    if (staleEntry) router.refresh();
+  }, [staleEntry, router]);
+  if (staleEntry) return <Skeleton className="min-h-0 w-full flex-1" />;
   // ai-chat-v2 T23 (ADR-0008): the island shares the workspace's invoice-state store (or holds its own outside it).
   return (
     <InvoiceStateProvider>
@@ -263,11 +274,7 @@ function ChatSession({
         live.setConversationId(part.data.conversationId);
         if (conversationId === null) setSaved({ id: part.data.conversationId, title: part.data.title });
         newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
-        window.history.replaceState(
-          window.history.state,
-          '',
-          `/ai/${part.data.conversationId}`
-        );
+        replaceAddress(`/ai/${part.data.conversationId}`);
       } else if (part.type === 'data-allowance') {
         setAllowance(part.data);
       } else if (part.type === 'data-outcome') {
@@ -427,7 +434,7 @@ function ChatSession({
     const url = new URL(window.location.href);
     if (url.searchParams.has(HANDOFF_PARAM)) {
       url.searchParams.delete(HANDOFF_PARAM);
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      replaceAddress(`${url.pathname}${url.search}${url.hash}`);
     }
     const prompt = takeHandoff(handoffId);
     if (prompt !== null && prompt.trim()) sendRef.current?.(prompt.trim(), undefined, 'DASHBOARD');

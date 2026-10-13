@@ -8,9 +8,11 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 
+// The address the page is rendered at; the /ai page renders at /ai (ai-chat-v2 T31: /ai's island at /ai/{id} is a stale entry).
+let mockPathname = '/ai/c1';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
-  usePathname: () => '/ai/c1',
+  usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -53,6 +55,7 @@ const rows = (titles: string[]): ConversationSummary[] =>
   titles.map((title, i) => ({ id: `c${i + 1}`, title, lastMessageAt: '2026-10-10T09:00:00.000Z' }));
 
 beforeEach(() => {
+  mockPathname = '/ai/c1';
   listConversationSummaries.mockReset();
   getConversation.mockReset();
   Element.prototype.scrollIntoView = vi.fn();
@@ -131,6 +134,7 @@ describe('AC-19: below md the list opens as a left sheet and closes on a pick', 
   });
 
   it('on /ai the start screen has the same list button', async () => {
+    mockPathname = '/ai';
     listConversationSummaries.mockResolvedValue({ success: true, data: { items: rows(['Draft for Acme']), timeZone: 'UTC' } });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole('button', { name: 'Open conversations' })).toBeInTheDocument();
