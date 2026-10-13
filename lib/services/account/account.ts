@@ -1,5 +1,10 @@
 import 'server-only';
 import { captureException } from '@sentry/nextjs';
+import type {
+  ChoiceOfferKind,
+  ChoiceOfferState,
+  MessageOrigin,
+} from '@prisma/client';
 import { prisma } from '@/prisma';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { fail, ok, type ActionResult } from '@/types/result';
@@ -169,9 +174,25 @@ async function readExport(userId: string) {
         title: true,
         createdAt: true,
         lastMessageAt: true,
+        startedFrom: true,
         messages: {
           orderBy: { position: 'asc' },
-          select: { role: true, createdAt: true, parts: true },
+          select: {
+            role: true,
+            createdAt: true,
+            parts: true,
+            origin: true,
+            // Labels and the chosen option only: never the stored request or option refs (ai-chat-v2 AC-34).
+            offer: {
+              select: {
+                kind: true,
+                options: true,
+                state: true,
+                chosenOptionId: true,
+                createdAt: true,
+              },
+            },
+          },
         },
         draftCards: {
           orderBy: { createdAt: 'asc' },
@@ -195,6 +216,7 @@ async function readExport(userId: string) {
     title: c.title,
     createdAt: c.createdAt.toISOString(),
     lastMessageAt: c.lastMessageAt.toISOString(),
+    startedFrom: c.startedFrom,
     messages: c.messages.map((m) => exportMessage(m)),
     draftCards: c.draftCards.map((card) => ({
       ...card,
@@ -233,11 +255,41 @@ function dayString(day: Date): string {
 
 type StoredPart = { type?: unknown; text?: unknown; data?: unknown };
 
-/** Flattens stored UI-message parts into text, links and Draft card ids (ADR-0008). */
+type StoredOfferOption = { optionId?: unknown; label?: unknown };
+
+/** An Offered choice as exported: its labels and the chosen option, never its record refs (ai-chat-v2 AC-34). */
+function exportOffer(
+  offer: {
+    kind: ChoiceOfferKind;
+    options: unknown;
+    state: ChoiceOfferState;
+    chosenOptionId: number | null;
+    createdAt: Date;
+  } | null
+) {
+  if (!offer) return null;
+  const options = (
+    Array.isArray(offer.options) ? offer.options : []
+  ) as StoredOfferOption[];
+  return {
+    kind: offer.kind,
+    options: options.map((o) => ({
+      optionId: Number(o.optionId),
+      label: String(o.label),
+    })),
+    state: offer.state,
+    chosenOptionId: offer.chosenOptionId,
+    createdAt: offer.createdAt.toISOString(),
+  };
+}
+
+/** Flattens stored UI-message parts into text, links and Draft card ids (ADR-0008), plus origin and offer. */
 function exportMessage(m: {
   role: 'USER' | 'ASSISTANT';
   createdAt: Date;
   parts: unknown;
+  origin: MessageOrigin | null;
+  offer: Parameters<typeof exportOffer>[0];
 }) {
   const parts = (Array.isArray(m.parts) ? m.parts : []) as StoredPart[];
   const links: unknown[] = [];
@@ -259,6 +311,8 @@ function exportMessage(m: {
     text,
     links,
     draftCardIds,
+    origin: m.origin,
+    offer: exportOffer(m.offer),
   };
 }
 
@@ -266,7 +320,7 @@ type ExportRead = Awaited<ReturnType<typeof readExport>>;
 
 export type AccountExport = Omit<ExportRead, 'user'> & {
   exportDate: string;
-  exportVersion: '2.2';
+  exportVersion: '2.3';
   user: NonNullable<ExportRead['user']>;
 };
 
@@ -275,7 +329,7 @@ const EXPORT_RATE_LIMITED =
   "You've reached the export limit. You can export again later.";
 
 /**
- * Every category the account owns, scoped by actor.userId (exportVersion 2.2: Personal keys with weekly usage and draft counts, time zone, Conversations, daily message counts).
+ * Every category the account owns, scoped by actor.userId (exportVersion 2.3: Personal keys with weekly usage and draft counts, time zone, Conversations with start points, message origins and Offered choices, daily message counts).
  * A place is reserved in the limit store before any read (ADR-0005); a system-side failure
  * releases it, a limit-store failure refuses the export (never unlimited). An account that is
  * gone is NOT_FOUND: nothing is recorded, and a place
@@ -344,7 +398,7 @@ export async function getAccountExport(
 
     return ok({
       exportDate: new Date().toISOString(),
-      exportVersion: '2.2',
+      exportVersion: '2.3',
       user,
       ...rest,
     });

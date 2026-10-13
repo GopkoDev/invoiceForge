@@ -179,7 +179,7 @@ describe.runIf(containerRuntimeAvailable)(
       expect(response.status).toBe(200);
       expect(body).toEqual({
         exportDate: expect.any(String),
-        exportVersion: '2.2',
+        exportVersion: '2.3',
         user: expect.objectContaining({
           id: freelancer.id,
           email: freelancer.email,
@@ -274,7 +274,7 @@ describe.runIf(containerRuntimeAvailable)(
       // Sessions are dropped — the contract's additionalProperties:false on UserDataExport already
       // enforces this above, but assert it explicitly too since it's the AC's own wording.
       expect(body).not.toHaveProperty('sessions');
-      expect(body.exportVersion).toBe('2.2');
+      expect(body.exportVersion).toBe('2.3');
 
       // Scoped to the caller only — another Freelancer's data never appears.
       const bodyText = JSON.stringify(body);
@@ -353,7 +353,7 @@ describe.runIf(containerRuntimeAvailable)(
       const body = JSON.parse(text);
 
       expect(response.status).toBe(200);
-      expect(body.exportVersion).toBe('2.2');
+      expect(body.exportVersion).toBe('2.3');
       expect(body.user.timeZone).toBe('Europe/Kyiv');
       expect(body.user.overdueNoticeDismissedAt).toBe(
         '2026-09-01T10:00:00.000Z'
@@ -552,7 +552,7 @@ describe.runIf(containerRuntimeAvailable)(
       const body = JSON.parse(text);
 
       expect(response.status).toBe(200);
-      expect(body.exportVersion).toBe('2.2');
+      expect(body.exportVersion).toBe('2.3');
       await assertMatchesContract({
         operationId: 'exportUserData',
         status: 200,
@@ -572,6 +572,9 @@ describe.runIf(containerRuntimeAvailable)(
           text: 'Please invoice Acme Corp',
           links: [],
           draftCardIds: [],
+          // ai-chat-v2 2.3: a row saved before the origin backfill exports origin null.
+          origin: null,
+          offer: null,
         },
         {
           role: 'assistant',
@@ -579,6 +582,8 @@ describe.runIf(containerRuntimeAvailable)(
           text: 'Here is your draft',
           links: [link],
           draftCardIds: [card.id],
+          origin: null,
+          offer: null,
         },
       ]);
       expect(exported.draftCards).toHaveLength(2);
