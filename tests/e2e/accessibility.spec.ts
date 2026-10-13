@@ -240,12 +240,17 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
         await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
 
         await page.getByRole('textbox', { name: 'Message' }).fill('invoice Acme for 20 hours at $50');
-        await page.getByRole('button', { name: 'Send', exact: true }).click();
-        const choices = page.getByRole('group', { name: 'Choose a Customer' });
-        await expect(choices.getByRole('button', { name: 'Acme Corp', exact: true })).toBeEnabled();
-        await expectNoSeriousViolations(page, testInfo, `AI section, Offered choices (${vp.name})`);
+        await page
+          .locator('[data-slot="start-composer"]')
+          .getByRole('button', { name: 'Send', exact: true })
+          .click();
+        const form = page.getByRole('group', { name: 'A few details' });
+        const customer = form.getByRole('radiogroup', { name: 'Customer' });
+        await expect(customer.getByRole('radio', { name: 'Acme Corp', exact: true })).toBeEnabled();
+        await expectNoSeriousViolations(page, testInfo, `AI section, Question form (${vp.name})`);
 
-        await choices.getByRole('button', { name: 'Acme Corp', exact: true }).click();
+        await customer.getByRole('radio', { name: 'Acme Corp', exact: true }).click();
+        await form.getByRole('button', { name: 'Send', exact: true }).click();
         await page.getByRole('button', { name: 'Create draft' }).click();
         await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
         await page.getByRole('button', { name: 'Preview', exact: true }).click();

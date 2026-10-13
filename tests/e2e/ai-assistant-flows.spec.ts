@@ -21,7 +21,11 @@ test.describe.configure({ timeout: 150_000 });
 const DRAFT_SENTENCE = 'Invoice Acme for 20 hours of consulting at $50';
 const DESKTOP = { width: 1280, height: 800 };
 const message = (page: Page) => page.getByRole('textbox', { name: 'Message' });
-const send = (page: Page) => page.getByRole('button', { name: 'Send', exact: true });
+// The composer's Send only (start panel or docked box): a Question form in the chat has its own Send.
+const send = (page: Page) =>
+  page
+    .locator('[data-slot="composer-dock"], [data-slot="start-composer"]')
+    .getByRole('button', { name: 'Send', exact: true });
 
 test('AC-25: a key created with Draft permission is shown once and listed as able to create drafts', async ({
   browser,

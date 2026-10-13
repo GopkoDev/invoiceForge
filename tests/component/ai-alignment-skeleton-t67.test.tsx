@@ -9,7 +9,7 @@
 //   - app/(protected)/ai/[conversationId]/loading.tsx = the CHAT PANE only (the list lives in ai/layout.tsx, T66):
 //     no 16rem workspace grid, no list rows/labels/footer; the real h-12 header classes, the real max-w-3xl px-4
 //     column, assistant placeholder = items-start gap-3 row with a size-6 round avatar box and flex-1 lines, user
-//     placeholder = rounded-2xl h-10 bubble, composer placeholder min-h-[7.25rem] inside max-w-3xl px-4 pb-4.
+//     placeholder = rounded-2xl h-11 bubble, composer placeholder min-h-[7.25rem] inside max-w-3xl px-4 pb-4.
 //   - app/(protected)/ai/loading.tsx = the /ai chat pane only, centred greeting + composer placeholder at the
 //     composer's min-h-[7.25rem], no list skeleton.
 //   - MessageAvatar sits in an h-6 box (one leading-6 line) that is a direct child of the items-start Message; the
@@ -139,9 +139,9 @@ describe('AC-51: the chat-pane loading is the real chat pane, without the list',
     const row = avatar!.closest('.items-start.gap-3');
     expect(row, 'avatar sits in an items-start gap-3 row').not.toBeNull();
     const bubble = skeletons(container).find(
-      (s) => has(s, 'rounded-2xl') && has(s, 'h-10') && has(s, 'self-end')
+      (s) => has(s, 'rounded-2xl') && has(s, 'h-11') && has(s, 'self-end')
     );
-    expect(bubble, 'user bubble placeholder h-10 rounded-2xl').toBeDefined();
+    expect(bubble, 'user bubble placeholder h-11 rounded-2xl').toBeDefined();
   });
 
   it('draws the composer placeholder at the real min height inside the real dock padding', () => {

@@ -22,7 +22,11 @@ const ALREADY_ISSUED = 'This invoice has already been issued.';
 const OUTDATED = 'This draft was changed after you opened the preview. Check it and issue again.';
 
 const message = (page: Page) => page.getByRole('textbox', { name: 'Message' });
-const send = (page: Page) => page.getByRole('button', { name: 'Send', exact: true });
+// The composer's Send only (start panel or docked box): a Question form in the chat has its own Send.
+const send = (page: Page) =>
+  page
+    .locator('[data-slot="composer-dock"], [data-slot="start-composer"]')
+    .getByRole('button', { name: 'Send', exact: true });
 const panel = (page: Page) => page.locator('[data-slot="invoice-preview-panel"]');
 const issueButton = (page: Page) => panel(page).getByRole('button', { name: 'Issue invoice' });
 

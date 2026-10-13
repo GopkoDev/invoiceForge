@@ -12,13 +12,17 @@ import {
   createConversation,
   type ConversationMessageInput,
 } from '../support/factories/conversation';
-import { createChoiceOffer } from '../support/factories/choice-offer';
 import {
   APP_E2E_URL,
   SNAPSHOT_PLATFORM,
   readE2eRuntime,
 } from './support/app-server';
 import { openSignedInFreelancer } from './support/signed-in';
+import {
+  accountAndPriceQuestions,
+  accountLabel,
+  attachForm,
+} from './support/ai-forms';
 import { protectedRoutes } from '../../config/routes.config';
 import { STREAMED_REPLY } from '../../lib/ai/e2e-stub-model';
 
@@ -28,11 +32,14 @@ const AMBIGUOUS = 'invoice Acme for 20 hours at $50';
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 360, height: 640 };
 const UNAVAILABLE =
-  'This option is no longer available. Choose again or type your request.';
+  'This form is no longer available. Answer the latest questions or type your request.';
 
 const message = (page: Page) => page.getByRole('textbox', { name: 'Message' });
+// The composer's Send only (the start panel's or the docked box's): a Question form in the chat has its own Send.
 const send = (page: Page) =>
-  page.getByRole('button', { name: 'Send', exact: true });
+  page
+    .locator('[data-slot="composer-dock"], [data-slot="start-composer"]')
+    .getByRole('button', { name: 'Send', exact: true });
 const userBubbles = (page: Page) => page.locator('[data-role="user"]');
 const replies = (page: Page) => page.locator('[data-role="assistant"]');
 const allowanceText = (page: Page) =>
@@ -55,7 +62,7 @@ const textMessages = (n: number, prefix: string): ConversationMessageInput[] =>
     text: `${prefix} message ${i + 1}: ${i % 2 === 0 ? 'Who owes me money right now?' : 'Acme Corp owes 1,000.00 USD on one invoice.'}`,
   }));
 
-test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with a card for Acme GmbH', async ({
+test('AC-08: answering the Customer question and pressing Send posts "Customer: Acme GmbH" and the chat continues with a card for Acme GmbH', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
@@ -73,38 +80,46 @@ test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with 
     await message(page).fill(AMBIGUOUS);
     await send(page).click();
 
-    const choices = page.getByRole('group', { name: 'Choose a Customer' });
-    await expect(choices).toBeVisible();
-    await expect(choices.getByRole('button')).toHaveText([
+    const form = page.getByRole('group', { name: 'A few details' });
+    await expect(form).toBeVisible();
+    const customer = form.getByRole('radiogroup', { name: 'Customer' });
+    await expect(customer.getByRole('radio')).toHaveText([
       'Acme Corp',
       'Acme GmbH',
+      'Other…',
     ]);
+    // Send stays disabled until the required question is answered; no card yet.
+    const formSend = form.getByRole('button', { name: 'Send', exact: true });
+    await expect(formSend).toBeDisabled();
     await expect(
       page.getByRole('button', { name: 'Create draft' })
     ).toHaveCount(0);
 
-    await choices
-      .getByRole('button', { name: 'Acme GmbH', exact: true })
-      .click();
+    await customer.getByRole('radio', { name: 'Acme GmbH', exact: true }).click();
+    await expect(formSend).toBeEnabled();
+    await formSend.click();
 
-    await expect(userBubbles(page).last()).toHaveText('Acme GmbH');
+    await expect(userBubbles(page).last()).toHaveText('Customer: Acme GmbH');
     await expect(
       page.getByRole('button', { name: 'Create draft' })
     ).toBeVisible();
     await expect(
-      choices.getByRole('button', { name: 'Acme GmbH (chosen)' })
-    ).toBeVisible();
+      customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
+    ).toHaveAttribute('aria-checked', 'true');
     await expect(
-      choices.getByRole('button', { name: 'Acme Corp', exact: true })
+      customer.getByRole('radio', { name: 'Acme Corp', exact: true })
     ).toBeDisabled();
+    await expect(
+      form.getByRole('button', { name: 'Send', exact: true })
+    ).toHaveCount(0);
 
-    // The press was saved as a PRESSED message with the stored label, and the card is for exactly Acme GmbH.
+    // The Send was saved as a FORM message with the composed text, and the card is for exactly Acme GmbH.
     await withDb(async (prisma) => {
-      const pressed = await prisma.conversationMessage.findFirstOrThrow({
+      const sent = await prisma.conversationMessage.findFirstOrThrow({
         where: { conversation: { userId: workspace.userId }, role: 'USER' },
         orderBy: { position: 'desc' },
       });
-      expect(pressed.origin).toBe('PRESSED');
+      expect(sent.origin).toBe('FORM');
       const gmbh = await prisma.customer.findFirstOrThrow({
         where: { userId: workspace.userId, name: 'Acme GmbH' },
       });
@@ -121,7 +136,7 @@ test('AC-08: pressing "Acme GmbH" sends that choice and the chat continues with 
   }
 });
 
-test('AC-13: a reopened Conversation shows the three offered accounts with the pressed one marked; an open button for a deleted account is refused without counting', async ({
+test('AC-13: a reopened Conversation shows the sent form with three accounts and the typed price, read-only; the latest unsent form turns down a deleted account without counting', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
@@ -136,6 +151,7 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
   );
   try {
     const { page, workspace } = f;
+    const SENT_PRICE = '62.50';
     const conversationId = await withDb(async (prisma) => {
       const [alpha, beta, gamma] = await Promise.all(
         ['Alpha Bank', 'Beta Bank', 'Gamma Bank'].map((bankName, i) =>
@@ -147,80 +163,44 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
           })
         )
       );
-      const accounts = [alpha, beta, gamma];
-      const reply1 = `e2e-offer-reply-1-${workspace.userId}`;
-      const reply2 = `e2e-offer-reply-2-${workspace.userId}`;
-      const label = (a: (typeof accounts)[number]) =>
-        `${a.bankName} ••${a.accountNumber.slice(-4)} · USD`;
-      const options = accounts.map((a, i) => ({
-        optionId: i + 1,
-        label: label(a),
-        ref: { bankAccountId: a.id },
-      }));
+      const questions = accountAndPriceQuestions([alpha, beta, gamma]);
+      const reply1 = `e2e-form-reply-1-${workspace.userId}`;
+      const reply2 = `e2e-form-reply-2-${workspace.userId}`;
       const conversation = await createConversation(prisma, {
         userId: workspace.userId,
         title: 'Acme accounts',
         lastMessageAt: new Date(Date.now() - 3 * 24 * 3600_000),
         messages: [
           { role: 'USER', text: AMBIGUOUS },
+          { role: 'ASSISTANT', id: reply1, text: 'placeholder' },
           {
-            role: 'ASSISTANT',
-            id: reply1,
-            parts: [
-              { type: 'text', text: 'Which account should be paid into?' },
-            ],
+            role: 'USER',
+            text: `Bank account: ${accountLabel(beta)}\nLine 1 · Price: ${SENT_PRICE}`,
+            origin: 'FORM',
           },
-          { role: 'USER', text: label(beta), origin: 'PRESSED' },
-          {
-            role: 'ASSISTANT',
-            id: reply2,
-            parts: [
-              { type: 'text', text: 'Which account for the second invoice?' },
-            ],
-          },
+          { role: 'ASSISTANT', id: reply2, text: 'placeholder' },
         ],
       });
-      const chosen = await createChoiceOffer(prisma, {
+      await attachForm(prisma, {
         userId: workspace.userId,
         conversationId: conversation.id,
         messageId: reply1,
-        kind: 'BANK_ACCOUNT',
-        request: {
-          customer: 'Acme',
-          currency: 'USD',
-          lines: [{ description: 'Design work', quantity: '20', price: '50' }],
-        },
-        options,
+        text: 'Which account should be paid into?',
+        questions,
         state: 'CHOSEN',
-        chosenOptionId: 2,
+        answers: [
+          { questionId: 0, optionId: 1 },
+          { questionId: 1, text: SENT_PRICE },
+        ],
       });
-      const open = await createChoiceOffer(prisma, {
+      await attachForm(prisma, {
         userId: workspace.userId,
         conversationId: conversation.id,
         messageId: reply2,
-        kind: 'BANK_ACCOUNT',
-        request: {
-          customer: 'Acme',
-          currency: 'USD',
-          lines: [{ description: 'Design work', quantity: '20', price: '50' }],
-        },
-        options,
+        text: 'Which account for the second invoice?',
+        questions,
       });
-      for (const [messageId, offer, text] of [
-        [reply1, chosen, 'Which account should be paid into?'],
-        [reply2, open, 'Which account for the second invoice?'],
-      ] as const) {
-        await prisma.conversationMessage.update({
-          where: { id: messageId },
-          data: {
-            parts: [
-              { type: 'text', text },
-              { type: 'data-offer', id: offer.id, data: { offerId: offer.id } },
-            ],
-          },
-        });
-      }
-      // The account offered on the still-open buttons is deleted afterwards.
+      // The account offered on the still-open form is deleted afterwards.
       await prisma.bankAccount.delete({ where: { id: gamma.id } });
       return conversation.id;
     });
@@ -229,29 +209,38 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
     await page.locator(`a[href="/ai/${conversationId}"]:visible`).click();
     await expect(page).toHaveURL(new RegExp(`/ai/${conversationId}$`));
 
-    const groups = page.getByRole('group', { name: 'Choose a bank account' });
-    await expect(groups).toHaveCount(2);
-    const earlier = groups.first();
-    await expect(earlier.getByRole('button')).toHaveCount(3);
+    const forms = page.getByRole('group', { name: 'A few details' });
+    await expect(forms).toHaveCount(2);
+    const earlier = forms.first();
+    const accounts = earlier.getByRole('radiogroup', { name: 'Bank account' });
+    await expect(accounts.getByRole('radio')).toHaveCount(3);
     await expect(
-      earlier.getByRole('button', { name: 'Beta Bank ••2222 · USD (chosen)' })
-    ).toBeVisible();
-    for (const button of await earlier.getByRole('button').all())
-      await expect(button).toBeDisabled();
+      accounts.getByRole('radio', { name: 'Beta Bank ••2222 · USD' })
+    ).toHaveAttribute('aria-checked', 'true');
+    for (const radio of await accounts.getByRole('radio').all())
+      await expect(radio).toBeDisabled();
+    // The typed price is shown as sent, and there is no way to change or send it again.
+    await expect(earlier.getByText(SENT_PRICE, { exact: true })).toBeVisible();
+    await expect(earlier.getByRole('textbox')).toHaveCount(0);
+    await expect(
+      earlier.getByRole('button', { name: 'Send', exact: true })
+    ).toHaveCount(0);
 
-    // The latest reply's buttons can still be pressed; the deleted account's is turned down without counting.
-    const latest = groups.last();
+    // The latest reply's form can still be answered; the deleted account's pick is turned down without counting.
+    const latest = forms.last();
     await expect(
-      latest.getByRole('button', { name: 'Gamma Bank ••3333 · USD' })
+      latest.getByRole('radio', { name: 'Gamma Bank ••3333 · USD' })
     ).toBeEnabled();
     const before = await allowanceText(page).textContent();
     await latest
-      .getByRole('button', { name: 'Gamma Bank ••3333 · USD' })
+      .getByRole('radio', { name: 'Gamma Bank ••3333 · USD' })
       .click();
+    await latest.getByRole('textbox', { name: 'Line 1 · Price' }).fill('70');
+    await latest.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByText(UNAVAILABLE)).toBeVisible();
     await expect(
-      latest.getByRole('button', { name: /\(chosen\)/ })
-    ).toHaveCount(0);
+      latest.getByRole('radio', { checked: true, name: /Gamma/ })
+    ).toHaveCount(1);
     await expect(allowanceText(page)).toHaveText(before!);
     await withDb(async (prisma) => {
       expect(
@@ -262,6 +251,10 @@ test('AC-13: a reopened Conversation shows the three offered accounts with the p
       expect(
         await prisma.conversationMessage.count({ where: { conversationId } })
       ).toBe(4);
+      const open = await prisma.choiceOffer.findMany({
+        where: { conversationId, state: 'OPEN' },
+      });
+      expect(open).toHaveLength(1);
     });
   } finally {
     await f.context.close();
@@ -603,7 +596,7 @@ test('AC-33: a multi-sentence reply appears word by word, and reopens whole', as
   }
 });
 
-test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressable and chosen', () => {
+test.describe('visual baselines: SCR-02 empty state, SCR-03 with the SCR-04 Question form open and sent', () => {
   test('SCR-02 and SCR-03/SCR-04', async ({ browser }, testInfo) => {
     test.skip(
       SNAPSHOT_PLATFORM !== 'linux',
@@ -645,22 +638,22 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressabl
 
       await message(page).fill(AMBIGUOUS);
       await send(page).click();
-      const choices = page.getByRole('group', { name: 'Choose a Customer' });
+      const form = page.getByRole('group', { name: 'A few details' });
+      const customer = form.getByRole('radiogroup', { name: 'Customer' });
       await expect(
-        choices.getByRole('button', { name: 'Acme GmbH', exact: true })
+        customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
       ).toBeEnabled();
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveScreenshot(
-        'ai-v2-offered-choices-pressable.png',
-        { ...shot, mask: volatile() }
-      );
+      await expect(page).toHaveScreenshot('ai-v2-question-form-open.png', {
+        ...shot,
+        mask: volatile(),
+      });
 
-      await choices
-        .getByRole('button', { name: 'Acme GmbH', exact: true })
-        .click();
+      await customer.getByRole('radio', { name: 'Acme GmbH', exact: true }).click();
+      await form.getByRole('button', { name: 'Send', exact: true }).click();
       await expect(
-        choices.getByRole('button', { name: 'Acme GmbH (chosen)' })
-      ).toBeVisible();
+        customer.getByRole('radio', { name: 'Acme GmbH', exact: true })
+      ).toHaveAttribute('aria-checked', 'true');
       await expect(
         page.getByRole('button', { name: 'Create draft' })
       ).toBeVisible();
@@ -668,7 +661,7 @@ test.describe('visual baselines: SCR-02 empty state, SCR-03 with SCR-04 pressabl
       await page
         .locator('[data-slot="chat-scroll"]')
         .evaluate((el) => el.scrollTo({ top: 0 }));
-      await expect(page).toHaveScreenshot('ai-v2-offered-choices-chosen.png', {
+      await expect(page).toHaveScreenshot('ai-v2-question-form-sent.png', {
         ...shot,
         mask: volatile(),
       });

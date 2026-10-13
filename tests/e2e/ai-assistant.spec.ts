@@ -12,6 +12,12 @@ import { protectedRoutes } from '../../config/routes.config';
 
 test.describe.configure({ mode: 'serial', timeout: 150_000 });
 
+// The composer's Send only (start panel or docked box): a Question form in the chat has its own Send.
+const composerSend = (p: Page) =>
+  p
+    .locator('[data-slot="composer-dock"], [data-slot="start-composer"]')
+    .getByRole('button', { name: 'Send', exact: true });
+
 const AC12_SENTENCE = 'Invoice Acme for 20 hours of consulting at $50';
 
 test.describe('AI assistant: ask, draft, create, review, issue', () => {
@@ -89,7 +95,7 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
         }
       }).observe(document.body, { childList: true, subtree: true });
     });
-    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await composerSend(page).click();
     await expect(page).toHaveURL(/\/ai\/[^/?]+$/);
     // The bubble only: the chat also keeps a screen-reader live region ("Assistant replied: ...").
     await expect(
@@ -132,7 +138,7 @@ test.describe('AI assistant: ask, draft, create, review, issue', () => {
 
   test('AC-13: the card is created once and the chat links to the Draft invoice', async () => {
     await page.getByRole('button', { name: AC12_SENTENCE }).click();
-    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await composerSend(page).click();
 
     await expect(page.getByText('Draft invoice').first()).toBeVisible();
     await expect(page.getByText('Acme Corp').first()).toBeVisible();

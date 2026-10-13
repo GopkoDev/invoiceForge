@@ -9,8 +9,8 @@ export default function ConversationLoading() {
       <div className="flex h-12 shrink-0 items-center border-b px-2 md:px-4">
         <Skeleton className="h-5 w-48" />
       </div>
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 overflow-hidden px-4 py-4">
-        <Skeleton className="h-10 w-1/2 self-end rounded-2xl" />
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6 overflow-hidden px-4 py-4">
+        <Skeleton className="h-11 w-1/2 self-end rounded-2xl" />
         <div className="flex w-full items-start gap-3">
           <Skeleton className="size-6 shrink-0 rounded-full" />
           <div className="flex flex-1 flex-col gap-2">
@@ -18,7 +18,7 @@ export default function ConversationLoading() {
             <Skeleton className="h-4 w-3/4" />
           </div>
         </div>
-        <Skeleton className="h-10 w-1/2 self-end rounded-2xl" />
+        <Skeleton className="h-11 w-1/2 self-end rounded-2xl" />
       </div>
       <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-4">
         <Skeleton className="min-h-[7.25rem] w-full rounded-2xl" />
