@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ---
 
@@ -267,3 +267,62 @@ Not generated here, following the ai-assistant precedent: the Prisma types do no
 - **PII guard:** users `user-<n>@example.test`, Customers `Acme Corp` / `Acme GmbH` / `Test Customer`, emails under `example.test`, labels built from those fixtures only.
 
 No seeds: the feature adds no bootstrap or lookup data. The 8-option cap, the 2,000-character limit and the allowance are app constants.
+
+## Revision 2026-10-13 (owner feedback; ADR-0011)
+
+Brownfield delta over the model above, which stays in force. Staged as `migrations/06_*` … `08_*`; `01`–`05` are already promoted (`prisma/migrations/20261013100000_*` … `20261013104000_*`), so the new ordinals are promoted after them.
+
+```mermaid
+erDiagram
+    Conversation ||--o{ ChoiceOffer : "asks (cascade)"
+    ConversationMessage ||--o| ChoiceOffer : "shows (cascade)"
+    ChoiceOffer {
+        string id PK
+        enum kind "CHANGED, adds FORM"
+        json request "CHANGED, now NULL for a free-question form"
+        json questions "NEW, 1 to 6 frozen questions"
+        json answers "NEW, set with CHOSEN"
+        enum state "OPEN, CHOSEN (answered), CLOSED"
+    }
+    ConversationMessage {
+        string id PK
+        enum origin "CHANGED, adds FORM"
+    }
+```
+
+### `ChoiceOffer` — holds a Question form (spec §1 F1–F9a; AC-08–AC-14, AC-37–AC-41, AC-34)
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `kind` | `ChoiceOfferKind` | NOT NULL | **adds `FORM`**: every row written after the revision. Legacy kinds stay on pre-revision rows and name their single question's field |
+| `request` | JSONB | **NULL** (was NOT NULL) | the stored draft request the form continues ("draft in progress", spec F6): the last `propose_draft` request of the reply, else the validated partial `draft` of `ask_user`; NULL for a free-question form |
+| `questions` | JSONB | NULL (set on every row after 08) | 1…6 frozen questions `{ questionId, field, lineIndex, heading, prompt, options[0..8] { optionId, label, ref }, input, required, skippable, matchCount, source }`. `ref` is a record id, a currency, `{ date }` or `{ daysAfterIssue }`. Labels built by the server, never model text (ADR-0011); `prompt` is model text, plain, ≤ 140 characters. Bounds and shape are zod's, not the DB's (repo convention) |
+| `answers` | JSONB | NULL | the sent answers `[{ questionId, optionId } \| { questionId, text } \| { questionId, skipped: true }]`, written with `state = CHOSEN` in the claim, cleared on release (spec F5, F7). Exported (AC-34): typed text is personal data |
+| `options`, `lineIndex`, `chosenOptionId` | — | unchanged | **legacy**: read only through the 08 backfill; new rows write `options = '[]'`, `lineIndex = NULL`, `chosenOptionId = NULL`. A later contract-phase migration may drop them once no build reads them (not in this feature) |
+
+State meanings are unchanged (`OPEN` → `CHOSEN` on a valid Send, released on a non-counted failure, `CLOSED` when a newer message is saved). The partial unique index `ChoiceOffer_conversationId_open_key` keeps one open form per Conversation (F1: one form per reply, only the latest answerable).
+
+**Access patterns (new or changed):**
+- **Form check (Critical flow 4):** by PK + `userId` + `state = 'OPEN'`, then the chosen records re-read owner-scoped by their ids (existing PK lookups on `Customer`, `SenderProfile`, `BankAccount`, `Product`). No new index.
+- **Claim:** the existing conditional `UPDATE … SET state = 'CHOSEN', answers = $a WHERE id = $f AND "userId" = $actor AND state = 'OPEN'`, in the transaction with the allowance slot.
+- **Reopen / export:** unchanged (`ChoiceOffer_conversationId_idx`), now projecting `questions` and `answers`.
+
+### `ConversationMessage.origin` — adds `FORM`
+
+`FORM` on the `USER` message composed from a sent form (spec F5). `PRESSED` is no longer written; existing `PRESSED` rows stay and are exported as "pressed".
+
+### `Invoice` — no change
+
+`search_invoices` gains created-date filters and a created-date sort (spec F12, AC-49). They run inside the existing owner-scoped search over one Freelancer's invoices, so no index is added; revisit with `(userId, createdAt)` if a Freelancer passes about 10,000 invoices.
+
+### Staged migrations (revision)
+
+| File | What | Why separate |
+|---|---|---|
+| `06_add_form_enum_values` | `ChoiceOfferKind` + `FORM`, `MessageOrigin` + `FORM` | `ADD VALUE` cannot be used in the transaction that adds it; the down rebuilds both types |
+| `07_add_choice_offer_form_columns` | `questions`, `answers` (nullable JSONB), `request` DROP NOT NULL | catalog-only, rollback on its own |
+| `08_backfill_choice_offer_questions` | pre-revision rows → one-question forms (F9a) | data step; idempotent (`questions IS NULL`) |
+
+**Prisma schema edits (land with 06–07):** `enum ChoiceOfferKind { … FORM }`, `enum MessageOrigin { … FORM }`; in `ChoiceOffer`: `request Json?`, `questions Json?`, `answers Json?`.
+
+**Test fixtures:** `tests/support/factories/choice-offer.ts` gains `createQuestionForm(prisma, { userId, conversationId, messageId, questions?, request?, state?, answers? })`, built through the production `formQuestionSchema` so fixtures cannot drift; default: a Customer question (Acme Corp / Acme GmbH) and a "Line 1 · Price" input question. PII guard as above.
