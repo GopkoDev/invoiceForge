@@ -258,7 +258,8 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     // The last propose_draft ISSUES answer, for the fallback words when the model writes none.
     let draftIssues: DraftIssue[] =
       turn.pinnedAnswer?.kind === 'ISSUES' ? (turn.pinnedAnswer.issues as DraftIssue[]) : [];
-    let draftMatchCount: number | undefined = pinnedMatchCount;
+    let draftCounts: (number | null)[] | undefined =
+      turn.pinnedAnswer?.kind === 'ISSUES' ? (turn.pinnedAnswer.listCounts as (number | null)[] | undefined) : undefined;
     if (draftIssues.length > 0) pushUnique(links, linksFor(draftIssues));
 
     const closeText = () => {
@@ -301,7 +302,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
               // Only an answer that resolved something drafts; NOT_REQUESTED or a refused input does not (R3-B2).
               if (p.result?.kind === 'ISSUES' || p.result?.kind === 'CARD') drafted = true;
               draftIssues = p.result?.kind === 'ISSUES' ? p.result.issues : [];
-              draftMatchCount = p.result?.kind === 'ISSUES' ? p.result.matchCount : undefined;
+              draftCounts = p.result?.kind === 'ISSUES' ? p.result.listCounts : undefined;
             }
             break;
           case 'step-finish':
@@ -340,7 +341,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
 
     if (text.trim() === '' && draftIssues.length > 0 && !turn.pending.card) {
       // AC-19 "the chat says so": a reply of links alone tells the Freelancer nothing (fix 2026-10-12).
-      const fallback = issuesText(draftIssues, verdict.language, draftMatchCount);
+      const fallback = issuesText(draftIssues, verdict.language, draftCounts);
       emit({ type: 'text-start', id: 'issues' });
       emit({ type: 'text-delta', id: 'issues', delta: fallback });
       emit({ type: 'text-end', id: 'issues' });

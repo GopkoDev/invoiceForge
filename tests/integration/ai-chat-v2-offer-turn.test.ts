@@ -372,6 +372,42 @@ describe.runIf(containerRuntimeAvailable)('an offer-able issue becomes the reply
       return { cyrillic, request, resolution: resolved.data, run };
     }
 
+    // Review 2026-10-13 R3-B4 (AC-14): a press whose next choice has more than 8 options offers no buttons, and the
+    // pinned step the model sees, like the fallback words, gives the count and none of the names.
+    it('AC-14: a pinned resolution with 9 matching accounts: no offer, the count in words, no account named', async () => {
+      const user = await createFreelancer(prisma, { email: 't13-pinned-many@example.com', timeZone: TZ });
+      const profile = await createSenderProfile(prisma, user.id, { name: 'Main' });
+      await createBankAccount(prisma, profile.id, { currency: 'EUR', bankName: 'Euro Bank', accountNumber: '5555555555' });
+      for (let n = 0; n < 9; n++) {
+        await createBankAccount(prisma, profile.id, { currency: 'USD', bankName: `Bank${n}`, accountNumber: `100000000${n}` });
+      }
+      const acme = await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+      const actor = await actingFreelancerForTest(user.id, TZ);
+      const { runTurn } = await import('@/lib/ai/run-turn');
+      const { resolveDraftRequest } = await import('@/lib/services/assistant-drafts/resolve');
+      const request: any = { customerId: acme.id, currency: 'USD', lines: LINES };
+      const resolved: any = await resolveDraftRequest(actor, request, TODAY);
+      expect(resolved.data.kind).toBe('ISSUES');
+      const prompts = script(() => ({ text: '' }));
+
+      const { stream, result } = await runTurn({
+        actor,
+        today: TODAY,
+        history: [],
+        message: 'Acme Corp',
+        signal: new AbortController().signal,
+        pinned: { request, resolution: resolved.data },
+      });
+      const chunks: any[] = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      const out: any = await result;
+
+      expect(out.pendingOffer).toBeUndefined();
+      expect(out.text).toContain('You have 9 bank accounts in USD.');
+      expect(out.text).not.toMatch(/Bank\d/);
+      expect(JSON.stringify(prompts[0])).not.toMatch(/Bank\d/);
+    });
+
     it('a pinned ISSUES resolution is the turn\'s pending offer, continuing the pinned request', async () => {
       const { request, resolution, run } = await setup();
       expect(resolution.kind).toBe('ISSUES');

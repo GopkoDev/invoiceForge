@@ -145,22 +145,50 @@ describe('issuesText (fix 2026-10-12)', () => {
   });
 });
 
-// Review 2026-10-13 R2-B2 (ai-chat-v2 AC-14): above 8 matches the chat says how many match and asks for a more exact
-// name, listing none (the tool answer carries the count and no candidate list).
-describe('issuesText with a match count (AC-14)', () => {
+// Review 2026-10-13 R2-B2, R3-B3 (ai-chat-v2 AC-14): above 8 matches the chat says how many there are and asks for a
+// more exact name, listing none. Each stripped issue carries its own count (`counts`, aligned with the issues).
+describe('issuesText with list counts (AC-14)', () => {
   const studios: DraftIssue = { kind: 'CUSTOMER_AMBIGUOUS', written: 'Studio', candidates: [] };
 
   it('says the count and asks for a more exact name, naming no candidate', () => {
-    expect(issuesText([studios], 'en', 12)).toBe('12 Customers match Studio. Type a more exact name.');
-    expect(issuesText([studios], 'uk', 12)).toBe('Під Studio підходять 12 клієнтів. Напишіть точнішу назву.');
+    expect(issuesText([studios], 'en', [12])).toBe('12 Customers match Studio. Type a more exact name.');
+    expect(issuesText([studios], 'uk', [12])).toBe('Під Studio підходять 12 клієнтів. Напишіть точнішу назву.');
   });
 
-  it('products and bank accounts say their own count', () => {
-    expect(issuesText([{ kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: [] } as DraftIssue], 'en', 9)).toBe(
-      '9 products match audit. Type a more exact name.'
+  it('each issue says its own count', () => {
+    const products = { kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: [] } as DraftIssue;
+    expect(issuesText([studios, products], 'en', [12, 9])).toBe(
+      '12 Customers match Studio. Type a more exact name. 9 products match audit. Type a more exact name.'
     );
     expect(
-      issuesText([{ kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY', currency: 'USD', accounts: [] } as unknown as DraftIssue], 'en', 10)
-    ).toBe('10 bank accounts in USD match. Name the one the invoice should use.');
+      issuesText([{ kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY', currency: 'USD', accounts: [] } as unknown as DraftIssue], 'en', [10])
+    ).toBe('You have 10 bank accounts in USD. Name the one the invoice should use.');
+  });
+
+  it('a name that matched nothing says how many there are, not that they match', () => {
+    expect(
+      issuesText([{ kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Zeta', accounts: [] } as unknown as DraftIssue], 'en', [11])
+    ).toBe('No bank account matches Zeta. You have 11 bank accounts: type a more exact name.');
+    expect(
+      issuesText(
+        [{ kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Zeta', options: [], profiles: [] } as unknown as DraftIssue],
+        'en',
+        [10]
+      )
+    ).toBe('You have no sender profile called Zeta. You have 10 sender profiles: type a more exact name.');
+    expect(
+      issuesText([{ kind: 'CUSTOMER_NEAR_MISS', written: 'Acm', candidates: [] } as DraftIssue], 'en', [9])
+    ).toBe('No Customer is called Acm. 9 Customers have a similar name: type a more exact name.');
+  });
+
+  it('other sender profiles above 8 are counted, not named', () => {
+    const issue = { kind: 'NO_ACCOUNT_IN_CURRENCY', currency: 'EUR', accounts: [], otherProfiles: [] } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'This sender profile has no bank account in EUR. Add one first. 9 of your other sender profiles have a EUR account: name one to draft from it.'
+    );
+  });
+
+  it('an issue with no count reads as before', () => {
+    expect(issuesText([studios], 'en', [null])).toBe('Several Customers match Studio: . Which one do you mean?');
   });
 });

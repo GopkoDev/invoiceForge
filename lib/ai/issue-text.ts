@@ -120,52 +120,61 @@ const SENTENCES: Record<Language, (issue: DraftIssue) => string> = {
 };
 
 /**
- * Above 8 matches (AC-14) the tool answer drops the list: the chat says how many match and asks for a more exact
- * name. Null for an issue whose list was not dropped.
+ * Above 8 matches (AC-14; review 2026-10-13 R2-B2, R3-B3) the tool answer drops the long lists: the chat says how many
+ * there are and asks for a more exact name. `count` is the dropped list's length. Null for an issue that keeps its
+ * own sentence.
  */
 function countSentence(issue: DraftIssue, count: number, language: Language): string | null {
   const uk = language === 'uk';
   switch (issue.kind) {
     case 'CUSTOMER_AMBIGUOUS':
-    case 'CUSTOMER_NEAR_MISS':
-      if (issue.candidates.length > 0) return null;
       return uk
         ? `Під ${issue.written} підходять ${count} клієнтів. Напишіть точнішу назву.`
         : `${count} Customers match ${issue.written}. Type a more exact name.`;
+    case 'CUSTOMER_NEAR_MISS':
+      return uk
+        ? `Клієнта ${issue.written} немає; схожу назву мають ${count} клієнтів: напишіть точнішу назву.`
+        : `No Customer is called ${issue.written}. ${count} Customers have a similar name: type a more exact name.`;
     case 'PRODUCT_AMBIGUOUS':
-      if (issue.candidates.length > 0) return null;
       return uk
         ? `Під ${issue.written} підходять ${count} продуктів. Напишіть точнішу назву.`
         : `${count} products match ${issue.written}. Type a more exact name.`;
     case 'SEVERAL_ACCOUNTS_IN_CURRENCY':
-      if (issue.accounts.length > 0) return null;
       return uk
         ? `У вас ${count} рахунків у ${issue.currency}. Назвіть той, який використати для інвойсу.`
-        : `${count} bank accounts in ${issue.currency} match. Name the one the invoice should use.`;
+        : `You have ${count} bank accounts in ${issue.currency}. Name the one the invoice should use.`;
     case 'BANK_ACCOUNT_AMBIGUOUS':
-    case 'BANK_ACCOUNT_NOT_FOUND':
-      if (issue.accounts.length > 0) return null;
       return uk
         ? `Під ${issue.written} підходять ${count} рахунків. Напишіть точнішу назву.`
         : `${count} bank accounts match ${issue.written}. Type a more exact name.`;
-    case 'SENDER_PROFILE_NOT_FOUND':
-      if (issue.profiles.length > 0) return null;
+    case 'BANK_ACCOUNT_NOT_FOUND':
       return uk
-        ? `Під ${issue.written} підходять ${count} профілів відправника. Напишіть точнішу назву.`
-        : `${count} sender profiles match ${issue.written}. Type a more exact name.`;
+        ? `Жоден рахунок не підходить під ${issue.written}. У вас ${count} рахунків: напишіть точнішу назву.`
+        : `No bank account matches ${issue.written}. You have ${count} bank accounts: type a more exact name.`;
+    case 'SENDER_PROFILE_NOT_FOUND':
+      return uk
+        ? `Профілю відправника ${issue.written} немає. У вас ${count} профілів відправника: напишіть точнішу назву.`
+        : `You have no sender profile called ${issue.written}. You have ${count} sender profiles: type a more exact name.`;
+    case 'NO_ACCOUNT_IN_CURRENCY':
+      return uk
+        ? `У цього профілю відправника немає банківського рахунку в ${issue.currency}. Спершу додайте його. Рахунок у ${issue.currency} мають ${count} інших ваших профілів відправника: назвіть один, щоб створити інвойс від нього.`
+        : `This sender profile has no bank account in ${issue.currency}. Add one first. ${count} of your other sender profiles have a ${issue.currency} account: name one to draft from it.`;
     default:
       return null;
   }
 }
 
 /**
- * One paragraph naming every issue, in the message's language (English unless it is Ukrainian). `matchCount` is the
- * propose_draft answer's count of an offer above 8 options (AC-14).
+ * One paragraph naming every issue, in the message's language (English unless it is Ukrainian). `counts`, aligned
+ * with the issues, are the lengths of the lists the propose_draft answer dropped above 8 matches (AC-14).
  */
-export function issuesText(issues: DraftIssue[], language: string, matchCount?: number): string {
+export function issuesText(issues: DraftIssue[], language: string, counts?: ReadonlyArray<number | null>): string {
   const lang: Language = language === 'uk' ? 'uk' : 'en';
   const sentence = SENTENCES[lang];
   return issues
-    .map((issue) => (matchCount !== undefined ? countSentence(issue, matchCount, lang) : null) ?? sentence(issue))
+    .map((issue, i) => {
+      const count = counts?.[i];
+      return (typeof count === 'number' ? countSentence(issue, count, lang) : null) ?? sentence(issue);
+    })
     .join(' ');
 }

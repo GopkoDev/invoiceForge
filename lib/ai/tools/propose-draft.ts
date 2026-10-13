@@ -104,27 +104,40 @@ const TOO_MANY_SAY =
   'More than 8 records match, so there are no buttons: say how many match (matchCount) and ask for a more exact name. List none of them.';
 
 /**
- * AC-14 (review 2026-10-13 R2-B2): above 8 matches the answer carries the count, not the list, so neither the model
- * nor the fallback words can list them. Lists of 8 or fewer stay.
+ * AC-14 (review 2026-10-13 R2-B2, R3-B3): above 8 matches the answer carries counts, not lists, so neither the model
+ * nor the fallback words can list them. Every list longer than 8 is dropped (candidates, accounts, profiles, other
+ * profiles) and its length kept in `counts`, aligned with the issues (null where nothing was dropped). Lists of 8 or
+ * fewer stay, and so do a NO_ACCOUNT_IN_CURRENCY profile's own accounts (they are not a choice).
  */
-export function withoutLongLists(issues: DraftIssue[]): DraftIssue[] {
-  return issues.map((issue) => {
-    if ('candidates' in issue && issue.candidates.length > MAX_LISTED) return { ...issue, candidates: [] } as DraftIssue;
-    if ('accounts' in issue && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
-      return { ...issue, accounts: [] } as DraftIssue;
+export function withoutLongLists(issues: DraftIssue[]): { issues: DraftIssue[]; counts: (number | null)[] } {
+  const counts: (number | null)[] = [];
+  const shown = issues.map((issue) => {
+    let count: number | null = null;
+    let next: DraftIssue = issue;
+    if ('candidates' in issue && issue.candidates.length > MAX_LISTED) {
+      count = issue.candidates.length;
+      next = { ...issue, candidates: [] } as DraftIssue;
+    } else if ('accounts' in issue && issue.kind !== 'NO_ACCOUNT_IN_CURRENCY' && issue.accounts.length > MAX_LISTED) {
+      count = issue.accounts.length;
+      next = { ...issue, accounts: [] } as DraftIssue;
+    } else if (issue.kind === 'SENDER_PROFILE_NOT_FOUND' && issue.profiles.length > MAX_LISTED) {
+      count = issue.profiles.length;
+      next = { ...issue, options: [], profiles: [] };
+    } else if ('otherProfiles' in issue && issue.otherProfiles.length > MAX_LISTED) {
+      count = issue.otherProfiles.length;
+      next = { ...issue, otherProfiles: [] } as DraftIssue;
     }
-    if (issue.kind === 'SENDER_PROFILE_NOT_FOUND' && issue.profiles.length > MAX_LISTED) {
-      return { ...issue, options: [], profiles: [] };
-    }
-    return issue;
+    counts.push(count);
+    return next;
   });
+  return { issues: shown, counts };
 }
 
-/** The ISSUES answer of propose_draft (and of a pinned resolution): above 8 matches, the count and a directive. */
+/** The ISSUES answer of propose_draft (and of a pinned resolution): above 8 matches, the counts and a directive. */
 export function issuesAnswer(issues: DraftIssue[], matchCount: number | undefined): Record<string, unknown> {
   if (matchCount === undefined) return { kind: 'ISSUES', issues, links: linksFor(issues) };
-  const shown = withoutLongLists(issues);
-  return { kind: 'ISSUES', issues: shown, links: linksFor(shown), matchCount, say: TOO_MANY_SAY };
+  const { issues: shown, counts } = withoutLongLists(issues);
+  return { kind: 'ISSUES', issues: shown, links: linksFor(shown), matchCount, listCounts: counts, say: TOO_MANY_SAY };
 }
 
 // One offer per reply: the earliest propose_draft call of the turn that found one keeps it, even when parallel
