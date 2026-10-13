@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
 ---
@@ -54,7 +54,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 **Conventions.**
 - `docs/architecture-map.md` §Conventions (reflects `2064466`, **124 commits stale**: the AI chat shipped since. The current chat code was mapped by a fresh read for this SAD; see §11).
 - The ai-assistant SAD §2 *Conventions* (results as `ActionResult`, actor factories only, deny-by-default proxy, per-local-day counters, Freelancer time zone, `cuid()` ids, owner-scoped writes).
-- UI: shadcn/ui (base-vega) and Tailwind 4 tokens. Reuse the `docs/design-system.md` inventory: `AiWorkspace`, `ChatIsland`, `Composer`, `DraftCard`, `ChatLink`, `ConversationList`, `AllowanceNotice`, `StartPanel`, `ConfirmationModal`, `LoadError`.
+- UI: shadcn/ui (base-vega, `@base-ui/react`) and Tailwind 4 tokens. Reuse the `docs/design-system.md` inventory: `AiWorkspace`, `ChatIsland`, `Composer`, `DraftCard`, `ChatLink`, `ConversationList`, `AllowanceNotice`, `StartPanel`, `ConfirmationModal`, `LoadError`. The chat surface is composed from our own chat elements in `components/ai-elements/` (Conversation, Message, PromptInput, Suggestion, Loader), ported from Vercel AI Elements onto Base UI (ADR-0010). No Radix primitives.
 
 **Regulatory / external.**
 - No new processor. Message text keeps going to the model provider named on the privacy page (spec §6.1). The first iteration's free-tier override still applies (ai-assistant §1 ¶4, ADR-0003).
@@ -169,10 +169,12 @@ app/
 └── api/
     ├── chat/route.ts                        CHANGED  optional choice + origin + startedFrom; press check before reservation; data-offer part
     └── user/export/route.ts                 (via account service) + offers, chosen option, origins, start point
+components/ai-elements/                      NEW      own chat elements ported from Vercel AI Elements onto Base UI (ADR-0010):
+│                                                     conversation, message, prompt-input, suggestion, loader; LICENSE + NOTICE (Apache-2.0)
 components/ai/
-├── ai-workspace.tsx                         CHANGED  3-pane grid, own scroll per pane, md (768) / xl (1280) breakpoints, phone sheets
-├── conversation-list.tsx                    CHANGED  grouped Today / Yesterday / Previous 7 days / Older, title search, New chat at the bottom
-├── chat-island.tsx                          CHANGED  sends choice/origin, consumes the dashboard hand-off, follow-to-latest (48 px), composer move animation
+├── ai-workspace.tsx                         CHANGED  bordered rounded container in the content area, 3-pane grid, own scroll per pane, md (768) / xl (1280) breakpoints, phone sheets
+├── conversation-list.tsx                    CHANGED  grouped Today / Yesterday / Previous 7 days / Older, title search, plain rows, delete in a row "…" menu, New chat at the bottom
+├── chat-island.tsx                          CHANGED  sends choice/origin, consumes the dashboard hand-off, follow-to-latest (48 px), composer move animation; composes Conversation / Message / PromptInput, a centred max-w-3xl column; could-not-complete as an assistant Message with an inline alert + Retry
 ├── offered-choices.tsx                      NEW      buttons for one offer: pressable / inactive / chosen
 ├── invoice-preview-panel.tsx                NEW      side panel / full-screen sheet; PDFPreviewPanel + Open in editor + Issue
 ├── issue-confirmation.tsx                   NEW      ConfirmationModal body naming Customer, total, currency
@@ -257,6 +259,7 @@ prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; Conversat
   - **Phone sheets.** The list and the preview use the existing `Sheet`.
   - **Following new text** is a small in-house hook: the end of the messages within 48 px counts as at the bottom, and a jump-to-latest control appears otherwise.
   - **The composer move** is a CSS transition with a `motion-reduce` variant.
+  - **Presentation** (ADR-0010). The workspace is a bordered, rounded container filling the content area (the app shell and sidebar stay). The messages column and the docked composer are centred with a max width of 768 px (`max-w-3xl`). The chat surface uses the ported elements in `components/ai-elements/`. The `Conversation` element is driven by the hook above, not by `use-stick-to-bottom` (its 70 px threshold is fixed), and `MessageResponse` renders plain text (no `streamdown`), so AC-07's no-Markdown, no-model-link rule holds.
 
   No new dependency.
 - **The Conversation list loads every summary** (inline). It loads `id`, `title` and `lastMessageAt` for every Conversation the Freelancer has, instead of the current 20-per-page pagination. Grouping uses the Freelancer time zone, and filtering by `foldName` runs on the client.
@@ -864,7 +867,7 @@ Nothing new to deploy. The feature ships inside the existing Vercel deployable (
 | Client state | One workspace invoice-state store (invoice id → status, number, availability). The card, `ChatLink` and the panel read it. Page loads, `loadInvoicePreview`, `issueFromPreview` and `createDraftFromCard` write it. No push or polling. | ADR-0008 |
 | Observability | Metadata-only spans for reads, choice checks and issue-from-preview. No label, name or prompt text in spans. | ai-assistant ADR-0004; §7 |
 | Data lifecycle | Offers (options and the chosen one), message origin and start point live with the Conversation. They are exported, purged after 90 days and deleted with the account in the existing transaction (AC-34). The privacy page lists them (AC-35). | ai-assistant ADR-0008; here |
-| Accessibility | Offered choices are a labelled group of buttons, with the chosen one announced as pressed or chosen. The panel and sheets trap focus and return it on close. The streamed reply keeps the existing live region. The automated check covers the AI section, the panel and the dashboard block (spec §6). | `docs/design-system.md`; here |
+| Accessibility | The chat elements (ADR-0010) keep Base UI's focus and ARIA behaviour; no Radix. Offered choices are a labelled group of buttons, with the chosen one announced as pressed or chosen. The panel and sheets trap focus and return it on close. The streamed reply keeps the existing live region. The automated check covers the AI section, the panel and the dashboard block (spec §6). | `docs/design-system.md`; here |
 | Motion | The composer move and the panel transitions honour `prefers-reduced-motion` (AC-18). | here |
 | Internationalisation | Unchanged. The reply is in the message's language; fixed app text (button states, dialog text, "no longer available") is English. | ai-assistant SAD §8 |
 | IDs | `cuid()` for `ChoiceOffer`. `optionId` is the option's position in its offer, stable because the options are frozen when offered. | `docs/architecture-map.md` §Conventions |
@@ -883,10 +886,11 @@ Nothing new to deploy. The feature ships inside the existing Vercel deployable (
 | 0007 | Issue from the preview through the invoice status service, guarded by the version the preview showed | Accepted | §4, §6 |
 | 0008 | Keep invoice states in one workspace store fed by loads and action results, without push | Accepted | §4, §8 |
 | 0009 | Hand the dashboard prompt to the AI section through a one-time session-storage entry | Accepted | §4, §6 |
+| 0010 | Build the AI section from our own chat elements, ported from Vercel AI Elements onto Base UI | Accepted | §2, §5, §8 |
 
 ADR files live under `docs/features/ai-chat-v2/adr/NNNN-<title>.md`.
 
-Nine ADRs is below the 10–15 typical for an L feature on purpose. This iteration extends a feature whose 13 ADRs stay in force: target surfaces, UI architecture, model, agent, router, resolver, cards, storage, counters and the shared registry. The remaining decisions (three reads in the registry, the workspace layout, the list loading, navigation, streaming pacing, origin columns) are reversible within a day or are fixed by the spec, so they stay inline in §5.
+Ten ADRs sits at the low end of the 10–15 typical for an L feature on purpose. This iteration extends a feature whose 13 ADRs stay in force: target surfaces, UI architecture, model, agent, router, resolver, cards, storage, counters and the shared registry. The remaining decisions (three reads in the registry, the workspace layout, the list loading, navigation, streaming pacing, origin columns) are reversible within a day or are fixed by the spec, so they stay inline in §5.
 
 ## 10. Quality requirements
 
