@@ -238,6 +238,51 @@ describe.runIf(containerRuntimeAvailable)(
       });
     });
 
+    // Review 2026-10-13 R1-B1: the stored request keeps the currency as the Freelancer wrote it ("$", "€",
+    // "dollars"); the fit check reads it the way the resolver did, never as a raw code.
+    it.each([
+      ['$', 'USD'],
+      ['dollars', 'USD'],
+      ['usd', 'USD'],
+    ])('AC-08b: a BANK_ACCOUNT press with the currency written as "%s" fits a %s account', async (written, code) => {
+      const { user, actor } = await freelancer();
+      const sp = await createSenderProfile(prisma, user.id);
+      const acc = await createBankAccount(prisma, sp.id, { currency: code });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'BANK_ACCOUNT',
+        options: [opt(0, { bankAccountId: acc.id })],
+        request: { customer: 'Acme', currency: written, senderProfileId: sp.id },
+      });
+
+      expect((await check(actor, conversation.id, offer.id)).ok).toBe(true);
+    });
+
+    it('AC-08b: a PRODUCT press with the currency written as "€" fits a EUR product', async () => {
+      const { user, actor } = await freelancer();
+      const p = await createProduct(prisma, user.id, { currency: 'EUR' });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'PRODUCT',
+        lineIndex: 0,
+        options: [opt(0, { productId: p.id })],
+        request: { customer: 'Acme', currency: '€', lines: [{ description: 'Audit', quantity: '1' }] },
+      });
+
+      expect((await check(actor, conversation.id, offer.id)).ok).toBe(true);
+    });
+
+    it('AC-13: a BANK_ACCOUNT press with the currency written as "€" does not fit a USD account', async () => {
+      const { user, actor } = await freelancer();
+      const sp = await createSenderProfile(prisma, user.id);
+      const acc = await createBankAccount(prisma, sp.id, { currency: 'USD' });
+      const { conversation, offer } = await offerFor(user.id, {
+        kind: 'BANK_ACCOUNT',
+        options: [opt(0, { bankAccountId: acc.id })],
+        request: { customer: 'Acme', currency: '€' },
+      });
+
+      expect(await check(actor, conversation.id, offer.id)).toEqual({ ok: false });
+    });
+
     it('AC-12b: a valid SENDER_PROFILE press is ok', async () => {
       const { user, actor } = await freelancer();
       const sp = await createSenderProfile(prisma, user.id);

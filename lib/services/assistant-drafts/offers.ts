@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { startSpan } from '@sentry/nextjs';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { foldName } from '@/lib/helpers/fold-name';
+import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { reserveMessageSlot, type ReserveResult } from '@/lib/services/assistant-usage/allowance';
@@ -159,7 +160,16 @@ export type CheckedChoice =
   | { ok: false };
 
 const UNAVAILABLE = { ok: false } as const;
-const sameCode = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase();
+/**
+ * Whether a record priced in `code` fits the request's currency. The stored request keeps the currency as the
+ * Freelancer wrote it ("$", "€", "dollars"), so it is read the way the resolver read it (review 2026-10-13 R1-B1);
+ * a reading that stays unclear fits nothing.
+ */
+function currencyFits(code: string, written: string | undefined): boolean {
+  if (written === undefined) return true;
+  const reading = interpretCurrency(written, code);
+  return reading.kind === 'RESOLVED' && reading.currency === code.trim().toUpperCase();
+}
 
 const REF_KEY: Record<ChoiceOfferKind, string> = {
   CUSTOMER: 'customerId',
@@ -189,7 +199,7 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
       where: { id: ref.productId, userId, isActive: true },
       select: { currency: true },
     });
-    return product !== null && (request.currency === undefined || sameCode(product.currency, request.currency));
+    return product !== null && currencyFits(product.currency, request.currency);
   }
   const account = await prisma.bankAccount.findFirst({
     where: { id: ref.bankAccountId, senderProfile: { userId } },
@@ -197,7 +207,7 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
   });
   if (!account) return false;
   if (request.senderProfileId !== undefined && account.senderProfileId !== request.senderProfileId) return false;
-  return request.currency === undefined || sameCode(account.currency, request.currency);
+  return currencyFits(account.currency, request.currency);
 }
 
 /**
