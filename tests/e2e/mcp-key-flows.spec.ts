@@ -49,7 +49,8 @@ test.describe('Connect your AI: reach it, create a key, revoke it', () => {
 
   test('AC-01: the settings navigation opens the connect page', async () => {
     await page.goto(`${APP_E2E_URL}${protectedRoutes.settingsProfile}`);
-    await page.getByRole('link', { name: 'Connect your AI' }).click();
+    // ai-chat-v2 T25: the sidebar's AI group also has "Connect your AI"; this is the settings page's own navigation.
+    await page.getByRole('main').getByRole('link', { name: 'Connect your AI' }).click();
     await expect(page).toHaveURL(
       new RegExp(`${protectedRoutes.settingsAssistants}$`)
     );
