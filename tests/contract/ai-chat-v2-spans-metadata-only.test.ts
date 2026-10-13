@@ -31,7 +31,7 @@ const prismaFake = {
   choiceOffer: { findFirst: vi.fn() },
   bankAccount: { findFirst: vi.fn() },
   customer: { count: vi.fn() },
-  senderProfile: { count: vi.fn() },
+  senderProfile: { count: vi.fn(), findMany: vi.fn() },
   product: { findFirst: vi.fn() },
 };
 vi.mock('@/prisma', () => ({ prisma: prismaFake }));
@@ -96,6 +96,8 @@ describe('the ai-chat-v2 spans carry metadata only', () => {
     const { checkChoice } = await import('@/lib/services/assistant-drafts/offers');
     prismaFake.choiceOffer.findFirst.mockResolvedValue(offerRow);
     prismaFake.bankAccount.findFirst.mockResolvedValue({ senderProfileId: 's1', currency: 'USD' });
+    // The request names no profile: the account must be in the current default one (R12-1).
+    prismaFake.senderProfile.findMany.mockResolvedValue([{ id: 's1', name: 'Main', isDefault: true }]);
 
     const result = await checkChoice(actor, { conversationId: 'conv1', offerId: OFFER_ID, optionId: 0 });
 
