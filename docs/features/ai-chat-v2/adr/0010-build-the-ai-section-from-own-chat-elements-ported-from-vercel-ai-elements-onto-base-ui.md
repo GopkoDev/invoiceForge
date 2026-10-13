@@ -9,7 +9,7 @@ ticket: "ai-chat-v2"
 
 # 0010 — Build the AI section from our own chat elements, ported from Vercel AI Elements onto Base UI
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-13 by ADR-0012)
 - **Date:** 2026-10-13
 - **Deciders:** Dmytro Hopko (owner decision after the shipped-but-unpushed build; recorded post-hoc by the decide-adr agent in an autonomous run)
 

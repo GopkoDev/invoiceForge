@@ -2,14 +2,14 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
 
 # 0005 — Give a saved Conversation and an open preview their own addresses and keep a new Conversation at /ai
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-13 by ADR-0013)
 - **Date:** 2026-10-12
 - **Deciders:** Dmytro Hopko (owner; decided by the design agent in an autonomous run, open to owner veto)
 

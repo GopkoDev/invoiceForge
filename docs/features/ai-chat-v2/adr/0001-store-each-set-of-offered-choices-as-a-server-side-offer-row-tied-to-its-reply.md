@@ -2,14 +2,14 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
 
 # 0001 — Store each set of Offered choices as a server-side offer row tied to its reply
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-13 by ADR-0011)
 - **Date:** 2026-10-12
 - **Deciders:** Dmytro Hopko (owner; decided by the design agent in an autonomous run, open to owner veto)
 

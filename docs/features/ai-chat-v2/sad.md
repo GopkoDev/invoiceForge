@@ -38,7 +38,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 **Technical.**
 - Everything in ai-assistant SAD §2 *Technical* still holds: TypeScript 5 strict on Node.js `>=22.18 <23`; Next.js 16.3.8 and React 19.2.3 pinned exactly; Prisma 7.10 over PostgreSQL with the split schema; next-auth 5.0.0-beta.32; `@modelcontextprotocol/sdk` 1.32.0; Vercel `fra1`.
-- The AI runtime is already installed and pinned (AI SDK UI `useChat`, Mastra, the Vercel AI Gateway with a Gemini Flash-Lite model, per ai-assistant ADR-0002–ADR-0004). **This feature adds no runtime dependency**: no new AI package, no animation library, no realtime or push service.
+- The AI runtime is already installed and pinned (AI SDK UI `useChat`, Mastra, the Vercel AI Gateway with a Gemini Flash-Lite model, per ai-assistant ADR-0002–ADR-0004). **This feature adds no AI runtime dependency**: no new AI package, no animation library, no realtime or push service. *Revision 2026-10-13 (ADR-0012):* two rendering dependencies are added for safe Markdown, pinned exactly: `react-markdown@10.1.0` (2025-03-07) and `remark-gfm@4.0.1` (2025-02-10).
 - The chat route reads one message per request (`chatRequestSchema`: the conversation id plus one text part). History is loaded on the server, never trusted from the client (`app/api/chat/route.ts`, `lib/services/conversations/conversations.ts` `loadHistory`).
 - Read questions live once in `lib/assistant-tools/` (`READ_QUESTIONS`) and are registered by both MCP (`lib/mcp/server.ts`) and the chat (`lib/ai/tools/read-tools.ts`), per ai-assistant ADR-0010.
 - The draft resolver `resolveDraftRequest` (`lib/services/assistant-drafts/resolve.ts`) returns `PROPOSAL` or a closed union of `DraftIssue` kinds (`schema.ts`). Most ambiguity kinds already carry record ids: Customer, product and bank-account candidates.
@@ -137,6 +137,13 @@ No worker: offers are deleted with their Conversation, so retention needs no new
    - **Addresses.** A saved Conversation keeps `/ai/{id}`, an open preview adds `?preview={cardId}`, and a new Conversation stays `/ai` because it is not a record yet.
    - **Invoice status.** The card, the links and the panel read one client-side invoice-state store. Server loads and action results feed it; there is no push or polling.
    - **Dashboard prompt.** It travels in a one-time `sessionStorage` entry, never in the URL. The chat island consumes it exactly once.
+
+**Seeds added by the owner feedback revision (2026-10-13):**
+
+6. **One Question form per reply, checked and labelled by the server** (ADR-0011). Resolver issues and a chat-only `ask_user` tool both feed one stored form; the model names record ids, the server loads them owner-scoped, builds every label and computes date options; one Send is one counted message with origin `FORM`, checked before any reservation, pinned into the stored request by code.
+7. **Safe Markdown with an in-app link allowlist** (ADR-0012). Replies render as React elements from Markdown, never HTML; links only to route patterns of this app.
+8. **A list that lives in the layout** (ADR-0013). Switching Conversations is a page navigation under a persistent `ai/layout.tsx` that owns the list; the list changes only on its own events.
+9. **The model is told the date** (inline): a per-turn note with today, weekday and time zone; the frozen instructions stay a stable prefix.
 
 Each tactical decision below traces to one of these seeds. One that contradicts a seed is raised in §11.
 
@@ -259,7 +266,7 @@ prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; Conversat
   - **Phone sheets.** The list and the preview use the existing `Sheet`.
   - **Following new text** is a small in-house hook: the end of the messages within 48 px counts as at the bottom, and a jump-to-latest control appears otherwise.
   - **The composer move** is a CSS transition with a `motion-reduce` variant.
-  - **Presentation** (ADR-0010). The workspace is a bordered, rounded container filling the content area (the app shell and sidebar stay). The messages column and the docked composer are centred with a max width of 768 px (`max-w-3xl`). The chat surface uses the ported elements in `components/ai-elements/`. The `Conversation` element is driven by the hook above, not by `use-stick-to-bottom` (its 70 px threshold is fixed), and `MessageResponse` renders plain text (no `streamdown`), so AC-07's no-Markdown, no-model-link rule holds.
+  - **Presentation** (ADR-0010). The workspace is a bordered, rounded container filling the content area (the app shell and sidebar stay). The messages column and the docked composer are centred with a max width of 768 px (`max-w-3xl`). The chat surface uses the ported elements in `components/ai-elements/`. The `Conversation` element is driven by the hook above, not by `use-stick-to-bottom` (its 70 px threshold is fixed), and `MessageResponse` renders plain text (no `streamdown`), so AC-07's no-Markdown, no-model-link rule holds. *Superseded 2026-10-13 by ADR-0012:* `MessageResponse` renders safe Markdown with an in-app link allowlist (§5 "Revision 2026-10-13").
 
   No new dependency.
 - **The Conversation list loads every summary** (inline). It loads `id`, `title` and `lastMessageAt` for every Conversation the Freelancer has, instead of the current 20-per-page pagination. Grouping uses the Freelancer time zone, and filtering by `foldName` runs on the client.
@@ -268,6 +275,52 @@ prisma/schema/ai.prisma                      CHANGED  NEW ChoiceOffer; Conversat
 - **Dashboard AI block** (inline). An RSC section reads the allowance state and the 3 latest Conversations. The prompt box is a small client component that validates with the same message schema as the chat: not empty, at most 2,000 characters (AC-31). It then hands off through ADR-0009. "Create invoice with AI" links to `/ai?start=draft&from=dashboard`.
 - **Navigation** (inline). An "AI" group like "Management" in `config/navigation-menu.config.ts` holds "AI chat" (`/ai`) and "Connect your AI" (`/settings/assistants`). It replaces the single "AI" item.
 - **Streaming** (inline). The shipped per-word pacing (`WORD_DELAY_MS = 20`, first word unpaced) already meets spec §6. This feature pins it with a browser test and leaves it unchanged.
+
+### Revision 2026-10-13 (owner feedback, spec §1 F1–F13)
+
+The owner's feedback changes four building blocks. Everything above stays in force unless marked here.
+
+**Question form (ADR-0011; supersedes ADR-0002/0003, amends ADR-0001).**
+
+```
+lib/
+├── ai/tools/ask-user.ts                     NEW      chat-only tool: { draft?, questions[1..6] }; checks every recordId owner-scoped and by kind; builds labels; date options
+├── ai/tools/propose-draft.ts                CHANGED  ISSUES → formFromIssues (every issue becomes a question); card wins
+├── ai/turn-context.ts                       CHANGED  pending.form (replaces pending.offer); turn note with today, weekday, time zone (F11)
+├── ai/run-turn.ts                           CHANGED  composes the turn's one form (resolver questions, then ask_user questions, cap 6, F1 order, fallback input-only form); prior ask_user step for applied free answers
+├── ai/instructions/chat.ts                  CHANGED  forms instead of prose; search before "add one"; links with tool paths in Markdown; dates; created-date search (F10–F12)
+├── services/assistant-drafts/
+│   ├── forms.ts                             NEW      FormQuestion / FormAnswer schemas, formFromIssues, composeForm, checkForm, claim/release/close (generalises offers.ts)
+│   ├── form-pin.ts                          NEW      apply answers to a stored partial DraftRequest (record ids, "Other…" names, dates, values, Skip)
+│   └── offers.ts                            CHANGED  legacy reader only: maps a pre-revision offer row to a one-question form view
+├── services/invoices/assistant-search.ts    CHANGED  createdFrom / createdTo filters, sort by createdAt, createdAt + path per row
+├── assistant-tools/search.ts                CHANGED  search_invoices input + output as above (also MCP, compatible)
+└── validations/assistant-chat.ts            CHANGED  chatRequestSchema: `form { formId, answers[] }` replaces `choice`
+components/ai/
+├── question-form.tsx                        NEW      SCR-04 rewritten: questions, options, Other…/Skip, per-question errors, Send, read-only with answers
+└── offered-choices.tsx                      REMOVED  replaced by question-form.tsx
+prisma/schema/ai.prisma                      CHANGED  ChoiceOffer.questions / answers (JSONB), kind FORM, request nullable, MessageOrigin FORM
+```
+
+- **The row.** `ChoiceOffer` keeps its owner, Conversation, reply, `state` (`OPEN` → `CHOSEN` = answered → or `CLOSED`), its partial unique index and its cascade. New rows have `kind = FORM`, `questions` (1–6 frozen questions with their options and labels), `request` (the stored draft request, or NULL for a free-question form) and, once answered, `answers`. Pre-revision rows are backfilled into one-question forms (`data-model`), so one reader serves both.
+- **Questions.** Each frozen question holds `questionId` (position), `field` (closed enum), `lineIndex`, `heading` (app text per field), `prompt` (model text, plain, ≤ 140), `options` (0–8 `{ optionId, label, ref }`), `input` (`NONE` | `TEXT` | `AMOUNT` | `RATE` | `DATE`), `required`, `skippable`, `matchCount` and `source` (`RESOLVER` | `CHAT` | `FALLBACK`). A `ref` is a record id, a currency code, an absolute `date`, or `daysAfterIssue` (7, 14, 30).
+- **Form check before the model** (`checkForm`, span `chat.form-check`, ≤ 300 ms p95). Refused uniformly (`CHOICE_UNAVAILABLE`, the F7 sentence): row not found for the actor, not `OPEN`, a `questionId` or `optionId` it does not hold, a required question missing, a chosen record that no longer exists for the actor or no longer fits its stored ref (a bank account whose currency changed, a profile removed). Format errors of typed answers (spec F6 per-kind checks) are a `VALIDATION` with per-question field errors; both are uncounted and make no model call.
+- **Submit order in the chat route** (Critical flow 4): body → `checkForm` → reserve the slot and claim the row with `answers` (one transaction) → compose the message text (one line per answer from stored labels and typed texts) → `form-pin` into the stored request → if it passes `draftRequestSchema`, resolve in code and give the turn the prior `propose_draft` step (T01 seam); otherwise give the turn a prior `ask_user` step holding the answers as data → agent turn → `saveTurn` (origin `FORM`; closes another tab's open form; stores the next form). A system-side failure releases the slot and the claim (answers cleared), as in ADR-0001.
+- **Origin.** `MessageOrigin.FORM` for every sent form. `PRESSED` is no longer written; it remains for pre-revision messages.
+
+**Safe Markdown (ADR-0012).** `components/ai-elements/message.tsx` `MessageResponse` renders `react-markdown` + `remark-gfm` with `skipHtml`, an element allowlist, `urlTransform` + a custom `a` (via `next/link`) gated by `lib/ai/in-app-links.ts` (NEW: route-pattern allowlist from `config/routes.config.ts`), and `closeUnfinished` for the streaming tail. Typography: `components/ai-elements/markdown.css` or Tailwind classes on the mapped elements (lists, tables with horizontal scroll inside the column, code). The question `prompt` and every form label stay plain text.
+
+**Chat behaviour (spec F11, F12).**
+- `run-turn` adds a per-turn system note (not in the frozen instructions, so the cached prefix stays stable): "Today is {weekday}, {YYYY-MM-DD} in {timeZone}". The resolver already takes `today`.
+- The router's `draft` intent also covers "issue", "виставити", "create … invoice"; with intent `draft` the instructions require `propose_draft` or `ask_user` before replying, and forbid listing questions in prose.
+- The instructions require a `list_customers` / `list_products` search before saying a record is missing (AC-47), and say the chat may and should link invoices with the `path` its tools returned, in Markdown (AC-48).
+- `search_invoices` gains `createdFrom`, `createdTo`, `sort: issueDate | createdAt` (newest first), and returns `createdAt` and `path` per row (AC-49).
+
+**Workspace (ADR-0013, spec F13).**
+- `app/(protected)/ai/layout.tsx` renders `AiWorkspace` + `ConversationListProvider` (NEW, `components/ai/conversation-list-context.tsx`) and loads the summaries once; the pages render only the chat pane; `loading.tsx` of `/ai` and `/ai/[id]` draws only the chat pane. Events update the list: created, touched (move to top), renamed, deleted. The active row follows the selected layout segment.
+- **One header height.** The list's search row and the chat header share one token, `h-12` (48 px) with `border-b` and the search input `h-8`, so both bottom borders sit at 48 px (AC-50). On `/ai` before the first save the chat header is still not rendered (screens.md), so only the list's border shows there.
+- **Skeletons** are built from the same layout primitives as the content (same row height `h-9`, group label `h-7`, header `h-12`, composer min height), so a skeleton is the content's box (AC-51).
+- **Avatar.** `Message` (assistant) uses `items-start`; the avatar box is the first line's height (`h-6` for `text-sm leading-6`) with the 24 px avatar centred in it (AC-53).
 
 **C4 Container (L2):**
 
@@ -743,6 +796,127 @@ sequenceDiagram
     Note over U,D: Postcondition: the 90-day purge removes offers with their Conversation, no separate step
 ```
 
+### Critical flow 4 (2026-10-13): sending a Question form
+
+Covers US-03 after the revision (AC-08, AC-08b, AC-10–AC-13, AC-37–AC-41) and replaces Critical flow 1 for new replies (ADR-0011).
+
+```mermaid
+sequenceDiagram
+    actor F as Freelancer
+    participant W as Web frontend
+    participant C as Chat route
+    participant S as Service layer
+    participant A as Assistant agent
+    participant G as AI Gateway and model
+    F->>W: answers every required question and presses Send
+    W->>W: per-question format checks (amount, rate, calendar day, length); Send disabled until valid
+    W->>C: form id and answers, with the Conversation id
+    C->>S: check the form as the acting Freelancer
+    alt form not found, not latest, not open, unknown question or option, required answer missing, record gone or no longer fitting
+        S-->>C: unavailable
+        C-->>W: "This form is no longer available. Answer the latest questions or type your request." nothing counted or marked
+    else a typed answer has a bad format
+        S-->>C: field errors per question
+        C-->>W: errors shown under the questions, nothing counted
+    else form valid
+        C->>S: reserve one slot of today's allowance
+        alt no slot left
+            S-->>C: allowance used up, renewal time
+            C-->>W: used-up notice, no answer marked
+        else slot reserved
+            C->>S: claim the form (open to answered, answers stored), committed with the reserved slot
+            C->>S: compose the message from stored labels and typed answers
+            alt the form stores a draft request
+                C->>S: pin the answers into it and resolve it in code
+                S-->>C: a Draft card, or issues for the next form
+                C->>A: run the turn with the result as a prior propose_draft step
+            else a free-question form
+                C->>A: run the turn with the answers as a prior ask_user step
+            end
+            A->>G: write a short reply around the result
+            G-->>A: text deltas, maybe propose_draft or ask_user calls
+            A-->>C: streamed text, the card or the next form
+            alt reply completes
+                C-->>W: text, then the card or the next form as data parts
+                C->>S: save the composed message (origin form), the reply, the next form and the turn metadata
+            else system-side failure before the reply completes
+                C->>S: release the slot and the claim (answers cleared), save only the turn metadata
+                C-->>W: could not complete, try again
+            end
+        end
+    end
+```
+
+### Critical flow 5 (2026-10-13): a reply that ends in a Question form
+
+Covers AC-09, AC-14, AC-37, AC-41, AC-46 (ADR-0011).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant UI as <ui>
+    participant S as <service>
+    participant X as <external-system>
+    participant D as <data-store>
+    U->>UI: asks for an invoice with values missing
+    UI->>S: message text and Conversation id
+    S->>X: run the turn with today's date note, the read questions, propose_draft and ask_user
+    opt the model searches first
+        X-->>S: list_customers or list_products by name
+        S->>D: this Freelancer's rows
+        S-->>X: records with ids
+    end
+    alt the draft can be resolved
+        X-->>S: propose_draft
+        S->>D: resolve as the acting Freelancer
+        alt proposal
+            S-->>UI: draft card, no form
+        else issues
+            S->>S: build a question for every issue (options from the resolver, input-only above 8)
+        end
+    end
+    opt the model asks its own questions
+        X-->>S: ask_user with record ids and a partial draft
+        S->>D: load every id owner-scoped and by kind
+        alt any id not this Freelancer's or unknown
+            S-->>X: options could not be offered (same words for both), nothing stored
+        else all valid
+            S->>S: build labels from the rows and date options in the time zone
+        end
+    end
+    S->>S: compose one form: resolver questions, then chat questions, at most 6 in the F1 order; fallback input-only form when the chat's form was refused
+    S-->>UI: short lead-in text, then the form as a data part
+    S->>D: save the message (typed) and reply, close the earlier open form, store this form (open), save turn metadata
+    Note over U,D: Postcondition: every option is a checked record, currency or computed date with a system label; at most one open form per Conversation
+```
+
+### Flow 12 (2026-10-13): switching Conversations under a persistent list
+
+Covers AC-17, AC-51, AC-52 (ADR-0013).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as <user>
+    participant L as <ui> list (layout)
+    participant P as <ui> chat pane (page)
+    participant S as <service>
+    participant D as <data-store>
+    Note over L: mounted once per hard load, holds summaries, scroll and search text
+    U->>L: picks another Conversation
+    L->>P: client navigation to /ai/{id}, the layout stays mounted
+    P-->>U: chat-pane skeleton only, at the final dimensions
+    P->>S: load that Conversation as the acting Freelancer
+    S->>D: messages, forms, cards
+    S-->>P: the Conversation, or not found
+    P-->>U: messages and composer; the list marks the row active from the URL
+    opt a turn is saved, a Conversation is renamed or deleted
+        P->>L: list event (created, touched, renamed, deleted)
+        L-->>U: row added, moved to the top, renamed or removed, no refetch
+    end
+```
+
 ### Coverage: user stories and acceptance criteria
 
 Critical flows 1–3 are the design-seeded flows above, drawn with the §5 container names. Flows 4–11 use the generic participants: `<user>` is the Freelancer, `<client>` is the external Assistant, `<external-system>` is the model provider, `<service>` is the chat route, server actions, MCP server, agent and service layer together, and `<data-store>` is the database.
@@ -804,6 +978,19 @@ Critical flows 1–3 are the design-seeded flows above, drawn with the §5 conta
 | AC-34 | Flow 11 |
 | AC-35 | N/A, non-runtime: static privacy page text, checked by a page test |
 | AC-36 | Flow 8 and Flow 10, no signed-in session (the proxy also refuses anonymous chat requests and server actions, §8) |
+| AC-08, AC-08b, AC-10–AC-13 (changed 2026-10-13) | Critical flow 5 (one form with every open question), Critical flow 4 (send, check, pin) and Flow 7 (reopen shows the forms read-only with answers) |
+| AC-09, AC-14 (changed 2026-10-13) | Critical flow 5, the id check and the input-only question above 8 |
+| AC-37 | Critical flow 5 (search, ask_user with a partial draft), then Critical flow 4 |
+| AC-38 | Critical flow 4, browser format checks and the "Other…" name pinned as words |
+| AC-39 | Critical flow 5 (date options computed when made), Critical flow 4 (pin) |
+| AC-40 | Critical flow 5 postcondition and Flow 6 (a typed message closes the open form) |
+| AC-41 | Critical flow 5, proposal: card, no form |
+| AC-42–AC-44 | N/A, rendering in the browser (ADR-0012); component tests |
+| AC-45 | Critical flow 5, the date note |
+| AC-46, AC-47 | Critical flow 5, search first and the form instead of prose (eval rows) |
+| AC-48, AC-49 | Flow 4 with `search_invoices` created-date filters and row paths (eval rows) |
+| AC-50, AC-51, AC-53 | N/A, layout (e2e bounding boxes) |
+| AC-52 | Flow 12 |
 
 ### Flags for design and data-model
 
@@ -871,22 +1058,29 @@ Nothing new to deploy. The feature ships inside the existing Vercel deployable (
 | Motion | The composer move and the panel transitions honour `prefers-reduced-motion` (AC-18). | here |
 | Internationalisation | Unchanged. The reply is in the message's language; fixed app text (button states, dialog text, "no longer available") is English. | ai-assistant SAD §8 |
 | IDs | `cuid()` for `ChoiceOffer`. `optionId` is the option's position in its offer, stable because the options are frozen when offered. | `docs/architecture-map.md` §Conventions |
+| Question forms (2026-10-13) | One form per reply; options are owner-checked records, currencies or server dates with server labels; question prompts are plain model text; one Send = one counted message (origin `FORM`); refusals uniform and uncounted; answers pinned by code. | ADR-0011 |
+| Reply rendering (2026-10-13) | Safe Markdown as React elements; no HTML; links only to in-app route patterns; outside or same-host absolute URLs as text; supersedes the parent's plain-text rule for the chat. | ADR-0012 |
+| List state (2026-10-13) | The Conversation list lives in `ai/layout.tsx` with a client provider fed once by the layout and then by list events; pages never pass summaries. | ADR-0013 |
+| Dates in the chat (2026-10-13) | Each turn tells the model today, weekday and the Freelancer time zone; relative dates resolve in that zone (spec F11). | here |
 | Events | N/A. Direct calls only; no queue, push or polling. | — |
 
 ## 9. Architecture decisions
 
 | # | Title | Status | Section |
 |---|---|---|---|
-| 0001 | Store each set of Offered choices as a server-side offer row tied to its reply | Accepted | §4, §5 |
-| 0002 | Build Offered choices in code from the draft resolver's typed issues | Accepted | §4, §5 |
-| 0003 | Send a press as an option reference and pin the chosen record into the draft request in code | Accepted | §4, §5 |
+| 0001 | Store each set of Offered choices as a server-side offer row tied to its reply | Accepted (amended by 0011) | §4, §5 |
+| 0002 | Build Offered choices in code from the draft resolver's typed issues | Superseded by 0011 | §4, §5 |
+| 0003 | Send a press as an option reference and pin the chosen record into the draft request in code | Superseded by 0011 | §4, §5 |
 | 0004 | Match look-alike names in the app with one shared fold, without a stored search key | Accepted | §4, §5 |
-| 0005 | Give a saved Conversation and an open preview their own addresses and keep a new Conversation at /ai | Accepted | §4, §8 |
+| 0005 | Give a saved Conversation and an open preview their own addresses and keep a new Conversation at /ai | Accepted (amended by 0013) | §4, §8 |
 | 0006 | Load the chat's invoice preview through an owner-scoped server action and the shared document model | Accepted | §4, §5 |
 | 0007 | Issue from the preview through the invoice status service, guarded by the version the preview showed | Accepted | §4, §6 |
 | 0008 | Keep invoice states in one workspace store fed by loads and action results, without push | Accepted | §4, §8 |
 | 0009 | Hand the dashboard prompt to the AI section through a one-time session-storage entry | Accepted | §4, §6 |
-| 0010 | Build the AI section from our own chat elements, ported from Vercel AI Elements onto Base UI | Accepted | §2, §5, §8 |
+| 0010 | Build the AI section from our own chat elements, ported from Vercel AI Elements onto Base UI | Accepted (amended by 0012) | §2, §5, §8 |
+| 0011 | Ask every open question in one server-checked Question form, answered with one Send | Accepted | §4, §5, §6, §8 |
+| 0012 | Render replies as safe Markdown with react-markdown and an in-app link allowlist | Accepted | §2, §5, §8 |
+| 0013 | Keep the Conversation list mounted in the AI layout and update it from chat events | Accepted | §4, §5, §8 |
 
 ADR files live under `docs/features/ai-chat-v2/adr/NNNN-<title>.md`.
 
@@ -947,6 +1141,11 @@ Ten ADRs sits at the low end of the 10–15 typical for an L feature on purpose.
   - A cross-tenant integration test for both channels.
   - Weekly per-message traces (metadata only).
 
+**QG-5 (2026-10-13). Asked once, answered once**
+- **When:** a drafting request misses several values, or the model tries to offer a foreign or unknown record, or a forged form arrives.
+- **Then:** one form with every open question (≤ 6), no prose questions; 0 options or labels from model text; forged answers refused uniformly, uncounted, with 0 model calls; one Send counts once; form check ≤ 300 ms p95.
+- **How verify:** unit tests of `formFromIssues`, `composeForm`, `checkForm`, `form-pin`; route integration tests per refusal cause; stream contract test with the injection and forged-id fixtures; eval rows for AC-37, AC-45–AC-49.
+
 ## 11. Risks and technical debt
 
 | Risk / debt | Severity | Mitigation | Owner |
@@ -961,6 +1160,11 @@ Ten ADRs sits at the low end of the 10–15 typical for an L feature on purpose.
 | `docs/architecture-map.md` is 124 commits stale (reflects `2064466`, before the AI chat shipped) | Low | This SAD was built on a fresh code read. Run `/sdd:survey` before `tasks` so later stages read a current map. | Dmytro Hopko |
 | The free-tier Gemini key's terms and request caps (inherited) | Medium | Inherited from ai-assistant §1 ¶4 and §11. Presses add messages but no new cost class, and the alerts stay as they are. | Dmytro Hopko |
 | Open question (spec §8): does the terms page need an AI clause? | Open question | Resolve before `sdd:ship`. The default is no change unless the terms page contradicts the chat; checked with the privacy update. | Dmytro Hopko |
+
+| (2026-10-13) The model offers the wrong records or still writes questions in prose | Medium | Instructions + eval rows (spec §6 "Chat behaviour", ≥ 4/5 runs); the fallback input-only form when `ask_user` is refused; "Other…" on every record question; KPI "drafting replies with questions in prose" | Dmytro Hopko |
+| (2026-10-13) Markdown re-parse on every streamed delta costs CPU on long replies | Low | Replies are short; memoise completed blocks if a profile shows it | Dmytro Hopko |
+| (2026-10-13) The list in the layout drifts from the server if an event is missed | Low | Events from every saved turn, rename and delete; a hard load or `router.refresh()` reconciles by id (ADR-0013) | Dmytro Hopko |
+| (2026-10-13) Moving the list into the layout breaks the live-chat hand-over between `/ai` and `/ai/{id}` | Medium | The hand-over e2e tests stay and must pass unchanged; the task that moves the list re-runs them | Dmytro Hopko |
 
 **Accepted debt (acceptable in v2, plan to fix later):**
 - An invoice issued in another tab shows as issued in the chat only on the next preview load, issue attempt or reopen. There is no push (ADR-0008); spec §1 limits live status to system-made links.

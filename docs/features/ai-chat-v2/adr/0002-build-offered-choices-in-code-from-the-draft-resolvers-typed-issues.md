@@ -1,15 +1,15 @@
 ---
-status: Accepted
+status: Superseded by 0011
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-13"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
 
 # 0002 — Build Offered choices in code from the draft resolver's typed issues
 
-- **Status:** Accepted
+- **Status:** Superseded by 0011 (2026-10-13, owner feedback: Question form)
 - **Date:** 2026-10-12
 - **Deciders:** Dmytro Hopko (owner; decided by the design agent in an autonomous run, open to owner veto)
 
