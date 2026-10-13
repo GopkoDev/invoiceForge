@@ -188,6 +188,8 @@ beforeEach(() => {
   push.mockReset();
   replace.mockReset();
   goToSignIn.mockReset();
+  // Each test starts at /ai: a live chat a previous test left waiting at its Conversation's address then ends.
+  window.history.replaceState(null, '', '/ai');
   replaceState.mockClear();
   pathname = '/ai';
   loadConversationCards.mockReset();
@@ -896,7 +898,7 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
 describe('the swap with a loading state in between', () => {
   const page = (key: string) => (
     <div key={key}>
-      <ChatIsland conversationId="cNew" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      <ChatIsland conversationId="cLoad" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
     </div>
   );
 
@@ -905,7 +907,7 @@ describe('the swap with a loading state in between', () => {
       sse([
         START,
         ...textChunks('First answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        { type: 'data-conversation', data: { conversationId: 'cLoad', title: 'Who owes me?' } },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -914,7 +916,7 @@ describe('the swap with a loading state in between', () => {
     await send(user, 'Who owes me?');
     await screen.findByText('First answer.');
     await waitFor(() => expect((box() as HTMLTextAreaElement).disabled).toBe(false));
-    pathname = '/ai/cNew';
+    pathname = '/ai/cLoad';
     return view;
   }
 
@@ -964,7 +966,7 @@ describe('New chat, then Back to the Conversation started in place', () => {
       sse([
         START,
         ...textChunks('First answer.'),
-        { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Who owes me?' } },
+        { type: 'data-conversation', data: { conversationId: 'cBack', title: 'Who owes me?' } },
         outcome('ANSWERED', true),
         FINISH,
       ])
@@ -976,7 +978,7 @@ describe('New chat, then Back to the Conversation started in place', () => {
     const view = render(element());
     await send(user, 'Who owes me?');
     await screen.findByText('First answer.');
-    pathname = '/ai/cNew';
+    pathname = '/ai/cBack';
     view.rerender(element());
     expect(screen.getByText('First answer.')).toBeTruthy();
     refresh.mockClear();
@@ -987,11 +989,52 @@ describe('New chat, then Back to the Conversation started in place', () => {
     expect(screen.queryByText('First answer.')).toBeNull();
     await new Promise((r) => setTimeout(r, 20));
 
-    pathname = '/ai/cNew'; // Back
-    window.history.replaceState(null, '', '/ai/cNew');
+    pathname = '/ai/cBack'; // Back
+    window.history.replaceState(null, '', '/ai/cBack');
     view.rerender(element());
     expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+});
+
+// Review 2026-10-13 R3-U3: a history entry holding the /ai page's tree can be restored at /ai/{id} while that
+// Conversation's live chat is still held (by the Conversation page's island, or waiting for one). The /ai page then
+// shows that live chat, never the start screen.
+describe('the /ai page restored at the address of a live Conversation', () => {
+  it('shows the live chat, not the start screen, and does not refresh', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse([
+        START,
+        ...textChunks('Restored answer.'),
+        { type: 'data-conversation', data: { conversationId: 'cRestore', title: 'Restore me' } },
+        outcome('ANSWERED', true),
+        FINISH,
+      ])
+    );
+    const user = userEvent.setup();
+    const view = startPanelIsland();
+    await send(user, 'Who owes me?');
+    await screen.findByText('Restored answer.');
+    pathname = '/ai/cRestore';
+    view.rerender(
+      <div key="conversation-page">
+        <ChatIsland conversationId="cRestore" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+    expect(screen.getByText('Restored answer.')).toBeTruthy();
+    refresh.mockClear();
+
+    view.rerender(
+      <div key="ai-page-restored">
+        <ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
+      </div>
+    );
+
+    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.getByText('Restored answer.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Restore me' })).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

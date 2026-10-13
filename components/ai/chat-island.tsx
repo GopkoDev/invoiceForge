@@ -151,6 +151,8 @@ interface LiveSession {
   ui: SessionUi | null;
   /** Islands showing it now; when none is left, the session waits for the next one at its address, then ends. */
   mounted: number;
+  /** The saved Conversation's title (data-conversation), for an /ai page that shows the session at its address. */
+  title: string | null;
   /** What the Chat reported while no island showed it (the router's loading state), replayed to the next island. */
   queued: ChatEvent[];
 }
@@ -208,7 +210,15 @@ function createLiveSession(
       };
     },
   });
-  const session: LiveSession = { chat: undefined as unknown as Chat<ChatMessage>, live, handlers, ui: null, mounted: 0, queued: [] };
+  const session: LiveSession = {
+    chat: undefined as unknown as Chat<ChatMessage>,
+    live,
+    handlers,
+    ui: null,
+    mounted: 0,
+    queued: [],
+    title: null,
+  };
   session.chat = new Chat<ChatMessage>({
     transport,
     messages: initialMessages.map((m) => ({ id: m.id, role: m.role, parts: m.parts }) as ChatMessage),
@@ -223,6 +233,10 @@ function createLiveSession(
 function showSession(session: LiveSession, handlers: ChatHandlers, ui: SessionUi): void {
   session.handlers.current = handlers;
   session.ui = ui;
+}
+
+function nameSession(session: LiveSession, title: string): void {
+  session.title = title;
 }
 
 function endSession(session: LiveSession): void {
@@ -316,7 +330,9 @@ export function ChatIsland(props: ChatIslandProps) {
   // page (review 2026-10-13 R2-U3). At a Conversation address the /ai page shows only the live chat that saved that
   // Conversation; otherwise the island shows a skeleton and refreshes once, so the server renders the saved page.
   const openId = pathname?.startsWith(`${protectedRoutes.ai}/`) ? pathname.slice(protectedRoutes.ai.length + 1) : null;
-  const staleEntry = props.conversationId === null && openId !== null && !liveSessions.has(openId);
+  // The /ai page restored at a Conversation address shows that Conversation's live chat when one is held (R3-U3).
+  const liveAtAddress = props.conversationId === null && openId !== null ? openId : null;
+  const staleEntry = liveAtAddress !== null && !liveSessions.has(liveAtAddress);
   useEffect(() => {
     if (staleEntry) router.refresh();
   }, [staleEntry, router]);
@@ -324,7 +340,7 @@ export function ChatIsland(props: ChatIslandProps) {
   // ai-chat-v2 T23 (ADR-0008): the island shares the workspace's invoice-state store (or holds its own outside it).
   return (
     <InvoiceStateProvider>
-      <ChatSession key={seen.chat} {...props} />
+      <ChatSession key={seen.chat} {...props} liveAt={liveAtAddress} />
     </InvoiceStateProvider>
   );
 }
@@ -341,13 +357,18 @@ function ChatSession({
   start,
   startedFrom = 'AI_SECTION',
   handoffId,
-}: ChatIslandProps) {
+  liveAt = null,
+}: ChatIslandProps & {
+  /** On the /ai page at a Conversation address: the Conversation whose live chat to show (R3-U3). */
+  liveAt?: string | null;
+}) {
   const router = useRouter();
   const newConversation = useNewConversation();
   // The live chat this island shows: the one handed over at this Conversation's address, or a new one.
+  const adoptId = conversationId ?? liveAt;
   const [session] = useState<LiveSession>(
     () =>
-      (conversationId !== null ? liveSessions.get(conversationId) : undefined) ??
+      (adoptId !== null ? liveSessions.get(adoptId) : undefined) ??
       createLiveSession(conversationId, initialMessages, startedFrom)
   );
   // Mutable request bookkeeping read by the transport and SDK callbacks, never during render.
@@ -356,11 +377,17 @@ function ChatSession({
   const [allowance, setAllowance] = useState(handedOver?.allowance ?? initialAllowance);
   const [usedUpMessage, setUsedUpMessage] = useState<string | undefined>(handedOver?.usedUpMessage);
   const [failure, setFailure] = useState<Failure | null>(handedOver?.failure ?? null);
-  const [started, setStarted] = useState(false);
+  // An /ai page showing a handed-over chat starts past the start screen, under that Conversation's header.
+  const [started, setStarted] = useState(conversationId === null && liveAt !== null && handedOver !== null);
   const [text, setText] = useState(handedOver?.text ?? '');
   const [replyDone, setReplyDone] = useState(handedOver?.replyDone ?? false);
   // Only on /ai: the Conversation the first reply saved, and its cards and link states once read.
-  const [saved, setSaved] = useState<{ id: string; title: string } | null>(null);
+  const [saved, setSaved] = useState<{ id: string; title: string } | null>(() => {
+    const savedId = session.live.getConversationId();
+    return conversationId === null && liveAt !== null && savedId === liveAt && session.title !== null
+      ? { id: savedId, title: session.title }
+      : null;
+  });
   const [loaded, setLoaded] = useState<{
     cards: Record<string, DraftCardView>;
     invoiceLinks: Record<string, LinkedInvoiceState>;
@@ -385,6 +412,7 @@ function ChatSession({
       if (part.type === 'data-conversation') {
         live.setConversationId(part.data.conversationId);
         liveSessions.set(part.data.conversationId, session);
+        nameSession(session, part.data.title);
         if (conversationId === null) setSaved({ id: part.data.conversationId, title: part.data.title });
         newConversation?.announce({ id: part.data.conversationId, title: part.data.title });
         replaceAddress(`/ai/${part.data.conversationId}`);
@@ -488,7 +516,8 @@ function ChatSession({
   useLayoutEffect(() => {
     showSession(session, handlers, { text, failure, allowance, usedUpMessage, replyDone });
   });
-  useEffect(() => holdSession(session), [session]);
+  // Held and let go in the commit itself, so nothing the stream reports between two islands is lost (R3-U2).
+  useLayoutEffect(() => holdSession(session), [session]);
 
   const inFlight = status === 'submitted' || status === 'streaming';
 
