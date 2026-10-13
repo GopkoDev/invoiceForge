@@ -180,16 +180,18 @@ const PREVIEW_FAILED = "The preview couldn't be loaded. Try again.";
 /**
  * ai-chat-v2 T17 (AC-20, AC-21, AC-22; ADR-0006): the invoice of a CREATED Draft card, owner-scoped, as the
  * list's preview renders it (getInvoice's serialization), with the version issueFromPreview sends back and its
- * link state. A card that is not this Freelancer's, unknown or not CREATED reads NOT_FOUND in one set of words.
+ * link state. A card that is not this Freelancer's, unknown, not CREATED, or (when `conversationId` is given) of
+ * another Conversation reads NOT_FOUND in one set of words (AC-22; review 2026-10-13 R9-2).
  * Read-only: never a message, never counted.
  */
 export async function getCardInvoicePreview(
   actor: ActingFreelancer,
-  cardId: string
+  cardId: string,
+  conversationId?: string
 ): Promise<ActionResult<InvoicePreview>> {
   try {
     const card = await prisma.draftCard.findFirst({
-      where: { id: cardId, userId: actor.userId, state: 'CREATED' },
+      where: { id: cardId, userId: actor.userId, state: 'CREATED', ...(conversationId ? { conversationId } : {}) },
       select: { invoiceId: true },
     });
     if (!card) return fail('NOT_FOUND', PREVIEW_NOT_FOUND);

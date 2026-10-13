@@ -2,12 +2,14 @@
 
 import { AlertTriangleIcon, FileXIcon, InfoIcon, XIcon } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { useApplyCardInvoiceState, useCardInvoiceState } from '@/components/ai/invoice-state-context';
 import { IssueConfirmation } from '@/components/ai/issue-confirmation';
 import { closePreview } from '@/components/ai/preview-address';
+import { openConversationId } from '@/components/ai/conversation-list';
 import { PDFPreviewPanel } from '@/components/invoice-editor/pdf-preview-panel';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { ConfirmationModal } from '@/components/modals/global-modals/confirmation-modal/confirmation-modal';
@@ -57,6 +59,8 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const latest = useRef(0);
+  // The open Conversation: a card of another Conversation reads not found, as AC-22 (review 2026-10-13 R9-2).
+  const conversationId = openConversationId(usePathname());
 
   const available = load.kind === 'available' ? load : null;
   const stored = useCardInvoiceState(cardId, available?.invoice.id ?? null);
@@ -68,7 +72,7 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
     const request = ++latest.current;
     let result: Awaited<ReturnType<typeof loadInvoicePreview>>;
     try {
-      result = await loadInvoicePreview(cardId);
+      result = await loadInvoicePreview(cardId, conversationId ?? undefined);
     } catch {
       goToSignIn();
       return;
@@ -89,7 +93,7 @@ export function InvoicePreviewPanel({ cardId, variant = 'column' }: { cardId: st
     } else {
       setLoad({ kind: 'failed', message: result.error });
     }
-  }, [applyCard, cardId]);
+  }, [applyCard, cardId, conversationId]);
 
   useEffect(() => {
     void read();

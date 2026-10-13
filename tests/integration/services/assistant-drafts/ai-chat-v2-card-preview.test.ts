@@ -19,7 +19,7 @@ import { actingFreelancerForTest } from '../../../support/acting-freelancer';
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
 type Result = { success: boolean; code?: string; error?: string; data?: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-type Svc = { getCardInvoicePreview: (a: unknown, cardId: string) => Promise<Result> };
+type Svc = { getCardInvoicePreview: (a: unknown, cardId: string, conversationId?: string) => Promise<Result> };
 
 const NOT_FOUND = { success: false, code: 'NOT_FOUND', error: "This invoice can't be found." };
 
@@ -102,6 +102,16 @@ describe.runIf(containerRuntimeAvailable)('getCardInvoicePreview (ai-chat-v2 T17
     const replaced = await createDraftCard(prisma, { userId: a.user.id, conversationId: a.conversation.id, state: 'REPLACED' });
     expect(await svc.getCardInvoicePreview(actor, live.id)).toEqual(NOT_FOUND);
     expect(await svc.getCardInvoicePreview(actor, replaced.id)).toEqual(NOT_FOUND);
+  });
+
+  // Review 2026-10-13 R9-2 (test-plan.md §Edge cases): a preview address for a card of another of the Freelancer's
+  // own Conversations is not found, exactly as AC-22; the card's own Conversation shows it.
+  it('AC-22: a card of another Conversation of the same Freelancer is NOT_FOUND when the open Conversation is given', async () => {
+    const a = await seedCreatedCard('t17-a@example.com');
+    const other = await createConversation(prisma, { userId: a.user.id });
+    const actor = await actingFreelancerForTest(a.user.id);
+    expect(await svc.getCardInvoicePreview(actor, a.card.id, other.id)).toEqual(NOT_FOUND);
+    expect((await svc.getCardInvoicePreview(actor, a.card.id, a.conversation.id)).success).toBe(true);
   });
 
   it("AC-22: getCardInvoicePreview on Freelancer B's card is NOT_FOUND exactly like an unknown id (foreign record)", async () => {

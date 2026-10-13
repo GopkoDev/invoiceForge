@@ -77,14 +77,20 @@ const ISSUE_FAILED = "The invoice couldn't be issued. Try again.";
  * ai-chat-v2 T17 (AC-20, AC-21, AC-22, AC-27; ADR-0006): a created Draft card's invoice preview. Read-only,
  * never a message, never counted.
  */
-export async function loadInvoicePreview(cardId: string): Promise<ActionResult<InvoicePreview>> {
+export async function loadInvoicePreview(
+  cardId: string,
+  conversationId?: string
+): Promise<ActionResult<InvoicePreview>> {
   const actor = await actingFreelancerFromSession();
   if (!actor.success) return actor;
   if (typeof cardId !== 'string' || cardId.length === 0 || cardId.length > 64) {
     return fail('NOT_FOUND', PREVIEW_NOT_FOUND);
   }
+  // The open Conversation, when the panel knows it: a card of another Conversation is not found (R9-2).
+  const scope =
+    typeof conversationId === 'string' && conversationId.length > 0 && conversationId.length <= 64 ? conversationId : undefined;
 
-  const result = await getCardInvoicePreview(actor.data, cardId);
+  const result = await getCardInvoicePreview(actor.data, cardId, scope);
   if (!result.success && result.code === 'FAILED') return fail('FAILED', PREVIEW_FAILED);
   return result;
 }

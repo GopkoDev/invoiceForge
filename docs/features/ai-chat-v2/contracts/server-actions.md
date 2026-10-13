@@ -82,13 +82,15 @@ listConversationSummaries(actor): Promise<ActionResult<{ items: ConversationSumm
 
 The result gains `offers: Record<string, OfferView>`, exactly as `getConversation` returns them. The island calls it after each finished reply (parent rule), which is how a freshly streamed `data-offer` gets its labels (ADR-0001 Neutral), and how a press's claimed offer shows as chosen. `NOT_FOUND` as in the parent.
 
-### `loadInvoicePreview(cardId: string)` ★ (critical flow 2; ADR-0006; AC-20, AC-21, AC-22)
+### `loadInvoicePreview(cardId: string, conversationId?: string)` ★ (critical flow 2; ADR-0006; AC-20, AC-21, AC-22)
 
 ```ts
 type InvoicePreview =
   | { kind: 'AVAILABLE'; invoice: SerializedInvoice; version: number; state: LinkedInvoiceState } // DRAFT or ISSUED
   | { kind: 'UNAVAILABLE' };                                                                        // deleted since
-loadInvoicePreview(cardId: string): Promise<ActionResult<InvoicePreview>>;
+loadInvoicePreview(cardId: string, conversationId?: string): Promise<ActionResult<InvoicePreview>>;
+// conversationId: the open Conversation (the panel passes it from /ai/{id}); a card of another Conversation is
+// NOT_FOUND in the same words as AC-22 (review 2026-10-13 R9-2).
 ```
 
 | Outcome | Result |

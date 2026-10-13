@@ -159,7 +159,8 @@ describe('InvoicePreviewPanel - loading and draft (AC-20)', () => {
     const region = screen.getByRole('region', { name: 'Invoice preview' });
     expect(within(region).getByText('Loading preview…')).toBeTruthy();
     expect(region.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(loadInvoicePreview).toHaveBeenCalledWith('card1');
+    // Review 2026-10-13 R9-2: scoped to the open Conversation (/ai/c1), so another Conversation's card is not found.
+    expect(loadInvoicePreview).toHaveBeenCalledWith('card1', 'c1');
   });
 
   it('draft: number + "Draft" badge, the document, "Open in editor" and "Issue invoice"; the heading takes focus', async () => {
@@ -437,7 +438,7 @@ describe('AiWorkspace with ?preview= (ADR-0005; AC-19, AC-20)', () => {
     loadInvoicePreview.mockResolvedValue(available());
     workspace();
     await screen.findByRole('heading', { name: 'INV-0043' });
-    expect(loadInvoicePreview).toHaveBeenCalledWith('card1');
+    expect(loadInvoicePreview).toHaveBeenCalledWith('card1', 'c1');
   });
 });
 
