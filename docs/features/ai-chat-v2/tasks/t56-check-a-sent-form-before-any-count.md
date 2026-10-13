@@ -9,7 +9,7 @@ files_hint: ["lib/services/assistant-drafts/forms.ts", "lib/services/assistant-u
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T56 — Check a sent form before any count and claim or release it with the allowance slot

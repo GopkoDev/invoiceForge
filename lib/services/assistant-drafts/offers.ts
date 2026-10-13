@@ -130,7 +130,7 @@ export function offerRowToFormView(row: {
 type Tx = Prisma.TransactionClient | PrismaClient;
 
 // Lazy: the pure builder above must load without DATABASE_URL (unit tests).
-const db = async () => (await import('@/prisma')).prisma;
+export const db = async () => (await import('@/prisma')).prisma;
 
 export type CheckedChoice =
   | {
@@ -204,7 +204,11 @@ async function draftingCurrency(actor: ActingFreelancer, request: DraftRequest):
 }
 
 /** Whether the option's record still exists, is the actor's and still fits the stored request (AC-13). */
-async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: DraftRequest): Promise<boolean> {
+export async function stillFits(
+  actor: ActingFreelancer,
+  ref: OfferOptionRef,
+  request: DraftRequest | null
+): Promise<boolean> {
   const prisma = await db();
   const { userId } = actor;
   if ('currency' in ref) return true;
@@ -218,6 +222,7 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
       select: { currency: true },
     });
     if (product === null) return false;
+    if (request === null) return true; // a form with no stored request: existence and ownership only
     if (request.currency !== undefined) return currencyFits(product.currency, request.currency);
     // No currency written: the invoice is drafted in the account's currency the resolver would use now (R13-2).
     const drafting = await draftingCurrency(actor, request);
@@ -228,6 +233,7 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
     select: { senderProfileId: true, currency: true },
   });
   if (!account) return false;
+  if (request === null) return true;
   // The account must be in the profile the resolver would draft under now: the request's profile id, the profile it
   // names (folded name), or the current default (review 2026-10-13 R12-1). Otherwise the pinned turn could not use it.
   if (account.senderProfileId !== (await requestProfileId(userId, request))) return false;

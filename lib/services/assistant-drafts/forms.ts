@@ -4,6 +4,11 @@
 // writes only the plain `prompt`. Bounds and shape are zod's, not the database's (repo convention).
 import 'server-only';
 import { z } from 'zod';
+import { startSpan } from '@sentry/nextjs';
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
+import { reserveMessageSlot, type ReserveResult } from '@/lib/services/assistant-usage/allowance';
+import { formFormatErrors } from '@/lib/validations/form-answers';
 import { addDaysToDay, isCalendarDay } from '@/lib/helpers/calendar-day';
 import { accountLastFour } from '@/lib/helpers/account-last-four';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -11,16 +16,19 @@ import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-p
 import {
   accountOptions,
   customerOptions,
+  db,
   isCurrency,
   offerOptionRefSchema,
   offerRowToFormView,
   productOptions,
   profileOptions,
+  storedOfferOptionsSchema,
+  stillFits,
   type Currency,
 } from '@/lib/services/assistant-drafts/offers';
 import { formHeading, LINE_FIELDS } from '@/lib/services/assistant-drafts/form-headings';
-import { draftRequestShape, type DraftIssue } from '@/lib/services/assistant-drafts/schema';
-import { FORM_MAX_OPTIONS, FORM_MAX_QUESTIONS, formAnswersSchema } from '@/lib/validations/assistant-chat';
+import { draftRequestShape, type DraftIssue, type DraftRequest } from '@/lib/services/assistant-drafts/schema';
+import { FORM_MAX_OPTIONS, FORM_MAX_QUESTIONS, formAnswersSchema, type FormAnswer } from '@/lib/validations/assistant-chat';
 import type { ChoiceOfferKind, ChoiceOfferState, FormField, FormInput, FormView } from '@/types/assistant/types';
 
 export const FORM_FIELDS = [
@@ -468,4 +476,165 @@ export async function checkAskUser(actor: ActingFreelancer, raw: unknown, ctx: {
     );
   }
   return { ok: true, questions, draft };
+}
+
+// ---------- T56: the form check, claim and release (ADR-0011 "Submit"; sad.md §5 "Form check"; AC-11, AC-12b, AC-13) ----------
+
+type Tx = Prisma.TransactionClient | PrismaClient;
+
+export type CheckedForm =
+  | { ok: true; form: { id: string; request: DraftRequest | null; questions: StoredFormQuestion[] }; answers: FormAnswer[] }
+  | { ok: false; kind: 'UNAVAILABLE' }
+  | { ok: false; kind: 'INVALID'; fieldErrors: Record<string, string[]> }
+  | { ok: false; kind: 'FAILED' };
+
+const FORM_UNAVAILABLE = { ok: false, kind: 'UNAVAILABLE' } as const;
+const FORM_FAILED = { ok: false, kind: 'FAILED' } as const;
+
+/**
+ * A sent form is answered by question id and option id, never by record id (ADR-0003). Every structural cause of a
+ * refusal answers the same UNAVAILABLE (AC-12b); typed answers are format-checked only after the structure and the
+ * picked records passed (INVALID, per question); a system failure answers FAILED. Writes nothing; span
+ * `chat.form-check` carries the outcome only.
+ */
+export function checkForm(
+  actor: ActingFreelancer,
+  input: { conversationId: string; form: { formId: string; answers: FormAnswer[] } }
+): Promise<CheckedForm> {
+  return startSpan({ name: 'chat.form-check', op: 'function' }, async (span) => {
+    let result: CheckedForm = FORM_UNAVAILABLE;
+    try {
+      result = await checkFormRow(actor, input);
+    } catch (error) {
+      console.error('[checkForm] failed:', redactError(error));
+      result = FORM_FAILED;
+    }
+    span?.setAttribute('outcome', result.ok ? 'ok' : result.kind.toLowerCase());
+    return result;
+  });
+}
+
+/** The stored questions of a row: a FORM row's own, or a legacy offer as its one backfilled question (F9a). */
+function questionsOfRow(row: {
+  kind: ChoiceOfferKind;
+  lineIndex: number | null;
+  questions: unknown;
+  options: unknown;
+}): StoredFormQuestion[] | null {
+  if (row.kind === 'FORM') {
+    const parsed = storedFormQuestionsSchema.safeParse(row.questions);
+    return parsed.success ? parsed.data : null;
+  }
+  const options = storedOfferOptionsSchema.safeParse(row.options);
+  if (!options.success) return null;
+  const field: FormField = row.kind;
+  return [
+    {
+      questionId: 0,
+      field,
+      lineIndex: row.lineIndex,
+      heading: formHeading(field, row.lineIndex),
+      prompt: null,
+      options: options.data,
+      input: 'NONE',
+      required: true,
+      skippable: false,
+      matchCount: null,
+      source: 'RESOLVER',
+    },
+  ];
+}
+
+async function checkFormRow(
+  actor: ActingFreelancer,
+  input: { conversationId: string; form: { formId: string; answers: FormAnswer[] } }
+): Promise<CheckedForm> {
+  const row = await (await db()).choiceOffer.findFirst({
+    where: { id: input.form.formId, userId: actor.userId, state: 'OPEN' },
+    select: { id: true, conversationId: true, kind: true, request: true, questions: true, options: true, lineIndex: true },
+  });
+  if (!row || row.conversationId !== input.conversationId) return FORM_UNAVAILABLE;
+  const questions = questionsOfRow(row);
+  if (!questions) return FORM_UNAVAILABLE;
+  // Written by saveTurn from the resolver's own request (ADR-0003), never from the client.
+  const request = (row.request ?? null) as DraftRequest | null;
+  const { answers } = input.form;
+
+  const byId = new Map(questions.map((q) => [q.questionId, q]));
+  const answered = new Set<number>();
+  const picked: FormOption[] = [];
+  for (const answer of answers) {
+    const question = byId.get(answer.questionId);
+    if (!question || answered.has(answer.questionId)) return FORM_UNAVAILABLE;
+    answered.add(answer.questionId);
+    if ('optionId' in answer) {
+      const option = question.options.find((o) => o.optionId === answer.optionId);
+      if (!option) return FORM_UNAVAILABLE;
+      picked.push(option);
+    } else if ('text' in answer) {
+      if (question.input === 'NONE') return FORM_UNAVAILABLE;
+    } else if (!question.skippable) {
+      return FORM_UNAVAILABLE;
+    }
+  }
+  if (questions.some((q) => q.required && !answered.has(q.questionId))) return FORM_UNAVAILABLE;
+
+  // Every picked record must still exist for the actor and still fit (AC-13), before any format message is given.
+  for (const option of picked) {
+    const ref = option.ref;
+    if ('date' in ref || 'daysAfterIssue' in ref) continue;
+    if (!(await stillFits(actor, ref, request))) return FORM_UNAVAILABLE;
+  }
+
+  const errors = formFormatErrors(questions, answers, {
+    optionDate: (questionId, optionId) => {
+      const ref = byId.get(questionId)?.options.find((o) => o.optionId === optionId)?.ref;
+      return ref && 'date' in ref ? ref.date : null;
+    },
+  });
+  const fieldErrors = Object.fromEntries(Object.entries(errors).map(([id, message]) => [`form.answers.${id}`, [message]]));
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, kind: 'INVALID', fieldErrors };
+  return { ok: true, form: { id: row.id, request, questions }, answers };
+}
+
+/** OPEN -> CHOSEN with the answers; false when another Send claimed it first or it is not the actor's open form. */
+export async function claimForm(tx: Tx, actor: ActingFreelancer, formId: string, answers: FormAnswer[]): Promise<boolean> {
+  const { count } = await tx.choiceOffer.updateMany({
+    where: { id: formId, userId: actor.userId, state: 'OPEN' },
+    data: { state: 'CHOSEN', answers },
+  });
+  return count === 1;
+}
+
+/**
+ * CHOSEN -> OPEN (answers cleared) after a Send that was not counted; a no-op for any other state. With a newer message
+ * saved meanwhile the form ends CLOSED instead (same rule and lock as releaseOffer; review 2026-10-13 R1-B2, R2-B1).
+ */
+export async function releaseForm(tx: Tx, formId: string): Promise<void> {
+  const claimed = await tx.choiceOffer.findFirst({
+    where: { id: formId, state: 'CHOSEN' },
+    select: { conversationId: true, message: { select: { position: true } } },
+  });
+  if (!claimed) return;
+  await tx.$queryRaw`SELECT 1 FROM "Conversation" WHERE id = ${claimed.conversationId} FOR UPDATE`;
+  const newer = await tx.conversationMessage.count({
+    where: { conversationId: claimed.conversationId, position: { gt: claimed.message.position } },
+  });
+  await tx.choiceOffer.updateMany({
+    where: { id: formId, state: 'CHOSEN' },
+    data: { state: newer > 0 ? 'CLOSED' : 'OPEN', answers: Prisma.DbNull, chosenOptionId: null },
+  });
+}
+
+/** A valid Send takes one slot of today's allowance and claims its form in one transaction (Critical flow 1, AC-11). */
+export function reserveAndClaimForm(
+  actor: ActingFreelancer,
+  now: Date,
+  formId: string,
+  answers: FormAnswer[]
+): Promise<ReserveResult> {
+  return reserveMessageSlot(actor, now, {
+    claim: (tx) => claimForm(tx, actor, formId, answers),
+    release: (tx) => releaseForm(tx, formId),
+  });
 }

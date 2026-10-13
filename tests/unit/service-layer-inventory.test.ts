@@ -87,6 +87,11 @@ describe('part 2: every business function has request-free and foreign-record te
     // transaction, not an actor-first call; covered by tests/integration/ai-chat-v2-choice-check.test.ts (ai-chat-v2 T12).
     'claimOffer',
     'releaseOffer',
+    // The same steps for a Question form, and the record re-check shared by both checks (ai-chat-v2 T56); covered by
+    // tests/integration/services/assistant-drafts/form-check.test.ts.
+    'claimForm',
+    'releaseForm',
+    'stillFits',
   ]);
 
   type Fn = { name: string; file: string; takesId: boolean };
