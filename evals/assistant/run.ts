@@ -17,6 +17,9 @@ import {
   type TopicItem,
 } from './dataset';
 import {
+  aggregateRuns,
+  noGuessingRowFailures,
+  parseEvalRuns,
   scoreNoGuessing,
   scoreTopicBoundary,
   type NoGuessingRow,
@@ -267,15 +270,24 @@ function toView(
   };
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// ai-chat-v2 T65: a fixed "today" (AC-45 "yesterday" is 2026-10-12, AC-49 reads "created in January" from it).
+const TODAY = '2026-10-13';
 const TIME_ZONE = 'Europe/Kyiv';
+/** The owner-feedback setups (T65): seeded on their own, without the Acme Corp every older setup holds. */
+const NEW_SETUPS: ReadonlySet<NoGuessingSetup> = new Set([
+  'four-customers-one-profile',
+  'four-customers-one-profile+product-web-development',
+  'draft-inv-0042',
+  'drafts-january',
+]);
 // Prices the seeded Freelancer actually has: the catalogue 50 USD and the custom price 45 USD.
 const KNOWN_RATES = [50, 45];
 
 async function runNoGuessing(
   items: NoGuessingItem[],
-  connectionString: string
-): Promise<NoGuessingRow[]> {
+  connectionString: string,
+  runCount = 1
+): Promise<NoGuessingRow[][]> {
   // The lib modules read DATABASE_URL on first import, so point them at the throwaway DB first.
   process.env.DATABASE_URL = connectionString;
   // ai-chat-v2 AC-10: a press row goes through the chat route, which reads the session. The session is the row's
@@ -304,10 +316,26 @@ async function runNoGuessing(
   const { actingFreelancerForTest } =
     await import('../../tests/support/acting-freelancer');
   const { runTurn } = await import('@/lib/ai/run-turn');
+  const { READ_QUESTIONS } = await import('@/lib/assistant-tools');
   const { NextRequest } = await import('next/server');
   const { POST } = await import('@/app/api/chat/route');
 
   const prisma = createTestPrismaClient(connectionString);
+
+  // T65: the arguments of every search_invoices call of the turn. The chat tools take the handler from this list when
+  // a turn starts, so wrapping it here records the model's own arguments without touching the app.
+  let searchInvoicesCalls: Array<Record<string, unknown>> = [];
+  for (const question of READ_QUESTIONS as unknown as Array<{
+    definition: { name: string };
+    handler: (args: unknown, context: unknown) => Promise<unknown>;
+  }>) {
+    if (question.definition.name !== 'search_invoices') continue;
+    const original = question.handler;
+    question.handler = (args, context) => {
+      searchInvoicesCalls.push({ ...(args as Record<string, unknown>) });
+      return original(args, context);
+    };
+  }
 
   const postChat = async (body: unknown) => {
     const response = await POST(
@@ -354,12 +382,17 @@ async function runNoGuessing(
     type Options = Array<{ optionId: number; label: string }>;
     const questions: Array<{ questionId: number; options: Options }> =
       offer.kind === 'FORM'
-        ? (offer.questions as unknown as Array<{ questionId: number; options: Options }>)
+        ? (offer.questions as unknown as Array<{
+            questionId: number;
+            options: Options;
+          }>)
         : [{ questionId: 0, options: offer.options as unknown as Options }];
     const target = questions.find(
       (q) => optionIdForLabel(q.options, item.press!.label) !== undefined
     );
-    const optionId = target ? optionIdForLabel(target.options, item.press!.label) : undefined;
+    const optionId = target
+      ? optionIdForLabel(target.options, item.press!.label)
+      : undefined;
     if (!target || optionId === undefined)
       throw new Error(
         `${item.id}: no offered option is labelled ${item.press!.label}`
@@ -383,10 +416,83 @@ async function runNoGuessing(
       proposal: card?.proposal as unknown as ProposalLike | undefined,
       text: reply.text,
       offeredCustomers: [] as string[],
+      hasForm: false,
+      formFields: [] as string[],
+      toolCalls: [] as string[],
+      searchInvoicesArgs: [] as Array<Record<string, unknown>>,
     };
   }
 
   try {
+    /** The editor path a link row must point to, by setup (AC-48, AC-49). */
+    const expectedLinkPaths = new Map<NoGuessingSetup, string>();
+
+    /**
+     * T65: the Customers, product and drafts of the four owner-feedback setups. The sender profile and its default USD
+     * account are already seeded by the loop; none of these setups has Acme Corp except draft-inv-0042.
+     */
+    async function seedOwnerFeedbackSetup(
+      setup: NoGuessingSetup,
+      userId: string
+    ) {
+      const profile = await prisma.senderProfile.findFirstOrThrow({
+        where: { userId },
+      });
+      const bank = await prisma.bankAccount.findFirstOrThrow({
+        where: { senderProfileId: profile.id, isDefault: true },
+      });
+      if (
+        setup === 'four-customers-one-profile' ||
+        setup === 'four-customers-one-profile+product-web-development'
+      ) {
+        for (const name of ['My New Customer', 'TEST 2', 'test', 'John Doe'])
+          await createCustomer(prisma, userId, { name });
+        if (setup !== 'four-customers-one-profile')
+          await createProduct(prisma, userId, {
+            name: 'Web development',
+            unit: 'hour',
+            price: 50,
+            currency: 'USD',
+          });
+        return;
+      }
+      const acme = await createCustomer(prisma, userId, { name: 'Acme Corp' });
+      const draft = (
+        invoiceNumber: string,
+        overrides: { issueDate?: Date } = {}
+      ) =>
+        createInvoice(prisma, {
+          senderProfile: profile,
+          customer: acme,
+          bankAccount: bank,
+          items: [{ name: 'Work', quantity: 10, rate: 50, amount: 500 }],
+          overrides: { invoiceNumber, ...overrides },
+        });
+      if (setup === 'draft-inv-0042') {
+        const invoice = await draft('INV-0042');
+        expectedLinkPaths.set(setup, `/invoices/${invoice.id}/edit`);
+        return;
+      }
+      // drafts-january: created 5, 20 and 28 January 2026 (the last issued in February) and one created in February.
+      const created: Array<[string, string, string?]> = [
+        ['INV-0001', '2026-01-05'],
+        ['INV-0002', '2026-01-20'],
+        ['INV-0003', '2026-01-28', '2026-02-02'],
+        ['INV-0004', '2026-02-10'],
+      ];
+      for (const [number, createdDay, issueDay] of created) {
+        const invoice = await draft(number, {
+          issueDate: new Date(`${issueDay ?? createdDay}T00:00:00Z`),
+        });
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { createdAt: new Date(`${createdDay}T12:00:00Z`) },
+        });
+        if (number === 'INV-0003')
+          expectedLinkPaths.set(setup, `/invoices/${invoice.id}/edit`);
+      }
+    }
+
     const actors = new Map<
       NoGuessingSetup,
       Awaited<ReturnType<typeof actingFreelancerForTest>>
@@ -439,6 +545,11 @@ async function runNoGuessing(
               bankName,
             });
       }
+      if (NEW_SETUPS.has(setup)) {
+        await seedOwnerFeedbackSetup(setup, user.id);
+        actors.set(setup, await actingFreelancerForTest(user.id, TIME_ZONE));
+        continue;
+      }
       // AC-15 (T38): stored text that reads like an instruction. No request in the set asks to draft, so
       // none of it may ever produce a card.
       const acme = await createCustomer(prisma, user.id, {
@@ -473,7 +584,9 @@ async function runNoGuessing(
       // ai-chat-v2 AC-14: more matches than an offer holds.
       if (setup === 'many-studios')
         for (let n = 0; n < 12; n++)
-          await createCustomer(prisma, user.id, { name: `Studio ${String.fromCharCode(65 + n)}` });
+          await createCustomer(prisma, user.id, {
+            name: `Studio ${String.fromCharCode(65 + n)}`,
+          });
       if (setup === 'base') {
         const consulting = await createProduct(prisma, user.id, {
           name: 'Consulting',
@@ -510,64 +623,90 @@ async function runNoGuessing(
         })
       );
 
-    const rows: NoGuessingRow[] = [];
-    for (const item of items) {
-      const actor = actors.get(item.setup)!;
-      const userId = userIds.get(item.setup)!;
-      const before = await statuses(userId);
-      const observed = item.press
-        ? await withBackoff(() => runPress(item, userId))
-        : await withBackoff(async () => {
-            const turn = await runTurn({
-              actor,
-              today: TODAY,
-              history: (item.history ?? []).map(toView),
-              message: item.text,
-              signal: new AbortController().signal,
+    const allRuns: NoGuessingRow[][] = [];
+    for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
+      const rows: NoGuessingRow[] = [];
+      for (const item of items) {
+        const actor = actors.get(item.setup)!;
+        const userId = userIds.get(item.setup)!;
+        const before = await statuses(userId);
+        const observed = item.press
+          ? await withBackoff(() => runPress(item, userId))
+          : await withBackoff(async () => {
+              searchInvoicesCalls = [];
+              const turn = await runTurn({
+                actor,
+                today: TODAY,
+                history: (item.history ?? []).map(toView),
+                message: item.text,
+                signal: new AbortController().signal,
+              });
+              for await (const chunk of turn.stream) void chunk;
+              const outcome = await turn.result;
+              if (outcome.outcome === 'FAILED')
+                throw new Error(`turn failed (${outcome.failure})`);
+              const customerQuestion = outcome.pendingForm?.questions.find(
+                (q) => q.field === 'CUSTOMER'
+              );
+              return {
+                proposal: outcome.pendingCard?.proposal as unknown as
+                  | ProposalLike
+                  | undefined,
+                text: outcome.text,
+                offeredCustomers:
+                  customerQuestion?.options.map((o) => o.label) ?? [],
+                hasForm: outcome.pendingForm !== undefined,
+                formFields:
+                  outcome.pendingForm?.questions.map((q) => q.field) ?? [],
+                toolCalls: outcome.toolNames,
+                searchInvoicesArgs: searchInvoicesCalls,
+              };
             });
-            for await (const chunk of turn.stream) void chunk;
-            const outcome = await turn.result;
-            if (outcome.outcome === 'FAILED')
-              throw new Error(`turn failed (${outcome.failure})`);
-            const customerQuestion = outcome.pendingForm?.questions.find(
-              (q) => q.field === 'CUSTOMER'
-            );
-            return {
-              proposal: outcome.pendingCard?.proposal as unknown as
-                | ProposalLike
-                | undefined,
-              text: outcome.text,
-              offeredCustomers:
-                customerQuestion?.options.map((o) => o.label) ?? [],
-            };
-          });
-      const card = observed.proposal;
-      const cardCustomer = card?.customer.name.freelancerText ?? null;
-      rows.push({
-        id: item.id,
-        expect: item.expect,
-        hasCard: card !== undefined,
-        ungroundedValues: card
-          ? findUngroundedValues(
-              item.press ? item.press.label : item.text,
-              card,
-              KNOWN_RATES,
-              item.history ?? []
-            )
-          : [],
-        explains: item.explains,
-        lang: item.lang,
-        replyText: observed.text,
-        resolvedCustomers: [
-          ...(cardCustomer ? [cardCustomer] : []),
-          ...observed.offeredCustomers,
-        ],
-        statusChanged: (await statuses(userId)) !== before,
-        press: item.press,
-        cardCustomer,
-      });
+        const card = observed.proposal;
+        const cardCustomer = card?.customer.name.freelancerText ?? null;
+        rows.push({
+          id: item.id,
+          expect: item.expect,
+          hasCard: card !== undefined,
+          ungroundedValues: card
+            ? findUngroundedValues(
+                item.press ? item.press.label : item.text,
+                card,
+                KNOWN_RATES,
+                item.history ?? []
+              )
+            : [],
+          explains: item.explains,
+          lang: item.lang,
+          replyText: observed.text,
+          resolvedCustomers: [
+            ...(cardCustomer ? [cardCustomer] : []),
+            ...observed.offeredCustomers,
+          ],
+          statusChanged: (await statuses(userId)) !== before,
+          press: item.press,
+          cardCustomer,
+          hasForm: observed.hasForm,
+          formFields: observed.formFields,
+          expectFormFields: item.formFields,
+          toolCalls: observed.toolCalls,
+          searchInvoicesArgs: observed.searchInvoicesArgs,
+          searchFirst: item.searchFirst,
+          link: item.link,
+          expectedLinkPath: item.link
+            ? expectedLinkPaths.get(item.setup)
+            : undefined,
+          expectIssueDate: item.issueDate,
+          cardIssueDate: card
+            ? ((card as unknown as { issueDate?: { value: string } }).issueDate
+                ?.value ?? null)
+            : null,
+          expectCreatedRange: item.createdRange,
+        });
+      }
+      allRuns.push(rows);
     }
-    return rows;
+    return allRuns;
   } finally {
     await prisma.$disconnect();
   }
@@ -590,14 +729,36 @@ async function main(): Promise<number> {
     );
     const topic = scoreTopicBoundary(await runTopicBoundary(topicItems));
     const noGuessingItems = loadNoGuessingSet();
+    const { runs, minPasses } = parseEvalRuns(process.env.ASSISTANT_EVAL_RUNS);
     console.log(
-      `Running ${noGuessingItems.length} drafting requests through the agent...`
+      `Running ${noGuessingItems.length} drafting requests through the agent (${runs} run${runs === 1 ? '' : 's'})...`
     );
-    const noGuessing = scoreNoGuessing(
-      await runNoGuessing(noGuessingItems, db.connectionString)
+    const runRows = await runNoGuessing(
+      noGuessingItems,
+      db.connectionString,
+      runs
     );
-    const { exitCode, report } = evaluateRun({ topic, noGuessing });
+    const aggregate = aggregateRuns(
+      runRows.map((rows) =>
+        Object.fromEntries(
+          rows.map((r) => [r.id, noGuessingRowFailures(r).length === 0])
+        )
+      ),
+      { minPasses }
+    );
+    const noGuessing = scoreNoGuessing(runRows[runRows.length - 1]);
+    // One run: exactly today's gate. Several runs: each row must pass in minPasses of them.
+    const gated =
+      runs === 1 ? noGuessing : { ...noGuessing, passed: aggregate.passed };
+    const { exitCode, report } = evaluateRun({ topic, noGuessing: gated });
     console.log(report);
+    if (runs > 1) {
+      console.log(`Per-row passes (need >= ${minPasses} of ${runs}):`);
+      for (const [id, passes] of Object.entries(aggregate.passCounts))
+        console.log(`  ${passes}/${runs} ${id}`);
+      for (const f of aggregate.failures)
+        console.log(`  - failing row: ${f.id} (${f.passes}/${f.runs})`);
+    }
     return exitCode;
   } finally {
     await db.stop();

@@ -39,6 +39,15 @@ export const NO_GUESSING_SETUPS = [
   'own-profile-name',
   // ai-chat-v2 AC-14: twelve Customers "Studio A" .. "Studio L" (more than the 8 an offer holds).
   'many-studios',
+  // ai-chat-v2 T65 (AC-37, AC-45..AC-49): four Customers ("My New Customer", "TEST 2", "test", "John Doe"), one sender
+  // profile with a default account, no catalogue product.
+  'four-customers-one-profile',
+  // The same Freelancer plus a catalogue product "Web development" (AC-47).
+  'four-customers-one-profile+product-web-development',
+  // A Draft invoice INV-0042 for Acme Corp (AC-48).
+  'draft-inv-0042',
+  // Three Drafts created 5, 20 and 28 January 2026 (the last issued in February) and one created in February (AC-49).
+  'drafts-january',
 ] as const;
 export type NoGuessingSetup = (typeof NO_GUESSING_SETUPS)[number];
 
@@ -54,7 +63,7 @@ export const noGuessingItemSchema = z
     ac: z.string().regex(/^AC-\d+b?$/),
     text: z.string().min(1),
     kind: z.enum(['incomplete', 'ambiguous', 'complete', 'injection', 'issue']),
-    expect: z.enum(['card', 'question', 'none']),
+    expect: z.enum(['card', 'question', 'form', 'card-or-form', 'none']),
     setup: z.enum(NO_GUESSING_SETUPS),
     lang: z.enum(['en', 'uk']),
     /** Earlier turns replayed before `text`, for follow-ups (AC-14b, AC-19) and presses (AC-10). */
@@ -71,6 +80,22 @@ export const noGuessingItemSchema = z
     explains: z.enum(['own-sender-profile', 'match-count']).optional(),
     press: z
       .object({ label: z.string().min(1) })
+      .strict()
+      .optional(),
+    /** T65: the form must hold a question for each of these fields (AC-37). */
+    formFields: z.array(z.string().min(1)).min(1).optional(),
+    /** T65: the card's issue date must be this day (AC-45). */
+    issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    /** T65: the reply holds an allowlisted in-app link (AC-48, AC-49). */
+    link: z.boolean().optional(),
+    /** T65: the Customers and products are searched before the reply (AC-47). */
+    searchFirst: z.boolean().optional(),
+    /** T65: search_invoices must filter by this created-date range (AC-49). */
+    createdRange: z
+      .object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
       .strict()
       .optional(),
   })

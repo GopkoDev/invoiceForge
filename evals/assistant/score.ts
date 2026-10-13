@@ -5,6 +5,7 @@ import {
   type EvalLang,
   type TopicLabel,
 } from './dataset';
+import { isInAppPath } from '@/lib/ai/in-app-links';
 
 export interface TopicRow {
   text: string;
@@ -50,7 +51,7 @@ export function scoreTopicBoundary(rows: TopicRow[]): TopicScore {
 
 export interface NoGuessingRow {
   id: string;
-  expect: 'card' | 'question' | 'none';
+  expect: 'card' | 'question' | 'form' | 'card-or-form' | 'none';
   hasCard: boolean;
   ungroundedValues: string[];
   /** ai-chat-v2 AC-05b: the row must also pass the own-sender-profile rule. */
@@ -65,6 +66,24 @@ export interface NoGuessingRow {
   /** ai-chat-v2 AC-10: the option pressed, and the Customer of the card the press produced. */
   press?: { label: string };
   cardCustomer?: string | null;
+  /** T65: the turn stored one Question form, and the fields of its questions. */
+  hasForm?: boolean;
+  formFields?: string[];
+  /** The fields an `expect: 'form'` row's form must ask (AC-37). */
+  expectFormFields?: string[];
+  /** The tools the turn called, in order, and the arguments of each search_invoices call. */
+  toolCalls?: string[];
+  searchInvoicesArgs?: Array<Record<string, unknown>>;
+  /** AC-47: Customers and products must be searched before the reply. */
+  searchFirst?: boolean;
+  /** AC-48/AC-49: the reply holds an allowlisted in-app link, to `expectedLinkPath` when set. */
+  link?: boolean;
+  expectedLinkPath?: string;
+  /** AC-45: the card's issue date must be `expectIssueDate`; `cardIssueDate` is the card's (null: no card or no date). */
+  expectIssueDate?: string;
+  cardIssueDate?: string | null;
+  /** AC-49: search_invoices must filter by this created-date range. */
+  expectCreatedRange?: { from: string; to: string };
 }
 
 export interface NoGuessingScore {
@@ -128,11 +147,111 @@ function explainsFailures(r: NoGuessingRow): string[] {
 /** The Customers a press row must not narrate: the look-alike the Freelancer did not press. */
 const LOOK_ALIKES = ['Acme Corp', 'Acme GmbH'];
 
+/** A form row (AC-37, AC-46): one form with the expected questions, none for the sender profile, none in prose. */
+function formFailures(r: NoGuessingRow): string[] {
+  const out: string[] = [];
+  if (!r.hasForm) out.push('no form');
+  const asked = r.formFields ?? [];
+  for (const f of r.expectFormFields ?? [])
+    if (!asked.includes(f)) out.push(`form lacks ${f} question`);
+  if (asked.includes('SENDER_PROFILE'))
+    out.push('asked for the sender profile');
+  if (/[?？]/.test(r.replyText ?? '')) out.push('question in prose');
+  return out;
+}
+
+/** The Markdown links of a reply, as [text](href). */
+const linkHrefs = (text: string): string[] =>
+  [...text.matchAll(/\[[^\]]+\]\(([^)\s]+)\)/g)].map((m) => m[1]);
+
+const CANNOT_GIVE_LINKS =
+  /(?:can(?:'|’)?t|cannot|unable to|not able to)\s+(?:give|provide|share|generate|create|send)[^.\n]*\blinks?\b|не\s+мож(?:у|на|емо)[^.\n]*посилан/i;
+
+/** The link rule (AC-48, AC-49): an allowlisted in-app link, to the expected record, and no "I can't give links". */
+function linkFailures(r: NoGuessingRow): string[] {
+  const reply = r.replyText ?? '';
+  const out: string[] = [];
+  const hrefs = linkHrefs(reply).filter(isInAppPath);
+  if (hrefs.length === 0) out.push('no in-app link');
+  else if (r.expectedLinkPath && !hrefs.includes(r.expectedLinkPath))
+    out.push('link is not to the expected record');
+  if (CANNOT_GIVE_LINKS.test(reply)) out.push('says it cannot give links');
+  return out;
+}
+
+const SEARCH_TOOLS = ['list_customers', 'list_products'];
+const TOLD_TO_ADD =
+  /\/(?:customers|products)\/new|\b(?:add|create)\s+(?:the\s+|a\s+)?(?:new\s+)?(?:customer|product)\b|(?:додайте|додати|створіть)\s+(?:клієнта|товар|продукт)/i;
+
+/** The search-first rule (AC-47): Customers searched before any draft action, and no "add one" for a record that exists. */
+function searchFirstFailures(r: NoGuessingRow): string[] {
+  const calls = r.toolCalls ?? [];
+  const firstDraft = calls.indexOf('propose_draft');
+  const searched = calls.findIndex((t) => SEARCH_TOOLS.includes(t));
+  const out: string[] = [];
+  if (searched < 0 || (firstDraft >= 0 && firstDraft < searched))
+    out.push('did not search before replying');
+  if (TOLD_TO_ADD.test(r.replyText ?? ''))
+    out.push('told to add a record that exists');
+  return out;
+}
+
+const ASKS_ABOUT_DATE =
+  /(?:which|what)\s+(?:date|day)|specify the date|яка\s+(?:саме\s+)?дата|яку\s+дату|який\s+(?:саме\s+)?день|вкажіть\s+дату/i;
+
+/** The date rule (AC-45): the card carries the expected issue date, and the reply does not ask which day it is. */
+function issueDateFailures(r: NoGuessingRow, expected: string): string[] {
+  const out: string[] = [];
+  if (r.cardIssueDate !== expected) out.push(`issue date is not ${expected}`);
+  if (ASKS_ABOUT_DATE.test(r.replyText ?? '')) out.push('asked about the date');
+  return out;
+}
+
+const SAYS_NONE =
+  /\bno\s+(?:\w+\s+){0,3}(?:drafts?|invoices?)\b|\bnone\b|\bnot found\b|немає|нема\b|не\s+знайд|не\s+маєте|відсутн/i;
+
+/** The created-date rule (AC-49): search_invoices filtered by the created range, and the reply does not say none exists. */
+function createdRangeFailures(
+  r: NoGuessingRow,
+  range: { from: string; to: string }
+): string[] {
+  const out: string[] = [];
+  if (
+    !(r.searchInvoicesArgs ?? []).some(
+      (a) => a.createdFrom === range.from && a.createdTo === range.to
+    )
+  )
+    out.push('search did not filter by the created date');
+  if (SAYS_NONE.test(r.replyText ?? ''))
+    out.push('says no such invoice exists');
+  return out;
+}
+
+/** Whether the row's reply must end in a card (or, for 'card-or-form', either). */
+function shapeFailures(r: NoGuessingRow): string[] {
+  switch (r.expect) {
+    case 'card':
+      return [
+        ...(r.hasCard ? [] : ['no card']),
+        ...(r.hasForm ? ['unexpected form'] : []),
+      ];
+    case 'form':
+      return [...(r.hasCard ? ['unexpected card'] : []), ...formFailures(r)];
+    case 'card-or-form':
+      return r.hasCard || r.hasForm ? [] : ['no card or form'];
+    default:
+      return r.hasCard ? ['unexpected card'] : [];
+  }
+}
+
 /** Why a row fails; empty when it passes. */
 export function noGuessingRowFailures(r: NoGuessingRow): string[] {
-  const out: string[] = [];
-  if (r.expect === 'card' ? !r.hasCard : r.hasCard)
-    out.push(r.hasCard ? 'unexpected card' : 'no card');
+  const out: string[] = shapeFailures(r);
+  if (r.searchFirst) out.push(...searchFirstFailures(r));
+  if (r.link) out.push(...linkFailures(r));
+  if (r.expectIssueDate) out.push(...issueDateFailures(r, r.expectIssueDate));
+  if (r.expectCreatedRange)
+    out.push(...createdRangeFailures(r, r.expectCreatedRange));
   if (r.ungroundedValues.length > 0)
     out.push(`ungrounded: ${r.ungroundedValues.join(', ')}`);
   out.push(...explainsFailures(r));
@@ -156,11 +275,8 @@ export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
   const questionRate =
     asks.length === 0
       ? 1
-      : asks.filter(
-          (r) =>
-            !r.hasCard &&
-            explainsFailures(r).length === 0
-        ).length / asks.length;
+      : asks.filter((r) => !r.hasCard && explainsFailures(r).length === 0)
+          .length / asks.length;
   const ungroundedCount = rows.reduce(
     (n, r) => n + r.ungroundedValues.length,
     0
@@ -176,5 +292,52 @@ export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
     questionRate,
     ungroundedCount,
     failures: failing.map((r) => ({ id: r.id })),
+  };
+}
+
+/** Name of the variable that sets how many times the drafting-behaviour set is run. */
+const RUNS_VARIABLE = 'ASSISTANT_EVAL_RUNS';
+
+/** Passes a row needs out of `runs`: ceil(0.8 * runs), computed so 0.8 * 5 is not 4.000000000000001. */
+export function defaultMinPasses(runs: number): number {
+  return Math.ceil((runs * 8) / 10);
+}
+
+/** The run count from ASSISTANT_EVAL_RUNS (unset or empty: one run) and the passes a row needs. */
+export function parseEvalRuns(raw: string | undefined): {
+  runs: number;
+  minPasses: number;
+} {
+  if (raw === undefined || raw === '') return { runs: 1, minPasses: 1 };
+  if (!/^[1-9]\d*$/.test(raw))
+    throw new Error(
+      `${RUNS_VARIABLE} must be a positive whole number, got ${JSON.stringify(raw)}`
+    );
+  const runs = Number(raw);
+  return { runs, minPasses: defaultMinPasses(runs) };
+}
+
+export interface RunsAggregate {
+  passed: boolean;
+  passCounts: Record<string, number>;
+  failures: Array<{ id: string; passes: number; runs: number }>;
+}
+
+/** Each run maps a row id to whether it passed; a row must pass in at least `minPasses` runs. */
+export function aggregateRuns(
+  runs: Array<Record<string, boolean>>,
+  { minPasses }: { minPasses: number }
+): RunsAggregate {
+  const passCounts: Record<string, number> = {};
+  for (const run of runs)
+    for (const [id, ok] of Object.entries(run))
+      passCounts[id] = (passCounts[id] ?? 0) + (ok ? 1 : 0);
+  const failures = Object.entries(passCounts)
+    .filter(([, passes]) => passes < minPasses)
+    .map(([id, passes]) => ({ id, passes, runs: runs.length }));
+  return {
+    passed: runs.length > 0 && failures.length === 0,
+    passCounts,
+    failures,
   };
 }

@@ -21,7 +21,11 @@ uses the `.env` or `.env.prod` database.
 
 ```sh
 pnpm eval:assistant
+ASSISTANT_EVAL_RUNS=5 pnpm eval:assistant
 ```
+
+`ASSISTANT_EVAL_RUNS` (default 1) runs the drafting-behaviour set that many times; each row must then
+pass in at least ceil(0.8 * runs) of them (4 of 5), and the per-row pass counts are printed.
 
 `pnpm eval:assistant:dry` validates both datasets against their schema and sizes without the model or a database.
 
