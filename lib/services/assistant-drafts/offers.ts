@@ -157,9 +157,11 @@ export type CheckedChoice =
       offer: { id: string; kind: ChoiceOfferKind; lineIndex: number | null; request: DraftRequest };
       option: StoredOfferOption;
     }
-  | { ok: false };
+  | { ok: false; failed?: true };
 
 const UNAVAILABLE = { ok: false } as const;
+/** A system failure while checking: the route answers "couldn't be completed", not "no longer available". */
+const CHECK_FAILED = { ok: false, failed: true } as const;
 /**
  * Whether a record priced in `code` fits the request's currency. The stored request keeps the currency as the
  * Freelancer wrote it ("$", "€", "dollars"), so it is read the way the resolver read it (review 2026-10-13 R1-B1);
@@ -212,7 +214,8 @@ async function stillFits(actor: ActingFreelancer, ref: OfferOptionRef, request: 
 
 /**
  * A press refers to an option of the Conversation's open offer, never to a record id (ADR-0003). Every cause of a
- * refusal answers the same `{ ok: false }` (AC-12b). Writes nothing; span `chat.choice-check` carries the outcome only.
+ * refusal answers the same `{ ok: false }` (AC-12b); a system failure answers `{ ok: false, failed: true }`. Writes nothing;
+ * span `chat.choice-check` carries the outcome only.
  */
 export function checkChoice(
   actor: ActingFreelancer,
@@ -224,8 +227,9 @@ export function checkChoice(
       result = await check(actor, input);
     } catch (error) {
       console.error('[checkChoice] failed:', redactError(error));
+      result = CHECK_FAILED;
     }
-    span?.setAttribute('outcome', result.ok ? 'ok' : 'unavailable');
+    span?.setAttribute('outcome', result.ok ? 'ok' : 'failed' in result ? 'failed' : 'unavailable');
     return result;
   });
 }

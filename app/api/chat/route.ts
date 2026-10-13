@@ -122,7 +122,12 @@ export async function POST(request: NextRequest) {
   let checked: CheckedChoice | null = null;
   if (choice && conversationId) {
     checked = await checkChoice(actor, { conversationId, ...choice });
-    if (!checked.ok) return NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
+    if (!checked.ok) {
+      // A system failure is "couldn't be completed", never "no longer available" (review 2026-10-13 R1-S3).
+      return 'failed' in checked
+        ? NextResponse.json(FAILED, { status: 503 })
+        : NextResponse.json(CHOICE_UNAVAILABLE, { status: 409 });
+    }
     userText = checked.option.label;
   }
 

@@ -71,9 +71,9 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
   function script(step: (i: number) => StubStep) {
     model = scriptedModel({ verdict: { topic: 'in_scope', language: 'en', intent: 'draft' }, steps: (i) => step(i) });
   }
-  const propose = (customer: string) => (i: number): StubStep =>
+  const propose = (customer: string, currency = 'USD') => (i: number): StubStep =>
     i === 0
-      ? { toolCall: { name: 'propose_draft', input: { customer, currency: 'USD', lines: LINES } } }
+      ? { toolCall: { name: 'propose_draft', input: { customer, currency, lines: LINES } } }
       : { text: 'Which one do you mean?' };
   const textOnly = (text = 'Here is the draft.') => () => ({ text }) as StubStep;
   const streamCalls = () => model.doStreamCalls.length;
@@ -141,8 +141,8 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
   const conversationOf = async () => (await prisma.conversation.findFirstOrThrow()).id;
 
   /** A first typed turn through the route: leaves a saved Conversation with one OPEN offer on its latest reply. */
-  async function firstTurnWithOffer(customer = 'Acme') {
-    script(propose(customer));
+  async function firstTurnWithOffer(customer = 'Acme', currency = 'USD') {
+    script(propose(customer, currency));
     await sendTyped('invoice Acme for 20 hours at $50');
     return { conversationId: await conversationOf(), offer: await latestOpenOffer() };
   }
@@ -177,11 +177,12 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
   });
 
   describe('AC-08b: Customer, then account', () => {
-    it('AC-08b: the Customer press offers the two USD accounts; pressing one gives the card for Acme GmbH with that account; two slots for two presses', async () => {
+    // Review 2026-10-13 R1-B1: the real model passes the currency as written ("$50" -> "$"); the press still fits.
+    it.each(['USD', '$'])('AC-08b (currency passed as "%s"): the Customer press offers the two USD accounts; pressing one gives the card for Acme GmbH with that account; two slots for two presses', async (currency) => {
       const user = await freelancer('t14-ac08b@example.com');
       const { alpha } = await profileWithAccounts(user.id);
       const { gmbh } = await acmePair(user.id);
-      const { conversationId, offer } = await firstTurnWithOffer();
+      const { conversationId, offer } = await firstTurnWithOffer('Acme', currency);
       expect(offer.kind).toBe('CUSTOMER');
       const usedBefore = await used(user.id);
 
@@ -356,6 +357,29 @@ describe.runIf(containerRuntimeAvailable)('a button press is a counted message t
       expect(await used(user.id)).toBe(usedBefore);
       expect(await prisma.conversationMessage.count()).toBe(messagesBefore);
       expect(await prisma.draftCard.count()).toBe(0);
+    });
+  });
+
+  // Review 2026-10-13 R1-S3: a system failure while checking a press is "couldn't be completed" (503), never "no longer
+  // available" (409): the Freelancer must not be told a valid option is gone.
+  describe('a failure while checking the press', () => {
+    it('is 503 FAILED, not 409; nothing claimed, no slot, no model call', async () => {
+      const user = await freelancer('t14-check-fails@example.com');
+      await profileWithAccounts(user.id);
+      await acmePair(user.id);
+      const { conversationId, offer } = await firstTurnWithOffer();
+      const usedBefore = await used(user.id);
+      script(textOnly());
+      vi.spyOn(appPrisma.choiceOffer, 'findFirst').mockRejectedValueOnce(new Error('connection lost'));
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      const { response, raw } = await sendPress(conversationId, offer.id, optionFor(offer, (o) => o.label === 'Acme GmbH').optionId);
+
+      expect(response.status).toBe(503);
+      expect(raw).not.toContain('CHOICE_UNAVAILABLE');
+      noModelCalls();
+      expect((await prisma.choiceOffer.findUniqueOrThrow({ where: { id: offer.id } })).state).toBe('OPEN');
+      expect(await used(user.id)).toBe(usedBefore);
     });
   });
 
