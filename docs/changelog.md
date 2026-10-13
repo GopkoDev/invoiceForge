@@ -12,6 +12,11 @@ Nothing is in progress.
 
 ## Shipped
 
+### 2026-10-13 · ai-chat-v2
+
+The AI chat offers each choice it needs as buttons that come from the app's own data, never from the model. A draft can be previewed and issued in the chat under the editor's issuing rules, and only the Freelancer's own press issues it. The AI section fills the screen and keeps the message box in view. The AI can be reached from the navigation and from the dashboard. The chat and MCP can also read sender profiles, bank accounts (last four digits only) and products.
+[Spec](./features/ai-chat-v2/spec.md) · [Changelog](./features/ai-chat-v2/_ship/changelog.md) · [OpenAPI](/api/ai-chat-v2)
+
 ### 2026-10-12 · ai-assistant (#10)
 
 An AI chat in the app answers questions about the Freelancer's own data and makes a Draft invoice from one sentence. It never guesses a value, and a draft exists only after the Freelancer presses Create. External AI clients can create drafts with a new key that has Draft permission.
