@@ -91,7 +91,13 @@ export function AiWorkspace({
           ) : null}
         </div>
         <Sheet open={previewCardId !== null && !desktop} onOpenChange={(open) => (open ? undefined : closePreview())}>
-          <SheetContent side="bottom" showCloseButton={false} className="h-dvh gap-0 p-0 md:hidden">
+          {/* The Sheet's bottom side sets data-[side=bottom]:h-auto, which beats a plain h-dvh: the same variant is
+              needed, or the sheet grows to its content and runs off the top of the screen (T31 finding). */}
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            className="h-dvh gap-0 p-0 data-[side=bottom]:h-dvh md:hidden"
+          >
             <SheetTitle className="sr-only">Invoice preview</SheetTitle>
             {previewCardId && !desktop ? (
               <InvoicePreviewPanel key={previewCardId} cardId={previewCardId} variant="sheet" />
