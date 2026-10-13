@@ -341,6 +341,40 @@ describe('first send from a start point', () => {
     expect(dock.className).toMatch(/motion-reduce:transition-none/);
   });
 
+  // ai-chat-v2 T21 (screens.md §SCR-02 "used-up on send"): a 429 on the first message puts the composer's place
+  // back in the middle without animation, removes the optimistic message and shows the result's error verbatim.
+  it('a 429 on the first message returns to the centred layout with the server text', async () => {
+    const usedUpText =
+      "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected.";
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              code: 'RATE_LIMITED',
+              error: usedUpText,
+              details: {
+                kind: 'ALLOWANCE_USED_UP',
+                limit: 30,
+                renewsAt: '2026-10-12T21:00:00.000Z',
+                timeZone: 'Europe/Kyiv',
+              },
+            }),
+            { status: 429, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    );
+    await openAndSend({}, 'Who owes me money?');
+    expect(await screen.findByText(usedUpText)).toBeTruthy();
+    expect(screen.queryByText('Who owes me money?')).toBeNull();
+    expect(document.querySelector('[data-slot="composer-dock"]')).toBeNull();
+    expect(document.querySelector('[data-slot="start-panel"]')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: GREETING })).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+  });
+
   it('under reduced motion the composer jumps to the bottom with no transition', async () => {
     reducedMotion(true);
     streamingFetch();

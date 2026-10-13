@@ -743,49 +743,5 @@ describe('T39 R-22 - live regions', () => {
   });
 });
 
-describe('T39 R-23 - scroll to the newest message', () => {
-  const scrollIntoView = vi.fn();
-  beforeEach(() => {
-    scrollIntoView.mockReset();
-    Element.prototype.scrollIntoView = scrollIntoView;
-  });
-  const lastTarget = () =>
-    scrollIntoView.mock.contexts[scrollIntoView.mock.contexts.length - 1] as HTMLElement | undefined;
-
-  it('scrolls the newest message into view on mount of a long history', () => {
-    const many = Array.from({ length: 40 }, (_, i) => ({
-      id: `h${i}`,
-      role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant',
-      origin: (i % 2 ? null : 'TYPED') as 'TYPED' | null,
-      parts: [{ type: 'text' as const, text: `history ${i}` }],
-      createdAt: '2026-10-12T10:00:00.000Z',
-    }));
-    island({ initialMessages: many });
-    expect(scrollIntoView).toHaveBeenCalled();
-    expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('history 39');
-  });
-
-  it('scrolls again when a new message is sent and when the reply streams in', async () => {
-    const stream = openStream();
-    fetchMock.mockResolvedValue(stream.response);
-    const user = userEvent.setup();
-    island();
-    await send(user, 'brand new question');
-    await screen.findByText('brand new question');
-    await waitFor(() => expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('brand new question'));
-
-    await act(async () => {
-      stream.push(START);
-      stream.push({ type: 'text-start', id: 't1' });
-      stream.push({ type: 'text-delta', id: 't1', delta: 'streamed answer' });
-    });
-    await screen.findByText(/streamed answer/);
-    await waitFor(() => expect(lastTarget()?.textContent ?? '(never scrolled)').toContain('streamed answer'));
-    await act(async () => {
-      stream.push({ type: 'text-end', id: 't1' });
-      stream.push(outcome('ANSWERED', true));
-      stream.push(FINISH);
-      stream.end();
-    });
-  });
-});
+// T39 R-23 (scroll to the newest message on open, on send and while a reply streams) is superseded by ai-chat-v2
+// T21's follow-to-latest hook and its 48 px rule: see tests/component/ai-follow-latest.test.tsx.

@@ -4,9 +4,10 @@ import '@/components/ai/zod-csp-safe';
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, generateId, type UIMessage } from 'ai';
+import { ArrowDownIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
@@ -16,6 +17,7 @@ import { useNewConversation } from '@/components/ai/new-conversation-context';
 import { DraftCard } from '@/components/ai/draft-card';
 import { MessageList } from '@/components/ai/message-list';
 import { StartPanel } from '@/components/ai/start-panel';
+import { useFollowLatest } from '@/components/ai/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -182,7 +184,6 @@ function ChatSession({
   } | null>(null);
   const cards = loaded?.cards ?? initialCards;
   const invoiceLinks = loaded?.invoiceLinks ?? initialInvoiceLinks;
-  const listRef = useRef<HTMLDivElement>(null);
   // ai-chat-v2 T20 (AC-18, screens.md §Motion): on the first send the composer moves from the middle of the start
   // screen to the bottom (FLIP over a translate transition), or jumps there under reduced motion.
   const startRef = useRef<HTMLDivElement>(null);
@@ -264,6 +265,12 @@ function ChatSession({
               : {}),
           });
           setUsedUpMessage(error.message);
+          // screens.md §SCR-02 "used-up on send": a refused first message saves nothing, so the composer's place
+          // returns to the middle without animation and the centred used-up notice shows.
+          if (conversationId === null && live.getConversationId() === null) {
+            setStarted(false);
+            setComposerMove(undefined);
+          }
           return;
         }
         if (error.status === 404) {
@@ -318,6 +325,8 @@ function ChatSession({
     }
     setStarted(true);
     setText('');
+    // screens.md §SCR-03: sending a message always scrolls to the bottom.
+    jumpToLatest(true);
     void sendMessage({
       id,
       role: 'user',
@@ -333,11 +342,8 @@ function ChatSession({
     send(failed.text);
   }
 
-  // Keep the newest message in view on mount and whenever one is added or streams.
-  useEffect(() => {
-    const els = listRef.current?.querySelectorAll('[data-role]');
-    els?.[els.length - 1]?.scrollIntoView?.({ block: 'end' });
-  }, [messages]);
+  // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
+  const { scrollRef, showJump, jumpToLatest } = useFollowLatest(messages);
 
   // FLIP: start the docked composer where the centred one was, then let the transition carry it to the bottom.
   useLayoutEffect(() => {
@@ -357,7 +363,7 @@ function ChatSession({
     return (
       <div ref={startRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         <ConversationListButton />
-        <StartPanel state={allowance} start={start} onSend={send} />
+        <StartPanel state={allowance} start={start} onSend={send} usedUpMessage={usedUpMessage} />
       </div>
     );
   }
@@ -387,7 +393,8 @@ function ChatSession({
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       {saved ? <ConversationHeaderClient conversationId={saved.id} title={saved.title} /> : null}
       {/* ai-chat-v2 T19 (AC-15): only the messages scroll; the composer below stays docked. */}
-      <div ref={listRef} data-slot="chat-scroll" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={scrollRef} data-slot="chat-scroll" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <MessageList
           messages={visible}
           invoiceLinks={invoiceLinks}
@@ -444,6 +451,21 @@ function ChatSession({
             </div>
           </Alert>
         ) : null}
+      </div>
+      {showJump ? (
+        // screens.md §SCR-03 "scrolled up": centred 12 px above the composer.
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          data-slot="jump-to-latest"
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 shadow-sm"
+          onClick={() => jumpToLatest()}
+        >
+          <ArrowDownIcon aria-hidden />
+          Jump to latest
+        </Button>
+      ) : null}
       </div>
       <div
         ref={dockRef}

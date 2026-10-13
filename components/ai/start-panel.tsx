@@ -31,10 +31,13 @@ export function StartPanel({
   state,
   start,
   onSend,
+  usedUpMessage,
 }: {
   state: AllowanceState;
   start?: 'draft';
   onSend: (text: string) => void;
+  /** A 429's `error` on the first send (SCR-02 "used-up on send"), shown verbatim. */
+  usedUpMessage?: string;
 }) {
   const [text, setText] = useState('');
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +57,7 @@ export function StartPanel({
       </div>
       {state.left === 0 ? (
         <div className="w-full max-w-2xl">
-          <AllowanceNotice state={state} handMadeLink={isDraft} />
+          <AllowanceNotice state={state} usedUpMessage={usedUpMessage} handMadeLink={isDraft} />
         </div>
       ) : (
         <>
