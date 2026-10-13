@@ -848,6 +848,9 @@ describe('the one-time swap to the Conversation page keeps the live chat', () =>
     expect(await screen.findByText('Globex owes 250 EUR.')).toBeTruthy();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // R6-U3: the finished reply refreshes the page once; the takeover check does not add a second one.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('unsent composer text and the next send carry over; the next send goes to the saved Conversation', async () => {
