@@ -182,7 +182,8 @@ export async function POST(request: NextRequest) {
   // The picked records are pinned into the form's request and resolved in code before the model writes (AC-10). A
   // form that holds no complete draft request reaches the turn as a prior ask_user step with the answers as data.
   let pinned: PinnedResolution | undefined;
-  let priorAnswers: Array<{ heading: string; answer: string }> | undefined;
+  let priorAnswers: Array<Record<string, unknown>> | undefined;
+  let priorRequest: Record<string, unknown> | undefined;
   if (checked?.ok) {
     const { form: stored, answers } = checked;
     const today = todayInZone(actor.timeZone);
@@ -200,12 +201,22 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!pinned) {
+      // A picked record travels as its id under the propose_draft field it fills, so it is never matched by name again (T71).
+      const ID_KEYS = { CUSTOMER: ['customerId', 'customerId'], SENDER_PROFILE: ['senderProfileId', 'senderProfileId'], BANK_ACCOUNT: ['bankAccount', 'bankAccountId'], PRODUCT: ['productId', 'productId'] } as const;
       priorAnswers = stored.questions
         .filter((q) => answers.some((a) => a.questionId === q.questionId))
-        .map((q) => ({
-          heading: q.heading,
-          answer: composeAnswerMessage([q], answers).slice(q.heading.length + 2),
-        }));
+        .map((q) => {
+          const answer = answers.find((a) => a.questionId === q.questionId);
+          const keys = q.field in ID_KEYS ? ID_KEYS[q.field as keyof typeof ID_KEYS] : null;
+          const option = answer && 'optionId' in answer ? q.options.find((o) => o.optionId === answer.optionId) : null;
+          const id = keys && option ? (option.ref as Record<string, unknown>)[keys[1]] : null;
+          return {
+            heading: q.heading,
+            answer: composeAnswerMessage([q], answers).slice(q.heading.length + 2),
+            ...(keys && typeof id === 'string' ? { [keys[0]]: id, ...(q.field === 'PRODUCT' ? { lineIndex: q.lineIndex ?? 0 } : {}) } : {}),
+          };
+        });
+      if (stored.request) priorRequest = pinAnswers(stored.request, stored.questions, answers, { today }) as Record<string, unknown>;
     }
   }
   // A new Conversation's id (a cuid, like every record id) is announced only once its row is saved (R-02).
@@ -254,7 +265,7 @@ export async function POST(request: NextRequest) {
       signal: new AbortController().signal,
       origin: request.nextUrl.origin,
       pinned,
-      ...(priorAnswers ? { priorAnswers } : {}),
+      ...(priorAnswers ? { priorAnswers, ...(priorRequest ? { priorRequest } : {}) } : {}),
       ...(checked?.ok && checked.form.request ? { draftForm: true } : {}),
     });
     for await (const chunk of turnStream) write(chunk);

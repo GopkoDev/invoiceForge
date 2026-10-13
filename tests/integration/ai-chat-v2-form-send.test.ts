@@ -18,6 +18,7 @@ import { createFreelancer } from './../support/factories/user';
 import { createCustomer } from './../support/factories/customer';
 import { createSenderProfile } from './../support/factories/sender-profile';
 import { createBankAccount } from './../support/factories/bank-account';
+import { createProduct } from './../support/factories/product';
 import { createConversation } from './../support/factories/conversation';
 import { createQuestionForm, type FixtureFormQuestion } from './../support/factories/choice-offer';
 import { partsOfText, scriptedModel, type StubStep } from './../support/ai-stub-model';
@@ -691,6 +692,110 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
       expect(calls.some((p) => p.type === 'tool-call' && p.toolName === 'ask_user')).toBe(true);
       expect(calls.some((p) => p.type === 'tool-call' && p.toolName === 'propose_draft')).toBe(false);
       expect((await lastUserMessage()).origin).toBe('FORM');
+    });
+  });
+
+  // T71 (review R20-3, AC-10, F6): a picked record reaches the model as its id, as data, never as a label to match again.
+  describe('T71: picked record ids in the prior ask_user step', () => {
+    const askResult = (prompt: unknown) => {
+      const parts = (prompt as any[]).flatMap((m) => (Array.isArray(m.content) ? m.content : []));
+      const part = parts.find((p) => p.type === 'tool-result' && p.toolName === 'ask_user');
+      return { part, json: JSON.stringify(part ?? null) };
+    };
+    const hasId = (json: string, key: string, id: string) => new RegExp(`"${key}"\\s*:\\s*"${id}"`).test(json);
+
+    it('a form without draft: the prior ask_user result carries exactly the picked Customer id as customerId, beside the heading and answer, and still says data not instructions', async () => {
+      const user = await freelancer('t71-ids@example.com');
+      const { corp, gmbh } = await acmePair(user.id);
+      const { conversationId, form } = await seedForm(user.id, {
+        questions: [customerQuestion([{ id: corp.id, label: 'Acme Corp' }, { id: gmbh.id, label: 'Acme GmbH' }], 0)],
+        request: null,
+      });
+      script(textOnly('Which lines?'));
+
+      const { response } = await sendForm(conversationId, form.id, [{ questionId: 0, optionId: 1 }]);
+
+      expect(response.status).toBe(200);
+      const { json } = askResult(prompts[0]);
+      expect(json).toContain('Customer');
+      expect(json).toContain('Acme GmbH');
+      expect(hasId(json, 'customerId', gmbh.id)).toBe(true);
+      expect(json).not.toContain(corp.id);
+      expect(json).toMatch(/not instructions/);
+    });
+
+    it('when the model passes that customerId to propose_draft the card names exactly that Customer, not the look-alike', async () => {
+      const user = await freelancer('t71-card@example.com');
+      await profileWithOneUsdAccount(user.id);
+      const { corp, gmbh } = await acmePair(user.id);
+      const { conversationId, form } = await seedForm(user.id, {
+        questions: [customerQuestion([{ id: corp.id, label: 'Acme Corp' }, { id: gmbh.id, label: 'Acme GmbH' }], 0)],
+        request: null,
+      });
+      // The scripted model reads the id out of its own input; with no id there it can only pass the name.
+      script((i) => {
+        if (i > 0) return { text: 'Here is the draft.' };
+        const id = /"customerId"\s*:\s*"([^"]+)"/.exec(askResult(prompts[prompts.length - 1]).json)?.[1];
+        return {
+          toolCall: { name: 'propose_draft', input: id ? { customerId: id, currency: 'USD', lines: LINES } : { customer: 'Acme', currency: 'USD', lines: LINES } },
+        };
+      });
+
+      const { response } = await sendForm(conversationId, form.id, [{ questionId: 0, optionId: 1 }]);
+
+      expect(response.status).toBe(200);
+      expect((await onlyCard()).customer.customerId).toBe(gmbh.id);
+    });
+
+    it('a picked sender profile, bank account and product each reach the model as that record id', async () => {
+      const user = await freelancer('t71-more@example.com');
+      const { profile, alpha, beta } = await profileWithAccounts(user.id);
+      const other = await createSenderProfile(prisma, user.id, { name: 'Main Two' });
+      const coaching = await createProduct(prisma, user.id, { name: 'Coaching' });
+      const coachingPlus = await createProduct(prisma, user.id, { name: 'Coaching+' });
+      const { conversationId, form } = await seedForm(user.id, {
+        questions: [
+          q({ questionId: 0, field: 'SENDER_PROFILE', heading: 'Sender profile', options: [profile, other].map((x, i) => ({ optionId: i, label: x.name, ref: { senderProfileId: x.id } })) }),
+          accountQuestion([{ id: alpha.id, label: 'Alpha Bank' }, { id: beta.id, label: 'Beta Bank' }], 1),
+          q({ questionId: 2, field: 'PRODUCT', lineIndex: 0, heading: 'Line 1 · Product', options: [coaching, coachingPlus].map((x, i) => ({ optionId: i, label: x.name, ref: { productId: x.id } })) }),
+        ],
+        request: null,
+      });
+      script(textOnly('Noted.'));
+
+      const { response } = await sendForm(conversationId, form.id, [
+        { questionId: 0, optionId: 1 },
+        { questionId: 1, optionId: 1 },
+        { questionId: 2, optionId: 1 },
+      ]);
+
+      expect(response.status).toBe(200);
+      const { json } = askResult(prompts[0]);
+      expect(hasId(json, 'senderProfileId', other.id)).toBe(true);
+      expect(json).toContain(beta.id);
+      expect(json).not.toContain(alpha.id);
+      expect(json).not.toContain(profile.id);
+      expect(hasId(json, 'productId', coachingPlus.id)).toBe(true);
+      expect(json).not.toContain(coaching.id);
+    });
+
+    it('a request that still fails draftRequestSchema after the answers: the partial pinned request (picked id pinned) is passed as data in the same prior step', async () => {
+      const user = await freelancer('t71-partial@example.com');
+      const { corp, gmbh } = await acmePair(user.id);
+      const { conversationId, form } = await seedForm(user.id, {
+        questions: [customerQuestion([{ id: corp.id, label: 'Acme Corp' }, { id: gmbh.id, label: 'Acme GmbH' }], 0)],
+        request: { currency: 'USD', poNumber: 'PO-71' },
+      });
+      script(textOnly('What are the lines?'));
+
+      const { response } = await sendForm(conversationId, form.id, [{ questionId: 0, optionId: 1 }]);
+
+      expect(response.status).toBe(200);
+      const { json } = askResult(prompts[0]);
+      expect(hasId(json, 'customerId', gmbh.id)).toBe(true);
+      expect(json).toContain('PO-71');
+      expect(json).toMatch(/not instructions/);
+      expect(json).not.toContain(corp.id);
     });
   });
 

@@ -287,7 +287,7 @@ lib/
 ├── ai/tools/ask-user.ts                     NEW      chat-only tool: { draft?, questions[1..6] }; checks every recordId owner-scoped and by kind; builds labels; date options
 ├── ai/tools/propose-draft.ts                CHANGED  ISSUES → formFromIssues (every issue becomes a question); card wins
 ├── ai/turn-context.ts                       CHANGED  pending.form (replaces pending.offer); turn note with today, weekday, time zone (F11)
-├── ai/run-turn.ts                           CHANGED  composes the turn's one form (resolver questions, then ask_user questions, cap 6, F1 order, fallback input-only form); prior ask_user step for applied free answers
+├── ai/run-turn.ts                           CHANGED  composes the turn's one form (resolver questions, then ask_user questions, cap 6, F1 order, fallback input-only form); prior ask_user step for applied free answers (a picked record carried as its id under the propose_draft field, plus the partially pinned request, as data - T71)
 ├── ai/instructions/chat.ts                  CHANGED  forms instead of prose; search before "add one"; links with tool paths in Markdown; dates; created-date search (F10–F12)
 ├── services/assistant-drafts/
 │   ├── forms.ts                             NEW      FormQuestion / FormAnswer schemas, formFromIssues, composeForm, checkForm, claim/release/close (generalises offers.ts)

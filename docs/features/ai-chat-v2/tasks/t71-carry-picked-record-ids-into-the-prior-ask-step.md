@@ -9,7 +9,7 @@ files_hint: ["app/api/chat/route.ts", "lib/ai/run-turn.ts", "lib/ai/instructions
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 # T71 — Carry each picked record's id and the pinned partial request into the prior ask_user step so no picked record is matched again by name (review R20-3)
