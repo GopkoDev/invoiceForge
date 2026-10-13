@@ -311,7 +311,8 @@ function exportMessage(m: {
     text,
     links,
     draftCardIds,
-    origin: m.origin,
+    // A USER row with no origin reads TYPED, as in the reopen view (data-model.md ConversationMessage.origin).
+    origin: m.role === 'USER' ? (m.origin ?? 'TYPED') : null,
     offer: exportOffer(m.offer),
   };
 }

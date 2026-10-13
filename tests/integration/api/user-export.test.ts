@@ -572,8 +572,9 @@ describe.runIf(containerRuntimeAvailable)(
           text: 'Please invoice Acme Corp',
           links: [],
           draftCardIds: [],
-          // ai-chat-v2 2.3: a row saved before the origin backfill exports origin null.
-          origin: null,
+          // ai-chat-v2 2.3: a USER row with no origin (written before the backfill or during the deploy window) reads
+          // TYPED, as everywhere else (data-model.md ConversationMessage.origin; review 2026-10-13 R1-S4).
+          origin: 'TYPED',
           offer: null,
         },
         {
