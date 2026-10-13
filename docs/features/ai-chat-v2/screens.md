@@ -216,8 +216,8 @@ default (≥ xl, preview closed)
 |   12 Oct 2026                | [Acme Corp] [Acme GmbH]           <- SCR-04          | |
 |  Who owes me money?     [🗑] |                                          Acme GmbH   | | messages
 |   12 Oct 2026                | Acme GmbH has two USD accounts on Studio. Which one? | | scroll on
-| Yesterday                    | [Monobank ••••4821 · USD] [Wise ••••7710 · USD]      | | their own
-|  ...                         |                              Monobank ••••4821 · USD | |
+| Yesterday                    | [Monobank ••4821 · USD] [Wise ••7710 · USD]      | | their own
+|  ...                         |                              Monobank ••4821 · USD | |
 |                              | Here is the draft for Acme GmbH.                     | |
 |                              | +--------------------------------------------------+ | |
 |                              | | Draft card (SCR-05)                              | | v
@@ -231,7 +231,7 @@ phone (< md): [☰] Invoice Acme for 20 h [⋯] header; messages full width; com
 
 ```text
 scrolled up (AC-16)                              choice unavailable (AC-12b, AC-13)
-| ...older messages in view...               |   | Which account? [Monobank ••••4821 · USD]       |
+| ...older messages in view...               |   | Which account? [Monobank ••4821 · USD]       |
 |                                            |   |                [Wise ••••7710 · USD]           |
 |            [↓ Jump to latest]              |   | (i) This option is no longer available.        |
 |--------------------------------------------|   |     Choose again or type your request.         |
@@ -247,7 +247,7 @@ answered — reads (AC-01)                         answered — nothing matches 
 
 ### SCR-04 — Offered choices (inline under a reply in SCR-03)
 
-`NEW: OfferedChoices` (`components/ai/offered-choices.tsx`, sad.md §5). It renders one `OfferView` (`contracts/server-actions.md`) for each `data-offer` part, directly under the reply's text and before any card. The buttons are a wrapping row (`flex-wrap gap-2`) of outline `Button`s, `size="sm"`, inside a `role="group"` with an `aria-label` by kind: "Choose a Customer", "Choose a bank account", "Choose a product", "Choose a sender profile" or "Choose a currency". There are 1 to 8 buttons, each with the server's stored `label` verbatim (spec §1 "What a button shows"). Look-alike Customers carry their email in the label ("Acme Corp · billing@acme.com" or "Аcme Corp · no email", AC-10). The UI never builds or edits a label. A press sends `{ conversationId, message: label, choice: { offerId, optionId } }` with no `origin` (openapi.yaml `ChatRequest`). On a phone the buttons wrap. A label longer than the row truncates with its full text in `title`.
+`NEW: OfferedChoices` (`components/ai/offered-choices.tsx`, sad.md §5). It renders one `OfferView` (`contracts/server-actions.md`) for each `data-offer` part, directly under the reply's text and before any card. The buttons are a wrapping row (`flex-wrap gap-2`) of outline `Button`s, `size="sm"`, inside a `role="group"` with an `aria-label` by kind: "Choose a Customer", "Choose a bank account", "Choose a product", "Choose a sender profile" or "Choose a currency". There are 1 to 8 buttons, each with the server's stored `label` verbatim (spec §1 "What a button shows"). Look-alike Customers carry their email in the label ("Acme Corp (billing@acme.com)" or "Аcme Corp (no email)", openapi.yaml `OfferOptionLabel`, AC-10). The UI never builds or edits a label. A press sends `{ conversationId, message: label, choice: { offerId, optionId } }` with no `origin` (openapi.yaml `ChatRequest`). On a phone the buttons wrap. A label longer than the row truncates with its full text in `title`.
 
 | State | Trigger / condition | Components (from the inventory) | Source-ref |
 |---|---|---|---|
@@ -266,14 +266,14 @@ answered — reads (AC-01)                         answered — nothing matches 
 ```text
 pressable (AC-08)                                pressable, look-alike Customers (AC-10)
 | Two Customers match "Acme". Which one?     |   | Two Customers look alike. Which one?           |
-| [Acme Corp] [Acme GmbH]                    |   | [Acme Corp · billing@acme.com]                 |
-                                                 | [Аcme Corp · no email]                         |
+| [Acme Corp] [Acme GmbH]                    |   | [Acme Corp (billing@acme.com)]                 |
+                                                 | [Аcme Corp (no email)]                         |
 pressing                                         chosen (after the press, and on reopen)
 |                                  Acme GmbH |   | [Acme Corp] [✓ Acme GmbH]      (all disabled)  |
 | [Acme Corp] [(◌) Acme GmbH]   (disabled)  |
                                                  inactive (a newer typed message)
 labels by kind (stored, verbatim):               | [Acme Corp] [Acme GmbH]   (disabled, muted,    |
-| Bank account: [Monobank ••••4821 · USD]    |   |                            none marked)        |
+| Bank account: [Monobank ••4821 · USD]    |   |                            none marked)        |
 | Product:      [Consulting · hours · 50.00 USD]
 | Sender prof.: [Consulting FOP]             |
 | Currency:     [USD] [UAH]                  |
