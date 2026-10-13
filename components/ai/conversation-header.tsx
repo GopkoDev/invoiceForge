@@ -43,7 +43,8 @@ export function ConversationHeader({
           className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
         >
           <PlusIcon data-icon="inline-start" />
-          New conversation
+          {/* Icon-only on a phone so the title keeps its room; the name stays for screen readers. */}
+          <span className="sr-only sm:not-sr-only">New conversation</span>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger

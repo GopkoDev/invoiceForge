@@ -137,8 +137,9 @@ export function AiWorkspace({
           <Sheet open={listOpen} onOpenChange={setListOpen}>
             <SheetContent
               side="left"
+              // The sheet's own × sits top-right: the list's search row leaves room for it.
               className={cn(
-                'w-[min(20rem,85vw)] gap-0 p-0',
+                'w-[min(20rem,85vw)] gap-0 p-0 [&_[data-slot=conversation-list-top]]:pr-12',
                 previewOpen ? 'xl:hidden' : 'md:hidden'
               )}
             >

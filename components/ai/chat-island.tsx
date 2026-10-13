@@ -60,6 +60,7 @@ import { replaceAddress } from '@/components/ai/preview-address';
 import { protectedRoutes } from '@/config/routes.config';
 import { loadConversationCards } from '@/lib/actions/assistant-actions';
 import { goToSignIn } from '@/lib/helpers/client-session-redirect';
+import { greetingLine } from '@/lib/helpers/greeting';
 import type { AllowanceState, AppLink } from '@/lib/validations/assistant-chat';
 import type {
   ConversationMessageView,
@@ -378,6 +379,8 @@ interface ChatIslandProps {
   startedFrom?: ConversationStartPoint;
   /** ai-chat-v2 T26: `/ai?handoff={id}`, the dashboard prompt's one-time sessionStorage entry (ADR-0009). */
   handoffId?: string;
+  /** ai-chat-v2 T37: the start screen's greeting line 1, computed by the /ai page on the server. */
+  greeting?: string;
 }
 
 /** True when the device asks for reduced motion (AC-18): the composer then jumps instead of moving. */
@@ -435,6 +438,7 @@ function ChatSession({
   start,
   startedFrom = 'AI_SECTION',
   handoffId,
+  greeting,
   liveAt = null,
 }: ChatIslandProps & {
   /** On the /ai page at a Conversation address: the Conversation whose live chat to show (R3-U3). */
@@ -664,6 +668,10 @@ function ChatSession({
   }, [session, newConversation]);
 
   const inFlight = status === 'submitted' || status === 'streaming';
+  // Only when no page passed one (the /ai page always does, from the server): the zone-less line, read once.
+  const [fallbackGreeting] = useState(() =>
+    greetingLine(null, 'UTC', new Date())
+  );
 
   // ai-chat-v2 T21 (AC-16): follow new text while the end is within 48 px of view; otherwise offer the jump.
   const follow = useFollowLatest(messages);
@@ -768,10 +776,13 @@ function ChatSession({
     return (
       <div
         ref={startRef}
-        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       >
-        <ConversationListButton />
+        <div className="flex h-12 shrink-0 items-center px-2 md:hidden">
+          <ConversationListButton />
+        </div>
         <StartPanel
+          greeting={greeting ?? fallbackGreeting}
           state={allowance}
           start={start}
           onSend={send}

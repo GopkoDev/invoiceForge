@@ -221,6 +221,8 @@ function island(over: Partial<Parameters<typeof ChatIsland>[0]> = {}) {
   );
 }
 
+// ai-chat-v2 T37: the start screen's greeting h1 ends with this line whatever the time and name.
+const START_GREETING = /How can I help with your invoices today\?/;
 const box = () => screen.getByRole('textbox', { name: 'Message' });
 
 /** ai-chat-v2 T36: a failure is an assistant message (avatar + inline alert + "Try again") after the user's bubble. */
@@ -626,7 +628,7 @@ describe('T33 ChatIsland - SCR-01 sending the first message', () => {
         allowance={allowance(30)}
       />
     );
-    expect(screen.getByText('Hi! What can I help you with?')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: START_GREETING })).toBeTruthy();
     await send(user, 'Who owes me money right now?');
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -901,7 +903,7 @@ describe('T39 R-02 - first message on /ai', () => {
     pathname = '/ai';
     view.rerender(<ChatIsland {...props} />);
     expect(
-      await screen.findByText('Hi! What can I help you with?')
+      await screen.findByRole('heading', { name: START_GREETING })
     ).toBeTruthy();
     expect(screen.queryByText('Nobody yet.')).toBeNull();
   });
@@ -964,7 +966,7 @@ describe('mounted by /ai at a Conversation address (Back then Forward)', () => {
   it('shows no start screen and refreshes once to load the saved Conversation', async () => {
     pathname = '/ai/cSaved';
     island({ conversationId: null, initialMessages: [] });
-    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.queryByRole('heading', { name: START_GREETING })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     expect(push).not.toHaveBeenCalled();
@@ -1260,7 +1262,7 @@ describe('New chat, then Back to the Conversation started in place', () => {
     pathname = '/ai/cBack'; // Back
     window.history.replaceState(null, '', '/ai/cBack');
     view.rerender(element());
-    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.queryByRole('heading', { name: START_GREETING })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
   });
@@ -1314,7 +1316,7 @@ describe('the /ai page restored at the address of a live Conversation', () => {
       </div>
     );
 
-    expect(screen.queryByText('Hi! What can I help you with?')).toBeNull();
+    expect(screen.queryByRole('heading', { name: START_GREETING })).toBeNull();
     expect(screen.getByText('Restored answer.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Restore me' })).toBeTruthy();
     await new Promise((r) => setTimeout(r, 20));

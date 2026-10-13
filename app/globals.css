@@ -182,3 +182,25 @@
 .animate-hue-rotate {
   animation: hue-rotate 10s linear infinite;
 }
+
+/* ai-chat-v2 T37 (screens.md §SCR-02 «Greeting»): the accent span of the AI section's greeting. A text gradient from
+   --chart-3 to --chart-5 (dark: --chart-1 to --chart-2); under forced colors a solid colour. Large text, >= 3:1. */
+@layer components {
+  .ai-greeting-accent {
+    color: var(--primary);
+    background-image: linear-gradient(90deg, var(--chart-3), var(--chart-5));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .dark .ai-greeting-accent {
+    background-image: linear-gradient(90deg, var(--chart-1), var(--chart-2));
+  }
+  @media (forced-colors: active) {
+    .ai-greeting-accent {
+      background-image: none;
+      -webkit-text-fill-color: currentColor;
+      color: var(--primary);
+    }
+  }
+}

@@ -3,12 +3,18 @@ import { ChatIsland } from '@/components/ai/chat-island';
 import { AiWorkspace } from '@/components/ai/ai-workspace';
 import { startPointFromAddress } from '@/components/ai/start-point';
 import { unwrapPageResult } from '@/components/layout/content-area';
+import { sessionAccountName } from '@/lib/helpers/account-name';
+import { greetingLine } from '@/lib/helpers/greeting';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import { getAllowanceState } from '@/lib/services/assistant-usage';
 import { listConversationSummaries } from '@/lib/services/conversations';
 
 interface AiPageProps {
-  searchParams: Promise<{ start?: string | string[]; from?: string | string[]; handoff?: string | string[] }>;
+  searchParams: Promise<{
+    start?: string | string[];
+    from?: string | string[];
+    handoff?: string | string[];
+  }>;
 }
 
 export default async function AiPage({ searchParams }: AiPageProps) {
@@ -17,11 +23,19 @@ export default async function AiPage({ searchParams }: AiPageProps) {
   const { start, startedFrom } = startPointFromAddress(params);
   // ai-chat-v2 T26 (ADR-0009): the dashboard prompt's one-time hand-off id; the text itself never is in the address.
   const handoffParam = params[HANDOFF_PARAM];
-  const handoffId = Array.isArray(handoffParam) ? handoffParam[0] : handoffParam;
+  const handoffId = Array.isArray(handoffParam)
+    ? handoffParam[0]
+    : handoffParam;
 
   const actor = unwrapPageResult(await actingFreelancerFromSession());
   const summaries = unwrapPageResult(await listConversationSummaries(actor));
   const allowance = unwrapPageResult(await getAllowanceState(actor));
+  // ai-chat-v2 T37 (SCR-02 «Greeting»): computed here, in the Freelancer time zone, so the client renders the same text.
+  const greeting = greetingLine(
+    await sessionAccountName(),
+    actor.timeZone,
+    new Date()
+  );
 
   return (
     <AiWorkspace conversations={summaries.items} timeZone={summaries.timeZone}>
@@ -34,6 +48,7 @@ export default async function AiPage({ searchParams }: AiPageProps) {
         start={start}
         startedFrom={startedFrom}
         handoffId={handoffId}
+        greeting={greeting}
       />
     </AiWorkspace>
   );

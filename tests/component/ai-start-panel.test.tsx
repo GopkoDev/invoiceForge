@@ -29,10 +29,14 @@ vi.mock('next/navigation', () => ({
 const listConversationSummaries = vi.fn();
 const getAllowanceState = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
-  listConversationSummaries: (...a: unknown[]) => listConversationSummaries(...a),
+  listConversationSummaries: (...a: unknown[]) =>
+    listConversationSummaries(...a),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: (...a: unknown[]) => getAllowanceState(...a),
+}));
+vi.mock('@/lib/helpers/account-name', () => ({
+  sessionAccountName: async () => 'Dmytro Hopko',
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
   actingFreelancerFromSession: async () => ({
@@ -52,8 +56,18 @@ const EXAMPLES = [
   "What's overdue today?",
   'Which bank accounts do I have?',
 ];
-const GREETING = 'Hi! What can I help you with?';
-const SUBLINE = 'Ask about your invoices, Customers and payments, or describe an invoice to draft.';
+// ai-chat-v2 T37 (screens.md §SCR-02 «Greeting»): a two-line h1, line 1 from the Freelancer's local time and first
+// name (computed on the server), line 2 with the accent span. The first build's sub-line is dropped.
+const LINE1 = 'Good morning, Dmytro';
+const GREETING = `${LINE1} How can I help with your invoices today?`;
+const DRAFT_GREETING = `${LINE1} Let's draft an invoice.`;
+// The /ai page at 10:00 UTC for a Freelancer in Europe/Kyiv (13:00): the afternoon line with the session's first name.
+const PAGE_GREETING =
+  'Good afternoon, Dmytro How can I help with your invoices today?';
+const PAGE_DRAFT_GREETING = "Good afternoon, Dmytro Let's draft an invoice.";
+const LINE2 = /How can I help with your invoices today\?/;
+const OLD_SUBLINE =
+  'Ask about your invoices, Customers and payments, or describe an invoice to draft.';
 const DRAFT_EXAMPLE = 'Invoice Acme for 20 hours of consulting at $50';
 const DRAFT_PLACEHOLDER = `e.g. "${DRAFT_EXAMPLE}"`;
 
@@ -98,32 +112,74 @@ afterEach(() => {
 vi.mock('@/lib/actions/assistant-actions', () => ({
   deleteConversation: vi.fn(),
   deleteAllConversations: vi.fn(),
-  loadConversationCards: async () => ({ success: true, data: { cards: {}, invoiceLinks: {}, offers: {} } }),
+  loadConversationCards: async () => ({
+    success: true,
+    data: { cards: {}, invoiceLinks: {}, offers: {} },
+  }),
 }));
 
 describe('StartPanel - default (AC-18, SCR-02)', () => {
   it('centres a greeting, the composer, the counter under it and four suggested requests', () => {
-    const { container } = render(<StartPanel state={state()} onSend={() => {}} />);
-    expect(screen.getByRole('heading', { name: GREETING })).toBeInTheDocument();
-    expect(screen.getByText(SUBLINE)).toBeInTheDocument();
-    for (const ex of EXAMPLES) expect(screen.getByRole('button', { name: ex })).toBeInTheDocument();
+    const { container } = render(
+      <StartPanel greeting={LINE1} state={state()} onSend={() => {}} />
+    );
+    const heading = screen.getByRole('heading', { level: 1, name: GREETING });
+    expect(
+      heading.querySelector('[data-slot="greeting-accent"]')
+    ).toHaveTextContent('your invoices today?');
+    expect(screen.queryByText(OLD_SUBLINE)).not.toBeInTheDocument();
+    // Suggestions are chips (rounded-full) in a wrapping row under the composer.
+    for (const ex of EXAMPLES)
+      expect(screen.getByRole('button', { name: ex })).toHaveClass(
+        'rounded-full'
+      );
+    expect(
+      screen
+        .getByRole('button', { name: EXAMPLES[0] })
+        .closest('[data-slot="suggestions"]')
+    ).toHaveClass('flex-wrap');
+    // The composer is the PromptInput card with the counter in its footer and a round Send.
+    const card = container.querySelector(
+      '[data-slot="prompt-input-card"]'
+    ) as HTMLElement;
+    expect(card).toHaveClass('rounded-2xl');
+    expect(card).toContainElement(
+      screen.getByText('29 of 30 messages left today')
+    );
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveClass(
+      'rounded-full'
+    );
     const box = screen.getByRole('textbox', { name: 'Message' });
-    expect(box).toHaveAttribute('placeholder', 'Ask a question or describe an invoice');
+    expect(box).toHaveAttribute(
+      'placeholder',
+      'Ask a question or describe an invoice'
+    );
     expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
     const counter = screen.getByText('29 of 30 messages left today');
-    expect(box.compareDocumentPosition(counter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(counter.compareDocumentPosition(screen.getByRole('button', { name: EXAMPLES[0] })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      box.compareDocumentPosition(counter) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      counter.compareDocumentPosition(
+        screen.getByRole('button', { name: EXAMPLES[0] })
+      ) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).toMatch(/justify-center/);
     expect(root.className).toMatch(/items-center/);
     expect(container.querySelector('[data-slot="card"]')).toBeNull();
-    expect(screen.queryByText("You've used today's 30 messages")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("You've used today's 30 messages")
+    ).not.toBeInTheDocument();
   });
 
   it('passes the typed text to onSend when Send is pressed, and on Enter', async () => {
     const onSend = vi.fn();
-    render(<StartPanel state={state()} onSend={onSend} />);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Hello there');
+    render(<StartPanel greeting={LINE1} state={state()} onSend={onSend} />);
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Message' }),
+      'Hello there'
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(onSend).toHaveBeenCalledWith('Hello there');
   });
@@ -132,8 +188,10 @@ describe('StartPanel - default (AC-18, SCR-02)', () => {
 describe('StartPanel - suggestion picked (AC-18)', () => {
   it('only fills the composer and focuses it; nothing is sent', async () => {
     const onSend = vi.fn();
-    render(<StartPanel state={state()} onSend={onSend} />);
-    await userEvent.click(screen.getByRole('button', { name: "What's overdue today?" }));
+    render(<StartPanel greeting={LINE1} state={state()} onSend={onSend} />);
+    await userEvent.click(
+      screen.getByRole('button', { name: "What's overdue today?" })
+    );
     const box = screen.getByRole('textbox') as HTMLTextAreaElement;
     expect(box.value).toBe("What's overdue today?");
     expect(box).toHaveFocus();
@@ -143,45 +201,104 @@ describe('StartPanel - suggestion picked (AC-18)', () => {
 
 describe('StartPanel - start=draft', () => {
   it('shows the draft greeting, the example placeholder and suggestion 1 only', () => {
-    render(<StartPanel state={state()} start="draft" onSend={() => {}} />);
-    expect(screen.getByRole('heading', { name: 'Draft an invoice' })).toBeInTheDocument();
-    expect(screen.getByText("Describe it in one sentence. You'll see a card to check before anything is created.")).toBeInTheDocument();
+    render(
+      <StartPanel
+        greeting={LINE1}
+        state={state()}
+        start="draft"
+        onSend={() => {}}
+      />
+    );
+    const heading = screen.getByRole('heading', {
+      level: 1,
+      name: DRAFT_GREETING,
+    });
+    expect(
+      heading.querySelector('[data-slot="greeting-accent"]')
+    ).toHaveTextContent('an invoice.');
+    expect(
+      screen.getByText(
+        "Describe it in one sentence. You'll see a card to check before anything is created."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(DRAFT_PLACEHOLDER)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: DRAFT_EXAMPLE })).toBeInTheDocument();
-    for (const ex of EXAMPLES.slice(1)) expect(screen.queryByRole('button', { name: ex })).not.toBeInTheDocument();
-    expect(screen.getByText('29 of 30 messages left today')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: DRAFT_EXAMPLE })
+    ).toBeInTheDocument();
+    for (const ex of EXAMPLES.slice(1))
+      expect(
+        screen.queryByRole('button', { name: ex })
+      ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('29 of 30 messages left today')
+    ).toBeInTheDocument();
   });
 
   it('fills the composer from the chip without sending', async () => {
     const onSend = vi.fn();
-    render(<StartPanel state={state()} start="draft" onSend={onSend} />);
+    render(
+      <StartPanel
+        greeting={LINE1}
+        state={state()}
+        start="draft"
+        onSend={onSend}
+      />
+    );
     await userEvent.click(screen.getByRole('button', { name: DRAFT_EXAMPLE }));
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(DRAFT_EXAMPLE);
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
+      DRAFT_EXAMPLE
+    );
     expect(onSend).not.toHaveBeenCalled();
   });
 });
 
 describe('StartPanel - used-up (parent AC-10)', () => {
   it('keeps the greeting and replaces the composer and suggestions with the used-up notice, no hand-made link', () => {
-    render(<StartPanel state={usedUp()} onSend={() => {}} />);
+    render(<StartPanel greeting={LINE1} state={usedUp()} onSend={() => {}} />);
     expect(screen.getByRole('heading', { name: GREETING })).toBeInTheDocument();
-    expect(screen.getByText("You've used today's 30 messages")).toBeInTheDocument();
-    expect(screen.getByText(/They renew at 00:00 your time\./)).toBeInTheDocument();
+    expect(
+      screen.getByText("You've used today's 30 messages")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/They renew at 00:00 your time\./)
+    ).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
-    for (const ex of EXAMPLES) expect(screen.queryByRole('button', { name: ex })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Connect your own AI client →' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Create it by hand →' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Send' })
+    ).not.toBeInTheDocument();
+    for (const ex of EXAMPLES)
+      expect(
+        screen.queryByRole('button', { name: ex })
+      ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Connect your own AI client →' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Create it by hand →' })
+    ).not.toBeInTheDocument();
   });
 });
 
 describe('StartPanel - used-up from Create with AI', () => {
   it('shows the notice and "Create it by hand →" to /invoices/new before anything is typed', () => {
-    render(<StartPanel state={usedUp()} start="draft" onSend={() => {}} />);
-    expect(screen.getByText("You've used today's 30 messages")).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Create it by hand →' })).toHaveAttribute('href', '/invoices/new');
+    render(
+      <StartPanel
+        greeting={LINE1}
+        state={usedUp()}
+        start="draft"
+        onSend={() => {}}
+      />
+    );
+    expect(
+      screen.getByText("You've used today's 30 messages")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Create it by hand →' })
+    ).toHaveAttribute('href', '/invoices/new');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: DRAFT_EXAMPLE })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: DRAFT_EXAMPLE })
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -189,55 +306,90 @@ describe('AI page wiring', () => {
   const emptyPage = { items: [], timeZone: 'UTC' };
 
   beforeEach(() => {
-    listConversationSummaries.mockResolvedValue({ success: true, data: emptyPage });
+    listConversationSummaries.mockResolvedValue({
+      success: true,
+      data: emptyPage,
+    });
   });
 
   it('reads the allowance of the signed-in freelancer and renders the default panel', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: state() });
     const ui = await AiPage({ searchParams: Promise.resolve({}) });
-    expect(getAllowanceState).toHaveBeenCalledWith({ userId: 'u1', timeZone: 'Europe/Kyiv' });
+    expect(getAllowanceState).toHaveBeenCalledWith({
+      userId: 'u1',
+      timeZone: 'Europe/Kyiv',
+    });
     render(ui);
-    expect(screen.getByRole('heading', { name: GREETING })).toBeInTheDocument();
-    expect(screen.getByText('29 of 30 messages left today')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: PAGE_GREETING })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('29 of 30 messages left today')
+    ).toBeInTheDocument();
   });
 
   it('renders the draft variant for ?start=draft', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: state() });
     render(await AiPage({ searchParams: Promise.resolve({ start: 'draft' }) }));
-    expect(screen.getByText('Draft an invoice')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: PAGE_DRAFT_GREETING })
+    ).toBeInTheDocument();
   });
 
   it('treats an unknown start value as navigation', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: state() });
     render(await AiPage({ searchParams: Promise.resolve({ start: 'bogus' }) }));
-    expect(screen.getByRole('heading', { name: GREETING })).toBeInTheDocument();
-    expect(screen.queryByText('Draft an invoice')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: PAGE_GREETING })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Let's draft/)).not.toBeInTheDocument();
   });
 
   it('keeps the list readable and shows the used-up notice when nothing is left', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: usedUp() });
     listConversationSummaries.mockResolvedValue({
       success: true,
-      data: { ...emptyPage, items: [{ id: 'c1', title: 'Who owes me money?', lastMessageAt: '2026-10-10T09:00:00.000Z' }] },
+      data: {
+        ...emptyPage,
+        items: [
+          {
+            id: 'c1',
+            title: 'Who owes me money?',
+            lastMessageAt: '2026-10-10T09:00:00.000Z',
+          },
+        ],
+      },
     });
     render(await AiPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText("You've used today's 30 messages")).toBeInTheDocument();
+    expect(
+      screen.getByText("You've used today's 30 messages")
+    ).toBeInTheDocument();
     // ai-chat-v2 T19: one list (the md+ pane); the phone sheet renders only when opened.
     const rows = screen.getAllByRole('link', { name: /Who owes me money\?/ });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveAttribute('href', '/ai/c1');
-    expect(screen.queryByRole('link', { name: 'Create it by hand →' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Create it by hand →' })
+    ).not.toBeInTheDocument();
   });
 
   it('adds the hand-made link when used up via ?start=draft', async () => {
     getAllowanceState.mockResolvedValue({ success: true, data: usedUp() });
     render(await AiPage({ searchParams: Promise.resolve({ start: 'draft' }) }));
-    expect(screen.getByRole('link', { name: 'Create it by hand →' })).toHaveAttribute('href', '/invoices/new');
+    expect(
+      screen.getByRole('link', { name: 'Create it by hand →' })
+    ).toHaveAttribute('href', '/invoices/new');
   });
 
   it('routes a failed allowance read to the error boundary by throwing', async () => {
-    getAllowanceState.mockResolvedValue({ success: false, code: 'FAILED', error: 'boom' });
-    await expect(AiPage({ searchParams: Promise.resolve({}) })).rejects.toBeDefined();
+    getAllowanceState.mockResolvedValue({
+      success: false,
+      code: 'FAILED',
+      error: 'boom',
+    });
+    await expect(
+      AiPage({ searchParams: Promise.resolve({}) })
+    ).rejects.toBeDefined();
   });
 });
 
@@ -258,14 +410,25 @@ describe('first send from a start point', () => {
       });
       return new Response(body, {
         status: 200,
-        headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' },
+        headers: {
+          'content-type': 'text/event-stream',
+          'x-vercel-ai-ui-message-stream': 'v1',
+        },
       });
     });
     const push = (chunk: unknown) =>
-      controllers[controllers.length - 1].enqueue(enc.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+      controllers[controllers.length - 1].enqueue(
+        enc.encode(`data: ${JSON.stringify(chunk)}\n\n`)
+      );
     const finish = () => {
-      push({ type: 'data-conversation', data: { conversationId: 'cNew', title: 'Draft' } });
-      push({ type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } });
+      push({
+        type: 'data-conversation',
+        data: { conversationId: 'cNew', title: 'Draft' },
+      });
+      push({
+        type: 'data-outcome',
+        data: { outcome: 'ANSWERED', counted: true },
+      });
       push({ type: 'finish' });
       controllers[controllers.length - 1].close();
     };
@@ -280,7 +443,10 @@ describe('first send from a start point', () => {
   async function openAndSend(params: Record<string, string>, text: string) {
     vi.useRealTimers();
     getAllowanceState.mockResolvedValue({ success: true, data: state() });
-    listConversationSummaries.mockResolvedValue({ success: true, data: { items: [], timeZone: 'UTC' } });
+    listConversationSummaries.mockResolvedValue({
+      success: true,
+      data: { items: [], timeZone: 'UTC' },
+    });
     const user = userEvent.setup();
     render(await AiPage({ searchParams: Promise.resolve(params) }));
     await user.type(screen.getByRole('textbox', { name: 'Message' }), text);
@@ -292,24 +458,36 @@ describe('first send from a start point', () => {
     [{ start: 'draft', from: 'invoices' }, 'INVOICE_LIST'],
     [{ start: 'draft', from: 'dashboard' }, 'DASHBOARD_CREATE'],
     [{ start: 'draft' }, 'INVOICE_LIST'],
-  ])('%j sends startedFrom %s with the first message', async (params, expected) => {
-    const net = streamingFetch();
-    await openAndSend(params, 'Invoice Acme for 2 hours');
-    await waitFor(() => expect(net.bodies).toHaveLength(1));
-    expect(net.bodies[0]).toMatchObject({ conversationId: null, startedFrom: expected });
-    expect(net.bodies[0]).not.toHaveProperty('origin');
-  });
+  ])(
+    '%j sends startedFrom %s with the first message',
+    async (params, expected) => {
+      const net = streamingFetch();
+      await openAndSend(params, 'Invoice Acme for 2 hours');
+      await waitFor(() => expect(net.bodies).toHaveLength(1));
+      expect(net.bodies[0]).toMatchObject({
+        conversationId: null,
+        startedFrom: expected,
+      });
+      expect(net.bodies[0]).not.toHaveProperty('origin');
+    }
+  );
 
-  it.each([[{}], [{ start: 'draft', from: 'bogus' }]])('%j (AI_SECTION) sends no startedFrom', async (params) => {
-    const net = streamingFetch();
-    await openAndSend(params, 'Who owes me money?');
-    await waitFor(() => expect(net.bodies).toHaveLength(1));
-    expect(net.bodies[0]).not.toHaveProperty('startedFrom');
-  });
+  it.each([[{}], [{ start: 'draft', from: 'bogus' }]])(
+    '%j (AI_SECTION) sends no startedFrom',
+    async (params) => {
+      const net = streamingFetch();
+      await openAndSend(params, 'Who owes me money?');
+      await waitFor(() => expect(net.bodies).toHaveLength(1));
+      expect(net.bodies[0]).not.toHaveProperty('startedFrom');
+    }
+  );
 
   it('the second message of the now-saved Conversation carries no startedFrom', async () => {
     const net = streamingFetch();
-    const user = await openAndSend({ start: 'draft', from: 'dashboard' }, 'Invoice Acme for 2 hours');
+    const user = await openAndSend(
+      { start: 'draft', from: 'dashboard' },
+      'Invoice Acme for 2 hours'
+    );
     await waitFor(() => expect(net.bodies).toHaveLength(1));
     await act(async () => {
       net.push({ type: 'start', messageId: 'a1' });
@@ -332,7 +510,9 @@ describe('first send from a start point', () => {
     streamingFetch();
     await openAndSend({}, 'Who owes me money?');
     const dock = await waitFor(() => {
-      const el = document.querySelector('[data-slot="composer-dock"]') as HTMLElement;
+      const el = document.querySelector(
+        '[data-slot="composer-dock"]'
+      ) as HTMLElement;
       expect(el).not.toBeNull();
       return el;
     });
@@ -371,7 +551,7 @@ describe('first send from a start point', () => {
     expect(screen.queryByText('Who owes me money?')).toBeNull();
     expect(document.querySelector('[data-slot="composer-dock"]')).toBeNull();
     expect(document.querySelector('[data-slot="start-panel"]')).not.toBeNull();
-    expect(screen.getByRole('heading', { name: GREETING })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: LINE2 })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
   });
 
@@ -380,7 +560,9 @@ describe('first send from a start point', () => {
     streamingFetch();
     await openAndSend({}, 'Who owes me money?');
     const dock = await waitFor(() => {
-      const el = document.querySelector('[data-slot="composer-dock"]') as HTMLElement;
+      const el = document.querySelector(
+        '[data-slot="composer-dock"]'
+      ) as HTMLElement;
       expect(el).not.toBeNull();
       return el;
     });

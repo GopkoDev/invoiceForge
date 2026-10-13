@@ -9,7 +9,7 @@ files_hint: ["components/ai/start-panel.tsx", "components/ai/composer.tsx", "com
 owner: "Dmytro Hopko"
 estimate: "M"
 context_budget: "M"
-status: "todo"
+status: "done"
 ---
 
 <!-- Self-contained task (sdd tasks template). Every quoted chunk carries a provenance signature;

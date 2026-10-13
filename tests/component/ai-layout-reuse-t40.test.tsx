@@ -5,7 +5,14 @@
 // Seam the implementer must provide (R-28): config/routes.config.ts `protectedRoutes.aiStartDraft`
 // = '/ai?start=draft', used by app/(protected)/invoices/layout.tsx "Create with AI".
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fail } from '@/types/actions';
 
@@ -21,7 +28,10 @@ vi.mock('next/navigation', () => ({
 const deleteConversationMock = vi.fn();
 vi.mock('@/lib/actions/assistant-actions', () => ({
   createDraftFromCard: vi.fn(),
-  loadConversationCards: async () => ({ success: true, data: { cards: {}, invoiceLinks: {} } }),
+  loadConversationCards: async () => ({
+    success: true,
+    data: { cards: {}, invoiceLinks: {} },
+  }),
   deleteConversation: (...a: unknown[]) => deleteConversationMock(...a),
   deleteAllConversations: vi.fn(),
 }));
@@ -34,16 +44,26 @@ vi.mock('sonner', () => ({
 const listConversationSummaries = vi.fn();
 const getConversation = vi.fn();
 vi.mock('@/lib/services/conversations', () => ({
-  listConversationSummaries: (...a: unknown[]) => listConversationSummaries(...a),
+  listConversationSummaries: (...a: unknown[]) =>
+    listConversationSummaries(...a),
   getConversation: (...a: unknown[]) => getConversation(...a),
 }));
 vi.mock('@/lib/helpers/session-actor', () => ({
-  actingFreelancerFromSession: async () => ({ success: true, data: { userId: 'u1', timeZone: 'UTC' } }),
+  actingFreelancerFromSession: async () => ({
+    success: true,
+    data: { userId: 'u1', timeZone: 'UTC' },
+  }),
 }));
 vi.mock('@/lib/services/assistant-usage', () => ({
   getAllowanceState: async () => ({
     success: true,
-    data: { limit: 30, used: 1, left: 29, renewsAt: '2026-10-13T00:00:00.000Z', timeZone: 'UTC' },
+    data: {
+      limit: 30,
+      used: 1,
+      left: 29,
+      renewsAt: '2026-10-13T00:00:00.000Z',
+      timeZone: 'UTC',
+    },
   }),
 }));
 vi.mock('@/components/modals/invoice/invoice-modal-container', () => ({
@@ -66,8 +86,15 @@ import type { DraftCardView } from '@/types/assistant/types';
 import type { ConversationSummary } from '@/types/assistant/types';
 
 const page = (titles: string[]): ConversationSummary[] =>
-  titles.map((title, i) => ({ id: `c${i + 1}`, title, lastMessageAt: '2026-10-10T09:00:00.000Z' }));
-const summaries = (titles: string[]) => ({ success: true, data: { items: page(titles), timeZone: 'UTC' } });
+  titles.map((title, i) => ({
+    id: `c${i + 1}`,
+    title,
+    lastMessageAt: '2026-10-10T09:00:00.000Z',
+  }));
+const summaries = (titles: string[]) => ({
+  success: true,
+  data: { items: page(titles), timeZone: 'UTC' },
+});
 
 const allowance = {
   limit: 30,
@@ -88,18 +115,30 @@ afterEach(cleanup);
 
 describe('R-20: /ai/{id} keeps the Conversation list column (AC-35)', () => {
   it('renders the list of Conversations next to the open one', async () => {
-    listConversationSummaries.mockResolvedValue(summaries(['Who owes me money?', 'Draft for Acme']));
+    listConversationSummaries.mockResolvedValue(
+      summaries(['Who owes me money?', 'Draft for Acme'])
+    );
     getConversation.mockResolvedValue({
       success: true,
       data: {
-        conversation: { id: 'c1', title: 'Who owes me money?', lastMessageAt: '2026-10-10T09:01:05.000Z' },
+        conversation: {
+          id: 'c1',
+          title: 'Who owes me money?',
+          lastMessageAt: '2026-10-10T09:01:05.000Z',
+        },
         messages: [],
         cards: {},
         invoiceLinks: {},
       },
     });
-    render(await ConversationPage({ params: Promise.resolve({ conversationId: 'c1' }) }));
-    expect(screen.getByRole('link', { name: /Draft for Acme/ })).toBeInTheDocument();
+    render(
+      await ConversationPage({
+        params: Promise.resolve({ conversationId: 'c1' }),
+      })
+    );
+    expect(
+      screen.getByRole('link', { name: /Draft for Acme/ })
+    ).toBeInTheDocument();
   });
 });
 
@@ -107,25 +146,56 @@ describe('R-21 (reworked by ai-chat-v2 T19): the list pane precedes the chat in 
   it('puts the md+ list pane before the start panel, with no CSS reordering', async () => {
     listConversationSummaries.mockResolvedValue(summaries(['Draft for Acme']));
     render(await AiPage({ searchParams: Promise.resolve({}) }));
-    const panel = screen.getByRole('heading', { name: 'Hi! What can I help you with?' });
-    const list = screen.getByRole('heading', { level: 2, name: 'Conversations' });
-    expect(list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(document.querySelector('[class*="md:order-"], [class*="lg:order-"]')).toBeNull();
+    const panel = screen.getByRole('heading', {
+      level: 1,
+      name: /How can I help with your invoices today\?/,
+    });
+    const list = screen.getByRole('heading', {
+      level: 2,
+      name: 'Conversations',
+    });
+    expect(
+      list.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      document.querySelector('[class*="md:order-"], [class*="lg:order-"]')
+    ).toBeNull();
   });
 });
 
 describe('R-24: start panel subtitles (AC-01, AC-33)', () => {
-  it('default shows the greeting sub-line (ai-chat-v2 T20, SCR-02)', () => {
-    render(<StartPanel state={allowance} onSend={() => {}} />);
+  // ai-chat-v2 T37 (SCR-02 «Greeting»): the first build's sub-line is replaced by the two-line greeting.
+  it('default shows the two-line greeting with its accent, and no sub-line', () => {
+    render(
+      <StartPanel greeting="Good evening" state={allowance} onSend={() => {}} />
+    );
+    const heading = screen.getByRole('heading', {
+      level: 1,
+      name: 'Good evening How can I help with your invoices today?',
+    });
     expect(
-      screen.getByText('Ask about your invoices, Customers and payments, or describe an invoice to draft.')
-    ).toBeInTheDocument();
+      heading.querySelector('[data-slot="greeting-accent"]')
+    ).toHaveTextContent('your invoices today?');
+    expect(
+      screen.queryByText(
+        'Ask about your invoices, Customers and payments, or describe an invoice to draft.'
+      )
+    ).not.toBeInTheDocument();
   });
 
   it('start=draft shows the one-sentence subtitle', () => {
-    render(<StartPanel state={allowance} start="draft" onSend={() => {}} />);
+    render(
+      <StartPanel
+        greeting="Good evening"
+        state={allowance}
+        start="draft"
+        onSend={() => {}}
+      />
+    );
     expect(
-      screen.getByText("Describe it in one sentence. You'll see a card to check before anything is created.")
+      screen.getByText(
+        "Describe it in one sentence. You'll see a card to check before anything is created."
+      )
     ).toBeInTheDocument();
   });
 });
@@ -147,31 +217,50 @@ describe('R-26 (reworked by ai-chat-v2 T19): the AI section sits in a viewport-h
 describe('R-27: the delete dialog closes on FAILED (AC-37)', () => {
   it('closes the dialog and shows the error', async () => {
     const user = userEvent.setup();
-    deleteConversationMock.mockResolvedValue(fail('FAILED', 'The conversation was not deleted. Try again.'));
+    deleteConversationMock.mockResolvedValue(
+      fail('FAILED', 'The conversation was not deleted. Try again.')
+    );
     render(
       <>
-        <ConversationListClient conversations={page(['Who owes me money?'])} timeZone="UTC" />
+        <ConversationListClient
+          conversations={page(['Who owes me money?'])}
+          timeZone="UTC"
+        />
         <AiModalContainer />
       </>
     );
     // ai-chat-v2 T35: a row's delete is in its ⋯ menu.
-    await user.click(screen.getByRole('button', { name: 'Actions for Who owes me money?' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Actions for Who owes me money?' })
+    );
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('The conversation was not deleted. Try again.'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        'The conversation was not deleted. Try again.'
+      )
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    );
   });
 });
 
 describe('R-28: shared link style and route', () => {
-  const linkTokens = buttonVariants({ variant: 'link' }).split(/\s+/).filter(Boolean);
+  const linkTokens = buttonVariants({ variant: 'link' })
+    .split(/\s+/)
+    .filter(Boolean);
 
   it('ChatLink uses the buttonVariants link classes', () => {
     render(
       <ChatLink
         link={{ kind: 'invoice', invoiceId: 'inv43', label: 'INV-0043' }}
-        state={{ state: 'DRAFT', invoiceId: 'inv43', invoiceNumber: 'INV-0043' }}
+        state={{
+          state: 'DRAFT',
+          invoiceId: 'inv43',
+          invoiceNumber: 'INV-0043',
+        }}
       />
     );
     const cls = screen.getByRole('link').className.split(/\s+/);
@@ -183,9 +272,22 @@ describe('R-28: shared link style and route', () => {
       id: 'card1',
       state: 'CREATED',
       proposal: {
-        customer: { customerId: 'cust1', name: { freelancerText: 'Acme Corp' }, source: 'REQUEST' },
-        senderProfile: { senderProfileId: 'sp1', name: { freelancerText: 'Main' }, source: 'DEFAULT' },
-        bankAccount: { bankAccountId: 'ba1', label: 'Mono', currency: 'USD', source: 'DEFAULT' },
+        customer: {
+          customerId: 'cust1',
+          name: { freelancerText: 'Acme Corp' },
+          source: 'REQUEST',
+        },
+        senderProfile: {
+          senderProfileId: 'sp1',
+          name: { freelancerText: 'Main' },
+          source: 'DEFAULT',
+        },
+        bankAccount: {
+          bankAccountId: 'ba1',
+          label: 'Mono',
+          currency: 'USD',
+          source: 'DEFAULT',
+        },
         currency: 'USD',
         issueDate: { value: '2026-10-11', source: 'DEFAULT' },
         dueDate: { value: '2026-11-10', source: 'DEFAULT' },
@@ -196,15 +298,23 @@ describe('R-28: shared link style and route', () => {
         defaultsUsed: [],
       },
       replacedById: null,
-      invoice: { state: 'DRAFT', invoiceId: 'inv43', invoiceNumber: 'INV-0043' },
+      invoice: {
+        state: 'DRAFT',
+        invoiceId: 'inv43',
+        invoiceNumber: 'INV-0043',
+      },
     } as unknown as DraftCardView;
     render(<DraftCard card={card} />);
-    const cls = screen.getByRole('link', { name: /Open in editor/ }).className.split(/\s+/);
+    const cls = screen
+      .getByRole('link', { name: /Open in editor/ })
+      .className.split(/\s+/);
     for (const t of linkTokens) expect(cls).toContain(t);
   });
 
   it('"Create with AI" href comes from protectedRoutes', () => {
-    const aiStartDraft = (protectedRoutes as Record<string, unknown>)['aiStartDraft'];
+    const aiStartDraft = (protectedRoutes as Record<string, unknown>)[
+      'aiStartDraft'
+    ];
     // ai-chat-v2 T20: the link carries its start point (contracts/server-actions.md §Addresses and start points).
     expect(aiStartDraft).toBe('/ai?start=draft&from=invoices');
     render(
@@ -212,7 +322,9 @@ describe('R-28: shared link style and route', () => {
         <p>x</p>
       </InvoicesLayout>
     );
-    expect(screen.getByRole('link', { name: /Create with AI/ })).toHaveAttribute('href', aiStartDraft as string);
+    expect(
+      screen.getByRole('link', { name: /Create with AI/ })
+    ).toHaveAttribute('href', aiStartDraft as string);
   });
 });
 
@@ -228,13 +340,17 @@ describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 
         ctrl = c;
       },
     });
-    const push = (c: unknown) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`));
+    const push = (c: unknown) =>
+      ctrl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`));
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(body, {
           status: 200,
-          headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' },
+          headers: {
+            'content-type': 'text/event-stream',
+            'x-vercel-ai-ui-message-stream': 'v1',
+          },
         })
       )
     );
@@ -242,7 +358,10 @@ describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 
       listConversationSummaries.mockResolvedValue(summaries(['Older chat']));
       const user = userEvent.setup();
       render(await AiPage({ searchParams: Promise.resolve({}) }));
-      await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Who owes me money right now?');
+      await user.type(
+        screen.getByRole('textbox', { name: 'Message' }),
+        'Who owes me money right now?'
+      );
       await user.click(screen.getByRole('button', { name: 'Send' }));
 
       await act(async () => {
@@ -252,22 +371,35 @@ describe('R-20 / N-2: the new row heads the list once the turn is saved (SCR-01 
       });
       await screen.findByText('Nobody yet.');
       // Streaming, turn not saved yet: no row for the new Conversation.
-      expect(screen.queryByRole('link', { name: /Who owes me money right now\?/ })).toBeNull();
+      expect(
+        screen.queryByRole('link', { name: /Who owes me money right now\?/ })
+      ).toBeNull();
 
       await act(async () => {
         push({
           type: 'data-conversation',
-          data: { conversationId: 'cNew', title: 'Who owes me money right now?' },
+          data: {
+            conversationId: 'cNew',
+            title: 'Who owes me money right now?',
+          },
         });
-        push({ type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } });
+        push({
+          type: 'data-outcome',
+          data: { outcome: 'ANSWERED', counted: true },
+        });
       });
 
-      const fresh = await screen.findAllByRole('link', { name: /Who owes me money right now\?/ });
+      const fresh = await screen.findAllByRole('link', {
+        name: /Who owes me money right now\?/,
+      });
       const older = screen.getAllByRole('link', { name: /Older chat/ });
       expect(fresh.length).toBe(older.length);
       fresh.forEach((row, i) => {
         expect(row).toHaveAttribute('href', '/ai/cNew');
-        expect(row.compareDocumentPosition(older[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(
+          row.compareDocumentPosition(older[i]) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
       });
     } finally {
       vi.unstubAllGlobals();
