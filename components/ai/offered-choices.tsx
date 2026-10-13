@@ -71,7 +71,13 @@ export function OfferedChoices({
             // prominent, full strength with an edge, since secondary is the reply bubble's own colour.
             disabled={!pressable}
             focusableWhenDisabled
-            className={cn('max-w-full', chosen ? 'border-border' : 'data-disabled:opacity-50')}
+            // Nothing is natively disabled, so the hover look is cancelled by hand while disabled (R2-U4).
+            className={cn(
+              'max-w-full data-disabled:cursor-default',
+              chosen
+                ? 'border-border data-disabled:hover:bg-secondary'
+                : 'data-disabled:opacity-50 data-disabled:hover:bg-background dark:data-disabled:hover:bg-input/30'
+            )}
             onClick={() => onPress(offer.offerId, option.optionId, option.label)}
           >
             {pendingOptionId === option.optionId ? <Spinner aria-hidden role="presentation" /> : null}

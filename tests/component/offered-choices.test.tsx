@@ -177,6 +177,10 @@ describe('OfferedChoices (SCR-04)', () => {
     expect(chosen.className).toMatch(/(^|\s)border-border(\s|$)/);
     expect(other.className).toMatch(muted);
     expect(other).toHaveAttribute('data-disabled');
+    // Review 2026-10-13 R2-U4: nothing natively disabled, so the hover look is cancelled by hand while disabled.
+    expect(other.className).toMatch(/(^|\s)data-disabled:hover:bg-background(\s|$)/);
+    expect(chosen.className).toMatch(/(^|\s)data-disabled:hover:bg-secondary(\s|$)/);
+    expect(chosen.className).toMatch(/(^|\s)data-disabled:cursor-default(\s|$)/);
     const user = userEvent.setup();
     await user.click(chosen);
     await user.click(other);
