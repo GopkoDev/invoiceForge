@@ -55,6 +55,8 @@ export function StartPanel({
   const [text, setText] = useState('');
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const isDraft = start === 'draft';
+  // Used up: nothing can be sent, so the drafting invitation is not shown (SCR-02 used-up wireframe, R16-3).
+  const draftCopy = isDraft && state.left > 0;
   const suggestions = isDraft ? SUGGESTIONS.slice(0, 1) : SUGGESTIONS;
 
   function pick(suggestion: string) {
@@ -69,15 +71,17 @@ export function StartPanel({
     >
       <div className="flex w-full max-w-3xl flex-col items-center gap-3">
         <h1 className="text-2xl font-medium tracking-tight text-balance md:text-3xl">
-          <span className="block">{greeting}</span>{' '}
+          <span data-slot="greeting-line" className="block">
+            {greeting}
+          </span>{' '}
           <span className="block">
-            {isDraft ? "Let's draft " : 'How can I help with '}
+            {draftCopy ? "Let's draft " : 'How can I help with '}
             <span data-slot="greeting-accent" className="ai-greeting-accent">
-              {isDraft ? 'an invoice.' : 'your invoices today?'}
+              {draftCopy ? 'an invoice.' : 'your invoices today?'}
             </span>
           </span>
         </h1>
-        {isDraft ? (
+        {draftCopy ? (
           <p className="text-muted-foreground text-sm">{DRAFT_SUBLINE}</p>
         ) : null}
       </div>

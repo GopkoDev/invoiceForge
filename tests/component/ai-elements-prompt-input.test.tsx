@@ -170,6 +170,9 @@ describe('Suggestion', () => {
       name: 'Who owes me money right now?',
     });
     expect(chip).toHaveClass('rounded-full');
+    // Review R16-10 / T45: a long chip wraps its text on a phone instead of overflowing the pane.
+    expect(chip).toHaveClass('h-auto', 'whitespace-normal', 'text-left');
+    expect(chip.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
     await userEvent.click(chip);
     expect(onPick).toHaveBeenCalledWith('Who owes me money right now?');
     expect(onSubmit).not.toHaveBeenCalled();

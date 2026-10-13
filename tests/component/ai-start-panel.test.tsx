@@ -300,6 +300,36 @@ describe('StartPanel - used-up from Create with AI', () => {
       screen.queryByRole('button', { name: DRAFT_EXAMPLE })
     ).not.toBeInTheDocument();
   });
+
+  // Review R16-3 / T45 (screens.md SCR-02 used-up wireframe): nothing can be sent, so no drafting invitation.
+  it('keeps the default line 2 and shows no drafting sub-line', () => {
+    render(
+      <StartPanel
+        greeting={LINE1}
+        state={usedUp()}
+        start="draft"
+        onSend={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole('heading', { level: 1, name: GREETING })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Let's draft/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Describe it in one sentence/)
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('StartPanel - greeting slot (T45, R16-11)', () => {
+  it('line 1 of the greeting is data-slot="greeting-line"', () => {
+    const { container } = render(
+      <StartPanel greeting={LINE1} state={state()} onSend={() => {}} />
+    );
+    expect(
+      container.querySelector('h1 [data-slot="greeting-line"]')
+    ).toHaveTextContent(LINE1);
+  });
 });
 
 describe('AI page wiring', () => {

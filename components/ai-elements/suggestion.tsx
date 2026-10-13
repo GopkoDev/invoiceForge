@@ -4,7 +4,7 @@
  * Copyright 2023 Vercel, Inc. Licensed under the Apache License, Version 2.0 (see ./LICENSE and ./NOTICE).
  * Modified: rebuilt on @base-ui/react; see ADR-0010
  * (docs/features/ai-chat-v2/adr/0010-build-the-ai-section-from-own-chat-elements-ported-from-vercel-ai-elements-onto-base-ui.md).
- * Deviations: Suggestions wraps onto lines instead of a horizontal ScrollArea.
+ * Deviations: Suggestions wraps onto lines instead of a horizontal ScrollArea, and a long chip wraps its own text.
  */
 'use client';
 
@@ -44,7 +44,10 @@ export function Suggestion({
     <Button
       variant={variant}
       size={size}
-      className={cn('rounded-full px-3 font-normal', className)}
+      className={cn(
+        'h-auto min-h-8 rounded-full px-3 py-1.5 text-left font-normal whitespace-normal',
+        className
+      )}
       onClick={() => onClick?.(suggestion)}
       {...props}
     >

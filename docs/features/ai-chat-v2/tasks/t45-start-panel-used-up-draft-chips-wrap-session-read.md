@@ -9,7 +9,7 @@ files_hint: ["components/ai/start-panel.tsx", "components/ai-elements/suggestion
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T45 — Start panel: used-up from Create with AI keeps the default heading, chips wrap on phones, greeting slot, one session read (review R16-3, R16-9, R16-10)
