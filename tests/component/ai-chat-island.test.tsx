@@ -1117,10 +1117,8 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
         <ChatIsland conversationId="cListed" initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance(28)} />
       </div>
     );
-    let created: unknown = null;
     function Probe() {
-      created = useNewConversation()?.created ?? null;
-      return null;
+      return <span data-testid="created">{JSON.stringify(useNewConversation()?.created ?? null)}</span>;
     }
 
     view.rerender(
@@ -1132,14 +1130,16 @@ describe('the /ai page restored at a live Conversation: cards and choices', () =
       </div>
     );
 
-    await waitFor(() => expect(created).toEqual({ id: 'cListed', title: 'Listed' }));
+    await waitFor(() =>
+      expect(JSON.parse(screen.getByTestId('created').textContent ?? 'null')).toEqual({ id: 'cListed', title: 'Listed' })
+    );
   });
 });
 
 // Review 2026-10-13 R5-U2: the Conversation page restored from the router cache can take over a live chat whose newer
 // reply holds a card or choices its cached props lack. It refreshes once, so they load.
 describe('the Conversation page taking over a chat with newer cards than its props', () => {
-  it('refreshes once when a card or offer of the messages is missing from its props', async () => {
+  it('refreshes once when the live chat has newer messages than its props', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         START,
@@ -1168,7 +1168,7 @@ describe('the Conversation page taking over a chat with newer cards than its pro
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('does not refresh when its props already hold every card', async () => {
+  it('does not refresh when its props are as new as the live chat', async () => {
     fetchMock.mockResolvedValueOnce(
       sse([
         START,
@@ -1190,7 +1190,19 @@ describe('the Conversation page taking over a chat with newer cards than its pro
       <div key="fresh-conversation-page">
         <ChatIsland
           conversationId="cFresh"
-          initialMessages={[]}
+          initialMessages={[
+            { id: 's1', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'Invoice Acme' }], createdAt: '' },
+            {
+              id: 's2',
+              role: 'assistant',
+              origin: null,
+              parts: [
+                { type: 'text', text: 'Here is the draft.' },
+                { type: 'data-draft-card', id: 'cardF', data: { cardId: 'cardF' } },
+              ],
+              createdAt: '',
+            },
+          ]}
           invoiceLinks={{}}
           cards={{ cardF: { id: 'cardF' } as unknown as DraftCardView }}
           allowance={allowance(28)}
