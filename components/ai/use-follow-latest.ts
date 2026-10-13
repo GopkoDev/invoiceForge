@@ -75,7 +75,17 @@ export function useFollowLatest(content: unknown) {
     const follow = () => {
       if (following.current) scrollToEnd(el);
     };
-    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(follow) : null;
+    // A narrower or wider pane (the preview column opening or closing) reflows the same content: that is not new
+    // content, so the view stays where it is and the Freelancer's messages stay beside the preview (AC-20).
+    let width = el.clientWidth;
+    const onResize = () => {
+      if (el.clientWidth !== width) {
+        width = el.clientWidth;
+        return;
+      }
+      follow();
+    };
+    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : null;
     const observeChildren = () => {
       for (const child of Array.from(el.children)) resize?.observe(child);
     };

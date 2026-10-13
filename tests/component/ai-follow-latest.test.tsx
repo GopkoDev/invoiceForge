@@ -39,7 +39,9 @@ const VIEW = 400;
 const scrollTops = new WeakMap<Element, number>();
 const isScroll = (el: Element) =>
   (el as HTMLElement).dataset?.slot === 'chat-scroll';
-const contentHeight = (el: Element) => VIEW + (el.textContent?.length ?? 0) * 2;
+/** Extra height of reflowed content (a narrower pane, an image that loaded). */
+let extra = 0;
+const contentHeight = (el: Element) => VIEW + (el.textContent?.length ?? 0) * 2 + extra;
 const maxTop = (el: Element) => Math.max(0, contentHeight(el) - VIEW);
 const scrollToSpy = vi.fn();
 
@@ -208,6 +210,7 @@ const WORDS =
   );
 
 beforeEach(() => {
+  extra = 0;
   installLayout();
   reducedMotion = false;
   stubMatchMedia();
@@ -405,5 +408,57 @@ describe('Following content that grows after the stream (AC-16)', () => {
     await pause(50);
     expect(el.scrollTop).toBe(kept);
     expect(jump()).toBeTruthy();
+  });
+});
+
+// Review 2026-10-13 (round 2 e2e, AC-20): opening the preview narrows the chat pane, so its content reflows taller.
+// That is not new content: the view stays where it is (the Freelancer's messages stay beside the preview). Content
+// that grows at the same width is still followed.
+describe('a resize of the chat pane is not new content', () => {
+  let observers: Array<{ cb: ResizeObserverCallback }> = [];
+  let width = 600;
+  beforeEach(() => {
+    observers = [];
+    width = 600;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(readonly cb: ResizeObserverCallback) {
+          observers.push(this);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    );
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return isScroll(this) ? width : 0;
+      },
+    });
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+  });
+  const fire = () => act(() => observers.forEach((o) => o.cb([], o as unknown as ResizeObserver)));
+
+  it('a narrower pane whose content reflows taller keeps its position', async () => {
+    island();
+    await waitFor(() => expect(atEnd()).toBe(true));
+    const el = scroller();
+    const before = el.scrollTop;
+    width = 400; // the preview column opened
+    extra = 300; // the same content, reflowed taller
+    fire();
+    expect(el.scrollTop).toBe(before);
+  });
+
+  it('content that grows at the same width is followed', async () => {
+    island();
+    await waitFor(() => expect(atEnd()).toBe(true));
+    extra = 300; // an image or a card grew
+    fire();
+    expect(atEnd()).toBe(true);
   });
 });

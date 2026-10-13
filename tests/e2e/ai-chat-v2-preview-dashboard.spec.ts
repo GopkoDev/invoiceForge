@@ -151,7 +151,7 @@ test('Create draft after the first reply keeps unsent text and a reply in flight
     await create.click();
     await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
     await expect(page.locator('[data-role="assistant"]').last()).toHaveText(STREAMED_REPLY.join('').trim());
-    await expect(page.getByText(DRAFT_SENTENCE)).toBeVisible();
+    await expect(page.locator('[data-role="user"]').first()).toHaveText(DRAFT_SENTENCE);
 
     // Unsent text typed now survives any later refresh of the page's data (the Conversation page is in place).
     await message(page).fill('unsent words');
@@ -181,7 +181,7 @@ test('Create draft after the first reply keeps text typed but not sent', async (
     await expect(page.getByText(/^Draft [A-Z0-9-]+ created\.$/)).toBeVisible();
     await page.waitForTimeout(500);
     await expect(message(page)).toHaveValue('also add a note');
-    await expect(page.getByText(DRAFT_SENTENCE)).toBeVisible();
+    await expect(page.locator('[data-role="user"]').first()).toHaveText(DRAFT_SENTENCE);
   } finally {
     await f.context.close();
   }
