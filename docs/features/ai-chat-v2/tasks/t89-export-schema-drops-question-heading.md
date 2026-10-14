@@ -9,7 +9,7 @@ files_hint: ["docs/features/security-patch/contracts/openapi.yaml", "tests/contr
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T89 — The export schema no longer allows the form question heading the export never writes (consistency C9)

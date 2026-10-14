@@ -1,4 +1,4 @@
-// ai-chat-v2 T27 (contracts/server-actions.md §Data export; spec.md §5 AC-34): the export contract is version 2.3 —
+// ai-chat-v2 T27 (contracts/server-actions.md §Data export; spec.md §5 AC-34): the export contract is version 2.4 —
 // startedFrom on each Conversation, origin and offer on each message, offers with labels only (no record references,
 // no stored draft request). Validated against the living UserDataExport schema (security-patch openapi.yaml).
 import { describe, expect, it } from 'vitest';
@@ -201,7 +201,6 @@ describe('data export 2.4 contract (ai-chat-v2 T27, T61, AC-34)', () => {
       {
         questionId: 0,
         field: 'CURRENCY',
-        heading: 'Currency',
         prompt: 'Which currency?',
         options: [
           { optionId: 0, label: 'USD' },
@@ -214,7 +213,6 @@ describe('data export 2.4 contract (ai-chat-v2 T27, T61, AC-34)', () => {
       {
         questionId: 1,
         field: 'PRICE',
-        heading: 'Line 1 · Price',
         prompt: null,
         options: [],
         input: 'AMOUNT',
@@ -224,7 +222,6 @@ describe('data export 2.4 contract (ai-chat-v2 T27, T61, AC-34)', () => {
       {
         questionId: 2,
         field: 'NOTES',
-        heading: 'Notes',
         prompt: null,
         options: [],
         input: 'TEXT',
@@ -252,6 +249,18 @@ describe('data export 2.4 contract (ai-chat-v2 T27, T61, AC-34)', () => {
     await expect(
       check(withForm({ ...FORM, state: 'CLOSED', answers: null }))
     ).resolves.toBeUndefined();
+  });
+
+  it('a form question carrying the dropped heading is refused', async () => {
+    const [first, ...rest] = FORM.questions;
+    await expect(
+      check(
+        withForm({
+          ...FORM,
+          questions: [{ ...first, heading: 'Currency' }, ...rest],
+        })
+      )
+    ).rejects.toThrow();
   });
 
   it('a message without the form key is refused', async () => {

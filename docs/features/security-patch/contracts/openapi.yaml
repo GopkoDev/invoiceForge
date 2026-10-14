@@ -647,7 +647,6 @@ components:
                                   questionId: { type: integer }
                                   field: { type: string }
                                   lineIndex: { type: [integer, "null"] }
-                                  heading: { type: string, description: "Legacy (dropped by ai-chat-v2 T78); no longer exported." }
                                   prompt: { type: [string, "null"] }
                                   options:
                                     type: array
