@@ -1707,6 +1707,101 @@
         "package.json"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t77-keep-the-lockfile-change-to-axe-core-only.md"
+    },
+    {
+      "id": "T85",
+      "title": "Refuse the removed dashboard prompt origins on a chat request; keep them readable for history (consistency C5)",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-29",
+        "AC-34"
+      ],
+      "dod": "A chat request with `origin: 'DASHBOARD'` or `startedFrom: 'DASHBOARD_PROMPT'` is refused with 400 (field-keyed issue on `origin` / `startedFrom`) and creates nothing; `TYPED` and the remaining start points (`AI_SECTION`, `INVOICE_LIST`, `DASHBOARD_CREATE`) are unchanged. Stored DASHBOARD / DASHBOARD_PROMPT rows keep reading and exporting (DB enums and read-side schemas untouched). The DASHBOARD_TOGETHER refinement and its message go. Update the contract test `tests/contract/ai-chat-v2-chat-request.contract.test.ts`, `tests/e2e/route-sweep.spec.ts` and any unit/integration test that sends DASHBOARD; update `contracts/openapi.yaml` (request enums, drop the `dashboardPrompt` example, keep the response/history enums). RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/validations/assistant-chat.ts",
+        "app/api/chat/route.ts",
+        "tests/contract/ai-chat-v2-chat-request.contract.test.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "docs/features/ai-chat-v2/contracts/openapi.yaml"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t85-refuse-removed-dashboard-origins.md"
+    },
+    {
+      "id": "T86",
+      "title": "QuestionForm: drop the unused sending state, restore the input unit suffix, cap the dock lower on a phone, and focus the Message box after × (consistency C10, C11, C15, C17, C18)",
+      "layer": "ui",
+      "deps": [
+        "T85"
+      ],
+      "acs": [
+        "AC-55",
+        "AC-37"
+      ],
+      "dod": "(1) `QuestionForm` has no `pending` prop, no \"Sending…\" text, no Loader icon, no `aria-busy` for sending; the in-chat dock no longer needs the blur layout effect (the form renders nothing while its answers are in flight) — remove it, keep the `hidden` wrapper. Remove/replace the two component tests that only exercised `pending` (`question-form.test.tsx` \"pending: rows disabled…\", \"R2 close while sending (T82)\"). (2) The typed input of a PRICE question shows the invoice currency (FormView.currency) as a visible suffix and a RATE/DISCOUNT question shows \"%\"; the suffix is part of the input's accessible description. (3) The dock's scroll area is `max-h-[40dvh]` below `md` and `md:max-h-[50dvh]` above. (4) After × the Message box (composer textarea) has focus. Component tests for (2)–(4) RED first. Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form.test.tsx",
+        "tests/component/question-form-in-chat.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t86-question-form-cleanup-unit-suffix-phone-cap-close-focus.md"
+    },
+    {
+      "id": "T87",
+      "title": "A failed load of a new form's labels shows an error with Try again instead of an endless skeleton (consistency C16)",
+      "layer": "ui",
+      "deps": [
+        "T86"
+      ],
+      "acs": [
+        "AC-55"
+      ],
+      "dod": "When loading a just-arrived form's view fails (rejects or returns success:false), the dock shows an inline Alert \"Couldn't load the question.\" with a \"Try again\" button that re-runs the load; on success the form appears; the composer stays usable throughout. Component test RED first (mock the action to fail once then succeed). Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form-in-chat.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t87-form-labels-load-failure-try-again.md"
+    },
+    {
+      "id": "T88",
+      "title": "Replies with a form add no empty gap, v1 history renders sanely, and dock tests assert the dock itself (consistency C12, C13, C14)",
+      "layer": "ui",
+      "deps": [
+        "T87"
+      ],
+      "acs": [
+        "AC-55",
+        "AC-13",
+        "AC-53"
+      ],
+      "dod": "`data-offer` parts render nothing (null) and `renderOffer` + its docstring are gone. A component test renders a ChatIsland with v1 history: a PRESSED user message shows as a plain bubble with its label, a CHOSEN legacy offer renders nothing, a latest OPEN legacy offer docks as a one-question, options-only form; no crash. The `if (q)` checks become unconditional (the dock exists and is hidden/empty). Rename the e2e test title to match what it asserts. RED first for the gap test and the null part. Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/message-list.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form-in-chat.test.tsx",
+        "tests/e2e/ai-chat-v2-chat.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t88-no-empty-offer-part-v1-history-dock-test-asserts.md"
+    },
+    {
+      "id": "T89",
+      "title": "The export schema no longer allows the form question heading the export never writes (consistency C9)",
+      "layer": "tests",
+      "deps": [
+        "T88"
+      ],
+      "acs": [
+        "AC-33"
+      ],
+      "dod": "`heading` is removed from the export form-question schema (docs/features/security-patch/contracts/openapi.yaml and any code-side schema the export contract test uses) and from the fixture in `tests/contract/ai-chat-v2-export.contract.test.ts`; with `additionalProperties:false` a question carrying `heading` now fails the contract (assert it). Test header comments say 2.4. exportVersion stays '2.4' (never shipped). Gate: unit, integration (export), lint, typecheck.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "tests/contract/ai-chat-v2-export.contract.test.ts",
+        "lib/services/account/account.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t89-export-schema-drops-question-heading.md"
     }
   ]
 }
