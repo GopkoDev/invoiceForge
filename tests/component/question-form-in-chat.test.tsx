@@ -257,6 +257,13 @@ describe('ChatIsland - question dock (AC-55, AC-56)', () => {
     await user.type(screen.getByRole('textbox', { name: 'Message' }), 'hello');
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('hello');
   });
+
+  it('× moves focus to the Message box (T86)', async () => {
+    island();
+    const user = userEvent.setup();
+    await user.click(within(questionDock()!).getByRole('button', { name: 'Close questions' }));
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus();
+  });
 });
 
 describe('ChatIsland - after a send (AC-55, AC-08)', () => {

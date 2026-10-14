@@ -3,7 +3,7 @@
 // Rewrites T59's all-at-once chips + Send-button cases (removed: "N of M answered", Send enabled/disabled, chip
 // aria-disabled, answered/closed read-only chips, unit suffix, axe label sweep) - a sent or closed form now renders nothing.
 //
-// Seam: QuestionForm({ form, isLatest, pending, onSend(formId, answers, composedText), fieldErrors?, onClose? }).
+// Seam: QuestionForm({ form, isLatest, onSend(formId, answers, composedText), fieldErrors?, onClose? }).
 //   Header: question text (prompt, else heading) + pager (Previous question / "1 of N" / Next question / Close questions).
 //   Options: role="radiogroup" > role="radio" rows (number badge, label, option.detail). Last row "Something else" -> inline input.
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -72,7 +72,7 @@ const three = () => [customerQ(), bankQ(), notesQ()];
 const renderForm = (form: FormView | undefined, props: Record<string, unknown> = {}) => {
   const onSend = vi.fn();
   const onClose = vi.fn();
-  const view = render(<QuestionForm form={form} isLatest pending={false} onSend={onSend} {...({ onClose } as object)} {...props} />);
+  const view = render(<QuestionForm form={form} isLatest onSend={onSend} {...({ onClose } as object)} {...props} />);
   return { onSend, onClose, user: userEvent.setup(), ...view };
 };
 const row = (name: string | RegExp) => screen.getByRole('radio', { name });
@@ -236,21 +236,12 @@ describe('Something else and typed answers (AC-38, AC-14)', () => {
   });
 });
 
-describe('close, pending, language, read-only', () => {
+describe('close, language, read-only', () => {
   it('× calls onClose and sends nothing', async () => {
     const { user, onClose, onSend } = renderForm(makeForm(three()));
     await user.click(screen.getByRole('button', { name: 'Close questions' }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSend).not.toHaveBeenCalled();
-  });
-
-  it('pending: rows disabled, busy, "Sending…"', () => {
-    const { container } = renderForm(makeForm([bankQ()]), { pending: true });
-    for (const r of screen.getAllByRole('radio')) {
-      expect(r.hasAttribute('disabled') || r.getAttribute('aria-disabled') === 'true').toBe(true);
-    }
-    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(screen.getByText(/Sending…/)).toBeInTheDocument();
   });
 
   it.each([
@@ -261,13 +252,6 @@ describe('close, pending, language, read-only', () => {
     const { container } = renderForm(makeForm([customerQ()], over), { isLatest });
     expect(container.textContent).toBe('');
     expect(screen.queryByRole('radio')).toBeNull();
-  });
-});
-
-describe('R2 close while sending (T82)', () => {
-  it('the × is disabled while the form is sending', () => {
-    renderForm(makeForm([bankQ()]), { pending: true });
-    expect(screen.getByRole('button', { name: 'Close questions' })).toBeDisabled();
   });
 });
 
@@ -304,5 +288,46 @@ describe('R3 focus management (T82)', () => {
     await user.keyboard('2');
     expect(onSend).toHaveBeenCalledTimes(1);
     expect(onSend.mock.calls[0][1]).toEqual([{ questionId: 0, optionId: 1 }, { questionId: 1, optionId: 1 }]);
+  });
+});
+
+describe('unit suffix and dock height (T86, AC-55)', () => {
+  const unitForm = (q: FormQuestionView, currency: string | null) => makeForm([q], { currency });
+
+  it('shows the invoice currency beside a PRICE input and in its accessible description', () => {
+    renderForm(unitForm(priceQ(), 'EUR'));
+    const input = screen.getByRole('textbox');
+    expect(screen.getByText('EUR')).toBeVisible();
+    expect(input).toHaveAccessibleDescription(/EUR/);
+  });
+
+  it('shows the currency beside the Something else input of a PRICE question with options', async () => {
+    const { user } = renderForm(unitForm(priceQ({ options: [{ optionId: 0, label: '50' }] }), 'EUR'));
+    await user.click(screen.getByRole('radio', { name: /Something else/ }));
+    expect(screen.getByText('EUR')).toBeVisible();
+    expect(screen.getByRole('textbox')).toHaveAccessibleDescription(/EUR/);
+  });
+
+  it('shows the currency beside a DISCOUNT input (an amount, not a percent)', () => {
+    renderForm(unitForm(priceQ({ field: 'DISCOUNT', prompt: 'Discount?', input: 'DISCOUNT' } as Partial<FormQuestionView>), 'EUR'));
+    expect(screen.getByText('EUR')).toBeVisible();
+    expect(screen.queryByText('%')).toBeNull();
+    expect(screen.getByRole('textbox')).toHaveAccessibleDescription(/EUR/);
+  });
+
+  it('shows % beside a tax RATE question', () => {
+    renderForm(
+      unitForm(priceQ({ field: 'TAX_RATE', prompt: 'Tax rate?', input: 'RATE' } as Partial<FormQuestionView>), 'EUR'),
+    );
+    expect(screen.getByText('%')).toBeVisible();
+    expect(screen.getByRole('textbox')).toHaveAccessibleDescription(/%/);
+  });
+
+  it('caps the scrolling options list at 40dvh, 50dvh from md up', () => {
+    const { container } = renderForm(makeForm([bankQ()]));
+    const list = container.querySelector('[data-slot="question-form"] .overflow-y-auto') as HTMLElement;
+    expect(list).not.toBeNull();
+    expect(list.className).toContain('max-h-[40dvh]');
+    expect(list.className).toContain('md:max-h-[50dvh]');
   });
 });

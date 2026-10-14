@@ -7,7 +7,6 @@ import {
   CornerDownLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  Loader2Icon,
   PencilIcon,
   XIcon,
 } from 'lucide-react';
@@ -33,7 +32,6 @@ const t = {
   previous: 'Previous question',
   next: 'Next question',
   close: 'Close questions',
-  sending: 'Sending…',
   pickDate: 'Pick a date',
   counter: (n: number, total: number) => `${n} of ${total}`,
   matches: (n: number) => `${n} match. Type a more exact name.`,
@@ -54,12 +52,12 @@ const badgeClass =
  * ai-chat-v2 T79 (AC-55, AC-56; screens.md SCR-04 "Superseded in layout 2026-10-14"): the Question form, docked above
  * the composer and asking one question at a time. Labels, headings, prompts and details are the server's, rendered as
  * plain text. A pick advances to the next unanswered question; the last answer sends the structured answers and the
- * composed text up once. Picks live in this component's state only (F8). A sent, closed or older form renders nothing.
+ * composed text up once. Picks live in this component's state only (F8). A sent, closed or older form renders nothing; the
+ * island hides the dock while answers are in flight, so the form has no sending state (T86).
  */
 export function QuestionForm({
   form,
   isLatest,
-  pending,
   onSend,
   fieldErrors,
   onClose,
@@ -67,7 +65,6 @@ export function QuestionForm({
   /** undefined while the labels are loading. */
   form: FormView | undefined;
   isLatest: boolean;
-  pending: boolean;
   onSend: (formId: string, answers: FormAnswer[], composedText: string) => void;
   /** A server 400's field errors, keyed `form.answers.<questionId>`. */
   fieldErrors?: Record<string, string[]>;
@@ -97,10 +94,8 @@ export function QuestionForm({
   if (!form) return <Skeleton className="h-40 w-full rounded-xl" aria-busy="true" />;
 
   const questions = [...form.questions].sort((a, b) => a.questionId - b.questionId);
-  const editable = form.state === 'OPEN' && (isLatest || pending);
+  const editable = form.state === 'OPEN' && isLatest;
   if (!editable || questions.length === 0) return null;
-
-  const locked = pending;
 
   // A server 400's errors bring the Freelancer to the first question they name (adjusting state during render).
   if (fieldErrors !== seenErrors) {
@@ -122,6 +117,9 @@ export function QuestionForm({
   const titleId = `${uid}-title`;
   const errorId = `${uid}-err`;
   const inputId = `${uid}-in`;
+  const unitId = `${uid}-unit`;
+  const suffix =
+    q.input === 'RATE' ? '%' : q.field === 'PRICE' || q.input === 'DISCOUNT' ? (form.currency ?? undefined) : undefined;
 
   const heldWith = (next: Record<number, Pick>): FormAnswer[] =>
     questions.flatMap((x) => (next[x.questionId] ? [toAnswer(x.questionId, next[x.questionId])] : []));
@@ -155,7 +153,6 @@ export function QuestionForm({
   };
 
   const commit = (question: FormQuestionView, value: Pick) => {
-    if (locked) return;
     const next = { ...picks, [question.questionId]: value };
     setPicks(next);
     const at = questions.findIndex((x) => x.questionId === question.questionId);
@@ -192,7 +189,7 @@ export function QuestionForm({
   };
 
   const onRootKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (locked || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (!/^[1-9]$/.test(event.key)) return;
     const target = event.target as HTMLElement;
     if (target.closest('input, textarea, [contenteditable="true"]')) return;
@@ -224,11 +221,10 @@ export function QuestionForm({
         id={inputId}
         value={draft}
         autoFocus={!inputOnly}
-        disabled={locked}
         inputMode={decimal ? 'decimal' : undefined}
         aria-label={inputOnly ? title : t.other}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={[error ? errorId : null, suffix ? unitId : null].filter(Boolean).join(' ') || undefined}
         placeholder={placeholder}
         className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
         onChange={(e) => setDrafts((prev) => ({ ...prev, [qid]: e.target.value }))}
@@ -249,12 +245,17 @@ export function QuestionForm({
           }
         }}
       />
+      {suffix ? (
+        <span id={unitId} className="text-muted-foreground shrink-0 text-sm">
+          {suffix}
+        </span>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
         aria-label="Confirm answer"
-        disabled={locked || draft.trim() === ''}
+        disabled={draft.trim() === ''}
         onClick={confirm}
       >
         <CornerDownLeftIcon aria-hidden />
@@ -262,7 +263,7 @@ export function QuestionForm({
       {q.input === 'DATE' ? (
         <Popover>
           <PopoverTrigger
-            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t.pickDate} disabled={locked} />}
+            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t.pickDate} />}
           >
             <CalendarIcon aria-hidden />
           </PopoverTrigger>
@@ -290,7 +291,6 @@ export function QuestionForm({
       variant="secondary"
       size="sm"
       className="shrink-0"
-      disabled={locked}
       onClick={() => commit(q, { kind: 'skip' })}
     >
       {t.skip}
@@ -301,7 +301,6 @@ export function QuestionForm({
     <div
       data-slot="question-form"
       data-state={form.state}
-      aria-busy={pending || undefined}
       ref={rootRef}
       onKeyDown={onRootKeyDown}
       className="bg-card flex w-full min-w-0 flex-col gap-1 rounded-xl border p-3"
@@ -336,7 +335,7 @@ export function QuestionForm({
               </Button>
             </>
           ) : null}
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t.close} disabled={pending} onClick={() => onClose?.()}>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={t.close} onClick={() => onClose?.()}>
             <XIcon aria-hidden />
           </Button>
         </div>
@@ -346,7 +345,7 @@ export function QuestionForm({
         <p className="text-muted-foreground px-1 text-xs">{t.matches(q.matchCount)}</p>
       ) : null}
 
-      <div className="flex max-h-[50dvh] min-w-0 flex-col overflow-y-auto">
+      <div className="flex max-h-[40dvh] min-w-0 md:max-h-[50dvh] flex-col overflow-y-auto">
         {hasOptions ? (
           <div role="radiogroup" aria-labelledby={titleId} onKeyDown={onGroupKeyDown} className="flex flex-col">
             {q.options.map((option, i) => {
@@ -357,8 +356,6 @@ export function QuestionForm({
                     type="button"
                     role="radio"
                     aria-checked={checked}
-                    aria-disabled={locked || undefined}
-                    disabled={locked}
                     tabIndex={i === rovingAt ? 0 : -1}
                     onFocus={() => setFocusAt((prev) => ({ ...prev, [qid]: i }))}
                     onClick={() => choose(option.optionId)}
@@ -388,8 +385,6 @@ export function QuestionForm({
                     type="button"
                     role="radio"
                     aria-checked={false}
-                    aria-disabled={locked || undefined}
-                    disabled={locked}
                     tabIndex={rovingAt === q.options.length ? 0 : -1}
                     onFocus={() => setFocusAt((prev) => ({ ...prev, [qid]: q.options.length }))}
                     onClick={() => setOtherOpen((prev) => ({ ...prev, [qid]: true }))}
@@ -419,13 +414,6 @@ export function QuestionForm({
           </FieldError>
         ) : null}
       </div>
-
-      {pending ? (
-        <p className="text-muted-foreground flex items-center gap-2 px-1 pt-1 text-xs">
-          <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
-          {t.sending}
-        </p>
-      ) : null}
     </div>
   );
 }
