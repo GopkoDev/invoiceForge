@@ -74,6 +74,8 @@ listConversationSummaries(actor): Promise<ActionResult<{ items: ConversationSumm
 
 ### `listLatestConversations(actor, limit = 3)` ★ (flow 10; AC-30)
 
+> **Removed 2026-10-14** (fix 2026-10-14-question-form-ux, review R8): its only caller, the dashboard AI block, was removed by the owner.
+
 `Promise<ActionResult<ConversationSummary[]>>` — at most 3, newest `lastMessageAt` first (`Conversation_userId_lastMessageAt_idx`). `[]` → the dashboard says there are none yet. Read with the existing `getAllowanceState` for the dashboard AI block (SCR-09); the links stay usable with the allowance used up (AC-32). Writes nothing.
 
 ## Assistant actions — `lib/actions/assistant-actions.ts` ✎

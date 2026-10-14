@@ -3,7 +3,7 @@ slug: ai-chat-v2
 date: 2026-10-14
 triage: gap
 acs: [AC-54, AC-55, AC-56, AC-08, AC-09, AC-37, AC-40, AC-29, AC-30, AC-31, AC-32]
-commit: 1b91901a, 1e712474, 834ca666
+commit: 1b91901a, 1e712474, 834ca666, 4b0cc9c4, b5b6741a, b4a4210f, 379fb6b1
 recurrence_of: none
 ---
 
@@ -35,5 +35,17 @@ Owner, 2026-10-14 (screenshot `ref/form-as-built.png`): writing "давай ст
 
 ## Follow-ups
 
-- `listLatestConversations` (lib/services/conversations) has no production caller after the dashboard block removal; its integration test still covers it — remove in a later cleanup.
+- ~~`listLatestConversations` unused~~ — removed in b4a4210f (review R8).
 - The request schema still accepts origin `DASHBOARD` / `DASHBOARD_PROMPT` (kept for history and pinned by contract tests); no client writes them any more.
+
+## Review and gate (2026-10-14)
+
+One `sdd:reviewer` (opus) pass over `ca75df88..834ca666`: R1 high (a failed option fill hung the turn), R2–R4 medium (× while sending hid 400/409 errors; focus not managed on advance; export shape vs contract), R5–R8 low (contract/data-model `detail`, uncommitted fix record, AC-37 wording, dashboard leftovers). All fixed (T81, T82, docs 21103379), re-check: **REVIEW_CLEAN**. The full e2e then found one axe colour-contrast violation on the "Something else" row (T83, fixed; `accessibility.spec.ts` 6/6).
+
+| Gate | Result |
+|---|---|
+| Unit (`vitest.config.ts`) | 299 files, 3300 passed |
+| Integration (testcontainers) | 156 files, 1614 passed, 61 skipped; the one red (export, mid-fix) green on re-run with the T81 files: 7 files, 33 passed |
+| Lint / tsc | 0 errors (4 warnings outside the feature) / clean |
+| Full e2e (`CI=1`, macOS, caffeinate) | 160 passed, 7 skipped, 1 failed (contrast) → fixed in T83, `accessibility.spec.ts` 6/6 |
+| Linux baselines (pwbrowser v1.63.0-noble) | retaken: `ai-v2-question-form-open`, `ai-v2-question-form-sent`, `ai-v2-form-open-aligned`; all 13 screenshot tests match |

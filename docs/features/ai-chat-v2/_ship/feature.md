@@ -14,20 +14,20 @@ This feature adds to the AI chat of [ai-assistant](../../ai-assistant/_ship/feat
 
 With this feature, the Freelancer can:
 
-- answer all the open questions of the chat in one Question form, and send the answers with one click;
+- answer the open questions of the chat in one Question form above the message box, one question at a time, picking from their own records;
 - read formatted replies with links to the pages of the app;
 - look at a draft and issue it in the chat;
 - use an AI section that fills the screen and does not scroll as one page;
-- start a chat from the navigation or from the dashboard.
+- start a chat from the navigation or with "Create invoice with AI" on the dashboard.
 
 ## 2. Terms
 
 | Term | Meaning |
 |---|---|
-| Question form | A form at the end of a reply of the chat. It has 1 to 6 questions and one Send button. |
+| Question form | A form for the latest reply of the chat, shown above the message box. It has 1 to 6 questions, shown one at a time. |
 | Question | One part of a Question form. It asks for a record, a currency, a date, a value or a free answer. |
 | Option | A button in a question. Each option is one record, currency or date that the app checked. |
-| Send | The button that sends all the answers of a Question form as one message. |
+| Send | Answering the last question of a Question form sends all its answers as one message. |
 | Offered choice | A button under a reply, from an earlier build of this feature. The app shows it as a Question form with one question. |
 | Preview | The panel in the chat that shows a Draft invoice as the editor shows it. |
 | Look-alike letters | Latin and Cyrillic letters that look the same, for example "A" and "А". |
@@ -52,7 +52,7 @@ A sender profile is the business of the Freelancer. A Customer is the party who 
 1. If the chat needs a decision or a value from the Freelancer, the reply ends with one Question form. The chat does not ask these questions in the text.
 2. A reply has one form or no form. A reply with a draft card has no form.
 3. A form has 6 questions or fewer. If more questions are open, the form shows the first 6 in this sequence: Customer, sender profile, bank account, currency, products, issue date, due date, quantities and prices, the other values, free questions. The next form asks the remaining questions.
-4. Each question has a heading from the app (for example "Customer" or "Line 1 · Price") and one line of question text from the chat. The app shows the question text as plain text.
+4. Each question shows one line of question text: the chat's, or an English default from the app. There are no field headings. The app shows the question text as plain text. A record question without options gets up to 8 of the Freelancer's own records from the app, each with a second line (email or country, price, currency and last four digits).
 5. The options come only from records that the app loaded for this Freelancer. The label of an option comes from the stored record. The text of the model cannot add an option. Text in the data of the Freelancer cannot add an option. If the chat names a record of a different Freelancer, or a record that does not exist, the app does not show the form.
 6. A question shows 8 options or fewer. If more records match, the question gives the number of matches and asks for a more exact name.
 7. A question about a record, a currency or a date also has "Other…". "Other…" opens a text box (or a date picker) for the answer of the Freelancer. The app compares a typed name as it compares a typed message.
@@ -62,7 +62,7 @@ A sender profile is the business of the Freelancer. A Customer is the party who 
 11. The form checks each typed answer before it sends it. Examples: an amount must be a number more than 0, a date must be a real day, a due date must not be before the issue date. The form shows the error below the question.
 12. Send is available only when each required question has an answer.
 13. One Send is one message. It counts once toward the Daily message allowance. If the allowance is used up, the app refuses the Send and marks no answer as chosen.
-14. The message shows one line for each answer, "heading: answer". The app makes this text from the stored labels and the typed answers.
+14. The message shows one line for each answer, "question — answer". The app makes this text from the stored labels and the typed answers.
 15. The app puts the answers into the draft. A selected record is used exactly. The chat does not match it again by name. Then the app runs the draft action, and the reply shows the draft card or the next form.
 16. The app refuses a Send that it cannot apply. Examples: a form of an older reply, a form of a different Freelancer, a question or option that is not in the form, a record that was deleted. The app does not send this Send to the model and does not count it. The chat always uses the same words: "This form is no longer available. Answer the latest questions or type your request."
 17. Only the form of the latest reply operates. After a newer message, the older forms stay visible. They cannot change and show the answers that were sent.
@@ -112,8 +112,7 @@ A sender profile is the business of the Freelancer. A Customer is the party who 
 ### 3.7 Navigation and dashboard
 
 - The navigation has the group "AI" with "AI chat" and "Connect your AI".
-- The dashboard has a prompt box. A message from the prompt box opens the AI section with a new Conversation, and the reply starts. This message counts once.
-- The dashboard shows the 3 latest Conversations and "Create invoice with AI".
+- The dashboard shows "Create invoice with AI". Its AI block (prompt box, latest Conversations) was removed by the owner on 2026-10-14.
 - If the allowance is used up, the prompt box tells this and links to the editor. The app does not send a message.
 
 ### 3.8 Privacy

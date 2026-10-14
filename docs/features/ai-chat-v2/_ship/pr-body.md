@@ -2,13 +2,13 @@
 
 This PR is the second iteration of the in-app AI chat. It removes the friction around the first iteration's rules and keeps every rule: nothing is guessed, a draft exists only after **Create**, the Daily message allowance applies, and the AI never issues.
 
-- **One Question form per reply.** When the chat needs something, the reply ends with one form of up to 6 questions (records, currency, dates, values, free questions), answered with one **Send**. Questions are never asked in prose. The options are records that the server loaded for this Freelancer, owner-scoped and by kind, whether they come from the draft action or from the chat's new `ask_user` tool. One Send is one counted message whose text the server builds. The server applies the answers exactly and runs the draft action itself. A form that cannot be applied is turned down before the model, is not counted, and always gets the same words. `form` replaces the earlier `choice` field (ADR-0011).
+- **One Question form per reply.** When the chat needs something, the reply ends with one form of up to 6 questions (records, currency, dates, values, free questions), shown above the composer one question at a time (numbered rows, pager, keyboard), the last answer sending all answers. Questions are never asked in prose. A record question the chat asked without records is filled by the server from the Freelancer's own records (fix 2026-10-14). The options are records that the server loaded for this Freelancer, owner-scoped and by kind, whether they come from the draft action or from the chat's new `ask_user` tool. One Send is one counted message whose text the server builds. The server applies the answers exactly and runs the draft action itself. A form that cannot be applied is turned down before the model, is not counted, and always gets the same words. `form` replaces the earlier `choice` field (ADR-0011).
 - **Formatted replies** with `react-markdown`: lists, tables, bold and code. Only links to the app's own pages stay links, and HTML shows as text (ADR-0012).
 - **A chat that drafts instead of interrogating:** it knows today and the time zone, searches before it says a record is missing, links invoices, and `search_invoices` filters by the day created.
 - **New read questions** for the chat and MCP: sender profiles with bank accounts (last four digits only), products with prices and custom prices, and a Customer search that ignores look-alike letters.
 - **Preview and issue in the chat.** A created draft opens in the editor's own preview. **Issue invoice** asks for one confirmation, then issues through the editor's path and invoice-integrity rules. A draft that was saved again after the preview opened is never issued from that view.
 - **A full-height AI workspace** built from our own chat elements, ported from Vercel AI Elements onto Base UI (ADR-0010). It has panes that scroll on their own, a grouped and searchable Conversation list that stays mounted when you switch (ADR-0013), follow-to-latest, a greeting start screen, placeholders that do not move, and phone sheets.
-- **Findable AI:** an "AI" navigation group, and on the dashboard a prompt box, the 3 latest Conversations and "Create invoice with AI".
+- **Findable AI:** an "AI" navigation group and "Create invoice with AI" on the dashboard. The dashboard AI block was removed by the owner (2026-10-14).
 - **Data notice:** the export (v2.4) and account deletion cover the forms and answers, and the privacy page's AI section is updated. The wording waits for the owner's approval.
 
 > **Stacked on #10 (`feat/ai-assistant`).** This branch is built on ai-assistant, which is not merged yet. Review and merge #10 first. When #10 is merged and its branch is deleted, GitHub moves this PR's base to `main` by itself; if the branch is kept, change the base by hand.
@@ -58,10 +58,13 @@ Spec: [`docs/features/ai-chat-v2/spec.md`](docs/features/ai-chat-v2/spec.md). Ch
 - AC-26b — changed in another tab: the preview reloads and must be confirmed again ✓
 - AC-27 — issuing works with the allowance used up ✓
 - AC-28 — the "AI" navigation group with "AI chat" and "Connect your AI" ✓
-- AC-29 — the dashboard prompt opens a new Conversation that is already running, counted once ✓
+- AC-29 — removed by the owner 2026-10-14 (dashboard AI block)
 - AC-30 — the 3 latest Conversations, a link to all, and "Create invoice with AI" ✓
-- AC-31 — an empty or too-long dashboard prompt is not sent ✓
-- AC-32 — with the allowance used up, the dashboard says so and offers the editor ✓
+- AC-31 — removed by the owner 2026-10-14
+- AC-32 — removed by the owner 2026-10-14
+- AC-54 — record questions are filled from the Freelancer's own records ✓ (fix 2026-10-14)
+- AC-55 — one question at a time above the composer ✓ (fix 2026-10-14)
+- AC-56 — no field headings, English chrome, app date/amount formats ✓ (fix 2026-10-14)
 - AC-33 — replies appear word by word; reopened replies are whole ✓
 - AC-34 — the export includes forms with their answers, choices, origins and start points; account deletion removes them ✓
 - AC-35 — the privacy page's AI section (implemented; wording awaits owner approval — see above)
