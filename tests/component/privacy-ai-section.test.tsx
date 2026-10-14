@@ -68,9 +68,13 @@ describe('privacy page — AI section for the chat (ai-chat-v2 T28, AC-35)', () 
 
   it('3. names the model provider through its gateway as the processor of message text, with no other processor', () => {
     const text = aiSection();
-    expect(text).toMatch(/Google Gemini model through the Vercel AI Gateway/);
+    expect(text).toMatch(/Anthropic Claude model through the Vercel AI Gateway/);
+    expect(text).not.toMatch(/Google Gemini/i);
     expect(text).toMatch(/message text/i);
     expect(text).toMatch(/no other (company|processor)/i);
+    const who = text.slice(text.search(/Who processes your message text/i));
+    expect(who).toMatch(/Anthropic/);
+    expect(who).toMatch(/Vercel/);
   });
 
   it('4. says what the reads share with an AI client connected through a Personal key — never a full account number', () => {

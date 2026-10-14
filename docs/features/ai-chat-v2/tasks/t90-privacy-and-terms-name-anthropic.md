@@ -9,7 +9,7 @@ files_hint: ["app/(public)/privacy/privacy-content.tsx", "constants/public-pages
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T90 — The privacy and terms pages name Anthropic on paid terms as the model provider (review 2026-10-15 F1-F3)

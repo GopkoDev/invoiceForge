@@ -415,7 +415,7 @@ test('AC-35: a Visitor reads the privacy page AI section without signing in', as
     const section = page.getByRole('heading', { name: '11. AI assistant' }).locator('..');
     await expect(section).toContainText('options the chat offered as buttons and the one you chose');
     await expect(section).toContainText('90 days after its last message');
-    await expect(section).toContainText('Google Gemini model through the Vercel AI Gateway');
+    await expect(section).toContainText('Anthropic Claude model through the Vercel AI Gateway');
     await expect(section).toContainText('never a full account number');
   } finally {
     await context.close();

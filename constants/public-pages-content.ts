@@ -374,13 +374,19 @@ export const privacyContent = {
             data: 'Your email, name, profile photo (authentication only)',
             location: 'USA (Google/GitHub servers)',
           },
+          {
+            service: 'Anthropic (via Vercel AI Gateway)',
+            purpose: 'AI assistant',
+            data: 'Chat message text and the data it reads to answer',
+            location: 'USA',
+          },
         ],
       },
       safeguards: {
         title: 'Data Transfer Safeguards:',
         text: 'All providers comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission.',
         privacy:
-          '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors only handle the technical infrastructure.',
+          '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors handle only what their service needs: the technical infrastructure and, for the AI assistant, the model provider that answers your chat messages.',
       },
     },
     {
@@ -794,6 +800,12 @@ export const termsContent = {
             service: 'Authentication',
             data: 'Email, name, profile photo',
             location: 'USA (Google/GitHub)',
+          },
+          {
+            provider: 'Anthropic (via Vercel AI Gateway)',
+            service: 'AI assistant',
+            data: 'Chat message text and the data it reads to answer',
+            location: 'USA',
           },
         ],
       },

@@ -514,19 +514,12 @@ export function PrivacyPolicyContent() {
               <p className="text-muted-foreground mb-4">
                 The AI assistant sends the text of your chat messages, and the
                 data it reads to answer them (for example Customer names and
-                invoice amounts), to a Google Gemini model through the Vercel
-                AI Gateway. Vercel AI Gateway and Google therefore process your
-                message text.
+                invoice amounts), to an Anthropic Claude model through the
+                Vercel AI Gateway. Vercel AI Gateway and Anthropic therefore
+                process your message text. This runs on paid API terms: under
+                them Anthropic does not use the content you send to train its
+                models.
               </p>
-              <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
-                <p className="text-muted-foreground text-sm">
-                  <strong>Free tier terms:</strong> We use Google&apos;s free
-                  tier. Under those terms Google may use the content you send
-                  to improve its products, and human reviewers may read it. Do
-                  not put anything into the assistant that you do not want
-                  shared on those terms.
-                </p>
-              </div>
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>
                   <strong>What we store:</strong> Your Conversations with their
@@ -544,9 +537,9 @@ export function PrivacyPolicyContent() {
                   account, whichever comes first. Then it is deleted.
                 </li>
                 <li>
-                  <strong>Who processes your message text:</strong> Only the
-                  Google Gemini model through the Vercel AI Gateway, as
-                  described above. The chat adds no other company that
+                  <strong>Who processes your message text:</strong> Only
+                  Anthropic, through the Vercel AI Gateway, as described
+                  above. The chat adds no other company that
                   processes your messages.
                 </li>
                 <li>
