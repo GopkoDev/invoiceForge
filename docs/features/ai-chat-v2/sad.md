@@ -38,7 +38,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 
 **Technical.**
 - Everything in ai-assistant SAD §2 *Technical* still holds: TypeScript 5 strict on Node.js `>=22.18 <23`; Next.js 16.3.8 and React 19.2.3 pinned exactly; Prisma 7.10 over PostgreSQL with the split schema; next-auth 5.0.0-beta.32; `@modelcontextprotocol/sdk` 1.32.0; Vercel `fra1`.
-- The AI runtime is already installed and pinned (AI SDK UI `useChat`, Mastra, the Vercel AI Gateway with a Gemini Flash-Lite model, per ai-assistant ADR-0002–ADR-0004). **This feature adds no AI runtime dependency**: no new AI package, no animation library, no realtime or push service. *Revision 2026-10-13 (ADR-0012):* two rendering dependencies are added for safe Markdown, pinned exactly: `react-markdown@10.1.0` (2025-03-07) and `remark-gfm@4.0.1` (2025-02-10).
+- The AI runtime is already installed and pinned (AI SDK UI `useChat`, Mastra, the Vercel AI Gateway, per ai-assistant ADR-0002–ADR-0004). *Revision 2026-10-15 (ADR-0014):* the default model is Claude Haiku 5.5 (`anthropic/claude-haiku-5.5`) on paid terms, replacing ai-assistant ADR-0003's Gemini Flash-Lite on a free-tier key; `@ai-sdk/google` and `GOOGLE_GENERATIVE_AI_API_KEY` are removed. **This feature adds no AI runtime dependency**: no new AI package, no animation library, no realtime or push service. *Revision 2026-10-13 (ADR-0012):* two rendering dependencies are added for safe Markdown, pinned exactly: `react-markdown@10.1.0` (2025-03-07) and `remark-gfm@4.0.1` (2025-02-10).
 - The chat route reads one message per request (`chatRequestSchema`: the conversation id plus one text part). History is loaded on the server, never trusted from the client (`app/api/chat/route.ts`, `lib/services/conversations/conversations.ts` `loadHistory`).
 - Read questions live once in `lib/assistant-tools/` (`READ_QUESTIONS`) and are registered by both MCP (`lib/mcp/server.ts`) and the chat (`lib/ai/tools/read-tools.ts`), per ai-assistant ADR-0010.
 - The draft resolver `resolveDraftRequest` (`lib/services/assistant-drafts/resolve.ts`) returns `PROPOSAL` or a closed union of `DraftIssue` kinds (`schema.ts`). Most ambiguity kinds already carry record ids: Customer, product and bank-account candidates.
@@ -57,7 +57,7 @@ target_surfaces: [backend-service, web-frontend]  # filled in §4 — subset of:
 - UI: shadcn/ui (base-vega, `@base-ui/react`) and Tailwind 4 tokens. Reuse the `docs/design-system.md` inventory: `AiWorkspace`, `ChatIsland`, `Composer`, `DraftCard`, `ChatLink`, `ConversationList`, `AllowanceNotice`, `StartPanel`, `ConfirmationModal`, `LoadError`. The chat surface is composed from our own chat elements in `components/ai-elements/` (Conversation, Message, PromptInput, Suggestion, Loader), ported from Vercel AI Elements onto Base UI (ADR-0010). No Radix primitives.
 
 **Regulatory / external.**
-- No new processor. Message text keeps going to the model provider named on the privacy page (spec §6.1). The first iteration's free-tier override still applies (ai-assistant §1 ¶4, ADR-0003).
+- No new processor. Message text keeps going to the model provider named on the privacy page (spec §6.1). *Revision 2026-10-15 (ADR-0014):* the model provider changes from Google to Anthropic (Vercel stays the gateway), so the privacy page must name Anthropic before ship. The first iteration's free-tier override (ai-assistant §1 ¶4, ADR-0003) no longer applies: the model runs on paid API terms.
 - New personal data stored with the Conversation: the Question forms with their options and the answers sent (and the Offered choices of Conversations saved before the 2026-10-13 revision), each message's origin, and each Conversation's start point. All of it is exported and deleted with the Conversation and the account, under the 90-day retention (spec §6.1, AC-34).
 - Read answers carry bank-account summaries (bank name, last four digits, currency, default mark), never a full account number. This applies to every Personal key (spec §6.1, AC-06).
 - Security review is required before ship (spec §6.1).
@@ -79,7 +79,7 @@ The trust boundary is unchanged in shape but carries two new rules:
 | Freelancer | Person | Chats, answers Question forms, previews and issues drafts, exports data |
 | Assistant (external MCP client) | Person (external program acting for one Freelancer) | Calls the read questions, the three new ones included, through a Personal key; creates drafts with Draft permission as before |
 | Visitor | Person | Sent to sign in from the AI section and the dashboard; nothing processed or counted |
-| AI model provider (Vercel AI Gateway, Gemini) | System (external, existing) | Receives each turn's context and tool schemas; never sees a refused form answer |
+| AI model provider (Vercel AI Gateway, Anthropic Claude Haiku 5.5 — ADR-0014) | System (external, existing) | Receives each turn's context and tool schemas; never sees a refused form answer |
 | Sentry | System (external, existing) | Errors and metadata-only spans, now also for the read questions and the issue-from-preview action |
 
 **C4 Context (L1):**
@@ -93,7 +93,7 @@ C4Context
     Person_Ext(visitor, "Visitor", "No session")
 
     System(app, "Invoice Forge", "Invoices, dashboard, AI workspace with Question forms and preview, MCP endpoint")
-    System_Ext(model, "AI model provider", "Vercel AI Gateway and Gemini, writes replies and tool calls")
+    System_Ext(model, "AI model provider", "Vercel AI Gateway and Claude Haiku 5.5, writes replies and tool calls")
     System_Ext(sentry, "Sentry", "Errors and metadata-only spans")
 
     Rel(freelancer, app, "Chats, answers forms, previews, issues", "HTTPS, session")
@@ -334,7 +334,7 @@ C4Container
     }
 
     ContainerDb(db, "PostgreSQL", "Prisma 7", "Conversations with message origin and start point, ChoiceOffer rows (Question forms), Draft cards, invoices with version")
-    System_Ext(gateway, "Vercel AI Gateway and Gemini", "Model calls")
+    System_Ext(gateway, "Vercel AI Gateway and Claude Haiku 5.5", "Model calls")
 
     Rel(freelancer, web, "Uses", "HTTPS")
     Rel(assistant, mcp, "Calls read questions", "HTTPS, Bearer Personal key")
@@ -988,10 +988,11 @@ Nothing new to deploy. The feature ships inside the existing Vercel deployable (
 | 0011 | Ask every open question in one server-checked Question form, answered in one send | Accepted | §4, §5, §6, §8 |
 | 0012 | Render replies as safe Markdown with react-markdown and an in-app link allowlist | Accepted | §2, §5, §8 |
 | 0013 | Keep the Conversation list mounted in the AI layout and update it from chat events | Accepted | §4, §5, §8 |
+| 0014 | Run the chat on Claude Haiku 5.5 through the AI Gateway on paid terms (supersedes ai-assistant ADR-0003) | Accepted | §2, §3, §7, §11 |
 
 ADR files live under `docs/features/ai-chat-v2/adr/NNNN-<title>.md`.
 
-Thirteen ADRs (ADR-0002, ADR-0003 and ADR-0009 superseded) sit within the 10–15 typical for an L feature. This iteration extends a feature whose 13 ADRs stay in force: target surfaces, UI architecture, model, agent, router, resolver, cards, storage, counters and the shared registry. The remaining decisions (three reads in the registry, the workspace layout, the list loading, navigation, streaming pacing, origin columns) are reversible within a day or are fixed by the spec, so they stay inline in §5.
+Fourteen ADRs (ADR-0002, ADR-0003 and ADR-0009 superseded) sit within the 10–15 typical for an L feature. This iteration extends a feature whose 13 ADRs stay in force, except the model choice (*Revision 2026-10-15 (ADR-0014):* ai-assistant ADR-0003 is superseded by ADR-0014): target surfaces, UI architecture, model, agent, router, resolver, cards, storage, counters and the shared registry. The remaining decisions (three reads in the registry, the workspace layout, the list loading, navigation, streaming pacing, origin columns) are reversible within a day or are fixed by the spec, so they stay inline in §5.
 
 ## 10. Quality requirements
 
@@ -1064,7 +1065,10 @@ Thirteen ADRs (ADR-0002, ADR-0003 and ADR-0009 superseded) sit within the 10–1
 | Loading every Conversation summary grows the list payload for heavy users | Low | Bounded at about 2,700 rows by allowance and retention. Threshold and fallback are in §7. | Dmytro Hopko |
 | A form's options go stale (record deleted, account currency changed) between reply and send | Low | Re-checked at send time (AC-13). The uniform answer is uncounted. The §7 alert watches the refusal rate. | Dmytro Hopko |
 | `docs/architecture-map.md` is 124 commits stale (reflects `2064466`, before the AI chat shipped) | Low | This SAD was built on a fresh code read. Run `/sdd:survey` before `tasks` so later stages read a current map. | Dmytro Hopko |
-| The free-tier Gemini key's terms and request caps (inherited) | Medium | Inherited from ai-assistant §1 ¶4 and §11. Form sends add messages but no new cost class, and the alerts stay as they are. | Dmytro Hopko |
+| ~~The free-tier Gemini key's terms and request caps (inherited)~~ *Revision 2026-10-15 (ADR-0014):* closed: Claude Haiku 5.5 on paid terms. | — | — | Dmytro Hopko |
+| *Revision 2026-10-15 (ADR-0014):* Paid model spend: about USD 0.015 for a worst-case message, against the USD 0.02 p95 cap (spec §6) | Medium | The existing p95 cost alert is now live from launch; daily allowances cap the volume per Freelancer. | Dmytro Hopko |
+| *Revision 2026-10-15 (ADR-0014):* Behaviour shift on the new model: instructions and eval sets were tuned on Gemini Flash-Lite | Medium | `pnpm eval:assistant` must pass on Claude Haiku 5.5 before release (≥ 4/5 runs for the behaviour rows). | Dmytro Hopko |
+| *Revision 2026-10-15 (ADR-0014):* The privacy page (section 11) still names Google Gemini on free-tier terms | High | Rewrite it for Anthropic on paid API terms with its component test, and list the model provider in the terms page sub-processors (spec §8), before ship. | Dmytro Hopko |
 | Open question (spec §8): does the terms page need an AI clause? | Open question | Resolve before `sdd:ship`. The default is no change unless the terms page contradicts the chat; checked with the privacy update. | Dmytro Hopko |
 
 | (2026-10-13) The model offers the wrong records or still writes questions in prose | Medium | Instructions + eval rows (spec §6 "Chat behaviour", ≥ 4/5 runs); the fallback form when `ask_user` is refused; server-filled record options (AC-54); "Something else" on every record question; KPI "drafting replies with questions in prose" | Dmytro Hopko |

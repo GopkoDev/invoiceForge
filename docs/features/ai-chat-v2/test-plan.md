@@ -248,7 +248,7 @@ The evaluation run (`evals/assistant/`, opt-in, real model) is the only level th
 - **NFR: look-alike search 100 % of the fixture set** → the unit and three-channel contract tests over the shared fixture set (AC-03, AC-17).
 - **NFR: 0 full account numbers in any read answer, chat reply or MCP answer** → the contract test over every read output (AC-01, AC-06), the load scenario's answer scan, and the AC-06 e2e.
 - **NFR: accessibility, 0 serious or critical violations; keyboard reachable** → the existing e2e accessibility suite extended to the AI section (empty, with the Question form docked) and the preview panel with the dialog open.
-- **NFR: model cost per message p95 ≤ USD 0.02, unchanged by the new reads** → not a load test. It depends on the model provider, whose free-tier request cap a load run would use up for every Freelancer. Measured weekly from per-message trace metadata, as spec §6 states.
+- **NFR: model cost per message p95 ≤ USD 0.02, unchanged by the new reads** → not a load test. It depends on the model provider; a load run would spend real model money (*Revision 2026-10-15 (ADR-0014):* Claude Haiku 5.5 on paid terms; before, it would have used up the free-tier request cap for every Freelancer). Measured weekly from per-message trace metadata, as spec §6 states.
 
 ## CI placement
 
