@@ -9,7 +9,7 @@ files_hint: ["components/ai/message-list.tsx", "components/ai/chat-island.tsx", 
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T88 — Replies with a form add no empty gap, v1 history renders sanely, and dock tests assert the dock itself (consistency C12, C13, C14)

@@ -16,13 +16,11 @@ interface MessageListProps {
   messages: ConversationMessageView[];
   invoiceLinks: Record<string, LinkedInvoiceState>;
   renderCard?: (cardId: string) => ReactNode;
-  /** ai-chat-v2 T60: renders a reply's Question form (SCR-04) for a data-offer part (its offerId is the form id). */
-  renderOffer?: (offerId: string, messageId: string) => ReactNode;
 }
 
 /**
  * The messages of a Conversation, composed from the chat elements (ai-chat-v2 T36, ADR-0010): a Freelancer message is
- * a right-aligned secondary bubble; a reply is the avatar and safe Markdown, followed by its links, Question forms and
+ * a right-aligned secondary bubble; a reply is the avatar and safe Markdown, followed by its links and
  * Draft cards in part order inside the same content column.
  *
  * A Freelancer's text is always plain text with line breaks kept (never parsed as Markdown, HTML or an anchor); a
@@ -33,7 +31,6 @@ export function MessageList({
   messages,
   invoiceLinks,
   renderCard,
-  renderOffer,
 }: MessageListProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -67,11 +64,6 @@ export function MessageList({
               }
               if (part.type === 'data-draft-card') {
                 return <div key={i}>{renderCard?.(part.data.cardId)}</div>;
-              }
-              if (part.type === 'data-offer') {
-                return (
-                  <div key={i}>{renderOffer?.(part.data.offerId, m.id)}</div>
-                );
               }
               return null;
             })}

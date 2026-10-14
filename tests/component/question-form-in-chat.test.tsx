@@ -278,7 +278,8 @@ describe('ChatIsland - after a send (AC-55, AC-08)', () => {
     expect(bubble.textContent).toContain('Which Customer is this invoice for? — Acme GmbH');
     expect(bubble.textContent).toContain('Which bank account should the invoice use? — Wise');
     const q = questionDock();
-    if (q) expect(q).not.toBeVisible();
+    expect(q).not.toBeNull();
+    expect(q!).not.toBeVisible();
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
     expect(screen.queryByText('Sending…')).toBeNull();
     stream.end();
@@ -588,7 +589,8 @@ describe('ChatIsland - hidden while sending (R2, T82; AC-55)', () => {
     await answerBoth(user);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const q = questionDock();
-    if (q) expect(q).not.toBeVisible();
+    expect(q).not.toBeNull();
+    expect(q!).not.toBeVisible();
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
     return { resolve, user };
   };
@@ -643,7 +645,8 @@ describe('ChatIsland - hidden while sending (R2, T82; AC-55)', () => {
     await answerBoth(user);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const q = questionDock();
-    if (q) expect(q.contains(document.activeElement)).toBe(false);
+    expect(q).not.toBeNull();
+    expect(q!.contains(document.activeElement)).toBe(false);
     await act(async () => stream.end());
     await waitFor(() => expect(questionDock()).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })));
@@ -683,5 +686,62 @@ describe('Reopen (AC-13)', () => {
     await page({ f1: form() });
     expect(radio(/Acme GmbH/)).toHaveAttribute('aria-checked', 'false');
     expect(radio(/Acme GmbH/)).not.toBeDisabled();
+  });
+});
+
+describe('ChatIsland - message stream parts and v1 history (T88; AC-55, AC-13, AC-53)', () => {
+  it('a data-offer part renders no element: the reply content holds only its text response', () => {
+    island();
+    const reply = document.querySelector('[data-role="assistant"]') as HTMLElement;
+    expect(reply).not.toBeNull();
+    expect(within(reply).getByText('I need a few details.')).toBeInTheDocument();
+    // The part must not leave an empty wrapper (an 8 px gap) behind: no childless <div> inside the reply.
+    const empty = Array.from(reply.querySelectorAll('div')).filter((d) => d.children.length === 0 && d.textContent === '');
+    expect(empty).toHaveLength(0);
+  });
+
+  it('v1 history: PRESSED label is a plain bubble, a CHOSEN legacy offer renders nothing, the latest OPEN legacy offer docks options-only', () => {
+    const legacy = (id: string, state: 'OPEN' | 'CHOSEN'): FormView => ({
+      formId: id,
+      state,
+      questions: [{ ...customerQ(), input: 'NONE' }],
+      answers: state === 'CHOSEN' ? [{ questionId: 0, optionId: 0 }] : null,
+    });
+    const msgs: ConversationMessageView[] = [
+      { id: 'a1', role: 'user', origin: 'PRESSED', parts: [{ type: 'text', text: 'Create an invoice' }], createdAt: '' },
+      { id: 'a2', role: 'assistant', origin: null, parts: [{ type: 'data-offer', id: 'o1', data: { offerId: 'o1' } }], createdAt: '' },
+      { id: 'a3', role: 'user', origin: 'TYPED', parts: [{ type: 'text', text: 'Acme Corp' }], createdAt: '' },
+      {
+        id: 'a4',
+        role: 'assistant',
+        origin: null,
+        parts: [
+          { type: 'text', text: 'Which one?' },
+          { type: 'data-offer', id: 'o2', data: { offerId: 'o2' } },
+        ],
+        createdAt: '',
+      },
+    ];
+    render(
+      <ChatIsland
+        conversationId="c1"
+        initialMessages={msgs}
+        invoiceLinks={{}}
+        cards={{}}
+        forms={{ o1: legacy('o1', 'CHOSEN'), o2: legacy('o2', 'OPEN') }}
+        allowance={allowance}
+      />
+    );
+    const pressed = screen.getByText('Create an invoice').closest('[data-role="user"]') as HTMLElement;
+    expect(pressed).not.toBeNull();
+    expect(pressed.querySelector('[data-slot="question-form"]')).toBeNull();
+    const chosenReply = document.querySelectorAll('[data-role="assistant"]')[0] as HTMLElement;
+    expect(chosenReply.querySelector('[data-slot="question-form"]')).toBeNull();
+    expect(chosenReply.textContent).toBe('');
+    const q = questionDock();
+    expect(q).not.toBeNull();
+    expect(within(q!).getAllByRole('radio')).toHaveLength(2);
+    expect(within(q!).queryByRole('button', { name: /next|previous|back/i })).toBeNull();
+    expect(within(q!).getByText('Which Customer is this invoice for?')).toBeInTheDocument();
   });
 });
