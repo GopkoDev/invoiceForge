@@ -1802,6 +1802,85 @@
         "lib/services/account/account.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t89-export-schema-drops-question-heading.md"
+    },
+    {
+      "id": "T90",
+      "title": "The privacy and terms pages name Anthropic on paid terms as the model provider (review 2026-10-15 F1-F3)",
+      "layer": "frontend",
+      "deps": [
+        "T89"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Privacy section 11 (`app/(public)/privacy/privacy-content.tsx`) names an Anthropic Claude model through the Vercel AI Gateway, on paid API terms under which Anthropic does not use the content to train its models; the free-tier box is removed; 'Who processes your message text' names Anthropic and Vercel. Privacy §5 and terms §10 sub-processor tables (`constants/public-pages-content.ts`) gain a row: Anthropic (via Vercel AI Gateway) — AI assistant — chat message text and the data it reads — USA; the 'only handle the technical infrastructure' sentence is softened to cover the model provider. Tests: `tests/component/privacy-ai-section.test.tsx`, `tests/component/privacy-page-ai-section.test.tsx` (the free-tier case becomes a 'no training on the content' / Anthropic case and asserts Google Gemini and 'free tier' are absent) and `tests/e2e/ai-chat-v2-preview-dashboard.spec.ts:418` assert the new provider. Do not change the page's 'Last updated' date (owner gate). Gate: unit, component, lint, typecheck; the e2e line is updated (e2e runs locally before ship).",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/privacy-ai-section.test.tsx",
+        "tests/component/privacy-page-ai-section.test.tsx",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t90-privacy-and-terms-name-anthropic.md"
+    },
+    {
+      "id": "T91",
+      "title": "A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)",
+      "layer": "backend",
+      "deps": [
+        "T89"
+      ],
+      "acs": [],
+      "dod": "`gatewayCostOf` returns `number | null` (null when `gateway.cost` is missing, non-numeric, non-finite or negative; a reported 0 stays 0). A turn whose router or any agent step cost is unknown stores `AssistantTurn.costUsd = null` (the column is nullable); a fully known turn keeps the rounded sum. The comment cites ADR-0014, not the free-tier key. Unit tests cover gatewayCostOf and the sum; the integration tests at `tests/integration/lib/ai/run-turn.test.ts:470` and `tests/integration/api/chat-route.test.ts:766` are renamed and assert null for a call with no reported cost. Check every reader of costUsd (export, KPI queries, metadata spans) handles null. Gate: unit, integration (ai, chat route), lint, typecheck.",
+      "files_hint": [
+        "lib/ai/gateway-cost.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/router.ts",
+        "tests/integration/lib/ai/run-turn.test.ts",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t91-unknown-model-cost-is-null.md"
+    },
+    {
+      "id": "T92",
+      "title": "Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)",
+      "layer": "tests",
+      "deps": [
+        "T89"
+      ],
+      "acs": [],
+      "dod": "`lib/ai/model.ts:3` cites ai-chat-v2 ADR-0014 (supersedes ai-assistant ADR-0003). The paced-text test header says the model then in use (Gemini Flash-Lite) wrote in one burst. The span contract fixtures use `anthropic/claude-haiku-5.5` and an Anthropic span name, and the test stays green. README and dataset.ts say a `press` row answers the offered form question whose option has that label, as a one-answer form Send. No behaviour change. Gate: unit, contract, `pnpm eval:assistant:dry`, lint, typecheck.",
+      "files_hint": [
+        "lib/ai/model.ts",
+        "tests/unit/lib/ai/run-turn-paced-text.test.ts",
+        "tests/contract/ai-spans-metadata-only.test.ts",
+        "evals/assistant/README.md",
+        "evals/assistant/dataset.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t92-model-comments-fixtures-eval-docs.md"
+    },
+    {
+      "id": "T93",
+      "title": "ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)",
+      "layer": "docs",
+      "deps": [
+        "T90",
+        "T91",
+        "T92"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "ADR-0014 cites the Vercel AI Gateway model list (`/v1/models`, read 2026-10-15: USD 0.10 / 0.50 per million input / output tokens up to 100k context, 5x above) and adds that tier to Negative; its consequences name the privacy §5 and terms §10 tables and the three tests T90 changed, and the cost-unknown handling of T91. spec.md:655 and sad.md:60 read 'The model provider changes (Google → Anthropic); no other processor is added', noting the security addendum covers it. sad.md §9 prose no longer lists 'model' as in force. architecture-map.md:59,201 name Claude Haiku 5.5 on paid terms (ai-chat-v2 ADR-0014). PR body and changelog list T90-T93 and drop the privacy rewrite from the owner's to-do (wording approval and the Last-updated date stay owner gates). Gate: lint (markdown), no code change.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/architecture-map.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t93-adr-0014-doc-drift.md"
     }
   ]
 }
