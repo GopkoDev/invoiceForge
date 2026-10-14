@@ -15,6 +15,7 @@ import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { AllowanceNotice } from '@/components/ai/allowance-notice';
 import { Composer } from '@/components/ai/composer';
 import { buttonVariants } from '@/components/ui/button';
+import { NeonBorderWrapper } from '@/components/ui/neon-border-wrapper';
 import { protectedRoutes } from '@/config/routes.config';
 import type { AllowanceState } from '@/lib/validations/assistant-chat';
 import { cn } from '@/lib/utils';
@@ -32,8 +33,8 @@ const DRAFT_EXAMPLE = SUGGESTIONS[0].text;
 
 /**
  * SCR-02, the empty state of a new Conversation (AC-18; presentation per ai-chat-v2 T37, ADR-0010): a two-line greeting
- * (line 1 from the server: time of day and first name; line 2 with the accent span), a centred PromptInput card with
- * the counter in its footer, and the suggested requests as chips under it, centred both ways in the chat pane. A
+ * (line 1 from the server: time of day and first name; line 2 with the accent span, the Terms-page animated gradient), a centred PromptInput card with
+ * the counter in its footer inside a neon border (NeonBorderWrapper), and the suggested requests as chips under it, centred both ways in the chat pane. A
  * suggestion only fills and focuses the box. Nothing is saved until the first message; ChatIsland owns `onSend` and
  * moves the composer down on it.
  */
@@ -76,7 +77,10 @@ export function StartPanel({
           </span>{' '}
           <span className="block">
             {draftCopy ? "Let's draft " : 'How can I help with '}
-            <span data-slot="greeting-accent" className="ai-greeting-accent">
+            <span
+              data-slot="greeting-accent"
+              className="animate-gradient-shift bg-linear-to-r from-violet-600 via-fuchsia-500 to-pink-600 bg-clip-text text-transparent dark:from-cyan-400 dark:via-purple-400 dark:to-pink-400"
+            >
               {draftCopy ? 'an invoice.' : 'your invoices today?'}
             </span>
           </span>
@@ -96,17 +100,23 @@ export function StartPanel({
       ) : (
         <div className="flex w-full max-w-3xl flex-col gap-3 text-left">
           <div data-slot="start-composer">
-            <Composer
-              value={text}
-              onChange={setText}
-              onSend={onSend}
-              allowance={state}
-              busy={false}
-              placeholder={isDraft ? `e.g. "${DRAFT_EXAMPLE}"` : undefined}
-              inputRef={boxRef}
-              autoFocus={isDraft}
-              textareaClassName="min-h-20"
-            />
+            <NeonBorderWrapper
+              variant="always"
+              data-slot="start-composer-neon"
+              className="rounded-2xl [&_[data-slot=prompt-input-card]]:border-transparent"
+            >
+              <Composer
+                value={text}
+                onChange={setText}
+                onSend={onSend}
+                allowance={state}
+                busy={false}
+                placeholder={isDraft ? `e.g. "${DRAFT_EXAMPLE}"` : undefined}
+                inputRef={boxRef}
+                autoFocus={isDraft}
+                textareaClassName="min-h-20"
+              />
+            </NeonBorderWrapper>
           </div>
           <Suggestions>
             {suggestions.map(({ text: suggestion, icon: Icon }) => (

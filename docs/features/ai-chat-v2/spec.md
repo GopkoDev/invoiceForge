@@ -344,6 +344,8 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 **When** the page appears, and then they send the first message
 **Then** they first see a greeting, the message box in the middle and suggested requests; after sending, the message box moves to the bottom with an animation and the reply appears above it. A Freelancer whose device asks for reduced motion sees the move without animation. Pressing a suggested request only fills the message box. A new Conversation left without a message is not saved and never appears in the Conversation list.
 
+*Amended 2026-10-14 (owner, presentation):* until the first message the greeting's accent words use the Terms page title's gradient highlight and the message box has the Terms page content card's neon border; after the first message the box is plain. Under reduced motion the gradients do not move. <!-- added-by-fix: 2026-10-14 -->
+
 ### AC-19 (US-06) — happy path
 
 **Given** a Freelancer on a phone (a screen narrower than 768 px)

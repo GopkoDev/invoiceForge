@@ -29,6 +29,7 @@
   - The messages scroll on their own. They follow new text while the Freelancer is at the bottom (within 48 px), and offer "Jump to latest" after they scroll up.
   - The message box is always visible. The list's search row and the chat header end on one line, each loading placeholder has the size of what replaces it, and an avatar is level with the first line of its message.
   - A new Conversation shows a greeting, the message box in the middle and suggested requests. After the first message the box moves down, with no animation under reduced motion. An empty Conversation is never saved.
+  - The greeting's accent words use the Terms page's gradient highlight, and the start screen's message box has the Terms page's glowing neon border until the first message (owner fix 2026-10-14).
   - On a phone (under 768 px) the list opens as a sheet and the preview as a full-screen sheet.
 - **Preview and issue from the chat.** A created draft's card has a **Preview** button. It opens the same invoice preview the editor shows, an "Open in editor" link and, while the invoice is a draft, **Issue invoice**.
   - Issuing asks for one confirmation that names the Customer, the total and the currency. It then follows the editor's issuing path and every invoice-integrity rule.

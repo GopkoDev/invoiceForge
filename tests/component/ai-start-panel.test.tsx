@@ -334,6 +334,68 @@ describe('StartPanel - greeting slot (T45, R16-11)', () => {
   });
 });
 
+describe('StartPanel - styling (fix 2026-10-14)', () => {
+  const ACCENT = [
+    'animate-gradient-shift',
+    'bg-linear-to-r',
+    'from-violet-600',
+    'via-fuchsia-500',
+    'to-pink-600',
+    'bg-clip-text',
+    'text-transparent',
+    'dark:from-cyan-400',
+    'dark:via-purple-400',
+    'dark:to-pink-400',
+  ];
+
+  it.each([[undefined], ['draft' as const]])(
+    'the greeting accent uses the Tailwind gradient utilities (start=%s)',
+    (start) => {
+      const { container } = render(
+        <StartPanel
+          greeting={LINE1}
+          state={state()}
+          start={start}
+          onSend={() => {}}
+        />
+      );
+      const accent = container.querySelector(
+        '[data-slot="greeting-accent"]'
+      ) as HTMLElement;
+      expect(accent).not.toBeNull();
+      for (const c of ACCENT) expect(accent).toHaveClass(c);
+      expect(accent).not.toHaveClass('ai-greeting-accent');
+    }
+  );
+
+  it('wraps the composer card in a rounded neon border with the gradient layer', () => {
+    const { container } = render(
+      <StartPanel greeting={LINE1} state={state()} onSend={() => {}} />
+    );
+    const neon = container.querySelector(
+      '[data-slot="start-composer"] [data-slot="start-composer-neon"]'
+    ) as HTMLElement;
+    expect(neon).not.toBeNull();
+    expect(neon).toHaveClass('rounded-2xl');
+    expect(
+      neon.querySelector('[data-slot="prompt-input-card"]')
+    ).not.toBeNull();
+    const layer = Array.from(neon.children).find((el) =>
+      el.classList.contains('animate-gradient-shift')
+    );
+    expect(layer).toBeDefined();
+  });
+
+  it('has no neon border when the allowance is used up', () => {
+    const { container } = render(
+      <StartPanel greeting={LINE1} state={usedUp()} onSend={() => {}} />
+    );
+    expect(
+      container.querySelector('[data-slot="start-composer-neon"]')
+    ).toBeNull();
+  });
+});
+
 describe('AI page wiring', () => {
   const emptyPage = { items: [], timeZone: 'UTC' };
 
