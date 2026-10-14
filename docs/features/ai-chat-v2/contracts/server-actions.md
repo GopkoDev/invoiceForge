@@ -274,7 +274,7 @@ checkForm(actor, input: { conversationId: string; form: ChatForm }):
 claimForm(actor, formId: string, answers: FormAnswer[], tx): Promise<boolean>; // OPEN → CHOSEN, with the allowance slot
 releaseForm(actor, formId: string): Promise<void>;                             // CHOSEN → OPEN (or CLOSED), answers cleared
 composeAnswerMessage(questions: StoredFormQuestion[], answers: ResolvedAnswer[]): string; // "<question> — <answer>" lines
-pinAnswers(request: DraftRequestPartial, answers: ResolvedAnswer[]): DraftRequestPartial;  // ids for picks, names for "Other…", dates, values, skips
+pinAnswers(request: DraftRequestPartial, answers: ResolvedAnswer[]): DraftRequestPartial;  // ids for picks, names for "Something else", dates, values, skips
 ```
 
 - **`search_invoices` ✎** (`lib/services/invoices/assistant-search.ts`): `createdFrom`, `createdTo`, `sort`; rows add `createdAt` (local day) and `path` (`protectedRoutes.invoiceEdit(id)`). Same owner scope, both channels.

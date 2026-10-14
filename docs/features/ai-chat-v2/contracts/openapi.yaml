@@ -167,8 +167,8 @@ paths:
         the stream is a JSON `ActionFailure`; nothing is reserved, counted, marked or sent to the model:
         1. **Session** — `401` from the proxy (AC-36).
         2. **Body** — `400 VALIDATION`: the parent rules, plus the field combinations in ChatRequest
-           (a `choice` needs a `conversationId`; `origin`/`startedFrom` only on a new Conversation and only
-           together for the dashboard prompt; `choice` and `origin` never together).
+           (a `form` needs a `conversationId`; `origin`/`startedFrom` only on a new Conversation; `form` and
+           `origin` never together; `DASHBOARD` / `DASHBOARD_PROMPT` refused since 2026-10-14).
         3. **Conversation** — `404 NOT_FOUND`, unknown or another Freelancer's, worded alike (ai-assistant AC-41).
         4. **Choice** (only with `choice`) — the offer must be this Freelancer's, in this Conversation, `OPEN`
            (so it is the latest offering reply's: any newer message closed it), contain
@@ -818,7 +818,7 @@ components:
             questionId: { $ref: "#/components/schemas/QuestionId" }
             optionId: { $ref: "#/components/schemas/OptionId" }
         - type: object
-          title: typed answer ("Other…" or an input-only question)
+          title: typed answer ("Something else" or an input-only question)
           required: [questionId, text]
           additionalProperties: false
           properties:

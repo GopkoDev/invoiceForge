@@ -62,7 +62,7 @@ const textMessages = (n: number, prefix: string): ConversationMessageInput[] =>
     text: `${prefix} message ${i + 1}: ${i % 2 === 0 ? 'Who owes me money right now?' : 'Acme Corp owes 1,000.00 USD on one invoice.'}`,
   }));
 
-test('AC-08: answering the Customer question posts the "Which Customer is this invoice for? — Acme GmbH" line and the chat continues with a card for Acme GmbH', async ({
+test('AC-08: answering the Customer question with Acme GmbH sends a form message and the chat continues with a card for Acme GmbH', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
@@ -126,7 +126,7 @@ test('AC-08: answering the Customer question posts the "Which Customer is this i
   }
 });
 
-test('AC-13: a reopened Conversation shows only the answer message of the sent form (the form itself is gone) with three accounts and the typed price; the latest unsent form turns down a deleted account without counting', async ({
+test('AC-13: a reopened Conversation shows no sent form; the latest unsent form turns down a deleted account without counting', async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(240_000);
