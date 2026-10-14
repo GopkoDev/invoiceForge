@@ -47,9 +47,10 @@ export const issueFromPreviewInputSchema = z
   .object({ invoiceId: recordId, expectedVersion: z.number().int().min(0) })
   .strict();
 
-export const conversationStartPointSchema = z.enum(['AI_SECTION', 'INVOICE_LIST', 'DASHBOARD_PROMPT', 'DASHBOARD_CREATE']);
+/** The start points a client may ask for; DASHBOARD_PROMPT is history-only (stored, never accepted since 2026-10-14). */
+export const conversationStartPointSchema = z.enum(['AI_SECTION', 'INVOICE_LIST', 'DASHBOARD_CREATE']);
 /** The origins a client may ask for; FORM is set by the server from a valid form Send only. */
-export const requestMessageOriginSchema = z.enum(['TYPED', 'DASHBOARD']);
+export const requestMessageOriginSchema = z.enum(['TYPED']);
 
 // ai-chat-v2 revision 2026-10-13 (ADR-0011; openapi ChatForm, FormAnswer): a sent Question form. Answers name a question
 // and an option by position, or carry the Freelancer's own typed text, or skip an optional question; never a record id
@@ -74,7 +75,6 @@ export type ChatForm = z.infer<typeof chatFormSchema>;
 export const FORM_NEEDS_CONVERSATION = 'A form can only be sent in a saved conversation.';
 const FORM_WITH_ORIGIN = 'A form is sent without an origin.';
 const FIRST_MESSAGE_ONLY = "This can only be sent with a new conversation's first message.";
-const DASHBOARD_TOGETHER = 'The dashboard prompt sends origin DASHBOARD with start point DASHBOARD_PROMPT.';
 
 export const chatRequestSchema = z
   .object({
@@ -124,8 +124,6 @@ export const chatRequestSchema = z
     if (v.conversationId !== null) {
       if (v.origin !== undefined) issue('origin', FIRST_MESSAGE_ONLY);
       if (v.startedFrom !== undefined) issue('startedFrom', FIRST_MESSAGE_ONLY);
-    } else if ((v.origin === 'DASHBOARD') !== (v.startedFrom === 'DASHBOARD_PROMPT')) {
-      issue(v.origin === 'DASHBOARD' ? 'startedFrom' : 'origin', DASHBOARD_TOGETHER);
     }
   });
 

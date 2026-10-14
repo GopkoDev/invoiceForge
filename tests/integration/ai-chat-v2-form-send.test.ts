@@ -942,17 +942,20 @@ describe.runIf(containerRuntimeAvailable)('a sent Question form is a counted mes
   });
 
   describe('AC-29: the dashboard prompt and start points', () => {
-    it('AC-29: origin DASHBOARD + startedFrom DASHBOARD_PROMPT on a new Conversation is saved as such; one slot', async () => {
-      const user = await freelancer('t57-ac29@example.com');
+    it('T85 / AC-29: origin DASHBOARD + startedFrom DASHBOARD_PROMPT on a new Conversation is refused 400 on both fields; nothing created or counted', async () => {
+      const user = await freelancer('t85-dashboard-refused@example.com');
       script(textOnly('You have no overdue invoices.'));
 
-      const parts = await sendTyped('who owes me money?', { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' });
+      const response = await post(typed('who owes me money?', { origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }));
+      const body = await response.json();
 
-      expect(parts.some((p) => p.type === 'data-conversation')).toBe(true);
-      expect(streamCalls()).toBe(1);
-      expect((await prisma.conversation.findFirstOrThrow()).startedFrom).toBe('DASHBOARD_PROMPT');
-      expect((await lastUserMessage()).origin).toBe('DASHBOARD');
-      expect(await used(user.id)).toBe(1);
+      expect(response.status).toBe(400);
+      expect(body.code).toBe('VALIDATION');
+      expect(body.fieldErrors.origin).toBeDefined();
+      expect(body.fieldErrors.startedFrom).toBeDefined();
+      noModelCalls();
+      expect(await used(user.id)).toBe(0);
+      expect(await prisma.conversation.count()).toBe(0);
     });
 
     it('AC-29: startedFrom INVOICE_LIST alone gives a TYPED message and that start point', async () => {

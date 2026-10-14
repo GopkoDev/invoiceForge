@@ -104,11 +104,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(chatValidationFailure(parsed.error), {
       status: 400,
     });
-  const { conversationId, form, origin, startedFrom } = parsed.data;
+  const { conversationId, form, startedFrom } = parsed.data;
   // A form Send is saved with the message composed from the stored labels; the client's text is ignored (ADR-0003).
   let userText = parsed.data.message.parts[0].text;
-  // The server sets the origin: FORM only from a valid form; DASHBOARD only on a first message (schema).
-  const userOrigin: MessageOrigin = form ? 'FORM' : origin === 'DASHBOARD' ? 'DASHBOARD' : 'TYPED';
+  // The server sets the origin: FORM only from a valid form; a request can only be TYPED (DASHBOARD is refused by the schema).
+  const userOrigin: MessageOrigin = form ? 'FORM' : 'TYPED';
 
   // Owner check (and the history, read server-side): unknown and foreign answer alike.
   let history: ConversationMessageView[] = [];

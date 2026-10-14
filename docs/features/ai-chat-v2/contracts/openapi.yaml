@@ -161,8 +161,7 @@ paths:
         history loaded on the server, the four stream outcomes, only visible content saved, not idempotency-keyed).
         What changes:
 
-        **Request.** Three optional fields (ChatRequest): `choice` (a press), `origin` (`DASHBOARD` for the
-        dashboard prompt) and `startedFrom` (where a new Conversation was started).
+        **Request.** Three optional fields (ChatRequest): `choice` (a press), `origin` (`TYPED` only; `DASHBOARD` is refused since 2026-10-14) and `startedFrom` (where a new Conversation was started).
 
         **Check order** (sad.md §5 "Press handling", critical flow 1, critical flow 3). Every refusal before
         the stream is a JSON `ActionFailure`; nothing is reserved, counted, marked or sent to the model:
@@ -226,16 +225,6 @@ paths:
                     role: user
                     parts: [{ type: text, text: "Acme GmbH" }]
                   choice: { offerId: "clx0offer000000000000001", optionId: 1 }
-              dashboardPrompt:
-                summary: The dashboard prompt, first message of a new Conversation (AC-29)
-                value:
-                  conversationId: null
-                  message:
-                    id: "msg_client_04"
-                    role: user
-                    parts: [{ type: text, text: "who owes me money?" }]
-                  origin: DASHBOARD
-                  startedFrom: DASHBOARD_PROMPT
               createWithAiFromDashboard:
                 summary: First typed message after the dashboard's "Create invoice with AI" (AC-30)
                 value:
@@ -400,7 +389,8 @@ components:
         - `choice` and `origin` are never sent together (`PRESSED` is set by the server from a valid choice only);
         - `origin` and `startedFrom` are accepted only with `conversationId = null` (a Conversation's first
           message; the start point never changes);
-        - `origin = DASHBOARD` ⇔ `startedFrom = DASHBOARD_PROMPT`.
+        - `origin = DASHBOARD` and `startedFrom = DASHBOARD_PROMPT` are refused (400 VALIDATION on `origin` / `startedFrom`):
+          the dashboard AI block was removed on 2026-10-14; both values are history-only (stored, never accepted on a request).
         Absent `origin` → `TYPED` (or `PRESSED` with a valid `choice`); absent `startedFrom` on a new
         Conversation → `AI_SECTION`.
       type: object
@@ -415,7 +405,7 @@ components:
           description: Parent shape. With `choice`, the text should be the pressed label (shown optimistically) and is ignored by the server, which saves the stored label. For a `form` request the text is not bounded to 1..2000 (the server ignores it and composes the saved text); it is capped at 8000 characters only (T74).
         form: { $ref: "#/components/schemas/ChatForm" }
         origin: { $ref: "#/components/schemas/RequestMessageOrigin" }
-        startedFrom: { $ref: "#/components/schemas/ConversationStartPoint" }
+        startedFrom: { $ref: "#/components/schemas/RequestConversationStartPoint" }
     ChatChoice:
       deprecated: true
       x-removed: "2026-10-13 (ADR-0011): replaced by ChatForm; a request carrying `choice` is a 400 VALIDATION (unknown key, strict schema)."
@@ -432,15 +422,19 @@ components:
       minimum: 0
       maximum: 7
     RequestMessageOrigin:
-      description: The origins a client may ask for. `PRESSED` is never accepted from the client. `DASHBOARD` is deprecated (2026-10-14, dashboard AI block removed by the owner) - no client writes it any more; it stays accepted and readable for history.
+      description: The origins a client may ask for. `PRESSED` is never accepted from the client. `DASHBOARD` is history-only (stored, never accepted on a request since 2026-10-14, dashboard AI block removed by the owner); it stays in MessageOrigin for history.
       type: string
-      enum: [TYPED, DASHBOARD]
+      enum: [TYPED]
     MessageOrigin:
       description: data-model `MessageOrigin` — `ConversationMessage.origin` on USER messages; null on ASSISTANT messages.
       type: string
       enum: [TYPED, PRESSED, DASHBOARD, FORM]  # FORM added 2026-10-13; PRESSED no longer written
+    RequestConversationStartPoint:
+      description: The start points a client may ask for. `DASHBOARD_PROMPT` is history-only (stored, never accepted on a request since 2026-10-14).
+      type: string
+      enum: [AI_SECTION, INVOICE_LIST, DASHBOARD_CREATE]
     ConversationStartPoint:
-      description: data-model `ConversationStartPoint` — `Conversation.startedFrom`, set with the first message, never changed.
+      description: data-model `ConversationStartPoint` — `Conversation.startedFrom`, set with the first message, never changed. `DASHBOARD_PROMPT` is history-only (stored, never accepted on a request since 2026-10-14).
       type: string
       enum: [AI_SECTION, INVOICE_LIST, DASHBOARD_PROMPT, DASHBOARD_CREATE]
 

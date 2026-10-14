@@ -463,8 +463,8 @@ test.describe('AC-05 route sweep — every built non-public route denies a cooki
         data: {
           conversationId: null,
           message: { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'who owes me money?' }] },
-          origin: 'DASHBOARD',
-          startedFrom: 'DASHBOARD_PROMPT',
+          origin: 'TYPED',
+          startedFrom: 'AI_SECTION',
         },
       });
       expect(chat.status()).toBe(401);

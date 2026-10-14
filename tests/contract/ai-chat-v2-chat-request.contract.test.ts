@@ -32,7 +32,7 @@ const base = (extra: Record<string, unknown> = {}, conversationId: string | null
 const CHOICE = { offerId: 'clx0offer000000000000001', optionId: 1 };
 
 describe('sendChatMessage request examples (openapi)', () => {
-  it.each(['form', 'dashboardPrompt', 'createWithAiFromDashboard'])('AC-08 / AC-29: the %s example validates against ChatRequest and parses with chatRequestSchema', async (name) => {
+  it.each(['form', 'createWithAiFromDashboard'])('AC-08 / AC-29: the %s example validates against ChatRequest and parses with chatRequestSchema', async (name) => {
     const op = await operation();
     const example = op.requestBody.content['application/json'].examples[name].value;
     const validate = validatorFor(op.requestBody.content['application/json'].schema);
@@ -41,6 +41,11 @@ describe('sendChatMessage request examples (openapi)', () => {
     const parsed = chatRequestSchema.safeParse(example);
     expect(parsed.success, JSON.stringify(parsed.success ? null : parsed.error.issues)).toBe(true);
     if (parsed.success) expect(parsed.data).toEqual(example);
+  });
+
+  it('T85 / AC-29: the removed `dashboardPrompt` request example is gone from the contract', async () => {
+    const op = await operation();
+    expect(op.requestBody.content['application/json'].examples.dashboardPrompt).toBeUndefined();
   });
 
   it('AC-12b: the removed `press` example (a `choice`) is refused by the contract ChatRequest (unknown key)', async () => {
@@ -162,7 +167,7 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
   });
 
   it('a choice together with an origin is refused as an unknown key', () => {
-    refusedAsUnknownChoice(base({ choice: CHOICE, origin: 'DASHBOARD' }, null));
+    refusedAsUnknownChoice(base({ choice: CHOICE, origin: 'TYPED' }, null));
   });
 
   it.each([
@@ -192,12 +197,21 @@ describe('chatRequestSchema: field combinations (ChatRequest)', () => {
     expect(fieldsOf(base({ origin: 'TYPED' })).origin).toBeDefined();
   });
 
-  it('AC-29: origin DASHBOARD needs startedFrom DASHBOARD_PROMPT, and the other way round', () => {
-    expect(fieldsOf(base({ origin: 'DASHBOARD' }, null)).origin ?? fieldsOf(base({ origin: 'DASHBOARD' }, null)).startedFrom).toBeDefined();
-    expect(fieldsOf(base({ origin: 'DASHBOARD', startedFrom: 'AI_SECTION' }, null))).not.toEqual({});
-    expect(fieldsOf(base({ startedFrom: 'DASHBOARD_PROMPT' }, null))).not.toEqual({});
-    expect(fieldsOf(base({ origin: 'TYPED', startedFrom: 'DASHBOARD_PROMPT' }, null))).not.toEqual({});
-    expect(chatRequestSchema.safeParse(base({ origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }, null)).success).toBe(true);
+  it('T85 / AC-29: a new Conversation with origin DASHBOARD + startedFrom DASHBOARD_PROMPT is refused, each field named', () => {
+    const fields = fieldsOf(base({ origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }, null));
+    expect(fields.origin).toBeDefined();
+    expect(fields.startedFrom).toBeDefined();
+    expect(chatRequestSchema.safeParse(base({ origin: 'DASHBOARD', startedFrom: 'DASHBOARD_PROMPT' }, null)).success).toBe(false);
+  });
+
+  it('T85 / AC-29: origin DASHBOARD alone is refused on origin', () => {
+    expect(fieldsOf(base({ origin: 'DASHBOARD' }, null)).origin).toBeDefined();
+    expect(fieldsOf(base({ origin: 'DASHBOARD', startedFrom: 'AI_SECTION' }, null)).origin).toBeDefined();
+  });
+
+  it('T85 / AC-29: startedFrom DASHBOARD_PROMPT alone is refused on startedFrom', () => {
+    expect(fieldsOf(base({ startedFrom: 'DASHBOARD_PROMPT' }, null)).startedFrom).toBeDefined();
+    expect(fieldsOf(base({ origin: 'TYPED', startedFrom: 'DASHBOARD_PROMPT' }, null)).startedFrom).toBeDefined();
   });
 
   it('accepts every start point on a new Conversation, and TYPED as an origin', () => {

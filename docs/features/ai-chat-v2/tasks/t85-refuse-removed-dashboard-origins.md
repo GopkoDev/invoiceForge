@@ -9,7 +9,7 @@ files_hint: ["lib/validations/assistant-chat.ts", "app/api/chat/route.ts", "test
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T85 — Refuse the removed dashboard prompt origins on a chat request; keep them readable for history (consistency C5)
