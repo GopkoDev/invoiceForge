@@ -23,9 +23,6 @@ importers:
       '@ai-sdk/gateway':
         specifier: 4.0.110
         version: 4.0.110(zod@3.25.76)
-      '@ai-sdk/google':
-        specifier: 4.0.93
-        version: 4.0.93(zod@3.25.76)
       '@ai-sdk/react':
         specifier: 4.0.140
         version: 4.0.140(react@19.2.3)(zod@3.25.76)
@@ -314,12 +311,6 @@ packages:
 
   '@ai-sdk/gateway@4.0.110':
     resolution: {integrity: sha512-5IwnOR6v7KC+D9eddUqsCobXl/FbLUVb2LaQc/uyuQdpP3/n9s0YLc9zl4/W3IS/R2pjHrqUfCzEAeOu7bFLoQ==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/google@4.0.93':
-    resolution: {integrity: sha512-hubOUxbG2W7oD3acdCxxnrQ84NlnLqfzcHe9uWMmwkglHxq/rwsbjloPhvebeQlcQ2G0gaX+akDF1Ddm/fNAnQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -8554,12 +8545,6 @@ snapshots:
       '@ai-sdk/provider': 4.0.26
       '@ai-sdk/provider-utils': 5.0.58(zod@3.25.76)
       '@vercel/oidc': 3.2.0
-      zod: 3.25.76
-
-  '@ai-sdk/google@4.0.93(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.26
-      '@ai-sdk/provider-utils': 5.0.58(zod@3.25.76)
       zod: 3.25.76
 
   '@ai-sdk/mcp@2.0.73(zod@3.25.76)':

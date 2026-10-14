@@ -1,7 +1,7 @@
 import { gateway } from '@ai-sdk/gateway';
 
-// ADR-0003: a Gemini Flash-Lite model through the Vercel AI Gateway. The id is a setting, not a constant.
-export const DEFAULT_CHAT_MODEL = 'google/gemini-2.5-flash-lite';
+// ADR-0003 (default revised 2026-10-14): Claude Haiku 5.5 through the Vercel AI Gateway. The id is a setting, not a constant.
+export const DEFAULT_CHAT_MODEL = 'anthropic/claude-haiku-5.5';
 
 // T35: the scripted stub is selected only by the e2e harness, which sets both values; read at call time.
 // Loaded lazily so `ai/test` is never loaded unless this branch runs.

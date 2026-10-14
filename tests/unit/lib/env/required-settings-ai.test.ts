@@ -1,5 +1,5 @@
 // ai-assistant T04 - the AI settings and the pinned AI packages (sad.md §2, §7; ADR-0003).
-// The build fails naming a missing AI key; AI_CHAT_MODEL is optional with a Flash-Lite default.
+// The build fails naming the missing AI Gateway key; AI_CHAT_MODEL is optional with a Claude Haiku 5.5 default.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,17 +17,15 @@ function fullEnv(): Record<string, string> {
 }
 
 describe('AI settings', () => {
-  it('requires AI_GATEWAY_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY', () => {
+  it('requires AI_GATEWAY_API_KEY and no Google key', () => {
     expect(REQUIRED_SETTINGS).toContain('AI_GATEWAY_API_KEY');
-    expect(REQUIRED_SETTINGS).toContain('GOOGLE_GENERATIVE_AI_API_KEY');
+    expect(REQUIRED_SETTINGS).not.toContain('GOOGLE_GENERATIVE_AI_API_KEY');
   });
 
-  it('names each AI key when it is missing', () => {
-    for (const name of ['AI_GATEWAY_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY']) {
-      const env = fullEnv();
-      delete env[name];
-      expect(missingSettings(env)).toEqual([name]);
-    }
+  it('names the AI key when it is missing', () => {
+    const env = fullEnv();
+    delete env.AI_GATEWAY_API_KEY;
+    expect(missingSettings(env)).toEqual(['AI_GATEWAY_API_KEY']);
   });
 
   it('treats AI_CHAT_MODEL as optional, never required', () => {
@@ -36,10 +34,9 @@ describe('AI settings', () => {
     expect(missingSettings(fullEnv())).toEqual([]);
   });
 
-  it('fails the build check naming both AI keys when they are unset', () => {
+  it('fails the build check naming the AI key when it is unset', () => {
     const env = fullEnv();
     delete env.AI_GATEWAY_API_KEY;
-    delete env.GOOGLE_GENERATIVE_AI_API_KEY;
     const res = spawnSync('node', ['scripts/check-required-settings.ts'], {
       cwd: root,
       env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '', ...env },
@@ -47,7 +44,6 @@ describe('AI settings', () => {
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('AI_GATEWAY_API_KEY');
-    expect(res.stderr).toContain('GOOGLE_GENERATIVE_AI_API_KEY');
   });
 });
 
@@ -55,17 +51,16 @@ describe('getChatModel', () => {
   const saved = { ...process.env };
   beforeEach(() => {
     process.env.AI_GATEWAY_API_KEY = 'test-gateway-key';
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test-google-key';
   });
   afterEach(() => {
     process.env = { ...saved };
   });
 
-  it('defaults to a Gemini Flash-Lite model when AI_CHAT_MODEL is unset', async () => {
+  it('defaults to Claude Haiku 5.5 when AI_CHAT_MODEL is unset', async () => {
     delete process.env.AI_CHAT_MODEL;
     const { getChatModel } = await import('@/lib/ai/model');
     const model = (await getChatModel()) as { modelId: string };
-    expect(model.modelId).toMatch(/gemini.*flash-lite/i);
+    expect(model.modelId).toBe('anthropic/claude-haiku-5.5');
   });
 
   it('resolves the model id from AI_CHAT_MODEL when set', async () => {
@@ -109,7 +104,7 @@ describe('pinned AI packages (sad.md §2, §11 risk 4)', () => {
   };
   const EXACT = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
 
-  it.each(['ai', '@ai-sdk/gateway', '@ai-sdk/google', '@ai-sdk/react', '@mastra/core', '@mastra/pg'])(
+  it.each(['ai', '@ai-sdk/gateway', '@ai-sdk/react', '@mastra/core', '@mastra/pg'])(
     '%s is an exact version, no range',
     (name) => {
       expect(pkg.dependencies[name], `${name} missing from dependencies`).toMatch(EXACT);
