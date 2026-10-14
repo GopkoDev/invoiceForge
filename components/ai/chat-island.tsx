@@ -766,6 +766,14 @@ function ChatSession({
     dock.style.transform = '';
   }, [started, composerMove]);
 
+  // ai-chat-v2 T84: focus must not stay on a control inside the hidden question dock.
+  const questionDockRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = questionDockRef.current;
+    const active = document.activeElement;
+    if (el?.hidden && active instanceof HTMLElement && el.contains(active)) active.blur();
+  });
+
   if (conversationId === null && !started) {
     return (
       <div
@@ -939,12 +947,17 @@ function ChatSession({
       >
         <div className="mx-auto w-full max-w-3xl px-4 pb-4">
           {showDock ? (
-            <div data-slot="question-dock" className="pb-2">
+            <div
+              ref={questionDockRef}
+              data-slot="question-dock"
+              className="pb-2"
+              hidden={sentFormId === dockFormId}
+            >
               <QuestionForm
                 key={`${dockFormId}:${formEpoch}`}
                 form={dockForm}
                 isLatest={latestReplyId !== null}
-                pending={sentFormId === dockFormId}
+                pending={false}
                 onSend={sendForm}
                 onClose={() =>
                   setClosedForms((prev) => ({ ...prev, [dockFormId]: true }))

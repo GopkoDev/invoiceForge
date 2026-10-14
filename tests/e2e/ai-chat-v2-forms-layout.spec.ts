@@ -306,6 +306,18 @@ test('AC-40: two of three questions answered, a typed message sent instead: the 
     await expect(page.locator('[data-slot="question-form"]')).toHaveCount(0);
     await expect(questionForm(page)).toHaveCount(0);
     await expect(allowanceText(page)).toHaveText('29 of 30 messages left today');
+    // save-turn closes the OPEN offer in the same transaction that writes the messages: wait for the saved turn
+    await expect
+      .poll(
+        () =>
+          withDb((prisma) =>
+            prisma.choiceOffer
+              .findFirstOrThrow({ where: { conversationId: id } })
+              .then((r) => r.state)
+          ),
+        { timeout: 15_000 }
+      )
+      .toBe('CLOSED');
     await withDb(async (prisma) => {
       const row = await prisma.choiceOffer.findFirstOrThrow({
         where: { conversationId: id },

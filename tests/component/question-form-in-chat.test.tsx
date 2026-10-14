@@ -260,7 +260,7 @@ describe('ChatIsland - question dock (AC-55, AC-56)', () => {
 });
 
 describe('ChatIsland - after a send (AC-55, AC-08)', () => {
-  it('while the request is in flight: the composed lines show as the Freelancer message; the dock shows the picks, disabled, "Sending…"', async () => {
+  it('while the request is in flight: the composed lines show as the Freelancer message; the dock is hidden (no radios, no "Sending…")', async () => {
     const stream = openStream();
     fetchMock.mockResolvedValueOnce(stream.response);
     island();
@@ -270,11 +270,10 @@ describe('ChatIsland - after a send (AC-55, AC-08)', () => {
     const bubble = document.querySelector('[data-role="user"]:last-of-type') as HTMLElement;
     expect(bubble.textContent).toContain('Which Customer is this invoice for? — Acme GmbH');
     expect(bubble.textContent).toContain('Which bank account should the invoice use? — Wise');
-    const form = within(questionDock()!);
-    expect(form.getByText('Sending…')).toBeInTheDocument();
-    expect(questionDock()!.querySelector('[aria-busy="true"]')).not.toBeNull();
-    for (const r of form.getAllByRole('radio')) expect(r).toBeDisabled();
-    expect(within(dock()).getByRole('button', { name: 'Send' })).toBeDisabled();
+    const q = questionDock();
+    if (q) expect(q).not.toBeVisible();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(screen.queryByText('Sending…')).toBeNull();
     stream.end();
   });
 
@@ -525,26 +524,22 @@ describe('ChatIsland - refused form sends', () => {
   });
 });
 
-describe('ChatIsland - close while sending (R2, T82)', () => {
-  it('the × is disabled while the answers are in flight', async () => {
-    const stream = openStream();
-    fetchMock.mockResolvedValueOnce(stream.response);
-    island();
-    const user = userEvent.setup();
-    await answerBoth(user);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(within(questionDock()!).getByRole('button', { name: 'Close questions' })).toBeDisabled();
-    stream.end();
-  });
-
-  it('a 400 with form.answers.* errors after a send shows the dock with the error, even if × was clicked in flight', async () => {
+describe('ChatIsland - hidden while sending (R2, T82; AC-55)', () => {
+  const inFlight = async () => {
     let resolve!: (r: Response) => void;
     fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)));
     island();
     const user = userEvent.setup();
     await answerBoth(user);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await user.click(within(questionDock()!).getByRole('button', { name: 'Close questions' }));
+    const q = questionDock();
+    if (q) expect(q).not.toBeVisible();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    return { resolve, user };
+  };
+
+  it('a 400 with form.answers.* errors brings the dock back with the error and the picks intact', async () => {
+    const { resolve } = await inFlight();
     await act(async () => {
       resolve(
         json(400, {
@@ -556,20 +551,54 @@ describe('ChatIsland - close while sending (R2, T82)', () => {
       );
     });
     expect(await within(questionDock()!).findByText('That option is not on this form.')).toBeTruthy();
+    expect(questionDock()).toBeVisible();
+    // the form jumps to the first errored question (the Customer one); its pick is kept
+    expect(radio(/Acme GmbH/)).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('a 409 for the form shows the dock again with the server sentence, even if × was clicked in flight', async () => {
-    let resolve!: (r: Response) => void;
-    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)));
+  it('a 409 for the form brings the dock back with the server sentence and radios', async () => {
+    const { resolve } = await inFlight();
+    await act(async () => resolve(unavailable()));
+    await screen.findByText(UNAVAILABLE);
+    expect(questionDock()).toBeVisible();
+    expect(within(questionDock()!).getAllByRole('radio').length).toBeGreaterThan(0);
+  });
+
+  it('a network failure brings the dock back answerable with the picks kept', async () => {
+    let reject!: (e: Error) => void;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((_, r) => (reject = r)));
     island();
     const user = userEvent.setup();
     await answerBoth(user);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await user.click(within(questionDock()!).getByRole('button', { name: 'Close questions' }));
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    await act(async () => reject(new TypeError('Failed to fetch')));
+    await waitFor(() => expect(screen.queryAllByRole('radio').length).toBeGreaterThan(0));
+    expect(questionDock()).toBeVisible();
+    expect(radio(/Wise/)).toHaveAttribute('aria-checked', 'true');
+    expect(radio(/Wise/)).not.toBeDisabled();
+  });
+
+  it('focus: in flight it is not inside the dock; after the reply it is on the Message textbox', async () => {
+    loadConversationCards.mockResolvedValue({ success: true, data: { cards: {}, invoiceLinks: {}, forms: { f1: sentForm() } } });
+    const stream = openStream();
+    fetchMock.mockResolvedValueOnce(stream.response);
+    island();
+    const user = userEvent.setup();
+    await answerBoth(user);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const q = questionDock();
+    if (q) expect(q.contains(document.activeElement)).toBe(false);
+    await act(async () => stream.end());
+    await waitFor(() => expect(questionDock()).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })));
+  });
+
+  it('focus: after a failed send it is on the Message textbox, not in the hidden dock', async () => {
+    const { resolve } = await inFlight();
     await act(async () => resolve(unavailable()));
     await screen.findByText(UNAVAILABLE);
-    expect(questionDock()).not.toBeNull();
-    expect(within(questionDock()!).getAllByRole('radio').length).toBeGreaterThan(0);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })));
   });
 });
 

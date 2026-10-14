@@ -626,6 +626,9 @@ The owner tested the built chat locally on 2026-10-13 (screenshots [`ref/feedbac
 **When** the Freelancer answers it
 **Then** the form sits directly above the message box (the reply text stays in the message stream) and shows one question at a time: the question on the left of its header and, on the right, a pager "‹ 1 of 4 ›" and a close ×; the options are numbered rows (number, label, muted second line), the focused row is highlighted with an → arrow, arrow keys move between rows, Enter or a number key 1–9 picks; a last row "Something else" with a pencil turns into an inline input; optional questions have Skip; picking an answer moves to the next question and the pager keeps earlier picks; answering the last question sends all answers as one message (one counted message, as AC-11); × closes the form without sending, and typing in the message box instead stays allowed (AC-40); a sent or closed form shows in the history only as the compact answer message
 
+<!-- added-by-fix: 2026-10-14 -->
+*Amended 2026-10-14 (fix `hide-answered-form-while-sending`): once the last answer sends the form, the form is hidden at once while the reply is thinking and streaming (only the answer message shows in the stream); if the send fails (per-question 400, 409 refused, network or could-not-complete) the form comes back with its answers kept and the error shown. Focus moves to the message box when the reply ends or the send fails. A message typed in the box instead works as before (AC-40).*
+
 ### AC-56 (US-03) — happy path
 <!-- added-by-fix: 2026-10-14 -->
 
