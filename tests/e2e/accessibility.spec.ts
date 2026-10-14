@@ -205,10 +205,10 @@ test.describe('AC-11: no serious or critical accessibility violations', () => {
     }
   });
 
-  // ai-chat-v2 T31 (spec §6 NFR "Accessibility"): the AI section empty and with Offered choices, the preview panel
-  // with the issue confirmation open, at desktop and phone width, and the dashboard AI block.
+  // ai-chat-v2 T31 (spec §6 NFR "Accessibility"): the AI section empty and with the Question form, the preview panel
+  // with the issue confirmation open, at desktop and phone width.
   for (const vp of VIEWPORTS) {
-    test(`ai-chat-v2: the AI section, Offered choices, the preview with its dialog, and the dashboard AI block at ${vp.name}`, async ({
+    test(`ai-chat-v2: the AI section, the Question form, and the preview with its dialog at ${vp.name}`, async ({
       browser,
     }, testInfo) => {
       testInfo.setTimeout(240_000);

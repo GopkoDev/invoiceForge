@@ -48,7 +48,7 @@ function toAnswer(questionId: number, pick: Pick): FormAnswer {
 const rowBase =
   'group/row flex min-h-12 w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-ring/40 focus-visible:ring-1 focus-visible:ring-inset aria-checked:bg-muted disabled:cursor-default';
 const badgeClass =
-  'bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md text-xs tabular-nums';
+  'bg-muted text-foreground/70 flex size-7 shrink-0 items-center justify-center rounded-md text-xs tabular-nums';
 
 /**
  * ai-chat-v2 T79 (AC-55, AC-56; screens.md SCR-04 "Superseded in layout 2026-10-14"): the Question form, docked above
@@ -368,7 +368,7 @@ export function QuestionForm({
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="text-sm break-words">{option.label}</span>
                       {option.detail ? (
-                        <span className="text-muted-foreground text-xs break-words">{option.detail}</span>
+                        <span className="text-foreground/70 text-xs break-words">{option.detail}</span>
                       ) : null}
                     </span>
                     <ArrowRightIcon
@@ -398,7 +398,7 @@ export function QuestionForm({
                     <span className={badgeClass}>
                       <PencilIcon className="size-3.5" aria-hidden />
                     </span>
-                    <span className="text-muted-foreground min-w-0 flex-1 text-sm">{t.other}</span>
+                    <span className="text-foreground/75 min-w-0 flex-1 text-sm">{t.other}</span>
                   </button>
                 ) : (
                   <span className="flex-1" />
