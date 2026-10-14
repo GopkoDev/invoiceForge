@@ -112,16 +112,16 @@ The review fixes of rounds 1–13 are separate commits, listed by round in the r
 
 ## Verification
 
-The gate below ran at 044dd83, after review round 22. HEAD (db5d064) adds only a docs commit to the review record, and the ship commit adds only docs, so the gate stands for this PR. All runs are on macOS with Docker.
+The gate below ran at 0268b7bf (after the 2026-10-14 consistency pass, T85–T89); the later commits only retake one Linux baseline. All runs are on macOS with Docker.
 
 | Gate | Result |
 |---|---|
-| Unit (`vitest.config.ts`) | 298 files, **3311 passed**, 0 failed |
-| Integration (testcontainers Postgres, full suite) | 155 files, **1612 passed / 61 skipped / 0 failed** |
+| Unit (`vitest.config.ts`) | 299 files, **3317 passed**, 0 failed |
+| Integration (testcontainers Postgres, full suite) | 156 files, **1617 passed / 61 skipped / 0 failed** |
 | Lint | 0 errors (4 warnings, in files outside this feature) |
 | Typecheck (`tsc --noEmit`) | clean |
-| E2E, full suite (local production build, `CI=1 pnpm test:e2e`, caffeinate) | **160 passed / 7 skipped / 0 failed**. The skips are the Linux-only screenshot tests and the opt-in PDF timing run |
-| Linux baselines (Chromium of `mcr.microsoft.com/playwright:v1.63.0-noble`, `PW_SNAPSHOT_PLATFORM=linux`) | all 6 screenshot tests match the committed PNGs (AI and editor layouts); no retake |
+| E2E, full suite (local production build, `CI=1 pnpm test:e2e`, caffeinate) | **159 passed / 7 skipped / 0 failed**. The skips are the Linux-only screenshot tests and the opt-in PDF timing run |
+| Linux baselines (Chromium of `mcr.microsoft.com/playwright:v1.63.0-noble`, `PW_SNAPSHOT_PLATFORM=linux`) | the 5 visual specs pass (29 tests); `ai-v2-question-form-sent` retaken on purpose (T88 removed the empty gap under a reply with a form) |
 
 **The feature ran for real.** The e2e suite runs the app as a production build against a throwaway Postgres with all migrations, with real HTTP and a real Chromium, and with the scripted stub model in place of Gemini. The dev database was not touched. The checks of the revision that it observed:
 - **AC-08b:** a form held a Customer question and a bank-account question, and Send stayed disabled until both had an answer. One Send gave the card and took exactly one message from the allowance.
