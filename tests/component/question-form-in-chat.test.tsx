@@ -359,6 +359,54 @@ describe('ChatIsland - after a send (AC-55, AC-08)', () => {
   });
 });
 
+describe('ChatIsland - a failed load of a new form (T87; AC-55)', () => {
+  const COULD_NOT_LOAD = "Couldn't load the question.";
+  const newFormReply = () =>
+    sse([
+      { type: 'start', messageId: 'srv1' },
+      { type: 'text-start', id: 't1' },
+      { type: 'text-delta', id: 't1', delta: 'Which account?' },
+      { type: 'text-end', id: 't1' },
+      { type: 'data-offer', id: 'f9', data: { offerId: 'f9' } },
+      { type: 'data-conversation', data: { conversationId: 'cNew', title: 'Draft' } },
+      { type: 'data-outcome', data: { outcome: 'ANSWERED', counted: true } },
+      { type: 'finish' },
+    ]);
+  const loaded = { success: true, data: { cards: {}, invoiceLinks: {}, forms: { f9: form({ formId: 'f9', questions: [bankQ()] }) } } };
+
+  async function sendAndFail(failure: () => void) {
+    mockPathname = '/ai';
+    failure();
+    loadConversationCards.mockResolvedValueOnce(loaded);
+    fetchMock.mockResolvedValueOnce(newFormReply());
+    render(<ChatIsland conversationId={null} initialMessages={[]} invoiceLinks={{}} cards={{}} allowance={allowance} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'invoice Acme GmbH');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('Which account?');
+    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledTimes(1));
+    return user;
+  }
+
+  it.each([
+    ['rejects', () => loadConversationCards.mockReset().mockRejectedValueOnce(new Error('boom'))],
+    ['returns success:false', () => loadConversationCards.mockReset().mockResolvedValueOnce({ success: false, error: 'nope' })],
+  ])('when the load %s: the dock shows the error with Try again (no endless skeleton), the composer stays enabled, Try again loads the form', async (_n, failure) => {
+    const user = await sendAndFail(failure);
+    const alert = await within(questionDock()!).findByRole('alert');
+    expect(alert).toHaveTextContent(COULD_NOT_LOAD);
+    expect(questionDock()!.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+    await user.click(within(questionDock()!).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(loadConversationCards).toHaveBeenCalledTimes(2));
+    expect(loadConversationCards).toHaveBeenLastCalledWith('cNew');
+    expect(await within(questionDock()!).findByRole('radio', { name: /Wise/ })).toBeInTheDocument();
+    expect(within(questionDock()!).queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+  });
+});
+
 describe('ChatIsland - a newer message closes the form (AC-12, AC-40, F8)', () => {
   it('a typed message while the form is half filled is sent without the form; the dock goes and the picks are not saved', async () => {
     const stream = openStream();

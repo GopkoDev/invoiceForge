@@ -9,7 +9,7 @@ files_hint: ["components/ai/chat-island.tsx", "tests/component/question-form-in-
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T87 — A failed load of a new form's labels shows an error with Try again instead of an endless skeleton (consistency C16)

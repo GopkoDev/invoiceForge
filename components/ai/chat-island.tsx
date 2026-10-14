@@ -12,12 +12,7 @@ import {
 import { AlertCircleIcon, InfoIcon, RotateCcwIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   Conversation,
@@ -48,7 +43,7 @@ import { QuestionForm } from '@/components/ai/question-form';
 import { StartPanel } from '@/components/ai/start-panel';
 import { useFollowLatest } from '@/components/ai-elements/use-follow-latest';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { replaceAddress } from '@/components/ai/preview-address';
 import { protectedRoutes } from '@/config/routes.config';
@@ -235,9 +230,7 @@ function createLiveSession(
           // openapi ChatRequest: a form carries its answers and never an origin or a start point.
           ...(form ? { form } : {}),
           // openapi ChatRequest: the start point goes with a new Conversation's first message only.
-          ...(!form &&
-          savedId === null &&
-          startedFrom !== 'AI_SECTION'
+          ...(!form && savedId === null && startedFrom !== 'AI_SECTION'
             ? { startedFrom }
             : {}),
         },
@@ -480,6 +473,18 @@ function ChatSession({
     ? { ...initialInvoiceLinks, ...loaded.invoiceLinks }
     : initialInvoiceLinks;
   const forms = loaded ? { ...initialForms, ...loaded.forms } : initialForms;
+  // The Conversation whose cards read failed: the dock offers Try again instead of waiting for the form (T87).
+  const [loadFailedFor, setLoadFailedFor] = useState<string | null>(null);
+  function loadCards(id: string) {
+    setLoadFailedFor(null);
+    void loadConversationCards(id).then(
+      (result) => {
+        if (result.success) setLoaded(result.data);
+        else setLoadFailedFor(id);
+      },
+      () => setLoadFailedFor(id)
+    );
+  }
   // The 400 field errors of the last form send, by question (`form.answers.<id>`); picks stay in the form.
   const [formErrors, setFormErrors] = useState<{
     formId: string;
@@ -628,12 +633,7 @@ function ChatSession({
       // read on every turn (ADR-0013, T75).
       // A reply taken over mid-stream by a remounted page is the exception: that page's props are stale (R6-U3).
       if (savedId && !(handedOver !== null && conversationId !== null)) {
-        void loadConversationCards(savedId).then(
-          (result) => {
-            if (result.success) setLoaded(result.data);
-          },
-          () => undefined
-        );
+        loadCards(savedId);
         return;
       }
       router.refresh();
@@ -681,12 +681,7 @@ function ChatSession({
     adoptedAt.current = null;
     if (session.title !== null)
       newConversation?.announce({ id, title: session.title });
-    void loadConversationCards(id).then(
-      (result) => {
-        if (result.success) setLoaded(result.data);
-      },
-      () => undefined
-    );
+    loadCards(id);
   }, [session, newConversation]);
 
   const inFlight = status === 'submitted' || status === 'streaming';
@@ -816,8 +811,15 @@ function ChatSession({
     !inFlight && tail?.role === 'assistant' ? tail.id : null;
   const sentFormId = inFlight ? live.getPending()?.form?.formId : undefined;
   // ai-chat-v2 T79 (AC-55): the newest reply's open form is docked above the composer, not shown in the stream.
-  const tailOffer = tail?.role === 'assistant' ? [...tail.parts].reverse().find((p) => p.type === 'data-offer') : undefined;
-  const dockFormId = sentFormId ?? (latestReplyId !== null && tailOffer?.type === 'data-offer' ? tailOffer.data.offerId : null);
+  const tailOffer =
+    tail?.role === 'assistant'
+      ? [...tail.parts].reverse().find((p) => p.type === 'data-offer')
+      : undefined;
+  const dockFormId =
+    sentFormId ??
+    (latestReplyId !== null && tailOffer?.type === 'data-offer'
+      ? tailOffer.data.offerId
+      : null);
   const dockForm = dockFormId !== null ? forms[dockFormId] : undefined;
   const showDock =
     dockFormId !== null &&
@@ -947,21 +949,38 @@ function ChatSession({
               className="pb-2"
               hidden={sentFormId === dockFormId}
             >
-              <QuestionForm
-                key={`${dockFormId}:${formEpoch}`}
-                form={dockForm}
-                isLatest={latestReplyId !== null}
-                onSend={sendForm}
-                onClose={() => {
-                  setClosedForms((prev) => ({ ...prev, [dockFormId]: true }));
-                  messageBoxRef.current?.focus();
-                }}
-                fieldErrors={
-                  formErrors?.formId === dockFormId
-                    ? formErrors.errors
-                    : undefined
-                }
-              />
+              {dockForm === undefined && loadFailedFor !== null ? (
+                <Alert variant="destructive">
+                  <AlertCircleIcon aria-hidden />
+                  <AlertDescription className="flex flex-wrap items-center gap-2">
+                    Couldn&apos;t load the question.
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadCards(loadFailedFor)}
+                    >
+                      Try again
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <QuestionForm
+                  key={`${dockFormId}:${formEpoch}`}
+                  form={dockForm}
+                  isLatest={latestReplyId !== null}
+                  onSend={sendForm}
+                  onClose={() => {
+                    setClosedForms((prev) => ({ ...prev, [dockFormId]: true }));
+                    messageBoxRef.current?.focus();
+                  }}
+                  fieldErrors={
+                    formErrors?.formId === dockFormId
+                      ? formErrors.errors
+                      : undefined
+                  }
+                />
+              )}
             </div>
           ) : null}
           {allowance.left === 0 ? (
