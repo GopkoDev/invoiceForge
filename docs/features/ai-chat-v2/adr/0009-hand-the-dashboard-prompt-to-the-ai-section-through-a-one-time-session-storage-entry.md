@@ -1,17 +1,19 @@
 ---
-status: Accepted
+status: Superseded
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-12"
+updated_at: "2026-10-14"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
 
 # 0009 — Hand the dashboard prompt to the AI section through a one-time session-storage entry
 
-- **Status:** Accepted
+- **Status:** Superseded (2026-10-14)
 - **Date:** 2026-10-12
 - **Deciders:** Dmytro Hopko (owner; decided by the design agent in an autonomous run, open to owner veto)
+
+> **Superseded 2026-10-14:** the dashboard AI block and its prompt handoff were removed by the owner (fix [`_fixes/2026-10-14-question-form-ux.md`](../_fixes/2026-10-14-question-form-ux.md), T80); stored `DASHBOARD` / `DASHBOARD_PROMPT` values stay readable for history, new requests carrying them are refused (T85). The text below is kept as history.
 
 ## Context
 

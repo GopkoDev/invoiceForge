@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
@@ -28,7 +28,7 @@ An Offered choice must be shown again when a Conversation is reopened (spec §1,
 
 1. **A `ChoiceOffer` row per offering reply.** It holds the owner, Conversation, reply message, kind, slot, stored draft request, options JSON, state (`OPEN` / `CHOSEN` / `CLOSED`) and chosen option. A partial unique index allows one `OPEN` offer per Conversation, and the row cascades with the Conversation.
    - A press claims by moving `OPEN` → `CHOSEN`; a non-counted failure releases it `CHOSEN` → `OPEN`.
-   - A newer typed or dashboard message moves `OPEN` → `CLOSED`.
+   - A newer typed message moves `OPEN` → `CLOSED`.
 2. **Inside the reply's JSONB parts**: a `data-offer` part with the options, and the chosen option written back into the part (or onto the pressed user message).
 3. **Extend the `DraftCard` table** with an "offer" state and an options column.
 

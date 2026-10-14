@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ---
 
@@ -42,7 +42,7 @@ Run autonomously (owner unavailable). Every decision is logged in "Decisions" be
 
 The parent files are not edited.
 
-**No `events.md`.** sad.md §6 Flags and §8 *Events* say there is no async flow. The dashboard hand-off is browser-only.
+**No `events.md`.** sad.md §6 Flags and §8 *Events* say there is no async flow.
 
 **Size / route:** L / full (from `.size` / `.route`).
 
@@ -79,8 +79,8 @@ The parent files are not edited.
 | ChatRequest.conversationId, .message | parent contract (unchanged) | high |
 | ChatRequest.choice.offerId | data-model → `ChoiceOffer.id` (cuid); ADR-0003 | high |
 | ChatRequest.choice.optionId 0..7 | data-model → `ChoiceOffer.options[].optionId` (position), `chosenOptionId` INTEGER; spec §1 ≤ 8; D-4 | high |
-| ChatRequest.origin {TYPED, DASHBOARD} | data-model → `MessageOrigin` minus `PRESSED` (server-only); SAD §5; D-2 | high |
-| ChatRequest.startedFrom | data-model → `ConversationStartPoint`; ADR-0005, ADR-0009 | high |
+| ChatRequest.origin {TYPED} | data-model → `MessageOrigin` minus the server-set `PRESSED` / `FORM` and the history-only `DASHBOARD` (T85); SAD §5; D-2 | high |
+| ChatRequest.startedFrom {AI_SECTION, INVOICE_LIST, DASHBOARD_CREATE} | data-model → `ConversationStartPoint` minus the history-only `DASHBOARD_PROMPT` (T85); ADR-0005 | high |
 | combination rules → 400 | SAD §5 "accepted only on a Conversation's first message"; ADR-0003 "a client cannot claim PRESSED"; D-2 | medium (the 400 is the contract's choice) |
 | 409 CONFLICT + ChoiceUnavailableDetails | critical flow 1 alt "offer not found, not latest, not open, option missing, or record gone"; data-model press check and claim "0 rows"; SAD §8 `CHOICE_UNAVAILABLE`; AC-12b, AC-13; D-1 | high |
 | 409 error text | spec §1 "this option is no longer available and asks the Freelancer to choose again or type the request" | high |
@@ -144,12 +144,10 @@ The parent files are not edited.
 | getConversation / loadConversationCards `.offers` | data-model access "Reopen"; flow 7; D-6 | high |
 | ConversationMessageView.origin | data-model `ConversationMessage.origin` (NULL USER row reads TYPED) | high |
 | listConversationSummaries {items, timeZone} | SAD §5 "loads every summary"; flow 8; AC-17 grouping in the Freelancer time zone | high |
-| listLatestConversations(3) | flow 10; AC-30 | high |
 | saveTurn ✎ (startedFrom, userOrigin, assistantMessageId, offer) | data-model `ChoiceOffer.messageId` "service pre-generates the reply's cuid"; Close / Store access patterns; D-7 | high |
 | offerFromIssues / checkChoice / claimOffer / releaseOffer / pinChoice | ADR-0002 table; ADR-0003; data-model access patterns | high |
-| export 2.3 additions | AC-34; flow 11; D-17 | high |
-| address → startedFrom map | ADR-0005, ADR-0009; D-16 | medium |
-| dashboard prompt validation messages | AC-31; the parent's 2,000-character message; "Type a message first." is the contract's proposal | medium |
+| export 2.4 additions (`startedFrom`, `origin`, `offer`, `form` without `heading`) | AC-34; flow 11; D-17 | high |
+| address → startedFrom map | ADR-0005; D-16 | medium |
 
 ## B. Drift findings (4-point checklist)
 
@@ -197,20 +195,18 @@ The parent files are not edited.
 - **ACs → operations:**
   - `sendChatMessage`, with the read questions and draft shapes reached through the agent, covers:
     - US-01 and US-03: AC-01, AC-02, AC-03, AC-04, AC-05, AC-05b, AC-08, AC-08b, AC-09, AC-10, AC-11, AC-12, AC-12b, AC-13, AC-14 and AC-24;
-    - US-10: AC-29, through `origin` and `startedFrom`;
+    - US-10: AC-30, through `startedFrom` (`DASHBOARD_CREATE`);
     - AC-36, through the 401.
   - The MCP tools cover AC-06 and AC-07.
   - `getConversation` / `loadConversationCards` cover AC-12, AC-13 and AC-33 (saved replies whole).
   - `listConversationSummaries` covers AC-17.
   - `loadInvoicePreview` covers AC-20, AC-21 and AC-22.
   - `issueFromPreview` covers AC-23, AC-25, AC-26, AC-26b and AC-27.
-  - `listLatestConversations` + `getAllowanceState` + addresses cover AC-30 and AC-32.
-  - Dashboard validation covers AC-31.
+  - The addresses cover AC-30. AC-29, AC-31 and AC-32 were removed with the dashboard AI block (2026-10-14).
   - The export covers AC-34.
   - **No operation, by design** (layout, motion, static text or navigation; they are owned by `screens` and verified by e2e and page tests): AC-15, AC-16, AC-18, AC-19, AC-28, AC-35. AC-33's streaming pace is the parent stream, unchanged. This matches sad.md §6 coverage, which marks AC-28 and AC-35 non-runtime and AC-15 as a layout rule.
 - **Operations → stories:** every operation maps to a §4 user story and at least one AC. No orphan.
 - **Branches → responses:** every `alt` branch in critical flows 1–3 and flows 4–11 has a response or result variant:
-  - critical flow 3's "empty or over 2,000" and "used up" are client-side states (server-actions.md "Dashboard prompt box");
   - flow 4 and flow 5's "nothing matches" is `rows: []`, total 0;
   - flow 5's "foreign Customer id" is `NOT_FOUND`;
   - flow 11's "deletion fails" is the existing `deleteAccount` failure.
@@ -223,6 +219,7 @@ Result: 1 core ✗ (point 3), resolved in the contract with an upstream OQ, plus
 | Date | Stage | Change | Kind |
 |---|---|---|---|
 | 2026-10-13 | tasks (D-1) → implement T09 | `DraftIssueDelta`: `CUSTOMER_NOT_FOUND` gains optional `ownSenderProfile` (new schema `OwnSenderProfileHint` = `{ senderProfileId, name }`), set when the folded written name equals one of the acting Freelancer's sender profile names. Same for the chat, the Create press and MCP `DRAFT_ISSUES`. Makes AC-05b deterministic instead of model-only (sad.md §6 flag) | additive, compatible |
+| 2026-10-14 | fix 2026-10-14-question-form-ux (T80, T81), consistency pass (T85, T89) | The dashboard AI block and the `?handoff=` address are removed (ADR-0009 Superseded), and `listLatestConversations` with them (D-16, D-18). A chat request refuses `origin: DASHBOARD` and `startedFrom: DASHBOARD_PROMPT` with `400 VALIDATION` on the field (D-2); stored rows stay readable and exported. Export 2.4: each message's `form` carries its questions (`prompt`, options `{optionId, label}`) and answers (a picked option with its `label`), no `heading`; 2.4 never shipped, so no bump (D-17). `FormQuestionView` options gain an optional `detail` | breaking within the unshipped feature |
 
 ## C. Deviations from the api-skill defaults (all inherited from the parent contracts)
 
@@ -281,4 +278,4 @@ Inputs re-read: spec §1 F1–F13 and AC-08–AC-14, AC-34, AC-37–AC-53; data-
 
 **Back-feed.** AC-42–AC-44 and AC-50–AC-53 have no contract surface (browser rendering and layout) — expected, screens own them. AC-45–AC-49 map to the turn's date note, `ask_user`, `search_invoices` delta. No sequence gap.
 
-**Stale (kept, marked):** `ChatChoice` (deprecated, removed), `OfferView` (superseded by `FormView`), the `press` example.
+**Stale (kept, marked):** `ChatChoice` (deprecated, removed), `OfferView` (superseded by `FormView`), the `press` example. Since 2026-10-14 (T85) the `dashboardPrompt` example is gone and the request refuses `origin: DASHBOARD` / `startedFrom: DASHBOARD_PROMPT`; both values stay in `MessageOrigin` / `ConversationStartPoint` so stored rows remain readable and exported for history.

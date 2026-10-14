@@ -2,7 +2,7 @@
 status: Accepted
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ticket: "ai-chat-v2"
 ---
@@ -47,7 +47,7 @@ The AI section was built (T19–T26) from hand-made components in `components/ai
 | `suggestion.tsx` | `Suggestions`, `Suggestion` | `Button` (outline, pill) | Wraps onto lines instead of a horizontal `ScrollArea`. |
 | `loader.tsx` | `Loader` | `Spinner` | Replaces upstream `Shimmer` (needs `motion`). Static under `prefers-reduced-motion`. |
 
-Feature components in `components/ai/` (workspace, list, chat island, offered choices, draft card, preview panel, dashboard block) keep their behaviour and data flow and compose these elements. Domain pieces are not "elements".
+Feature components in `components/ai/` (workspace, list, chat island, Question form, draft card, preview panel) keep their behaviour and data flow and compose these elements. Domain pieces are not "elements".
 
 **Licence.** AI Elements is Apache License 2.0 ("Copyright 2023 Vercel, Inc."; the repository has no NOTICE file). Each ported file starts with a header comment: adapted from Vercel AI Elements (URL, file, commit), Copyright 2023 Vercel, Inc., Apache-2.0, "Modified: rebuilt on @base-ui/react; see ADR-0010". `components/ai-elements/LICENSE` carries the full Apache-2.0 text, and `components/ai-elements/NOTICE` names the source and the changes (Apache-2.0 §4(a)–(b)).
 
@@ -55,7 +55,7 @@ Feature components in `components/ai/` (workspace, list, chat island, offered ch
 
 **Positive**
 - One primitive system and no new runtime dependency. Bundle, CSP and supply chain stay as they are.
-- A reusable chat anatomy (Conversation, Message, PromptInput, Suggestion) that later AI screens and the dashboard block share.
+- A reusable chat anatomy (Conversation, Message, PromptInput, Suggestion) that later AI screens can share.
 - Both behaviour rules (plain-text replies, 48 px follow) are kept by construction, and the existing tests keep guarding them.
 
 **Negative**

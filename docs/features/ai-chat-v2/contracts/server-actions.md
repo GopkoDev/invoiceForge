@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ---
 
@@ -10,12 +10,12 @@ feature_size: "L"
 
 This extends [`ai-assistant/contracts/server-actions.md`](../../ai-assistant/contracts/server-actions.md), which stays in force. Only what ai-chat-v2 adds (★) or changes (✎) is listed; every other action and function keeps its parent contract.
 
-The chat request, the `data-offer` stream part, the read questions and the shared draft-shape changes are in [`openapi.yaml`](./openapi.yaml). Shared shapes (`OfferView`, `ChoiceOfferKind`, `ChoiceOfferState`, `MessageOrigin`, `ConversationStartPoint`, `StoredOfferOption`, `ChoiceUnavailableDetails`) are defined once there; the TypeScript below mirrors them.
+The chat request, the `data-offer` stream part, the read questions and the shared draft-shape changes are in [`openapi.yaml`](./openapi.yaml). Shared shapes (`FormView`, `FormQuestionView`, `FormAnswer`, `ChoiceOfferKind`, `ChoiceOfferState`, `MessageOrigin`, `ConversationStartPoint`, `StoredOfferOption`, `ChoiceUnavailableDetails`) are defined once there; the TypeScript below mirrors them.
 
 Derived from:
 - `data-model.md` (`ChoiceOffer`, `ConversationMessage.origin`, `Conversation.startedFrom`, `Invoice.issuedFromChat`, existing `Invoice.version`);
 - sad.md §5 and §6 (critical flows 1–3, flows 4–11), ADR-0001–ADR-0009;
-- spec §5 AC-08–AC-13, AC-17, AC-20–AC-27, AC-29–AC-34.
+- spec §5 AC-08–AC-13, AC-17, AC-20–AC-27, AC-30, AC-33, AC-34, AC-37–AC-41, AC-54–AC-56.
 
 Field origins are in [`api-sync-report.md`](./api-sync-report.md).
 
@@ -35,31 +35,45 @@ type ActionErrorDetails =
 ## Shared types — `types/assistant/types.ts` ✎
 
 ```ts
-type ChoiceOfferKind = 'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT';
+type ChoiceOfferKind = 'CUSTOMER' | 'SENDER_PROFILE' | 'CURRENCY' | 'BANK_ACCOUNT' | 'PRODUCT' | 'FORM'; // FORM: every row since the revision; the others are legacy rows
 type ChoiceOfferState = 'OPEN' | 'CHOSEN' | 'CLOSED';
-type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD';
-type ConversationStartPoint = 'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE';
+type MessageOrigin = 'TYPED' | 'PRESSED' | 'DASHBOARD' | 'FORM';  // set by the server; PRESSED and DASHBOARD are history only
+type ConversationStartPoint = 'AI_SECTION' | 'INVOICE_LIST' | 'DASHBOARD_PROMPT' | 'DASHBOARD_CREATE'; // DASHBOARD_PROMPT history only
 
-type OfferView = {                               // ★ openapi.yaml OfferView — no record refs, no stored request
-  offerId: string;
-  kind: ChoiceOfferKind;
-  state: ChoiceOfferState;                       // pressable ⇔ OPEN
-  chosenOptionId: number | null;                 // set only with CHOSEN
-  options: Array<{ optionId: number; label: string }>; // 1..8
+type FormQuestionView = {                        // ★ openapi.yaml FormQuestionView — labels only, no record refs
+  questionId: number;
+  field: FormField;
+  lineIndex: number | null;
+  prompt: string | null;                         // the chat's question, or the field's default English question
+  options: Array<{ optionId: number; label: string; detail?: string }>; // 0..8; detail = the server's second line
+  input: FormInput;                              // NONE = options only
+  required: boolean;
+  skippable: boolean;
+  matchCount: number | null;                     // > 8 matches: no options, the count (AC-14)
+};
+
+type FormView = {                                // ★ openapi.yaml FormView — no record refs, no stored request
+  formId: string;
+  state: ChoiceOfferState;                       // answerable ⇔ OPEN and the latest
+  questions: FormQuestionView[];                 // 1..6
+  answers: FormAnswer[] | null;                  // set only with CHOSEN
+  currency?: string | null;                      // the invoice currency the stored request resolved to (T74)
 };
 
 type ConversationMessageView = {                 // ✎
   /* … parent: id, role, parts, createdAt … */
   origin: MessageOrigin | null;                  // ★ USER rows; a NULL USER row reads TYPED; null on ASSISTANT
-  parts: Array</* parent parts */ | { type: 'data-offer'; id: string; data: { offerId: string } }>; // ★
+  parts: Array</* parent parts */ | { type: 'data-offer'; id: string; data: { offerId: string } }>; // ★ resolved to a FormView
 };
 ```
+
+A pre-revision offer row reads as a one-question, options-only `FormView` (data-model 08); the browser renders nothing for it in history and docks it only when it is the latest `OPEN` one.
 
 ## AI section, Conversations — RSC reads, `lib/services/conversations/` ✎
 
 ### `getConversation(actor, id)` ✎ (flow 7; AC-12, AC-13, AC-33)
 
-The result gains `offers: Record<string, OfferView>` keyed by `offerId`: one per `data-offer` part, read owner-scoped by `conversationId` (`ChoiceOffer_conversationId_idx`). Messages gain `origin`. Everything else (cards, invoice links, `NOT_FOUND` wording) is the parent's. Reopening writes and counts nothing.
+The result gains `forms: Record<string, FormView>` keyed by form id (the `data-offer` part's `offerId`): one per `data-offer` part, read owner-scoped by `conversationId` (`ChoiceOffer_conversationId_idx`). Messages gain `origin`. Everything else (cards, invoice links, `NOT_FOUND` wording) is the parent's. Reopening writes and counts nothing. Sent answers are part of the view, but the island renders nothing for a sent, closed or older form: history shows only the Freelancer's answer message. The latest `OPEN` form docks above the composer again, with no picks (AC-13, AC-55).
 
 ### `listConversationSummaries(actor)` ★ — replaces the paged `listConversations(actor, page?)` (flow 8; AC-15, AC-17)
 
@@ -72,17 +86,13 @@ listConversationSummaries(actor): Promise<ActionResult<{ items: ConversationSumm
 - Empty Conversations never exist (a Conversation is created with its first message), so none is listed (AC-18).
 - The `?page=N` links of the first iteration are removed (sad.md §11 accepted debt).
 
-### `listLatestConversations(actor, limit = 3)` ★ (flow 10; AC-30)
-
-> **Removed 2026-10-14** (fix 2026-10-14-question-form-ux, review R8): its only caller, the dashboard AI block, was removed by the owner.
-
-`Promise<ActionResult<ConversationSummary[]>>` — at most 3, newest `lastMessageAt` first (`Conversation_userId_lastMessageAt_idx`). `[]` → the dashboard says there are none yet. Read with the existing `getAllowanceState` for the dashboard AI block (SCR-09); the links stay usable with the allowance used up (AC-32). Writes nothing.
+`listLatestConversations` was removed on 2026-10-14 with its only caller, the dashboard AI block (fix 2026-10-14-question-form-ux, T80, T81).
 
 ## Assistant actions — `lib/actions/assistant-actions.ts` ✎
 
 ### `loadConversationCards(id)` ✎ (AC-12, AC-13)
 
-The result gains `offers: Record<string, OfferView>`, exactly as `getConversation` returns them. The island calls it after each finished reply (parent rule), which is how a freshly streamed `data-offer` gets its labels (ADR-0001 Neutral), and how a press's claimed offer shows as chosen. `NOT_FOUND` as in the parent.
+The result gains `forms: Record<string, FormView>`, exactly as `getConversation` returns them. The island calls it after each finished reply (parent rule), which is how a freshly streamed `data-offer` gets its labels (ADR-0001 Neutral), and how a sent form leaves the dock. `NOT_FOUND` as in the parent. When this call fails for a newly arrived form, the dock shows "Couldn't load the question." with "Try again" (T87) instead of a skeleton.
 
 ### `loadInvoicePreview(cardId: string, conversationId: string)` ★ (critical flow 2; ADR-0006; AC-20, AC-21, AC-22)
 
@@ -171,7 +181,7 @@ saveTurn(actor, input: {
   conversationId: string | null;
   startedFrom?: ConversationStartPoint;          // ★ only when conversationId is null; default AI_SECTION
   userText: string;                              // a press: the stored label, never the client's text
-  userOrigin: MessageOrigin;                     // ★ TYPED | PRESSED | DASHBOARD
+  userOrigin: MessageOrigin;                     // ★ TYPED | FORM (PRESSED and DASHBOARD are no longer written)
   assistantMessageId: string;                    // ★ pre-generated cuid, so the offer can reference the reply
   assistantParts: ConversationMessageView['parts'];
   offer: { kind: ChoiceOfferKind; lineIndex: number | null; request: DraftRequest; options: StoredOfferOption[] } | null; // ★
@@ -185,43 +195,58 @@ One transaction under the Conversation row lock, in this order: create the Conve
 
 session → body (`chatRequestSchema`) → Conversation owner check → `checkChoice` → reserve the slot and `claimOffer` in one transaction (claim `false` → release the slot, 409) → pin + resolve → agent turn → `saveTurn` with `userOrigin = 'PRESSED'`. `COULD_NOT_COMPLETE` / `AI_UNAVAILABLE` → release the slot and `releaseOffer` together.
 
-## Addresses and start points — `app/(protected)/ai/page.tsx` ✎ (ADR-0005, ADR-0009)
+## Addresses and start points — `app/(protected)/ai/page.tsx` ✎ (ADR-0005)
 
 | Address | What the island sends with the first message |
 |---|---|
 | `/ai` (New chat, the "AI chat" navigation item) | `startedFrom` absent → `AI_SECTION` |
 | `/ai?start=draft&from=invoices` (the invoice list's "Create with AI"; the existing `/ai?start=draft` link gains `from=invoices`) | `startedFrom: 'INVOICE_LIST'` |
 | `/ai?start=draft&from=dashboard` (the dashboard's "Create invoice with AI") | `startedFrom: 'DASHBOARD_CREATE'` |
-| `/ai?handoff={id}` (the dashboard prompt; the entry is taken once from `sessionStorage` and `handoff` dropped with `replaceState`) | `origin: 'DASHBOARD'`, `startedFrom: 'DASHBOARD_PROMPT'` |
 | `/ai/{id}` / `/ai/{id}?preview={cardId}` | an existing Conversation; never `origin` / `startedFrom` |
 
-An unknown `from` value, or `start=draft` with no `from`, sends `AI_SECTION` / `INVOICE_LIST` respectively and is never an error. With the allowance used up, the `start=draft` entries show the used-up state with the hand-made editor link (ai-assistant AC-34). A missing or already-taken hand-off entry shows a plain new Conversation; nothing is sent (sad.md §11). Prompt text never appears in an address.
+An unknown `from` value, or `start=draft` with no `from`, sends `AI_SECTION` / `INVOICE_LIST` respectively and is never an error. With the allowance used up, the `start=draft` entries show the used-up state with the hand-made editor link (ai-assistant AC-34).
 
-## Dashboard prompt box — client validation (critical flow 3; AC-31, AC-32)
-
-The prompt box validates with the chat's own message rule (`chatRequestSchema`'s text part: trimmed, 1..2,000 characters) before the hand-off: empty → "Type a message first."; too long → "Messages can be at most 2,000 characters. Shorten it and send again." (the parent's wording). Nothing is stored, sent or created on a refusal. With `left = 0` from `getAllowanceState`, the box shows the used-up state and the hand-made editor link instead of sending.
+A chat request accepts `origin: 'TYPED'` only and `startedFrom` ∈ {`AI_SECTION`, `INVOICE_LIST`, `DASHBOARD_CREATE`}. `origin: 'DASHBOARD'` and `startedFrom: 'DASHBOARD_PROMPT'` are refused `400 VALIDATION` on their field (T85); rows stored with them stay readable and exported for history. The dashboard prompt box and its `?handoff=` address were removed on 2026-10-14 (T80; ADR-0009 Superseded).
 
 ## Data export — `getAccountExport` / `GET /api/user/export` ✎ (flow 11; AC-34)
 
-`exportVersion` goes from `'2.2'` to `'2.3'` (additive only). Revision 2026-10-13 (T61) bumps it to `'2.4'`: each message also carries `form` (null, or `{ state, questions[{questionId, field, lineIndex, prompt, options[{optionId,label}], input, required, skippable}], answers }`), origin may be `FORM`, and a FORM row exports `offer: null`:
+`exportVersion` is `'2.4'` (from the parent's `'2.2'`; additive only). 2.4 never shipped before the question `heading` was dropped, so dropping it needed no further bump. Each message carries its origin, the legacy `offer` and the `form`; a FORM row exports `offer: null`, a legacy offer row exports both:
 
 ```ts
 conversations: Array</* parent */ & {
-  startedFrom: ConversationStartPoint;                                   // ★
+  startedFrom: ConversationStartPoint;                                   // ★ DASHBOARD_PROMPT only on old rows
   messages: Array</* parent */ & {
     origin: MessageOrigin | null;                                        // ★ null on assistant messages
-    offer: {                                                             // ★ the reply's Offered choices, or null
+    offer: {                                                             // ★ a legacy Offered choice, or null
       kind: ChoiceOfferKind;
       options: Array<{ optionId: number; label: string }>;
       state: ChoiceOfferState;
       chosenOptionId: number | null;
       createdAt: string;
     } | null;
+    form: {                                                              // ★ the reply's Question form, or null
+      state: ChoiceOfferState;
+      questions: Array<{
+        questionId: number;
+        field: FormField;
+        lineIndex: number | null;
+        prompt: string | null;                                           // no `heading`
+        options: Array<{ optionId: number; label: string }>;
+        input: FormInput;
+        required: boolean;
+        skippable: boolean;
+      }>;
+      answers: Array<
+        | { questionId: number; optionId: number; label: string }        // the picked option's label
+        | { questionId: number; text: string }                           // typed text (personal data)
+        | { questionId: number; skipped: true }
+      > | null;                                                          // null unless sent (CHOSEN)
+    } | null;
   }>;
 }>;
 ```
 
-- Offers export their labels and the chosen option, not their record references or stored draft request (the request's words are the visible messages already exported).
+- Offers and forms export their labels and answers, not their record references or stored draft request (the request's words are the visible messages already exported).
 - Invoice rows gain `issuedFromChat` automatically (they are read with every column; `assistantKeyId` stays omitted).
 
 ## Account deletion, Conversation deletion, 90-day purge (unchanged signatures; flow 11)
@@ -234,9 +259,8 @@ conversations: Array</* parent */ & {
 
 ## Revision 2026-10-13 (owner feedback; ADR-0011, ADR-0013)
 
-- **Types ✎.** `MessageOrigin` adds `'FORM'` (`PRESSED` is read-only history). `OfferView` is superseded by `FormView` (openapi.yaml `FormView`): `{ formId, state, questions: FormQuestionView[], answers: FormAnswer[] | null, currency?: string | null }` (`currency`: the invoice currency the form's stored request resolved to, null or absent when unknown; T74); a pre-revision offer row reads as a one-question `FormView` (data-model 08). `ConversationMessageView.parts` keeps `{ type: 'data-offer'; data: { offerId } }`, now resolved to a `FormView`.
+- **Types ✎.** `MessageOrigin`, `FormView` and `FormQuestionView` are in *Shared types* above.
 - **Form request text (T74).** For a `form` request `message.parts[0].text` is ignored (the server composes the saved text), so it is not held to 1..2,000 characters: empty and long text are accepted, capped at 8,000 (`too_big` at `message.parts.0.text`). A typed message keeps 1..2,000.
-- **`getConversation(actor, id)` ✎ / `loadConversationCards(id)` ✎** return `forms: Record<string, FormView>` instead of `offers`. Sent answers (typed text included) are part of the view, so a reopened form shows them read-only (AC-12, AC-13).
 - **`ActionErrorDetails` ✎.** `CHOICE_UNAVAILABLE` is unchanged as a kind; its sentence on `/api/chat` becomes "This form is no longer available. Answer the latest questions or type your request." (one sentence for every cause, AC-12b). Typed-answer format errors are `VALIDATION` with `fieldErrors['form.answers.<questionId>']`, the sentence per kind from the screens manifest.
 - **Chat route internals ✎ (`lib/services/assistant-drafts/forms.ts` ★, `form-pin.ts` ★):**
 

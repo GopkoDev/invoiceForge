@@ -2,7 +2,7 @@
 status: Draft
 owner: "Dmytro Hopko"
 reviewers: ["Tech Lead", "Security Lead"]
-updated_at: "2026-10-13"
+updated_at: "2026-10-14"
 feature_size: "L"
 ---
 
@@ -127,7 +127,7 @@ erDiagram
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `origin` | `MessageOrigin` | NULL | `TYPED` / `PRESSED` / `DASHBOARD` on `USER` rows, set by the server: `PRESSED` only from a valid choice (ADR-0003), `DASHBOARD` only from the request's validated `origin` on a Conversation's first message (ADR-0009). NULL on `ASSISTANT` rows. Existing `USER` rows are backfilled to `TYPED` (03); readers also treat a NULL on a `USER` row as `TYPED` (covers rows the previous build writes during the deploy window) |
+| `origin` | `MessageOrigin` | NULL | `TYPED` / `PRESSED` / `DASHBOARD` (and `FORM`, revision 06) on `USER` rows, set by the server: `PRESSED` only from a valid choice (ADR-0003). `DASHBOARD` is no longer written (2026-10-14: the dashboard prompt was removed, T80, and T85 refuses it on a request); it is kept for history, so older rows stay readable and exported. NULL on `ASSISTANT` rows. Existing `USER` rows are backfilled to `TYPED` (03); readers also treat a NULL on a `USER` row as `TYPED` (covers rows the previous build writes during the deploy window) |
 
 **Why nullable, not `NOT NULL DEFAULT 'TYPED'`:** an origin on an Assistant reply has no meaning, and a default would silently label every reply `TYPED` in the export (AC-34). No `CHECK` ties it to `role`, because the repo uses none; the service writes it.
 
@@ -137,9 +137,9 @@ erDiagram
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `startedFrom` | `ConversationStartPoint` | NOT NULL DEFAULT `'AI_SECTION'` | `AI_SECTION` (New chat, the AI chat entry), `INVOICE_LIST` (the existing "Create with AI" on the invoice list), `DASHBOARD_PROMPT` (the dashboard prompt box), `DASHBOARD_CREATE` (the dashboard's "Create invoice with AI"). Set from the request's validated `startedFrom` when the Conversation is created with its first message, never changed. Existing Conversations read `AI_SECTION` (SAD §7 assumption) |
+| `startedFrom` | `ConversationStartPoint` | NOT NULL DEFAULT `'AI_SECTION'` | `AI_SECTION` (New chat, the AI chat entry), `INVOICE_LIST` (the existing "Create with AI" on the invoice list), `DASHBOARD_PROMPT` (the removed dashboard prompt box: no longer written, 2026-10-14, T85 refuses it on a request; kept for history), `DASHBOARD_CREATE` (the dashboard's "Create invoice with AI"). Set from the request's validated `startedFrom` when the Conversation is created with its first message, never changed. Existing Conversations read `AI_SECTION` (SAD §7 assumption) |
 
-**Access patterns:** none new. The full summary list, the dashboard's 3 latest and the 90-day purge keep `Conversation_userId_lastMessageAt_idx` and `Conversation_lastMessageAt_idx`. The dashboard-start KPI is a reporting query.
+**Access patterns:** none new. The full summary list and the 90-day purge keep `Conversation_userId_lastMessageAt_idx` and `Conversation_lastMessageAt_idx`. The dashboard-start KPI is a reporting query.
 
 ### `Invoice` (one new column) (ADR-0007; SAD §6 Critical flow 2, §7 Monitoring)
 
@@ -172,14 +172,14 @@ These land with the promotion of the matching ordinal. `prisma migrate diff --fr
 enum MessageOrigin {
     TYPED // typed into the message box
     PRESSED // an Offered choice was pressed; set by the server only from a valid choice (ADR-0003)
-    DASHBOARD // the dashboard prompt box (ADR-0009)
+    DASHBOARD // the removed dashboard prompt box: no longer written (2026-10-14, T85 refuses it on a request); kept for history
 }
 
 // ai-chat-v2: where a Conversation was started (spec §1, §7). Set with the first message, never changed.
 enum ConversationStartPoint {
     AI_SECTION // New chat or the AI chat entry; also every Conversation saved before ai-chat-v2
     INVOICE_LIST // the existing "Create with AI" on the invoice list
-    DASHBOARD_PROMPT // the dashboard prompt box
+    DASHBOARD_PROMPT // the removed dashboard prompt box: no longer written (2026-10-14, T85 refuses it on a request); kept for history
     DASHBOARD_CREATE // the dashboard's "Create invoice with AI"
 }
 
@@ -296,7 +296,7 @@ erDiagram
 |---|---|---|---|
 | `kind` | `ChoiceOfferKind` | NOT NULL | **adds `FORM`**: every row written after the revision. Legacy kinds stay on pre-revision rows and name their single question's field |
 | `request` | JSONB | **NULL** (was NOT NULL) | the stored draft request the form continues ("draft in progress", spec F6): the last `propose_draft` request of the reply, else the validated partial `draft` of `ask_user`; NULL for a free-question form |
-| `questions` | JSONB | NULL (set on every row after 08) | 1…6 frozen questions `{ questionId, field, lineIndex, heading?, prompt, options[0..8] { optionId, label, detail?, ref }, input, required, skippable, matchCount, source }` (fix 2026-10-14: `heading` no longer written, optional for legacy rows; `detail` is a server-written second line; a question without chat text gets a server default English `prompt`; record questions without options are filled from the Freelancer's own records, AC-54). `ref` is a record id, a currency, `{ date }` or `{ daysAfterIssue }`. Labels built by the server, never model text (ADR-0011); `prompt` is model text or the server default, plain, ≤ 140 characters. Bounds and shape are zod's, not the DB's (repo convention) |
+| `questions` | JSONB | NULL (set on every row after 08) | 1…6 frozen questions `{ questionId, field, lineIndex, prompt, options[0..8] { optionId, label, detail?, ref }, input, required, skippable, matchCount, source }`. No `heading` is written (a legacy row may still hold one; it is ignored on read). `detail` is an optional server-written second line of an option (1..200 characters: a Customer's email, else country; a product's app-formatted price; a bank account's "CUR ••last4"). A record question that has no options gets them from the server: up to 8 of the Freelancer's own records, or none, leaving it input-only (AC-54, ADR-0011). `ref` is a record id, a currency, `{ date }` or `{ daysAfterIssue }`. Labels and details are built by the server, never model text (ADR-0011); `prompt` is the chat's text, or the field's default English question when the chat gave none, plain, ≤ 140 characters. Bounds and shape are zod's, not the DB's (repo convention) |
 | `answers` | JSONB | NULL | the sent answers `[{ questionId, optionId } \| { questionId, text } \| { questionId, skipped: true }]`, written with `state = CHOSEN` in the claim, cleared on release (spec F5, F7). Exported (AC-34): typed text is personal data |
 | `options`, `lineIndex`, `chosenOptionId` | — | unchanged | **legacy**: read only through the 08 backfill; new rows write `options = '[]'`, `lineIndex = NULL`, `chosenOptionId = NULL`. A later contract-phase migration may drop them once no build reads them (not in this feature) |
 
