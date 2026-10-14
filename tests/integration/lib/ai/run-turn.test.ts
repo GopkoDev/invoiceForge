@@ -467,11 +467,11 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.costUsd).toBeCloseTo(0.00017, 9);
   });
 
-  it('a turn with no gateway-reported cost (the free-tier key) costs 0', async () => {
+  it('a turn with no gateway-reported cost has an unknown (null) cost, never 0 (ADR-0014)', async () => {
     const { run } = await setup();
 
     const { result } = await run('Who owes me money?');
 
-    expect(result.costUsd).toBe(0);
+    expect(result.costUsd).toBeNull();
   });
 });

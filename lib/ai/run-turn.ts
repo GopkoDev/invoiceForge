@@ -56,7 +56,7 @@ export interface TurnResult {
   toolNames: string[];
   usage: { inputTokens: number | null; outputTokens: number | null };
   /** Gateway-reported USD cost of every model call of the turn, router included; 0 when none is reported. */
-  costUsd: number;
+  costUsd: number | null;
   pendingCard?: { id: string; request: DraftRequest; proposal: DraftProposal };
   /** ai-chat-v2 T55: the reply's one Question form, composed in code; absent when the turn ends with a card (card wins). */
   pendingForm?: { id: string; request: DraftRequest | DraftRequestPartial | null; questions: StoredFormQuestion[] };
@@ -271,7 +271,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   }
   // A press is never refused as off-topic: the Freelancer chose an option the chat offered (the label is data).
   const topic: RouterTopic = (input.pinned || input.priorAnswers) && verdict.topic === 'OFF_TOPIC' ? 'IN_SCOPE' : verdict.topic;
-  const routerCost = verdict.costUsd ?? 0;
+  const routerCost = verdict.costUsd === undefined ? 0 : verdict.costUsd;
 
   if (topic === 'OFF_TOPIC') {
     const refusal = verdict.refusal ?? '';

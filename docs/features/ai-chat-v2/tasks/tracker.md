@@ -91,7 +91,7 @@
 | T88 | [Replies with a form add no empty gap, v1 history renders sanely, and dock tests assert the dock itself (consistency C12, C13, C14)](./t88-no-empty-offer-part-v1-history-dock-test-asserts.md) | ui | Dmytro Hopko | S | T87 | done |
 | T89 | [The export schema no longer allows the form question heading the export never writes (consistency C9)](./t89-export-schema-drops-question-heading.md) | tests | Dmytro Hopko | XS | T88 | done |
 | T90 | [The privacy and terms pages name Anthropic on paid terms as the model provider (review 2026-10-15 F1-F3)](./t90-privacy-and-terms-name-anthropic.md) | frontend | Dmytro Hopko | XS | T89 | done |
-| T91 | [A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)](./t91-unknown-model-cost-is-null.md) | backend | Dmytro Hopko | XS | T89 | todo |
+| T91 | [A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)](./t91-unknown-model-cost-is-null.md) | backend | Dmytro Hopko | XS | T89 | done |
 | T92 | [Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)](./t92-model-comments-fixtures-eval-docs.md) | tests | Dmytro Hopko | XS | T89 | todo |
 | T93 | [ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)](./t93-adr-0014-doc-drift.md) | docs | Dmytro Hopko | XS | T90, T91, T92 | todo |
 

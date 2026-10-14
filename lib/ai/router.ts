@@ -21,8 +21,8 @@ export interface RouterVerdict {
   language: string;
   refusal?: string;
   instruction?: string;
-  /** The gateway-reported USD cost of the classification call (0 when none is reported). */
-  costUsd?: number;
+  /** The gateway-reported USD cost of the classification call (null when none is reported). */
+  costUsd?: number | null;
 }
 
 const verdictFields = {

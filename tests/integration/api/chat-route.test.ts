@@ -763,13 +763,13 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       expect(turn.costUsd?.toString()).toBe('0.00017');
     });
 
-    it('writes 0 when the gateway reports no cost (the free-tier key)', async () => {
+    it('writes null when the gateway reports no cost (unknown, not free; ADR-0014)', async () => {
       await signedIn();
 
       await readParts(await send(chatBody('Who owes me money?')));
 
       const turn = await prisma.assistantTurn.findFirstOrThrow();
-      expect(turn.costUsd?.toString()).toBe('0');
+      expect(turn.costUsd).toBeNull();
     });
   });
 });

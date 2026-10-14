@@ -9,7 +9,7 @@ files_hint: ["lib/ai/gateway-cost.ts", "lib/ai/run-turn.ts", "lib/ai/router.ts",
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T91 — A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)
