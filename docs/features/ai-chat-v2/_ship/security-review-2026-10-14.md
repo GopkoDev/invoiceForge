@@ -46,3 +46,7 @@ SEC-I-01 (a pressed turn skipping the router) no longer exists in that form: the
 - **Migrations 06–08.** They are additive and idempotent (`IF NOT EXISTS`, `WHERE "questions" IS NULL`). The enum values are added in a migration of their own.
 - **Dependencies.** `react-markdown` 10.1.0, `remark-gfm` 4.0.1 and `axe-core` 4.13.0 (dev) are pinned to exact versions. The lockfile change for axe-core is limited to that package (review R21-3).
 - **`search_invoices`.** The new `path` is built by code and limited to `/invoices/{id}/edit`. The created-date filter stays under `senderProfile.userId` (`lib/services/invoices/assistant-search.ts:177`).
+
+## Addendum — consistency pass follow-ups (2026-10-14, `c5e417f7..b5bb1da6`)
+
+Reviewed by `sdd:reviewer` (clean context, read only) with the rest of the consistency pass. One server-side change: **T85** narrows the chat request schema (`lib/validations/assistant-chat.ts`) to `origin: TYPED` and the start points `AI_SECTION`, `INVOICE_LIST`, `DASHBOARD_CREATE`; `app/api/chat/route.ts` sets `userOrigin` to `FORM` or `TYPED` only. This **closes SEC-L-02**: a browser can no longer claim a dashboard start. The schemas are used only by the request parser; stored `DASHBOARD` / `DASHBOARD_PROMPT` rows, the export and the DB enums are unchanged. T86–T88 are browser-only (no new data path); T89 tightens the export contract schema. No new finding.
