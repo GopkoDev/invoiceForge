@@ -8,6 +8,7 @@ import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { composeForm, formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import { isCurrency } from '@/lib/services/assistant-drafts/offers';
 import {
+  chatDraftRequestSchema,
   draftRequestSchema,
   type DraftIssue,
   type DraftProposal,
@@ -52,6 +53,18 @@ function liftLineCurrency(raw: unknown): unknown {
   });
   return { ...request, currency, lines };
 }
+
+/** T115: Haiku sometimes passes a name and its id together; the exact id wins and the written name is dropped. */
+function preferIds(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const request = { ...(raw as Record<string, unknown>) };
+  if (request.customer !== undefined && request.customerId !== undefined) delete request.customer;
+  if (request.senderProfile !== undefined && request.senderProfileId !== undefined) delete request.senderProfile;
+  return request;
+}
+
+const NO_CUSTOMER_SAY =
+  "No Customer was given. Call ask_user with one question for CUSTOMER (omit recordIds; the app offers the Freelancer's Customers). Do not guess one.";
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
 export function linksFor(issues: DraftIssue[]): AppLink[] {
@@ -191,17 +204,29 @@ export function createProposeDraftTool(turn: TurnContext) {
   return createTool({
     id: 'propose_draft',
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
-    inputSchema: z.preprocess(liftLineCurrency, draftRequestSchema),
+    inputSchema: z.preprocess((raw) => preferIds(liftLineCurrency(raw)), chatDraftRequestSchema),
     execute: (rawRequest: unknown): Promise<Record<string, unknown>> => {
       // A pressed turn's card or offer was resolved in code from the pinned choice: a re-call gets that same answer
       // and changes neither, whatever lines, prices or names the model writes (SAD §11; review 2026-10-13 R1-S1).
       if (turn.pinnedAnswer) return Promise.resolve(spendToolBudget(turn.toolBudget, turn.pinnedAnswer));
       return withToolBudget(turn.toolBudget, async () => {
-        const request = draftRequestSchema.parse(rawRequest);
+        const relaxed = chatDraftRequestSchema.parse(preferIds(liftLineCurrency(rawRequest)));
         const call = callCounts.get(turn) ?? 0;
         callCounts.set(turn, call + 1);
         // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
         if (!turn.draftIntent) return { answer: { kind: 'NOT_REQUESTED', message: NOT_REQUESTED } };
+        if (relaxed.customer === undefined && relaxed.customerId === undefined) {
+          return {
+            answer: {
+              kind: 'ISSUES',
+              issues: [],
+              links: [],
+              askFields: [{ field: 'CUSTOMER', lineIndex: null }],
+              say: NO_CUSTOMER_SAY,
+            },
+          };
+        }
+        const request = draftRequestSchema.parse(relaxed);
         const resolved = await resolveDraftRequest(turn.actor, request, turn.today);
         if (!resolved.success) return { answer: capToolAnswer({ ...toToolError(resolved) }) };
         if (resolved.data.kind === 'ISSUES') {

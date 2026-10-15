@@ -2288,6 +2288,75 @@
         "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t114-t113-review-follow-ups.md"
+    },
+    {
+      "id": "T115",
+      "title": "propose_draft in the chat tolerates Haiku's Customer and profile arguments",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-08",
+        "AC-14"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. Chat tool only (lib/ai/tools/propose-draft.ts); MCP create_draft_invoice keeps its strict schema. In the tool's input preprocess (next to liftLineCurrency): both customer and customerId -> keep customerId, drop customer; both senderProfile and senderProfileId -> keep the id. The tool's inputSchema must also accept a request with neither customer nor customerId (a chat-only relaxed schema; draftRequestSchema stays as is for MCP and stored requests). In execute, a request with no Customer is not resolved: the answer is an ISSUES answer that asks for the Customer (askFields includes 'CUSTOMER', no card, nothing pending as a card; the model then calls ask_user for CUSTOMER and the app fills the Freelancer's own Customers). ask_user: a line description that is empty or whitespace is dropped before validation instead of refusing the call. Unit tests in tests/unit/lib/ai/ (propose-draft tests): both-given keeps the id; no Customer gives ISSUES with CUSTOMER asked and no card; senderProfile both-given keeps the id; MCP schema still refuses both and neither; ask_user empty description accepted.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/tools/ask-user.ts",
+        "lib/services/assistant-drafts/schema.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t115-propose-draft-in-the-chat-tolerates-haiku-s-custom.md"
+    },
+    {
+      "id": "T116",
+      "title": "Chat instructions: pass the Customer as written, never move it to the sender profile",
+      "layer": "backend",
+      "deps": [
+        "T115"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-14",
+        "AC-45"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. lib/ai/instructions/chat.ts (frozen prefix; edit wording only): in 'Asking and drafting' add: always pass the Customer in `customer` exactly as the Freelancer wrote it, even when a search found several or no matching Customers (propose_draft turns that into the right question); pass customerId only from a form answer, never together with `customer`; never leave the Customer out because a search was unclear. In 'Sender profile and Customer': when the name the Freelancer gives as the Customer is one of their sender profiles, still pass it as `customer` (propose_draft refuses it and you then explain and ask), never as senderProfile. Unit test on CHAT_INSTRUCTIONS asserting these sentences exist (tests/unit/lib/ai/ instructions test, existing file if present).",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t116-chat-instructions-pass-the-customer-as-written-nev.md"
+    },
+    {
+      "id": "T117",
+      "title": "Router: changing an existing draft or invoice is not a drafting intent",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. lib/ai/router.ts SYSTEM: intent 'draft' only for a request to create a new invoice or draft, or an answer to a question about a draft in progress; a request to change an existing draft or invoice (add or remove a line, edit a value) is 'read' (the assistant cannot edit; it explains and links). Unit test asserting the router prompt carries that rule.",
+      "files_hint": [
+        "lib/ai/router.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t117-router-changing-an-existing-draft-or-invoice-is-no.md"
+    },
+    {
+      "id": "T118",
+      "title": "Eval report prints why each failing row failed",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. evals/assistant/run.ts: after the report, for every no-guessing row that fails in the last run print '  - <id>: <reasons joined by '; '>' using noGuessingRowFailures, plus the reply text truncated to 200 chars; for every topic row that fails print its text, expected and got. Scored behaviour unchanged. Unit test via evaluateRun or a new exported formatter in run.ts/score.ts (tests/unit/evals/ or wherever the eval unit tests live).",
+      "files_hint": [
+        "evals/assistant/run.ts",
+        "evals/assistant/score.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t118-eval-report-prints-why-each-failing-row-failed.md"
     }
   ]
 }

@@ -75,6 +75,9 @@ export const draftRequestSchema = z
   .refine(oneCustomer, ONE_CUSTOMER)
   .refine(atMostOneProfile, AT_MOST_ONE_PROFILE);
 
+// ai-chat-v2 T115: the chat tool's own input, which lets a request with no Customer through so propose_draft can ask for one.
+export const chatDraftRequestSchema = z.object(draftRequestShape).strict().refine(atMostOneProfile, AT_MOST_ONE_PROFILE);
+
 export const createDraftInvoiceInputSchema = z
   .object({ ...draftRequestShape, repeatKey: z.string().min(1).max(200).optional() })
   .strict()
