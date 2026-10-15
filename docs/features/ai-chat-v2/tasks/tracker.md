@@ -99,7 +99,7 @@
 | T96 | [Docs after round 2: closed risks, terms note, weekly cost check, provider pin and the missing security addendum (review round 2 N2, N4)](./t96-round-2-doc-drift.md) | docs | Dmytro Hopko | XS | T94, T95 | done |
 | T97 | [Docs say only another anthropic/* model is a setting change; weekly cost check; terms SCC sentence in the owner approval (review round 3 R3-1..R3-3)](./t97-model-switch-needs-anthropic-docs.md) | docs | Dmytro Hopko | XS | T96 | done |
 | T98 | [The Mastra Studio agent is pinned to Anthropic like the app (review round 3 R3-4)](./t98-studio-agent-pinned.md) | backend | Dmytro Hopko | XS | T96 | done |
-| T99 | [Every model call stays well below 100k input tokens: output caps, a history size budget, and capped tool answers in the chat (SEC-M-01 a, b)](./t99-bound-model-input-and-output.md) | backend | Dmytro Hopko | S | T98 | todo |
+| T99 | [Every model call stays well below 100k input tokens: output caps, a history size budget, and capped tool answers in the chat (SEC-M-01 a, b)](./t99-bound-model-input-and-output.md) | backend | Dmytro Hopko | S | T98 | done |
 | T100 | [The chat refuses more than 10 messages a minute per Freelancer (SEC-M-01 c)](./t100-chat-per-minute-limit.md) | backend | Dmytro Hopko | S | T99 | todo |
 | T101 | [Gateway requests ask for no prompt training; the app agent carries the pin in its defaults; privacy §5 Vercel row names the AI Gateway (SEC-L-03, SEC-I-04, SEC-I-03)](./t101-no-training-filter-and-agent-default-pin.md) | backend | Dmytro Hopko | S | T100 | todo |
 | T102 | [ADR-0014, SAD, spec and ship docs say what bounds a turn; weekly check reports null costs; owner checks listed (SEC-M-01 d, e; SEC-I-03; SEC-I-05)](./t102-security-addendum-docs.md) | docs | Dmytro Hopko | S | T101 | todo |

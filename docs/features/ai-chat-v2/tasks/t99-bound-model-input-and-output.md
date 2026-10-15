@@ -9,7 +9,7 @@ files_hint: ["lib/ai/router.ts", "lib/ai/run-turn.ts", "lib/ai/agent.ts", "lib/a
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T99 — Every model call stays well below 100k input tokens: output caps, a history size budget, and capped tool answers in the chat (SEC-M-01 a, b)

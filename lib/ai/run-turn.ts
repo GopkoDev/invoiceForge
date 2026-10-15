@@ -4,6 +4,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
+import { AGENT_MAX_OUTPUT_TOKENS, trimHistoryToBudget } from '@/lib/ai/limits';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createId } from '@paralleldrive/cuid2';
@@ -262,7 +263,7 @@ function emptyStream(): AsyncIterable<UIMessageChunk> {
  * 8-step cap. Never throws; a failure is a FAILED result the route turns into a released slot.
  */
 export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncIterable<UIMessageChunk>; result: Promise<TurnResult> }> {
-  const history = toModelTurns(input.history.slice(-HISTORY_LIMIT));
+  const history = trimHistoryToBudget(toModelTurns(input.history.slice(-HISTORY_LIMIT)));
 
   let verdict;
   try {
@@ -360,7 +361,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
 
     try {
       // The chat instructions come from the agent itself; only per-turn additions travel here (R-19).
-      const output = await chatAgent.stream(messages, { maxSteps: MAX_STEPS, abortSignal: input.signal, requestContext, providerOptions: GATEWAY_PROVIDER_OPTIONS });
+      const output = await chatAgent.stream(messages, { maxSteps: MAX_STEPS, modelSettings: { maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS }, abortSignal: input.signal, requestContext, providerOptions: GATEWAY_PROVIDER_OPTIONS });
       const reader = output.fullStream.getReader();
       for (;;) {
         const { done, value } = await reader.read();
