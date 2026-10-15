@@ -98,7 +98,7 @@
 | T95 | [A failed turn's unknown router cost is null, and the router verdict always carries its cost (review round 2 N3)](./t95-failed-turn-cost-unknown.md) | backend | Dmytro Hopko | XS | T93 | done |
 | T96 | [Docs after round 2: closed risks, terms note, weekly cost check, provider pin and the missing security addendum (review round 2 N2, N4)](./t96-round-2-doc-drift.md) | docs | Dmytro Hopko | XS | T94, T95 | done |
 | T97 | [Docs say only another anthropic/* model is a setting change; weekly cost check; terms SCC sentence in the owner approval (review round 3 R3-1..R3-3)](./t97-model-switch-needs-anthropic-docs.md) | docs | Dmytro Hopko | XS | T96 | done |
-| T98 | [The Mastra Studio agent is pinned to Anthropic like the app (review round 3 R3-4)](./t98-studio-agent-pinned.md) | backend | Dmytro Hopko | XS | T96 | todo |
+| T98 | [The Mastra Studio agent is pinned to Anthropic like the app (review round 3 R3-4)](./t98-studio-agent-pinned.md) | backend | Dmytro Hopko | XS | T96 | done |
 
 **Total:** 91 tasks, ~39 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013; T70–T75 and T76–T77 are its review round 20 and 21 follow-ups; T78–T84 are the 2026-10-14 fixes, recorded under `_fixes/`; T85–T89 are the follow-ups of the docs/code consistency pass of 2026-10-14; T90–T93, T94–T96 and T97–T98 are the follow-ups of the ADR-0014 review of 2026-10-15, rounds 1–3).
 

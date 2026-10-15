@@ -65,4 +65,15 @@ describe('Mastra Studio traces (fix 2026-10-12)', () => {
       )
     ).toEqual(['mastra-storage-exporter']);
   });
+
+  it('the Studio agent is pinned to Anthropic at the Gateway like the app (T98)', async () => {
+    await studio();
+    const { chatAgent } = await import('@/mastra/index');
+    const { GATEWAY_PROVIDER_OPTIONS } =
+      await import('@/lib/ai/gateway-options');
+
+    const options = await chatAgent.getDefaultOptions();
+
+    expect(options.providerOptions).toEqual(GATEWAY_PROVIDER_OPTIONS);
+  });
 });

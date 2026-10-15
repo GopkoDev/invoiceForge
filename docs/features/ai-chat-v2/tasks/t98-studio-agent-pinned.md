@@ -9,7 +9,7 @@ files_hint: ["mastra/index.ts"]
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T98 — The Mastra Studio agent is pinned to Anthropic like the app (review round 3 R3-4)
