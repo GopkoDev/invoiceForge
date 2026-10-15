@@ -1,5 +1,7 @@
 import 'server-only';
 import { captureException } from '@sentry/nextjs';
+import type { MessageOrigin } from '@prisma/client';
+import { storedFormQuestionsSchema, toFormView, type FormRow } from '@/lib/services/assistant-drafts/forms';
 import { prisma } from '@/prisma';
 import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import { fail, ok, type ActionResult } from '@/types/result';
@@ -169,9 +171,29 @@ async function readExport(userId: string) {
         title: true,
         createdAt: true,
         lastMessageAt: true,
+        startedFrom: true,
         messages: {
           orderBy: { position: 'asc' },
-          select: { role: true, createdAt: true, parts: true },
+          select: {
+            role: true,
+            createdAt: true,
+            parts: true,
+            origin: true,
+            // Labels and the chosen option only: never the stored request or option refs (ai-chat-v2 AC-34).
+            offer: {
+              select: {
+                id: true,
+                kind: true,
+                lineIndex: true,
+                questions: true,
+                answers: true,
+                options: true,
+                state: true,
+                chosenOptionId: true,
+                createdAt: true,
+              },
+            },
+          },
         },
         draftCards: {
           orderBy: { createdAt: 'asc' },
@@ -195,6 +217,7 @@ async function readExport(userId: string) {
     title: c.title,
     createdAt: c.createdAt.toISOString(),
     lastMessageAt: c.lastMessageAt.toISOString(),
+    startedFrom: c.startedFrom,
     messages: c.messages.map((m) => exportMessage(m)),
     draftCards: c.draftCards.map((card) => ({
       ...card,
@@ -233,11 +256,64 @@ function dayString(day: Date): string {
 
 type StoredPart = { type?: unknown; text?: unknown; data?: unknown };
 
-/** Flattens stored UI-message parts into text, links and Draft card ids (ADR-0008). */
+type StoredOfferOption = { optionId?: unknown; label?: unknown };
+
+/** An Offered choice as exported: its labels and the chosen option, never its record refs (ai-chat-v2 AC-34). */
+type ExportOfferRow = FormRow & { createdAt: Date };
+
+function exportOffer(offer: ExportOfferRow | null) {
+  // A FORM row is a Question form, not an Offered choice (see exportForm).
+  if (!offer || offer.kind === 'FORM') return null;
+  const options = (
+    Array.isArray(offer.options) ? offer.options : []
+  ) as StoredOfferOption[];
+  return {
+    kind: offer.kind,
+    options: options.map((o) => ({
+      optionId: Number(o.optionId),
+      label: String(o.label),
+    })),
+    state: offer.state,
+    chosenOptionId: offer.chosenOptionId,
+    createdAt: offer.createdAt.toISOString(),
+  };
+}
+
+/** A Question form as exported: questions with option labels and the answers sent; never refs, sources or the request (T61, AC-34). */
+function exportForm(offer: ExportOfferRow | null) {
+  if (!offer) return null;
+  const view = toFormView(offer);
+  // A legacy Offered choice has no stored questions: its backfilled view stands in.
+  const stored =
+    offer.kind === 'FORM' ? storedFormQuestionsSchema.parse(offer.questions) : view.questions;
+  const labelOf = (questionId: number, optionId: number) =>
+    view.questions.find((q) => q.questionId === questionId)?.options.find((o) => o.optionId === optionId)?.label ?? '';
+  return {
+    state: view.state,
+    questions: stored.map((q) => ({
+      questionId: q.questionId,
+      field: q.field,
+      lineIndex: q.lineIndex,
+      prompt: q.prompt ?? null,
+      options: q.options.map(({ optionId, label }) => ({ optionId, label })),
+      input: q.input,
+      required: q.required,
+      skippable: q.skippable,
+    })),
+    answers:
+      view.answers?.map((a) =>
+        'optionId' in a ? { questionId: a.questionId, optionId: a.optionId, label: labelOf(a.questionId, a.optionId) } : a
+      ) ?? null,
+  };
+}
+
+/** Flattens stored UI-message parts into text, links and Draft card ids (ADR-0008), plus origin and offer. */
 function exportMessage(m: {
   role: 'USER' | 'ASSISTANT';
   createdAt: Date;
   parts: unknown;
+  origin: MessageOrigin | null;
+  offer: ExportOfferRow | null;
 }) {
   const parts = (Array.isArray(m.parts) ? m.parts : []) as StoredPart[];
   const links: unknown[] = [];
@@ -259,6 +335,10 @@ function exportMessage(m: {
     text,
     links,
     draftCardIds,
+    // A USER row with no origin reads TYPED, as in the reopen view (data-model.md ConversationMessage.origin).
+    origin: m.role === 'USER' ? (m.origin ?? 'TYPED') : null,
+    offer: exportOffer(m.offer),
+    form: exportForm(m.offer),
   };
 }
 
@@ -266,7 +346,7 @@ type ExportRead = Awaited<ReturnType<typeof readExport>>;
 
 export type AccountExport = Omit<ExportRead, 'user'> & {
   exportDate: string;
-  exportVersion: '2.2';
+  exportVersion: '2.4';
   user: NonNullable<ExportRead['user']>;
 };
 
@@ -275,7 +355,7 @@ const EXPORT_RATE_LIMITED =
   "You've reached the export limit. You can export again later.";
 
 /**
- * Every category the account owns, scoped by actor.userId (exportVersion 2.2: Personal keys with weekly usage and draft counts, time zone, Conversations, daily message counts).
+ * Every category the account owns, scoped by actor.userId (exportVersion 2.4: Personal keys with weekly usage and draft counts, time zone, Conversations with start points, message origins and Offered choices, Question forms with the answers sent, daily message counts).
  * A place is reserved in the limit store before any read (ADR-0005); a system-side failure
  * releases it, a limit-store failure refuses the export (never unlimited). An account that is
  * gone is NOT_FOUND: nothing is recorded, and a place
@@ -344,7 +424,7 @@ export async function getAccountExport(
 
     return ok({
       exportDate: new Date().toISOString(),
-      exportVersion: '2.2',
+      exportVersion: '2.4',
       user,
       ...rest,
     });

@@ -1,7 +1,9 @@
 import { Agent } from '@mastra/core/agent';
 import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
+import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
 import { getChatModel } from '@/lib/ai/model';
 import { withProviderFaults } from '@/lib/ai/provider-fault';
+import { createAskUserTool } from '@/lib/ai/tools/ask-user';
 import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
 import { createProposeDraftTool } from '@/lib/ai/tools/propose-draft';
 import { createReadTools } from '@/lib/ai/tools/read-tools';
@@ -20,8 +22,9 @@ export const TURN_CONTEXT_KEY = 'turn';
 export function createChatTools(turn: TurnContext) {
   return {
     ...createReadTools(turn),
-    find_in_app: createFindInAppTool(),
+    find_in_app: createFindInAppTool(turn),
     propose_draft: createProposeDraftTool(turn),
+    ask_user: createAskUserTool(turn),
   };
 }
 
@@ -33,5 +36,6 @@ export const chatAgent = new Agent({
   name: 'Chat Assistant',
   instructions: CHAT_INSTRUCTIONS,
   model: async () => withProviderFaults(await getChatModel()),
+  defaultOptions: { providerOptions: GATEWAY_PROVIDER_OPTIONS },
   tools: ({ requestContext }) => createChatTools(requestContext.get(TURN_CONTEXT_KEY) as TurnContext),
 });

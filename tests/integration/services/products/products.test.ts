@@ -14,6 +14,7 @@ import { createSenderProfile } from '../../../support/factories/sender-profile';
 import { createBankAccount } from '../../../support/factories/bank-account';
 import { createCustomer } from '../../../support/factories/customer';
 import { createInvoice as seedInvoice } from '../../../support/factories/invoice';
+import { createCustomPrice } from '../../../support/factories/custom-price';
 
 const containerRuntimeAvailable = await isContainerRuntimeAvailable();
 
@@ -30,6 +31,16 @@ type Service = {
   updateProduct: (a: Actor, id: string, input: unknown) => Promise<Result<void>>;
   deleteProduct: (a: Actor, id: string) => Promise<Result<void>>;
   toggleProductActive: (a: Actor, id: string) => Promise<Result<void>>;
+  listProductsForAssistant: (
+    a: Actor,
+    q?: Record<string, unknown>
+  ) => Promise<
+    Result<{
+      rows: { productId: string; name: string; price: string; currency: string; customPrice: string | null }[];
+      customer: { customerId: string; name: string } | null;
+      pageInfo: { total: number; pageSize: number; pageSizeCapped: boolean };
+    }>
+  >;
 };
 
 const form = (over: Record<string, unknown> = {}) => ({
@@ -190,5 +201,33 @@ describe.runIf(containerRuntimeAvailable)('products service (T7)', () => {
     });
     if (!r.success) expect(r.details).toBeUndefined();
     expect(await prisma.product.findUnique({ where: { id: p.id } })).not.toBeNull();
+  });
+
+  it('listProductsForAssistant (ai-chat-v2 T06): owner-scoped active catalogue, custom prices for an owned Customer only', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    const usd = await seedProduct(prisma, a.id, { name: 'Consulting', price: 50, currency: 'USD' });
+    await seedProduct(prisma, a.id, { name: 'Consulting old', price: 10, currency: 'USD', isActive: false });
+    const acme = await createCustomer(prisma, a.id, { name: 'Acme Corp' });
+    await createCustomPrice(prisma, usd.id, acme.id, { price: 40 });
+    await seedProduct(prisma, b.id, { name: 'Consulting', price: 99, currency: 'USD' });
+    const theirs = await createCustomer(prisma, b.id, { name: 'Globex' });
+
+    const res = await svc.listProductsForAssistant(await actingFreelancerForTest(a.id), {
+      name: 'consulting',
+      customerId: acme.id,
+      pageSize: 99,
+    });
+    expect(res).toMatchObject({ success: true });
+    if (!res.success) return;
+    expect(res.data.rows).toEqual([
+      expect.objectContaining({ productId: usd.id, price: '50.00', currency: 'USD', customPrice: '40.00' }),
+    ]);
+    expect(res.data.customer).toEqual({ customerId: acme.id, name: 'Acme Corp' });
+    expect(res.data.pageInfo).toMatchObject({ pageSize: 20, pageSizeCapped: true, total: 1 });
+    // Another Freelancer's Customer is answered as one that never existed.
+    expect(
+      await svc.listProductsForAssistant(await actingFreelancerForTest(a.id), { customerId: theirs.id })
+    ).toEqual(await svc.listProductsForAssistant(await actingFreelancerForTest(a.id), { customerId: 'missing' }));
   });
 });

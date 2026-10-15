@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
+
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message';
 import { ChatLink } from '@/components/ai/chat-link';
-import { cn } from '@/lib/utils';
 import type {
   ConversationMessageView,
   LinkedInvoiceState,
@@ -12,57 +18,58 @@ interface MessageListProps {
   renderCard?: (cardId: string) => ReactNode;
 }
 
-// Message text is always plain text with line breaks kept: never Markdown, HTML or an anchor
-// (AC-07). Links come only from data-link parts; cards from data-draft-card parts.
+/**
+ * The messages of a Conversation, composed from the chat elements (ai-chat-v2 T36, ADR-0010): a Freelancer message is
+ * a right-aligned secondary bubble; a reply is the avatar and safe Markdown, followed by its links and
+ * Draft cards in part order inside the same content column.
+ *
+ * A Freelancer's text is always plain text with line breaks kept (never parsed as Markdown, HTML or an anchor); a
+ * reply's text is safe Markdown (ADR-0012). Model-written links render only for in-app paths; cards come from
+ * data-draft-card parts.
+ */
 export function MessageList({
   messages,
   invoiceLinks,
   renderCard,
 }: MessageListProps) {
   return (
-    <div className="flex flex-col gap-4">
-      {messages.map((m) => {
-        const isUser = m.role === 'user';
-        return (
-          <div
-            key={m.id}
-            data-role={m.role}
-            className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
-          >
-            <div
-              className={cn(
-                'flex max-w-[85%] min-w-0 flex-col gap-2 rounded-lg px-3 py-2',
-                isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              )}
-            >
-              {m.parts.map((part, i) => {
-                if (part.type === 'text') {
-                  return (
-                    <p
-                      key={i}
-                      className="text-sm break-words whitespace-pre-wrap"
-                    >
-                      {part.text}
-                    </p>
-                  );
-                }
-                if (part.type === 'data-link') {
-                  const state =
-                    part.data.kind === 'invoice'
-                      ? invoiceLinks[part.data.invoiceId]
-                      : undefined;
-                  return (
-                    <div key={i}>
-                      <ChatLink link={part.data} state={state} />
-                    </div>
-                  );
-                }
+    <div className="flex flex-col gap-6">
+      {messages.map((m) => (
+        <Message key={m.id} from={m.role}>
+          {m.role === 'assistant' ? <MessageAvatar /> : null}
+          <MessageContent>
+            {m.parts.map((part, i) => {
+              if (part.type === 'text') {
+                return m.role === 'user' ? (
+                  <p
+                    key={i}
+                    className="leading-6 break-words whitespace-pre-wrap"
+                  >
+                    {part.text}
+                  </p>
+                ) : (
+                  <MessageResponse key={i}>{part.text}</MessageResponse>
+                );
+              }
+              if (part.type === 'data-link') {
+                const state =
+                  part.data.kind === 'invoice'
+                    ? invoiceLinks[part.data.invoiceId]
+                    : undefined;
+                return (
+                  <div key={i}>
+                    <ChatLink link={part.data} state={state} />
+                  </div>
+                );
+              }
+              if (part.type === 'data-draft-card') {
                 return <div key={i}>{renderCard?.(part.data.cardId)}</div>;
-              })}
-            </div>
-          </div>
-        );
-      })}
+              }
+              return null;
+            })}
+          </MessageContent>
+        </Message>
+      ))}
     </div>
   );
 }

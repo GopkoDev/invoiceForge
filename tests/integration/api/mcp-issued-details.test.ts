@@ -38,6 +38,8 @@ const READ_ONLY_TOOLS = [
   'list_debtors',
   'list_expected_payments',
   'list_overdue_invoices',
+  'list_sender_profiles', // ai-chat-v2 T05
+  'list_products', // ai-chat-v2 T06
   'search_invoices',
 ];
 

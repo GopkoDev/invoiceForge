@@ -26,7 +26,10 @@ export const privateSectionRoots = Object.values(protectedRoutesBase);
 export const protectedRoutes = {
   ...protectedRoutesBase,
 
-  aiStartDraft: `${protectedRoutesBase.ai}?start=draft` as const,
+  // ai-chat-v2 T20: the invoice list's "Create with AI" carries its start point (INVOICE_LIST).
+  aiStartDraft: `${protectedRoutesBase.ai}?start=draft&from=invoices` as const,
+  /** ai-chat-v2 T26 (SCR-09): the dashboard's "Create invoice with AI" (startedFrom DASHBOARD_CREATE). */
+  aiStartDraftFromDashboard: `${protectedRoutesBase.ai}?start=draft&from=dashboard` as const,
   aiConversation: (id: string) => `${protectedRoutesBase.ai}/${id}` as const,
 
   settingsProfile: '/settings/profile',

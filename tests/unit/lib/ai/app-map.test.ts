@@ -3,6 +3,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import { appPageKeySchema, type AppPageKey } from '@/lib/validations/assistant-chat';
 import { APP_MAP, appPageRoute, findInApp } from '@/lib/ai/app-map';
 import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
+import { createTurnContext } from '@/lib/ai/turn-context';
 
 // T13 (ai-assistant, AC-07, ADR-0010): find_in_app answers from a fixed map of the app's real pages.
 const SAMPLE_ID = 'cmsample0000000000000000';
@@ -23,6 +24,7 @@ const EXPECTED: Record<AppPageKey, string> = {
   customers: '/customers',
   'new-customer': '/customers/new',
   products: '/products',
+  'new-product': '/products/new',
   'sender-profiles': '/sender-profiles',
   'new-sender-profile': '/sender-profiles/new',
   'sender-profile-bank-accounts': `/sender-profiles/${SAMPLE_ID}/edit/bank-accounts`,
@@ -33,6 +35,14 @@ const EXPECTED: Record<AppPageKey, string> = {
 };
 
 describe('fixed app map (T13, AC-07)', () => {
+  // ai-chat-v2 AC-05, SCR-03 "answered — nothing matches" (review 2026-10-13 R1-U5): the add pages and their titles.
+  it('holds the add-Customer and add-product pages, titled as the "nothing matches" links', () => {
+    const title = (page: AppPageKey) => APP_MAP.find((e) => e.page === page)?.title;
+    expect(title('new-customer')).toBe('Add a Customer');
+    expect(title('new-product')).toBe('Add a product');
+    expect(appPageRoute('new-product')).toBe('/products/new');
+  });
+
   it('has exactly one entry for every AppPageKey, each with a title and what is set there', () => {
     expect(APP_MAP.map((e: { page: AppPageKey }) => e.page).sort()).toEqual([...appPageKeySchema.options].sort());
     for (const entry of APP_MAP) {
@@ -59,7 +69,7 @@ describe('fixed app map (T13, AC-07)', () => {
   });
 
   it('find_in_app answers { pages } with real page keys only, and never invents one', async () => {
-    const tool = createFindInAppTool();
+    const tool = createFindInAppTool(createTurnContext({ actor: { userId: 'u1', timeZone: 'UTC' } as never, today: '2026-10-15' }));
     expect(tool.id).toBe('find_in_app');
     const answer = (await tool.execute!({ topic: 'logo' }, {} as never)) as { pages: Array<{ page: string; title: string; whatIsSetThere: string }> };
     expect(answer.pages[0]).toMatchObject({ page: 'sender-profiles' });

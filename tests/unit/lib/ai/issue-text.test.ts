@@ -9,6 +9,14 @@ import {
 
 const name = (text: string) => ({ freelancerText: text });
 const account = { bankAccountId: 'ba1', label: 'Privat ••1234' };
+// ai-chat-v2 T08: the candidate form of an account carries bank name, last four and currency.
+const candidate = (id: string, label: string, bank: string, lastFour: string) => ({
+  bankAccountId: id,
+  label,
+  bankName: name(bank),
+  lastFour,
+  currency: 'USD' as const,
+});
 
 const ISSUES: DraftIssue[] = [
   { kind: 'NO_SENDER_PROFILE_WITH_ACCOUNT' },
@@ -22,14 +30,14 @@ const ISSUES: DraftIssue[] = [
     kind: 'CUSTOMER_AMBIGUOUS',
     written: 'Acme',
     candidates: [
-      { customerId: 'c1', name: name('Acme Corp') },
-      { customerId: 'c2', name: name('Acme GmbH') },
+      { customerId: 'c1', name: name('Acme Corp'), email: 'corp@acme.test' },
+      { customerId: 'c2', name: name('Acme GmbH'), email: null },
     ],
   },
   {
     kind: 'CUSTOMER_NEAR_MISS',
     written: 'Acm',
-    candidates: [{ customerId: 'c1', name: name('Acme Corp') }],
+    candidates: [{ customerId: 'c1', name: name('Acme Corp'), email: 'corp@acme.test' }],
   },
   { kind: 'LINE_AMOUNT_MISSING', lineIndex: 0, description: 'website' },
   {
@@ -39,7 +47,12 @@ const ISSUES: DraftIssue[] = [
     products: [{ productId: 'p1', name: name('WEB DEV'), currency: 'USD' }],
   },
   { kind: 'CURRENCY_UNCLEAR', written: 'bucks', options: ['USD', 'UAH'] },
-  { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Side', options: ['Main'] },
+  {
+    kind: 'SENDER_PROFILE_NOT_FOUND',
+    written: 'Side',
+    options: ['Main'],
+    profiles: [{ senderProfileId: 'sp1', name: name('Main') }],
+  },
   {
     kind: 'NO_ACCOUNT_IN_CURRENCY',
     currency: 'USD',
@@ -50,13 +63,13 @@ const ISSUES: DraftIssue[] = [
   {
     kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
     currency: 'USD',
-    accounts: [account, { bankAccountId: 'ba2', label: 'Wise ••5678' }],
+    accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234'), candidate('ba2', 'Wise ••5678', 'Wise', '5678')],
   },
-  { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Monzo', accounts: [account] },
+  { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Monzo', accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234')] },
   {
     kind: 'BANK_ACCOUNT_AMBIGUOUS',
     written: 'Bank',
-    accounts: [account, { bankAccountId: 'ba2', label: 'Wise ••5678' }],
+    accounts: [candidate('ba1', 'Privat ••1234', 'Privat', '1234'), candidate('ba2', 'Wise ••5678', 'Wise', '5678')],
   },
   {
     kind: 'BANK_ACCOUNT_CURRENCY_MISMATCH',
@@ -70,7 +83,7 @@ const ISSUES: DraftIssue[] = [
     kind: 'PRODUCT_AMBIGUOUS',
     lineIndex: 0,
     written: 'consulting',
-    candidates: [{ productId: 'p1', name: name('Consulting basic') }],
+    candidates: [{ productId: 'p1', name: name('Consulting basic'), unit: 'hours', price: '50.00', currency: 'USD' }],
   },
   { kind: 'PRODUCT_NOT_FOUND', lineIndex: 0, written: 'design' },
   {
@@ -128,6 +141,74 @@ describe('issuesText (fix 2026-10-12)', () => {
     const text = issuesText([ISSUES[2], ISSUES[5]], 'de');
     expect(text).toBe(
       'You have no Customer called Globex. Add the Customer first. What is the amount for "website"? Give the quantity and the price.'
+    );
+  });
+});
+
+// Review 2026-10-13 R2-B2, R3-B3 (ai-chat-v2 AC-14): above 8 matches the chat says how many there are and asks for a
+// more exact name, listing none. Each stripped issue carries its own count (`counts`, aligned with the issues).
+describe('issuesText with list counts (AC-14)', () => {
+  const studios: DraftIssue = { kind: 'CUSTOMER_AMBIGUOUS', written: 'Studio', candidates: [] };
+
+  it('says the count and asks for a more exact name, naming no candidate', () => {
+    expect(issuesText([studios], 'en', [12])).toBe('12 Customers match Studio. Type a more exact name.');
+    expect(issuesText([studios], 'uk', [12])).toBe('Під Studio підходять 12 клієнтів. Напишіть точнішу назву.');
+  });
+
+  it('each issue says its own count', () => {
+    const products = { kind: 'PRODUCT_AMBIGUOUS', written: 'audit', lineIndex: 0, candidates: [] } as DraftIssue;
+    expect(issuesText([studios, products], 'en', [12, 9])).toBe(
+      '12 Customers match Studio. Type a more exact name. 9 products match audit. Type a more exact name.'
+    );
+    expect(
+      issuesText([{ kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY', currency: 'USD', accounts: [] } as unknown as DraftIssue], 'en', [10])
+    ).toBe('You have 10 bank accounts in USD. Name the one the invoice should use.');
+  });
+
+  it('a name that matched nothing says how many there are, not that they match', () => {
+    expect(
+      issuesText([{ kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Zeta', accounts: [] } as unknown as DraftIssue], 'en', [11])
+    ).toBe('No bank account matches Zeta. You have 11 bank accounts: type a more exact name.');
+    expect(
+      issuesText(
+        [{ kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Zeta', options: [], profiles: [] } as unknown as DraftIssue],
+        'en',
+        [10]
+      )
+    ).toBe('You have no sender profile called Zeta. You have 10 sender profiles: type a more exact name.');
+    expect(
+      issuesText([{ kind: 'CUSTOMER_NEAR_MISS', written: 'Acm', candidates: [] } as DraftIssue], 'en', [9])
+    ).toBe('No Customer is called Acm. 9 Customers have a similar name: type a more exact name.');
+  });
+
+  it('other sender profiles above 8 are counted, not named', () => {
+    const issue = { kind: 'NO_ACCOUNT_IN_CURRENCY', currency: 'EUR', accounts: [], otherProfiles: [] } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'This sender profile has no bank account in EUR. Add one first. 9 of your other sender profiles have a EUR account: name one to draft from it.'
+    );
+  });
+
+  it('an issue with no count reads as before', () => {
+    expect(issuesText([studios], 'en', [null])).toBe('Several Customers match Studio: . Which one do you mean?');
+  });
+
+  // Review 2026-10-13 R4-B3: the two "other sender profiles" kinds keep what they said, plus the count.
+  it('a default profile without an account says how many other profiles there are', () => {
+    const issue = { kind: 'DEFAULT_PROFILE_WITHOUT_ACCOUNT', defaultSenderProfileId: 'sp', otherProfiles: [] } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'Your default sender profile has no bank account. Add one, or name one of your 9 other sender profiles to draft under.'
+    );
+  });
+
+  it('no account in the currency keeps the profile own accounts clause with the count', () => {
+    const issue = {
+      kind: 'NO_ACCOUNT_IN_CURRENCY',
+      currency: 'EUR',
+      accounts: [{ bankAccountId: 'b1', label: 'Mono ••1234', currency: 'USD' }],
+      otherProfiles: [],
+    } as unknown as DraftIssue;
+    expect(issuesText([issue], 'en', [9])).toBe(
+      'This sender profile has no bank account in EUR. Its accounts: Mono ••1234 (USD). Add a EUR account, or draft the invoice in the currency of one of these. 9 of your other sender profiles have a EUR account: name one to draft from it.'
     );
   });
 });

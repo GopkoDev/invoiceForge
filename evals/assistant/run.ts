@@ -8,6 +8,7 @@ import type { ConversationMessageView } from '@/types/assistant/types';
 import {
   loadNoGuessingSet,
   loadTopicSet,
+  NO_GUESSING_SETUPS,
   NO_GUESSING_THRESHOLDS,
   TOPIC_MIN_SIZE,
   TOPIC_THRESHOLDS,
@@ -16,6 +17,9 @@ import {
   type TopicItem,
 } from './dataset';
 import {
+  aggregateRuns,
+  noGuessingRowFailures,
+  parseEvalRuns,
   scoreNoGuessing,
   scoreTopicBoundary,
   type NoGuessingRow,
@@ -212,6 +216,47 @@ export function findUngroundedValues(
   return found;
 }
 
+/**
+ * The offered option a press row presses (ai-chat-v2 AC-10): the stored label itself, or the label with its
+ * look-alike detail ("Acme GmbH (no email)") when the row names only the record.
+ */
+export function optionIdForLabel(
+  options: Array<{ optionId: number; label: string }>,
+  label: string
+): number | undefined {
+  return (
+    options.find((o) => o.label === label) ??
+    options.find((o) => o.label.startsWith(`${label} (`))
+  )?.optionId;
+}
+
+/** The streamed reply of the chat route: its text, its card id and its offer id (UI message stream SSE lines). */
+function readRouteStream(raw: string): {
+  text: string;
+  cardId?: string;
+  offerId?: string;
+  conversationId?: string;
+  counted: boolean;
+} {
+  let text = '';
+  let cardId: string | undefined;
+  let offerId: string | undefined;
+  let conversationId: string | undefined;
+  let counted = true;
+  for (const line of raw.split('\n')) {
+    if (!line.startsWith('data: ') || line.trim() === 'data: [DONE]') continue;
+    const part = JSON.parse(line.slice('data: '.length));
+    if (part.type === 'text-delta') text += part.delta;
+    else if (part.type === 'data-draft-card') cardId = part.data.cardId;
+    else if (part.type === 'data-offer') offerId = part.data.offerId;
+    else if (part.type === 'data-conversation')
+      conversationId = part.data.conversationId;
+    else if (part.type === 'data-outcome')
+      counted = part.data.counted !== false;
+  }
+  return { text, cardId, offerId, conversationId, counted };
+}
+
 function toView(
   turn: { role: 'user' | 'assistant'; text: string },
   index: number
@@ -219,22 +264,39 @@ function toView(
   return {
     id: `eval-history-${index}`,
     role: turn.role,
+    origin: turn.role === 'user' ? 'TYPED' : null,
     parts: [{ type: 'text', text: turn.text }],
     createdAt: new Date().toISOString(),
   };
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// ai-chat-v2 T65: a fixed "today" (AC-45 "yesterday" is 2026-10-12, AC-49 reads "created in January" from it).
+const TODAY = '2026-10-13';
 const TIME_ZONE = 'Europe/Kyiv';
+/** The owner-feedback setups (T65): seeded on their own, without the Acme Corp every older setup holds. */
+const NEW_SETUPS: ReadonlySet<NoGuessingSetup> = new Set([
+  'four-customers-one-profile',
+  'four-customers-one-profile+product-web-development',
+  'draft-inv-0042',
+  'drafts-january',
+]);
 // Prices the seeded Freelancer actually has: the catalogue 50 USD and the custom price 45 USD.
 const KNOWN_RATES = [50, 45];
 
 async function runNoGuessing(
   items: NoGuessingItem[],
-  connectionString: string
-): Promise<NoGuessingRow[]> {
+  connectionString: string,
+  runCount = 1
+): Promise<NoGuessingRow[][]> {
   // The lib modules read DATABASE_URL on first import, so point them at the throwaway DB first.
   process.env.DATABASE_URL = connectionString;
+  // ai-chat-v2 AC-10: a press row goes through the chat route, which reads the session. The session is the row's
+  // seeded Freelancer; mocked before the route (or anything that reads the session) is first imported.
+  let sessionUserId = '';
+  const { vi } = await import('vitest');
+  vi.doMock('@/auth', () => ({
+    auth: async () => ({ user: { id: sessionUserId } }),
+  }));
   const { createTestPrismaClient } =
     await import('../../tests/support/db/client');
   const { createFreelancer } =
@@ -254,25 +316,214 @@ async function runNoGuessing(
   const { actingFreelancerForTest } =
     await import('../../tests/support/acting-freelancer');
   const { runTurn } = await import('@/lib/ai/run-turn');
+  const { READ_QUESTIONS } = await import('@/lib/assistant-tools');
+  const { NextRequest } = await import('next/server');
+  const { POST } = await import('@/app/api/chat/route');
 
   const prisma = createTestPrismaClient(connectionString);
+
+  // T65: the arguments of every search_invoices call of the turn. The chat tools take the handler from this list when
+  // a turn starts, so wrapping it here records the model's own arguments without touching the app.
+  let searchInvoicesCalls: Array<Record<string, unknown>> = [];
+  for (const question of READ_QUESTIONS as unknown as Array<{
+    definition: { name: string };
+    handler: (args: unknown, context: unknown) => Promise<unknown>;
+  }>) {
+    if (question.definition.name !== 'search_invoices') continue;
+    const original = question.handler;
+    question.handler = (args, context) => {
+      searchInvoicesCalls.push({ ...(args as Record<string, unknown>) });
+      return original(args, context);
+    };
+  }
+
+  const postChat = async (body: unknown) => {
+    const response = await POST(
+      new NextRequest('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    );
+    if (response.status !== 200)
+      throw new Error(`chat route answered ${response.status}`);
+    const reply = readRouteStream(await response.text());
+    if (!reply.counted) throw new Error('chat route turn did not complete');
+    return reply;
+  };
+
+  /**
+   * Replays the row's typed history through the chat route, then presses the option with the row's label through
+   * the route's form path: a `form` Send with one answer, never typed text, and no `origin` (the server sets FORM).
+   */
+  async function runPress(item: NoGuessingItem, userId: string) {
+    sessionUserId = userId;
+    let conversationId: string | null = null;
+    let offerId: string | undefined;
+    for (const [index, turn] of (item.history ?? []).entries()) {
+      if (turn.role !== 'user') continue;
+      const reply = await postChat({
+        conversationId,
+        message: {
+          id: `eval-${item.id}-${index}`,
+          role: 'user',
+          parts: [{ type: 'text', text: turn.text }],
+        },
+      });
+      conversationId = conversationId ?? reply.conversationId ?? null;
+      offerId = reply.offerId;
+    }
+    if (!conversationId || !offerId)
+      throw new Error(`${item.id}: the replayed request offered no choice`);
+    const offer = await prisma.choiceOffer.findUniqueOrThrow({
+      where: { id: offerId },
+    });
+    // A stored form (T57); a legacy offer row reads as one question holding its options.
+    type Options = Array<{ optionId: number; label: string }>;
+    const questions: Array<{ questionId: number; options: Options }> =
+      offer.kind === 'FORM'
+        ? (offer.questions as unknown as Array<{
+            questionId: number;
+            options: Options;
+          }>)
+        : [{ questionId: 0, options: offer.options as unknown as Options }];
+    const target = questions.find(
+      (q) => optionIdForLabel(q.options, item.press!.label) !== undefined
+    );
+    const optionId = target
+      ? optionIdForLabel(target.options, item.press!.label)
+      : undefined;
+    if (!target || optionId === undefined)
+      throw new Error(
+        `${item.id}: no offered option is labelled ${item.press!.label}`
+      );
+    const formId = offerId;
+    const reply = await postChat({
+      conversationId,
+      message: {
+        id: `eval-${item.id}-press`,
+        role: 'user',
+        parts: [{ type: 'text', text: item.press!.label }],
+      },
+      form: { formId, answers: [{ questionId: target.questionId, optionId }] },
+    });
+    const card = reply.cardId
+      ? await prisma.draftCard.findUniqueOrThrow({
+          where: { id: reply.cardId },
+        })
+      : undefined;
+    return {
+      proposal: card?.proposal as unknown as ProposalLike | undefined,
+      text: reply.text,
+      offeredCustomers: [] as string[],
+      hasForm: false,
+      formFields: [] as string[],
+      toolCalls: [] as string[],
+      searchInvoicesArgs: [] as Array<Record<string, unknown>>,
+    };
+  }
+
   try {
+    /** The editor path a link row must point to, by setup (AC-48, AC-49). */
+    const expectedLinkPaths = new Map<NoGuessingSetup, string>();
+
+    /**
+     * T65: the Customers, product and drafts of the four owner-feedback setups. The sender profile and its default USD
+     * account are already seeded by the loop; none of these setups has Acme Corp except draft-inv-0042.
+     */
+    async function seedOwnerFeedbackSetup(
+      setup: NoGuessingSetup,
+      userId: string
+    ) {
+      const profile = await prisma.senderProfile.findFirstOrThrow({
+        where: { userId },
+      });
+      const bank = await prisma.bankAccount.findFirstOrThrow({
+        where: { senderProfileId: profile.id, isDefault: true },
+      });
+      if (
+        setup === 'four-customers-one-profile' ||
+        setup === 'four-customers-one-profile+product-web-development'
+      ) {
+        for (const name of ['My New Customer', 'TEST 2', 'test', 'John Doe'])
+          await createCustomer(prisma, userId, { name });
+        if (setup !== 'four-customers-one-profile')
+          await createProduct(prisma, userId, {
+            name: 'Web development',
+            unit: 'hour',
+            price: 50,
+            currency: 'USD',
+          });
+        return;
+      }
+      const acme = await createCustomer(prisma, userId, { name: 'Acme Corp' });
+      const draft = (
+        invoiceNumber: string,
+        overrides: { issueDate?: Date } = {}
+      ) =>
+        createInvoice(prisma, {
+          senderProfile: profile,
+          customer: acme,
+          bankAccount: bank,
+          items: [{ name: 'Work', quantity: 10, rate: 50, amount: 500 }],
+          overrides: { invoiceNumber, ...overrides },
+        });
+      if (setup === 'draft-inv-0042') {
+        const invoice = await draft('INV-0042');
+        expectedLinkPaths.set(setup, `/invoices/${invoice.id}/edit`);
+        return;
+      }
+      // drafts-january: created 5, 20 and 28 January 2026 (the last issued in February) and one created in February.
+      const created: Array<[string, string, string?]> = [
+        ['INV-0001', '2026-01-05'],
+        ['INV-0002', '2026-01-20'],
+        ['INV-0003', '2026-01-28', '2026-02-02'],
+        ['INV-0004', '2026-02-10'],
+      ];
+      for (const [number, createdDay, issueDay] of created) {
+        const invoice = await draft(number, {
+          issueDate: new Date(`${issueDay ?? createdDay}T00:00:00Z`),
+        });
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { createdAt: new Date(`${createdDay}T12:00:00Z`) },
+        });
+        if (number === 'INV-0003')
+          expectedLinkPaths.set(setup, `/invoices/${invoice.id}/edit`);
+      }
+    }
+
     const actors = new Map<
       NoGuessingSetup,
       Awaited<ReturnType<typeof actingFreelancerForTest>>
     >();
-    for (const setup of [
-      'base',
-      'two-acme',
-      'no-profile',
-      'stored-text',
-      'several-eur',
-    ] as const) {
+    const userIds = new Map<NoGuessingSetup, string>();
+    for (const setup of NO_GUESSING_SETUPS) {
       const user = await createFreelancer(prisma, {
         email: `eval-${setup}@example.com`,
         timeZone: TIME_ZONE,
       });
-      if (setup !== 'no-profile') {
+      userIds.set(setup, user.id);
+      if (setup === 'own-profile-name') {
+        // ai-chat-v2 AC-05b: the default profile "Studio" (USD) and a second profile "Consulting FOP" (UAH). No
+        // Customer's folded name equals "Consulting FOP".
+        const studio = await createSenderProfile(prisma, user.id, {
+          name: 'Studio',
+          isDefault: true,
+        });
+        await createBankAccount(prisma, studio.id, {
+          currency: 'USD',
+          isDefault: true,
+        });
+        const fop = await createSenderProfile(prisma, user.id, {
+          name: 'Consulting FOP',
+          isDefault: false,
+        });
+        await createBankAccount(prisma, fop.id, {
+          currency: 'UAH',
+          isDefault: true,
+        });
+      } else if (setup !== 'no-profile') {
         const profile = await createSenderProfile(prisma, user.id, {
           name: 'Main',
         });
@@ -293,6 +544,11 @@ async function runNoGuessing(
               isDefault: false,
               bankName,
             });
+      }
+      if (NEW_SETUPS.has(setup)) {
+        await seedOwnerFeedbackSetup(setup, user.id);
+        actors.set(setup, await actingFreelancerForTest(user.id, TIME_ZONE));
+        continue;
       }
       // AC-15 (T38): stored text that reads like an instruction. No request in the set asks to draft, so
       // none of it may ever produce a card.
@@ -323,8 +579,14 @@ async function runNoGuessing(
           },
         });
       }
-      if (setup === 'two-acme')
+      if (setup === 'two-acme' || setup === 'own-profile-name')
         await createCustomer(prisma, user.id, { name: 'Acme GmbH' });
+      // ai-chat-v2 AC-14: more matches than an offer holds.
+      if (setup === 'many-studios')
+        for (let n = 0; n < 12; n++)
+          await createCustomer(prisma, user.id, {
+            name: `Studio ${String.fromCharCode(65 + n)}`,
+          });
       if (setup === 'base') {
         const consulting = await createProduct(prisma, user.id, {
           name: 'Consulting',
@@ -333,43 +595,118 @@ async function runNoGuessing(
           currency: 'USD',
         });
         await createCustomPrice(prisma, consulting.id, acme.id, { price: 45 });
+        // AC-24: a draft the Freelancer could ask the chat to issue in words; it must stay a draft.
+        const profile = await prisma.senderProfile.findFirstOrThrow({
+          where: { userId: user.id },
+        });
+        const bank = await prisma.bankAccount.findFirstOrThrow({
+          where: { senderProfileId: profile.id, isDefault: true },
+        });
+        await createInvoice(prisma, {
+          senderProfile: profile,
+          customer: acme,
+          bankAccount: bank,
+          items: [{ name: 'Consulting', quantity: 20, rate: 50, amount: 1000 }],
+          overrides: { invoiceNumber: 'EVAL-0001' },
+        });
       }
       actors.set(setup, await actingFreelancerForTest(user.id, TIME_ZONE));
     }
 
-    const rows: NoGuessingRow[] = [];
-    for (const item of items) {
-      const actor = actors.get(item.setup)!;
-      const result = await withBackoff(async () => {
-        const turn = await runTurn({
-          actor,
-          today: TODAY,
-          history: (item.history ?? []).map(toView),
-          message: item.text,
-          signal: new AbortController().signal,
+    /** Every invoice status of the Freelancer, to check that a turn changed none (AC-24). */
+    const statuses = async (userId: string) =>
+      JSON.stringify(
+        await prisma.invoice.findMany({
+          where: { senderProfile: { userId } },
+          orderBy: { id: 'asc' },
+          select: { id: true, status: true, issuedAt: true },
+        })
+      );
+
+    const allRuns: NoGuessingRow[][] = [];
+    for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
+      const rows: NoGuessingRow[] = [];
+      for (const item of items) {
+        const actor = actors.get(item.setup)!;
+        const userId = userIds.get(item.setup)!;
+        const before = await statuses(userId);
+        const observed = item.press
+          ? await withBackoff(() => runPress(item, userId))
+          : await withBackoff(async () => {
+              searchInvoicesCalls = [];
+              const turn = await runTurn({
+                actor,
+                today: TODAY,
+                history: (item.history ?? []).map(toView),
+                message: item.text,
+                signal: new AbortController().signal,
+              });
+              for await (const chunk of turn.stream) void chunk;
+              const outcome = await turn.result;
+              if (outcome.outcome === 'FAILED')
+                throw new Error(`turn failed (${outcome.failure})`);
+              const customerQuestion = outcome.pendingForm?.questions.find(
+                (q) => q.field === 'CUSTOMER'
+              );
+              return {
+                proposal: outcome.pendingCard?.proposal as unknown as
+                  | ProposalLike
+                  | undefined,
+                text: outcome.text,
+                offeredCustomers:
+                  customerQuestion?.options.map((o) => o.label) ?? [],
+                hasForm: outcome.pendingForm !== undefined,
+                formFields:
+                  outcome.pendingForm?.questions.map((q) => q.field) ?? [],
+                toolCalls: outcome.toolNames,
+                searchInvoicesArgs: searchInvoicesCalls,
+              };
+            });
+        const card = observed.proposal;
+        const cardCustomer = card?.customer.name.freelancerText ?? null;
+        rows.push({
+          id: item.id,
+          expect: item.expect,
+          hasCard: card !== undefined,
+          ungroundedValues: card
+            ? findUngroundedValues(
+                item.press ? item.press.label : item.text,
+                card,
+                KNOWN_RATES,
+                item.history ?? []
+              )
+            : [],
+          explains: item.explains,
+          lang: item.lang,
+          replyText: observed.text,
+          resolvedCustomers: [
+            ...(cardCustomer ? [cardCustomer] : []),
+            ...observed.offeredCustomers,
+          ],
+          statusChanged: (await statuses(userId)) !== before,
+          press: item.press,
+          cardCustomer,
+          hasForm: observed.hasForm,
+          formFields: observed.formFields,
+          expectFormFields: item.formFields,
+          toolCalls: observed.toolCalls,
+          searchInvoicesArgs: observed.searchInvoicesArgs,
+          searchFirst: item.searchFirst,
+          link: item.link,
+          expectedLinkPath: item.link
+            ? expectedLinkPaths.get(item.setup)
+            : undefined,
+          expectIssueDate: item.issueDate,
+          cardIssueDate: card
+            ? ((card as unknown as { issueDate?: { value: string } }).issueDate
+                ?.value ?? null)
+            : null,
+          expectCreatedRange: item.createdRange,
         });
-        for await (const chunk of turn.stream) void chunk;
-        const outcome = await turn.result;
-        if (outcome.outcome === 'FAILED')
-          throw new Error(`turn failed (${outcome.failure})`);
-        return outcome;
-      });
-      const card = result.pendingCard;
-      rows.push({
-        id: item.id,
-        expect: item.expect,
-        hasCard: card !== undefined,
-        ungroundedValues: card
-          ? findUngroundedValues(
-              item.text,
-              card.proposal as unknown as ProposalLike,
-              KNOWN_RATES,
-              item.history ?? []
-            )
-          : [],
-      });
+      }
+      allRuns.push(rows);
     }
-    return rows;
+    return allRuns;
   } finally {
     await prisma.$disconnect();
   }
@@ -392,14 +729,36 @@ async function main(): Promise<number> {
     );
     const topic = scoreTopicBoundary(await runTopicBoundary(topicItems));
     const noGuessingItems = loadNoGuessingSet();
+    const { runs, minPasses } = parseEvalRuns(process.env.ASSISTANT_EVAL_RUNS);
     console.log(
-      `Running ${noGuessingItems.length} drafting requests through the agent...`
+      `Running ${noGuessingItems.length} drafting requests through the agent (${runs} run${runs === 1 ? '' : 's'})...`
     );
-    const noGuessing = scoreNoGuessing(
-      await runNoGuessing(noGuessingItems, db.connectionString)
+    const runRows = await runNoGuessing(
+      noGuessingItems,
+      db.connectionString,
+      runs
     );
-    const { exitCode, report } = evaluateRun({ topic, noGuessing });
+    const aggregate = aggregateRuns(
+      runRows.map((rows) =>
+        Object.fromEntries(
+          rows.map((r) => [r.id, noGuessingRowFailures(r).length === 0])
+        )
+      ),
+      { minPasses }
+    );
+    const noGuessing = scoreNoGuessing(runRows[runRows.length - 1]);
+    // One run: exactly today's gate. Several runs: each row must pass in minPasses of them.
+    const gated =
+      runs === 1 ? noGuessing : { ...noGuessing, passed: aggregate.passed };
+    const { exitCode, report } = evaluateRun({ topic, noGuessing: gated });
     console.log(report);
+    if (runs > 1) {
+      console.log(`Per-row passes (need >= ${minPasses} of ${runs}):`);
+      for (const [id, passes] of Object.entries(aggregate.passCounts))
+        console.log(`  ${passes}/${runs} ${id}`);
+      for (const f of aggregate.failures)
+        console.log(`  - failing row: ${f.id} (${f.passes}/${f.runs})`);
+    }
     return exitCode;
   } finally {
     await db.stop();
@@ -409,6 +768,23 @@ async function main(): Promise<number> {
 // Entry point: `pnpm eval:assistant` runs this file under vitest (see vitest.config.ts) with
 // ASSISTANT_EVAL=1, which resolves the app's `@/` imports and TypeScript. Plain imports (the unit
 // tests) never set it, so nothing starts.
+// `pnpm eval:assistant:dry` (ASSISTANT_EVAL=dry): validates both datasets against their schema and sizes, with
+// no model call and no database.
+if (process.env.ASSISTANT_EVAL === 'dry') {
+  const { it } = await import('vitest');
+  it('the evaluation datasets are well-formed (dry run, no model)', () => {
+    const topic = loadTopicSet();
+    if (topic.length < TOPIC_MIN_SIZE)
+      throw new Error(
+        `The topic set has ${topic.length} questions; at least ${TOPIC_MIN_SIZE} are required.`
+      );
+    const rows = loadNoGuessingSet();
+    console.log(
+      `Dry run: ${topic.length} topic questions and ${rows.length} drafting requests are well-formed.`
+    );
+  });
+}
+
 if (process.env.ASSISTANT_EVAL === '1') {
   const { it } = await import('vitest');
   it('assistant evaluation meets every threshold', async () => {

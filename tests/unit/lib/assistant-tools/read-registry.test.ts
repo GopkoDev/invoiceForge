@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 // The registered tools reach the business layer, which needs a database connection to load.
 vi.mock('@/lib/services/dashboard/assistant-reads', () => ({}));
 vi.mock('@/lib/services/customers/customers', () => ({}));
+vi.mock('@/lib/services/sender-profiles/sender-profiles', () => ({}));
+vi.mock('@/lib/services/products/products', () => ({}));
 vi.mock('@/lib/services/invoices/assistant-search', () => ({}));
 vi.mock('@/lib/services/invoices/find-by-reference', () => ({}));
 
@@ -12,7 +14,7 @@ const root = process.cwd();
 
 // T02 (ai-assistant, AC-02, ADR-0010): one channel-neutral read-tool registry.
 describe('lib/assistant-tools read registry (T02)', () => {
-  it('exposes the seven read questions in the MCP tools/list order', async () => {
+  it('exposes the read questions in the MCP tools/list order (ai-chat-v2 adds list_sender_profiles, list_products)', async () => {
     const { READ_QUESTIONS } = await import('@/lib/assistant-tools');
     expect(READ_QUESTIONS.map((q) => q.definition.name)).toEqual([
       'list_overdue_invoices',
@@ -22,6 +24,8 @@ describe('lib/assistant-tools read registry (T02)', () => {
       'list_customers',
       'search_invoices',
       'get_invoice',
+      'list_sender_profiles',
+      'list_products',
     ]);
     for (const q of READ_QUESTIONS) expect(typeof q.handler).toBe('function');
   });

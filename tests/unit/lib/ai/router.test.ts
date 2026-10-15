@@ -128,4 +128,19 @@ describe('topic router (ADR-0005)', () => {
     });
     await expect(classifyMessage({ message: 'hello', recentTurns: [] })).rejects.toThrow();
   });
+
+  // ai-chat-v2 T63 (sad §5 Chat behaviour): the draft intent also covers issue / виставити / create ... invoice.
+  it('T63: the classification prompt tells the router that issue, виставити and create ... invoice mean intent draft', async () => {
+    await classifyMessage({ message: 'виставити інвойс для Acme', recentTurns: [] });
+    const system = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(system).toMatch(/issue/i);
+    expect(system).toContain('виставити');
+    expect(system).toMatch(/create[^"]*invoice/i);
+  });
+
+  it('T63: the verdict intent draft passes through for an issue request', async () => {
+    model = scripted({ topic: 'in_scope', language: 'uk', intent: 'draft' });
+    const r = await classifyMessage({ message: 'виставити інвойс для Acme', recentTurns: [] });
+    expect(r.intent).toBe('draft');
+  });
 });

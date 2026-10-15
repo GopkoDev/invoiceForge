@@ -1,12 +1,21 @@
 'use client';
 
+import { EyeIcon } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  useApplyCardInvoiceState,
+  useCardInvoiceState,
+  useRegisterCardInvoice,
+} from '@/components/ai/invoice-state-context';
+import { closePreview, openPreview, PREVIEW_PARAM } from '@/components/ai/preview-address';
 import { InvoiceStatusBadge } from '@/components/invoices/invoice-status-badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
@@ -18,6 +27,9 @@ import type { DraftCardView, LinkedInvoiceState } from '@/types/assistant/types'
 import type { InvoiceStatus } from '@/types/invoice/types';
 
 type CardResult = Extract<Awaited<ReturnType<typeof createDraftFromCard>>, { success: true }>['data'];
+/** ai-chat-v2 T38 (ADR-0010, SCR-05): full column width, rounded-xl in the workspace container's border colour. */
+const CARD_FRAME = 'w-full rounded-xl shadow-none ring-border';
+
 type DraftIssue = Extract<CardResult, { kind: 'NEEDS_ANSWERS' }>['issues'][number];
 
 type View =
@@ -142,26 +154,49 @@ function AmountRow({ label, value, currency }: { label: string; value: string; c
   );
 }
 
-function CreatedLine({ invoice }: { invoice: LinkedInvoiceState }) {
+/**
+ * SCR-05 created states (ai-chat-v2 T23): the invoice's state comes from the workspace store (ADR-0008), else from
+ * the card. A draft or an issued invoice offers "Open in editor →" and "Preview" (?preview={cardId}, ADR-0005).
+ */
+function CreatedLine({ cardId, invoice: cardInvoice }: { cardId: string; invoice: LinkedInvoiceState }) {
+  const knownId = cardInvoice.state === 'UNAVAILABLE' ? null : cardInvoice.invoiceId;
+  useRegisterCardInvoice(cardId, knownId);
+  const invoice = useCardInvoiceState(cardId, knownId) ?? cardInvoice;
+  const previewOpen = useSearchParams()?.get(PREVIEW_PARAM) === cardId;
   if (invoice.state === 'UNAVAILABLE') {
     return <p className="text-muted-foreground text-sm">This draft is no longer available.</p>;
   }
   const href = protectedRoutes.invoiceEdit(invoice.invoiceId);
-  if (invoice.state === 'DRAFT') {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm">Draft {invoice.invoiceNumber} created.</p>
-        <Link href={href} className={linkClass}>
-          Open draft →
-        </Link>
-      </div>
-    );
-  }
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Link href={href} className={linkClass}>
+        Open in editor →
+      </Link>
+      <Button
+        type="button"
+        size="sm"
+        variant={previewOpen ? 'secondary' : 'outline'}
+        data-variant={previewOpen ? 'secondary' : 'outline'}
+        aria-expanded={previewOpen}
+        onClick={() => (previewOpen ? closePreview() : openPreview(cardId))}
+      >
+        <EyeIcon aria-hidden />
+        Preview
+      </Button>
+    </div>
+  );
   return (
-    <Link href={href} className={linkClass}>
-      Invoice {invoice.invoiceNumber}
-      <InvoiceStatusBadge status={invoice.status.toUpperCase() as InvoiceStatus} />
-    </Link>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      {invoice.state === 'DRAFT' ? (
+        <p className="text-sm">Draft {invoice.invoiceNumber} created.</p>
+      ) : (
+        <p className="flex items-center gap-2 text-sm">
+          Invoice {invoice.invoiceNumber}
+          <InvoiceStatusBadge status={invoice.status.toUpperCase() as InvoiceStatus} />
+        </p>
+      )}
+      {actions}
+    </div>
   );
 }
 
@@ -170,6 +205,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
   const [view, setView] = useState<View>(() => initialView(card, cards));
   const [pending, setPending] = useState(false);
   const firing = useRef(false);
+  const applyCardInvoiceState = useApplyCardInvoiceState();
   const { proposal } = card;
   const customer = proposal.customer.name.freelancerText;
   const summary = `Draft invoice · ${customer} · ${money(proposal.total)} ${proposal.currency}`;
@@ -188,13 +224,18 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
       }
       const data = result.data;
       switch (data.kind) {
-        case 'CREATED':
-          setView({
-            kind: 'created',
-            invoice: { state: 'DRAFT', invoiceId: data.invoiceId, invoiceNumber: data.invoiceNumber },
-          });
+        case 'CREATED': {
+          const invoice: LinkedInvoiceState = {
+            state: 'DRAFT',
+            invoiceId: data.invoiceId,
+            invoiceNumber: data.invoiceNumber,
+          };
+          applyCardInvoiceState(card.id, invoice);
+          setView({ kind: 'created', invoice });
           break;
+        }
         case 'ALREADY_CREATED':
+          applyCardInvoiceState(card.id, data.invoice);
           setView({ kind: 'created', invoice: data.invoice });
           break;
         case 'REPLACED':
@@ -223,7 +264,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
     const badge = view.kind === 'replaced' ? 'Replaced' : view.kind === 'gone' ? null : 'Outdated';
     return (
       <>
-        <Card id={`draft-card-${card.id}`} className="opacity-70">
+        <Card id={`draft-card-${card.id}`} className={cn(CARD_FRAME, 'opacity-70')}>
           <CardContent className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">{summary}</p>
@@ -277,7 +318,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
   const defaults = defaultsList(proposal.defaultsUsed);
 
   return (
-    <Card id={`draft-card-${card.id}`}>
+    <Card id={`draft-card-${card.id}`} className={CARD_FRAME}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium">Draft invoice</p>
@@ -363,7 +404,7 @@ export function DraftCard({ card, cards }: { card: DraftCardView; cards?: Record
         </p>
         {defaults && <p className="text-muted-foreground text-xs">Defaults used: {defaults}.</p>}
         {view.kind === 'created' ? (
-          <CreatedLine invoice={view.invoice} />
+          <CreatedLine cardId={card.id} invoice={view.invoice} />
         ) : (
           <div className="flex sm:justify-end">
             <Button type="button" disabled={pending} onClick={create} className="w-full sm:w-auto">

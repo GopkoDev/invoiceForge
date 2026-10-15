@@ -12,6 +12,39 @@ enum DraftCardState {
     CREATED // a Draft invoice was created from it (AC-13, AC-14)
 }
 
+// ai-chat-v2: who or what sent a Freelancer message (spec §1, AC-34). NULL on ASSISTANT messages.
+enum MessageOrigin {
+    TYPED // typed into the message box
+    PRESSED // an Offered choice was pressed; set by the server only from a valid choice (ADR-0003)
+    DASHBOARD // the dashboard prompt box (ADR-0009)
+    FORM // revision 2026-10-13 (ADR-0011): composed by the server from a sent Question form; PRESSED is history only
+}
+
+// ai-chat-v2: where a Conversation was started (spec §1, §7). Set with the first message, never changed.
+enum ConversationStartPoint {
+    AI_SECTION // New chat or the AI chat entry; also every Conversation saved before ai-chat-v2
+    INVOICE_LIST // the existing "Create with AI" on the invoice list
+    DASHBOARD_PROMPT // the dashboard prompt box
+    DASHBOARD_CREATE // the dashboard's "Create invoice with AI"
+}
+
+// ai-chat-v2 (ADR-0002): which draft slot an offer fills.
+enum ChoiceOfferKind {
+    CUSTOMER
+    SENDER_PROFILE
+    CURRENCY
+    BANK_ACCOUNT
+    PRODUCT
+    FORM // revision 2026-10-13 (ADR-0011): every row written after the revision; the legacy kinds name a backfilled question's field
+}
+
+// ai-chat-v2 (ADR-0001): one offer's life.
+enum ChoiceOfferState {
+    OPEN // the latest reply's buttons; at most one per Conversation
+    CHOSEN // a press claimed it (released back to OPEN on a non-counted failure, or CLOSED when a newer message exists)
+    CLOSED // a newer message was saved (or a release found one); no choice
+}
+
 enum AssistantTopic {
     IN_SCOPE
     MIXED
@@ -31,11 +64,13 @@ model Conversation {
     userId        String
     title         String // the first message, trimmed to 80 characters
     lastMessageAt DateTime // moved by every saved turn; drives the list order and the 90-day purge
+    startedFrom   ConversationStartPoint @default(AI_SECTION) // ai-chat-v2: set with the first message, never changed
 
     user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
     messages   ConversationMessage[]
     draftCards DraftCard[]
     turns      AssistantTurn[]
+    offers     ChoiceOffer[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -51,8 +86,10 @@ model ConversationMessage {
     position       Int // 0, 1, 2, … within the Conversation, written under the Conversation row lock
     role           ConversationMessageRole
     parts          Json // UI-message parts: text, links as ids or page keys, Draft card references
+    origin         MessageOrigin? // ai-chat-v2: set on USER messages by the server; NULL on ASSISTANT messages
 
     conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    offer        ChoiceOffer? // the Offered choices this ASSISTANT reply carries, if any
 
     createdAt DateTime @default(now())
 
@@ -84,6 +121,35 @@ model DraftCard {
     @@index([userId])
     @@index([replacedById])
     @@index([invoiceId])
+}
+
+// ai-chat-v2 (ADR-0001, ADR-0002, ADR-0003): one set of Offered choices, built in code from a resolver issue and tied to
+// the reply that shows it. A press claims it OPEN -> CHOSEN; a non-counted failure releases it (OPEN, or CLOSED when a
+// newer message exists); any newer message closes it. Deleted with its Conversation.
+model ChoiceOffer {
+    id             String           @id @default(cuid())
+    userId         String
+    conversationId String
+    messageId      String           @unique // the ASSISTANT reply that shows the buttons; one offer per reply at most
+    kind           ChoiceOfferKind
+    lineIndex      Int? // the invoice line the choice fills (PRODUCT only); NULL for the other kinds
+    request        Json? // the stored draft request the form continues; answers are pinned into it (ADR-0011). NULL: a free-question form
+    options        Json // legacy (pre-revision rows): 1..8 frozen options { optionId, label, ref }; FORM rows write '[]'
+    questions      Json? // ADR-0011: 1..6 frozen questions with options and server labels (zod formQuestionSchema); set on every row after 08
+    answers        Json? // ADR-0011: the answers sent, written with CHOSEN, cleared on release; NULL otherwise. Exported (AC-34)
+    state          ChoiceOfferState @default(OPEN)
+    chosenOptionId Int? // legacy: set with CHOSEN on pre-revision rows; NULL on FORM rows
+
+    user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+    conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    message      ConversationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([conversationId], map: "ChoiceOffer_conversationId_open_key", where: { state: "OPEN" }) // one open offer per Conversation (SAD §6 Flags)
+    @@index([conversationId])
+    @@index([userId])
 }
 
 // Daily message allowance: one row per Freelancer per local day (ADR-0009). Counts only.

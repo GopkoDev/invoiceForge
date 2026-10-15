@@ -190,7 +190,14 @@ describe('draftProposalSchema (DraftProposal)', () => {
 });
 
 describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missing', () => {
-  const cus = (n: number) => ({ customerId: `clx0cus${n}`, name: { freelancerText: `Acme ${n}` } });
+  const cus = (n: number) => ({ customerId: `clx0cus${n}`, name: { freelancerText: `Acme ${n}` }, email: `acme${n}@example.test` });
+  const acct = (id: string, label: string, lastFour: string, bankName: string, currency = 'USD') => ({
+    bankAccountId: id,
+    label,
+    bankName: { freelancerText: bankName },
+    lastFour,
+    currency,
+  });
   const valid: Json[] = [
     { kind: 'NO_SENDER_PROFILE_WITH_ACCOUNT' },
     {
@@ -209,7 +216,12 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
       products: [{ productId: 'p1', name: { freelancerText: 'Consulting' }, currency: 'USD' }],
     },
     { kind: 'CURRENCY_UNCLEAR', written: '$', options: ['USD', 'UAH'] },
-    { kind: 'SENDER_PROFILE_NOT_FOUND', written: 'Nope', options: ['Test Sender'] },
+    {
+      kind: 'SENDER_PROFILE_NOT_FOUND',
+      written: 'Nope',
+      options: ['Test Sender'],
+      profiles: [{ senderProfileId: 'sp1', name: { freelancerText: 'Test Sender' } }],
+    },
     {
       kind: 'NO_ACCOUNT_IN_CURRENCY',
       currency: 'PLN',
@@ -228,16 +240,16 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
     {
       kind: 'SEVERAL_ACCOUNTS_IN_CURRENCY',
       currency: 'USD',
-      accounts: [{ bankAccountId: 'ba1', label: 'Bank ••0000' }],
+      accounts: [acct('ba1', 'Bank ••0000', '0000', 'Bank')],
     },
     // review-2026-10-12 R-06, R-08, R-10, R-11
-    { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Revolut', accounts: [{ bankAccountId: 'ba1', label: 'Wise ••1234' }] },
+    { kind: 'BANK_ACCOUNT_NOT_FOUND', written: 'Revolut', accounts: [acct('ba1', 'Wise ••1234', '1234', 'Wise')] },
     {
       kind: 'BANK_ACCOUNT_AMBIGUOUS',
       written: 'Wise',
       accounts: [
-        { bankAccountId: 'ba1', label: 'Wise ••1234' },
-        { bankAccountId: 'ba2', label: 'Wise ••5678' },
+        acct('ba1', 'Wise ••1234', '1234', 'Wise'),
+        acct('ba2', 'Wise ••5678', '5678', 'Wise'),
       ],
     },
     { kind: 'LINE_QUANTITY_MISSING', lineIndex: 0, description: 'consulting' },
@@ -246,8 +258,8 @@ describe('draftIssueSchema (DraftIssue) - AC-31 names what is ambiguous or missi
       lineIndex: 0,
       written: 'consulting',
       candidates: [
-        { productId: 'p1', name: { freelancerText: 'Consulting basic' } },
-        { productId: 'p2', name: { freelancerText: 'Consulting premium' } },
+        { productId: 'p1', name: { freelancerText: 'Consulting basic' }, unit: 'hours', price: '50.00', currency: 'USD' },
+        { productId: 'p2', name: { freelancerText: 'Consulting premium' }, unit: 'hours', price: '90.00', currency: 'USD' },
       ],
     },
     { kind: 'PRODUCT_NOT_FOUND', lineIndex: 2, written: 'clx0prod0000000000000009' },

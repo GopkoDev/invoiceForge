@@ -1,5 +1,6 @@
 // Per-scope limit configuration.
 import type { LimitOutcome, LimitScope } from '@prisma/client';
+import { CHAT_PER_MINUTE_MAX, CHAT_RATE_WINDOW_MS } from '@/lib/ai/limits';
 
 export interface LimitScopeConfig {
   windowMs: number;
@@ -10,7 +11,7 @@ export interface LimitScopeConfig {
 const MIN = 60_000;
 
 export const LIMIT_SCOPES: Record<
-  'SIGNIN_SOURCE' | 'SIGNIN_ADDRESS' | 'EXPORT' | 'MCP_KEY' | 'MCP_SOURCE',
+  'SIGNIN_SOURCE' | 'SIGNIN_ADDRESS' | 'EXPORT' | 'MCP_KEY' | 'MCP_SOURCE' | 'CHAT_MESSAGE',
   LimitScopeConfig
 > = {
   SIGNIN_SOURCE: { windowMs: 5 * MIN, max: 30, countedOutcomes: ['REQUESTED'] },
@@ -20,6 +21,12 @@ export const LIMIT_SCOPES: Record<
   // blocked after 30 refused key checks in 5 minutes.
   MCP_KEY: { windowMs: MIN, max: 60, countedOutcomes: ['REQUESTED'] },
   MCP_SOURCE: { windowMs: 5 * MIN, max: 30, countedOutcomes: ['REFUSED'] },
+  // The chat's per-minute limit per Freelancer (key = user id); a refusal writes no row.
+  CHAT_MESSAGE: {
+    windowMs: CHAT_RATE_WINDOW_MS,
+    max: CHAT_PER_MINUTE_MAX,
+    countedOutcomes: ['REQUESTED'],
+  },
 };
 
 export function scopeConfig(scope: LimitScope): LimitScopeConfig {

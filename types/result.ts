@@ -9,6 +9,7 @@
 import type { InvoiceStatus } from '@prisma/client';
 
 import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
+import type { LinkedInvoiceState } from '@/types/assistant/types';
 
 export type ActionErrorCode =
   | 'UNAUTHORIZED'
@@ -18,7 +19,9 @@ export type ActionErrorCode =
   | 'VALIDATION'
   | 'CONFLICT'
   | 'FAILED'
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  /** The per-minute chat limit (ai-chat-v2 T100). */
+  | 'TOO_FAST';
 
 /** Exact 2-dp value from the shared decimal module (ADR-0006). */
 export type DecimalString = string;
@@ -55,7 +58,17 @@ export type ActionErrorDetails =
       kind: 'AMBIGUOUS_REFERENCE';
       reference: 'invoice' | 'customer' | 'senderProfile';
       candidates: AmbiguousCandidate[];
-    };
+    }
+  /**
+   * ai-chat-v2 (AC-12b, AC-13): a pressed option is not one of the latest reply's open Offered choices - outdated,
+   * another Freelancer's, or never offered. One outcome and one sentence for all (CHOICE_UNAVAILABLE_MESSAGE).
+   */
+  | { kind: 'CHOICE_UNAVAILABLE' }
+  /** ai-chat-v2 (AC-26): issueFromPreview found the draft already issued; the panel and card show this state. */
+  | { kind: 'ALREADY_ISSUED'; invoice: LinkedInvoiceState };
+
+/** ai-chat-v2 (AC-12b; openapi sendChatMessage 409; spec §1 F7 revision 2026-10-13): the same words for every cause. */
+export const CHOICE_UNAVAILABLE_MESSAGE = 'This form is no longer available. Answer the latest questions or type your request.';
 
 export type AmbiguousCandidate = {
   id: string;

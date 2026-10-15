@@ -69,6 +69,8 @@ import {
   peekNextInvoiceNumber as peekNextNumber,
 } from '@/lib/services/invoices/numbering';
 import { SenderProfileNotFoundError } from '@/lib/services/invoices/numbering-errors';
+import { linkedInvoiceStateOf } from '@/lib/services/assistant-drafts/card-view';
+import type { LinkedInvoiceState } from '@/types/assistant/types';
 
 function isRecordNotFoundError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
@@ -1030,17 +1032,56 @@ async function updateInvoiceUnspanned(
 // Update invoice status (the list, flow 5). Touches only status/paidAt/version: never runs the
 // number or legacy-total checks (AC-17 last sentence). The lifecycle and the paid-date rule live
 // once in decideStatusChange (ADR-0002).
-export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
-  return inOutcomeSpan({ name: 'invoices.status-change' }, () =>
-    updateInvoiceStatusUnspanned(actor, id, status)
-  );
-}
-
-async function updateInvoiceStatusUnspanned(
+// ai-chat-v2 (ADR-0007): an optional expectedVersion, checked on the locked row before the decision:
+// not DRAFT → CONFLICT ALREADY_ISSUED; another version → CONFLICT CHANGED_ELSEWHERE. Without it
+// (the row menu) the behaviour is unchanged.
+export async function updateInvoiceStatus(
   actor: ActingFreelancer,
   id: string,
-  status: string
+  status: string,
+  opts?: { expectedVersion?: number }
 ): Promise<ActionResult<{ status: InvoiceStatus; paidAt: string | null }>> {
+  return inOutcomeSpan({ name: 'invoices.status-change' }, async () => {
+    const result = await changeInvoiceStatus(actor, id, status, { expectedVersion: opts?.expectedVersion });
+    if (!result.success) return result;
+    const { status: stored, paidAt } = result.data;
+    return ok({ status: stored, paidAt: paidAt ? paidAt.toISOString() : null });
+  });
+}
+
+/**
+ * ai-chat-v2 T16 (AC-23, AC-25, AC-26, AC-26b; ADR-0007): issues a draft from the chat's preview through
+ * the list/editor issuing path, guarded by the version the preview showed, and marks it issuedFromChat
+ * in the same locked write. The mark is write-once: nothing else writes or copies it.
+ */
+export async function issueInvoiceFromPreview(
+  actor: ActingFreelancer,
+  id: string,
+  expectedVersion: number
+): Promise<ActionResult<{ status: InvoiceStatus; version: number; invoice: LinkedInvoiceState }>> {
+  // Span per contracts/server-actions.md §issueFromPreview; metadata only (the outcome).
+  return inOutcomeSpan({ name: 'invoices.issue-from-preview' }, async () => {
+    const result = await changeInvoiceStatus(actor, id, 'PENDING', { expectedVersion, issuedFromChat: true });
+    if (!result.success) return result;
+    return ok({
+      status: result.data.status,
+      version: result.data.version,
+      invoice: linkedInvoiceStateOf({ ...result.data, id }, todayIn(actor.timeZone)),
+    });
+  });
+}
+
+const ALREADY_ISSUED_MESSAGE = 'This invoice has already been issued.';
+const OUTDATED_PREVIEW_MESSAGE = 'This draft was changed after you opened the preview. Check it and issue again.';
+
+async function changeInvoiceStatus(
+  actor: ActingFreelancer,
+  id: string,
+  status: string,
+  guard: { expectedVersion?: number; issuedFromChat?: boolean }
+): Promise<
+  ActionResult<{ status: InvoiceStatus; paidAt: Date | null; version: number; invoiceNumber: string; dueDate: Date }>
+> {
   try {
     const parsedStatus = z.nativeEnum(InvoiceStatus, {
       errorMap: () => ({ message: 'Unknown status.' }),
@@ -1058,13 +1099,27 @@ async function updateInvoiceStatusUnspanned(
     const outcome = await prisma.$transaction(async (tx) => {
       const invoice = await lockInvoiceRow(tx, id, userId);
       const today = todayIn(actor.timeZone);
+      if (guard.expectedVersion !== undefined) {
+        if (invoice.status !== 'DRAFT') {
+          throw new InvoiceRefusal(
+            fail('CONFLICT', ALREADY_ISSUED_MESSAGE, {
+              details: { kind: 'ALREADY_ISSUED', invoice: linkedInvoiceStateOf(invoice, today) },
+            })
+          );
+        }
+        if (invoice.version !== guard.expectedVersion) {
+          throw new InvoiceRefusal(
+            fail('CONFLICT', OUTDATED_PREVIEW_MESSAGE, {
+              details: { kind: 'CHANGED_ELSEWHERE', currentVersion: invoice.version },
+            })
+          );
+        }
+      }
       // The overdue status of a derived-overdue invoice is never stored (mcp-server ADR-0005):
       // asking for it is asking for the status it already has.
       const target = statusToStoreOnSave(invoice, parsedStatus.data, today);
       const decision = decideStatusChange(invoice, target, { now: new Date(), today });
-      if (decision.kind === 'unchanged') {
-        return { status: invoice.status, paidAt: invoice.paidAt };
-      }
+      if (decision.kind === 'unchanged') return invoice;
       if (decision.kind === 'refused') {
         throw new InvoiceRefusal(
           fail('VALIDATION', decision.message, {
@@ -1099,15 +1154,20 @@ async function updateInvoiceStatusUnspanned(
           ...(invoice.status === 'DRAFT' && decision.status !== 'DRAFT' && !invoice.issuedAt
             ? { issuedAt: new Date() }
             : {}),
+          // ai-chat-v2 (ADR-0007): only issueInvoiceFromPreview passes it; write-once.
+          ...(guard.issuedFromChat ? { issuedFromChat: true } : {}),
           version: { increment: 1 },
         },
-        select: { status: true, paidAt: true },
+        select: { status: true, paidAt: true, version: true, invoiceNumber: true, dueDate: true },
       });
     });
 
     return ok({
       status: outcome.status,
-      paidAt: outcome.paidAt ? outcome.paidAt.toISOString() : null,
+      paidAt: outcome.paidAt,
+      version: outcome.version,
+      invoiceNumber: outcome.invoiceNumber,
+      dueDate: outcome.dueDate,
     });
   } catch (error) {
     if (error instanceof InvoiceRefusal) return error.result;

@@ -8,6 +8,7 @@ interface NeonBorderWrapperProps {
   className?: string;
   variant?: 'always' | 'hover-only';
   animationSpeed?: 'slow' | 'medium' | 'fast';
+  'data-slot'?: string;
 }
 
 export function NeonBorderWrapper({
@@ -15,6 +16,7 @@ export function NeonBorderWrapper({
   className,
   variant = 'hover-only',
   animationSpeed = 'medium',
+  'data-slot': dataSlot,
 }: NeonBorderWrapperProps) {
   // Animation speed mapping
   const speedClasses = {
@@ -26,7 +28,7 @@ export function NeonBorderWrapper({
   const isAlwaysVisible = variant === 'always';
 
   return (
-    <div className={cn('group relative', className)}>
+    <div data-slot={dataSlot} className={cn('group relative', className)}>
       {/* Animated gradient border */}
       <div
         className={cn(

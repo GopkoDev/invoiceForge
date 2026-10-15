@@ -425,6 +425,7 @@ components:
         - customers
         - new-customer
         - products
+        - new-product # ai-chat-v2 AC-05 (review 2026-10-13 R1-U5)
         - sender-profiles
         - new-sender-profile
         - sender-profile-bank-accounts
@@ -834,9 +835,10 @@ components:
       examples:
         - code: FORBIDDEN
           message: "This key can only read. To create drafts, the Freelancer can create a new key with Draft permission on the Connect your AI page."
+        # ai-chat-v2 DraftIssueDelta (additive): Customer candidates also carry the email (AC-10).
         - code: VALIDATION
           message: "Two Customers match \"Acme\": Acme Corp and Acme GmbH. Ask the Freelancer which one."
-          details: { kind: DRAFT_ISSUES, issues: [{ kind: CUSTOMER_AMBIGUOUS, written: "Acme", candidates: [{ customerId: "clx0cus00000000000000001", name: { freelancerText: "Acme Corp" } }, { customerId: "clx0cus00000000000000002", name: { freelancerText: "Acme GmbH" } }] }] }
+          details: { kind: DRAFT_ISSUES, issues: [{ kind: CUSTOMER_AMBIGUOUS, written: "Acme", candidates: [{ customerId: "clx0cus00000000000000001", name: { freelancerText: "Acme Corp" }, email: "billing@acme.test" }, { customerId: "clx0cus00000000000000002", name: { freelancerText: "Acme GmbH" }, email: null }] }] }
         - code: RATE_LIMITED
           message: "This key has created 50 drafts today, its daily limit. The Freelancer can lift it on the Connect your AI page. Reading still works."
           details: { kind: DRAFT_LIMIT_REACHED, created: 50, allowance: 50, renewsAt: "2026-10-11T21:00:00.000Z" }

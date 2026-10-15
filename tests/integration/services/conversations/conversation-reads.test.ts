@@ -40,7 +40,7 @@ type Listed = {
   totalPages: number;
 };
 type Svc = {
-  listConversations: (actor: unknown, page?: number) => Promise<{ success: true; data: Listed } | Failure>;
+  listConversationSummaries: (actor: unknown) => Promise<{ success: true; data: { items: Listed['items']; timeZone: string } } | Failure>;
   getConversation: (actor: unknown, id: string) => Promise<{ success: true; data: Opened } | Failure>;
   loadHistory: (actor: unknown, conversationId: string) => Promise<unknown>;
 };
@@ -151,16 +151,15 @@ describe.runIf(containerRuntimeAvailable)('Conversation reads (T10)', () => {
     });
     await createConversation(prisma, { userId: b.user.id, title: 'Theirs' });
 
-    const res = await svc.listConversations(a.actor, 1);
+    const res = await svc.listConversationSummaries(a.actor);
 
     expect(res.success).toBe(true);
     if (!res.success) return;
     expect(res.data.items.map((c) => c.id)).toEqual([fresh.id, old.id]);
     expect(res.data.items[0]).toMatchObject({ title: 'Fresh', lastMessageAt: '2026-03-01T10:00:00.000Z' });
-    expect(res.data.total).toBe(2);
   });
 
-  it('AC-35: pages 20 per page, newest first', async () => {
+  it('AC-35 (ai-chat-v2 T19: no paging): every summary, newest first', async () => {
     const a = await freelancer();
     for (let i = 0; i < 25; i++) {
       await createConversation(prisma, {
@@ -170,16 +169,12 @@ describe.runIf(containerRuntimeAvailable)('Conversation reads (T10)', () => {
       });
     }
 
-    const p1 = await svc.listConversations(a.actor, 1);
-    const p2 = await svc.listConversations(a.actor, 2);
+    const all = await svc.listConversationSummaries(a.actor);
 
-    if (!p1.success || !p2.success) throw new Error('expected success');
-    expect(p1.data.items).toHaveLength(20);
-    expect(p1.data.items[0].title).toBe('C24');
-    expect(p1.data.items[19].title).toBe('C5');
-    expect(p2.data.items.map((c) => c.title)).toEqual(['C4', 'C3', 'C2', 'C1', 'C0']);
-    expect(p1.data).toMatchObject({ total: 25, page: 1, totalPages: 2 });
-    expect(p2.data.page).toBe(2);
+    if (!all.success) throw new Error('expected success');
+    expect(all.data.items).toHaveLength(25);
+    expect(all.data.items[0].title).toBe('C24');
+    expect(all.data.items[24].title).toBe('C0');
   });
 
   it('AC-35: opening returns the whole exchange in position order, and writes nothing', async () => {

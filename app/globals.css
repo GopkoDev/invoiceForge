@@ -179,6 +179,12 @@
   background-size: 200% 200%;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-shift {
+    animation: none;
+  }
+}
+
 .animate-hue-rotate {
   animation: hue-rotate 10s linear infinite;
 }

@@ -514,28 +514,51 @@ export function PrivacyPolicyContent() {
               <p className="text-muted-foreground mb-4">
                 The AI assistant sends the text of your chat messages, and the
                 data it reads to answer them (for example Customer names and
-                invoice amounts), to a Google Gemini model through the Vercel
-                AI Gateway. Vercel AI Gateway and Google therefore process your
-                message text.
+                invoice amounts), to an Anthropic Claude model through the
+                Vercel AI Gateway. Vercel AI Gateway and Anthropic therefore
+                process your message text. This runs on paid API terms: under
+                them Anthropic does not use the content you send to train its
+                models. Anthropic is a US company and processes the
+                text outside the EU, mainly in the USA. It does not store your
+                message text after answering (zero data retention under its
+                agreement with Vercel), except where the law requires it.
               </p>
-              <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
-                <p className="text-muted-foreground text-sm">
-                  <strong>Free tier terms:</strong> We use Google&apos;s free
-                  tier. Under those terms Google may use the content you send
-                  to improve its products, and human reviewers may read it. Do
-                  not put anything into the assistant that you do not want
-                  shared on those terms.
-                </p>
-              </div>
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>
+                  <strong>What we store:</strong> Your Conversations with their
+                  messages and draft cards; Question forms with their options
+                  and the answers you sent, including text you typed; the
+                  options the chat offered as buttons and the one you chose;
+                  prompts you send from the dashboard (saved as the first
+                  message of the Conversation they start); whether each message
+                  was typed, pressed, sent from a form or sent from the
+                  dashboard; and where each Conversation was started.
+                </li>
+                <li>
                   <strong>Retention:</strong> A Conversation is kept for 90
-                  days after its last message, then deleted.
+                  days after its last message, or until you delete it or your
+                  account, whichever comes first. Then it is deleted.
+                </li>
+                <li>
+                  <strong>Who processes your message text:</strong> Only
+                  Anthropic, through the Vercel AI Gateway, as described
+                  above. The chat adds no other company that
+                  processes your messages.
                 </li>
                 <li>
                   <strong>Your control:</strong> You can delete a Conversation
-                  at any time. Conversations are included in your data export
-                  and are removed when you delete your account.
+                  at any time. Conversations, Question forms and your answers, the
+                  options offered and chosen, and where each message came from
+                  are included in your data export and are removed when you
+                  delete your account.
+                </li>
+                <li>
+                  <strong>Connected AI clients:</strong> If you connect your
+                  own AI client with a Personal key, it can read your sender
+                  profile names and defaults; for each bank account, the bank
+                  name, the last four digits and the currency, never a full
+                  account number; your products with their prices and Custom
+                  prices; and Customers found by name.
                 </li>
                 <li>
                   <strong>Debugging traces:</strong> Traces hold metadata only

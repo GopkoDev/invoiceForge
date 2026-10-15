@@ -4,7 +4,7 @@
 import 'server-only';
 import { prisma } from '@/prisma';
 import { lineAmount } from '@/lib/helpers/invoice-calculations';
-import { foldName } from '@/lib/services/assistant-drafts/match-name';
+import { foldName } from '@/lib/helpers/fold-name';
 import type {
   DraftIssue,
   DraftProposal,
@@ -68,7 +68,16 @@ function resolveOne(
         kind: 'PRODUCT_AMBIGUOUS',
         lineIndex: index,
         written: line.description,
-        candidates: sameCurrency.slice(0, 50).map((p) => ({ productId: p.id, name: { freelancerText: p.name } })),
+        // ai-chat-v2 (DraftIssueDelta ProductCandidate): unit, the rate this line would get, and its currency.
+        // The list is capped at 50; the count of all matches goes with it, so the reply says the real number (R12-2).
+        ...(sameCurrency.length > 50 ? { total: sameCurrency.length } : {}),
+        candidates: sameCurrency.slice(0, 50).map((p) => ({
+          productId: p.id,
+          name: { freelancerText: p.name },
+          unit: p.unit,
+          price: money(customPrices.get(p.id) ?? p.price),
+          currency: p.currency,
+        })),
       },
     };
   }

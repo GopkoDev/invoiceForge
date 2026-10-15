@@ -21,7 +21,11 @@ test.describe.configure({ timeout: 150_000 });
 const DRAFT_SENTENCE = 'Invoice Acme for 20 hours of consulting at $50';
 const DESKTOP = { width: 1280, height: 800 };
 const message = (page: Page) => page.getByRole('textbox', { name: 'Message' });
-const send = (page: Page) => page.getByRole('button', { name: 'Send', exact: true });
+// The composer's Send only (start panel or docked box): a Question form in the chat has its own Send.
+const send = (page: Page) =>
+  page
+    .locator('[data-slot="composer-dock"], [data-slot="start-composer"]')
+    .getByRole('button', { name: 'Send', exact: true });
 
 test('AC-25: a key created with Draft permission is shown once and listed as able to create drafts', async ({
   browser,
@@ -92,7 +96,7 @@ test('AC-34: with no messages left, Create with AI shows the used-up notice and 
 
     await page.goto(`${APP_E2E_URL}${protectedRoutes.invoices}`);
     await page.getByRole('link', { name: 'Create with AI' }).click();
-    await expect(page).toHaveURL(/\/ai\?start=draft$/);
+    await expect(page).toHaveURL(/\/ai\?start=draft&from=invoices$/);
 
     const main = page.getByRole('main');
     await expect(main.getByText("You've used today's 30 messages")).toBeVisible();
@@ -185,6 +189,8 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
         page.getByText(/Draft [A-Z0-9-]+ created\./),
         page.getByText(/\b[A-Z][a-z]{2} \d{1,2}, \d{4}\b/),
         page.getByText(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/),
+        // ai-chat-v2 T37: greeting line 1 follows the time of day ("Good morning/afternoon/evening, {name}").
+        page.locator('[data-slot="greeting-line"]'),
       ];
       const shot = {
         maxDiffPixelRatio: 0.002,
@@ -193,7 +199,7 @@ test.describe('visual baselines: SCR-01 default, SCR-03 live and created', () =>
 
       await page.goto(`${APP_E2E_URL}${protectedRoutes.ai}`);
       await expect(
-        page.getByRole('heading', { name: 'Ask about your invoices' })
+        page.getByRole('heading', { name: /How can I help with your invoices today\?/ })
       ).toBeVisible();
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveScreenshot('ai-section-default.png', {

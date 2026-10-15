@@ -55,12 +55,12 @@ function scriptedTurn(): AnySpan[] {
     }),
     span({
       id: 'g1',
-      name: "llm: 'gemini'",
+      name: "llm: 'anthropic'",
       type: 'model_generation',
       input: { messages: [{ role: 'user', content: MESSAGE }] },
       output: { text: MODEL_OUTPUT },
       attributes: {
-        model: 'google/gemini-2.5-flash-lite',
+        model: 'anthropic/claude-haiku-5.5',
         provider: 'gateway',
         usage,
         finishReason: 'stop',
@@ -95,7 +95,7 @@ function scriptedTurn(): AnySpan[] {
     }),
     span({
       id: 'e1',
-      name: "llm: 'gemini'",
+      name: "llm: 'anthropic'",
       type: 'model_generation',
       errorInfo: { message: PROVIDER_ERROR, id: 'PROVIDER_REJECTED', category: 'THIRD_PARTY', domain: 'gateway', stack: PROVIDER_ERROR, details: { raw: PROVIDER_ERROR } },
       attributes: { usage },
@@ -167,7 +167,7 @@ describe('metadata-only Mastra span processor', () => {
     expect(gen.usage).toEqual({ inputTokens: 321, outputTokens: 45 });
     expect(gen.finishReason).toBe('stop');
     expect(gen.costContext?.estimatedCost).toBe(0.0012);
-    expect(gen.model).toBe('google/gemini-2.5-flash-lite');
+    expect(gen.model).toBe('anthropic/claude-haiku-5.5');
 
     expect((step.attributes as { stepIndex?: number }).stepIndex).toBe(0);
     expect((step.attributes as { finishReason?: string }).finishReason).toBe('tool-calls');

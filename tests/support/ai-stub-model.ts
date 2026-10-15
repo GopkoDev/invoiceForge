@@ -10,7 +10,7 @@ const usage = {
   outputTokens: { total: 2, text: 2, reasoning: 0 },
 };
 
-export type ToolCallStep = { name: string; input: Record<string, unknown> };
+export type ToolCallStep = { name: string; input: unknown };
 
 export type StubStep =
   | { text?: string; toolCall?: ToolCallStep; toolCalls?: ToolCallStep[] }

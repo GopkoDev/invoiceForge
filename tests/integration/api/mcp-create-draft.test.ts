@@ -95,7 +95,7 @@ describe.runIf(containerRuntimeAvailable)('MCP create_draft_invoice (T26)', () =
       idempotentHint: false,
       openWorldHint: false,
     });
-    expect(tools).toHaveLength(8);
+    expect(tools).toHaveLength(10); // 8 ai-assistant tools + list_sender_profiles (T05) + list_products (T06)
   });
 
   it('AC-29: a read-only key is refused with FORBIDDEN and nothing is created', async () => {

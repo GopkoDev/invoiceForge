@@ -20,6 +20,7 @@ import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { PostgresStore } from '@mastra/pg';
 import { createChatTools, MAX_STEPS } from '@/lib/ai/agent';
 import { CHAT_INSTRUCTIONS } from '@/lib/ai/instructions/chat';
+import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
 import { getChatModel } from '@/lib/ai/model';
 import { createTurnContext } from '@/lib/ai/turn-context';
 import { todayInZone } from '@/lib/helpers/calendar-day';
@@ -58,7 +59,10 @@ export const chatAgent = new Agent({
   model: () => getChatModel(),
   tools: async ({ requestContext }) =>
     createChatTools(await studioTurn(requestContext)),
-  defaultOptions: { maxSteps: MAX_STEPS },
+  defaultOptions: {
+    maxSteps: MAX_STEPS,
+    providerOptions: GATEWAY_PROVIDER_OPTIONS,
+  },
 });
 
 // The dev server runs from mastra/public; INIT_CWD is the repo root `pnpm studio` was started from.

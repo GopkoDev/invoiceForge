@@ -19,7 +19,7 @@ describe('invoices layout header (AC-33)', () => {
     render(<InvoicesLayout>{<p>child</p>}</InvoicesLayout>);
     const ai = screen.getByRole('link', { name: /Create with AI/ });
     const neu = screen.getByRole('link', { name: /New Invoice/ });
-    expect(ai.getAttribute('href')).toBe('/ai?start=draft');
+    expect(ai.getAttribute('href')).toBe('/ai?start=draft&from=invoices'); // ai-chat-v2 T20: carries its start point
     expect(neu.getAttribute('href')).toBe('/invoices/new');
     expect(ai.compareDocumentPosition(neu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

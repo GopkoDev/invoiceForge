@@ -199,7 +199,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
 
     const [a, b] = model.doStreamCalls.map((c) => toolNamesOf(c as any));
     expect(a).toEqual(b);
-    expect([...a].sort()).toEqual([...READ_QUESTIONS.map((q) => q.definition.name), 'find_in_app', 'propose_draft'].sort());
+    expect([...a].sort()).toEqual([...READ_QUESTIONS.map((q) => q.definition.name), 'find_in_app', 'propose_draft', 'ask_user'].sort()); // ai-chat-v2 T54: ask_user (chat only)
   });
 
   it('AC-11b: endless tool calls stop at the 8th step: partial text, the too-broad sentence, CAPPED', async () => {
@@ -243,7 +243,8 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     await run('Send INV-042 to the customer');
 
     const names = toolNamesOf(model.doStreamCalls[0] as any);
-    for (const n of names) expect(n).not.toMatch(/issue|send|edit|update|delete|cancel|mark/i);
+    // A verb as a name segment: list_sender_profiles reads sender profiles, it sends nothing (ai-chat-v2 T05).
+    for (const n of names) expect(n).not.toMatch(/(^|_)(issue|send|edit|update|delete|cancel|mark)(_|$)/i);
     expect(names).not.toContain('create_draft_invoice');
     const system = (model.doStreamCalls[0].prompt as any[]).filter((m) => m.role === 'system').map((m) => JSON.stringify(m.content)).join('\n');
     expect(system).toMatch(/only (the Freelancer|you) can issue/i);
@@ -413,6 +414,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.outcome).toBe('FAILED');
     expect(result.failure).toBe('PROVIDER');
     expect(model.doStreamCalls).toHaveLength(0);
+    expect(result.costUsd).toBeNull(); // T95: an unknown router cost is null, never free
   });
 
   it('a system-side router failure (a verdict that does not parse) ends FAILED with failure SYSTEM and starts no agent step', async () => {
@@ -424,6 +426,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.outcome).toBe('FAILED');
     expect(result.failure).toBe('SYSTEM');
     expect(model.doStreamCalls).toHaveLength(0);
+    expect(result.costUsd).toBeNull(); // T95
   });
 
   // R-14: tool calls and raw tool answers stay on the server; the client stream carries only text.
@@ -466,11 +469,11 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.costUsd).toBeCloseTo(0.00017, 9);
   });
 
-  it('a turn with no gateway-reported cost (the free-tier key) costs 0', async () => {
+  it('a turn with no gateway-reported cost has an unknown (null) cost, never 0 (ADR-0014)', async () => {
     const { run } = await setup();
 
     const { result } = await run('Who owes me money?');
 
-    expect(result.costUsd).toBe(0);
+    expect(result.costUsd).toBeNull();
   });
 });

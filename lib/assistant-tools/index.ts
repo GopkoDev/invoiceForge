@@ -6,6 +6,8 @@ import { summaryHandler, summaryTool } from './summary';
 import { customersHandler, customersTool } from './customers';
 import { searchHandler, searchTool } from './search';
 import { invoiceHandler, invoiceTool } from './invoice';
+import { senderProfilesHandler, senderProfilesTool } from './sender-profiles';
+import { productsHandler, productsTool } from './products';
 import type { ReadOnlyToolDefinition, ReadOnlyToolHandler, ReadQuestion, ZodObject } from './types';
 
 export type { McpCallContext, ReadOnlyToolDefinition, ReadOnlyToolHandler, ReadQuestion } from './types';
@@ -30,4 +32,7 @@ export const READ_QUESTIONS: readonly ReadQuestion[] = [
   question(customersTool, customersHandler),
   question(searchTool, searchHandler),
   question(invoiceTool, invoiceHandler),
+  // ai-chat-v2: the draft-request reads, after the ai-assistant seven.
+  question(senderProfilesTool, senderProfilesHandler),
+  question(productsTool, productsHandler),
 ];

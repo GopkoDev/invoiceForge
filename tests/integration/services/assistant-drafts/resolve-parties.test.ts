@@ -410,7 +410,7 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
 
     it('an account in another currency than the one named is not used: BANK_ACCOUNT_CURRENCY_MISMATCH names its currency', async () => {
       const { user, actor } = await freelancer();
-      const { wise } = await twoEur(user.id);
+      const { wise, usd } = await twoEur(user.id);
 
       const issues = await issuesOf(resolve(actor, { customer: 'Acme', currency: 'USD', bankAccount: 'Wise' }));
 
@@ -421,6 +421,8 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
           currency: 'USD',
           senderProfileId: expect.any(String),
           account: { bankAccountId: wise.id, label: expect.stringContaining('Wise'), currency: 'EUR' },
+          // T52: the profile's accounts in the asked currency, for the form's bank account question.
+          accounts: [{ bankAccountId: usd.id, label: expect.any(String), bankName: expect.any(Object), lastFour: expect.any(String), currency: 'USD' }],
         },
       ]);
     });
@@ -441,6 +443,7 @@ describe.runIf(containerRuntimeAvailable)('resolveParties (T07)', () => {
           currency: 'USD',
           senderProfileId: profile.id,
           account: { bankAccountId: privat.id, label: expect.stringContaining('Privat'), currency: 'UAH' },
+          accounts: [],
         },
       ]);
     });

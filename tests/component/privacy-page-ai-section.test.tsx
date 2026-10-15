@@ -25,19 +25,30 @@ describe('privacy page — AI assistant section (T05)', () => {
     expect(screen.getByRole('heading', { level: 2, name: /AI assistant/i })).toBeInTheDocument();
   });
 
-  it('names the Vercel AI Gateway and Google as processors of chat text', () => {
+  it('names the Vercel AI Gateway and Anthropic as processors of chat text, not Google Gemini', () => {
     const text = aiSection();
     expect(text).toMatch(/Vercel AI Gateway/);
-    expect(text).toMatch(/Google/);
+    expect(text).toMatch(/Anthropic Claude model through the Vercel AI Gateway/);
+    expect(text).not.toMatch(/Google Gemini/i);
     expect(text).toMatch(/message text/i);
   });
 
-  it('states the free-tier terms: Google may use content to improve its products and reviewers may read it', () => {
+  it('states paid API terms and that Anthropic does not use the content to train its models; no free-tier box', () => {
     const text = aiSection();
-    expect(text).toMatch(/free tier/i);
-    expect(text).toMatch(/improve (its|Google's|Google’s) products/i);
-    expect(text).toMatch(/reviewers?/i);
-    expect(text).toMatch(/read/i);
+    expect(text).toMatch(/paid/i);
+    expect(text).toMatch(/Anthropic does not use[^.]*(train|training)/i);
+    expect(text).not.toMatch(/free tier/i);
+    expect(text).not.toMatch(/improve (its|Google's|Google’s) products/i);
+    expect(text).not.toMatch(/human reviewers?/i);
+  });
+
+  it('states processing outside the EU, mainly in the USA, and zero data retention without an absolute claim (T109, T111)', () => {
+    const text = aiSection();
+    expect(text).toMatch(/outside the EU/);
+    expect(text).toMatch(/zero data retention/i);
+    expect(text).toMatch(/USA/);
+    expect(text).not.toMatch(/keeps no copy/i);
+    expect(text).not.toMatch(/runs in the USA/i);
   });
 
   it('states the 90-day Conversation retention, deletion, export and account removal', () => {

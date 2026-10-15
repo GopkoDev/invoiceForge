@@ -1,35 +1,42 @@
 import { ChatIsland } from '@/components/ai/chat-island';
-import { AiWorkspace } from '@/components/ai/ai-workspace';
+import { startPointFromAddress } from '@/components/ai/start-point';
 import { unwrapPageResult } from '@/components/layout/content-area';
+import { sessionAccountName } from '@/lib/helpers/account-name';
+import { greetingLine } from '@/lib/helpers/greeting';
 import { actingFreelancerFromSession } from '@/lib/helpers/session-actor';
 import { getAllowanceState } from '@/lib/services/assistant-usage';
-import { listConversations } from '@/lib/services/conversations';
 
 interface AiPageProps {
-  searchParams: Promise<{ page?: string | string[]; start?: string | string[] }>;
+  searchParams: Promise<{
+    start?: string | string[];
+    from?: string | string[];
+  }>;
 }
 
 export default async function AiPage({ searchParams }: AiPageProps) {
-  const { page: rawPage, start: rawStart } = await searchParams;
-  const parsed = Number(Array.isArray(rawPage) ? rawPage[0] : rawPage);
-  const page = Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined;
-
-  const start = (Array.isArray(rawStart) ? rawStart[0] : rawStart) === 'draft' ? 'draft' : undefined;
+  // ai-chat-v2 T20: the start point the first message is sent with comes from the address.
+  const params = await searchParams;
+  const { start, startedFrom } = startPointFromAddress(params);
 
   const actor = unwrapPageResult(await actingFreelancerFromSession());
-  const conversations = unwrapPageResult(await listConversations(actor, page));
   const allowance = unwrapPageResult(await getAllowanceState(actor));
+  // ai-chat-v2 T37 (SCR-02 «Greeting»): computed here, in the Freelancer time zone, so the client renders the same text.
+  const greeting = greetingLine(
+    await sessionAccountName(),
+    actor.timeZone,
+    new Date()
+  );
 
   return (
-    <AiWorkspace conversations={conversations} timeZone={actor.timeZone} phoneList>
-      <ChatIsland
-        conversationId={null}
-        initialMessages={[]}
-        invoiceLinks={{}}
-        cards={{}}
-        allowance={allowance}
-        start={start}
-      />
-    </AiWorkspace>
+    <ChatIsland
+      conversationId={null}
+      initialMessages={[]}
+      invoiceLinks={{}}
+      cards={{}}
+      allowance={allowance}
+      start={start}
+      startedFrom={startedFrom}
+      greeting={greeting}
+    />
   );
 }

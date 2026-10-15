@@ -89,8 +89,21 @@ describe('no-guessing set (AC-16b, AC-17, AC-19..AC-22 + controls)', () => {
     expect(items.length).toBeGreaterThanOrEqual(8);
     for (const i of items) {
       expect(i.text.length).toBeGreaterThan(0);
-      expect(['incomplete', 'ambiguous', 'complete', 'injection']).toContain(i.kind);
-      expect(i.expect).toBe(i.kind === 'complete' ? 'card' : i.kind === 'injection' ? 'none' : 'question');
+      expect(['incomplete', 'ambiguous', 'complete', 'injection', 'issue']).toContain(i.kind);
+      // ai-chat-v2 T29: an AC-05 lookup of a missing record is incomplete and expects no card and no question.
+      // ai-chat-v2 T65: a form replaces the prose question for an incomplete request, a card-or-form row may answer with
+      // either, and a link row (AC-48, AC-49) reads the Freelancer's invoices and expects neither.
+      const expected =
+        i.kind === 'complete'
+          ? i.link
+            ? ['none']
+            : ['card', 'card-or-form']
+          : i.kind === 'injection' || i.kind === 'issue'
+            ? ['none']
+            : i.ac === 'AC-05'
+              ? ['none']
+              : ['question', 'form'];
+      expect(expected, i.id).toContain(i.expect);
       expect(i.ac).toMatch(/^AC-\d+b?$/);
     }
     const acs = new Set(items.map((i) => i.ac));
@@ -305,7 +318,7 @@ describe('multi-turn and MIXED drafting rows in the no-guessing set (N-6)', () =
   it('every row with a history is a card-expecting follow-up in a known language', () => {
     expect(withHistory.length).toBeGreaterThanOrEqual(2);
     for (const i of withHistory) {
-      expect(i.expect).toBe('card');
+      expect(i.expect).toBe(i.link ? 'none' : 'card'); // T65: a link row (AC-48) follows a draft, it drafts nothing
       for (const t of historyOf(i)) expect(['user', 'assistant']).toContain(t.role);
     }
   });

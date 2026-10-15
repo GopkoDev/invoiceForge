@@ -11,6 +11,8 @@ vi.mock('@/lib/services/personal-keys/usage', () => ({
 // The registered tools reach the business layer, which needs a database connection to load.
 vi.mock('@/lib/services/dashboard/assistant-reads', () => ({}));
 vi.mock('@/lib/services/customers/customers', () => ({}));
+vi.mock('@/lib/services/sender-profiles/sender-profiles', () => ({}));
+vi.mock('@/lib/services/products/products', () => ({}));
 vi.mock('@/lib/services/invoices/assistant-search', () => ({}));
 vi.mock('@/lib/services/invoices/find-by-reference', () => ({}));
 const createDraftForKey = vi.hoisted(() => vi.fn());
@@ -70,7 +72,7 @@ describe('tools/list (AC-10)', () => {
     const client = await connect(async () => ok({ value: 1 }));
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['list_customers']));
-    expect(tools).toHaveLength(8);
+    expect(tools).toHaveLength(10); // 7 + list_sender_profiles (T05) + list_products (T06) + create_draft_invoice
     expect(tools.filter((t) => t.annotations?.readOnlyHint === false).map((t) => t.name)).toEqual([
       'create_draft_invoice',
     ]);
