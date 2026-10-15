@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/assistant-drafts/schema';
 import type { AppLink } from '@/lib/validations/assistant-chat';
 import type { TurnContext } from '@/lib/ai/turn-context';
+import { spendToolBudget, withToolBudget } from '@/lib/ai/limits';
 import { countSentences } from '@/lib/ai/issue-text';
 
 const DESCRIPTION =
@@ -190,31 +191,33 @@ export function createProposeDraftTool(turn: TurnContext) {
     id: 'propose_draft',
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
     inputSchema: z.preprocess(liftLineCurrency, draftRequestSchema),
-    execute: async (rawRequest: unknown): Promise<Record<string, unknown>> => {
+    execute: (rawRequest: unknown): Promise<Record<string, unknown>> => {
       // A pressed turn's card or offer was resolved in code from the pinned choice: a re-call gets that same answer
       // and changes neither, whatever lines, prices or names the model writes (SAD §11; review 2026-10-13 R1-S1).
-      if (turn.pinnedAnswer) return turn.pinnedAnswer;
-      const request = draftRequestSchema.parse(rawRequest);
-      const call = callCounts.get(turn) ?? 0;
-      callCounts.set(turn, call + 1);
-      // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
-      if (!turn.draftIntent) return { kind: 'NOT_REQUESTED', message: NOT_REQUESTED };
-      const resolved = await resolveDraftRequest(turn.actor, request, turn.today);
-      if (!resolved.success) return { ...toToolError(resolved) };
-      if (resolved.data.kind === 'ISSUES') {
-        const { issues } = resolved.data;
-        const { questions, matchCount, offered } = resolverFormFor(issues, request, turn);
-        if (call >= (resolverCalls.get(turn) ?? -1)) {
-          turn.pending.resolver = { request, questions };
-          resolverCalls.set(turn, call);
+      if (turn.pinnedAnswer) return Promise.resolve(spendToolBudget(turn.toolBudget, turn.pinnedAnswer));
+      return withToolBudget(turn.toolBudget, async () => {
+        const request = draftRequestSchema.parse(rawRequest);
+        const call = callCounts.get(turn) ?? 0;
+        callCounts.set(turn, call + 1);
+        // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
+        if (!turn.draftIntent) return { kind: 'NOT_REQUESTED', message: NOT_REQUESTED };
+        const resolved = await resolveDraftRequest(turn.actor, request, turn.today);
+        if (!resolved.success) return { ...toToolError(resolved) };
+        if (resolved.data.kind === 'ISSUES') {
+          const { issues } = resolved.data;
+          const { questions, matchCount, offered } = resolverFormFor(issues, request, turn);
+          if (call >= (resolverCalls.get(turn) ?? -1)) {
+            turn.pending.resolver = { request, questions };
+            resolverCalls.set(turn, call);
+          }
+          // T72: the fields the form will ask, so the model writes one prompt per field through ask_user.
+          return { ...issuesAnswer(issues, matchCount, offered), askFields: askFieldsOf(questions) };
         }
-        // T72: the fields the form will ask, so the model writes one prompt per field through ask_user.
-        return { ...issuesAnswer(issues, matchCount, offered), askFields: askFieldsOf(questions) };
-      }
-      const { proposal } = resolved.data;
-      const cardId = createId();
-      turn.pending.card = { id: cardId, request, proposal };
-      return { kind: 'CARD', cardId, summary: summarize(proposal) };
+        const { proposal } = resolved.data;
+        const cardId = createId();
+        turn.pending.card = { id: cardId, request, proposal };
+        return { kind: 'CARD', cardId, summary: summarize(proposal) };
+      });
     },
   });
 }

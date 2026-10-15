@@ -11,7 +11,7 @@ vi.mock('@/lib/ai/model', async (importActual) => ({
 }));
 vi.mock('@/prisma', () => ({ prisma: {} }));
 
-import { AGENT_MAX_OUTPUT_TOKENS, HISTORY_CHAR_BUDGET, ROUTER_MAX_OUTPUT_TOKENS, trimHistoryToBudget } from '@/lib/ai/limits';
+import { AGENT_MAX_OUTPUT_TOKENS, HISTORY_BYTES_BUDGET, ROUTER_MAX_OUTPUT_TOKENS, trimHistoryToBudget } from '@/lib/ai/limits';
 import { classifyMessage } from '@/lib/ai/router';
 import { runTurn } from '@/lib/ai/run-turn';
 import type { ConversationMessageView } from '@/types/assistant/types';
@@ -30,7 +30,7 @@ describe('output caps (T99)', () => {
   it('exports the caps', () => {
     expect(ROUTER_MAX_OUTPUT_TOKENS).toBe(300);
     expect(AGENT_MAX_OUTPUT_TOKENS).toBe(2000);
-    expect(HISTORY_CHAR_BUDGET).toBe(40_000);
+    expect(HISTORY_BYTES_BUDGET).toBe(40_000);
   });
 
   it('the router call is capped at 300 output tokens', async () => {
@@ -71,7 +71,7 @@ describe('trimHistoryToBudget (T99)', () => {
     expect(trimHistoryToBudget(h, 100)).toEqual([h[1]]);
   });
 
-  it('defaults to the 40,000-character budget', () => {
+  it('defaults to the 40,000-byte budget', () => {
     const h = [turnOf('user', 'a'.repeat(30_000)), turnOf('assistant', 'b'.repeat(30_000))];
     expect(trimHistoryToBudget(h)).toEqual([h[1]]);
     const small = [turnOf('user', 'a'.repeat(20_000)), turnOf('assistant', 'b'.repeat(20_000))];
@@ -103,5 +103,26 @@ describe('history budget reaches the model (T99)', () => {
     expect(prompt).not.toContain('HUGE_OLD_MARKER');
     expect(prompt).toContain('RECENT_ANSWER_MARKER');
     expect(prompt).toContain('RECENT_QUESTION_MARKER');
+  });
+});
+
+describe('trimHistoryToBudget counts UTF-8 bytes (T103, SEC-L-04)', () => {
+  it('trims a Cyrillic history earlier than an ASCII one of equal length', () => {
+    const cyr = [turnOf('user', 'я'.repeat(30)), turnOf('assistant', 'я'.repeat(30))]; // 60 + 60 bytes
+    const ascii = [turnOf('user', 'a'.repeat(30)), turnOf('assistant', 'a'.repeat(30))]; // 30 + 30 bytes
+    expect(trimHistoryToBudget(cyr, 100)).toEqual([cyr[1]]);
+    expect(trimHistoryToBudget(ascii, 100)).toEqual(ascii);
+  });
+
+  it('counts an emoji as 4 bytes', () => {
+    const h = [turnOf('user', '😀'.repeat(15)), turnOf('assistant', '😀'.repeat(15))]; // 30 chars but 60 bytes each
+    expect(trimHistoryToBudget(h, 100)).toEqual([h[1]]);
+  });
+
+  it('the default budget is 40,000 bytes', () => {
+    const cyr = [turnOf('user', 'я'.repeat(15_000)), turnOf('assistant', 'я'.repeat(15_000))]; // 60,000 bytes
+    expect(trimHistoryToBudget(cyr)).toEqual([cyr[1]]);
+    const ascii = [turnOf('user', 'a'.repeat(15_000)), turnOf('assistant', 'a'.repeat(15_000))];
+    expect(trimHistoryToBudget(ascii)).toEqual(ascii);
   });
 });

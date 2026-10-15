@@ -22,7 +22,7 @@ export const TURN_CONTEXT_KEY = 'turn';
 export function createChatTools(turn: TurnContext) {
   return {
     ...createReadTools(turn),
-    find_in_app: createFindInAppTool(),
+    find_in_app: createFindInAppTool(turn),
     propose_draft: createProposeDraftTool(turn),
     ask_user: createAskUserTool(turn),
   };

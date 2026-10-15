@@ -4,7 +4,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
 import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
-import { AGENT_MAX_OUTPUT_TOKENS, trimHistoryToBudget } from '@/lib/ai/limits';
+import { AGENT_MAX_OUTPUT_TOKENS, jsonBytes, trimHistoryToBudget } from '@/lib/ai/limits';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createId } from '@paralleldrive/cuid2';
@@ -316,6 +316,13 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   if (input.pinned) {
     turn.pinnedAnswer = pinnedAnswer(input.pinned, turn.pending.card?.id, pinnedMatchCount, pinnedOffered, pinnedAskFields);
   }
+  // The steps already in the prompt count against the turn's tool budget (T103); they are never cut.
+  const charge = (value: unknown) => {
+    turn.toolBudget.bytesLeft = Math.max(0, turn.toolBudget.bytesLeft - jsonBytes(value));
+    turn.toolBudget.callsLeft = Math.max(0, turn.toolBudget.callsLeft - 1);
+  };
+  if (input.pinned && turn.pinnedAnswer) charge(turn.pinnedAnswer);
+  if (input.priorAnswers) charge({ answers: input.priorAnswers, request: input.priorRequest });
   const requestContext = new RequestContext();
   requestContext.set(TURN_CONTEXT_KEY, turn);
 

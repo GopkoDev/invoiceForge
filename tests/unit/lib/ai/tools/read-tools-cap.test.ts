@@ -21,13 +21,13 @@ vi.mock('@/lib/assistant-tools', () => ({
   ],
 }));
 
-import { TOOL_ANSWER_MAX_CHARS, TOOL_ARRAY_MAX_ITEMS, TOOL_STRING_MAX_CHARS } from '@/lib/ai/limits';
+import { TOOL_ANSWER_MAX_BYTES, TOOL_ARRAY_MAX_ITEMS, TOOL_STRING_MAX_CHARS } from '@/lib/ai/limits';
 import { capToolAnswer, createReadTools } from '@/lib/ai/tools/read-tools';
 import { createTurnContext } from '@/lib/ai/turn-context';
 
 describe('capToolAnswer (T99)', () => {
   it('exports the bounds', () => {
-    expect([TOOL_STRING_MAX_CHARS, TOOL_ARRAY_MAX_ITEMS, TOOL_ANSWER_MAX_CHARS]).toEqual([2000, 50, 20_000]);
+    expect([TOOL_STRING_MAX_CHARS, TOOL_ARRAY_MAX_ITEMS, TOOL_ANSWER_MAX_BYTES]).toEqual([2000, 50, 20_000]);
   });
 
   it('leaves a small answer unchanged', () => {
@@ -62,10 +62,10 @@ describe('capToolAnswer (T99)', () => {
     expect(out.invoice.lines[0].d.length).toBeLessThan(2200);
   });
 
-  it('keeps the serialized answer at most 20,000 chars even when the per-field caps still leave more', () => {
+  it('keeps the serialized answer at most 20,000 bytes even when the per-field caps still leave more', () => {
     const wide = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`f${i}`, 'w'.repeat(1900)]));
     const out = capToolAnswer({ ...wide, rows: Array.from({ length: 50 }, () => ({ d: 'r'.repeat(1900) })) });
-    expect(JSON.stringify(out).length).toBeLessThanOrEqual(20_000);
+    expect(Buffer.byteLength(JSON.stringify(out), 'utf8')).toBeLessThanOrEqual(20_000);
   });
 });
 
@@ -76,7 +76,7 @@ describe('createReadTools caps what the model sees (T99)', () => {
       { execute: (a: unknown, c?: unknown) => Promise<Record<string, unknown>> }
     >;
     const out = await tools.get_invoice.execute({}, {});
-    expect(JSON.stringify(out).length).toBeLessThanOrEqual(20_000);
+    expect(Buffer.byteLength(JSON.stringify(out), 'utf8')).toBeLessThanOrEqual(20_000);
     expect((out.notes as string).length).toBeLessThan(2200);
     expect(out.links).toEqual([{ kind: 'invoice', invoiceId: 'inv-1', label: 'INV-1' }]);
   });

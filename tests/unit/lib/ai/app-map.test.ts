@@ -3,6 +3,7 @@ import { protectedRoutes } from '@/config/routes.config';
 import { appPageKeySchema, type AppPageKey } from '@/lib/validations/assistant-chat';
 import { APP_MAP, appPageRoute, findInApp } from '@/lib/ai/app-map';
 import { createFindInAppTool } from '@/lib/ai/tools/find-in-app';
+import { createTurnContext } from '@/lib/ai/turn-context';
 
 // T13 (ai-assistant, AC-07, ADR-0010): find_in_app answers from a fixed map of the app's real pages.
 const SAMPLE_ID = 'cmsample0000000000000000';
@@ -68,7 +69,7 @@ describe('fixed app map (T13, AC-07)', () => {
   });
 
   it('find_in_app answers { pages } with real page keys only, and never invents one', async () => {
-    const tool = createFindInAppTool();
+    const tool = createFindInAppTool(createTurnContext({ actor: { userId: 'u1', timeZone: 'UTC' } as never, today: '2026-10-15' }));
     expect(tool.id).toBe('find_in_app');
     const answer = (await tool.execute!({ topic: 'logo' }, {} as never)) as { pages: Array<{ page: string; title: string; whatIsSetThere: string }> };
     expect(answer.pages[0]).toMatchObject({ page: 'sender-profiles' });

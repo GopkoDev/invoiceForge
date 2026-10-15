@@ -3,6 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { DraftIssue, DraftProposal, DraftRequest } from '@/lib/services/assistant-drafts/schema';
 import type { FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import type { DraftRequestPartial } from '@/lib/services/assistant-drafts/form-pin';
+import { TURN_TOOL_BUDGET_BYTES, TURN_TOOL_CALLS_MAX, type ToolBudget } from '@/lib/ai/limits';
 import type { FormField } from '@/types/assistant/types';
 
 /**
@@ -47,6 +48,8 @@ export interface TurnContext {
    * changes neither the card nor the form: both come from code (SAD §11; review 2026-10-13 R1-S1). Null otherwise.
    */
   pinnedAnswer: Record<string, unknown> | null;
+  /** T103: what is left for all tool answers of this turn (bytes) and tool calls; every chat tool spends it. */
+  toolBudget: ToolBudget;
 }
 
 export function createTurnContext(input: {
@@ -70,5 +73,6 @@ export function createTurnContext(input: {
     draftIntent: pinned ? true : (input.draftIntent ?? false),
     pending: { card, resolver: null, ask: null, askRefused: null },
     pinnedAnswer: null,
+    toolBudget: { bytesLeft: TURN_TOOL_BUDGET_BYTES, callsLeft: TURN_TOOL_CALLS_MAX },
   };
 }

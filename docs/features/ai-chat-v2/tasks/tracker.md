@@ -103,7 +103,7 @@
 | T100 | [The chat refuses more than 10 messages a minute per Freelancer (SEC-M-01 c)](./t100-chat-per-minute-limit.md) | backend | Dmytro Hopko | S | T99 | done |
 | T101 | [Gateway requests ask for no prompt training; the app agent carries the pin in its defaults; privacy §5 Vercel row names the AI Gateway (SEC-L-03, SEC-I-04, SEC-I-03)](./t101-no-training-filter-and-agent-default-pin.md) | backend | Dmytro Hopko | S | T100 | done |
 | T102 | [ADR-0014, SAD, spec and ship docs say what bounds a turn; weekly check reports null costs; owner checks listed (SEC-M-01 d, e; SEC-I-03; SEC-I-05)](./t102-security-addendum-docs.md) | docs | Dmytro Hopko | S | T101 | done |
-| T103 | [One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)](./t103-per-turn-tool-budget.md) | backend | Dmytro Hopko | S | T102 | todo |
+| T103 | [One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)](./t103-per-turn-tool-budget.md) | backend | Dmytro Hopko | S | T102 | done |
 | T104 | [The per-minute chat limit is atomic in the shared limit store and refusals write no turn rows (SEC-L-05, SEC-I-06 code)](./t104-atomic-chat-rate-limit.md) | migration | Dmytro Hopko | S | T103 | todo |
 | T105 | [Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)](./t105-re-check-docs.md) | docs | Dmytro Hopko | S | T104 | todo |
 

@@ -9,7 +9,7 @@ files_hint: ["lib/ai/limits.ts", "lib/ai/tools/read-tools.ts", "lib/ai/turn-cont
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T103 — One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)
