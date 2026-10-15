@@ -137,3 +137,16 @@ Facts hold (vercel.json `fra1`; Neon hosts `eu-central-1`; the live Gateway endp
 **Verdict:** CHANGES REQUESTED (copy only) → T111.
 
 **Resolution (review of T109–T110):** Z-1..Z-6 → T111.
+
+### Review of T111 (2026-10-15, `5d725248..b26baccc`)
+
+Z-2..Z-5 resolved; Z-1 resolved in §11 only; Z-6 resolved with a gap. The escaped apostrophe renders as `Vercel's`.
+
+| ID | Sev | Finding | Where | Fix |
+|---|---|---|---|---|
+| W-1 | low-med | Privacy §5 / terms §10 still give Anthropic as 'USA' and say it 'processes data in the USA', contradicting §11 and ADR-0014 | `public-pages-content.ts:381,814,393,825` | T112 |
+| W-2 | low-med | Sentry rows omit session replays on error (`replaysOnErrorSampleRate: 1.0`) and logs (`enableLogs: true`) | `public-pages-content.ts:386,819`; `instrumentation-client.ts:21,27,33` | T112 (disclose; behaviour unchanged) |
+| W-3 | low | Sentry, a US company with an EU region, is missing from the SCC sentence | `public-pages-content.ts:393,825` | T112 |
+| W-4 | low | Stray closing parenthesis | `sad.md:60` | T112 |
+
+**Verdict:** CHANGES REQUESTED (copy) → T112.
