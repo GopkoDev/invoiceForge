@@ -56,7 +56,7 @@ C4Container
     Container(services, "Service layer", "lib/services", "Domain rules; every call takes an ActingFreelancer")
     ContainerDb(db, "PostgreSQL", "Prisma 7 + adapter-pg", "Accounts, keys, limits, invoices, conversations, allowances")
     ContainerDb(mastradb, "Mastra schema", "Postgres schema mastra, @mastra/pg", "Metadata-only traces")
-    System_Ext(gateway, "Vercel AI Gateway", "Routes chat calls to Gemini")
+    System_Ext(gateway, "Vercel AI Gateway", "Routes chat calls to Claude Haiku 5.5")
     System_Ext(google, "Google OAuth", "Sign-in provider")
     System_Ext(smtp, "SMTP server", "Sign-in link email")
     System_Ext(sentry, "Sentry", "Errors and traces")
@@ -198,7 +198,7 @@ C4Container
 - **Exact pins** — next 16.3.8, react 19.2.3, `@modelcontextprotocol/sdk` 1.32.0, recharts 2.15.4. Upgrades are deliberate.
 - **PDF is browser-only** — any server-side PDF (for Assistants or email) is new work.
 - **Personal keys carry one permission flag** — `canCreateDrafts`, set only at creation (`prisma/schema/auth.prisma:139`, ai-assistant ADR-0011). Any further write permission is another schema change.
-- **AI cost surface** — model calls go through the AI Gateway on a free-tier Gemini key (ai-assistant ADR-0003); the only spend control is the 30-message daily allowance per Freelancer, and `/api/chat` has no `LimitEvent` rate limit of its own. AI pins (`ai`, `@ai-sdk/*`, `@mastra/*`) move fast; upgrades are deliberate.
+- **AI cost surface** — model calls go through the AI Gateway to Claude Haiku 5.5 on paid terms (ai-chat-v2 ADR-0014); spend is no longer zero, and the controls are the 30-message daily allowance per Freelancer and the p95 cost alert, and `/api/chat` has no `LimitEvent` rate limit of its own. AI pins (`ai`, `@ai-sdk/*`, `@mastra/*`) move fast; upgrades are deliberate.
 - **Two migration steps per deploy** — `prisma migrate deploy` and `pnpm mastra:migrate`; forgetting the second breaks tracing storage.
 - **Evals are opt-in** — `pnpm eval:assistant` calls the real model and is not run by CI or `test:unit`.
 - **e2e is not in CI** — the full e2e suite runs locally before a ship; Playwright baselines are Linux-named.

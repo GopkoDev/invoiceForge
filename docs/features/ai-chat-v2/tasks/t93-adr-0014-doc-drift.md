@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T93 — ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)

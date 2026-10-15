@@ -93,7 +93,7 @@
 | T90 | [The privacy and terms pages name Anthropic on paid terms as the model provider (review 2026-10-15 F1-F3)](./t90-privacy-and-terms-name-anthropic.md) | frontend | Dmytro Hopko | XS | T89 | done |
 | T91 | [A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)](./t91-unknown-model-cost-is-null.md) | backend | Dmytro Hopko | XS | T89 | done |
 | T92 | [Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)](./t92-model-comments-fixtures-eval-docs.md) | tests | Dmytro Hopko | XS | T89 | done |
-| T93 | [ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)](./t93-adr-0014-doc-drift.md) | docs | Dmytro Hopko | XS | T90, T91, T92 | todo |
+| T93 | [ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)](./t93-adr-0014-doc-drift.md) | docs | Dmytro Hopko | XS | T90, T91, T92 | done |
 
 **Total:** 86 tasks, ~39 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013; T70–T75 and T76–T77 are its review round 20 and 21 follow-ups; T78–T84 are the 2026-10-14 fixes, recorded under `_fixes/`; T85–T89 are the follow-ups of the docs/code consistency pass of 2026-10-14; T90–T93 are the follow-ups of the ADR-0014 review of 2026-10-15).
 
