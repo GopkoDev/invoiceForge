@@ -309,7 +309,7 @@ paths:
                 error: "This form is no longer available. Answer the latest questions or type your request."
                 details: { kind: CHOICE_UNAVAILABLE }
         "429":
-          description: The parent used-up answer, for a typed message and a valid press alike (AC-11); a press claims nothing.
+          description: The parent used-up answer (`RATE_LIMITED`), for a typed message and a valid press alike (AC-11); a press claims nothing. Or `TOO_FAST` (T100, T104), the per-minute limit of 10 messages, atomic in the shared limit store; a refusal reserves, counts and writes nothing.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ActionFailure" }
@@ -321,7 +321,7 @@ paths:
                     error: "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected."
                     details: { kind: ALLOWANCE_USED_UP, limit: 30, renewsAt: "2026-10-12T21:00:00.000Z", timeZone: "Europe/Kyiv" }
                 tooFast:
-                  summary: T100 (SEC-M-01 c) - 10 or more turns of any outcome in the last 60 seconds; nothing reserved or counted, no model call
+                  summary: T100, T104 - 10 or more admitted messages in the last 60 seconds (shared limit store, scope CHAT_MESSAGE); nothing reserved, counted or written, no model call
                   value:
                     success: false
                     code: TOO_FAST
@@ -365,7 +365,7 @@ components:
       enum: [UNAUTHORIZED, FORBIDDEN, NOT_FOUND, VALIDATION, CONFLICT, FAILED, RATE_LIMITED, TOO_FAST]
     ActionFailure:
       x-supersedes: "../../ai-assistant/contracts/openapi.yaml#/components/schemas/ActionFailure"
-      description: The repo's failure envelope (types/result.ts). `details` gains CHOICE_UNAVAILABLE; codes are unchanged.
+      description: The repo's failure envelope (types/result.ts). `details` gains CHOICE_UNAVAILABLE; the codes are the ai-assistant ones plus `TOO_FAST` (HTTP 429 from POST /api/chat only, the per-minute limit, told apart from the daily `RATE_LIMITED`).
       type: object
       required: [success, code, error]
       additionalProperties: false

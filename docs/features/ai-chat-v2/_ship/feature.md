@@ -147,7 +147,7 @@ A sender profile is the business of the Freelancer. A Customer is the party who 
 
 ## 6. Checks after the release
 
-1. Each week, make sure that the p95 model cost of a message is USD 0.02 or less. Also report the share of turns whose cost is unknown (`costUsd` null) and the total spend including FAILED turns; a high null share (more than 5 % of turns) is a failed check, because the p95 is then computed over too few turns. Report 'system-side failures' twice: with and without the per-minute refusals (outcome FAILED with steps 0 and `costUsd` 0 is a refusal before any model call, T100); only the count without them measures the system.
+1. Each week, make sure that the p95 model cost of a message is USD 0.02 or less. Also report the share of turns whose cost is unknown (`costUsd` null) and the total spend including FAILED turns; a high null share (more than 5 % of turns) is a failed check, because the p95 is then computed over too few turns. Per-minute refusals (`TOO_FAST`) write no `AssistantTurn` (T104), so 'system-side failures' needs no separation; the refusals are visible only through the `LimitEvent` rows of the `CHAT_MESSAGE` scope.
 2. Make sure that the p95 time of the new read questions is 800 ms or less, the p95 time to open a preview is 1.5 s or less, and the p95 time to issue from the chat is 2 s or less.
 3. After 60 days, make sure that the Freelancer answers 70 % or more of the Question forms with Send, and that the median number of messages to a draft card is 2 or less.
 4. After 60 days, make sure that 25 % or more of the new Conversations start from the dashboard.

@@ -105,7 +105,7 @@
 | T102 | [ADR-0014, SAD, spec and ship docs say what bounds a turn; weekly check reports null costs; owner checks listed (SEC-M-01 d, e; SEC-I-03; SEC-I-05)](./t102-security-addendum-docs.md) | docs | Dmytro Hopko | S | T101 | done |
 | T103 | [One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)](./t103-per-turn-tool-budget.md) | backend | Dmytro Hopko | S | T102 | done |
 | T104 | [The per-minute chat limit is atomic in the shared limit store and refusals write no turn rows (SEC-L-05, SEC-I-06 code)](./t104-atomic-chat-rate-limit.md) | migration | Dmytro Hopko | S | T103 | done |
-| T105 | [Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)](./t105-re-check-docs.md) | docs | Dmytro Hopko | S | T104 | todo |
+| T105 | [Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)](./t105-re-check-docs.md) | docs | Dmytro Hopko | S | T104 | done |
 
 **Total:** 98 tasks, ~39 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013; T70–T75 and T76–T77 are its review round 20 and 21 follow-ups; T78–T84 are the 2026-10-14 fixes, recorded under `_fixes/`; T85–T89 are the follow-ups of the docs/code consistency pass of 2026-10-14; T90–T93, T94–T96 and T97–T98 are the follow-ups of the ADR-0014 review of 2026-10-15, rounds 1–3; T99–T102 and T103–T105 are the follow-ups of its security review addendum and re-check).
 

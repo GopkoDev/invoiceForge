@@ -86,3 +86,5 @@ Reviewed by `sdd:reviewer` (clean context, read only). SEC-L-03, SEC-I-03 (code 
 The full gate after T102 also caught a unit red the scoped gate missed: `countRecentTurns` (T100) has no request-free test (`tests/unit/service-layer-inventory.test.ts`); T104 replaces that function.
 
 **Verdict:** CHANGES REQUESTED → T103–T105.
+
+**Resolution (re-check).** SEC-M-02 and SEC-L-04: one per-turn tool budget (60,000 bytes, 12 calls), byte-counted sizes and surrogate-safe cuts (T103). SEC-L-05 and SEC-I-06: the 10/min limit is atomic in the shared limit store, refusals write no turn rows, `TOO_FAST` is in `ActionErrorCode` and the contract test resolves ai-chat-v2's contract (T104), and the docs state the real bounds and the migration to deploy (T105).

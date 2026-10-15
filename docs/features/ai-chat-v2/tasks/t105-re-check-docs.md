@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/spec.md", "docs/features/ai-chat-v2/adr/0
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T105 — Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)
