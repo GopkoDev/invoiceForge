@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T97 — Docs say only another anthropic/* model is a setting change; weekly cost check; terms SCC sentence in the owner approval (review round 3 R3-1..R3-3)

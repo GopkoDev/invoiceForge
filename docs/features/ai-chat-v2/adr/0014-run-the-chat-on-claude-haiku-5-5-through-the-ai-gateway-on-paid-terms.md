@@ -33,7 +33,7 @@ ai-assistant ADR-0003 ran the chat on a Gemini Flash-Lite model on a free-tier G
 
 ## Decision outcome
 
-**Chosen:** Option 3. It closes the free-tier privacy contradiction and the request cap like Option 2, and stays inside the USD 0.02 cost cap; the owner prefers it for reply quality. The default `DEFAULT_CHAT_MODEL` becomes `anthropic/claude-haiku-5.5`; `AI_CHAT_MODEL` still overrides it.
+**Chosen:** Option 3. It closes the free-tier privacy contradiction and the request cap like Option 2, and stays inside the USD 0.02 cost cap; the owner prefers it for reply quality. The default `DEFAULT_CHAT_MODEL` becomes `anthropic/claude-haiku-5.5`; `AI_CHAT_MODEL` still overrides it, but only with another `anthropic/*` model; another vendor also needs `GATEWAY_PROVIDER_OPTIONS` changed (see Neutral).
 
 ## Sources
 
@@ -48,7 +48,7 @@ ai-assistant ADR-0003 ran the chat on a Gemini Flash-Lite model on a free-tier G
 - No code path changes: the model is resolved through `gateway()` as before.
 
 **Negative**
-- Model spend is no longer zero: every token is paid, about USD 0.015 for a worst-case message. The p95 cost alert (USD 0.02) becomes a live guard from launch, not a future one.
+- Model spend is no longer zero: every token is paid, about USD 0.015 for a worst-case message. The weekly p95 cost check (USD 0.02) becomes a live guard from launch, not a future one.
 - The price is 5x (USD 0.50 / 2.50 per million tokens) for a call above 100k input tokens. The history sent to the model is capped at the latest 40 messages, so a turn stays well below that tier.
 - A new processor replaces Google: Anthropic, with Vercel as the gateway. The privacy page (section 11, §5 sub-processor table) and the terms page (§10 sub-processor table, which did not list the model provider before) must name Anthropic before ship. Done in T90 (privacy §11, privacy §5 and terms §10 Anthropic rows); T90 changed the tests `privacy-ai-section`, `privacy-page-ai-section`, the new `public-pages-ai-subprocessor` and the e2e `ai-chat-v2-preview-dashboard` (line 418). The wording and the Last-updated date still wait for the owner.
 - The instructions, the router and the evaluation sets were tuned on Gemini Flash-Lite. Behaviour may shift (topic boundary, no-guessing guard, form use); `pnpm eval:assistant` must pass on the new default before release.
@@ -57,7 +57,7 @@ ai-assistant ADR-0003 ran the chat on a Gemini Flash-Lite model on a free-tier G
 - Under paid terms the Gateway-reported cost is the live number, so a call with no reported cost is recorded as unknown (`AssistantTurn.costUsd = null`), never as free; a turn with any unknown call stores null (T91). *Revision 2026-10-15 (ADR-0014):* a failed turn whose router cost is unknown also stores null, and the router verdict always carries its cost (T95).
 
 **Neutral**
-- Switching back, or to another Gateway model, stays a setting change (`AI_CHAT_MODEL`), plus a key at the Gateway for a bring-your-own-key provider.
+- Switching to another `anthropic/*` model stays a setting change (`AI_CHAT_MODEL`). *Revision 2026-10-15 (ADR-0014, round 3):* since the Anthropic pin (T94), a model from another vendor is refused on every turn until `GATEWAY_PROVIDER_OPTIONS` is changed, and that change needs a privacy §11/§5 and terms §10 update first (plus a key at the Gateway for a bring-your-own-key provider).
 - The router and the agent still share one model setting; a cheaper router model remains possible later.
 
 ## Links
