@@ -1,12 +1,14 @@
 name: test
 
-# test-plan.md §CI placement: "On every PR: unit, component, contract and integration."
-# e2e (`pnpm test:e2e`, a production build against a throwaway Postgres) runs locally before
-# each ship, not in CI (see tests/README.md §CI placement).
+# Unit, component and contract run on every PR and push to main. Integration runs only on a
+# manual start, before a merge into main: `gh workflow run test.yml --ref <branch>` (or "Run
+# workflow" in the Actions tab). e2e (`pnpm test:e2e`, a production build against a throwaway
+# Postgres) runs locally before each ship, not in CI (see tests/README.md §CI placement).
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   unit:
@@ -45,6 +47,7 @@ jobs:
 
   integration:
     name: integration (throwaway Postgres container)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

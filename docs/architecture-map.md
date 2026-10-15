@@ -32,9 +32,9 @@ frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
   - `pnpm eval:assistant` = vitest over `evals/assistant/run.ts` with `ASSISTANT_EVAL=1` (model-quality evals, not part of `test:unit`)
   - `pnpm mastra:migrate` = `scripts/mastra-migrate.ts` (creates the Mastra tables in the `mastra` Postgres schema; run beside `prisma migrate deploy`); `pnpm studio` = Mastra Studio over `mastra/`
   - `pnpm check:pdf-chunks` (after a build), `pnpm format:check`, `pnpm docs:dev|build` (VitePress over `docs/`)
-- CI: one workflow, `.github/workflows/test.yml`, on pull requests and pushes to main. It has two jobs:
+- CI: one workflow, `.github/workflows/test.yml`, on pull requests, pushes to main and manual start. It has two jobs:
   - **unit + component + contract:** audit → lint → tsc → next build → pdf-chunk check → unit tests;
-  - **integration.**
+  - **integration:** manual start only (`gh workflow run test.yml --ref <branch>`), before a merge into main.
 
   **e2e and format check do not run in CI.**
 - Hosting: Vercel (`vercel.json`, region `fra1`; daily cron `/api/cron/purge-limits`, `vercel.json:6-8`).
