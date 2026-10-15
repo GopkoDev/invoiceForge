@@ -108,7 +108,7 @@
 | T105 | [Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)](./t105-re-check-docs.md) | docs | Dmytro Hopko | S | T104 | done |
 | T106 | [A card or form is kept only when its answer fits the turn budget; draft answers and links are inside the byte cap (N-1, N-2 code)](./t106-commit-pending-after-charge.md) | backend | Dmytro Hopko | XS | T105 | done |
 | T107 | [Docs describe the bounds as they are, with the estimate marked and exclusions named (N-2 docs, N-3, N-4)](./t107-bounds-wording-final.md) | docs | Dmytro Hopko | XS | T106 | done |
-| T108 | [The tool-answer cap's last fallback holds with links; docs name the pinned re-call (re-check F-1, F-2)](./t108-cap-fallback-and-pinned-recall-docs.md) | backend | Dmytro Hopko | XS | T107 | todo |
+| T108 | [The tool-answer cap's last fallback holds with links; docs name the pinned re-call (re-check F-1, F-2)](./t108-cap-fallback-and-pinned-recall-docs.md) | backend | Dmytro Hopko | XS | T107 | done |
 
 **Total:** 101 tasks, ~39 person-days (T32 is a review follow-up; T33–T41 are the presentation rewrite of 2026-10-13, ADR-0010; T42–T46, T47–T48 and T49 are its review round 16, 17 and 18 follow-ups; T50–T69 are the owner feedback revision of 2026-10-13, ADR-0011–0013; T70–T75 and T76–T77 are its review round 20 and 21 follow-ups; T78–T84 are the 2026-10-14 fixes, recorded under `_fixes/`; T85–T89 are the follow-ups of the docs/code consistency pass of 2026-10-14; T90–T93, T94–T96 and T97–T98 are the follow-ups of the ADR-0014 review of 2026-10-15, rounds 1–3; T99–T102, T103–T105 and T106–T108 are the follow-ups of its security review addendum, re-check and final review).
 

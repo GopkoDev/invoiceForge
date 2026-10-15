@@ -114,3 +114,5 @@ N-1..N-4 resolved: a refused answer never commits pending state (commit runs onc
 | F-2 | low (docs) | A `propose_draft` re-call in a pressed turn returns the pinned value uncut (charged to the turn budget); spec/sad say every `propose_draft` answer is ≤ 20,000 bytes | `lib/ai/tools/propose-draft.ts:198`; spec bounds row; `sad.md` §11 | T108 |
 
 **Verdict:** CHANGES REQUESTED (low) → T108.
+
+**Resolution (re-check after T106–T107):** F-1, F-2 → T108 (the last fallback of `capToolAnswer` now size-checks the exact object it returns, `links: []` included; spec and sad name the pinned `propose_draft` re-call as charged to the turn budget, not cut).

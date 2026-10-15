@@ -9,7 +9,7 @@ files_hint: ["lib/ai/tools/read-tools.ts", "tests/unit/lib/ai/tools/read-tools-c
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T108 — The tool-answer cap's last fallback holds with links; docs name the pinned re-call (re-check F-1, F-2)

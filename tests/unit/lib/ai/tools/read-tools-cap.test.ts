@@ -67,6 +67,18 @@ describe('capToolAnswer (T99)', () => {
     const out = capToolAnswer({ ...wide, rows: Array.from({ length: 50 }, () => ({ d: 'r'.repeat(1900) })) });
     expect(Buffer.byteLength(JSON.stringify(out), 'utf8')).toBeLessThanOrEqual(20_000);
   });
+
+  // T108 (F-1): the last fallback checked `kept` alone but returned `{ ...kept, links: [] }`, which adds bytes.
+  it('stays within 20,000 bytes in the last fallback when links are passed, for every size near the limit', () => {
+    const links = [{ kind: 'invoice' as const, invoiceId: 'inv-1', label: 'L'.repeat(80) }];
+    const over: Array<[number, number]> = [];
+    for (let n = 1520; n <= 1560; n++) {
+      const many = Object.fromEntries(Array.from({ length: n }, (_, i) => [`k${String(i).padStart(5, '0')}`, 'v']));
+      const bytes = Buffer.byteLength(JSON.stringify(capToolAnswer(many, links)), 'utf8');
+      if (bytes > 20_000) over.push([n, bytes]);
+    }
+    expect(over).toEqual([]);
+  });
 });
 
 describe('createReadTools caps what the model sees (T99)', () => {

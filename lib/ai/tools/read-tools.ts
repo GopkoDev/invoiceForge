@@ -55,14 +55,21 @@ export function capToolAnswer(answer: Record<string, unknown>, links?: AppLink[]
   }
   // Still too big: keep whole top-level keys of the smallest form while they fit.
   const kept: Record<string, unknown> = { truncated: true };
+  let size = jsonBytes(links ? { ...kept, links: [] } : kept); // running size, room for the empty links key included
   for (const [k, v] of Object.entries(out)) {
     if (k === 'truncated' || k === 'links') continue;
+    const entry = jsonBytes({ [k]: v }) - 1; // the entry plus its comma (braces cancel the comma)
+    if (size + entry > TOOL_ANSWER_MAX_BYTES) continue;
     kept[k] = v;
-    if (jsonBytes(kept) > TOOL_ANSWER_MAX_BYTES) delete kept[k];
+    size += entry;
   }
   if (links && jsonBytes({ ...kept, links }) <= TOOL_ANSWER_MAX_BYTES) return { ...kept, links };
-  if (jsonBytes(kept) <= TOOL_ANSWER_MAX_BYTES) return links ? { ...kept, links: [] } : kept;
-  return { truncated: true, note: 'The answer was too large to show.' };
+  // T108: size-check the exact object returned (the empty links key counts).
+  const last = links ? { ...kept, links: [] } : kept;
+  if (jsonBytes(last) <= TOOL_ANSWER_MAX_BYTES) return last;
+  return links
+    ? { truncated: true, note: 'The answer was too large to show.', links: [] }
+    : { truncated: true, note: 'The answer was too large to show.' };
 }
 
 /** One invoice link per invoice named in the answer (its rows, or the answer itself), in order. */
