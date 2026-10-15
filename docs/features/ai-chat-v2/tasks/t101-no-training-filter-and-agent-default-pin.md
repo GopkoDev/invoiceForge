@@ -9,7 +9,7 @@ files_hint: ["lib/ai/gateway-options.ts", "lib/ai/agent.ts", "constants/public-p
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T101 — Gateway requests ask for no prompt training; the app agent carries the pin in its defaults; privacy §5 Vercel row names the AI Gateway (SEC-L-03, SEC-I-04, SEC-I-03)

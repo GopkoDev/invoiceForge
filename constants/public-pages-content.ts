@@ -358,8 +358,8 @@ export const privacyContent = {
         rows: [
           {
             service: 'Vercel',
-            purpose: 'Hosting and serverless functions',
-            data: 'Encrypted application data, server logs',
+            purpose: 'Hosting, serverless functions, and the AI Gateway that routes AI assistant message text',
+            data: 'Encrypted application data, server logs, AI assistant message text (in transit)',
             location: 'USA (with EU edge caching)',
           },
           {
@@ -785,8 +785,8 @@ export const termsContent = {
         rows: [
           {
             provider: 'Vercel',
-            service: 'Hosting & Deployment',
-            data: 'Application hosting, logs',
+            service: 'Hosting, Deployment & AI Gateway',
+            data: 'Application hosting, logs, AI assistant message text (in transit)',
             location: 'USA (with EU edge caching)',
           },
           {

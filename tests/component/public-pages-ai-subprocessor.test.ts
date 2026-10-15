@@ -32,4 +32,14 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
     expect(all).not.toMatch(/Both Vercel and Neon comply/);
     expect(all).toMatch(/All providers listed/);
   });
+
+  it('privacy §5 Vercel row names the AI Gateway for AI assistant message text (T101)', () => {
+    const found = privacyContent.sections.find((s) => /processor|third|sharing|recipient/i.test(s.id)) as never as {
+      table: { rows: { service: string; purpose: string; data: string }[] };
+    };
+    const row = found.table.rows.find((r) => r.service === 'Vercel');
+    expect(row, 'Vercel row').toBeDefined();
+    expect(JSON.stringify(row)).toMatch(/AI Gateway/);
+    expect(JSON.stringify(row)).toMatch(/message text/i);
+  });
 });

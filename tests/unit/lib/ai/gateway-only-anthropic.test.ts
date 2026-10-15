@@ -15,10 +15,11 @@ import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/model';
 import { classifyMessage } from '@/lib/ai/router';
 import { runTurn } from '@/lib/ai/run-turn';
 
-const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'] } };
+// T101 (SEC-L-03): the request also asks the gateway not to route to providers that train on prompts.
+const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'], disallowPromptTraining: true } };
 
 describe('gateway provider pinning (T94, AC-35)', () => {
-  it('the shared option restricts the gateway to Anthropic', () => {
+  it('the shared option restricts the gateway to Anthropic and disallows prompt training', () => {
     expect(GATEWAY_PROVIDER_OPTIONS).toEqual(ONLY_ANTHROPIC);
   });
 
