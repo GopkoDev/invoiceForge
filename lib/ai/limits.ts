@@ -1,3 +1,7 @@
+/** Per-minute refusal (ai-chat-v2 T100, SEC-M-01 c): AssistantTurn rows of any outcome inside the window. */
+export const CHAT_PER_MINUTE_MAX = 10;
+export const CHAT_RATE_WINDOW_MS = 60_000;
+
 /** Bounds on what one model call may send or produce (ai-chat-v2 T99, SEC-M-01). */
 export const ROUTER_MAX_OUTPUT_TOKENS = 300;
 export const AGENT_MAX_OUTPUT_TOKENS = 2000;

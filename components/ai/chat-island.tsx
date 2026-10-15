@@ -98,6 +98,8 @@ type Failure =
     }
   | { kind: 'GONE' }
   | { kind: 'VALIDATION'; message: string }
+  /** 429 TOO_FAST (T100): the per-minute limit; the server sentence, the unsent message dropped. */
+  | { kind: 'TOO_FAST'; message: string }
   /** 409 CHOICE_UNAVAILABLE after a form send (AC-12b, AC-13): the contract sentence, verbatim. */
   | { kind: 'CHOICE_UNAVAILABLE'; message: string };
 
@@ -105,6 +107,7 @@ class ChatHttpError extends Error {
   constructor(
     readonly status: number,
     readonly body: {
+      code?: string;
       error?: string;
       details?: unknown;
       fieldErrors?: Record<string, string[]>;
@@ -555,6 +558,11 @@ function ChatSession({
         if (error.status === 429) {
           if (sent)
             setMessages((current) => current.filter((m) => m.id !== sent.id));
+          // The per-minute limit is not the daily allowance: keep the composer and the allowance as they are.
+          if (error.body?.code === 'TOO_FAST') {
+            setFailure({ kind: 'TOO_FAST', message: error.message });
+            return;
+          }
           // Contract 429 body (AllowanceUsedUpDetails): {kind, limit, renewsAt, timeZone}, not an AllowanceState.
           const details = error.body?.details as
             | { limit: number; renewsAt: string; timeZone: string }
@@ -860,6 +868,16 @@ function ChatSession({
           </Alert>
         </MessageContent>
       </Message>
+    ) : failure?.kind === 'TOO_FAST' ? (
+      <Message from="assistant">
+        <MessageAvatar />
+        <MessageContent>
+          <Alert variant="destructive">
+            <AlertCircleIcon aria-hidden />
+            <AlertDescription>{failure.message}</AlertDescription>
+          </Alert>
+        </MessageContent>
+      </Message>
     ) : failure?.kind === 'GONE' ? (
       <Message from="assistant">
         <MessageAvatar />
@@ -995,7 +1013,7 @@ function ChatSession({
               value={text}
               onChange={(value) => {
                 setText(value);
-                if (failure?.kind === 'VALIDATION') setFailure(null);
+                if (failure?.kind === 'VALIDATION' || failure?.kind === 'TOO_FAST') setFailure(null);
               }}
               onSend={send}
               allowance={allowance}

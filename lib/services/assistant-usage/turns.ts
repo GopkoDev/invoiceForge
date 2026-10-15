@@ -7,6 +7,20 @@ import { writeTurnRow } from '@/lib/services/assistant-usage/turn-row';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import type { AssistantTurnMetadata } from '@/types/assistant/types';
 
+/** How many turns (any outcome) this Freelancer has started since `since`; null when it cannot be read. */
+export async function countRecentTurns(
+  actor: ActingFreelancer,
+  since: Date
+): Promise<number | null> {
+  try {
+    return await prisma.assistantTurn.count({
+      where: { userId: actor.userId, createdAt: { gte: since } },
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** A failed or unavailable turn saves only its metadata, with no Conversation. */
 export async function recordTurnMetadata(
   actor: ActingFreelancer,

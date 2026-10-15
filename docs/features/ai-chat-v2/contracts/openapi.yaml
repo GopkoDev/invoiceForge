@@ -313,11 +313,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ActionFailure" }
-              example:
-                success: false
-                code: RATE_LIMITED
-                error: "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected."
-                details: { kind: ALLOWANCE_USED_UP, limit: 30, renewsAt: "2026-10-12T21:00:00.000Z", timeZone: "Europe/Kyiv" }
+              examples:
+                allowanceUsedUp:
+                  value:
+                    success: false
+                    code: RATE_LIMITED
+                    error: "You've used today's 30 messages. They renew at 00:00 your time. An AI client connected with a Personal key isn't affected."
+                    details: { kind: ALLOWANCE_USED_UP, limit: 30, renewsAt: "2026-10-12T21:00:00.000Z", timeZone: "Europe/Kyiv" }
+                tooFast:
+                  summary: T100 (SEC-M-01 c) - 10 or more turns of any outcome in the last 60 seconds; nothing reserved or counted, no model call
+                  value:
+                    success: false
+                    code: TOO_FAST
+                    error: "You're sending messages too quickly. Try again in a minute."
         "503":
           description: The allowance could not be reserved (fail closed), parent behaviour, or a press could not be checked (a system failure, never a refusal; review 2026-10-13 R1-S3). Nothing claimed.
           content:
@@ -351,6 +359,10 @@ components:
     OutcomePart: { $ref: "../../ai-assistant/contracts/openapi.yaml#/components/schemas/OutcomePart" }
 
     # ---------- errors ----------
+    ActionErrorCode:
+      description: The ai-assistant codes plus `TOO_FAST` (T100, SEC-M-01 c) - the per-minute limit on POST /api/chat, a 429 told apart from the daily `RATE_LIMITED`. Only the chat route emits it.
+      type: string
+      enum: [UNAUTHORIZED, FORBIDDEN, NOT_FOUND, VALIDATION, CONFLICT, FAILED, RATE_LIMITED, TOO_FAST]
     ActionFailure:
       x-supersedes: "../../ai-assistant/contracts/openapi.yaml#/components/schemas/ActionFailure"
       description: The repo's failure envelope (types/result.ts). `details` gains CHOICE_UNAVAILABLE; codes are unchanged.
@@ -359,7 +371,7 @@ components:
       additionalProperties: false
       properties:
         success: { const: false }
-        code: { $ref: "../../ai-assistant/contracts/openapi.yaml#/components/schemas/ActionErrorCode" }
+        code: { $ref: "#/components/schemas/ActionErrorCode" }
         error: { type: string, description: "Plain language, never raw database or provider text." }
         fieldErrors:
           type: object

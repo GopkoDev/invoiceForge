@@ -23,6 +23,7 @@ import { createMessageAllowanceDay } from '../../support/factories/message-allow
 import { createInvoice } from '../../support/factories/invoice';
 import { assertMatchesContract } from '../../support/contract/validate';
 import { isCuid } from '@paralleldrive/cuid2';
+import { CHAT_PER_MINUTE_MAX, CHAT_RATE_WINDOW_MS } from '@/lib/ai/limits';
 
 const authMock = vi.fn<() => Promise<{ user: { id: string } } | null>>();
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
@@ -294,6 +295,88 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       expect(turns).toHaveLength(1);
       expect(turns[0]).toMatchObject({ outcome: 'ALLOWANCE_USED_UP', counted: false, conversationId: null });
       await assertMatchesContract({ operationId: 'sendChatMessage', status: 429, body });
+    });
+
+    describe('T100: the per-minute limit (SEC-M-01 c)', () => {
+      const TOO_FAST_TEXT = "You're sending messages too quickly. Try again in a minute.";
+      const seedTurns = (userId: string, count: number, ageMs: number) =>
+        prisma.assistantTurn.createMany({
+          data: Array.from({ length: count }, () => ({
+            userId,
+            outcome: 'FAILED' as const,
+            counted: false,
+            durationMs: 1,
+            createdAt: new Date(Date.now() - ageMs),
+          })),
+        });
+
+      it('the limits are 10 messages per 60 seconds', () => {
+        expect(CHAT_PER_MINUTE_MAX).toBe(10);
+        expect(CHAT_RATE_WINDOW_MS).toBe(60_000);
+      });
+
+      it('10 turns (any outcome) in the last 60 s: 429 TOO_FAST, no model call, no slot reserved, an uncounted metadata row', async () => {
+        const user = await signedIn();
+        await seedTurns(user.id, 10, 5_000);
+
+        const response = await send(chatBody('eleventh in a minute'));
+        const body = await response.json();
+
+        expect(response.status).toBe(429);
+        expect(body).toMatchObject({ success: false, code: 'TOO_FAST', error: TOO_FAST_TEXT });
+        expect(model.doGenerateCalls).toHaveLength(0);
+        expect(model.doStreamCalls).toHaveLength(0);
+        expect(await prisma.messageAllowanceDay.count({ where: { userId: user.id } })).toBe(0);
+        expect(await prisma.conversation.count()).toBe(0);
+        expect(await prisma.conversationMessage.count()).toBe(0);
+        const turns = await prisma.assistantTurn.findMany({ where: { userId: user.id } });
+        expect(turns).toHaveLength(11);
+        expect(turns.filter((t) => t.counted)).toHaveLength(0);
+      });
+
+      it('the allowance state is unchanged by the refusal', async () => {
+        const user = await signedIn();
+        await createMessageAllowanceDay(prisma, { userId: user.id, day: localToday(), used: 7, timeZone: TZ });
+        await seedTurns(user.id, 10, 1_000);
+
+        const response = await send(chatBody('too fast'));
+
+        expect(response.status).toBe(429);
+        expect(await usedToday(user.id)).toBe(7);
+      });
+
+      it('9 turns in the window still proceed', async () => {
+        const user = await signedIn();
+        await seedTurns(user.id, 9, 5_000);
+
+        const response = await send(chatBody('tenth'));
+        await response.text();
+
+        expect(response.status).toBe(200);
+      });
+
+      it('10 turns older than 60 s do not count: the request proceeds normally', async () => {
+        const user = await signedIn();
+        await seedTurns(user.id, 10, 65_000);
+
+        const response = await send(chatBody('after a minute'));
+        await response.text();
+
+        expect(response.status).toBe(200);
+        expect(model.doStreamCalls.length).toBeGreaterThan(0);
+      });
+
+      it("another Freelancer's turns do not count", async () => {
+        const user = await signedIn();
+        const other = await createFreelancer(prisma, { email: 'other-t100@example.com', timeZone: TZ });
+        await seedTurns(other.id, 10, 5_000);
+
+        const response = await send(chatBody('mine is the first'));
+        await response.text();
+
+        expect(response.status).toBe(200);
+        expect(await prisma.assistantTurn.count({ where: { userId: user.id } })).toBeGreaterThan(0);
+      });
     });
 
     it('AC-10b: two simultaneous sends for the last slot: one 200, one 429, one message processed', async () => {

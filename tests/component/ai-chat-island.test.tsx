@@ -762,6 +762,25 @@ describe('T39 R-01 - contract 429 body', () => {
   });
 });
 
+describe('T100 - per-minute limit 429 (TOO_FAST)', () => {
+  const TOO_FAST_TEXT =
+    "You're sending messages too quickly. Try again in a minute.";
+
+  it('shows the sentence, drops the unsent message, and keeps the composer (the daily allowance is not used up)', async () => {
+    fetchMock.mockResolvedValue(
+      json(429, { success: false, code: 'TOO_FAST', error: TOO_FAST_TEXT })
+    );
+    const user = userEvent.setup();
+    island({ allowance: allowance(5) });
+    await send(user, 'too many too fast');
+
+    expect(await screen.findByText(TOO_FAST_TEXT)).toBeTruthy();
+    expect(screen.queryByText('too many too fast')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeTruthy();
+    expect(screen.queryByText("You've used today's 30 messages")).toBeNull();
+  });
+});
+
 describe('T39 R-02 - first message on /ai', () => {
   it.each([
     ['AI_UNAVAILABLE', UNAVAILABLE],

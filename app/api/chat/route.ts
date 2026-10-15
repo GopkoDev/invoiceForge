@@ -26,9 +26,10 @@ import { pinAnswers } from '@/lib/services/assistant-drafts/form-pin';
 import { draftRequestSchema } from '@/lib/services/assistant-drafts/schema';
 import { answerText, composeAnswerMessage, defaultPrompt } from '@/lib/validations/form-answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
-import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
+import { countRecentTurns, recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
 import { loadHistory } from '@/lib/services/conversations/conversations';
 import { saveTurn } from '@/lib/services/conversations/save-turn';
+import { CHAT_PER_MINUTE_MAX, CHAT_RATE_WINDOW_MS } from '@/lib/ai/limits';
 import { runTurn } from '@/lib/ai/run-turn';
 import type { PinnedResolution } from '@/lib/ai/turn-context';
 import {
@@ -66,6 +67,13 @@ const CHOICE_UNAVAILABLE = {
 /** The 429 sentence, with the renewal time in the Freelancer's own zone (AC-10, spec §8 time-zone rule). */
 const usedUpText = (renewsAt: string, timeZone: string, now: Date) =>
   `You've used today's 30 messages. They renew ${renewalWhen(renewsAt, timeZone, now)} your time. An AI client connected with a Personal key isn't affected.`;
+
+/** The per-minute refusal (T100, SEC-M-01 c): distinct from the daily allowance, nothing reserved or counted. */
+const TOO_FAST = {
+  success: false,
+  code: 'TOO_FAST',
+  error: "You're sending messages too quickly. Try again in a minute.",
+} as const;
 
 const failedTurn = (startedAt: number): AssistantTurnMetadata => ({
   topic: null,
@@ -145,6 +153,23 @@ export async function POST(request: NextRequest) {
   }
 
   const startedAt = Date.now();
+  // Before any slot or model call: turns of any outcome in the last minute (a failed turn gives its slot back).
+  const recent = await countRecentTurns(actor, new Date(startedAt - CHAT_RATE_WINDOW_MS));
+  if (recent === null) return NextResponse.json(FAILED, { status: 503 });
+  if (recent >= CHAT_PER_MINUTE_MAX) {
+    await recordTurnMetadata(actor, {
+      topic: null,
+      outcome: 'FAILED',
+      counted: false,
+      steps: 0,
+      toolNames: [],
+      durationMs: Date.now() - startedAt,
+      inputTokens: null,
+      outputTokens: null,
+      costUsd: 0,
+    });
+    return NextResponse.json(TOO_FAST, { status: 429 });
+  }
   const reservation = form
     ? await reserveAndClaimForm(actor, new Date(startedAt), form.formId, form.answers)
     : await reserveMessageSlot(actor, new Date(startedAt));

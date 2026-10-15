@@ -9,7 +9,7 @@ files_hint: ["app/api/chat/route.ts", "lib/services/assistant-usage", "component
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T100 — The chat refuses more than 10 messages a minute per Freelancer (SEC-M-01 c)
