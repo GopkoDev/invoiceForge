@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/spec.md", "docs/features/ai-chat-v2/adr/0
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T107 — Docs describe the bounds as they are, with the estimate marked and exclusions named (N-2 docs, N-3, N-4)

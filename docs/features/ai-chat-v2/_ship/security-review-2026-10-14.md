@@ -101,3 +101,5 @@ Reviewed by `sdd:reviewer` (clean context, read only; security and code quality)
 | N-4 | info | Calls with invalid input are rejected by Mastra before `execute` and do not use the 12-call cap | `@mastra/core` tool validation | T107 (say so in the spec row) |
 
 **Verdict:** CHANGES REQUESTED → T106, T107.
+
+**Resolution (final review).** N-1 (a refused answer left its card or form): the tool body returns `{ answer, commit }` and `withToolBudget` commits only after the bytes were charged (T106). N-2: `propose_draft` answers and read-tool links are inside the 20,000-byte cap (T106) and the docs state the bounds with the estimate marked and the exclusions named (T107). N-3: ADR-0014 says the limit slows repeated failures to at most 10 a minute per Freelancer (T107). N-4: the spec row says calls rejected for invalid input do not use the 12-call cap (T107). T106 also fixed a test fixture found by the full integration gate: the look-alike loop in `tests/integration/ai-chat-v2-customers-read.test.ts` reused one turn for more than 12 calls, so each lookup now gets its own turn (assertions unchanged).
