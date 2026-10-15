@@ -45,7 +45,7 @@ ai-assistant ADR-0003 ran the chat on a Gemini Flash-Lite model on a free-tier G
 - The privacy contradiction is gone: paid API terms, no training on the content. The inherited §1 ¶4 override and the free-tier risks in sad §11 close.
 - No free-tier request cap; capacity follows the Gateway's and Anthropic's paid limits.
 - One secret less: `GOOGLE_GENERATIVE_AI_API_KEY` is removed from the required settings and `env.example`, and the unused `@ai-sdk/google` package is removed. The build now requires only `AI_GATEWAY_API_KEY` for the model.
-- No code path changes: the model is resolved through `gateway()` as before.
+- The model is still resolved through `gateway()`; the only call change is the Anthropic provider pin added in T94 (`GATEWAY_PROVIDER_OPTIONS`).
 
 **Negative**
 - Model spend is no longer zero: every token is paid, about USD 0.015 for a worst-case message. The weekly p95 cost check (USD 0.02) becomes a live guard from launch, not a future one.
