@@ -41,24 +41,27 @@ function capValue(value: unknown, stringMax: number, arrayMax: number): unknown 
  * UTF-8 bytes, with a final check that always holds). Returns a copy; the shared handler output (and so the MCP
  * answer) is never changed.
  */
-export function capToolAnswer(answer: Record<string, unknown>): Record<string, unknown> {
+export function capToolAnswer(answer: Record<string, unknown>, links?: AppLink[]): Record<string, unknown> {
+  // T106: the links belong to the answer, so the final byte check covers them (labels are already cut to 80 chars).
+  const withLinks = (o: Record<string, unknown>): Record<string, unknown> => (links ? { ...o, links } : o);
   let stringMax = TOOL_STRING_MAX_CHARS;
-  let out = capValue(answer, stringMax, TOOL_ARRAY_MAX_ITEMS) as Record<string, unknown>;
+  let out = withLinks(capValue(answer, stringMax, TOOL_ARRAY_MAX_ITEMS) as Record<string, unknown>);
   if (jsonBytes(out) <= TOOL_ANSWER_MAX_BYTES) return out;
   for (const arrayMax of [TOOL_ARRAY_MAX_ITEMS, 10, 3]) {
     for (stringMax = TOOL_STRING_MAX_CHARS / 2; stringMax >= 20; stringMax = Math.floor(stringMax / 2)) {
-      out = { ...(capValue(answer, stringMax, arrayMax) as Record<string, unknown>), truncated: true };
+      out = withLinks({ ...(capValue(answer, stringMax, arrayMax) as Record<string, unknown>), truncated: true });
       if (jsonBytes(out) <= TOOL_ANSWER_MAX_BYTES) return out;
     }
   }
   // Still too big: keep whole top-level keys of the smallest form while they fit.
   const kept: Record<string, unknown> = { truncated: true };
   for (const [k, v] of Object.entries(out)) {
-    if (k === 'truncated') continue;
+    if (k === 'truncated' || k === 'links') continue;
     kept[k] = v;
     if (jsonBytes(kept) > TOOL_ANSWER_MAX_BYTES) delete kept[k];
   }
-  if (jsonBytes(kept) <= TOOL_ANSWER_MAX_BYTES) return kept;
+  if (links && jsonBytes({ ...kept, links }) <= TOOL_ANSWER_MAX_BYTES) return { ...kept, links };
+  if (jsonBytes(kept) <= TOOL_ANSWER_MAX_BYTES) return links ? { ...kept, links: [] } : kept;
   return { truncated: true, note: 'The answer was too large to show.' };
 }
 
@@ -121,9 +124,10 @@ export function createReadTools(turn: TurnContext) {
             // Parsing strips any key the schema does not name, so a model-supplied id is ignored.
             const args = definition.inputSchema.parse(rawArgs ?? {});
             const outcome = await handler(args, context);
-            if (!outcome.success) return { ...toToolError(outcome) };
+            if (!outcome.success) return { answer: { ...toToolError(outcome) } };
             const answer = outcome.data as Record<string, unknown>;
-            return { ...capToolAnswer(answer), links: [...invoiceLinks(answer), ...(await addPageLinks(turn, definition.name, args, answer))] };
+            const links = [...invoiceLinks(answer), ...(await addPageLinks(turn, definition.name, args, answer))];
+            return { answer: capToolAnswer(answer, links) };
           }),
       }),
     ])

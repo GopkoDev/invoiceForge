@@ -16,6 +16,7 @@ import {
 import type { AppLink } from '@/lib/validations/assistant-chat';
 import type { TurnContext } from '@/lib/ai/turn-context';
 import { spendToolBudget, withToolBudget } from '@/lib/ai/limits';
+import { capToolAnswer } from '@/lib/ai/tools/read-tools';
 import { countSentences } from '@/lib/ai/issue-text';
 
 const DESCRIPTION =
@@ -200,23 +201,31 @@ export function createProposeDraftTool(turn: TurnContext) {
         const call = callCounts.get(turn) ?? 0;
         callCounts.set(turn, call + 1);
         // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
-        if (!turn.draftIntent) return { kind: 'NOT_REQUESTED', message: NOT_REQUESTED };
+        if (!turn.draftIntent) return { answer: { kind: 'NOT_REQUESTED', message: NOT_REQUESTED } };
         const resolved = await resolveDraftRequest(turn.actor, request, turn.today);
-        if (!resolved.success) return { ...toToolError(resolved) };
+        if (!resolved.success) return { answer: capToolAnswer({ ...toToolError(resolved) }) };
         if (resolved.data.kind === 'ISSUES') {
           const { issues } = resolved.data;
           const { questions, matchCount, offered } = resolverFormFor(issues, request, turn);
-          if (call >= (resolverCalls.get(turn) ?? -1)) {
-            turn.pending.resolver = { request, questions };
-            resolverCalls.set(turn, call);
-          }
           // T72: the fields the form will ask, so the model writes one prompt per field through ask_user.
-          return { ...issuesAnswer(issues, matchCount, offered), askFields: askFieldsOf(questions) };
+          return {
+            answer: capToolAnswer({ ...issuesAnswer(issues, matchCount, offered), askFields: askFieldsOf(questions) }),
+            commit: () => {
+              if (call >= (resolverCalls.get(turn) ?? -1)) {
+                turn.pending.resolver = { request, questions };
+                resolverCalls.set(turn, call);
+              }
+            },
+          };
         }
         const { proposal } = resolved.data;
         const cardId = createId();
-        turn.pending.card = { id: cardId, request, proposal };
-        return { kind: 'CARD', cardId, summary: summarize(proposal) };
+        return {
+          answer: capToolAnswer({ kind: 'CARD', cardId, summary: summarize(proposal) }),
+          commit: () => {
+            turn.pending.card = { id: cardId, request, proposal };
+          },
+        };
       });
     },
   });

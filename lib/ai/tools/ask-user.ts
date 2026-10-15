@@ -29,16 +29,24 @@ export function createAskUserTool(turn: TurnContext) {
         const input = askUserInputSchema.parse(raw);
         const checked = await checkAskUser(turn.actor, input, { today: turn.today });
         if (checked.ok) {
-          turn.pending.ask = { questions: checked.questions, draft: checked.draft };
-          return { ok: true, shown: checked.questions.length, say: SAY };
+          return {
+            answer: { ok: true, shown: checked.questions.length, say: SAY },
+            commit: () => {
+              turn.pending.ask = { questions: checked.questions, draft: checked.draft };
+            },
+          };
         }
-        turn.pending.askRefused = input.questions.map((q) => ({
-          field: q.field,
-          lineIndex: q.lineIndex ?? null,
-          prompt: q.prompt,
-          optional: q.optional ?? false,
-        }));
-        return { ok: false, error: checked.error, say: REFUSED_SAY };
+        return {
+          answer: { ok: false, error: checked.error, say: REFUSED_SAY },
+          commit: () => {
+            turn.pending.askRefused = input.questions.map((q) => ({
+              field: q.field,
+              lineIndex: q.lineIndex ?? null,
+              prompt: q.prompt,
+              optional: q.optional ?? false,
+            }));
+          },
+        };
       }),
   });
 }

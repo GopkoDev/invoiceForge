@@ -49,13 +49,22 @@ export function spendToolBudget<T extends Record<string, unknown>>(budget: ToolB
   return reserveToolCall(budget) ? chargeToolBytes(budget, answer) : USED_UP;
 }
 
-/** Runs a tool body under the turn's budget: no call left, no run; the produced answer must fit the bytes left. */
+/** What a tool body returns: the answer, and the change to keep only when the answer was accepted (T106). */
+export type ToolBodyResult = { answer: Record<string, unknown>; commit?: () => void };
+
+/**
+ * Runs a tool body under the turn's budget: no call left, no run; the produced answer must fit the bytes left.
+ * The body's `commit` runs only after the answer was charged, so a refused answer leaves the turn unchanged.
+ */
 export async function withToolBudget(
   budget: ToolBudget,
-  run: () => Promise<Record<string, unknown>>
+  run: () => Promise<ToolBodyResult>
 ): Promise<Record<string, unknown>> {
   if (!reserveToolCall(budget)) return USED_UP;
-  return chargeToolBytes(budget, await run());
+  const { answer, commit } = await run();
+  const charged = chargeToolBytes(budget, answer);
+  if (charged !== USED_UP) commit?.();
+  return charged;
 }
 
 /** Keeps the newest items whose content totals at most the budget (UTF-8 bytes); drops oldest whole items, always keeps the newest. */

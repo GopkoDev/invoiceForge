@@ -9,7 +9,7 @@ files_hint: ["lib/ai/limits.ts", "lib/ai/tools/propose-draft.ts", "lib/ai/tools/
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T106 — A card or form is kept only when its answer fits the turn budget; draft answers and links are inside the byte cap (N-1, N-2 code)

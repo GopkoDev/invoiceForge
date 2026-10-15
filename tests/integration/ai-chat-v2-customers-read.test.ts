@@ -285,7 +285,6 @@ describe.runIf(containerRuntimeAvailable)(
       });
 
       it('spec §6: every look-alike pair seeded as a Customer and a Product is found by the written form on both channels', async () => {
-        const tools = await chatTools();
         const customers = new Map<string, string>();
         const products = new Map<string, string>();
         for (const [stored] of LOOK_ALIKE_PAIRS) {
@@ -303,7 +302,8 @@ describe.runIf(containerRuntimeAvailable)(
             ['list_customers', customers, 'customerId'],
             ['list_products', products, 'productId'],
           ] as const) {
-            const viaChat = await tools[tool].execute!({ name: written }, {});
+            // Each lookup is a separate question: its own turn and budget (T106).
+            const viaChat = await (await chatTools())[tool].execute!({ name: written }, {});
             const viaMcp = await h.call(fullKey, tool, { name: written });
             const chatIds = viaChat.rows.map((r: any) => r[idKey]);
             const mcpIds = (viaMcp.structuredContent as any).rows.map(
