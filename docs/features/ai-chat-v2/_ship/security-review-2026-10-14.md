@@ -135,3 +135,5 @@ Facts hold (vercel.json `fra1`; Neon hosts `eu-central-1`; the live Gateway endp
 | Z-6 | info (pre-existing) | Sentry (errors and metadata spans; EU region `ingest.de.sentry.io`) is not in privacy §5 / terms §10 | `package.json:49`; `public-pages-content.ts` | T111 |
 
 **Verdict:** CHANGES REQUESTED (copy only) → T111.
+
+**Resolution (review of T109–T110):** Z-1..Z-6 → T111.

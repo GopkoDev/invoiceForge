@@ -360,7 +360,7 @@ export const privacyContent = {
             service: 'Vercel',
             purpose: 'Hosting, serverless functions, and the AI Gateway that routes AI assistant message text',
             data: 'Encrypted application data, server logs, AI assistant message text (in transit)',
-            location: 'EU (Frankfurt, fra1)',
+            location: 'EU (Frankfurt, fra1) for the app; AI Gateway and CDN are global',
           },
           {
             service: 'Neon',
@@ -380,11 +380,17 @@ export const privacyContent = {
             data: 'Chat message text and the data it reads to answer (zero data retention)',
             location: 'USA',
           },
+          {
+            service: 'Sentry',
+            purpose: 'Error monitoring',
+            data: 'Error reports and metadata-only performance spans',
+            location: 'EU (Germany)',
+          },
         ],
       },
       safeguards: {
         title: 'Data Transfer Safeguards:',
-        text: 'Our hosting (Vercel) and database (Neon) run in the EU (Frankfurt). The AI model provider (Anthropic) and the sign-in providers process data in the USA; those transfers rely on <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission and on the Vercel Data Processing Agreement.',
+        text: 'Our hosting and database run in the EU (Frankfurt). Vercel and Neon are US companies whose Data Processing Agreements include <strong>Standard Contractual Clauses (SCCs)</strong> for any access from outside the EU. Anthropic processes data in the USA under Vercel\'s Data Processing Agreement (SCCs). The sign-in providers (Google, GitHub) process data in the USA under their own SCCs or EU-US Data Privacy Framework certification.',
         privacy:
           '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors handle only what their service needs: the technical infrastructure and, for the AI assistant, the model provider that answers your chat messages.',
       },
@@ -787,7 +793,7 @@ export const termsContent = {
             provider: 'Vercel',
             service: 'Hosting, Deployment & AI Gateway',
             data: 'Application hosting, logs, AI assistant message text (in transit)',
-            location: 'EU (Frankfurt, fra1)',
+            location: 'EU (Frankfurt, fra1) for the app; AI Gateway and CDN are global',
           },
           {
             provider: 'Neon',
@@ -807,10 +813,16 @@ export const termsContent = {
             data: 'Chat message text and the data it reads to answer (zero data retention)',
             location: 'USA',
           },
+          {
+            provider: 'Sentry',
+            service: 'Error monitoring',
+            data: 'Error reports and metadata-only performance spans',
+            location: 'EU (Germany)',
+          },
         ],
       },
       compliance:
-        'All providers listed above are covered. Our hosting (Vercel) and database (Neon) run in the EU (Frankfurt). The AI model provider (Anthropic) and the sign-in providers process data in the USA; those transfers rely on <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission and on the Vercel Data Processing Agreement. You acknowledge and consent to this data processing.',
+        'All providers listed above are covered by data processing agreements. Our hosting and database run in the EU (Frankfurt). Vercel and Neon are US companies whose Data Processing Agreements include <strong>Standard Contractual Clauses (SCCs)</strong> for any access from outside the EU. Anthropic processes data in the USA under Vercel\'s Data Processing Agreement (SCCs). The sign-in providers (Google, GitHub) process data in the USA under their own SCCs or EU-US Data Privacy Framework certification. You acknowledge and consent to this data processing.',
     },
     {
       id: 'termination',

@@ -86,5 +86,49 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
       const sentence = m.find((t) => /SCC/.test(t) && /USA|United States/.test(t));
       expect(sentence, 'transfer sentence with SCC and USA').toBeDefined();
     });
+
+    // T111 (review Z-1..Z-6): no overclaiming of where processing happens; Sentry is listed.
+    function strings(n: unknown, out: string[] = []): string[] {
+      if (typeof n === 'string') out.push(n);
+      else if (Array.isArray(n)) n.forEach((x) => strings(x, out));
+      else if (n && typeof n === 'object') Object.values(n).forEach((x) => strings(x, out));
+      return out;
+    }
+
+    it('Vercel row names the AI Gateway and global scope; location may stay EU Frankfurt (T111)', () => {
+      const vercel = rows(content).find((r) => name(r) === 'Vercel')!;
+      expect(JSON.stringify(vercel)).toMatch(/AI Gateway/);
+      expect(vercel.location).toMatch(/global/i);
+      expect(vercel.location).toMatch(/EU.*Frankfurt/);
+    });
+
+    it('one transfer sentence names Vercel and Neon, SCCs and the sign-in providers safeguard (T111)', () => {
+      const sentence = strings(content).find((t) => /Standard Contractual Clauses/.test(t) && /USA|United States/.test(t));
+      expect(sentence, 'transfer sentence').toBeDefined();
+      expect(sentence).toMatch(/Vercel and Neon/);
+      expect(sentence).toMatch(/Standard Contractual Clauses/);
+      expect(sentence).toMatch(/Data Privacy Framework|own SCCs/);
+    });
+
+    it('no dangling "All providers listed above are covered." (T111)', () => {
+      for (const t of strings(content)) {
+        expect(t).not.toMatch(/All providers listed above are covered\.?$/);
+      }
+      const all = strings(content).join('\n');
+      if (/All providers listed/.test(all)) expect(all).toMatch(/All providers listed[^.]*covered by data processing agreements/);
+    });
+
+    it('lists Sentry for error monitoring with an EU location (T111)', () => {
+      const sentry = rows(content).find((r) => name(r) === 'Sentry');
+      expect(sentry, 'Sentry row').toBeDefined();
+      expect(sentry!.location).toMatch(/EU/);
+      expect(JSON.stringify(sentry)).toMatch(/error/i);
+    });
+  });
+});
+
+describe('privacy §11 AI section wording is not overclaimed in the content constants (T111)', () => {
+  it('terms and privacy tables do not claim the model runs in the USA', () => {
+    expect(JSON.stringify(privacyContent)).not.toMatch(/runs in the USA/i);
   });
 });

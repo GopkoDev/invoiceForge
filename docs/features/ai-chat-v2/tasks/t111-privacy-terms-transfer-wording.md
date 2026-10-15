@@ -9,7 +9,7 @@ files_hint: ["app/(public)/privacy/privacy-content.tsx", "constants/public-pages
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T111 — Privacy and terms describe where processing happens without overclaiming; Sentry is listed (review Z-1..Z-6)
