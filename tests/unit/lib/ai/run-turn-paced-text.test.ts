@@ -1,5 +1,5 @@
 // fix 2026-10-12 (ai-assistant, SCR-02 "streaming": text deltas render progressively; spec §6 first words): the
-// model (Gemini Flash-Lite through the AI Gateway) writes a short reply in one burst of ~0.2 s at the end of a
+// model then in use (Gemini Flash-Lite through the AI Gateway) wrote a short reply in one burst of ~0.2 s at the end of a
 // multi-second turn, so the whole reply landed in the chat at once. The turn now writes the model's text out
 // word by word, a few milliseconds apart. Seam: runTurn with a scripted model.
 import { describe, expect, it, vi } from 'vitest';

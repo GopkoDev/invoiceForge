@@ -1,6 +1,6 @@
 import { gateway } from '@ai-sdk/gateway';
 
-// ADR-0003 (default revised 2026-10-14): Claude Haiku 5.5 through the Vercel AI Gateway. The id is a setting, not a constant.
+// ai-chat-v2 ADR-0014 (supersedes ai-assistant ADR-0003): Claude Haiku 5.5 through the Vercel AI Gateway. The id is a setting, not a constant.
 export const DEFAULT_CHAT_MODEL = 'anthropic/claude-haiku-5.5';
 
 // T35: the scripted stub is selected only by the e2e harness, which sets both values; read at call time.

@@ -9,7 +9,7 @@ files_hint: ["lib/ai/model.ts", "tests/unit/lib/ai/run-turn-paced-text.test.ts",
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T92 — Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)

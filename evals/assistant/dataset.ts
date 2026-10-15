@@ -54,7 +54,7 @@ export type NoGuessingSetup = (typeof NO_GUESSING_SETUPS)[number];
 /**
  * One drafting request. `kind: 'issue'` asks the chat to issue an invoice (AC-24): no card, no status change.
  * `explains` (ai-chat-v2 AC-05b) adds the own-sender-profile rule to a question row. `press` (AC-10) replays
- * `history` and then presses the offered option with that label through the chat route's press path; `text` is
+ * `history` and then answers the offered form question whose option has that label, as a one-answer form Send; `text` is
  * then only the row's description of the press (the route saves the stored label).
  */
 export const noGuessingItemSchema = z
