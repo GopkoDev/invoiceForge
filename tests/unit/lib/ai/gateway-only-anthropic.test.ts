@@ -34,6 +34,7 @@ describe('gateway provider pinning (T94, AC-35)', () => {
 
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(model.doGenerateCalls[0].providerOptions).toMatchObject(ONLY_ANTHROPIC);
+    expect(model.doGenerateCalls[0].providerOptions?.gateway).not.toHaveProperty('zeroDataRetention');
   });
 
   it('the agent stream call receives providerOptions.gateway.only = [anthropic]', async () => {
@@ -50,5 +51,6 @@ describe('gateway provider pinning (T94, AC-35)', () => {
 
     expect(model.doStreamCalls.length).toBeGreaterThan(0);
     expect(model.doStreamCalls[0].providerOptions).toMatchObject(ONLY_ANTHROPIC);
+    expect(model.doStreamCalls[0].providerOptions?.gateway).not.toHaveProperty('zeroDataRetention');
   });
 });

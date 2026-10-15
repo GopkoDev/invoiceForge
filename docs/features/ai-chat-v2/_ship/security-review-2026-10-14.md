@@ -158,3 +158,9 @@ Z-2..Z-5 resolved; Z-1 resolved in §11 only; Z-6 resolved with a gap. The escap
 REVIEW_CLEAN. W-1..W-4 resolved; privacy §5, terms §10 and privacy §11 agree on Anthropic (outside the EU, mainly USA; zero data retention), Vercel/Neon/Sentry (EU regions, US companies, SCCs) and the sign-in providers (USA, own SCCs/DPF). The Sentry disclosure matches the config: replays on error and logs in production; `replayIntegration()` defaults in `@sentry/replay` 10.76.0 mask all text and inputs and block media. The optional SAD item (Sentry description at `sad.md:83,97`) was fixed with this record.
 
 **Verdict:** PASS. Open before ship are owner items only (see `_ship/pr-body.md`).
+
+### Addendum (T113, 2026-10-16)
+
+Zero data retention was dropped (Hobby plan); the pages state Anthropic's 30-day retention. The ZDR eligibility check above is void.
+
+**Resolution (review of T113):** findings 1-8 -> T114.

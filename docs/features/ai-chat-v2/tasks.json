@@ -2266,6 +2266,28 @@
         "docs/features/ai-chat-v2/spec.md"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t113-drop-zero-data-retention.md"
+    },
+    {
+      "id": "T114",
+      "title": "T113 review follow-ups: qualified 30-day cell, ship docs without ZDR, Last updated October 16",
+      "layer": "frontend",
+      "deps": [
+        "T113"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Review 2026-10-16 T113 findings 1-8 (_review/review-2026-10-16-t113.md). (1) constants/public-pages-content.ts privacy §5 and terms §10 Anthropic rows: data 'Chat message text and the data it reads to answer (usually deleted within 30 days; see Privacy Policy section 11)' for terms, '(usually deleted within 30 days; see section 11)' for privacy; test in public-pages-ai-subprocessor.test.ts: row matches /30 days/ and /usually/i and does not match /\\(deleted within 30 days\\)/. (8) Last updated on privacy and terms (lines 224, 575, 602, 886) becomes 'October 16, 2026' (owner asked for today's date for the current text); test asserts privacy and terms lastUpdated contain 'October 16, 2026'. (7) gateway-only-anthropic.test.ts router and stream tests also assert providerOptions.gateway has no zeroDataRetention. (6) test comment at public-pages-ai-subprocessor.test.ts:46 says Anthropic's 30-day retention (T113). (5) sad.md:1070 risk row closed per the sad.md:1068 pattern (strike old text, '—' severity/mitigation, 'Closed by T113'). (2) _ship/pr-body.md: follow-ups line adds 'T113 dropped zero data retention (Hobby plan); pages state Anthropic's 30-day retention'; the owner item at :30 drops the ZDR eligibility check, keeps the SCC/DPA check, adds 'confirm the 30-day default applies to Vercel's Anthropic account'; :22 Last-updated note says it reads October 16, 2026. (3) _ship/changelog.md:81 marked superseded by T113 with a T113 entry. (4) _ship/security-review-2026-10-14.md: one-line T113 addendum after the resolutions (ZDR dropped 2026-10-16, Hobby plan; pages state Anthropic 30-day retention; the eligibility check is void) and 'Resolution (review of T113): findings 1-8 -> T114.' Scoped gate: the changed tests, vitest related on constants file, tsc, eslint on changed files.",
+      "files_hint": [
+        "constants/public-pages-content.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t114-t113-review-follow-ups.md"
     }
   ]
 }

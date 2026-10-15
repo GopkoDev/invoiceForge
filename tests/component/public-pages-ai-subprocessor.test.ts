@@ -43,7 +43,7 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
     expect(JSON.stringify(row)).toMatch(/message text/i);
   });
 
-  // T109 (SEC-I-03, owner option A): the real hosting locations, the US model transfer, zero data retention.
+  // T109 (SEC-I-03, owner option A): the real hosting locations, the US model transfer, Anthropic's 30-day retention (T113).
   type Row = Record<string, string>;
   function rows(content: unknown): Row[] {
     const out: Row[] = [];
@@ -80,6 +80,20 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
       expect(row.location).toMatch(/USA/);
       expect(JSON.stringify(row)).toMatch(/30 days/);
       expect(JSON.stringify(row)).not.toMatch(/zero data retention/i);
+    });
+
+    it('Anthropic row states retention as usually 30 days, not a "(deleted within 30 days)" guarantee (T114)', () => {
+      const row = rows(content).find((r) => /^Anthropic/.test(name(r)))!;
+      const text = JSON.stringify(row);
+      expect(text).toMatch(/30 days/);
+      expect(text).toMatch(/usually/i);
+      expect(text).not.toMatch(/\(deleted within 30 days\)/);
+    });
+
+    it('metadata (hero) and confirmation (footer) Last Updated fields read October 16, 2026 (T114)', () => {
+      const c = content as unknown as { metadata: { lastUpdated: string }; confirmation: { lastUpdated: string } };
+      expect(c.metadata.lastUpdated).toContain('October 16, 2026');
+      expect(c.confirmation.lastUpdated).toContain('October 16, 2026');
     });
 
     it('never mentions zero data retention anywhere (T113)', () => {

@@ -221,7 +221,7 @@ export const privacyContent = {
     subheadline:
       'Simple, honest privacy policy. No legal jargon, no hidden surprises.',
     effectiveDate: 'January 22, 2026',
-    lastUpdated: 'October 15, 2026',
+    lastUpdated: 'October 16, 2026',
   },
 
   sections: [
@@ -377,7 +377,7 @@ export const privacyContent = {
           {
             service: 'Anthropic (via Vercel AI Gateway)',
             purpose: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer (deleted within 30 days)',
+            data: 'Chat message text and the data it reads to answer (usually deleted within 30 days; see section 11)',
             location: 'Outside the EU (mainly USA)',
           },
           {
@@ -572,7 +572,7 @@ export const privacyContent = {
       'You consent to the use of strictly necessary cookies',
       'You know you can delete everything anytime',
     ],
-    lastUpdated: 'Last Updated: October 15, 2026',
+    lastUpdated: 'Last Updated: October 16, 2026',
     compliance:
       'This policy complies with GDPR (EU) 2016/679, Ukrainian Law on Personal Data Protection, ePrivacy Directive, and EU consumer protection laws.',
   },
@@ -599,7 +599,7 @@ export const termsContent = {
     subheadline:
       "Plain English terms of service. Know exactly what you're agreeing to.",
     effectiveDate: 'January 22, 2026',
-    lastUpdated: 'October 15, 2026',
+    lastUpdated: 'October 16, 2026',
   },
 
   sections: [
@@ -810,7 +810,7 @@ export const termsContent = {
           {
             provider: 'Anthropic (via Vercel AI Gateway)',
             service: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer (deleted within 30 days)',
+            data: 'Chat message text and the data it reads to answer (usually deleted within 30 days; see Privacy Policy section 11)',
             location: 'Outside the EU (mainly USA)',
           },
           {
@@ -883,7 +883,7 @@ export const termsContent = {
       'You understand the beta limitations',
       'You accept full responsibility for your invoices',
     ],
-    lastUpdated: 'Last Updated: October 15, 2026',
+    lastUpdated: 'Last Updated: October 16, 2026',
     compliance:
       'This document complies with EU consumer protection laws (GDPR, Consumer Rights Directive 2011/83/EU) and Ukrainian law, but does NOT certify Invoice Forge for government e-invoicing systems.',
   },
