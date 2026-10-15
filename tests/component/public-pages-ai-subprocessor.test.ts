@@ -26,4 +26,10 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
     expect(all).toMatch(/Anthropic[^"]*Vercel AI Gateway/);
     expect(all).toMatch(/AI assistant/i);
   });
+
+  it('terms §10 transfer sentence covers every listed provider, not only Vercel and Neon (T94)', () => {
+    const all = JSON.stringify(termsContent);
+    expect(all).not.toMatch(/Both Vercel and Neon comply/);
+    expect(all).toMatch(/All providers listed/);
+  });
 });

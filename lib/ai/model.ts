@@ -12,3 +12,5 @@ export async function getChatModel() {
   }
   return gateway(process.env.AI_CHAT_MODEL || DEFAULT_CHAT_MODEL);
 }
+
+export { GATEWAY_PROVIDER_OPTIONS } from './gateway-options';

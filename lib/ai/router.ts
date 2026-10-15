@@ -1,6 +1,7 @@
 import { generateText, jsonSchema, Output, zodSchema } from 'ai';
 import { z } from 'zod';
 import { getChatModel } from '@/lib/ai/model';
+import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
 import { gatewayCostOf } from '@/lib/ai/gateway-cost';
 import { withProviderFaults } from '@/lib/ai/provider-fault';
 import { MIXED_INSTRUCTION, OFF_TOPIC_REFUSAL, type RouterLanguage } from '@/lib/ai/instructions/refusal';
@@ -63,6 +64,7 @@ export async function classifyMessage({
     system: SYSTEM,
     messages: [...recentTurns, { role: 'user' as const, content: message }],
     output: Output.object({ schema: verdictSchema }),
+    providerOptions: GATEWAY_PROVIDER_OPTIONS,
   });
 
   const language = output.language;

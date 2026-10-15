@@ -94,7 +94,7 @@
 | T91 | [A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)](./t91-unknown-model-cost-is-null.md) | backend | Dmytro Hopko | XS | T89 | done |
 | T92 | [Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)](./t92-model-comments-fixtures-eval-docs.md) | tests | Dmytro Hopko | XS | T89 | done |
 | T93 | [ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)](./t93-adr-0014-doc-drift.md) | docs | Dmytro Hopko | XS | T90, T91, T92 | done |
-| T94 | [Chat model calls are pinned to Anthropic at the Gateway, so the privacy page's processor list is true (review round 2 N1, N5)](./t94-gateway-only-anthropic.md) | backend | Dmytro Hopko | XS | T93 | todo |
+| T94 | [Chat model calls are pinned to Anthropic at the Gateway, so the privacy page's processor list is true (review round 2 N1, N5)](./t94-gateway-only-anthropic.md) | backend | Dmytro Hopko | XS | T93 | done |
 | T95 | [A failed turn's unknown router cost is null, and the router verdict always carries its cost (review round 2 N3)](./t95-failed-turn-cost-unknown.md) | backend | Dmytro Hopko | XS | T93 | todo |
 | T96 | [Docs after round 2: closed risks, terms note, weekly cost check, provider pin and the missing security addendum (review round 2 N2, N4)](./t96-round-2-doc-drift.md) | docs | Dmytro Hopko | XS | T94, T95 | todo |
 

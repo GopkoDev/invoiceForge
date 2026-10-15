@@ -810,7 +810,7 @@ export const termsContent = {
         ],
       },
       compliance:
-        'Both Vercel and Neon comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong>. You acknowledge and consent to this data processing.',
+        'All providers listed above comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong>. You acknowledge and consent to this data processing.',
     },
     {
       id: 'termination',

@@ -3,6 +3,7 @@ import 'server-only';
 import { RequestContext } from '@mastra/core/request-context';
 import type { ModelMessage, UIMessageChunk } from 'ai';
 import { chatAgent, MAX_STEPS, TURN_CONTEXT_KEY } from '@/lib/ai/agent';
+import { GATEWAY_PROVIDER_OPTIONS } from '@/lib/ai/gateway-options';
 import { MIXED_INSTRUCTION } from '@/lib/ai/instructions/refusal';
 import { classifyMessage, type RouterTopic, type RouterTurn } from '@/lib/ai/router';
 import { createId } from '@paralleldrive/cuid2';
@@ -359,7 +360,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
 
     try {
       // The chat instructions come from the agent itself; only per-turn additions travel here (R-19).
-      const output = await chatAgent.stream(messages, { maxSteps: MAX_STEPS, abortSignal: input.signal, requestContext });
+      const output = await chatAgent.stream(messages, { maxSteps: MAX_STEPS, abortSignal: input.signal, requestContext, providerOptions: GATEWAY_PROVIDER_OPTIONS });
       const reader = output.fullStream.getReader();
       for (;;) {
         const { done, value } = await reader.read();

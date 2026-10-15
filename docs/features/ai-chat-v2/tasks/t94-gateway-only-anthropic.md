@@ -9,7 +9,7 @@ files_hint: ["lib/ai/model.ts", "lib/ai/router.ts", "lib/ai/run-turn.ts", "const
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T94 — Chat model calls are pinned to Anthropic at the Gateway, so the privacy page's processor list is true (review round 2 N1, N5)
