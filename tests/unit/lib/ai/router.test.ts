@@ -144,3 +144,14 @@ describe('topic router (ADR-0005)', () => {
     expect(r.intent).toBe('draft');
   });
 });
+
+// ai-chat-v2 T117 (AC-15): changing an existing draft or invoice is not a drafting intent.
+describe('router prompt: changing an existing draft or invoice (T117)', () => {
+  it('says add/remove a line or edit a value on an existing draft or invoice is read, not draft', async () => {
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
+    await classifyMessage({ message: 'Add a line for the website to my draft', recentTurns: [] });
+    const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(sent).toMatch(/(change|edit)[^.]*existing (draft|invoice)[^.]*\bread\b/i);
+    expect(sent).toMatch(/add or remove a line|remove a line/i);
+  });
+});
