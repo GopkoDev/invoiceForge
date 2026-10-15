@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T110 — ADR-0014, SAD, spec and ship docs record zero data retention and the EU hosting / US model transfer (owner option A)
