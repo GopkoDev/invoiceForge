@@ -204,7 +204,7 @@ C4Container
 - **e2e is not in CI** — the full e2e suite runs locally before a ship; Playwright baselines are Linux-named.
 - **Build-time-only env check** — missing settings fail the build, not a running server; `AUTH_URL` and the `SENTRY_*` settings are not in the required list.
 - **Two zod majors in the lockfile** — 3.25 declared, 4.1 pulled in transitively.
-- **Sidebar reads the session on its own** — `components/layout/nav-user.tsx` calls `auth()` directly, not the render-cached `readSession()` (`lib/helpers/session-read.ts`). On a full load or `router.refresh()` of a protected page, the session (a database row with database sessions) is read twice: once by the sidebar, once by the page. Switching it to `readSession()` makes it one read per render; client navigations already re-render only the page, not the layout.
+- **Sidebar reads the session on its own** — `components/layout/nav-user.tsx` calls `auth()` directly, not the render-cached `readSession()` (`lib/helpers/session-read.ts`). On a full load or `router.refresh()` of a protected page, the session is read twice (JWT strategy: each `auth()` decodes the cookie and the session callback runs one `User` lookup by primary key): once by the sidebar, once by the page. Switching it to `readSession()` makes it one read per render; client navigations already re-render only the page, not the layout.
 
 ## Review findings (code-review, 2026-09-26) — status at `735ab32`
 
