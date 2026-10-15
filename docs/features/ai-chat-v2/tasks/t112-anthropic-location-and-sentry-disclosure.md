@@ -9,7 +9,7 @@ files_hint: ["constants/public-pages-content.ts", "tests/component/public-pages-
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T112 — Privacy and terms tables match §11 for Anthropic and disclose what Sentry receives (review W-1..W-4)

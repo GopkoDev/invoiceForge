@@ -74,10 +74,21 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
       expect(neon.location).not.toMatch(/USA/);
     });
 
-    it('keeps Anthropic in the USA and says zero data retention', () => {
+    it('places Anthropic outside the EU (mainly USA) and says zero data retention (T112)', () => {
       const row = rows(content).find((r) => /^Anthropic/.test(name(r)))!;
-      expect(row.location).toBe('USA');
+      expect(row.location).toMatch(/Outside the EU/);
+      expect(row.location).toMatch(/USA/);
       expect(JSON.stringify(row)).toMatch(/zero data retention/i);
+    });
+
+    it('makes no USA-only claim for Anthropic (T112)', () => {
+      expect(JSON.stringify(content)).not.toMatch(/Anthropic processes data in the USA/);
+    });
+
+    it('Sentry row data discloses session replay and logs (T112)', () => {
+      const sentry = rows(content).find((r) => name(r) === 'Sentry')!;
+      expect(sentry.data).toMatch(/replay/i);
+      expect(sentry.data).toMatch(/logs/i);
     });
 
     it('the transfer sentence names the US transfer under SCCs', () => {
@@ -105,7 +116,7 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
     it('one transfer sentence names Vercel and Neon, SCCs and the sign-in providers safeguard (T111)', () => {
       const sentence = strings(content).find((t) => /Standard Contractual Clauses/.test(t) && /USA|United States/.test(t));
       expect(sentence, 'transfer sentence').toBeDefined();
-      expect(sentence).toMatch(/Vercel and Neon/);
+      expect(sentence).toMatch(/Vercel, Neon and Sentry/);
       expect(sentence).toMatch(/Standard Contractual Clauses/);
       expect(sentence).toMatch(/Data Privacy Framework|own SCCs/);
     });

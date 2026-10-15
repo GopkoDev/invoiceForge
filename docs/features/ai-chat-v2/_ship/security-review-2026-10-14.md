@@ -150,3 +150,5 @@ Z-2..Z-5 resolved; Z-1 resolved in §11 only; Z-6 resolved with a gap. The escap
 | W-4 | low | Stray closing parenthesis | `sad.md:60` | T112 |
 
 **Verdict:** CHANGES REQUESTED (copy) → T112.
+
+**Resolution (review of T111):** W-1..W-4 → T112.
