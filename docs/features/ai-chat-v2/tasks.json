@@ -2106,6 +2106,43 @@
         "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t105-re-check-docs.md"
+    },
+    {
+      "id": "T106",
+      "title": "A card or form is kept only when its answer fits the turn budget; draft answers and links are inside the byte cap (N-1, N-2 code)",
+      "layer": "backend",
+      "deps": [
+        "T105"
+      ],
+      "acs": [],
+      "dod": "Tool bodies that set turn.pending (propose_draft, ask_user) commit their pending change only after the answer was charged successfully (e.g. the body returns { answer, commit } and withToolBudget calls commit() only on a successful charge), so a refused answer leaves turn.pending, drafted and the shown card/form unchanged. propose_draft answers pass through capToolAnswer (≤ 20,000 bytes) like read answers; read-tool links are included inside the capped answer's final byte check. Tests: with bytesLeft nearly spent, a CARD answer → no pending card, no card part, drafted false, and the model got the budget text; same for ask_user (no form); a 50-line ISSUES answer is ≤ 20,000 bytes; a read answer with many links stays ≤ 20,000 bytes. Scoped gate: tests/unit/lib/ai, run-turn + chat-route integration under caffeinate, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/limits.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/tools/ask-user.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/ai/run-turn.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t106-commit-pending-after-charge.md"
+    },
+    {
+      "id": "T107",
+      "title": "Docs describe the bounds as they are, with the estimate marked and exclusions named (N-2 docs, N-3, N-4)",
+      "layer": "docs",
+      "deps": [
+        "T106"
+      ],
+      "acs": [],
+      "dod": "spec bounds row, ADR-0014 (:52 and :59), sad §11, changelog and pr-body: per-answer cap now covers read and propose_draft answers including links (T106); pinned/prior steps are charged against the turn budget but never cut; the worst case lists what it excludes (user message ≤ 2,000 chars, model-written tool inputs and text across ≤ 8 steps) and '30–60k tokens, below the 100k tier' is labelled an estimate; ADR-0014 :59 says the limit slows repeated failures to at most 10 a minute per Freelancer; the spec row notes calls rejected for invalid input before execution do not use the 12-call cap. Security file: a 'Resolution (final review)' line mapping N-1..N-4 → T106/T107. Changelog lists T106–T107. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t107-bounds-wording-final.md"
     }
   ]
 }

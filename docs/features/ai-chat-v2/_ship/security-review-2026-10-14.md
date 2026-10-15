@@ -88,3 +88,16 @@ The full gate after T102 also caught a unit red the scoped gate missed: `countRe
 **Verdict:** CHANGES REQUESTED → T103–T105.
 
 **Resolution (re-check).** SEC-M-02 and SEC-L-04: one per-turn tool budget (60,000 bytes, 12 calls), byte-counted sizes and surrogate-safe cuts (T103). SEC-L-05 and SEC-I-06: the 10/min limit is atomic in the shared limit store, refusals write no turn rows, `TOO_FAST` is in `ActionErrorCode` and the contract test resolves ai-chat-v2's contract (T104), and the docs state the real bounds and the migration to deploy (T105).
+
+### Final review after T103–T105 (2026-10-15, `ffe81498..a0da23a7`)
+
+Reviewed by `sdd:reviewer` (clean context, read only; security and code quality). SEC-M-02, SEC-L-04, SEC-L-05 and SEC-I-06 resolved in code: parallel calls cannot overspend the byte budget (the answer is checked and charged synchronously after the body; the parallel 15-call test admits ≤ 60k bytes), every truncation is surrogate-safe, the per-minute limit counts and records inside one locked transaction and a refusal writes nothing, the migration is additive with a tested down/up. The test-harness changes made in T104 do not weaken any test (the chat-route contract is now the stricter ai-chat-v2 one; the AC-11 mock still rejects the save). `ask_user`'s preprocess swap leaves the model-visible schema unchanged.
+
+| ID | Sev | Finding | Where | Fix |
+|---|---|---|---|---|
+| N-1 | low | `withToolBudget` runs the tool body before charging: when a `propose_draft` CARD/ISSUES or `ask_user` answer does not fit, the model gets the budget text but `turn.pending` already holds the card/form, `drafted` stays false (add-page links can leak beside a card, R2-B3) and the reply ignores the shown card; `propose_draft` answers have no per-answer cap | `lib/ai/limits.ts:53-58`; `lib/ai/tools/propose-draft.ts:210,218`; `lib/ai/tools/ask-user.ts:32`; `lib/ai/run-turn.ts:402,439,473-474` | T106 |
+| N-2 | low | Docs overstate the bounds: links are added after the 20k cap, `propose_draft`/pinned answers are uncapped, pinned/prior steps are charged with a clamp, the worst case omits the user message and model-written inputs, and "below the 100k tier" is an estimate | spec bounds row; ADR-0014 :52; `sad.md` §11; `_ship/changelog.md:80`; `_ship/pr-body.md:14` | T106 (links inside the cap, `propose_draft` cap) + T107 |
+| N-3 | low | ADR-0014 :59 still says the limit "does" stop repeated paid failures | ADR-0014 :59 | T107 |
+| N-4 | info | Calls with invalid input are rejected by Mastra before `execute` and do not use the 12-call cap | `@mastra/core` tool validation | T107 (say so in the spec row) |
+
+**Verdict:** CHANGES REQUESTED → T106, T107.
