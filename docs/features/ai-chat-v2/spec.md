@@ -642,6 +642,10 @@ From that moment the form is hidden and only the answer message shows in the str
 | Avatar alignment | the avatar's vertical middle within 1 px of the first text line's middle, for one-line and multi-line replies | e2e / component bounding-box check |
 | Chat behaviour (model) | each eval row of the drafting-behaviour set (dates, form instead of prose, search before "add one", invoice links, created-in-month query) passes in ≥ 4 of 5 runs against the configured model | eval suite run before ship (not in CI) |
 | Model cost per message, p95 | ≤ USD 0.02, unchanged by the new reads | per-message traces (metadata only), weekly |
+<!-- added-by-security-review: 2026-10-15 -->
+| *Revision 2026-10-15 (ADR-0014, security):* Message rate | a Freelancer who already started 10 or more turns (any outcome) in the last 60 seconds gets a refusal with the words "You're sending messages too quickly. Try again in a minute." (HTTP 429, `TOO_FAST`), before any allowance slot or model call; AC-11 is unchanged | route integration test: the 11th message in a minute is refused, the allowance row and the scripted model's call count unchanged |
+<!-- added-by-security-review: 2026-10-15 -->
+| *Revision 2026-10-15 (ADR-0014, security):* Model input and output bounds | router output ≤ 300 tokens, agent output ≤ 2,000 tokens per step; history sent to the model ≤ 40,000 characters; a chat tool answer ≤ 20,000 characters (strings 2,000, lists 50 items) | unit tests over the limits and the cap |
 
 ## 6.1 Security / privacy
 
