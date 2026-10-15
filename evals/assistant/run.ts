@@ -18,6 +18,7 @@ import {
 } from './dataset';
 import {
   aggregateRuns,
+  formatRowFailures,
   noGuessingRowFailures,
   parseEvalRuns,
   scoreNoGuessing,
@@ -727,7 +728,8 @@ async function main(): Promise<number> {
     console.log(
       `Running ${topicItems.length} topic questions through the router...`
     );
-    const topic = scoreTopicBoundary(await runTopicBoundary(topicItems));
+    const topicRows = await runTopicBoundary(topicItems);
+    const topic = scoreTopicBoundary(topicRows);
     const noGuessingItems = loadNoGuessingSet();
     const { runs, minPasses } = parseEvalRuns(process.env.ASSISTANT_EVAL_RUNS);
     console.log(
@@ -752,6 +754,8 @@ async function main(): Promise<number> {
       runs === 1 ? noGuessing : { ...noGuessing, passed: aggregate.passed };
     const { exitCode, report } = evaluateRun({ topic, noGuessing: gated });
     console.log(report);
+    const rowFailures = formatRowFailures(runRows[runRows.length - 1], topicRows);
+    if (rowFailures.length > 0) console.log(['Failing rows:', ...rowFailures].join('\n'));
     if (runs > 1) {
       console.log(`Per-row passes (need >= ${minPasses} of ${runs}):`);
       for (const [id, passes] of Object.entries(aggregate.passCounts))

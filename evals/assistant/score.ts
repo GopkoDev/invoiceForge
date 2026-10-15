@@ -270,6 +270,22 @@ export function noGuessingRowFailures(r: NoGuessingRow): string[] {
  * 100 % of incomplete/ambiguous requests end in a question (an explains row only when its rule holds too), controls
  * get a card, 0 ungrounded values, and every row-specific rule holds.
  */
+/** T118: why each failing row failed, so a red run can be read without rerunning it. */
+export function formatRowFailures(noGuessingRows: NoGuessingRow[], topicRows: TopicRow[]): string[] {
+  const lines: string[] = [];
+  for (const r of noGuessingRows) {
+    const reasons = noGuessingRowFailures(r);
+    if (reasons.length === 0) continue;
+    lines.push(`  - ${r.id}: ${reasons.join('; ')}`);
+    if (r.replyText) lines.push(`      reply: ${r.replyText.slice(0, 200)}`);
+  }
+  for (const r of scoreTopicBoundary(topicRows).failures) {
+    lines.push(`  - topic: ${r.text}`);
+    lines.push(`      expected ${r.label}/${r.intent ?? 'read'}, got ${r.refused ? 'refused' : 'answered'}/${r.verdictIntent ?? 'read'}`);
+  }
+  return lines;
+}
+
 export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
   const asks = rows.filter((r) => r.expect === 'question');
   const questionRate =
