@@ -16,12 +16,16 @@ import { classifyMessage } from '@/lib/ai/router';
 import { runTurn } from '@/lib/ai/run-turn';
 
 // T101 (SEC-L-03): the request also asks the gateway not to route to providers that train on prompts.
-// T109 (SEC-I-03): and to require zero data retention (a team without ZDR eligibility fails closed).
-const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'], disallowPromptTraining: true, zeroDataRetention: true } };
+// T113: T109's zeroDataRetention is dropped (the Vercel Hobby plan refuses it, so every turn fails).
+const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'], disallowPromptTraining: true } };
 
 describe('gateway provider pinning (T94, AC-35)', () => {
   it('the shared option restricts the gateway to Anthropic and disallows prompt training', () => {
     expect(GATEWAY_PROVIDER_OPTIONS).toEqual(ONLY_ANTHROPIC);
+  });
+
+  it('does not request zeroDataRetention (T113: Hobby plan refuses it)', () => {
+    expect(GATEWAY_PROVIDER_OPTIONS.gateway).not.toHaveProperty('zeroDataRetention');
   });
 
   it('the router model call receives providerOptions.gateway.only = [anthropic]', async () => {

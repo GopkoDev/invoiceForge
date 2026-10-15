@@ -11,6 +11,8 @@ describe('chatAgent default options (T101)', () => {
   it('defaults providerOptions to the shared gateway pin', async () => {
     const defaults = await chatAgent.getDefaultOptions();
     expect(defaults.providerOptions).toEqual(GATEWAY_PROVIDER_OPTIONS);
-    expect(defaults.providerOptions).toEqual({ gateway: { only: ['anthropic'], disallowPromptTraining: true, zeroDataRetention: true } });
+    expect(defaults.providerOptions).toEqual({ gateway: { only: ['anthropic'], disallowPromptTraining: true } });
+    // T113: zeroDataRetention was dropped; the Vercel Hobby plan refuses it and every turn fails.
+    expect(defaults.providerOptions?.gateway).not.toHaveProperty('zeroDataRetention');
   });
 });

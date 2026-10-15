@@ -519,9 +519,11 @@ export function PrivacyPolicyContent() {
                 process your message text. This runs on paid API terms: under
                 them Anthropic does not use the content you send to train its
                 models. Anthropic is a US company and processes the
-                text outside the EU, mainly in the USA. It does not store your
-                message text after answering (zero data retention under its
-                agreement with Vercel), except where the law requires it.
+                text outside the EU, mainly in the USA. Anthropic deletes the
+                text it receives through the API within 30 days, unless it is
+                flagged for a Usage Policy violation (then it is kept for up
+                to 2 years) or the law requires it to be kept longer. Vercel
+                AI Gateway does not keep your message text after the request.
               </p>
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>

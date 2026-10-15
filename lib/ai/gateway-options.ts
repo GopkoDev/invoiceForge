@@ -1,5 +1,5 @@
 // ai-chat-v2 ADR-0014 / review round 2 N1: pin to Anthropic so the privacy page's processor list stays true; no cross-provider fallback. A non-Anthropic gateway model id is refused by the pin. Non-gateway models ignore the key.
 // SEC-L-03: the no-training promise is requested on every call (disallowPromptTraining); the Gateway fails closed if no provider matches.
-// ZDR required: the anthropic endpoint reports has_zdr (Gateway endpoints list, 2026-10-15); a team without ZDR eligibility fails closed (every turn AI unavailable) - verify on preview.
+// No zeroDataRetention (T113, owner decision 2026-10-16): the Vercel Hobby plan refuses it and every turn failed closed. The Gateway keeps no content; Anthropic deletes API data within 30 days.
 // Kept apart from model.ts so tests that mock '@/lib/ai/model' still get it.
-export const GATEWAY_PROVIDER_OPTIONS = { gateway: { only: ['anthropic'], disallowPromptTraining: true, zeroDataRetention: true } };
+export const GATEWAY_PROVIDER_OPTIONS = { gateway: { only: ['anthropic'], disallowPromptTraining: true } };

@@ -77,10 +77,13 @@ describe('privacy page — AI section for the chat (ai-chat-v2 T28, AC-35)', () 
     expect(who).toMatch(/Vercel/);
   });
 
-  it('states processing outside the EU, mainly in the USA, and zero data retention without an absolute claim (T109, T111)', () => {
+  it('states processing outside the EU, mainly in the USA, 30-day and 2-year retention, no zero data retention claim (T113)', () => {
     const text = aiSection();
     expect(text).toMatch(/outside the EU/);
-    expect(text).toMatch(/zero data retention/i);
+    expect(text).toMatch(/30 days/);
+    expect(text).toMatch(/2 years/);
+    expect(text).toMatch(/Vercel AI Gateway does not keep/i);
+    expect(text).not.toMatch(/zero data retention/i);
     expect(text).toMatch(/USA/);
     expect(text).not.toMatch(/keeps no copy/i);
     expect(text).not.toMatch(/runs in the USA/i);

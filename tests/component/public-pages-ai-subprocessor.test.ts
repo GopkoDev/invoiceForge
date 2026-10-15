@@ -74,11 +74,16 @@ describe('sub-processor tables name the AI model provider (T90)', () => {
       expect(neon.location).not.toMatch(/USA/);
     });
 
-    it('places Anthropic outside the EU (mainly USA) and says zero data retention (T112)', () => {
+    it('places Anthropic outside the EU (mainly USA) and says 30 days, not zero data retention (T113)', () => {
       const row = rows(content).find((r) => /^Anthropic/.test(name(r)))!;
       expect(row.location).toMatch(/Outside the EU/);
       expect(row.location).toMatch(/USA/);
-      expect(JSON.stringify(row)).toMatch(/zero data retention/i);
+      expect(JSON.stringify(row)).toMatch(/30 days/);
+      expect(JSON.stringify(row)).not.toMatch(/zero data retention/i);
+    });
+
+    it('never mentions zero data retention anywhere (T113)', () => {
+      expect(JSON.stringify(content)).not.toMatch(/zero data retention/i);
     });
 
     it('makes no USA-only claim for Anthropic (T112)', () => {

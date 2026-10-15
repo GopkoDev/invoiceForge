@@ -377,7 +377,7 @@ export const privacyContent = {
           {
             service: 'Anthropic (via Vercel AI Gateway)',
             purpose: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer (zero data retention)',
+            data: 'Chat message text and the data it reads to answer (deleted within 30 days)',
             location: 'Outside the EU (mainly USA)',
           },
           {
@@ -810,7 +810,7 @@ export const termsContent = {
           {
             provider: 'Anthropic (via Vercel AI Gateway)',
             service: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer (zero data retention)',
+            data: 'Chat message text and the data it reads to answer (deleted within 30 days)',
             location: 'Outside the EU (mainly USA)',
           },
           {
