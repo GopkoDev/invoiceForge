@@ -1973,6 +1973,81 @@
         "mastra/index.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t98-studio-agent-pinned.md"
+    },
+    {
+      "id": "T99",
+      "title": "Every model call stays well below 100k input tokens: output caps, a history size budget, and capped tool answers in the chat (SEC-M-01 a, b)",
+      "layer": "backend",
+      "deps": [
+        "T98"
+      ],
+      "acs": [],
+      "dod": "(1) `maxOutputTokens`: router 300 (lib/ai/router.ts generateText), agent 2000 per step (chatAgent.stream options in lib/ai/run-turn.ts, or the agent's defaultOptions). (2) History budget: after the 40-message cap, the history sent to the model keeps the newest messages whose text parts total at most 40,000 characters (drop oldest whole messages; the newest message always kept); one exported constant. (3) Chat tool answers: in the chat wrapper `lib/ai/tools/read-tools.ts` (NOT the shared lib/assistant-tools registry, so MCP answers and contracts are unchanged), every read answer passed to the model is capped: strings over 2,000 chars truncated with a marker, arrays over 50 items cut with `truncated: true`, and the serialized answer at most 20,000 chars (further trimmed if needed); links extraction still sees the full answer. Constants exported. Unit tests for each bound (router and agent call options via MockLanguageModelV4 like tests/unit/lib/ai/gateway-only-anthropic.test.ts; history budget; tool-answer capping incl. a huge invoice); an MCP contract test still passes unchanged. Scoped gate: related tests, tests/contract for MCP read tools, tsc, eslint on changed files.",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/agent.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/services/conversations/conversations.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t99-bound-model-input-and-output.md"
+    },
+    {
+      "id": "T100",
+      "title": "The chat refuses more than 10 messages a minute per Freelancer (SEC-M-01 c)",
+      "layer": "backend",
+      "deps": [
+        "T99"
+      ],
+      "acs": [],
+      "dod": "`app/api/chat/route.ts` refuses a request before any model call when the Freelancer already has 10 or more `AssistantTurn` rows created in the last 60 seconds (any outcome; constant exported), with HTTP 429, code `RATE_LIMITED`-style error distinct from the daily allowance (e.g. `TOO_FAST`), the sentence \"You're sending messages too quickly. Try again in a minute.\", no slot reserved, nothing counted, and a metadata row consistent with the existing pre-model refusal path. The chat island shows that sentence like other 429 notices (check components/ai/chat-island.tsx handling; add the code there if needed). Integration test in tests/integration/api/chat-route.test.ts (10 rows inside the window → 429 and no model call; rows older than 60 s don't count); component test if the island needed a change. Scoped gate: chat-route integration file (under caffeinate), related unit/component tests, tsc, eslint on changed files.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/services/assistant-usage",
+        "components/ai/chat-island.tsx",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t100-chat-per-minute-limit.md"
+    },
+    {
+      "id": "T101",
+      "title": "Gateway requests ask for no prompt training; the app agent carries the pin in its defaults; privacy §5 Vercel row names the AI Gateway (SEC-L-03, SEC-I-04, SEC-I-03)",
+      "layer": "backend",
+      "deps": [
+        "T100"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "`GATEWAY_PROVIDER_OPTIONS` (lib/ai/gateway-options.ts) becomes `{ gateway: { only: ['anthropic'], disallowPromptTraining: true } }` (check the key in node_modules/@ai-sdk/gateway types); tests/unit/lib/ai/gateway-only-anthropic.test.ts asserts it (update its expected constant; the router/stream call assertions use toMatchObject). `lib/ai/agent.ts` chatAgent gets `defaultOptions: { providerOptions: GATEWAY_PROVIDER_OPTIONS }` (keep the call-site option), asserted via getDefaultOptions() like tests/unit/mastra/studio-traces.test.ts. Privacy §5 Vercel row (constants/public-pages-content.ts ~357-361) purpose names the AI Gateway (AI assistant message text); tests/component/public-pages-ai-subprocessor.test.ts asserts it. Scoped gate: related tests, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/gateway-options.ts",
+        "lib/ai/agent.ts",
+        "constants/public-pages-content.ts",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t101-no-training-filter-and-agent-default-pin.md"
+    },
+    {
+      "id": "T102",
+      "title": "ADR-0014, SAD, spec and ship docs say what bounds a turn; weekly check reports null costs; owner checks listed (SEC-M-01 d, e; SEC-I-03; SEC-I-05)",
+      "layer": "docs",
+      "deps": [
+        "T101"
+      ],
+      "acs": [],
+      "dod": "ADR-0014 (dated revision) and sad §11 state the real bounds (T99 output/history/tool caps, T100 10/min limit, AC-11 unchanged, Gateway spend budget as owner backstop) and T101 (disallowPromptTraining, agent default pin). spec §6/§6.1 record the 10 messages/minute refusal (marked added-by security review 2026-10-15) and the bounds. `_ship/feature.md` weekly cost check also reports the null-cost share and total spend incl. FAILED turns, and treats a high null share as a failed check. pr-body owner items: set a spend budget/alert on the Vercel AI Gateway team; verify SEC-I-03 (USA location, SCC coverage of Anthropic via Vercel's DPA, provider-side retention) with the wording approval; the security addendum item is checked with a pointer to the fixes. Changelog lists T99–T102. Security addendum file gets a short 'Resolution' line for SEC-M-01, SEC-L-03, SEC-I-03..05. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/_ship/feature.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t102-security-addendum-docs.md"
     }
   ]
 }
