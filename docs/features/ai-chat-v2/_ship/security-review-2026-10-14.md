@@ -103,3 +103,14 @@ Reviewed by `sdd:reviewer` (clean context, read only; security and code quality)
 **Verdict:** CHANGES REQUESTED → T106, T107.
 
 **Resolution (final review).** N-1 (a refused answer left its card or form): the tool body returns `{ answer, commit }` and `withToolBudget` commits only after the bytes were charged (T106). N-2: `propose_draft` answers and read-tool links are inside the 20,000-byte cap (T106) and the docs state the bounds with the estimate marked and the exclusions named (T107). N-3: ADR-0014 says the limit slows repeated failures to at most 10 a minute per Freelancer (T107). N-4: the spec row says calls rejected for invalid input do not use the 12-call cap (T107). T106 also fixed a test fixture found by the full integration gate: the look-alike loop in `tests/integration/ai-chat-v2-customers-read.test.ts` reused one turn for more than 12 calls, so each lookup now gets its own turn (assertions unchanged).
+
+### Re-check after T106–T107 (2026-10-15, `5f0a88d5..6ea9438e`)
+
+N-1..N-4 resolved: a refused answer never commits pending state (commit runs once, synchronously after a successful charge); capped CARD/ISSUES answers keep every id (min string cap 31 > cuid length) and the form is built from the uncapped resolver output; the customers-read fixture change keeps its chat-vs-MCP assertions.
+
+| ID | Sev | Finding | Where | Fix |
+|---|---|---|---|---|
+| F-1 | low | The last fallback of `capToolAnswer` checks `kept` but returns `{ ...kept, links: [] }`, up to 11 bytes over 20,000 | `lib/ai/tools/read-tools.ts:64` | T108 |
+| F-2 | low (docs) | A `propose_draft` re-call in a pressed turn returns the pinned value uncut (charged to the turn budget); spec/sad say every `propose_draft` answer is ≤ 20,000 bytes | `lib/ai/tools/propose-draft.ts:198`; spec bounds row; `sad.md` §11 | T108 |
+
+**Verdict:** CHANGES REQUESTED (low) → T108.
