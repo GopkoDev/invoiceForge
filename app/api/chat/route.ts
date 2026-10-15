@@ -26,10 +26,11 @@ import { pinAnswers } from '@/lib/services/assistant-drafts/form-pin';
 import { draftRequestSchema } from '@/lib/services/assistant-drafts/schema';
 import { answerText, composeAnswerMessage, defaultPrompt } from '@/lib/validations/form-answers';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
-import { countRecentTurns, recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
+import { recordTurnMetadata } from '@/lib/services/assistant-usage/turns';
 import { loadHistory } from '@/lib/services/conversations/conversations';
 import { saveTurn } from '@/lib/services/conversations/save-turn';
-import { CHAT_PER_MINUTE_MAX, CHAT_RATE_WINDOW_MS } from '@/lib/ai/limits';
+import { CHAT_PER_MINUTE_MAX } from '@/lib/ai/limits';
+import { createLimitStore } from '@/lib/security/limits/limit-store';
 import { runTurn } from '@/lib/ai/run-turn';
 import type { PinnedResolution } from '@/lib/ai/turn-context';
 import {
@@ -153,23 +154,19 @@ export async function POST(request: NextRequest) {
   }
 
   const startedAt = Date.now();
-  // Before any slot or model call: turns of any outcome in the last minute (a failed turn gives its slot back).
-  const recent = await countRecentTurns(actor, new Date(startedAt - CHAT_RATE_WINDOW_MS));
-  if (recent === null) return NextResponse.json(FAILED, { status: 503 });
-  if (recent >= CHAT_PER_MINUTE_MAX) {
-    await recordTurnMetadata(actor, {
-      topic: null,
-      outcome: 'FAILED',
-      counted: false,
-      steps: 0,
-      toolNames: [],
-      durationMs: Date.now() - startedAt,
-      inputTokens: null,
-      outputTokens: null,
-      costUsd: 0,
+  // Before any slot or model call: the per-minute limit, counted and recorded under the shared store's key lock so
+  // parallel sends cannot overrun it. A refusal writes nothing; a store failure fails closed (T104).
+  let admitted: boolean;
+  try {
+    admitted = await createLimitStore().withKeyLock('CHAT_MESSAGE', actor.userId, async (limit) => {
+      if ((await limit.countInWindow()) >= CHAT_PER_MINUTE_MAX) return false;
+      await limit.record('REQUESTED', { userId: actor.userId });
+      return true;
     });
-    return NextResponse.json(TOO_FAST, { status: 429 });
+  } catch {
+    return NextResponse.json(FAILED, { status: 503 });
   }
+  if (!admitted) return NextResponse.json(TOO_FAST, { status: 429 });
   const reservation = form
     ? await reserveAndClaimForm(actor, new Date(startedAt), form.formId, form.answers)
     : await reserveMessageSlot(actor, new Date(startedAt));

@@ -19,7 +19,9 @@ export type ActionErrorCode =
   | 'VALIDATION'
   | 'CONFLICT'
   | 'FAILED'
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  /** The per-minute chat limit (ai-chat-v2 T100). */
+  | 'TOO_FAST';
 
 /** Exact 2-dp value from the shared decimal module (ADR-0006). */
 export type DecimalString = string;

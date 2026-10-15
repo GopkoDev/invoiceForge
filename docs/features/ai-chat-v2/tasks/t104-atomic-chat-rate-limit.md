@@ -9,7 +9,7 @@ files_hint: ["prisma/schema/auth.prisma", "lib/security/limits/scopes.ts", "app/
 owner: "Dmytro Hopko"
 estimate: "S"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T104 — The per-minute chat limit is atomic in the shared limit store and refusals write no turn rows (SEC-L-05, SEC-I-06 code)

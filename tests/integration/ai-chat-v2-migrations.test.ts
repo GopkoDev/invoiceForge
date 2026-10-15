@@ -372,6 +372,21 @@ describe.runIf(containerRuntimeAvailable)('ai-chat-v2 migrations (T02, AC-34)', 
     expect(questions[1].options).toEqual([]);
   });
 
+  it('T104: 09 adds LimitScope CHAT_MESSAGE; its down removes the value (and its rows), then re-applies', async () => {
+    expect(await enumValues('LimitScope')).toContain('CHAT_MESSAGE');
+    const owner = await createFreelancer(prisma);
+    await prisma.limitEvent.create({ data: { scope: 'CHAT_MESSAGE', key: owner.id, outcome: 'REQUESTED', userId: owner.id } });
+    await prisma.limitEvent.create({ data: { scope: 'EXPORT', key: owner.id, outcome: 'STARTED', userId: owner.id } });
+
+    await psql(staged('09_add_chat_message_limit_scope.down.sql'));
+    expect(await enumValues('LimitScope')).not.toContain('CHAT_MESSAGE');
+    expect(await prisma.limitEvent.count({ where: { key: owner.id } })).toBe(1);
+
+    await psql(staged('09_add_chat_message_limit_scope.up.sql'));
+    await psql(staged('09_add_chat_message_limit_scope.up.sql')); // idempotent
+    expect(await enumValues('LimitScope')).toContain('CHAT_MESSAGE');
+  });
+
   it('prisma migrate diff between the migrated database and prisma/schema stays empty (no drift)', () => {
     assertNotEnvDatabase(db.connectionString);
     expect(() =>

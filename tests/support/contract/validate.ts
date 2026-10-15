@@ -13,6 +13,8 @@ import addFormats from 'ajv-formats';
 const SPEC_PATHS = [
   'docs/features/architecture-hardening/contracts/openapi.yaml',
   'docs/features/security-patch/contracts/openapi.yaml',
+  // ai-chat-v2 first: its sendChatMessage supersedes the ai-assistant one (adds TOO_FAST, T104).
+  'docs/features/ai-chat-v2/contracts/openapi.yaml',
   'docs/features/ai-assistant/contracts/openapi.yaml',
 ].map((p) => path.resolve(process.cwd(), p));
 

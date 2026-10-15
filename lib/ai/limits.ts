@@ -1,4 +1,4 @@
-/** Per-minute refusal (ai-chat-v2 T100, SEC-M-01 c): AssistantTurn rows of any outcome inside the window. */
+/** Per-minute refusal (ai-chat-v2 T100, SEC-M-01 c; counted in the shared limit store since T104). */
 export const CHAT_PER_MINUTE_MAX = 10;
 export const CHAT_RATE_WINDOW_MS = 60_000;
 

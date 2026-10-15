@@ -86,6 +86,7 @@ enum LimitScope {
     EXPORT
     MCP_KEY
     MCP_SOURCE
+    CHAT_MESSAGE
 }
 
 enum LimitOutcome {

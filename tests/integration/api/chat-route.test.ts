@@ -19,6 +19,7 @@ import { createCustomer } from '../../support/factories/customer';
 import { createSenderProfile } from '../../support/factories/sender-profile';
 import { createBankAccount } from '../../support/factories/bank-account';
 import { createConversation } from '../../support/factories/conversation';
+import { createQuestionForm, defaultFormQuestions } from '../../support/factories/choice-offer';
 import { createMessageAllowanceDay } from '../../support/factories/message-allowance-day';
 import { createInvoice } from '../../support/factories/invoice';
 import { assertMatchesContract } from '../../support/contract/validate';
@@ -297,27 +298,33 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
       await assertMatchesContract({ operationId: 'sendChatMessage', status: 429, body });
     });
 
-    describe('T100: the per-minute limit (SEC-M-01 c)', () => {
+    // T104 (SEC-L-05, SEC-I-06): the per-minute limit moved from counting AssistantTurn rows to the shared limit
+    // store. Contract: scope CHAT_MESSAGE, key = the Freelancer's user id, counted outcome REQUESTED (recorded with
+    // userId when a request is admitted, under the per-key lock). A refusal writes no LimitEvent and no AssistantTurn.
+    // The seeding below was rewritten from AssistantTurn rows to LimitEvent rows because the mechanism changed.
+    describe('T100/T104: the per-minute limit (SEC-M-01 c, SEC-L-05)', () => {
       const TOO_FAST_TEXT = "You're sending messages too quickly. Try again in a minute.";
-      const seedTurns = (userId: string, count: number, ageMs: number) =>
-        prisma.assistantTurn.createMany({
+      const seedEvents = (userId: string, count: number, ageMs: number) =>
+        prisma.limitEvent.createMany({
           data: Array.from({ length: count }, () => ({
+            scope: 'CHAT_MESSAGE' as never,
+            key: userId,
+            outcome: 'REQUESTED' as const,
             userId,
-            outcome: 'FAILED' as const,
-            counted: false,
-            durationMs: 1,
-            createdAt: new Date(Date.now() - ageMs),
+            at: new Date(Date.now() - ageMs),
           })),
         });
+      const chatEvents = (userId: string) =>
+        prisma.limitEvent.count({ where: { scope: 'CHAT_MESSAGE' as never, key: userId } });
 
       it('the limits are 10 messages per 60 seconds', () => {
         expect(CHAT_PER_MINUTE_MAX).toBe(10);
         expect(CHAT_RATE_WINDOW_MS).toBe(60_000);
       });
 
-      it('10 turns (any outcome) in the last 60 s: 429 TOO_FAST, no model call, no slot reserved, an uncounted metadata row', async () => {
+      it('10 requests in the last 60 s: 429 TOO_FAST, no model call, no slot reserved, no AssistantTurn row, no LimitEvent row', async () => {
         const user = await signedIn();
-        await seedTurns(user.id, 10, 5_000);
+        await seedEvents(user.id, 10, 5_000);
 
         const response = await send(chatBody('eleventh in a minute'));
         const body = await response.json();
@@ -329,15 +336,26 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
         expect(await prisma.messageAllowanceDay.count({ where: { userId: user.id } })).toBe(0);
         expect(await prisma.conversation.count()).toBe(0);
         expect(await prisma.conversationMessage.count()).toBe(0);
-        const turns = await prisma.assistantTurn.findMany({ where: { userId: user.id } });
-        expect(turns).toHaveLength(11);
-        expect(turns.filter((t) => t.counted)).toHaveLength(0);
+        expect(await prisma.assistantTurn.count()).toBe(0);
+        expect(await chatEvents(user.id)).toBe(10);
+        expect(await prisma.limitEvent.count()).toBe(10);
+      });
+
+      it('the TOO_FAST body matches the contract', async () => {
+        const user = await signedIn();
+        await seedEvents(user.id, 10, 5_000);
+
+        const response = await send(chatBody('too fast'));
+        const body = await response.json();
+
+        expect(response.status).toBe(429);
+        await assertMatchesContract({ operationId: 'sendChatMessage', status: 429, body });
       });
 
       it('the allowance state is unchanged by the refusal', async () => {
         const user = await signedIn();
         await createMessageAllowanceDay(prisma, { userId: user.id, day: localToday(), used: 7, timeZone: TZ });
-        await seedTurns(user.id, 10, 1_000);
+        await seedEvents(user.id, 10, 1_000);
 
         const response = await send(chatBody('too fast'));
 
@@ -345,9 +363,21 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
         expect(await usedToday(user.id)).toBe(7);
       });
 
-      it('9 turns in the window still proceed', async () => {
+      it('an admitted request records one REQUESTED event for the Freelancer', async () => {
         const user = await signedIn();
-        await seedTurns(user.id, 9, 5_000);
+
+        const response = await send(chatBody('first'));
+        await response.text();
+
+        expect(response.status).toBe(200);
+        const events = await prisma.limitEvent.findMany({ where: { scope: 'CHAT_MESSAGE' as never } });
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({ key: user.id, outcome: 'REQUESTED', userId: user.id });
+      });
+
+      it('9 events in the window still proceed', async () => {
+        const user = await signedIn();
+        await seedEvents(user.id, 9, 5_000);
 
         const response = await send(chatBody('tenth'));
         await response.text();
@@ -355,9 +385,9 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
         expect(response.status).toBe(200);
       });
 
-      it('10 turns older than 60 s do not count: the request proceeds normally', async () => {
+      it('10 events older than 60 s do not count: the request proceeds normally', async () => {
         const user = await signedIn();
-        await seedTurns(user.id, 10, 65_000);
+        await seedEvents(user.id, 10, 65_000);
 
         const response = await send(chatBody('after a minute'));
         await response.text();
@@ -366,16 +396,99 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
         expect(model.doStreamCalls.length).toBeGreaterThan(0);
       });
 
-      it("another Freelancer's turns do not count", async () => {
-        const user = await signedIn();
+      it("another Freelancer's events do not count", async () => {
+        await signedIn();
         const other = await createFreelancer(prisma, { email: 'other-t100@example.com', timeZone: TZ });
-        await seedTurns(other.id, 10, 5_000);
+        await seedEvents(other.id, 10, 5_000);
 
         const response = await send(chatBody('mine is the first'));
         await response.text();
 
         expect(response.status).toBe(200);
-        expect(await prisma.assistantTurn.count({ where: { userId: user.id } })).toBeGreaterThan(0);
+      });
+
+      it('a parallel burst of 15 requests: exactly 10 proceed and 5 are refused 429 TOO_FAST (the limit is atomic)', async () => {
+        const user = await signedIn();
+
+        const responses = await Promise.all(Array.from({ length: 15 }, (_, i) => send(chatBody(`burst ${i}`))));
+        const settled = await Promise.all(
+          responses.map(async (r) => (r.status === 200 ? (await r.text(), null) : await r.json()))
+        );
+
+        const statuses = responses.map((r) => r.status);
+        expect(statuses.filter((s) => s === 200)).toHaveLength(10);
+        expect(statuses.filter((s) => s === 429)).toHaveLength(5);
+        for (const body of settled.filter(Boolean)) expect(body).toMatchObject({ code: 'TOO_FAST' });
+        expect(await chatEvents(user.id)).toBe(10);
+        expect(await prisma.limitEvent.count()).toBe(10);
+        expect(model.doStreamCalls.length).toBeGreaterThan(0);
+      });
+
+      it('a form Send is refused the same way: 429 TOO_FAST, the form stays OPEN, no slot, no rows written', async () => {
+        const user = await signedIn();
+        const messageId = 'msg_t104_form_reply';
+        const formId = 'frm_t104_form';
+        const conversation = await createConversation(prisma, {
+          userId: user.id,
+          messages: [
+            { role: 'USER' },
+            {
+              role: 'ASSISTANT',
+              id: messageId,
+              parts: [
+                { type: 'text', text: 'A few questions first.' },
+                { type: 'data-offer', id: formId, data: { offerId: formId } },
+              ] as never,
+            },
+          ],
+        });
+        // The form's options must point at the Freelancer's own customers, or checkForm answers 409 before the limit.
+        const acmeCorp = await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+        const acmeGmbh = await createCustomer(prisma, user.id, { name: 'Acme GmbH' });
+        await createQuestionForm(prisma, {
+          id: formId,
+          userId: user.id,
+          conversationId: conversation.id,
+          messageId,
+          questions: defaultFormQuestions([acmeCorp.id, acmeGmbh.id]),
+        });
+        await seedEvents(user.id, 10, 5_000);
+        const messagesBefore = await prisma.conversationMessage.count();
+
+        const response = await send({
+          conversationId: conversation.id,
+          message: { id: 'msg_client_02', role: 'user', parts: [{ type: 'text', text: 'ignored' }] },
+          form: { formId, answers: [{ questionId: 0, optionId: 0 }, { questionId: 1, text: '50' }] },
+        });
+        const body = await response.json();
+
+        expect(response.status).toBe(429);
+        expect(body).toMatchObject({ success: false, code: 'TOO_FAST', error: TOO_FAST_TEXT });
+        expect(model.doGenerateCalls).toHaveLength(0);
+        expect(model.doStreamCalls).toHaveLength(0);
+        expect((await prisma.choiceOffer.findUniqueOrThrow({ where: { id: formId } })).state).toBe('OPEN');
+        expect(await prisma.messageAllowanceDay.count({ where: { userId: user.id } })).toBe(0);
+        expect(await prisma.conversationMessage.count()).toBe(messagesBefore);
+        expect(await prisma.assistantTurn.count()).toBe(0);
+        expect(await prisma.limitEvent.count()).toBe(10);
+        await assertMatchesContract({ operationId: 'sendChatMessage', status: 429, body });
+      });
+
+      it('503 FAILED when the limit store is unavailable: fail closed, nothing processed', async () => {
+        const user = await signedIn();
+        vi.spyOn(appPrisma, '$transaction').mockRejectedValue(new Error('db down'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const response = await send(chatBody('hello'));
+        const body = await response.json();
+
+        expect(response.status).toBe(503);
+        expect(body).toEqual({ success: false, code: 'FAILED', error: "The reply couldn't be completed. Try again." });
+        expect(model.doGenerateCalls).toHaveLength(0);
+        expect(model.doStreamCalls).toHaveLength(0);
+        expect(await prisma.conversation.count()).toBe(0);
+        expect(await usedToday(user.id)).toBe(0);
+        await assertMatchesContract({ operationId: 'sendChatMessage', status: 503, body });
       });
     });
 
@@ -661,7 +774,11 @@ describe.runIf(containerRuntimeAvailable)('POST /api/chat (T31)', () => {
 
     it('AC-11: a save that fails on the first message ends COULD_NOT_COMPLETE with no data-conversation and nothing saved', async () => {
       const user = await signedIn();
-      vi.spyOn(appPrisma, '$transaction').mockRejectedValueOnce(new Error('db down'));
+      // The first transaction is the per-minute limit (T104); the save is the next one.
+      const realTransaction = appPrisma.$transaction.bind(appPrisma) as (...args: unknown[]) => Promise<unknown>;
+      vi.spyOn(appPrisma, '$transaction')
+        .mockImplementationOnce(realTransaction as never)
+        .mockRejectedValueOnce(new Error('db down'));
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const parts = await readParts(await send(chatBody('Who owes me money?')));

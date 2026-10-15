@@ -19,6 +19,7 @@ const ALL_CODES: ActionErrorCode[] = [
   'CONFLICT',
   'FAILED',
   'RATE_LIMITED',
+  'TOO_FAST',
 ];
 
 describe('FORBIDDEN (AC-29)', () => {
@@ -27,8 +28,8 @@ describe('FORBIDDEN (AC-29)', () => {
     expect(result).toEqual({ success: false, code: 'FORBIDDEN', error: 'This key can only read.' });
   });
 
-  it('is one of exactly seven codes', () => {
-    expect(new Set(ALL_CODES).size).toBe(7);
+  it('is one of exactly eight codes', () => {
+    expect(new Set(ALL_CODES).size).toBe(8);
   });
 });
 
