@@ -152,3 +152,9 @@ Z-2..Z-5 resolved; Z-1 resolved in §11 only; Z-6 resolved with a gap. The escap
 **Verdict:** CHANGES REQUESTED (copy) → T112.
 
 **Resolution (review of T111):** W-1..W-4 → T112.
+
+### Review of T112 (2026-10-15, `f06026bb..477ada21`)
+
+REVIEW_CLEAN. W-1..W-4 resolved; privacy §5, terms §10 and privacy §11 agree on Anthropic (outside the EU, mainly USA; zero data retention), Vercel/Neon/Sentry (EU regions, US companies, SCCs) and the sign-in providers (USA, own SCCs/DPF). The Sentry disclosure matches the config: replays on error and logs in production; `replayIntegration()` defaults in `@sentry/replay` 10.76.0 mask all text and inputs and block media. The optional SAD item (Sentry description at `sad.md:83,97`) was fixed with this record.
+
+**Verdict:** PASS. Open before ship are owner items only (see `_ship/pr-body.md`).

@@ -80,7 +80,7 @@ The trust boundary is unchanged in shape but carries two new rules:
 | Assistant (external MCP client) | Person (external program acting for one Freelancer) | Calls the read questions, the three new ones included, through a Personal key; creates drafts with Draft permission as before |
 | Visitor | Person | Sent to sign in from the AI section and the dashboard; nothing processed or counted |
 | AI model provider (Vercel AI Gateway, Anthropic Claude Haiku 5.5 — ADR-0014) | System (external, existing) | Receives each turn's context and tool schemas; never sees a refused form answer |
-| Sentry | System (external, existing) | Errors and metadata-only spans, now also for the read questions and the issue-from-preview action |
+| Sentry | System (external, existing, EU region) | Errors, session replays on error (text masked), logs and metadata-only spans, now also for the read questions and the issue-from-preview action |
 
 **C4 Context (L1):**
 
@@ -94,7 +94,7 @@ C4Context
 
     System(app, "Invoice Forge", "Invoices, dashboard, AI workspace with Question forms and preview, MCP endpoint")
     System_Ext(model, "AI model provider", "Vercel AI Gateway and Claude Haiku 5.5, writes replies and tool calls")
-    System_Ext(sentry, "Sentry", "Errors and metadata-only spans")
+    System_Ext(sentry, "Sentry", "Errors, replays on error (text masked), logs, metadata-only spans")
 
     Rel(freelancer, app, "Chats, answers forms, previews, issues", "HTTPS, session")
     Rel(assistant, app, "Calls read questions and the draft action", "HTTPS, MCP, Bearer Personal key")
