@@ -414,6 +414,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.outcome).toBe('FAILED');
     expect(result.failure).toBe('PROVIDER');
     expect(model.doStreamCalls).toHaveLength(0);
+    expect(result.costUsd).toBeNull(); // T95: an unknown router cost is null, never free
   });
 
   it('a system-side router failure (a verdict that does not parse) ends FAILED with failure SYSTEM and starts no agent step', async () => {
@@ -425,6 +426,7 @@ describe.runIf(containerRuntimeAvailable)('runTurn (T29)', () => {
     expect(result.outcome).toBe('FAILED');
     expect(result.failure).toBe('SYSTEM');
     expect(model.doStreamCalls).toHaveLength(0);
+    expect(result.costUsd).toBeNull(); // T95
   });
 
   // R-14: tool calls and raw tool answers stay on the server; the client stream carries only text.

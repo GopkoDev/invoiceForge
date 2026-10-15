@@ -9,7 +9,7 @@ files_hint: ["lib/ai/run-turn.ts", "lib/ai/router.ts", "tests/integration/lib/ai
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T95 — A failed turn's unknown router cost is null, and the router verdict always carries its cost (review round 2 N3)

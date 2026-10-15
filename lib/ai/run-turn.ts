@@ -56,7 +56,7 @@ export interface TurnResult {
   steps: number;
   toolNames: string[];
   usage: { inputTokens: number | null; outputTokens: number | null };
-  /** Gateway-reported USD cost of every model call of the turn, router included; 0 when none is reported. */
+  /** Gateway-reported USD cost of every model call of the turn, router included; null = unknown (never free); 0 only where no model call was made. */
   costUsd: number | null;
   pendingCard?: { id: string; request: DraftRequest; proposal: DraftProposal };
   /** ai-chat-v2 T55: the reply's one Question form, composed in code; absent when the turn ends with a card (card wins). */
@@ -247,7 +247,7 @@ function pinnedStep(pinned: PinnedResolution, value: Record<string, unknown>): M
 }
 
 function failed(failure: 'PROVIDER' | 'SYSTEM', topic: RouterTopic | null, partial?: Partial<TurnResult>): TurnResult {
-  return { outcome: 'FAILED', failure, topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, costUsd: 0, links: [], text: '', ...partial };
+  return { outcome: 'FAILED', failure, topic, steps: 0, toolNames: [], usage: EMPTY_USAGE, costUsd: null, links: [], text: '', ...partial };
 }
 
 /** A fault of the model provider is PROVIDER (AI_UNAVAILABLE); anything else is ours, SYSTEM (R-05). */
@@ -272,7 +272,7 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
   }
   // A press is never refused as off-topic: the Freelancer chose an option the chat offered (the label is data).
   const topic: RouterTopic = (input.pinned || input.priorAnswers) && verdict.topic === 'OFF_TOPIC' ? 'IN_SCOPE' : verdict.topic;
-  const routerCost = verdict.costUsd === undefined ? 0 : verdict.costUsd;
+  const routerCost = verdict.costUsd;
 
   if (topic === 'OFF_TOPIC') {
     const refusal = verdict.refusal ?? '';
