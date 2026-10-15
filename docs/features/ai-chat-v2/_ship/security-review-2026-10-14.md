@@ -120,3 +120,18 @@ N-1..N-4 resolved: a refused answer never commits pending state (commit runs onc
 **Final verdict (2026-10-15):** resolved in code (T90–T108); full gate after T107 green (tsc, lint 0 errors, unit 3392/3392, integration 156 files / 1629 tests), T108 scoped gate green. Owner items open before ship: Vercel AI Gateway spend budget/alert, the SEC-I-03 checks (USA location, SCC coverage of Anthropic via Vercel's DPA, provider-side retention), privacy/terms wording and Last-updated date, migration `20261015100000_add_chat_message_limit_scope` on prod before the app deploy, removing `GOOGLE_GENERATIVE_AI_API_KEY` from Vercel, and the real-model evaluation on Claude Haiku 5.5.
 
 **Resolution (owner option A, 2026-10-15):** SEC-I-03 location and retention -> T109 (`zeroDataRetention: true`; privacy §5, §11 and terms §10 name the EU hosting, the US model and zero data retention) and T110 (docs). Open owner checks: ZDR eligibility on preview, SCC coverage via Vercel's DPA.
+
+### Review of T109–T110 (2026-10-15, `1126b154..96045c22`)
+
+Facts hold (vercel.json `fra1`; Neon hosts `eu-central-1`; the live Gateway endpoint list for `anthropic/claude-haiku-5.5`; `zeroDataRetention` is the exact SDK key and reaches every call site). Code clean; copy findings:
+
+| ID | Sev | Finding | Where | Fix |
+|---|---|---|---|---|
+| Z-1 | medium | "The model runs in the USA" is not backed: the Gateway's `us` zone is a separately priced residency option the app does not select, so Anthropic's default routing is not guaranteed to stay in the US | `privacy-content.tsx:521`; ADR-0014 option A; `sad.md:60` | T111: reword (owner-preferred option a, no +10 % US-zone pin): Anthropic is a US company and processes the text outside the EU, mainly in the USA |
+| Z-2 | low-med | Vercel row "EU (Frankfurt, fra1)" also covers the global AI Gateway/CDN; Vercel and Neon (US companies) fell out of the transfer safeguard sentence | `public-pages-content.ts:363,790,387,813` | T111 |
+| Z-3 | low-med | "keeps no copy" is absolute; ZDR agreements allow legal exceptions | `privacy-content.tsx:521-523` | T111 |
+| Z-4 | low | The Vercel DPA is attributed to the sign-in providers' transfers too | `public-pages-content.ts:387,813` | T111 |
+| Z-5 | low | Dangling "All providers listed above are covered." in terms §10 | `public-pages-content.ts:813` | T111 |
+| Z-6 | info (pre-existing) | Sentry (errors and metadata spans; EU region `ingest.de.sentry.io`) is not in privacy §5 / terms §10 | `package.json:49`; `public-pages-content.ts` | T111 |
+
+**Verdict:** CHANGES REQUESTED (copy only) → T111.
