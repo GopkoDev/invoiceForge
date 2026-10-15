@@ -2048,6 +2048,64 @@
         "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t102-security-addendum-docs.md"
+    },
+    {
+      "id": "T103",
+      "title": "One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)",
+      "layer": "backend",
+      "deps": [
+        "T102"
+      ],
+      "acs": [],
+      "dod": "(1) Measure sizes in UTF-8 bytes (`Buffer.byteLength(JSON.stringify(x), 'utf8')`) for the tool-answer cap and `trimHistoryToBudget` (rename constants to *_BYTES; history 40,000 bytes, per answer 20,000 bytes with a hard final check that always holds). (2) A per-turn tool budget in `TurnContext`: all chat tool answers that reach the model (read tools, `find_in_app`, `propose_draft`, `ask_user`) count against TURN_TOOL_BUDGET_BYTES = 60,000 and TURN_TOOL_CALLS_MAX = 12; once either is spent, a tool returns a short fixed answer ('The tool budget for this message is used up; answer from what you already have.') without running the read. The pinned/prior propose_draft and prior ask_user steps count against the same budget. (3) Link labels capped (e.g. 80 chars). (4) Truncation never splits a surrogate pair (cut one char earlier when the last kept char is a high surrogate). Unit tests: N parallel get_invoice calls in one step keep the summed tool-answer bytes ≤ budget and the 13th call gets the fixed answer; a propose_draft answer counts; emoji at the cut boundary yields valid UTF-16; hard final byte cap holds for adversarial shapes. Scoped gate: tests/unit/lib/ai, tests/contract, run-turn + chat-route integration under caffeinate, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/limits.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/ai/turn-context.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t103-per-turn-tool-budget.md"
+    },
+    {
+      "id": "T104",
+      "title": "The per-minute chat limit is atomic in the shared limit store and refusals write no turn rows (SEC-L-05, SEC-I-06 code)",
+      "layer": "migration",
+      "deps": [
+        "T103"
+      ],
+      "acs": [],
+      "dod": "Add `CHAT_MESSAGE` to `enum LimitScope` (prisma/schema/auth.prisma) with an additive migration following the repo's enum-migration convention (stage under docs/features/ai-chat-v2/migrations/, promote to the live tree, apply + revert in the gate); `LIMIT_SCOPES.CHAT_MESSAGE = { windowMs: CHAT_RATE_WINDOW_MS, max: CHAT_PER_MINUTE_MAX, countedOutcomes: ['REQUESTED'] }`. The chat route, before any reservation or paid call, runs `withKeyLock('CHAT_MESSAGE', <user key>, …)`: count in window ≥ max → 429 TOO_FAST (no AssistantTurn row, no LimitEvent for the refusal); else record REQUESTED (with userId) and proceed. Store unavailable → 503 FAILED (fail closed). Remove `countRecentTurns` (and its import) so the service inventory is green. Add `TOO_FAST` to `types/result.ts` ActionErrorCode. Tests: parallel burst of 15 requests → exactly 10 proceed (integration, Promise.all); refusal writes no AssistantTurn row; form-path refusal; `assertMatchesContract` on the TOO_FAST body; `tests/unit/service-layer-inventory.test.ts` green. Gate: migration apply/revert, chat-route integration under caffeinate, related unit tests incl. the inventory test, tsc, eslint.",
+      "files_hint": [
+        "prisma/schema/auth.prisma",
+        "lib/security/limits/scopes.ts",
+        "app/api/chat/route.ts",
+        "lib/services/assistant-usage/turns.ts",
+        "types/result.ts",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t104-atomic-chat-rate-limit.md"
+    },
+    {
+      "id": "T105",
+      "title": "Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)",
+      "layer": "docs",
+      "deps": [
+        "T104"
+      ],
+      "acs": [],
+      "dod": "spec.md (~646, ~648), ADR-0014 (:52, :59 and the security revision), sad §11 and pr-body (~14) describe T103 (byte budgets, 60,000-byte per-turn tool budget, 12 tool calls, surrogate-safe cuts; realistic worst case per call stated, e.g. well under 100k tokens) and T104 (atomic 10/min in the shared limit store, refusals write no turn rows; the FAILED steps-0 cost-0 note from T102 is removed or corrected, incl. `_ship/feature.md` weekly check). openapi.yaml 429 description and ActionFailure description mention TOO_FAST. Security addendum re-check gets a 'Resolution' line mapping SEC-M-02/SEC-L-04 → T103, SEC-L-05/SEC-I-06 → T104/T105. Changelog lists T103–T105. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/contracts/openapi.yaml",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/feature.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t105-re-check-docs.md"
     }
   ]
 }

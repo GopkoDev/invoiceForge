@@ -70,3 +70,19 @@ Reviewed by `sdd:reviewer` (clean context, read only), as spec §6.1 requires be
 **Resolution (2026-10-15).** SEC-M-01 a, b, d: output tokens, history size and tool-answer size are bounded in code (T99, commit `c64cb2f2`); c: the chat refuses more than 10 messages a minute per Freelancer, AC-11 unchanged (T100, `40494fd9`; the refusal is stored as a FAILED turn, which the weekly check separates); d, e: ADR-0014 and sad §11 corrected, and the weekly check reports unknown costs and total spend (T102); the Gateway spend budget is an owner item in `pr-body.md`. SEC-L-03: `disallowPromptTraining: true` on every Gateway call (T101, `79a96aa0`). SEC-I-03: the Vercel row in privacy §5 and terms §10 names the AI Gateway (T101); the location, SCC and retention checks are owner items in `pr-body.md`. SEC-I-04: the app agent carries the pin in `defaultOptions` (T101). SEC-I-05: the weekly check in `_ship/feature.md` reports the null-cost share and spend including FAILED turns (T102).
 
 **Verdict (updated 2026-10-15):** Resolved in code; owner items open (Gateway spend budget, SEC-I-03 checks).
+
+### Re-check after T99–T102 (2026-10-15, `91b8996f..0556e47a`)
+
+Reviewed by `sdd:reviewer` (clean context, read only). SEC-L-03, SEC-I-03 (code part), SEC-I-04 and SEC-I-05 resolved; the anthropic endpoint advertises `has_no_training: true`, so `disallowPromptTraining` does not fail closed. SEC-M-01 (a) resolved: output caps reach every step (Mastra merges `modelSettings` per step), the history budget applies to the model's input, and a new message is bounded by the request schema. Still open:
+
+| ID | Sev | Finding | Where | Fix |
+|---|---|---|---|---|
+| SEC-M-02 | medium | Caps are per tool answer, never per model call: parallel tool calls in one step (only the 2,000-token output cap limits them) and answers kept for later steps can still put 300k+ tokens in one call; `propose_draft` answers, prior steps and links are not capped; character counts undercount tokens for non-ASCII text; the 20k answer cap has no final check | `lib/ai/tools/read-tools.ts:16,37-41,105`; `lib/ai/run-turn.ts:364`; `lib/ai/limits.ts` | T103 |
+| SEC-L-04 | low | String truncation can split a surrogate pair, sending a lone surrogate the provider likely rejects (a cheap repeatable failed turn) | `lib/ai/tools/read-tools.ts:16` | T103 |
+| SEC-L-05 | low | The 10/min limit counts finished turns, so parallel requests overrun it (≈ 30 per window, bounded by the allowance); every refusal writes an `AssistantTurn` row kept 400 days | `app/api/chat/route.ts:155-172`; `lib/services/assistant-usage/turns.ts:11-22` | T104 |
+| SEC-I-06 | info | `TOO_FAST` missing from `types/result.ts` `ActionErrorCode` and the contract descriptions; no contract assertion or form-path test for it | `contracts/openapi.yaml:312,368`; `types/result.ts:14`; `tests/integration/api/chat-route.test.ts` | T104, T105 |
+| — | — | Docs overstate the bounds ("every model call is bounded", "already started", "this limit does stop repeated paid failures") | `spec.md:646,648`; ADR-0014 :52,:59; `_ship/pr-body.md:14` | T105 |
+
+The full gate after T102 also caught a unit red the scoped gate missed: `countRecentTurns` (T100) has no request-free test (`tests/unit/service-layer-inventory.test.ts`); T104 replaces that function.
+
+**Verdict:** CHANGES REQUESTED → T103–T105.
