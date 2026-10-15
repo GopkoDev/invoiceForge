@@ -9,7 +9,7 @@ files_hint: ["docs/features/ai-chat-v2/sad.md", "docs/features/ai-chat-v2/spec.m
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T96 — Docs after round 2: closed risks, terms note, weekly cost check, provider pin and the missing security addendum (review round 2 N2, N4)
