@@ -198,12 +198,13 @@ C4Container
 - **Exact pins** — next 16.3.8, react 19.2.3, `@modelcontextprotocol/sdk` 1.32.0, recharts 2.15.4. Upgrades are deliberate.
 - **PDF is browser-only** — any server-side PDF (for Assistants or email) is new work.
 - **Personal keys carry one permission flag** — `canCreateDrafts`, set only at creation (`prisma/schema/auth.prisma:139`, ai-assistant ADR-0011). Any further write permission is another schema change.
-- **AI cost surface** — model calls go through the AI Gateway to Claude Haiku 5.5 on paid terms (ai-chat-v2 ADR-0014); spend is no longer zero, and the controls are the 30-message daily allowance per Freelancer and the weekly p95 cost check, and `/api/chat` has no `LimitEvent` rate limit of its own. AI pins (`ai`, `@ai-sdk/*`, `@mastra/*`) move fast; upgrades are deliberate.
+- **AI cost surface** — model calls go through the AI Gateway to Claude Haiku 5.5 on paid terms (ai-chat-v2 ADR-0014); spend is no longer zero, and the controls are the 30-message daily allowance per Freelancer and the weekly p95 cost check, and a per-minute limit of 10 messages per Freelancer (`LimitScope` `CHAT_MESSAGE`, 429 `TOO_FAST`). Gateway calls are pinned to Anthropic with no prompt training; zero data retention is off (Vercel Hobby plan, ai-chat-v2 T113). AI pins (`ai`, `@ai-sdk/*`, `@mastra/*`) move fast; upgrades are deliberate.
 - **Two migration steps per deploy** — `prisma migrate deploy` and `pnpm mastra:migrate`; forgetting the second breaks tracing storage.
 - **Evals are opt-in** — `pnpm eval:assistant` calls the real model and is not run by CI or `test:unit`.
 - **e2e is not in CI** — the full e2e suite runs locally before a ship; Playwright baselines are Linux-named.
 - **Build-time-only env check** — missing settings fail the build, not a running server; `AUTH_URL` and the `SENTRY_*` settings are not in the required list.
 - **Two zod majors in the lockfile** — 3.25 declared, 4.1 pulled in transitively.
+- **Sidebar reads the session on its own** — `components/layout/nav-user.tsx` calls `auth()` directly, not the render-cached `readSession()` (`lib/helpers/session-read.ts`). On a full load or `router.refresh()` of a protected page, the session (a database row with database sessions) is read twice: once by the sidebar, once by the page. Switching it to `readSession()` makes it one read per render; client navigations already re-render only the page, not the layout.
 
 ## Review findings (code-review, 2026-09-26) — status at `735ab32`
 
