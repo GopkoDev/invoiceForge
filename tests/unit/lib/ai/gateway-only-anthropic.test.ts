@@ -16,7 +16,8 @@ import { classifyMessage } from '@/lib/ai/router';
 import { runTurn } from '@/lib/ai/run-turn';
 
 // T101 (SEC-L-03): the request also asks the gateway not to route to providers that train on prompts.
-const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'], disallowPromptTraining: true } };
+// T109 (SEC-I-03): and to require zero data retention (a team without ZDR eligibility fails closed).
+const ONLY_ANTHROPIC = { gateway: { only: ['anthropic'], disallowPromptTraining: true, zeroDataRetention: true } };
 
 describe('gateway provider pinning (T94, AC-35)', () => {
   it('the shared option restricts the gateway to Anthropic and disallows prompt training', () => {

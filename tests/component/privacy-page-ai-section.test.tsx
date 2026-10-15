@@ -42,6 +42,12 @@ describe('privacy page — AI assistant section (T05)', () => {
     expect(text).not.toMatch(/human reviewers?/i);
   });
 
+  it('states zero data retention by the model provider and processing in the USA (T109)', () => {
+    const text = aiSection();
+    expect(text).toMatch(/zero data retention|keeps no copy/i);
+    expect(text).toMatch(/USA/);
+  });
+
   it('states the 90-day Conversation retention, deletion, export and account removal', () => {
     const text = aiSection();
     expect(text).toMatch(/90 days/i);

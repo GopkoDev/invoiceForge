@@ -9,7 +9,7 @@ files_hint: ["lib/ai/gateway-options.ts", "constants/public-pages-content.ts", "
 owner: "Dmytro Hopko"
 estimate: "XS"
 context_budget: "S"
-status: "todo"
+status: "done"
 ---
 
 # T109 — Gateway calls require zero data retention; privacy and terms name the EU hosting and the US model transfer (SEC-I-03, owner option A)

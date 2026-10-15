@@ -360,13 +360,13 @@ export const privacyContent = {
             service: 'Vercel',
             purpose: 'Hosting, serverless functions, and the AI Gateway that routes AI assistant message text',
             data: 'Encrypted application data, server logs, AI assistant message text (in transit)',
-            location: 'USA (with EU edge caching)',
+            location: 'EU (Frankfurt, fra1)',
           },
           {
             service: 'Neon',
             purpose: 'Database storage (PostgreSQL)',
             data: 'All user data (encrypted at rest)',
-            location: 'USA',
+            location: 'EU (Frankfurt, eu-central-1)',
           },
           {
             service: 'Auth.js OAuth Providers',
@@ -377,14 +377,14 @@ export const privacyContent = {
           {
             service: 'Anthropic (via Vercel AI Gateway)',
             purpose: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer',
+            data: 'Chat message text and the data it reads to answer (zero data retention)',
             location: 'USA',
           },
         ],
       },
       safeguards: {
         title: 'Data Transfer Safeguards:',
-        text: 'All providers comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission.',
+        text: 'Our hosting (Vercel) and database (Neon) run in the EU (Frankfurt). The AI model provider (Anthropic) and the sign-in providers process data in the USA; those transfers rely on <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission and on the Vercel Data Processing Agreement.',
         privacy:
           '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors handle only what their service needs: the technical infrastructure and, for the AI assistant, the model provider that answers your chat messages.',
       },
@@ -787,13 +787,13 @@ export const termsContent = {
             provider: 'Vercel',
             service: 'Hosting, Deployment & AI Gateway',
             data: 'Application hosting, logs, AI assistant message text (in transit)',
-            location: 'USA (with EU edge caching)',
+            location: 'EU (Frankfurt, fra1)',
           },
           {
             provider: 'Neon',
             service: 'Database (PostgreSQL)',
             data: 'All user data (encrypted at rest)',
-            location: 'USA',
+            location: 'EU (Frankfurt, eu-central-1)',
           },
           {
             provider: 'Auth.js OAuth',
@@ -804,13 +804,13 @@ export const termsContent = {
           {
             provider: 'Anthropic (via Vercel AI Gateway)',
             service: 'AI assistant',
-            data: 'Chat message text and the data it reads to answer',
+            data: 'Chat message text and the data it reads to answer (zero data retention)',
             location: 'USA',
           },
         ],
       },
       compliance:
-        'All providers listed above comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong>. You acknowledge and consent to this data processing.',
+        'All providers listed above are covered. Our hosting (Vercel) and database (Neon) run in the EU (Frankfurt). The AI model provider (Anthropic) and the sign-in providers process data in the USA; those transfers rely on <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission and on the Vercel Data Processing Agreement. You acknowledge and consent to this data processing.',
     },
     {
       id: 'termination',

@@ -77,6 +77,12 @@ describe('privacy page — AI section for the chat (ai-chat-v2 T28, AC-35)', () 
     expect(who).toMatch(/Vercel/);
   });
 
+  it('states zero data retention by the model provider and processing in the USA (T109)', () => {
+    const text = aiSection();
+    expect(text).toMatch(/zero data retention|keeps no copy/i);
+    expect(text).toMatch(/USA/);
+  });
+
   it('4. says what the reads share with an AI client connected through a Personal key — never a full account number', () => {
     const text = aiSection();
     expect(text).toMatch(/Personal key/);

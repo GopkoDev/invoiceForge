@@ -518,7 +518,9 @@ export function PrivacyPolicyContent() {
                 Vercel AI Gateway. Vercel AI Gateway and Anthropic therefore
                 process your message text. This runs on paid API terms: under
                 them Anthropic does not use the content you send to train its
-                models.
+                models. The model runs in the USA, and the
+                provider keeps no copy of your message text (zero data
+                retention).
               </p>
               <ul className="text-muted-foreground ml-6 list-disc space-y-2 text-sm">
                 <li>
