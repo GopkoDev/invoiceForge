@@ -221,6 +221,6 @@ Owner of AC-05…AC-08; `id="ai"`, directly after SCR-01 and before the features
 
 | Component | Why no existing primitive fits | Registered in design-system |
 |---|---|---|
-| `LandingDemo` (`components/landing/landing-demo/landing-demo.tsx`) | A play-once, visibility-started scripted demo with CSS-only fallbacks (ADR-0002) exists nowhere; the chat's `ChatIsland`/`Composer` are live, data-bound and take input | pending |
-| `DemoDraftCard` (`components/landing/landing-demo/demo-draft-card.tsx`) | The real `DraftCard` imports server actions and chat contexts and cannot run on a public page; a presentational replica on the same primitives is the decided path (ADR-0001) | pending |
-| `AiSection` (`components/landing/ai-section.tsx`) | A new landing section; it composes the existing `SectionContainer`, `IconBadge` and `ContentCard`, but no existing section carries this three-block content with its own account button and privacy link | pending |
+| `LandingDemo` (`components/landing/landing-demo/landing-demo.tsx`) | A play-once, visibility-started scripted demo with CSS-only fallbacks (ADR-0002) exists nowhere; the chat's `ChatIsland`/`Composer` are live, data-bound and take input | yes |
+| `DemoDraftCard` (`components/landing/landing-demo/demo-draft-card.tsx`) | The real `DraftCard` imports server actions and chat contexts and cannot run on a public page; a presentational replica on the same primitives is the decided path (ADR-0001) | yes |
+| `AiSection` (`components/landing/ai-section.tsx`) | A new landing section; it composes the existing `SectionContainer`, `IconBadge` and `ContentCard`, but no existing section carries this three-block content with its own account button and privacy link | yes |
