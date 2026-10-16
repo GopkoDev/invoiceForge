@@ -50,4 +50,16 @@ describe('DemoDraftCard', () => {
     expect(src).not.toMatch(/from\s+['"][^'"]*components\/ai[^'"]*['"]/);
     expect(src).not.toMatch(/from\s+['"][^'"]*\/actions[^'"]*['"]/);
   });
+
+  it('F6/AC-02: card title, Customer and Total labels come from props, not hard-coded', () => {
+    const labels = { cardTitle: 'Zxq title', customerLabel: 'Zxq cust', totalLabel: 'Zxq sum' };
+    const { container } = render(<DemoDraftCard {...demo} {...labels} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Zxq title');
+    expect(text).toContain('Zxq cust');
+    expect(text).toContain('Zxq sum');
+    expect(text).not.toContain('Draft proposal');
+    expect(text).not.toContain('Customer');
+    expect(text).not.toContain('Total');
+  });
 });

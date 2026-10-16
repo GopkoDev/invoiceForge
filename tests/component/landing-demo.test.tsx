@@ -468,4 +468,36 @@ describe('LandingDemo T12 hydration handoff', () => {
     intersect(1);
     expect(root(container).getAttribute('data-phase')).toBe('still');
   });
+
+  describe('F3/AC-02/AC-05: box-level Example label outside the draft card', () => {
+    function outsideCard(container: HTMLElement) {
+      const card = container.querySelector('[data-slot="card"]');
+      expect(card).not.toBeNull();
+      return Array.from(container.querySelectorAll('*')).filter(
+        (el) =>
+          el.children.length === 0 &&
+          el.textContent === sample.exampleLabel &&
+          !card!.contains(el) &&
+          !el.closest('[class*="cardWrap"]'),
+      );
+    }
+
+    it('shows the label outside the card while idle', () => {
+      const { container } = renderDemo();
+      expect(phase(container)).toBe('idle');
+      expect(outsideCard(container).length).toBeGreaterThan(0);
+    });
+
+    it('keeps the label outside the card while typing and when done', () => {
+      const { container } = renderDemo();
+      intersect(1);
+      expect(phase(container)).toBe('typing');
+      expect(outsideCard(container).length).toBeGreaterThan(0);
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+      expect(phase(container)).toBe('done');
+      expect(outsideCard(container).length).toBeGreaterThan(0);
+    });
+  });
 });

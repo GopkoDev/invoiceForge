@@ -46,6 +46,9 @@ export interface LandingDemoSample {
   currency: string;
   exampleLabel: string;
   createLabel: string;
+  cardTitle: string;
+  customerLabel: string;
+  totalLabel: string;
   replayLabel: string;
   srSummary: string;
 }
@@ -65,6 +68,9 @@ const landingDemo: LandingDemoSample = {
   currency: 'USD',
   exampleLabel: 'Example',
   createLabel: 'Create draft',
+  cardTitle: 'Draft proposal',
+  customerLabel: 'Customer',
+  totalLabel: 'Total',
   replayLabel: 'Replay',
   srSummary:
     'Example: the sentence "Invoice Acme for 20 hours of design at $50" becomes a draft invoice for Acme Corp with one line, Design, 20 hours at $50.00, total $1,000.00 USD. You review the draft before anything else happens.',

@@ -45,6 +45,15 @@ describe('landingContent new copy exists (AC-06, AC-07)', () => {
     ]);
   });
 
+  it('F6/AC-05: demo sample carries non-empty cardTitle, customerLabel and totalLabel, covered by the truth-guard walk', () => {
+    const demo = content.demo as Record<string, unknown> | undefined;
+    for (const k of ['cardTitle', 'customerLabel', 'totalLabel']) {
+      expect(typeof demo?.[k], `demo.${k}`).toBe('string');
+      expect((demo?.[k] as string).trim().length, `demo.${k}`).toBeGreaterThan(0);
+      expect(all.map((e) => e.path), `walk covers demo.${k}`).toContain(`demo.${k}`);
+    }
+  });
+
   it('metadata carries the one-sentence draft message', () => {
     const md = walk(content.metadata, 'metadata')
       .map((e) => e.text)

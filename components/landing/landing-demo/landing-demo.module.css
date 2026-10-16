@@ -19,6 +19,12 @@
   padding: 1rem;
 }
 
+.labelRow {
+  display: flex;
+  align-items: center;
+  height: 1.5rem;
+}
+
 .bubbleRow {
   display: flex;
   justify-content: flex-end;
@@ -116,14 +122,14 @@
   transform: none;
 }
 
-/* Frame holds the visual and the link overlay; the overlay is aligned to the stage (padding 1rem, bubble row 3.5rem, input 2.25rem, gaps 0.75rem). */
+/* Frame holds the visual and the link overlay; the overlay is aligned to the stage (padding 1rem, label row 1.5rem, bubble row 3.5rem, input 2.25rem, gaps 0.75rem). */
 .frame {
   position: relative;
 }
 
 .links {
   position: absolute;
-  top: 5.25rem;
+  top: 7.5rem;
   right: 1rem;
   bottom: 4rem;
   left: 1rem;

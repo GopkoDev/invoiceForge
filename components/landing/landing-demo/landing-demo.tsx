@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { authRoutes } from '@/config/routes.config';
 import type { LandingDemoSample } from '@/constants/public-pages-content';
@@ -121,6 +122,9 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       </noscript>
       <div className={styles.frame}>
         <div className={styles.visual} aria-hidden="true">
+          <div className={styles.labelRow}>
+            <Badge variant="outline">{sample.exampleLabel}</Badge>
+          </div>
           <div className={styles.bubbleRow}>
             <p ref={bubbleRef} className={styles.bubble}>{sample.sentence}</p>
           </div>
@@ -137,6 +141,9 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
                 total={sample.total}
                 currency={sample.currency}
                 exampleLabel={sample.exampleLabel}
+                cardTitle={sample.cardTitle}
+                customerLabel={sample.customerLabel}
+                totalLabel={sample.totalLabel}
                 createLabel={sample.createLabel}
               />
             </div>

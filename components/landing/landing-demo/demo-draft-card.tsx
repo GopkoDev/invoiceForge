@@ -10,7 +10,15 @@ const CARD_FRAME = 'w-full rounded-xl shadow-none ring-border';
 
 type DemoDraftCardProps = Pick<
   LandingDemoSample,
-  'customer' | 'lines' | 'total' | 'currency' | 'exampleLabel' | 'createLabel'
+  | 'customer'
+  | 'lines'
+  | 'total'
+  | 'currency'
+  | 'exampleLabel'
+  | 'createLabel'
+  | 'cardTitle'
+  | 'customerLabel'
+  | 'totalLabel'
 >;
 
 /**
@@ -24,17 +32,20 @@ export function DemoDraftCard({
   currency,
   exampleLabel,
   createLabel,
+  cardTitle,
+  customerLabel,
+  totalLabel,
 }: DemoDraftCardProps) {
   return (
     <Card className={CARD_FRAME}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">Draft proposal</p>
+          <p className="text-sm font-medium">{cardTitle}</p>
           <Badge variant="outline">{exampleLabel}</Badge>
         </div>
         <dl className="flex flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2 text-sm">
-            <dt className="text-muted-foreground shrink-0">Customer</dt>
+            <dt className="text-muted-foreground shrink-0">{customerLabel}</dt>
             <dd className="min-w-0 text-right break-words">{customer}</dd>
           </div>
         </dl>
@@ -51,7 +62,7 @@ export function DemoDraftCard({
         </ul>
         <Separator />
         <p className="flex justify-between gap-2 text-sm font-medium">
-          <span>Total</span>
+          <span>{totalLabel}</span>
           <span>
             {total} {currency}
           </span>
