@@ -229,7 +229,136 @@ sequenceDiagram
     Note over Visitor,Demo: the still uses the same box, nothing moves
 ```
 
-Flow 3 (signed-in Freelancer → dashboard, AC-10) is the existing proxy redirect and is unchanged; `sequences` may draw it for completeness.
+Flows 3–6 below were added by `sequences` with generic participants: `user` (the person), `ui` (the landing page in the browser), `service` (the request gate in front of the pages), `external-system` (outside services). The landing page writes nothing, so no flow has a `data-store` or a persist step.
+
+### Flow 3: Arrive at the landing page (US-01, US-07 — AC-01, AC-10, AC-12)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant X as external-system
+    participant S as service
+    participant UI as ui
+
+    Note over U,UI: Precondition - the landing route carries the one-sentence promise in its description and preview text
+    X->>UI: reads the page description and preview text
+    X-->>U: shows a result or link preview mentioning an invoice draft from one sentence
+    U->>S: opens the landing address, from the preview or typed
+    S->>S: checks for a signed-in session
+    alt signed-in Freelancer
+        S-->>U: sends them to the dashboard
+        Note over U,S: the new first screen and AI section are never shown
+    else Visitor without a session
+        S->>UI: lets the request through to the public page
+        UI-->>U: first screen - headline, supporting line, account button, demo start frame
+        Note over U,UI: on 360x640 and 1280x800 the account button is visible without scrolling, no row of three figures
+    end
+    Note over U,UI: Postcondition - a Visitor sees the promise first, a Freelancer is on the dashboard
+```
+
+### Flow 4: Read the AI section and go on (US-03, US-04, US-05 — AC-03, AC-05, AC-06, AC-07, AC-08)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+
+    Note over U,UI: Precondition - Visitor on the first screen, SCR-01
+    alt tablet or desktop
+        U->>UI: presses the AI link in the top navigation
+        UI-->>U: jumps within the page to the AI section
+    else any width
+        U->>UI: scrolls down past the first screen
+    end
+    UI-->>U: AI section, SCR-02 - answers from your own data, drafts from one sentence you review, asks instead of guessing
+    UI-->>U: limits - never issues or sends an invoice, daily message limit, invoices not used to train AI models
+    UI-->>U: own AI tools - names Claude Desktop, Claude Code and Cursor, drafts need a permission chosen when connecting
+    Note over U,UI: the page sends no request of its own while the Visitor reads, beyond the site-wide beacons
+    alt presses the privacy link
+        U->>S: opens the privacy page
+        S-->>U: existing privacy page, SCR-04, how AI messages are processed
+    else presses the section's account button
+        U->>S: opens the sign-in page
+        S-->>U: existing sign-in page, SCR-03, a first sign-in creates the account
+    end
+    Note over U,S: Postcondition - no link leads to developer documentation, every way forward is an existing page
+```
+
+### Flow 5: Use the first screen by keyboard, screen reader or phone (US-06 — AC-09)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as user
+    participant UI as ui
+    participant S as service
+
+    Note over U,UI: Precondition - Visitor on the first screen, SCR-01
+    alt keyboard
+        U->>UI: moves with Tab
+        UI-->>U: focus visits the demo card, Create, Replay and the account button, each with visible focus
+        U->>UI: tabs past the demo
+        UI-->>U: focus leaves the demo, never trapped
+    else screen reader
+        U->>UI: reads the page
+        UI-->>U: the headline is the first heading
+        UI-->>U: the demo is read as text - the example sentence and a summary of the proposed draft, phase changes not announced
+    else phone at 360x640
+        UI-->>U: headline, demo and account button fit the width, no sideways scrolling
+    end
+    U->>S: activates the account button or the demo card
+    S-->>U: existing sign-in page, SCR-03
+    Note over U,S: Postcondition - every way of using the page reaches the same message and the same sign-in
+```
+
+### Cross-cutting: Flow 6: A Contributor runs the landing page checks (US-08 — AC-11)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as user
+    participant R as client
+    participant UI as ui
+
+    Note over C,R: Precondition - a production build of the app is served locally
+    C->>R: runs the landing page checks
+    R->>UI: opens the landing page at phone and desktop size, light and dark
+    UI-->>R: first screen, demo, AI section
+    R->>R: waits for the demo's finished card and measures its time
+    R->>R: compares the finished state with the visual references
+    alt headline, finished card, AI section or account button missing
+        R-->>C: checks fail and name the missing part
+    else sideways scrolling on a phone
+        R-->>C: checks fail on the phone width
+    else finished state differs from the visual references
+        R-->>C: checks fail with the visual difference
+    else everything present
+        R-->>C: checks pass
+    end
+    Note over C,UI: Postcondition - a later change cannot silently remove the promise, the demo or the account button
+```
+
+**AC → flow coverage (sequences check, 2026-10-16):**
+
+| AC | Shown by |
+|---|---|
+| AC-01 | Flow 3, Visitor branch |
+| AC-02 | Flow 1 |
+| AC-03 | Flow 1 (card, Create, Replay); Flow 4 (no request while reading) |
+| AC-04 | Flow 2 |
+| AC-05 | Flow 1 (Create shown, not pressed); Flow 4 (limits) |
+| AC-06 | Flow 4 |
+| AC-07 | Flow 4 |
+| AC-08 | Flow 1 (card, Create); Flow 4 (section button, navigation link); Flow 5 |
+| AC-09 | Flow 5 |
+| AC-10 | Flow 3, signed-in branch |
+| AC-11 | Flow 6 |
+| AC-12 | Flow 3, preview step |
+
+Every user story US-01…US-08 has at least one flow. Flags for later stages: no new participant beyond §5; no `data-store` touched; no async step; nothing ADR-worthy.
 
 ## 7. Deployment view
 
