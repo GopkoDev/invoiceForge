@@ -198,14 +198,18 @@ describe.runIf(containerRuntimeAvailable)('propose_draft tool (T27)', () => {
     expect(turn.pending.card).toBeNull();
   });
 
-  it('takes only the strict DraftRequest: no actor field, unknown keys rejected, customer xor customerId', async () => {
+  it('takes only the DraftRequest fields: no actor field, unknown keys rejected (T27; customer xor customerId relaxed for the chat by T115/T120)', async () => {
     const { tool } = await setup();
-    const keys = Object.keys(tool.inputSchema.shape ?? {});
-    for (const forbidden of ['actorId', 'userId', 'freelancerId', 'ownerId']) expect(keys).not.toContain(forbidden);
-    expect(tool.inputSchema.safeParse({ ...consulting, userId: 'x' }).success).toBe(false);
-    expect(tool.inputSchema.safeParse({ lines: consulting.lines }).success).toBe(false);
-    expect(tool.inputSchema.safeParse({ ...consulting, customerId: 'c1' }).success).toBe(false);
+    for (const forbidden of ['actorId', 'userId', 'freelancerId', 'ownerId']) {
+      expect(tool.inputSchema.safeParse({ ...consulting, [forbidden]: 'x' }).success).toBe(false);
+    }
+    expect(tool.inputSchema.safeParse({ lines: consulting.lines }).success).toBe(true);
+    expect(tool.inputSchema.safeParse({ ...consulting, customerId: 'c1' }).success).toBe(true);
     expect(tool.inputSchema.safeParse(consulting).success).toBe(true);
+    // The MCP schema stays strict: customer xor customerId.
+    const { createDraftInvoiceInputSchema } = await import('@/lib/services/assistant-drafts/schema');
+    expect(createDraftInvoiceInputSchema.safeParse({ lines: consulting.lines }).success).toBe(false);
+    expect(createDraftInvoiceInputSchema.safeParse({ ...consulting, customerId: 'c1' }).success).toBe(false);
   });
 
   it('its description carries the data-not-instructions suffix', async () => {
