@@ -1,7 +1,10 @@
 // landing-update T09 (spec.md §5 AC-01..04, 08..10, 11, 12; sad.md §10 QG-1..QG-3): browser-level
 // behaviour of the landing page's first screen, demo player, fallbacks, sign-in links and metadata.
-// Axe, visual references and the JS budget belong to T10 (same file).
+// T10 (same file): axe (AC-09), Linux visual references of the finished demo (AC-11), 30 KB JS budget (NFR).
 // Runs against the production build (tests/e2e/support/start-app-server.mjs), Chromium project.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import AxeBuilder from '@axe-core/playwright';
 import {
   test,
   expect,
@@ -10,7 +13,8 @@ import {
   type Page,
   type Request,
 } from '@playwright/test';
-import { APP_E2E_URL } from './support/app-server';
+import { APP_E2E_URL, SNAPSHOT_PLATFORM } from './support/app-server';
+import { measureLandingJsSize } from './support/landing-js-size';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import { openSignedInFreelancer } from './support/signed-in';
 import { landingContent } from '../../constants/public-pages-content';
@@ -608,5 +612,109 @@ test.describe('landing signed-in', () => {
     } finally {
       await context.close();
     }
+  });
+});
+
+const SCHEMES = ['light', 'dark'] as const;
+
+for (const vp of VIEWPORTS) {
+  for (const scheme of SCHEMES) {
+    test.describe(`landing axe + baselines @ ${vp.name} ${scheme}`, () => {
+      test.use({ viewport: vp.size, colorScheme: scheme });
+
+      test('AC-09: no serious or critical accessibility violations on the first screen', async ({
+        page,
+      }, testInfo) => {
+        await openLanding(page);
+        await waitArmed(page);
+        await scrollDemoIntoView(page);
+        await expect(demoRoot(page)).toHaveAttribute('data-phase', 'done', {
+          timeout: 8000,
+        });
+        // a running fade would be measured half-transparent (false contrast findings)
+        await page.waitForFunction(() =>
+          document
+            .getAnimations()
+            .every(
+              (a) =>
+                a.playState !== 'running' ||
+                a.effect?.getTiming().iterations === Infinity
+            )
+        );
+        const { violations } = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa'])
+          .analyze();
+        const blocking = violations.filter(
+          (v) => v.impact === 'serious' || v.impact === 'critical'
+        );
+        for (const v of violations.filter((x) => !blocking.includes(x))) {
+          testInfo.annotations.push({
+            type: `axe-${v.impact ?? 'unknown'}`,
+            description: `${v.id} on ${v.nodes.length} node(s) - ${v.help}`,
+          });
+        }
+        expect(
+          blocking.map(
+            (v) =>
+              `${v.impact} ${v.id} (${v.nodes.length}): ${v.help} -> ${v.nodes
+                .slice(0, 3)
+                .map((n) => `${n.target.join(' ')} ${n.html.slice(0, 160)}`)
+                .join(' | ')}`
+          ),
+          'serious or critical accessibility violations'
+        ).toEqual([]);
+      });
+
+      test('AC-11: the first screen with the finished demo matches its Linux baseline', async ({
+        page,
+      }) => {
+        test.skip(
+          SNAPSHOT_PLATFORM !== 'linux',
+          'Baselines are Linux-only (CI image); see tests/e2e/README.md'
+        );
+        await openLanding(page);
+        await waitArmed(page);
+        await scrollDemoIntoView(page);
+        await expect(demoRoot(page)).toHaveAttribute('data-phase', 'done', {
+          timeout: 8000,
+        });
+        await page.waitForTimeout(500);
+        if (vp.size.width >= 600) {
+          await page.evaluate(() => window.scrollTo(0, 0));
+        }
+        await expect(page).toHaveScreenshot(
+          `landing-${vp.size.width}x${vp.size.height}-${scheme}.png`,
+          {
+            maxDiffPixelRatio: 0.002,
+            animations: 'disabled',
+            // the cookie banner is client-only and fixed to the bottom edge
+            mask: [page.locator('.fixed.right-0.bottom-0.left-0')],
+          }
+        );
+      });
+    });
+  }
+}
+
+test.describe('landing JS budget', () => {
+  test('NFR: the demo adds at most 30 KB of compressed JS to the first load', async ({
+    browser,
+  }) => {
+    const budget = 30 * 1024;
+    const landingJsBaseline = JSON.parse(
+      readFileSync(
+        path.join(process.cwd(), 'tests/e2e/support/landing-js-baseline.json'),
+        'utf8'
+      )
+    ) as { bytes: number };
+    const now = await measureLandingJsSize(browser, APP_E2E_URL);
+    const delta = now.bytes - landingJsBaseline.bytes;
+    console.log(
+      `landing first-load JS: now ${now.bytes} B, baseline ${landingJsBaseline.bytes} B, delta ${delta} B (budget ${budget} B)`
+    );
+    expect(
+      delta,
+      `JS delta ${delta} B (now ${now.bytes}, baseline ${landingJsBaseline.bytes}), budget ${budget}`
+    ).toBeLessThanOrEqual(budget);
   });
 });
