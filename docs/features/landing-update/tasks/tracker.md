@@ -6,7 +6,7 @@
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
 | T01 | Add the new landing copy and demo sample to landingContent and pin its claims with a truth-guard unit test | domain | Dmytro Hopko | M | — | todo |
-| T02 | Record the landing page's first-load compressed JavaScript baseline before any landing code changes | tests | Dmytro Hopko | S | — | todo |
+| T02 | Record the landing page's first-load compressed JavaScript baseline before any landing code changes | tests | Dmytro Hopko | S | — | done |
 | T03 | Build DemoDraftCard, the presentational replica of the chat draft proposal card | ui | Dmytro Hopko | S | T01 | todo |
 | T04 | Build the LandingDemo player: phase state machine, play-once on visibility, Replay, links and text equivalent | ui | Dmytro Hopko | M | T01, T03 | todo |
 | T05 | Add the demo's CSS-only finished-still fallbacks and the armed/visible reveal timing | ui | Dmytro Hopko | M | T04 | todo |
