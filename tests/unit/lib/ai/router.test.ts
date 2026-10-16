@@ -174,3 +174,14 @@ describe('router prompt: card edits need a card in the recent turns (T126)', () 
     expect(sent).toMatch(/without one[^.]*saved draft[^.]*\bread\b/i);
   });
 });
+
+// ai-chat-v2 T127 (ai-assistant AC-14b, AC-15): the recent turns mark a draft card or a draft question form in brackets.
+describe('router prompt: the bracketed markers are the signal for a draft in progress (T127)', () => {
+  it('names both markers as the signal for intent draft', async () => {
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
+    await classifyMessage({ message: 'make it 25 hours', recentTurns: [] });
+    const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(sent).toContain('[A draft card was shown in this reply.]');
+    expect(sent).toContain('[A draft question form was shown in this reply.]');
+  });
+});

@@ -99,6 +99,24 @@ function toModelTurns(history: ConversationMessageView[]): RouterTurn[] {
   return history.map((m) => ({ role: m.role, content: textOf(m) })).filter((m) => m.content.length > 0);
 }
 
+const CARD_MARKER = '[A draft card was shown in this reply.]';
+const FORM_MARKER = '[A draft question form was shown in this reply.]';
+
+/** T127: the router's turns; a reply that held a draft card or a draft question form carries a code-built marker. */
+function toRouterTurns(history: ConversationMessageView[]): RouterTurn[] {
+  return history
+    .map((m) => {
+      const text = textOf(m);
+      const marks: string[] = [];
+      if (m.role === 'assistant') {
+        if (m.parts.some((p) => p.type === 'data-draft-card')) marks.push(CARD_MARKER);
+        if (m.parts.some((p) => p.type === 'data-offer')) marks.push(FORM_MARKER);
+      }
+      return { role: m.role, content: [text, ...marks].filter(Boolean).join(' ') };
+    })
+    .filter((m) => m.content.length > 0);
+}
+
 function isAppLink(value: unknown): value is AppLink {
   if (!value || typeof value !== 'object') return false;
   const kind = (value as { kind?: unknown }).kind;
@@ -265,9 +283,11 @@ function emptyStream(): AsyncIterable<UIMessageChunk> {
 export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncIterable<UIMessageChunk>; result: Promise<TurnResult> }> {
   const history = trimHistoryToBudget(toModelTurns(input.history.slice(-HISTORY_LIMIT)));
 
+  const routerHistory = trimHistoryToBudget(toRouterTurns(input.history.slice(-HISTORY_LIMIT)));
+
   let verdict;
   try {
-    verdict = await classifyMessage({ message: input.message, recentTurns: history.slice(-ROUTER_TURNS) });
+    verdict = await classifyMessage({ message: input.message, recentTurns: routerHistory.slice(-ROUTER_TURNS) });
   } catch (error) {
     return { stream: emptyStream(), result: Promise.resolve(failed(failureOf(error), null)) };
   }
