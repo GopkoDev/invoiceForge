@@ -2519,6 +2519,45 @@
         "tests/unit/lib/ai/router.test.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t126-chat-instructions-and-router-counts-in-digits-gene.md"
+    },
+    {
+      "id": "T127",
+      "title": "Router sees a code-built marker for a draft card or a draft in progress",
+      "layer": "backend",
+      "deps": [
+        "T126"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15"
+      ],
+      "dod": "Review _review/review-2026-10-16-t125-t126.md. Finding 1. lib/ai/run-turn.ts: for the router only (classifyMessage recentTurns), map an assistant turn that holds a data-draft-card part to its text plus a fixed system marker '[A draft card was shown in this reply.]', and one that holds a Question form (the form/offer part the conversation stores) to '[A draft question form was shown in this reply.]'. The model's own history (toModelTurns for the agent) stays unchanged. lib/ai/router.ts SYSTEM: the card-edit rule refers to those markers: a change while the recent turns show a draft card or a draft question form (marked in brackets) is 'draft'; without one, a change to 'my draft' or an invoice is about a saved draft and is 'read'. Keep the existing router test assertions passing (adjust only where the wording intentionally changes). Unit tests: runTurn passes the marker to classifyMessage for a history with a card part and with a form part; the marker is not in the agent's messages; router prompt mentions the markers.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/router.ts",
+        "tests/unit/lib/ai/router.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t127-router-sees-a-code-built-marker-for-a-draft-card-o.md"
+    },
+    {
+      "id": "T128",
+      "title": "No-Customer branch: keep a partly written profile, resolve the currency like the resolver, log failures, ask every field",
+      "layer": "backend",
+      "deps": [
+        "T125"
+      ],
+      "acs": [
+        "AC-46",
+        "AC-37",
+        "AC-09"
+      ],
+      "dod": "Review _review/review-2026-10-16-t125-t126.md. Findings 2-6, lib/ai/tools/propose-draft.ts. (2) Drop senderProfile from the stored request only when it matches none of the Freelancer's profiles by the resolver's rule (exact folded match, or exactly one profile whose name contains the written words; owner-scoped) - reuse the resolver's matching helper from lib/services/assistant-drafts/resolve-parties.ts if exported, else export it; keep the exact-only isOwnSenderProfileName check for the own-profile directive. (3) Currency for the line resolution: read it with the same interpretation as the resolver (interpretCurrency / writtenCurrency; '$' -> USD) and when none is written, omit PRODUCT questions from this branch (keep PRICE/QUANTITY/AMOUNT questions) so the post-Customer resolution asks products in the invoice currency. (4) catch logs console.error(`no_customer_lines_failed error=${String(redactError(error))}`) like other call sites. (5) NO_CUSTOMER_SAY: 'No Customer was given. Call ask_user once with a one-line prompt for each askFields field (for CUSTOMER omit recordIds; the app offers the Freelancer's Customers). Do not guess one.' and OWN_PROFILE_SAY likewise refers to each askFields field. (6) Tests: resolveLines called with an owner-only ctx ({ userId } and no customerId); '$' gives USD; no currency -> PRODUCT issues filtered out; a rejecting resolveLines -> CUSTOMER-only form and a logged line; a partly written profile ('Consulting' with profile 'Consulting FOP') stays in turn.pending.resolver.request; NO_CUSTOMER_SAY mentions each askFields field.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t128-no-customer-branch-keep-a-partly-written-profile-r.md"
     }
   ]
 }
