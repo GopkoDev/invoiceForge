@@ -163,3 +163,14 @@ describe('router prompt: changing a saved draft or invoice vs. the card in this 
     expect(sent).toContain('make it 25 hours');
   });
 });
+
+// ai-chat-v2 T126 (ai-assistant AC-15): a card edit needs a draft card among the recent turns; without one it is read.
+describe('router prompt: card edits need a card in the recent turns (T126)', () => {
+  it('the card-edit sentence applies when the recent turns show a draft card; without one a change to a saved draft is read', async () => {
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
+    await classifyMessage({ message: 'Add a line for the website to my draft and write me a slogan for it', recentTurns: [] });
+    const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(sent).toMatch(/recent turns show a draft card/i);
+    expect(sent).toMatch(/without one[^.]*saved draft[^.]*\bread\b/i);
+  });
+});

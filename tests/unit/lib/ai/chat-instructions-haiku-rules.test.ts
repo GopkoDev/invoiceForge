@@ -55,3 +55,18 @@ describe('CHAT_INSTRUCTIONS price and count rules (T121)', () => {
     expect(t).not.toMatch(/propose_draft fills the catalogue price or the Customer's custom price\./);
   });
 });
+
+// ai-chat-v2 T126 (AC-14, AC-47, AC-45): counts in digits; a generic-looking name is searched, then passed as written.
+describe('CHAT_INSTRUCTIONS counts and generic-looking names (T126)', () => {
+  it('writes every count as digits', async () => {
+    expect(await text()).toMatch(/Write every count as digits/i);
+  });
+
+  it('a generic-looking phrase such as "my new customer" is searched with list_customers or list_products first', async () => {
+    expect(await text()).toMatch(/looks generic[^.]*my new customer[^.]*search/i);
+  });
+
+  it('a searched generic-looking name is passed as written', async () => {
+    expect(await text()).toMatch(/pass it as written/i);
+  });
+});
