@@ -1,0 +1,222 @@
+{
+  "slug": "landing-update",
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Add the new landing copy and demo sample to landingContent and pin its claims with a truth-guard unit test",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-05",
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "tests/unit/landing-claims.test.ts passes over the new landingContent and fails when any AC-05/AC-07 claim rule is broken; tsc + lint clean",
+      "files_hint": [
+        "constants/public-pages-content.ts",
+        "tests/unit/landing-claims.test.ts"
+      ],
+      "file": "docs/features/landing-update/tasks/t01-landing-content-and-truth-guard.md"
+    },
+    {
+      "id": "T02",
+      "title": "Record the landing page's first-load compressed JavaScript baseline before any landing code changes",
+      "layer": "tests",
+      "deps": [],
+      "acs": [],
+      "dod": "tests/e2e/support/landing-js-baseline.json is committed with the pre-change commit and a non-zero compressed-JS byte count measured on / from a production build",
+      "files_hint": [
+        "tests/e2e/support/landing-js-size.ts",
+        "tests/e2e/support/landing-js-baseline.json",
+        "scripts/measure-landing-js.mjs"
+      ],
+      "file": "docs/features/landing-update/tasks/t02-record-landing-js-baseline.md"
+    },
+    {
+      "id": "T03",
+      "title": "Build DemoDraftCard, the presentational replica of the chat draft proposal card",
+      "layer": "ui",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-05"
+      ],
+      "dod": "tests/component/landing-demo-draft-card.test.tsx passes: Customer, line, total + currency, Example label and unpressed Create render from fixed props, no focusable element, no import from components/ai",
+      "files_hint": [
+        "components/landing/landing-demo/demo-draft-card.tsx",
+        "tests/component/landing-demo-draft-card.test.tsx"
+      ],
+      "file": "docs/features/landing-update/tasks/t03-demo-draft-card.md"
+    },
+    {
+      "id": "T04",
+      "title": "Build the LandingDemo player: phase state machine, play-once on visibility, Replay, links and text equivalent",
+      "layer": "ui",
+      "deps": [
+        "T01",
+        "T03"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-09"
+      ],
+      "dod": "tests/component/landing-demo.test.tsx passes: plays once at >= 50% visibility, reaches done within 8 s, no restart on scroll-back, Replay replays identical content, card/Create link to sign-in, no fetch, sr-only text present",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "components/landing/landing-demo/landing-demo.module.css",
+        "tests/component/landing-demo.test.tsx"
+      ],
+      "file": "docs/features/landing-update/tasks/t04-landing-demo-player.md"
+    },
+    {
+      "id": "T05",
+      "title": "Add the demo's CSS-only finished-still fallbacks and the armed/visible reveal timing",
+      "layer": "ui",
+      "deps": [
+        "T04"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "tests/component/landing-demo.test.tsx passes the AC-04 branches: reduced motion -> still without Replay, late hydration keeps or rewinds, armed/visible set in order, hold flag keeps idle; box size unchanged",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "components/landing/landing-demo/landing-demo.module.css",
+        "tests/component/landing-demo.test.tsx"
+      ],
+      "file": "docs/features/landing-update/tasks/t05-landing-demo-css-fallbacks.md"
+    },
+    {
+      "id": "T06",
+      "title": "Rewrite LandingHero around the one-sentence promise with the demo and drop the stats row",
+      "layer": "ui",
+      "deps": [
+        "T01",
+        "T02",
+        "T05"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-09"
+      ],
+      "dod": "tests/component/landing-hero.test.tsx passes: one h1 with the promise, supporting line, account link to sign-in, demo present, no stats row; pnpm build succeeds",
+      "files_hint": [
+        "components/landing/landing-hero.tsx",
+        "components/landing/index.ts",
+        "app/(public)/landing-page.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/landing-hero.test.tsx"
+      ],
+      "file": "docs/features/landing-update/tasks/t06-rewrite-landing-hero.md"
+    },
+    {
+      "id": "T07",
+      "title": "Build AiSection, place it right after the hero and add the #ai navigation link",
+      "layer": "ui",
+      "deps": [
+        "T01",
+        "T02"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-07",
+        "AC-08"
+      ],
+      "dod": "tests/component/landing-ai-section.test.tsx passes: #ai section after the hero, three blocks, exactly the three tools, MCP in no heading, privacy and sign-in links only",
+      "files_hint": [
+        "components/landing/ai-section.tsx",
+        "components/landing/index.ts",
+        "app/(public)/landing-page.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/landing-ai-section.test.tsx"
+      ],
+      "file": "docs/features/landing-update/tasks/t07-ai-section-and-nav-link.md"
+    },
+    {
+      "id": "T08",
+      "title": "Override the landing route's description, openGraph and twitter metadata with the one-sentence promise",
+      "layer": "wiring",
+      "deps": [
+        "T01"
+      ],
+      "acs": [
+        "AC-12"
+      ],
+      "dod": "tests/unit/landing-metadata.test.ts passes: landing description, openGraph and twitter descriptions mention an invoice draft from one sentence with AI; site-wide description unchanged",
+      "files_hint": [
+        "app/(public)/page.tsx",
+        "tests/unit/landing-metadata.test.ts"
+      ],
+      "file": "docs/features/landing-update/tasks/t08-landing-metadata.md"
+    },
+    {
+      "id": "T09",
+      "title": "Write the landing e2e spec: first screen, demo timing and fallbacks, no data requests, sign-in links, signed-in redirect",
+      "layer": "tests",
+      "deps": [
+        "T06",
+        "T07",
+        "T08"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-12"
+      ],
+      "dod": "tests/e2e/landing.spec.ts passes locally against a production build for first screen, demo timing, four fallback paths, zero data requests, sign-in links, keyboard, signed-in redirect and metadata",
+      "files_hint": [
+        "tests/e2e/landing.spec.ts"
+      ],
+      "file": "docs/features/landing-update/tasks/t09-landing-e2e-behaviour.md"
+    },
+    {
+      "id": "T10",
+      "title": "Add axe, Linux visual references of the finished demo (light/dark, phone/desktop) and the 30 KB JS budget check to the landing e2e spec",
+      "layer": "tests",
+      "deps": [
+        "T02",
+        "T09"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11"
+      ],
+      "dod": "tests/e2e/landing.spec.ts passes with 0 serious/critical axe findings, 4 committed Linux visual references of the finished demo, and a JS delta <= 30 KB vs the T02 baseline",
+      "files_hint": [
+        "tests/e2e/landing.spec.ts",
+        "tests/e2e/landing.spec.ts-snapshots/"
+      ],
+      "file": "docs/features/landing-update/tasks/t10-landing-axe-baselines-js-budget.md"
+    },
+    {
+      "id": "T11",
+      "title": "Register LandingDemo, DemoDraftCard and AiSection in the design-system component inventory",
+      "layer": "docs",
+      "deps": [
+        "T03",
+        "T05",
+        "T07"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-06"
+      ],
+      "dod": "docs/design-system.md lists LandingDemo, DemoDraftCard and AiSection with existing paths and screens.md marks them registered (docs-only, no tests)",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/landing-update/screens.md"
+      ],
+      "file": "docs/features/landing-update/tasks/t11-register-components-design-system.md"
+    }
+  ]
+}
