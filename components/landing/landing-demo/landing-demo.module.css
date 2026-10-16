@@ -237,3 +237,8 @@
     transform: none;
   }
 }
+
+/* Keep the scripts-off <noscript> out of the flex flow so it adds no gap; its <style> still applies. */
+.root > noscript {
+  display: none;
+}
