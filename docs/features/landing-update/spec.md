@@ -17,7 +17,7 @@ Invoice Forge now has an in-app AI chat that answers questions from the Freelanc
 
 There is no outside deadline. The trigger is that the AI chat (ai-assistant and ai-chat-v2) has just shipped to the main line, and the landing page is now behind the product.
 
-**Committed approach.** Rewrite the landing page's first screen around one promise — "an invoice from one sentence" — and back it with a **Landing demo**: a short scripted animation in which a fixed example sentence turns into a sample draft card, with no model call and no data behind it. Add **one new section** below it that explains, in plain outcome-first words, what the in-app AI does (answers from your own data, prepares drafts you review, never issues or sends) and that the same works from the AI tools the Visitor already uses. Everything else on the landing page stays as it is. This feature is a **temporary bridge**: the separate public-redesign feature will replace the first screen and the demo with an interactive one, so this feature builds the simplest credible version and does not aim for reuse.
+**Committed approach.** Rewrite the landing page's first screen around one promise — "an invoice from one sentence" — and back it with a **Landing demo**: a short scripted animation in which a fixed example sentence turns into a sample draft proposal card, with no model call and no data behind it. Add **one new section** below it that explains, in plain outcome-first words, what the in-app AI does (answers from your own data, prepares drafts you review, never issues or sends) and that the same works from the AI tools the Visitor already uses. Everything else on the landing page stays as it is, except existing text that the AI would make untrue (AC-05). This feature is a **temporary bridge**: the separate public-redesign feature will replace the first screen and the demo with an interactive one, so this feature builds the simplest credible version and does not aim for reuse.
 
 Traceability and decisions:
 
@@ -33,12 +33,19 @@ Traceability and decisions:
   - The page's search description and link preview text mention the one-sentence promise.
   - The connection term ("MCP") never appears as a heading; it may appear once in small print for Visitors who look for it.
   - The section links to the privacy page for how AI messages are processed, and does not link to developer documentation.
+- Clarifications (clarify, 2026-10-16, easy depth; owner-decided items marked):
+  - **Demo end state (owner):** the demo stops on the chat's draft *proposal* — the card before Create, with the Create button shown but not pressed; pressing it, like pressing the card, leads to sign-in.
+  - **Beta wording (owner):** existing landing text that promises unlimited use is narrowed to what stays unlimited (invoices and clients), and the AI section mentions the AI chat's daily message limit.
+  - **No conversion measurement (owner):** this temporary bridge ships without KPI baselines, targets or tracking; §7 is N/A.
+  - The AI section sits directly after the first screen, before the features section, and has its own account button; the new navigation link appears where the landing page's other navigation links appear today (tablet and desktop).
+  - Reference screen sizes for "without scrolling" and the automated checks: phone 360×640, desktop 1280×800.
+  - The "Public Beta — Free to Use" badge stays.
 
 ## 2. Goals
 
 - A Visitor understands from the first screen alone that Invoice Forge turns one sentence into an invoice draft they review, and sees it happen before signing up.
 - A Visitor who is cautious about AI near their financial documents finds the limits stated plainly — own data only, drafts only, a human issues every invoice — and a Visitor who already uses an AI tool learns, without jargon, that they can reach their invoices from it.
-- More Visitors create an account than before the change, while the landing page promises nothing the product does not do.
+- A Visitor convinced by the promise reaches account creation in one press, and the landing page promises nothing the product does not do.
 
 ## 3. Non-goals
 
@@ -108,55 +115,55 @@ The landing page takes no input from the Visitor, so the **error** coverage type
 
 **Given** a Visitor who is not signed in
 **When** they open the landing page on a desktop or a phone
-**Then** the main headline says they can get an invoice from one sentence, the line under it says the AI prepares a draft they review before anything is sent, and an account button is visible without scrolling; the first screen no longer shows the row of three figures it shows today
+**Then** the main headline says they can get an invoice from one sentence, the line under it says the AI prepares a draft they review before anything is sent, and an account button is visible without scrolling on a 360×640 phone screen and a 1280×800 desktop screen; the first screen no longer shows the row of three figures it shows today
 
 ### AC-02 (US-02) — happy path
 
 **Given** a Visitor whose device does not ask for reduced motion
-**When** the first screen comes into view
-**Then** the Landing demo plays once: a fixed example sentence appears in a chat box and turns into a draft card showing a Customer, at least one invoice line, the total with its currency and a clear "draft" mark, laid out like the in-app chat's draft card; the demo is labelled as an example, stops on the finished card, and offers a Replay control that plays it again from the start
+**When** at least half of the demo becomes visible on screen
+**Then** the Landing demo plays once per page view: a fixed example sentence appears in a chat box and turns into a draft proposal card showing a Customer, at least one invoice line, the total with its currency and a Create button that the demo does not press, laid out like the in-app chat's draft proposal card; the demo is labelled as an example, stops on that card, and offers a Replay control that plays it again from the start; scrolling away and back does not restart it
 
 ### AC-03 (US-02) — authorization
 
 **Given** a Visitor who is not signed in
 **When** they watch the Landing demo, replay it, or press anything inside it
-**Then** the demo shows only its fixed sample content, identical on every play; nothing they do on the landing page reaches the AI chat, creates a Conversation, uses a Daily message allowance or shows any Freelancer's data; and pressing the demo card leads to the sign-in page, not to an invoice
+**Then** the demo shows only its fixed sample content, identical on every play; nothing they do on the landing page reaches the AI chat, creates a Conversation, uses a Daily message allowance or shows any Freelancer's data; and pressing the demo card or its Create button leads to the sign-in page, not to an invoice, at any moment of the demo; pressing Replay only replays the demo
 
 ### AC-04 (US-02, US-06) — error
 
-**Given** a Visitor whose device asks for reduced motion, or whose browser cannot play the demo (it fails to load or loads too slowly)
+**Given** a Visitor whose device asks for reduced motion, or whose browser cannot play the demo (scripts do not run, or the animation has not started within 3 seconds of the demo becoming visible)
 **When** the first screen shows
-**Then** the Visitor sees the demo's finished state as a still picture — the example sentence and the finished draft card with the same example label — and the headline and account button work exactly as in AC-01
+**Then** the Visitor sees the demo's finished state as a still picture — the example sentence and the finished proposal card with the same example label — in the same space the animation uses, so nothing on the page moves, and the headline and account button work exactly as in AC-01
 
 ### AC-05 (US-02, US-03) — domain invariant
 
 **Given** the Landing demo and every text on the landing page
 **When** a Visitor reads or watches them
-**Then** nothing shows or says that the AI issues, sends or emails an invoice, edits an issued invoice or creates a Customer; the demo ends on a proposed draft that waits for the Freelancer's review, in line with the rule that an Assistant only prepares Draft invoices and a human issues every one
+**Then** nothing shows or says that the AI issues, sends or emails an invoice, edits an issued invoice or creates a Customer, and no text promises unlimited use of the AI; the demo ends on a draft proposal whose Create button is not pressed, in line with the rule that an Assistant only prepares Draft invoices and a human issues every one
 
 ### AC-06 (US-03) — happy path
 
 **Given** a Visitor who scrolls past the first screen
 **When** they reach the new AI section
-**Then** they read, in plain words: the AI answers questions about their own invoices (for example who owes them money and what is overdue); it prepares an invoice draft from one sentence and asks when a detail is missing instead of guessing; it never issues or sends an invoice; their invoices are not used to train AI models; and a link takes them to the privacy page for how AI messages are processed; the section links to no developer documentation
+**Then** they read, in plain words: the AI answers questions about their own invoices (for example who owes them money and what is overdue); it prepares an invoice draft from one sentence and asks when a detail is missing instead of guessing; it never issues or sends an invoice; the AI chat has a daily message limit; their invoices are not used to train AI models; and a link takes them to the privacy page for how AI messages are processed; the section links to no developer documentation; the section comes directly after the first screen and has its own account button
 
 ### AC-07 (US-04) — cross-context
 
 **Given** the AI tools that can connect to a Freelancer's account today through a Personal key
 **When** a Visitor reads the part of the AI section about using Invoice Forge from their own AI tool
-**Then** it says in plain words that they can ask about their invoices and create drafts from the AI tools they already use; it names only tools that can connect today (Claude Desktop, Claude Code and Cursor) and no tool that cannot yet; it says that creating drafts from such a tool needs a permission the Freelancer chooses when connecting it; and the connection's technical name appears at most once, in small print, never as a heading
+**Then** it says in plain words that they can ask about their invoices and create drafts from the AI tools they already use; it names exactly the tools that can connect today — Claude Desktop, Claude Code and Cursor — and never "Claude" on its own, Claude on the web, ChatGPT or "any AI tool"; it says that creating drafts from such a tool needs a permission the Freelancer chooses when connecting it; and the connection's technical name appears at most once, in small print, never as a heading
 
 ### AC-08 (US-05) — happy path
 
 **Given** a Visitor on the first screen or in the new AI section
-**When** they press its account button, or the new navigation link and then the button in the section it jumps to
+**When** they press its account button, or (on tablet and desktop) the new navigation link and then the button in the section it jumps to
 **Then** they reach the sign-in page, where their first sign-in creates their account, exactly as the landing page's existing buttons do
 
 ### AC-09 (US-06) — happy path
 
-**Given** a Visitor using only a keyboard, a screen reader, or a phone 360 points wide
+**Given** a Visitor using only a keyboard, a screen reader, or a 360×640 phone screen
 **When** they move through the first screen
-**Then** the headline is the page's first heading; the demo has a text equivalent (the example sentence and a summary of the resulting draft) that a screen reader reads; the Replay control and the account button can be reached and pressed by keyboard with visible focus; focus is never trapped in the demo; and on the phone the headline, demo and account button fit the screen width without sideways scrolling
+**Then** the headline is the page's first heading; the demo has a text equivalent (the example sentence and a summary of the resulting draft) that a screen reader reads; the Replay control, the demo card and the account button can be reached and pressed by keyboard with visible focus; focus is never trapped in the demo; and on the phone the headline, demo and account button fit the screen width without sideways scrolling
 
 ### AC-10 (US-07) — cross-context
 
@@ -168,7 +175,7 @@ The landing page takes no input from the Visitor, so the **error** coverage type
 
 **Given** the new first screen and the new AI section
 **When** the landing page's automated checks run
-**Then** they fail if the headline, the demo's finished card, the AI section or the account button is missing, or if the landing page shows sideways scrolling on a phone; and the landing page's visual references are refreshed to the new design
+**Then** they fail if the headline, the demo's finished card, the AI section or the account button is missing, or if the landing page shows sideways scrolling on a phone; and the landing page's visual references are refreshed to the new design, showing the demo's finished state in light and dark theme on the phone and desktop reference screens
 
 ### AC-12 (US-01) — happy path
 
@@ -202,12 +209,9 @@ The landing page takes no input from the Visitor, so the **error** coverage type
 
 ## 7. Metrics / KPIs
 
-- **Visitor-to-account rate** — new accounts created per week ÷ unique Visitors of the landing page that week. Baseline: TBD — measured over the 4 weeks before release from the existing page analytics and the count of accounts created; target: +20% relative to the baseline within 4 weeks after release.
-- **Click-through to sign-in** — sign-in page views ÷ landing page views per week. Baseline: TBD — same 4-week window before release from the existing page analytics; target: +15% relative within 4 weeks after release.
-- **New accounts that try the AI** — share of accounts created in a week that send at least one AI chat message within 7 days of creation. Baseline: the same share for accounts created in the 4 weeks before release; target: +10 percentage points within 4 weeks after release.
+<!-- N/A: owner decision 2026-10-16 (clarify) — this feature is a temporary bridge until public-redesign; it ships without KPI baselines, targets or conversion tracking. Success is checked qualitatively against §2 and the §5 acceptance criteria. -->
 
 ## 8. Open questions
 
 - [ ] Which exact example sentence and draft does the demo show, and must it match what the real chat would produce? Default now: "Invoice Acme for 20 hours of design at $50" → Customer "Acme Corp", one line "Design — 20 h × $50.00", total $1,000.00 USD, marked draft; the card mirrors the real chat's look but is fixed sample content. — owner: Dmytro Hopko, due: before sdd:tasks
 - [ ] What is the final headline and supporting line? Default now: "Your next invoice is one sentence away" / "Type what you billed. The AI prepares a draft — you review it before anything is sent." — owner: Dmytro Hopko, due: before sdd:implement
-- [ ] Are the KPI targets (+20% / +15% / +10 pp) right once the baseline is known? Default now: keep them and revisit after the 4-week baseline. — owner: Dmytro Hopko, due: before sdd:ship
