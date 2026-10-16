@@ -9,3 +9,4 @@ export { SectionContainer } from './section-container';
 export { PageHeader } from './page-header';
 export { ContentCard } from './content-card';
 export { IconBadge } from './icon-badge';
+export { AiSection } from './ai-section';

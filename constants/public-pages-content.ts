@@ -74,12 +74,12 @@ export const landingContent = {
   navigation: {
     brandName: 'Invoice Forge',
     links: [
+      { label: 'AI', href: '#ai' },
       { label: 'Features', href: '#features' },
       { label: 'Pricing', href: '#pricing' },
       { label: 'How It Works', href: '#how-it-works' },
     ],
     ctaButton: 'Get Started',
-    aiLink: { label: 'AI assistant', href: '#ai' },
   },
 
   hero: {

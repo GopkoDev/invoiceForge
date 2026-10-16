@@ -2,6 +2,7 @@
 
 import { LandingNav } from '@/components/landing/landing-nav';
 import { LandingHero } from '@/components/landing/landing-hero';
+import { AiSection } from '@/components/landing/ai-section';
 import { FeatureGrid } from '@/components/landing/feature-grid';
 import { BetaPricingSection } from '@/components/landing/beta-pricing-section';
 import { HowItWorksSection } from '@/components/landing/how-it-works-section';
@@ -46,6 +47,8 @@ export function LandingPage() {
           ctaHref={loginHref}
           demo={landingContent.demo}
         />
+
+        <AiSection {...landingContent.aiSection} />
 
         <FeatureGrid
           badge={landingContent.features.badge}
