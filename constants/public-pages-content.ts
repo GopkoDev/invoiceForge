@@ -52,6 +52,11 @@ export interface LandingDemoSample {
   totalLabel: string;
   replayLabel: string;
   srSummary: string;
+  windowTitle: string;
+  assistantName: string;
+  replyText: string;
+  composerPlaceholder: string;
+  emptyPrompt: string;
 }
 
 export interface LandingAiBlock {
@@ -74,6 +79,11 @@ const landingDemo: LandingDemoSample = {
   customerLabel: 'Customer',
   totalLabel: 'Total',
   replayLabel: 'Replay',
+  windowTitle: 'AI chat',
+  assistantName: 'Invoice Forge AI',
+  replyText: 'Here is a draft for Acme Corp. Check it, then create it when it looks right.',
+  composerPlaceholder: 'Ask about your invoices…',
+  emptyPrompt: 'What did you bill for?',
   srSummary:
     'Example: the sentence "Invoice Acme for 20 hours of design at $50" becomes a draft invoice for Acme Corp with one line, Design, 20 hours at $50.00, total $1,000.00 USD. You review the draft before anything else happens.',
 };

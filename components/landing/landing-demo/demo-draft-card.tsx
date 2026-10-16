@@ -1,3 +1,4 @@
+import { FileTextIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,16 +38,19 @@ export function DemoDraftCard({
   totalLabel,
 }: DemoDraftCardProps) {
   return (
-    <Card className={CARD_FRAME}>
+    <Card size="sm" className={CARD_FRAME}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">{cardTitle}</p>
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <FileTextIcon className="text-muted-foreground size-4" aria-hidden="true" />
+            {cardTitle}
+          </p>
           <Badge variant="outline">{exampleLabel}</Badge>
         </div>
         <dl className="flex flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2 text-sm">
             <dt className="text-muted-foreground shrink-0">{customerLabel}</dt>
-            <dd className="min-w-0 text-right break-words">{customer}</dd>
+            <dd className="min-w-0 text-right font-medium break-words">{customer}</dd>
           </div>
         </dl>
         <Separator />
@@ -54,22 +58,23 @@ export function DemoDraftCard({
           {lines.map((line, i) => (
             <li key={i} className="flex items-start justify-between gap-2 text-sm">
               <p className="min-w-0 break-words">
-                {line.description} — {line.quantityLabel}
+                {line.description}{' '}
+                <span className="text-muted-foreground">— {line.quantityLabel}</span>
               </p>
-              <span className="shrink-0">{line.amount}</span>
+              <span className="shrink-0 tabular-nums">{line.amount}</span>
             </li>
           ))}
         </ul>
         <Separator />
-        <p className="flex justify-between gap-2 text-sm font-medium">
+        <p className="flex items-baseline justify-between gap-2 text-sm font-medium">
           <span>{totalLabel}</span>
-          <span>
-            {total} {currency}
+          <span className="text-base font-semibold tabular-nums">
+            {total} <span className="text-muted-foreground text-xs font-medium">{currency}</span>
           </span>
         </p>
         <div className="flex sm:justify-end">
           <span
-            className={cn(buttonVariants(), 'w-full cursor-default select-none sm:w-auto')}
+            className={cn(buttonVariants(), 'w-full cursor-default select-none sm:w-30')}
             aria-hidden="true"
           >
             {createLabel}

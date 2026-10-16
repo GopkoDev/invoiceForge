@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowUpIcon, SparklesIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ const PHASE_STARTS: ReadonlyArray<readonly [Phase, number]> = [
 ];
 const REPLAY_RESET_MS = 300;
 /** Finished still for visitors without scripts; mirrors the `still` rules in the CSS module. */
-const noscriptCss = `.${styles.root} .${styles.bubble}{opacity:1;clip-path:inset(0)}.${styles.root} .${styles.cardWrap}{opacity:1;transform:none}`;
+const noscriptCss = `.${styles.root} .${styles.bubble},.${styles.root} .${styles.avatar}{opacity:1}.${styles.root} .${styles.cardWrap}{opacity:1;transform:none}.${styles.root} .${styles.empty}{opacity:0}`;
 
 export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   const [phase, setPhase] = useState<Phase>('idle');
@@ -117,36 +118,71 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
         <style>{noscriptCss}</style>
       </noscript>
       <div className={styles.frame}>
-        <div className={styles.visual} aria-hidden="true">
-          <div className={styles.labelRow}>
+        <div className={styles.window} aria-hidden="true">
+          <div className={styles.titlebar}>
+            <span className={styles.lights}>
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className={styles.title}>
+              <SparklesIcon className="size-3.5" />
+              {sample.windowTitle}
+            </span>
             <Badge variant="outline">{sample.exampleLabel}</Badge>
           </div>
-          <div className={styles.bubbleRow}>
-            <p ref={bubbleRef} className={styles.bubble}>{sample.sentence}</p>
-          </div>
-          <div className={styles.stage}>
-            <div className={styles.thinking}>
-              <span className={styles.dot} />
-              <span className={styles.dot} />
-              <span className={styles.dot} />
+          <div className={styles.body}>
+            <div className={styles.empty}>
+              <span className={styles.emptyMark}>
+                <SparklesIcon className="size-5" />
+              </span>
+              <span>{sample.emptyPrompt}</span>
             </div>
-            <div className={styles.cardWrap}>
-              <DemoDraftCard
-                customer={sample.customer}
-                lines={sample.lines}
-                total={sample.total}
-                currency={sample.currency}
-                exampleLabel={sample.exampleLabel}
-                cardTitle={sample.cardTitle}
-                customerLabel={sample.customerLabel}
-                totalLabel={sample.totalLabel}
-                createLabel={sample.createLabel}
-              />
+            <div className={styles.bubbleRow}>
+              <p ref={bubbleRef} className={styles.bubble}>{sample.sentence}</p>
+            </div>
+            <div className={styles.reply}>
+              <span className={styles.avatar}>
+                <SparklesIcon className="size-3.5" />
+              </span>
+              <div className={styles.stage}>
+                <div className={styles.thinking}>
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
+                </div>
+                <div className={styles.cardWrap}>
+                  <p className={styles.replyText}>
+                    <span className={styles.replyName}>{sample.assistantName}</span>
+                    {sample.replyText}
+                  </p>
+                  <DemoDraftCard
+                    customer={sample.customer}
+                    lines={sample.lines}
+                    total={sample.total}
+                    currency={sample.currency}
+                    exampleLabel={sample.exampleLabel}
+                    cardTitle={sample.cardTitle}
+                    customerLabel={sample.customerLabel}
+                    totalLabel={sample.totalLabel}
+                    createLabel={sample.createLabel}
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          <div className={styles.input} />
+          <div className={styles.composer}>
+            <div className={styles.field}>
+              <span className={styles.placeholder}>{sample.composerPlaceholder}</span>
+              {/* The typed sentence is CSS-generated text, so the sentence stays one text node (the bubble). */}
+              <span className={styles.typed} data-text={sample.sentence} />
+            </div>
+            <span className={styles.send}>
+              <ArrowUpIcon className="size-4" />
+            </span>
+          </div>
         </div>
-        {/* Real links sit outside the aria-hidden layer, overlaid on the card area, in every phase. */}
+        {/* Real links sit outside the aria-hidden layer, overlaid on the window and the Create visual, in every phase. */}
         <div className={styles.links}>
           <Link href={authRoutes.signIn} className={styles.cardLink}>
             <span className="sr-only">{sample.cardLinkLabel}</span>
