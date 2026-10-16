@@ -252,7 +252,7 @@ The evaluation run (`evals/assistant/`, opt-in, real model) is the only level th
 
 ## CI placement
 
-- On every PR: unit, component and contract (the fast job), and integration (the separate job with a throwaway database). This includes:
+- On every PR and push to main: unit, component and contract (the fast job). Integration runs in CI only on a manual start (`gh workflow run test.yml --ref <branch>`), which works once the workflow with `workflow_dispatch` is on main; until then, and before any merge into main, run `pnpm test:integration` locally. It is not enforced by a required check. The integration suite (throwaway database) includes:
   - the form-check causes, the concurrent claim and the release on failure;
   - the two concurrent confirms;
   - the expected-version branches;
@@ -330,7 +330,7 @@ All on the real model, opt-in run, invented data; each row must pass in ≥ 4 of
 - Switching p95 ≤ 1 s, layout shift ≤ 0.01: e2e timing over 20 switches with 40 Conversations at 1440 × 900.
 - Chat behaviour: evaluation run above before ship (not in CI).
 
-CI placement unchanged: unit, component and contract on every PR; integration with the throwaway database on every PR where Docker is available; e2e-through-UI, visual-regression and the evaluation run locally before ship (owner decision: no e2e in CI).
+CI placement unchanged: unit, component and contract on every PR; integration with the throwaway database only on manual start, and locally before any merge into main (see above); e2e-through-UI, visual-regression and the evaluation run locally before ship (owner decision: no e2e in CI).
 
 ## Fix 2026-10-14 — AC coverage
 

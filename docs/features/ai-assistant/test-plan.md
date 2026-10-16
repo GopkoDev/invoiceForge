@@ -208,5 +208,5 @@ An in-app AI chat that answers from the Freelancer's own data through the seven 
 
 ## CI placement
 
-- On every PR: unit, component and contract (the fast job), and integration (the separate job with a throwaway database), including the allowance and key-slot races, the double Create press, the injection fixtures, fault injection, the parity test and the resolver contract test.
+- On every PR and push to main: unit, component and contract (the fast job). Integration runs in CI only on a manual start (`gh workflow run test.yml --ref <branch>`), which works once the workflow with `workflow_dispatch` is on main; until then, and before any merge into main, run `pnpm test:integration` locally. It is not enforced by a required check. The integration suite (throwaway database) includes the allowance and key-slot races, the double Create press, the injection fixtures, fault injection, the parity test and the resolver contract test.
 - On schedule / pre-release: e2e, e2e-through-UI and visual-regression run locally before `ship` (the repo runs no e2e in CI); the evaluation run before release and on every change to the Assistant's instructions or model setting, locally with the model key; the Create latency scenario against a preview deployment before `ship`.

@@ -128,7 +128,7 @@ overrides; fixture emails use `@example.test`.
 Unit, component and contract run on every PR and push to main (`.github/workflows/test.yml`),
 plus the build-output check for the PDF toolkit. Integration runs in CI only on a manual start,
 before a merge into main: `gh workflow run test.yml --ref <branch>` (or "Run workflow" in the
-Actions tab); it shows up as a check on that branch's head commit. e2e,
+Actions tab); it shows up as a check on that branch's head commit. The manual start works once the workflow with `workflow_dispatch` is on main; until then, and before any merge into main, run `pnpm test:integration` locally. It is not enforced by a required check. e2e,
 e2e-through-UI and the rate-limit load scenario do not run in CI: run the full `pnpm test:e2e`
 (a production build against a throwaway Postgres container; Docker is required) locally before
 each ship.

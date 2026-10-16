@@ -266,10 +266,6 @@ export function noGuessingRowFailures(r: NoGuessingRow): string[] {
   return [...new Set(out)];
 }
 
-/**
- * 100 % of incomplete/ambiguous requests end in a question (an explains row only when its rule holds too), controls
- * get a card, 0 ungrounded values, and every row-specific rule holds.
- */
 /** T118: why each failing row failed, so a red run can be read without rerunning it. */
 export function formatRowFailures(noGuessingRows: NoGuessingRow[], topicRows: TopicRow[]): string[] {
   const lines: string[] = [];
@@ -286,6 +282,10 @@ export function formatRowFailures(noGuessingRows: NoGuessingRow[], topicRows: To
   return lines;
 }
 
+/**
+ * 100 % of incomplete/ambiguous requests end in a question (an explains row only when its rule holds too), controls
+ * get a card, 0 ungrounded values, and every row-specific rule holds.
+ */
 export function scoreNoGuessing(rows: NoGuessingRow[]): NoGuessingScore {
   const asks = rows.filter((r) => r.expect === 'question');
   const questionRate =

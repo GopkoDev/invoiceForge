@@ -34,7 +34,7 @@ frontend: "react 19 + next.js 16 + shadcn/ui (base-vega) + tailwind 4"
   - `pnpm check:pdf-chunks` (after a build), `pnpm format:check`, `pnpm docs:dev|build` (VitePress over `docs/`)
 - CI: one workflow, `.github/workflows/test.yml`, on pull requests, pushes to main and manual start. It has two jobs:
   - **unit + component + contract:** audit → lint → tsc → next build → pdf-chunk check → unit tests;
-  - **integration:** manual start only (`gh workflow run test.yml --ref <branch>`), before a merge into main.
+  - **integration:** manual start only (`gh workflow run test.yml --ref <branch>`), before a merge into main. The manual start works once the workflow with `workflow_dispatch` is on main; until then, run `pnpm test:integration` locally before any merge. Not enforced by a required check.
 
   **e2e and format check do not run in CI.**
 - Hosting: Vercel (`vercel.json`, region `fra1`; daily cron `/api/cron/purge-limits`, `vercel.json:6-8`).
