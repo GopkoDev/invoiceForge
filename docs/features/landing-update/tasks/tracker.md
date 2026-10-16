@@ -13,7 +13,7 @@
 | T06 | Rewrite LandingHero around the one-sentence promise with the demo and drop the stats row | ui | Dmytro Hopko | S | T01, T02, T05 | done |
 | T07 | Build AiSection, place it right after the hero and add the #ai navigation link | ui | Dmytro Hopko | S | T01, T02 | done |
 | T08 | Override the landing route's description, openGraph and twitter metadata with the one-sentence promise | wiring | Dmytro Hopko | S | T01 | done |
-| T09 | Write the landing e2e spec: first screen, demo timing and fallbacks, no data requests, sign-in links, signed-in redirect | tests | Dmytro Hopko | M | T06, T07, T08 | todo |
+| T09 | Write the landing e2e spec: first screen, demo timing and fallbacks, no data requests, sign-in links, signed-in redirect | tests | Dmytro Hopko | M | T06, T07, T08 | done |
 | T10 | Add axe, Linux visual references of the finished demo and the 30 KB JS budget check to the landing e2e spec | tests | Dmytro Hopko | S | T02, T09 | todo |
 | T11 | Register LandingDemo, DemoDraftCard and AiSection in the design-system component inventory | docs | Dmytro Hopko | S | T03, T05, T07 | done |
 
