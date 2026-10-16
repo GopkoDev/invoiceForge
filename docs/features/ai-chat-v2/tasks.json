@@ -1,0 +1,2665 @@
+{
+  "slug": "ai-chat-v2",
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Spike and build the run-turn seam that starts a chat turn from a pinned resolution",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "An integration test with the scripted model shows runTurn started from a pinned PROPOSAL returns that proposal as its pending card without a second name match, the model's input carries the pinned result, and the approach taken (prior tool step or the documented system-note fallback) is recorded in sad.md §11.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/agent.ts",
+        "lib/ai/turn-context.ts",
+        "tests/integration/ai-chat-v2-pinned-turn.test.ts",
+        "docs/features/ai-chat-v2/sad.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t01-spike-pinned-turn-seam.md"
+    },
+    {
+      "id": "T02",
+      "title": "Promote staged migrations 01–05, apply the Prisma schema edits and extend the test factories",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-34"
+      ],
+      "dod": "The five staged pairs are promoted in order into prisma/migrations, apply, backfill and revert cleanly on a throwaway testcontainers Postgres with no Prisma drift, a second OPEN offer in one Conversation fails on the partial unique index, and prisma.user.delete leaves no ChoiceOffer row.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/migrations/01_create_choice_offer.up.sql",
+        "docs/features/ai-chat-v2/migrations/01_create_choice_offer.down.sql",
+        "docs/features/ai-chat-v2/migrations/02_add_conversation_message_origin.up.sql",
+        "docs/features/ai-chat-v2/migrations/02_add_conversation_message_origin.down.sql",
+        "docs/features/ai-chat-v2/migrations/03_backfill_conversation_message_origin.up.sql",
+        "docs/features/ai-chat-v2/migrations/03_backfill_conversation_message_origin.down.sql",
+        "docs/features/ai-chat-v2/migrations/04_add_conversation_started_from.up.sql",
+        "docs/features/ai-chat-v2/migrations/04_add_conversation_started_from.down.sql",
+        "docs/features/ai-chat-v2/migrations/05_add_invoice_issued_from_chat.up.sql",
+        "docs/features/ai-chat-v2/migrations/05_add_invoice_issued_from_chat.down.sql",
+        "prisma/migrations/",
+        "prisma/schema/ai.prisma",
+        "prisma/schema/auth.prisma",
+        "prisma/schema/invoice.prisma",
+        "tests/support/factories/choice-offer.ts",
+        "tests/support/factories/conversation.ts",
+        "tests/support/factories/invoice.ts",
+        "tests/support/db/truncate.ts",
+        "tests/integration/ai-chat-v2-migrations.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t02-promote-migrations-and-factories.md"
+    },
+    {
+      "id": "T03",
+      "title": "Move foldName into an isomorphic shared helper with one look-alike fixture set",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-03",
+        "AC-17"
+      ],
+      "dod": "foldName lives in lib/helpers/fold-name.ts with no server-only import, every caller imports it from there, and a unit test over the shared look-alike fixture set shows every Latin/Cyrillic, extra-space and case variant folds equal while distinct names stay distinct.",
+      "files_hint": [
+        "lib/helpers/fold-name.ts",
+        "lib/services/assistant-drafts/match-name.ts",
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "tests/support/fixtures/look-alike-names.ts",
+        "tests/unit/fold-name.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t03-shared-fold-name.md"
+    },
+    {
+      "id": "T04",
+      "title": "Add the offer, origin and start-point types and the CHOICE_UNAVAILABLE and ALREADY_ISSUED error details",
+      "layer": "domain",
+      "deps": [],
+      "acs": [
+        "AC-12b",
+        "AC-26"
+      ],
+      "dod": "types/result.ts and types/assistant/types.ts export the new kinds and types, every exhaustive switch over ActionErrorDetails.kind handles CHOICE_UNAVAILABLE and ALREADY_ISSUED, the fixed unavailable sentence is one exported constant, and typecheck passes.",
+      "files_hint": [
+        "types/result.ts",
+        "types/assistant/types.ts",
+        "tests/unit/action-error-details.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t04-shared-types-and-error-kinds.md"
+    },
+    {
+      "id": "T05",
+      "title": "Add the list_sender_profiles read question for the chat and MCP, and fix the stale MCP read-only comment",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "list_sender_profiles is in READ_QUESTIONS for both channels, returns each profile with its default mark and account summaries (bank name, last four, currency, default) built in the service, an integration test shows AC-01's two profiles and only the acting Freelancer's rows, and the lib/mcp/server.ts read-only comment no longer contradicts the Draft-permission tool.",
+      "files_hint": [
+        "lib/assistant-tools/sender-profiles.ts",
+        "lib/assistant-tools/index.ts",
+        "lib/services/sender-profiles/sender-profiles.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/mcp/server.ts",
+        "tests/unit/account-last-four.test.ts",
+        "tests/integration/ai-chat-v2-sender-profiles-read.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t05-sender-profiles-read.md"
+    },
+    {
+      "id": "T06",
+      "title": "Add the list_products read question with prices per currency and a Customer's Custom prices",
+      "layer": "app",
+      "deps": [
+        "T03",
+        "T05"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-05",
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "list_products answers a folded name filter with at most 20 rows plus the total, each figure exactly as stored, adds Custom prices only for a customerId owned by the acting Freelancer, and answers a foreign customerId exactly as an unknown one, proven by integration tests on both channels.",
+      "files_hint": [
+        "lib/assistant-tools/products.ts",
+        "lib/assistant-tools/index.ts",
+        "lib/services/products/products.ts",
+        "lib/ai/tools/read-tools.ts",
+        "tests/integration/ai-chat-v2-products-read.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t06-products-read.md"
+    },
+    {
+      "id": "T07",
+      "title": "Make list_customers look-alike aware with a 20-row page, and add the cross-read contract and timing tests",
+      "layer": "app",
+      "deps": [
+        "T03",
+        "T06"
+      ],
+      "acs": [
+        "AC-03",
+        "AC-05",
+        "AC-06",
+        "AC-07"
+      ],
+      "dod": "list_customers finds \"Оohn  Doe\" from \"oohn doe\" with its saved name, caps a page at 20 with pageInfo.total, a contract test walks every read question's output and finds none of the seeded full account numbers, the tool listing holds the 10 tools, and each new read answers in p95 ≤ 800 ms on the heavy fixture.",
+      "files_hint": [
+        "lib/assistant-tools/customers.ts",
+        "lib/services/customers/customers.ts",
+        "tests/contract/ai-chat-v2-read-questions.contract.test.ts",
+        "tests/integration/ai-chat-v2-customers-read.test.ts",
+        "tests/integration/ai-chat-v2-read-timing.test.ts",
+        "tests/contract/mcp-tools-list.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t07-customers-read-folded-and-read-contracts.md"
+    },
+    {
+      "id": "T08",
+      "title": "Extend the draft resolver: senderProfileId in the request and label fields on the issue candidates",
+      "layer": "domain",
+      "deps": [
+        "T03"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-10"
+      ],
+      "dod": "DraftRequest accepts senderProfileId (at most one of senderProfile and senderProfileId), Customer candidates carry email, bank-account candidates bank name, last four and currency, product candidates unit, price and currency, SENDER_PROFILE_NOT_FOUND carries profiles[], and an integration test drafts AC-04 under \"Consulting FOP\" with its UAH account marked as taken from the request.",
+      "files_hint": [
+        "lib/services/assistant-drafts/schema.ts",
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "lib/services/assistant-drafts/resolve-lines.ts",
+        "lib/services/assistant-drafts/resolve.ts",
+        "tests/integration/ai-chat-v2-resolver-delta.test.ts",
+        "tests/contract/ai-chat-v2-draft-shapes.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t08-resolver-request-and-candidate-delta.md"
+    },
+    {
+      "id": "T09",
+      "title": "Rewrite the chat instructions for the real reads and add the own-sender-profile hint on CUSTOMER_NOT_FOUND (AC-05b)",
+      "layer": "app",
+      "deps": [
+        "T07",
+        "T08"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-05b",
+        "AC-24"
+      ],
+      "dod": "The chat instructions name exactly the read questions in READ_QUESTIONS and state the sender-profile versus Customer rule, CUSTOMER_NOT_FOUND carries an ownSenderProfile hint when the folded written name equals one of the Freelancer's sender profile names, the issue text explains it in en and uk, no card, offer or add-Customer link follows, and the agent's tool set holds no issuing tool.",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts",
+        "lib/services/assistant-drafts/schema.ts",
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "lib/ai/issue-text.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "docs/features/ai-chat-v2/contracts/openapi.yaml",
+        "docs/features/ai-chat-v2/contracts/api-sync-report.md",
+        "tests/unit/chat-instructions.test.ts",
+        "tests/unit/own-profile-hint.test.ts",
+        "tests/integration/ai-chat-v2-own-profile.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t09-chat-instructions-and-own-profile-hint.md"
+    },
+    {
+      "id": "T10",
+      "title": "Build Offered choices from resolver issues and pin a chosen option into a draft request",
+      "layer": "domain",
+      "deps": [
+        "T04",
+        "T08"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-09",
+        "AC-10",
+        "AC-14"
+      ],
+      "dod": "offerFromIssues maps issues to at most one offer in the order Customer, sender profile, currency, bank account, product, returns TOO_MANY above 8 and NONE for non-offer kinds, builds labels per spec §1 with email or \"no email\" only for look-alike Customers, and pinChoice writes each kind's record into the request, all proven by unit tests.",
+      "files_hint": [
+        "lib/services/assistant-drafts/offers.ts",
+        "lib/services/assistant-drafts/pin.ts",
+        "tests/unit/offer-from-issues.test.ts",
+        "tests/unit/pin-choice.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t10-offer-builder-and-pin.md"
+    },
+    {
+      "id": "T11",
+      "title": "Store a turn's offer, message origin and start point in saveTurn, close the open offer, and return offers on reopen",
+      "layer": "infra",
+      "deps": [
+        "T02",
+        "T10"
+      ],
+      "acs": [
+        "AC-12",
+        "AC-13",
+        "AC-18"
+      ],
+      "dod": "saveTurn creates a Conversation with startedFrom on its first message, writes origin on the USER row and NULL on the reply, closes the open offer for a typed or dashboard message before inserting the turn's own OPEN offer tied to the pre-generated reply id, saves nothing but metadata for a failed turn, and getConversation and loadConversationCards return offers keyed by offerId, proven by integration tests.",
+      "files_hint": [
+        "lib/services/conversations/save-turn.ts",
+        "lib/services/conversations/conversations.ts",
+        "lib/actions/assistant-actions.ts",
+        "tests/integration/ai-chat-v2-save-turn-offers.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t11-save-turn-offers-and-reopen.md"
+    },
+    {
+      "id": "T12",
+      "title": "Check a pressed choice against the stored offer and claim or release it with the allowance slot",
+      "layer": "infra",
+      "deps": [
+        "T10",
+        "T11"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "checkChoice returns ok only for an OPEN offer of the acting Freelancer in that Conversation whose option exists and whose record still exists, is owned and still fits, claimOffer moves OPEN to CHOSEN in the same transaction as the slot reservation and returns false on a lost race, releaseOffer moves CHOSEN back to OPEN, and checkChoice writes nothing, all proven by integration tests.",
+      "files_hint": [
+        "lib/services/assistant-drafts/offers.ts",
+        "lib/services/assistant-usage/allowance.ts",
+        "tests/integration/ai-chat-v2-choice-check.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t12-choice-check-claim-release.md"
+    },
+    {
+      "id": "T13",
+      "title": "Turn propose_draft issues into the reply's offer, apply the turn's pins, and stream the data-offer part",
+      "layer": "app",
+      "deps": [
+        "T01",
+        "T10",
+        "T11"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-09",
+        "AC-14"
+      ],
+      "dod": "A drafting turn whose resolver issue is offer-able returns a pending offer built by offerFromIssues, streams one data-offer part with only its offerId after the text, a TOO_MANY issue gives the model the match count and no offer, and a re-called propose_draft inside a pinned turn keeps the pinned record, proven by integration tests with the scripted model.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/turn-context.ts",
+        "lib/ai/stream.ts",
+        "tests/integration/ai-chat-v2-offer-turn.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t13-propose-draft-offers-and-stream-part.md"
+    },
+    {
+      "id": "T14",
+      "title": "Accept choice, origin and startedFrom in the chat request and run the press path in the chat route",
+      "layer": "ports",
+      "deps": [
+        "T12",
+        "T13"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-10",
+        "AC-11",
+        "AC-12b",
+        "AC-29",
+        "AC-36"
+      ],
+      "dod": "The chat route validates the new field combinations, refuses an invalid press with the one 409 CHOICE_UNAVAILABLE body before any reservation or model call, reserves and claims a valid press in one transaction, runs the turn from the pinned resolution, saves the stored label with origin PRESSED, releases slot and claim on a system-side failure, and sets DASHBOARD origin and startedFrom only on a new Conversation, proven by integration and contract tests.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/validations/assistant-chat.ts",
+        "lib/ai/run-turn.ts",
+        "tests/integration/ai-chat-v2-press.test.ts",
+        "tests/contract/ai-chat-v2-chat-request.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t14-chat-route-press-path.md"
+    },
+    {
+      "id": "T15",
+      "title": "Prove the press safety properties: injection fixture, uniform refusals, concurrent claims, release on failure, metadata-only spans",
+      "layer": "tests",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "A stream contract test with the injection fixture shows every data-offer equals the builder's output and no option comes from text, every invalid-press cause returns a byte-identical 409 body with no slot, no model call and no state change, two concurrent presses process exactly once, a fault-injected pressed turn releases slot and claim, and the new spans carry metadata only.",
+      "files_hint": [
+        "tests/contract/ai-chat-v2-offer-stream.contract.test.ts",
+        "tests/integration/ai-chat-v2-press-safety.test.ts",
+        "tests/contract/ai-spans-metadata-only.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t15-press-safety-suite.md"
+    },
+    {
+      "id": "T16",
+      "title": "Guard updateInvoiceStatus with an optional expectedVersion and set issuedFromChat on that path",
+      "layer": "infra",
+      "deps": [
+        "T02",
+        "T04"
+      ],
+      "acs": [
+        "AC-25",
+        "AC-26",
+        "AC-26b"
+      ],
+      "dod": "updateInvoiceStatus with expectedVersion returns CONFLICT ALREADY_ISSUED for a non-draft and CONFLICT CHANGED_ELSEWHERE for any version change under the row lock before the draft rules, keeps the editor's VALIDATION messages verbatim for rule failures, writes issuedFromChat only on the chat call, leaves the row-menu caller unchanged, and two concurrent confirms issue exactly once.",
+      "files_hint": [
+        "lib/services/invoices/invoices.ts",
+        "tests/integration/ai-chat-v2-issue-status.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t16-invoice-status-expected-version.md"
+    },
+    {
+      "id": "T17",
+      "title": "Add the loadInvoicePreview and issueFromPreview server actions",
+      "layer": "ports",
+      "deps": [
+        "T16"
+      ],
+      "acs": [
+        "AC-20",
+        "AC-21",
+        "AC-22",
+        "AC-23",
+        "AC-27",
+        "AC-36"
+      ],
+      "dod": "loadInvoicePreview returns AVAILABLE with the owner-scoped serialized invoice, version and state for a created card, UNAVAILABLE for a card whose invoice was deleted, and the same NOT_FOUND words for a foreign, unknown or uncreated card, issueFromPreview validates its input and maps every service outcome per the contract, neither touches the allowance, and both refuse a request without a session.",
+      "files_hint": [
+        "lib/actions/assistant-actions.ts",
+        "lib/services/assistant-drafts/cards.ts",
+        "tests/integration/ai-chat-v2-preview-actions.test.ts",
+        "tests/contract/ai-chat-v2-preview-actions.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t17-preview-and-issue-actions.md"
+    },
+    {
+      "id": "T18",
+      "title": "List every Conversation summary and the latest three, and add the grouping and title-search helpers",
+      "layer": "app",
+      "deps": [
+        "T03",
+        "T11"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-30"
+      ],
+      "dod": "listConversationSummaries returns every owned Conversation newest first with the Freelancer time zone, listLatestConversations returns at most three, groupConversations puts last-message days into Today, Yesterday, Previous 7 days (2–7) and Older (8+) under a fixed clock and zone, and filterByTitle folds case, spaces and look-alike letters.",
+      "files_hint": [
+        "lib/services/conversations/conversations.ts",
+        "lib/helpers/conversation-groups.ts",
+        "tests/unit/conversation-groups.test.ts",
+        "tests/integration/ai-chat-v2-conversation-summaries.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t18-conversation-summaries-and-grouping.md"
+    },
+    {
+      "id": "T19",
+      "title": "Make the AI section a full-height workspace with a grouped, searchable Conversation list and phone sheets",
+      "layer": "ui",
+      "deps": [
+        "T18"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-17",
+        "AC-19",
+        "AC-36"
+      ],
+      "dod": "The AI section renders in a viewport-height shell where only the list and the messages scroll, the list shows the four groups, the folded search, the no-match text and New chat in a fixed footer, below 768 px the list opens as a left sheet that closes on a pick, the ?page links are gone, and docs/design-system.md describes the changed AiWorkspace and ConversationList.",
+      "files_hint": [
+        "app/(protected)/ai/layout.tsx",
+        "app/(protected)/ai/page.tsx",
+        "app/(protected)/ai/[conversationId]/page.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "docs/design-system.md",
+        "tests/component/ai-workspace-t44.test.tsx",
+        "tests/component/ai-conversation-list.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t19-full-height-workspace-and-list.md"
+    },
+    {
+      "id": "T20",
+      "title": "Redesign the empty Conversation start with suggested requests and the composer move, and send the start point",
+      "layer": "ui",
+      "deps": [
+        "T14",
+        "T19"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30"
+      ],
+      "dod": "A new Conversation shows a centred greeting, the composer and at least four fixed suggested requests that only fill the box, the first send moves the composer down with a transition that reduced motion removes, the island sends startedFrom from the address (from=invoices, from=dashboard, unknown or missing values mapped per contract), the invoice list's Create with AI link carries from=invoices, and the used-up drafting start shows the hand-made link.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "components/ai/start-panel.tsx",
+        "components/ai/composer.tsx",
+        "app/(protected)/ai/page.tsx",
+        "config/routes.config.ts",
+        "app/(protected)/invoices/layout.tsx",
+        "docs/design-system.md",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/unit/start-point-from-address.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t20-empty-state-and-start-points.md"
+    },
+    {
+      "id": "T21",
+      "title": "Follow new text within 48 px with a jump-to-latest control, and pin the word-by-word streaming",
+      "layer": "ui",
+      "deps": [
+        "T20"
+      ],
+      "acs": [
+        "AC-16",
+        "AC-33"
+      ],
+      "dod": "A follow-to-latest hook treats an end no more than 48 px out of view as at the bottom, keeps the newest text in view within 100 ms of each delta there, makes no position change when scrolled further up and shows a jump-to-latest control, a component test shows streamed text growing word by word with the first word unpaced, and a reopened reply renders whole.",
+      "files_hint": [
+        "components/ai/use-follow-latest.ts",
+        "components/ai/message-list.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/unit/follow-latest.test.ts",
+        "tests/component/ai-follow-latest.test.tsx",
+        "tests/component/ai-streamed-text.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t21-follow-latest-and-streamed-reply.md"
+    },
+    {
+      "id": "T22",
+      "title": "Render Offered choices under a reply and send a press from the chat island",
+      "layer": "ui",
+      "deps": [
+        "T14",
+        "T21"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "OfferedChoices renders an OfferView's stored labels verbatim in a kind-labelled group with skeleton, pressable, pressing, chosen and inactive states, a press sends { offerId, optionId } with the label as an optimistic message, 409 and 429 put the buttons back to pressable with nothing marked and show the fixed sentence or the used-up notice, and the component is registered in docs/design-system.md.",
+      "files_hint": [
+        "components/ai/offered-choices.tsx",
+        "components/ai/chat-island.tsx",
+        "components/ai/message-list.tsx",
+        "docs/design-system.md",
+        "tests/component/offered-choices.test.tsx",
+        "tests/component/ai-chat-island.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t22-offered-choices-ui.md"
+    },
+    {
+      "id": "T23",
+      "title": "Add the workspace invoice-state store and the Draft card Preview button",
+      "layer": "ui",
+      "deps": [
+        "T17",
+        "T22"
+      ],
+      "acs": [
+        "AC-21",
+        "AC-23"
+      ],
+      "dod": "One InvoiceStateProvider seeded from the page load is applied by createDraftFromCard, loadInvoicePreview and issueFromPreview results, the created Draft card shows Preview and \"Open in editor\" and reads its status from the store, ChatLink reads the same store, and a component test shows the card, links and panel agree after an issue or an unavailable result.",
+      "files_hint": [
+        "components/ai/invoice-state-context.tsx",
+        "components/ai/draft-card.tsx",
+        "components/ai/chat-link.tsx",
+        "components/ai/chat-island.tsx",
+        "docs/design-system.md",
+        "tests/component/invoice-state-store.test.tsx",
+        "tests/component/chat-link.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t23-invoice-state-store-and-card-preview.md"
+    },
+    {
+      "id": "T24",
+      "title": "Build the invoice preview panel and the issue confirmation for desktop and phone",
+      "layer": "ui",
+      "deps": [
+        "T23"
+      ],
+      "acs": [
+        "AC-19",
+        "AC-20",
+        "AC-21",
+        "AC-22",
+        "AC-23",
+        "AC-25",
+        "AC-26",
+        "AC-26b",
+        "AC-27"
+      ],
+      "dod": "?preview={cardId} opens InvoicePreviewPanel beside the messages from 768 px and as a full-screen sheet below, it renders every SCR-06 state from loadInvoicePreview and issueFromPreview results with the contract texts verbatim, the IssueConfirmation body names Customer, total, currency and the fixed sentence from the loaded preview, an outdated result reloads and needs a new confirmation, and both components are registered in docs/design-system.md.",
+      "files_hint": [
+        "components/ai/invoice-preview-panel.tsx",
+        "components/ai/issue-confirmation.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/chat-island.tsx",
+        "docs/design-system.md",
+        "tests/component/invoice-preview-panel.test.tsx",
+        "tests/component/issue-confirmation.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t24-invoice-preview-panel-and-issue-dialog.md"
+    },
+    {
+      "id": "T25",
+      "title": "Replace the single AI navigation item with an \"AI\" group holding AI chat and Connect your AI",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-28"
+      ],
+      "dod": "The navigation config holds an \"AI\" group between the main section and Management with \"AI chat\" (/ai) and \"Connect your AI\" (/settings/assistants), the single AI item is gone, the sidebar renders it like Management and marks the current path's item active.",
+      "files_hint": [
+        "config/navigation-menu.config.ts",
+        "components/layout/app-sidebar.tsx",
+        "tests/unit/navigation-ai-group.test.ts",
+        "tests/component/app-sidebar-ai-group.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t25-navigation-ai-group.md"
+    },
+    {
+      "id": "T26",
+      "title": "Add the dashboard AI block with the prompt box hand-off, the latest Conversations and Create invoice with AI",
+      "layer": "ui",
+      "deps": [
+        "T18",
+        "T22"
+      ],
+      "acs": [
+        "AC-29",
+        "AC-30",
+        "AC-31",
+        "AC-32",
+        "AC-36"
+      ],
+      "dod": "The dashboard shows the AI block with up to three latest Conversation links, All conversations, the prompt box validated by the chat message rule, and a Create invoice with AI link before Create Invoice, a valid prompt is stored under a one-time sessionStorage hand-off id and opens /ai?handoff={id}, the island takes and deletes the entry exactly once and sends it with origin DASHBOARD and startedFrom DASHBOARD_PROMPT, and the used-up state offers the hand-made link and sends nothing.",
+      "files_hint": [
+        "components/dashboard/ai-block.tsx",
+        "app/(protected)/dashboard/_sections.tsx",
+        "components/dashboard/header/dashboard-header.tsx",
+        "components/dashboard/index.ts",
+        "components/ai/ai-handoff.ts",
+        "components/ai/chat-island.tsx",
+        "app/(protected)/ai/page.tsx",
+        "docs/design-system.md",
+        "tests/component/dashboard-ai-block.test.tsx",
+        "tests/component/ai-handoff.test.tsx",
+        "tests/integration/ai-chat-v2-dashboard.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t26-dashboard-ai-block-and-handoff.md"
+    },
+    {
+      "id": "T27",
+      "title": "Cover offers, chosen options, message origins and start points in the data export and account deletion",
+      "layer": "app",
+      "deps": [
+        "T11"
+      ],
+      "acs": [
+        "AC-34"
+      ],
+      "dod": "The export is version 2.3 and holds every Conversation's startedFrom, each message's origin and each reply's offer with its labels, state and chosen option (no record references, no stored request), invoices carry issuedFromChat, and account deletion leaves no ChoiceOffer, message or Conversation row.",
+      "files_hint": [
+        "lib/services/account/account.ts",
+        "tests/integration/ai-chat-v2-export.test.ts",
+        "tests/contract/ai-chat-v2-export.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t27-export-and-account-deletion.md"
+    },
+    {
+      "id": "T28",
+      "title": "Update the privacy page AI section for what the chat stores and shares, and check the terms page",
+      "layer": "docs",
+      "deps": [],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "The privacy page's AI section states what is stored, the 90-day retention, the model provider through its gateway as the processor, and that reads share bank name, last four digits and currency but never a full account number, a component test asserts those statements, the terms page is checked against the chat, and the wording is flagged for the owner's review before ship.",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "tests/component/privacy-ai-section.test.tsx",
+        "docs/features/ai-chat-v2/spec.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t28-privacy-page-ai-section.md"
+    },
+    {
+      "id": "T29",
+      "title": "Extend the evaluation harness with explains and press fields, the own-profile-name setup and this feature's fixtures",
+      "layer": "tests",
+      "deps": [
+        "T09",
+        "T14"
+      ],
+      "acs": [
+        "AC-05",
+        "AC-05b",
+        "AC-10",
+        "AC-24"
+      ],
+      "dod": "The dataset type accepts optional explains and press fields and the own-profile-name setup, the harness replays a press through the route's press path, the scorer applies the own-sender-profile rule and the no-status-change check, the AC-05b, AC-05, AC-24 and pressed-record rows are in no-guessing.jsonl, and a dry run validates every row against the schema.",
+      "files_hint": [
+        "evals/assistant/dataset.ts",
+        "evals/assistant/run.ts",
+        "evals/assistant/score.ts",
+        "evals/assistant/no-guessing.jsonl",
+        "evals/assistant/README.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t29-eval-harness-extension.md"
+    },
+    {
+      "id": "T30",
+      "title": "Add e2e-through-UI tests for presses, reopen, full-height layout, empty start, phone sheets and streaming",
+      "layer": "tests",
+      "deps": [
+        "T19",
+        "T21",
+        "T22"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-13",
+        "AC-15",
+        "AC-18",
+        "AC-19",
+        "AC-33"
+      ],
+      "dod": "Playwright tests against a throwaway database with the scripted model show a Customer press ending in the right card, a reopened Conversation with the chosen option marked, zero page scroll with the composer in view at 360×640, 768×1024, 1440×900 and 2560×1440, the empty-state first send, the phone list sheet, and at least three samples of growing streamed text, with approved Linux visual baselines for SCR-02 and SCR-03/SCR-04.",
+      "files_hint": [
+        "tests/e2e/ai-chat-v2-chat.spec.ts",
+        "tests/e2e/ai-chat-v2-chat.spec.ts-snapshots/",
+        "lib/ai/e2e-stub-model.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t30-e2e-chat-flows.md"
+    },
+    {
+      "id": "T31",
+      "title": "Add e2e tests for preview and issue (two tabs), navigation, dashboard prompt, privacy, MCP reads and accessibility",
+      "layer": "tests",
+      "deps": [
+        "T07",
+        "T24",
+        "T25",
+        "T26",
+        "T28",
+        "T30"
+      ],
+      "acs": [
+        "AC-06",
+        "AC-20",
+        "AC-23",
+        "AC-26",
+        "AC-26b",
+        "AC-28",
+        "AC-29",
+        "AC-30",
+        "AC-35",
+        "AC-36"
+      ],
+      "dod": "Playwright and outside-caller tests show the preview opens beside the messages within 1.5 s, issuing updates panel, card and links, the two-tab already-issued and outdated cases behave per spec, both AI navigation items open and show active, the dashboard prompt sends once and Create invoice with AI opens a drafting Conversation, the privacy page loads anonymously, a read-only key reads the three new tools with no full account number, anonymous AI addresses redirect to sign-in, and the accessibility pass finds no serious or critical violation.",
+      "files_hint": [
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts-snapshots/",
+        "tests/e2e/accessibility.spec.ts",
+        "tests/e2e/mcp-key-flows.spec.ts",
+        "tests/e2e/route-sweep.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t31-e2e-preview-dashboard-nav-a11y.md"
+    },
+    {
+      "id": "T32",
+      "title": "Product candidates follow the drafting currency when only the Customer fails (review R14-1)",
+      "layer": "app",
+      "deps": [
+        "T08",
+        "T12"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "With a Customer not saved yet and no written currency, the resolver gives resolveLines the currency the request drafts in (the one resolveSenderAndAccount chose), so no product in another currency is a candidate and a lone same-currency match needs no choice; the press check and the resolver share one drafting-currency source; an integration test written first proves it; unit, integration, lint and typecheck are green.",
+      "files_hint": [
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "lib/services/assistant-drafts/resolve.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "tests/integration/ai-chat-v2-resolver-delta.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t32-drafting-currency-on-customer-not-found.md"
+    },
+    {
+      "id": "T33",
+      "title": "Port the Conversation, Message and Loader elements from Vercel AI Elements onto Base UI, with the licence files",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-16",
+        "AC-33"
+      ],
+      "dod": "components/ai-elements/conversation.tsx, message.tsx and loader.tsx export the ADR-0010 anatomy built only on components/ui and @base-ui/react (no Radix, no new package), Conversation is driven by useFollowLatest (48 px) and MessageResponse renders plain text, each file carries the Apache-2.0 attribution header, LICENSE and NOTICE exist, and component tests written first prove follow/jump, alignment by role, plain text and the reduced-motion loader.",
+      "files_hint": [
+        "components/ai-elements/conversation.tsx",
+        "components/ai-elements/message.tsx",
+        "components/ai-elements/loader.tsx",
+        "components/ai-elements/LICENSE",
+        "components/ai-elements/NOTICE",
+        "tests/component/ai-elements-conversation-message.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t33-port-conversation-and-message-elements.md"
+    },
+    {
+      "id": "T34",
+      "title": "Port the PromptInput and Suggestion elements onto Base UI",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-18",
+        "AC-31"
+      ],
+      "dod": "components/ai-elements/prompt-input.tsx and suggestion.tsx export the ADR-0010 anatomy on InputGroup, Textarea and Button with the attribution header, PromptInputSubmit reflects ready/submitted/streaming/error, Enter submits and Shift+Enter adds a line, a Suggestion only reports its text, and component tests written first prove each.",
+      "files_hint": [
+        "components/ai-elements/prompt-input.tsx",
+        "components/ai-elements/suggestion.tsx",
+        "tests/component/ai-elements-prompt-input.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t34-port-prompt-input-and-suggestion-elements.md"
+    },
+    {
+      "id": "T35",
+      "title": "Rebuild the workspace as a bordered container and the Conversation list as plain rows with a row menu for delete",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-15",
+        "AC-17",
+        "AC-19"
+      ],
+      "dod": "At md and wider the AI section is one rounded bordered container in the content area with zero page scroll, the list pane shows the search row with the actions menu, small muted group labels, plain one-line truncated rows with no visible delete icon, a row ⋯ menu leading to the unchanged delete dialog, and New chat full width at the bottom, every SCR-01 state still renders, and the updated component tests pass.",
+      "files_hint": [
+        "app/(protected)/ai/layout.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "tests/component/ai-conversation-list.test.tsx",
+        "tests/component/ai-delete-conversations.test.tsx",
+        "tests/component/ai-workspace-t44.test.tsx",
+        "tests/component/ai-layout-reuse-t40.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t35-workspace-container-and-conversation-list.md"
+    },
+    {
+      "id": "T36",
+      "title": "Rebuild the message list and chat pane on the elements: centred column, bubbles, avatar, errors as assistant messages with Try again",
+      "layer": "ui",
+      "deps": [
+        "T33",
+        "T35"
+      ],
+      "acs": [
+        "AC-12b",
+        "AC-15",
+        "AC-16",
+        "AC-33"
+      ],
+      "dod": "SCR-03 renders through Conversation and Message in a centred max-w-3xl column with the composer docked at the same width, user messages as right-aligned secondary bubbles, assistant replies with the avatar and plain text, waiting with Loader, the scroll button from useFollowLatest, could-not-complete and ai-unavailable as an assistant message with an inline destructive alert and a Try again action that re-sends the same text or choice, choice unavailable and conversation gone as assistant messages, no empty header bar on /ai at md and wider, and the existing chat component tests stay green.",
+      "files_hint": [
+        "components/ai/message-list.tsx",
+        "components/ai/chat-island.tsx",
+        "components/ai/conversation-header.tsx",
+        "components/ai/conversation-header-client.tsx",
+        "tests/component/ai-conversation-page.test.tsx",
+        "tests/component/ai-chat-island.test.tsx",
+        "tests/component/ai-follow-latest.test.tsx",
+        "tests/component/ai-streamed-text.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t36-message-list-and-chat-pane-on-elements.md"
+    },
+    {
+      "id": "T37",
+      "title": "Rebuild the empty state with the time-of-day greeting, the PromptInput composer and suggestion chips",
+      "layer": "ui",
+      "deps": [
+        "T34",
+        "T36"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30",
+        "AC-31"
+      ],
+      "dod": "/ai shows the two-line greeting computed on the server in the Freelancer time zone with the first name and the accent span, a centred PromptInput card with the counter and round send button, and the four Suggestion chips that only fill the box; start=draft, used-up, handoff and the composer move with its reduced-motion variant behave as before; Composer keeps its validation on PromptInput; a unit test pins the greeting rule and the start-panel and handoff component tests stay green.",
+      "files_hint": [
+        "components/ai/start-panel.tsx",
+        "components/ai/composer.tsx",
+        "components/ai/chat-island.tsx",
+        "app/(protected)/ai/page.tsx",
+        "lib/helpers/greeting.ts",
+        "app/globals.css",
+        "tests/unit/greeting.test.ts",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/component/ai-handoff.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t37-empty-state-greeting-and-prompt-input-composer.md"
+    },
+    {
+      "id": "T38",
+      "title": "Align Offered choices, the Draft card and the preview panel with the message layout",
+      "layer": "ui",
+      "deps": [
+        "T36"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-20"
+      ],
+      "dod": "Offered choices render as rounded-full chips inside the assistant MessageContent, the Draft card spans the centred column with the container border colour, the preview panel at md and wider is the right-most pane with an h-12 header aligned with the chat header and no own outer border, every SCR-04/05/06 state and label is unchanged, and the offered-choices, draft-card and preview-panel component tests stay green.",
+      "files_hint": [
+        "components/ai/offered-choices.tsx",
+        "components/ai/draft-card.tsx",
+        "components/ai/invoice-preview-panel.tsx",
+        "tests/component/offered-choices.test.tsx",
+        "tests/component/draft-card.test.tsx",
+        "tests/component/invoice-preview-panel.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t38-offered-choices-card-and-preview-visual-alignment.md"
+    },
+    {
+      "id": "T39",
+      "title": "Build the dashboard AI block prompt box on the PromptInput element",
+      "layer": "ui",
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-30",
+        "AC-31"
+      ],
+      "dod": "The dashboard prompt box is a PromptInput card with the counter in its footer and a round submit labelled \"Send to AI\", empty and too-long prompts show the same verbatim FieldError and create nothing, a valid prompt hands off exactly as before, and dashboard-ai-block component tests stay green.",
+      "files_hint": [
+        "components/dashboard/ai-block.tsx",
+        "tests/component/dashboard-ai-block.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t39-dashboard-ai-block-on-prompt-input.md"
+    },
+    {
+      "id": "T40",
+      "title": "Register the AI elements and the changed AI components in the design system",
+      "layer": "docs",
+      "deps": [
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "docs/design-system.md lists Conversation, Message, PromptInput, Suggestion and Loader from components/ai-elements with their contracts, Base UI basis and the ADR-0010 deviations and licence note, updates the AiWorkspace, ConversationList, ChatIsland, Composer, StartPanel, OfferedChoices, DraftCard, InvoicePreviewPanel and DashboardAiBlock rows to the new presentation, and screens.md §New components marks each element registered.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/ai-chat-v2/screens.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t40-register-ai-elements-in-design-system.md"
+    },
+    {
+      "id": "T41",
+      "title": "Update e2e selectors, add layout checks for the new presentation and retake the Linux visual baselines",
+      "layer": "tests",
+      "deps": [
+        "T35",
+        "T36",
+        "T37",
+        "T38",
+        "T39"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18",
+        "AC-19",
+        "AC-20",
+        "AC-30",
+        "AC-33"
+      ],
+      "dod": "All AI e2e specs pass locally against the new presentation with selectors updated only where markup changed, new checks prove the centred column is at most 768 px wide at 1440x900, no delete button is visible without hover, and the could-not-complete state shows Try again inside an assistant message, the accessibility scan has no serious or critical violation, and the eight AI Linux baselines are retaken with every diff inspected and recorded.",
+      "files_hint": [
+        "tests/e2e/ai-chat-v2-chat.spec.ts",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts",
+        "tests/e2e/ai-assistant-flows.spec.ts",
+        "tests/e2e/ai-assistant.spec.ts",
+        "tests/e2e/ai-chat-v2-chat.spec.ts-snapshots/",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts-snapshots/",
+        "tests/e2e/ai-assistant-flows.spec.ts-snapshots/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t41-e2e-selectors-and-linux-baselines-retake.md"
+    },
+    {
+      "id": "T42",
+      "title": "Redraw the Conversation page loading skeleton inside the workspace container (review R16-1)",
+      "layer": "ui",
+      "deps": [
+        "T35"
+      ],
+      "acs": [
+        "AC-15"
+      ],
+      "dod": "app/(protected)/ai/[conversationId]/loading.tsx renders the same bordered rounded 16rem workspace container and list-pane skeleton as /ai/loading.tsx, plus an h-12 header skeleton, message skeletons in a centred max-w-3xl column and a rounded-2xl composer skeleton; a component test written first proves it.",
+      "files_hint": [
+        "app/(protected)/ai/[conversationId]/loading.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "tests/component/ai-conversation-page.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t42-conversation-loading-skeleton-container.md"
+    },
+    {
+      "id": "T43",
+      "title": "Jump to latest shows its label on focus and keeps focus; the follow hook lives with the elements (review R16-2, R16-8)",
+      "layer": "ui",
+      "deps": [
+        "T33"
+      ],
+      "acs": [
+        "AC-16"
+      ],
+      "dod": "ConversationScrollButton has a text label that becomes visible on keyboard focus, and after a jump focus moves to a sensible target instead of body; use-follow-latest lives in components/ai-elements (components/ai re-exports or imports from there) so no element imports from components/ai; the inner column carries data-slot=\"conversation-column\"; component tests written first prove label-on-focus and focus retention.",
+      "files_hint": [
+        "components/ai-elements/conversation.tsx",
+        "components/ai-elements/use-follow-latest.ts",
+        "components/ai/use-follow-latest.ts",
+        "tests/component/ai-elements-conversation-message.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t43-jump-to-latest-focus-label-and-hook-layering.md"
+    },
+    {
+      "id": "T44",
+      "title": "PromptInput on InputGroup, IME-safe Enter in Safari, and a decorative spinner in the submit (review R16-5, R16-6, R16-7)",
+      "layer": "ui",
+      "deps": [
+        "T34"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-33"
+      ],
+      "dod": "PromptInput's card is the InputGroup primitive (no hand-copied border, ring or invalid classes); an Enter keydown with keyCode 229 (Safari, after compositionend) does not submit; PromptInputSubmit's busy state is a decorative aria-hidden spinner with no role=status and no div inside the button, so only the chat's own status announces a waiting reply; component tests written first prove each.",
+      "files_hint": [
+        "components/ai-elements/prompt-input.tsx",
+        "components/ai-elements/loader.tsx",
+        "tests/component/ai-elements-prompt-input.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t44-prompt-input-input-group-ime-and-submit-spinner.md"
+    },
+    {
+      "id": "T45",
+      "title": "Start panel: used-up from Create with AI keeps the default heading, chips wrap on phones, greeting slot, one session read (review R16-3, R16-9, R16-10)",
+      "layer": "ui",
+      "deps": [
+        "T37"
+      ],
+      "acs": [
+        "AC-18",
+        "AC-30"
+      ],
+      "dod": "With start=draft and left=0 the start panel shows the default line 2 and no draft sub-line (test asserts heading and absence of sub-line); Suggestion chips may wrap their text (no whitespace-nowrap overflow at 360 px); the greeting line carries data-slot=\"greeting-line\"; the /ai page reads the account name without an extra auth() call per render; tests written first.",
+      "files_hint": [
+        "components/ai/start-panel.tsx",
+        "components/ai-elements/suggestion.tsx",
+        "lib/helpers/account-name.ts",
+        "app/(protected)/ai/page.tsx",
+        "tests/component/ai-start-panel.test.tsx",
+        "tests/component/ai-elements-prompt-input.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t45-start-panel-used-up-draft-chips-wrap-session-read.md"
+    },
+    {
+      "id": "T46",
+      "title": "E2E: dark-theme greeting contrast check, phone-width start panel overflow check, data-slot selectors (review R16-4, R16-10, R16-11)",
+      "layer": "tests",
+      "deps": [
+        "T43",
+        "T45"
+      ],
+      "acs": [
+        "AC-15",
+        "AC-18"
+      ],
+      "dod": "accessibility.spec runs the empty-state axe scan in the dark theme too, and the greeting accent's contrast is asserted by computing the token colours (axe reports gradient text as incomplete); a 360x640 check asserts the start panel has no horizontal overflow; the centred-column and greeting-mask selectors use data-slot instead of DOM nesting; affected e2e specs pass.",
+      "files_hint": [
+        "tests/e2e/accessibility.spec.ts",
+        "tests/e2e/ai-chat-v2-chat.spec.ts",
+        "tests/e2e/ai-assistant-flows.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t46-e2e-dark-contrast-phone-overflow-data-slot-selectors.md"
+    },
+    {
+      "id": "T47",
+      "title": "The conversation scroll area stays a keyboard stop with a visible focus ring (review R17-1)",
+      "layer": "ui",
+      "deps": [
+        "T43"
+      ],
+      "acs": [
+        "AC-16"
+      ],
+      "dod": "ConversationContent's scroll area is tabIndex 0, named (role region, aria-label Messages) and shows a focus-visible ring instead of outline-none; a keyboard jump still moves focus to it; component tests written first.",
+      "files_hint": [
+        "components/ai-elements/conversation.tsx",
+        "tests/component/ai-elements-conversation-message.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t47-scroll-area-keyboard-stop-and-focus-ring.md"
+    },
+    {
+      "id": "T48",
+      "title": "One-line suggestion chips keep 32 px; NOTICE records the T44/T45 changes (review R17-2, R17-3)",
+      "layer": "ui",
+      "deps": [
+        "T45"
+      ],
+      "acs": [
+        "AC-18"
+      ],
+      "dod": "A one-line Suggestion chip is 32 px tall again (py-1 with min-h-8), wrapped chips still grow; components/ai-elements/NOTICE lists the InputGroup card, the decorative submit spinner and chip text wrapping; Linux baselines checked.",
+      "files_hint": [
+        "components/ai-elements/suggestion.tsx",
+        "components/ai-elements/NOTICE",
+        "tests/component/ai-elements-prompt-input.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t48-chip-height-and-notice.md"
+    },
+    {
+      "id": "T49",
+      "title": "Record the scroll area's labelled region and Tab stop in screens.md, the NOTICE and the element header (review R18-1)",
+      "layer": "docs",
+      "deps": [
+        "T47"
+      ],
+      "acs": [
+        "AC-16"
+      ],
+      "dod": "screens.md SCR-03 says the scroll area is a Tab stop (tabIndex 0, role region, aria-label Messages) with an inset focus-visible ring and that a keyboard Jump to latest moves focus to it; components/ai-elements/NOTICE and the conversation.tsx header record the labelled region and Tab stop as the replacement for role=log.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/screens.md",
+        "components/ai-elements/NOTICE",
+        "components/ai-elements/conversation.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t49-record-messages-region.md"
+    },
+    {
+      "id": "T50",
+      "title": "Promote staged migrations 06–08, apply the Prisma schema edits for the Question form and extend the factories",
+      "layer": "migration",
+      "deps": [],
+      "acs": [
+        "AC-13",
+        "AC-34"
+      ],
+      "dod": "migrations apply, backfill and revert cleanly on a throwaway Postgres; no command against `.env` / `.env.prod`; existing ChoiceOffer integration tests stay green; typecheck green after `prisma generate`; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/migrations/06_add_form_enum_values.up.sql",
+        "docs/features/ai-chat-v2/migrations/07_add_choice_offer_form_columns.up.sql",
+        "docs/features/ai-chat-v2/migrations/08_backfill_choice_offer_questions.up.sql",
+        "prisma/schema/ai.prisma",
+        "prisma/migrations/",
+        "tests/support/factories/choice-offer.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t50-promote-staged-migrations-06-08-apply-the.md"
+    },
+    {
+      "id": "T51",
+      "title": "Add the Question form types and zod schemas, swap choice for form in the chat request, and read legacy offers as one-question forms",
+      "layer": "domain",
+      "deps": [
+        "T50"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "unit tests for the schemas and the legacy mapping pass; the rewritten request-schema tests pass; typecheck, lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "types/assistant/types.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "lib/validations/assistant-chat.ts",
+        "lib/services/conversations/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t51-add-the-question-form-types-and-zod.md"
+    },
+    {
+      "id": "T52",
+      "title": "Build the form from resolver issues and compose one form per reply (order, cap 6, dedupe, input-only above 8, date options)",
+      "layer": "domain",
+      "deps": [
+        "T51"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-14",
+        "AC-39",
+        "AC-41"
+      ],
+      "dod": "unit tests pass, including the 9-question ordering and the date options with a fixed clock in Europe/Kyiv; the old `offerFromIssues` unit tests are rewritten for questions (not deleted); lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/unit/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t52-build-the-form-from-resolver-issues-and.md"
+    },
+    {
+      "id": "T53",
+      "title": "Check typed answers per kind, pin answers into a stored draft request, and compose the answer message",
+      "layer": "domain",
+      "deps": [
+        "T51"
+      ],
+      "acs": [
+        "AC-10",
+        "AC-38",
+        "AC-39"
+      ],
+      "dod": "unit tests pass for every kind and the pin of every field; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/form-pin.ts",
+        "lib/validations/form-answers.ts",
+        "tests/unit/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t53-check-typed-answers-per-kind-pin-answers.md"
+    },
+    {
+      "id": "T54",
+      "title": "Add the chat-only ask_user tool that checks every named record owner-scoped and by kind and builds the labels",
+      "layer": "app",
+      "deps": [
+        "T52"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-37"
+      ],
+      "dod": "integration tests pass on a throwaway database with the scripted model; MCP listing contract test unchanged; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/tools/ask-user.ts",
+        "lib/ai/agent.ts",
+        "lib/services/assistant-drafts/forms.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t54-add-the-chat-only-ask-user-tool.md"
+    },
+    {
+      "id": "T55",
+      "title": "Compose the turn's one form, stream it, store it in saveTurn and return FormView on reopen",
+      "layer": "app",
+      "deps": [
+        "T52",
+        "T54"
+      ],
+      "acs": [
+        "AC-08b",
+        "AC-12",
+        "AC-13",
+        "AC-37",
+        "AC-41"
+      ],
+      "dod": "integration tests (scripted model) pass for each edge; rewritten T11/T13 tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/turn-context.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/conversations/",
+        "lib/actions/assistant-actions.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t55-compose-the-turn-s-one-form-stream.md"
+    },
+    {
+      "id": "T56",
+      "title": "Check a sent form before any count and claim or release it with the allowance slot",
+      "layer": "infra",
+      "deps": [
+        "T53",
+        "T55"
+      ],
+      "acs": [
+        "AC-11",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "integration tests pass; the T12 claim/release tests are rewritten for forms; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-usage/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t56-check-a-sent-form-before-any-count.md"
+    },
+    {
+      "id": "T57",
+      "title": "Run the form path in the chat route: refuse before counting, compose the message, pin and resolve in code, origin FORM",
+      "layer": "ports",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12b",
+        "AC-38"
+      ],
+      "dod": "route integration tests with the scripted model pass (call counts asserted); rewritten T14 tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/ai/run-turn.ts",
+        "lib/services/conversations/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t57-run-the-form-path-in-the-chat.md"
+    },
+    {
+      "id": "T58",
+      "title": "Prove the form safety properties: injection and forged-id fixtures, uniform refusals, concurrent sends, release, spans",
+      "layer": "tests",
+      "deps": [
+        "T57"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-11",
+        "AC-12b"
+      ],
+      "dod": "suite green on a throwaway database; no T15 test deleted without its rewritten counterpart; lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "tests/integration/",
+        "tests/contract/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t58-prove-the-form-safety-properties-injection-and.md"
+    },
+    {
+      "id": "T59",
+      "title": "Build the QuestionForm component with every SCR-04 revision state",
+      "layer": "ui",
+      "deps": [
+        "T51",
+        "T53"
+      ],
+      "acs": [
+        "AC-08b",
+        "AC-12",
+        "AC-13",
+        "AC-38",
+        "AC-40"
+      ],
+      "dod": "component tests pass for every state; a11y: radiogroup arrow keys, `aria-invalid`, `aria-describedby`; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "tests/component/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t59-build-the-questionform-component-with-every-scr.md"
+    },
+    {
+      "id": "T60",
+      "title": "Wire QuestionForm into the chat island, send forms, remove OfferedChoices",
+      "layer": "ui",
+      "deps": [
+        "T57",
+        "T59"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-12",
+        "AC-40"
+      ],
+      "dod": "component + island tests pass; existing chat-island tests stay green; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "components/ai/message-list.tsx",
+        "components/ai/offered-choices.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t60-wire-questionform-into-the-chat-island-send.md"
+    },
+    {
+      "id": "T61",
+      "title": "Cover forms, answers and origin FORM in the data export, account deletion and the privacy page",
+      "layer": "app",
+      "deps": [
+        "T55"
+      ],
+      "acs": [
+        "AC-34",
+        "AC-35"
+      ],
+      "dod": "tests pass; owner reviews the privacy wording before ship (as D-7); existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/account/",
+        "constants/public-pages-content.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t61-cover-forms-answers-and-origin-form-in.md"
+    },
+    {
+      "id": "T62",
+      "title": "Render replies as safe Markdown with react-markdown 10.1.0 and remark-gfm 4.0.1 and an in-app link allowlist",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-42",
+        "AC-43",
+        "AC-44"
+      ],
+      "dod": "unit + component tests pass; bundle delta measured ≤ 60 kB gzip and noted in the commit; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "package.json",
+        "components/ai-elements/message.tsx",
+        "lib/ai/in-app-links.ts",
+        "components/ai-elements/NOTICE",
+        "tests/component/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t62-render-replies-as-safe-markdown-with-react.md"
+    },
+    {
+      "id": "T63",
+      "title": "Tell the model today and the time zone, and rewrite the chat instructions and router wording for forms, search-first and links",
+      "layer": "app",
+      "deps": [
+        "T54",
+        "T64"
+      ],
+      "acs": [
+        "AC-45",
+        "AC-46",
+        "AC-47",
+        "AC-48"
+      ],
+      "dod": "unit tests pass; existing AC-24 / AC-05b tests stay green; lint green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/instructions/chat.ts",
+        "lib/ai/router.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t63-tell-the-model-today-and-the-time.md"
+    },
+    {
+      "id": "T64",
+      "title": "Add created-date filters, a created-date sort and in-app paths to search_invoices on both channels",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-48",
+        "AC-49"
+      ],
+      "dod": "integration + contract tests pass; existing search tests unchanged and green; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "lib/services/invoices/assistant-search.ts",
+        "lib/assistant-tools/search.ts",
+        "tests/integration/",
+        "tests/contract/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t64-add-created-date-filters-a-created-date.md"
+    },
+    {
+      "id": "T65",
+      "title": "Extend the evaluation harness with form, card-or-form, link and date checks and the owner-feedback rows",
+      "layer": "tests",
+      "deps": [
+        "T60",
+        "T63",
+        "T64"
+      ],
+      "acs": [
+        "AC-37",
+        "AC-45",
+        "AC-46",
+        "AC-47",
+        "AC-48",
+        "AC-49"
+      ],
+      "dod": "harness unit tests pass; one local run recorded in the commit message (owner gate before ship); existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "evals/assistant/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t65-extend-the-evaluation-harness-with-form-card.md"
+    },
+    {
+      "id": "T66",
+      "title": "Keep the Conversation list mounted in the AI layout and update it from chat events",
+      "layer": "ui",
+      "deps": [],
+      "acs": [
+        "AC-17",
+        "AC-52"
+      ],
+      "dod": "component tests pass; existing AI e2e specs pass locally unchanged (docker info checked, machine kept awake); lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "app/(protected)/ai/layout.tsx",
+        "app/(protected)/ai/page.tsx",
+        "app/(protected)/ai/[conversationId]/page.tsx",
+        "components/ai/ai-workspace.tsx",
+        "components/ai/conversation-list-context.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/chat-island.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t66-keep-the-conversation-list-mounted-in-the.md"
+    },
+    {
+      "id": "T67",
+      "title": "Align the list top row with the chat header, size every skeleton to its content, and level the avatar with the first line",
+      "layer": "ui",
+      "deps": [
+        "T66"
+      ],
+      "acs": [
+        "AC-50",
+        "AC-51",
+        "AC-53"
+      ],
+      "dod": "component tests pass; lint, typecheck green; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/conversation-header.tsx",
+        "app/(protected)/ai/loading.tsx",
+        "app/(protected)/ai/[conversationId]/loading.tsx",
+        "components/ai-elements/message.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t67-align-the-list-top-row-with-the.md"
+    },
+    {
+      "id": "T68",
+      "title": "Add e2e-through-UI tests for forms, Markdown, aligned layout, stable skeletons and list-keeping switches, and retake Linux baselines",
+      "layer": "tests",
+      "deps": [
+        "T60",
+        "T62",
+        "T67"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-08b",
+        "AC-13",
+        "AC-37",
+        "AC-40",
+        "AC-42",
+        "AC-50",
+        "AC-51",
+        "AC-52",
+        "AC-53"
+      ],
+      "dod": "full AI e2e suite green locally; baselines retaken deliberately; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "e2e/",
+        "e2e/__screenshots__/"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t68-add-e2e-through-ui-tests-for-forms.md"
+    },
+    {
+      "id": "T69",
+      "title": "Register QuestionForm, ConversationListProvider and the Markdown MessageResponse in the design system and update ux-flows for the form",
+      "layer": "docs",
+      "deps": [
+        "T60",
+        "T62",
+        "T66"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-42",
+        "AC-52"
+      ],
+      "dod": "docs updated; links resolve; existing AC tests stay green and are never weakened; superseded ACs' tests are rewritten, not deleted.",
+      "files_hint": [
+        "docs/design-system.md",
+        "docs/features/ai-chat-v2/ux-flows.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t69-register-questionform-conversationlistprovider-and-the-markdown-messageresponse.md"
+    },
+    {
+      "id": "T70",
+      "title": "A sent form checks a picked record only for still existing, being the actor's and unchanged, not for fitting the stored request (review R20-1)",
+      "layer": "domain",
+      "deps": [
+        "T56"
+      ],
+      "acs": [
+        "AC-09",
+        "AC-12b",
+        "AC-13"
+      ],
+      "dod": "For FORM rows, a picked record option passes the check when the record still exists, is the actor's, is of the asked kind and has not changed since the form was made in a way its option ref records (for example a bank account's currency stored with the ref; a product still active). Cross-answer fit (account vs profile, product vs currency) is left to the resolver after `pinAnswers`. The request-based `stillFits` rule stays only for legacy F9a (one-question, pressed-choice) rows. form-check.test.ts:434 is rewritten (not deleted) to assert that an account of another sender profile, a profile picked with its own account in the same form, and a product priced in another currency are ACCEPTED; new cases assert a deleted record, a foreign record and an account whose currency changed since the form was made are still UNAVAILABLE with the uniform F7 refusal. RED first (integration, testcontainers). Gate: unit (8 known env.example failures only), integration, lint, typecheck.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/services/assistant-drafts/offers.ts",
+        "tests/integration/services/assistant-drafts/form-check.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t70-form-answers-fit-check-by-record-not-stored-request.md"
+    },
+    {
+      "id": "T71",
+      "title": "Carry each picked record's id and the pinned partial request into the prior ask_user step so no picked record is matched again by name (review R20-3)",
+      "layer": "app",
+      "deps": [
+        "T57"
+      ],
+      "acs": [
+        "AC-10"
+      ],
+      "dod": "Each answer in the prior ask_user tool result that picked a record option carries that record's id as data under the propose_draft field it fills (customerId, senderProfileId, bankAccountId, or productId with its line), and the partially pinned request (when one exists) is passed as data too; the tool result still says these are the Freelancer's answers, as data, not instructions. The chat instructions tell the model to pass those ids to propose_draft instead of names. A route/integration test: an ask_user form without `draft` offers two look-alike Customers; the Freelancer picks one; the prior step the model receives carries exactly that customerId (assert on the model input via the existing mock model), and when the mock model passes it on, the card names exactly that Customer. A second case: answers applied but the request still incomplete, the partial request is passed. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/instructions/chat.ts",
+        "tests/integration/api/chat-route-form.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t71-carry-picked-record-ids-into-the-prior-ask-step.md"
+    },
+    {
+      "id": "T72",
+      "title": "Give resolver-raised questions chat-written question text and fix the instructions' tool sentence (review R20-11, R20-9)",
+      "layer": "app",
+      "deps": [
+        "T63"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-46"
+      ],
+      "dod": "FIELD_INVALID questions no longer use the resolver's English message as the question text. When propose_draft answers with open issues, its tool result lists the fields that will be asked (field and line), and the instructions tell the model to call ask_user once with a one-line prompt in the Freelancer's language for each of those fields (composeForm already merges chat prompts into resolver questions by field). A unit test proves composeForm keeps the resolver's options and takes the chat's prompt for the same field and line; a unit test pins the propose_draft ISSUES result shape. chat.ts:7 reads \"…find pages in the app with find_in_app, prepare a Draft invoice card with propose_draft, and ask the Freelancer…\"; a unit test pins the sentence. An eval row (evals/assistant) for a resolver question receiving a prompt is added if the harness has a fitting check. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/services/assistant-drafts/forms.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/ai/chat-instructions.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t72-question-text-for-resolver-questions-and-instructions-wording.md"
+    },
+    {
+      "id": "T73",
+      "title": "Render Freelancer messages as plain pre-wrapped text, keep single line breaks in replies, trim the Markdown subset to ADR-0012 and fix stale plain-text docs (review R20-2, R20-8, R20-10)",
+      "layer": "ui",
+      "deps": [
+        "T62"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-37",
+        "AC-42",
+        "AC-43"
+      ],
+      "dod": "Freelancer (user) message parts render as plain text with whitespace-pre-wrap (no Markdown); assistant replies stay Markdown per ADR-0012 and a single newline inside a reply paragraph shows as a line break (whitespace-pre-line on p or equivalent, no new dependency unless needed). A component test asserts the visible line structure of a sent form bubble (two composed lines render on two lines: pre-wrap class plus the newline kept in the text node), that typed \"# x\" in a user bubble renders no heading, and that a reply with a single newline keeps the break; the e2e at ai-chat-v2-forms-layout.spec.ts:244-246 asserts the lines (innerText split on \\n), not \\s+. h1–h6 and input are removed from ALLOWED_ELEMENTS (their text stays via unwrapDisallowed); a test asserts '# Title' and '- [ ] x' in a reply render no heading and no input. ADR-0012 text describes HTML-as-text and empty-mark suppression and that user messages stay plain text; message-list.tsx comment, screens.md:40,:214, design-system.md MessageResponse entry and the NOTICE agree. RED first. Gate: unit, lint, typecheck; affected e2e (chromium) and the Linux baselines touched by bubbles/replies re-checked.",
+      "files_hint": [
+        "components/ai-elements/message.tsx",
+        "components/ai/message-list.tsx",
+        "components/ai-elements/NOTICE",
+        "docs/features/ai-chat-v2/adr/0012-render-replies-as-safe-markdown-with-react-markdown-and-an-in-app-link-allowlist.md",
+        "docs/features/ai-chat-v2/screens.md",
+        "docs/design-system.md",
+        "tests/component/message-response-markdown.test.tsx",
+        "tests/component/ai-conversation-page.test.tsx",
+        "tests/e2e/ai-chat-v2-forms-layout.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t73-user-bubbles-plain-text-and-markdown-subset-per-adr-0012.md"
+    },
+    {
+      "id": "T74",
+      "title": "QuestionForm: show the sending state, name every input, show the currency unit, and never drop a form 400 silently (review R20-4, R20-6, R20-7, R20-13)",
+      "layer": "ui",
+      "deps": [
+        "T60"
+      ],
+      "acs": [
+        "AC-08",
+        "AC-37"
+      ],
+      "dod": "Send stays disabled while the form holds no answer at all (an all-optional form needs at least one answer or Skip); for a `form` request the body schema does not bound or require the client's message text (the server ignores and composes it), so a 2,000-character Notes answer sends; the island falls back to the VALIDATION failure alert when a 400 carries no `form.answers.<n>` key. While the sent form's request is in flight the form stays shown as the sent form: picks checked and disabled, inputs disabled, Send shows the Spinner (decorative, no role=status); after the reply it shows as answered. Every input has an accessible name: the heading is a label (or aria-labelledby) for Input, Textarea and the date trigger (\"Issue date: Pick a date\" or equivalent); an axe check in the component test with NOTES/FREE and DATE questions open has no label violation. FormView carries the form's resolved invoice currency when known; AMOUNT/DISCOUNT/PRICE inputs show it as a suffix and TAX_RATE shows \"%\"; contract docs (contracts/server-actions.md / openapi FormView) updated if the shape changes. RED first (component + contract tests). Gate: unit, integration, lint, typecheck; affected e2e and the question-form Linux baselines re-checked.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "components/ai/chat-island.tsx",
+        "lib/validations/assistant-chat.ts",
+        "lib/validations/form-answers.ts",
+        "types/assistant/types.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/component/question-form.test.tsx",
+        "tests/component/question-form-in-chat.test.tsx",
+        "tests/contract/ai-chat-v2-chat-request.contract.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t74-question-form-sending-state-labels-unit-and-validation-fallback.md"
+    },
+    {
+      "id": "T75",
+      "title": "The Conversation list marks and deletes a just-created Conversation correctly, and a saved turn no longer refetches the list (review R20-5, R20-12)",
+      "layer": "ui",
+      "deps": [
+        "T66"
+      ],
+      "acs": [
+        "AC-17",
+        "AC-52"
+      ],
+      "dod": "The open Conversation id comes from openConversationId(usePathname()) with the layout segment as fallback (or the provider's created id), so after the first send on /ai the new row is aria-current and deleting it lands on /ai. The T66 component test mocks useSelectedLayoutSegment as null while usePathname is /ai/<id> (the replaceState case) and asserts aria-current and the delete navigation; the existing tests stay. A saved turn loads its forms and cards without router.refresh() (as the /ai branch does with loadConversationCards), so the layout list read does not run per turn; a component test asserts no router.refresh on a saved-turn finish, and the AC-52 e2e (or a new step) asserts no list read after a send. An e2e step: first send on /ai, the new row is aria-current; delete it from the list, the page lands on /ai. RED first. Gate: unit, lint, typecheck; affected e2e (chromium).",
+      "files_hint": [
+        "components/ai/conversation-list.tsx",
+        "components/ai/conversation-list-client.tsx",
+        "components/ai/conversation-list-context.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/ai-conversation-list-layout-t66.test.tsx",
+        "tests/e2e/ai-chat-v2-forms-layout.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t75-list-active-row-after-first-send-and-no-per-turn-list-refetch.md"
+    },
+    {
+      "id": "T76",
+      "title": "Carry askFields on the pinned form-Send path and derive them from the form as composed (cap 6, F1 order) (review R21-1, R21-2)",
+      "layer": "app",
+      "deps": [
+        "T72"
+      ],
+      "acs": [
+        "AC-08"
+      ],
+      "dod": "askFields is derived from the questions the form will actually hold (composeForm order, F1 sort, cap FORM_MAX_QUESTIONS), on both the propose_draft tool path and the pinned path (the pinned ISSUES answer the model sees and any propose_draft re-call carry it). A unit test: more than 6 open issues give exactly 6 askFields in F1 order. An integration test (form-send): a pinned form Send whose request resolves to ISSUES gives the model a tool result carrying askFields. RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/assistant-drafts/forms.ts",
+        "tests/integration/ai-chat-v2-form-send.test.ts",
+        "tests/unit/lib/ai/propose-draft-ask-fields.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t76-ask-fields-on-the-pinned-path-capped-like-the-form.md"
+    },
+    {
+      "id": "T77",
+      "title": "Keep the axe-core lockfile change to axe-core only: restore next's @babel/core 7.29.7 peer resolution (review R21-3)",
+      "layer": "infra",
+      "deps": [
+        "T74"
+      ],
+      "acs": [],
+      "dod": "pnpm-lock.yaml differs from its pre-T74 state (7d1e185) only by the axe-core 4.13.0 devDependency importer entry and the package entries it needs; next resolves @babel/core 7.29.7 again (e.g. restore the old lock and run a plain `pnpm install` with the package.json entry, which keeps locked resolutions). `pnpm install --frozen-lockfile` succeeds. No test change (infra only, no RED). Gate: unit (incl. the axe component test), lint, typecheck, and `next build` via the affected e2e run.",
+      "files_hint": [
+        "pnpm-lock.yaml",
+        "package.json"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t77-keep-the-lockfile-change-to-axe-core-only.md"
+    },
+    {
+      "id": "T85",
+      "title": "Refuse the removed dashboard prompt origins on a chat request; keep them readable for history (consistency C5)",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-29",
+        "AC-34"
+      ],
+      "dod": "A chat request with `origin: 'DASHBOARD'` or `startedFrom: 'DASHBOARD_PROMPT'` is refused with 400 (field-keyed issue on `origin` / `startedFrom`) and creates nothing; `TYPED` and the remaining start points (`AI_SECTION`, `INVOICE_LIST`, `DASHBOARD_CREATE`) are unchanged. Stored DASHBOARD / DASHBOARD_PROMPT rows keep reading and exporting (DB enums and read-side schemas untouched). The DASHBOARD_TOGETHER refinement and its message go. Update the contract test `tests/contract/ai-chat-v2-chat-request.contract.test.ts`, `tests/e2e/route-sweep.spec.ts` and any unit/integration test that sends DASHBOARD; update `contracts/openapi.yaml` (request enums, drop the `dashboardPrompt` example, keep the response/history enums). RED first. Gate: unit, integration, lint, typecheck.",
+      "files_hint": [
+        "lib/validations/assistant-chat.ts",
+        "app/api/chat/route.ts",
+        "tests/contract/ai-chat-v2-chat-request.contract.test.ts",
+        "tests/e2e/route-sweep.spec.ts",
+        "docs/features/ai-chat-v2/contracts/openapi.yaml"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t85-refuse-removed-dashboard-origins.md"
+    },
+    {
+      "id": "T86",
+      "title": "QuestionForm: drop the unused sending state, restore the input unit suffix, cap the dock lower on a phone, and focus the Message box after × (consistency C10, C11, C15, C17, C18)",
+      "layer": "ui",
+      "deps": [
+        "T85"
+      ],
+      "acs": [
+        "AC-55",
+        "AC-37"
+      ],
+      "dod": "(1) `QuestionForm` has no `pending` prop, no \"Sending…\" text, no Loader icon, no `aria-busy` for sending; the in-chat dock no longer needs the blur layout effect (the form renders nothing while its answers are in flight) — remove it, keep the `hidden` wrapper. Remove/replace the two component tests that only exercised `pending` (`question-form.test.tsx` \"pending: rows disabled…\", \"R2 close while sending (T82)\"). (2) The typed input of a PRICE or DISCOUNT question shows the invoice currency (FormView.currency) as a visible suffix and a tax RATE question shows \"%\"; the suffix is part of the input's accessible description. (3) The dock's scroll area is `max-h-[40dvh]` below `md` and `md:max-h-[50dvh]` above. (4) After × the Message box (composer textarea) has focus. Component tests for (2)–(4) RED first. Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/question-form.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form.test.tsx",
+        "tests/component/question-form-in-chat.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t86-question-form-cleanup-unit-suffix-phone-cap-close-focus.md"
+    },
+    {
+      "id": "T87",
+      "title": "A failed load of a new form's labels shows an error with Try again instead of an endless skeleton (consistency C16)",
+      "layer": "ui",
+      "deps": [
+        "T86"
+      ],
+      "acs": [
+        "AC-55"
+      ],
+      "dod": "When loading a just-arrived form's view fails (rejects or returns success:false), the dock shows an inline Alert \"Couldn't load the question.\" with a \"Try again\" button that re-runs the load; on success the form appears; the composer stays usable throughout. Component test RED first (mock the action to fail once then succeed). Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form-in-chat.test.tsx"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t87-form-labels-load-failure-try-again.md"
+    },
+    {
+      "id": "T88",
+      "title": "Replies with a form add no empty gap, v1 history renders sanely, and dock tests assert the dock itself (consistency C12, C13, C14)",
+      "layer": "ui",
+      "deps": [
+        "T87"
+      ],
+      "acs": [
+        "AC-55",
+        "AC-13",
+        "AC-53"
+      ],
+      "dod": "`data-offer` parts render nothing (null) and `renderOffer` + its docstring are gone. A component test renders a ChatIsland with v1 history: a PRESSED user message shows as a plain bubble with its label, a CHOSEN legacy offer renders nothing, a latest OPEN legacy offer docks as a one-question, options-only form; no crash. The `if (q)` checks become unconditional (the dock exists and is hidden/empty). Rename the e2e test title to match what it asserts. RED first for the gap test and the null part. Gate: unit (incl. component), lint, typecheck.",
+      "files_hint": [
+        "components/ai/message-list.tsx",
+        "components/ai/chat-island.tsx",
+        "tests/component/question-form-in-chat.test.tsx",
+        "tests/e2e/ai-chat-v2-chat.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t88-no-empty-offer-part-v1-history-dock-test-asserts.md"
+    },
+    {
+      "id": "T89",
+      "title": "The export schema no longer allows the form question heading the export never writes (consistency C9)",
+      "layer": "tests",
+      "deps": [
+        "T88"
+      ],
+      "acs": [
+        "AC-33"
+      ],
+      "dod": "`heading` is removed from the export form-question schema (docs/features/security-patch/contracts/openapi.yaml and any code-side schema the export contract test uses) and from the fixture in `tests/contract/ai-chat-v2-export.contract.test.ts`; with `additionalProperties:false` a question carrying `heading` now fails the contract (assert it). Test header comments say 2.4. exportVersion stays '2.4' (never shipped). Gate: unit, integration (export), lint, typecheck.",
+      "files_hint": [
+        "docs/features/security-patch/contracts/openapi.yaml",
+        "tests/contract/ai-chat-v2-export.contract.test.ts",
+        "lib/services/account/account.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t89-export-schema-drops-question-heading.md"
+    },
+    {
+      "id": "T90",
+      "title": "The privacy and terms pages name Anthropic on paid terms as the model provider (review 2026-10-15 F1-F3)",
+      "layer": "frontend",
+      "deps": [
+        "T89"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Privacy section 11 (`app/(public)/privacy/privacy-content.tsx`) names an Anthropic Claude model through the Vercel AI Gateway, on paid API terms under which Anthropic does not use the content to train its models; the free-tier box is removed; 'Who processes your message text' names Anthropic and Vercel. Privacy §5 and terms §10 sub-processor tables (`constants/public-pages-content.ts`) gain a row: Anthropic (via Vercel AI Gateway) — AI assistant — chat message text and the data it reads — USA; the 'only handle the technical infrastructure' sentence is softened to cover the model provider. Tests: `tests/component/privacy-ai-section.test.tsx`, `tests/component/privacy-page-ai-section.test.tsx` (the free-tier case becomes a 'no training on the content' / Anthropic case and asserts Google Gemini and 'free tier' are absent) and `tests/e2e/ai-chat-v2-preview-dashboard.spec.ts:418` assert the new provider. Do not change the page's 'Last updated' date (owner gate). Gate: unit, component, lint, typecheck; the e2e line is updated (e2e runs locally before ship).",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/privacy-ai-section.test.tsx",
+        "tests/component/privacy-page-ai-section.test.tsx",
+        "tests/e2e/ai-chat-v2-preview-dashboard.spec.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t90-privacy-and-terms-name-anthropic.md"
+    },
+    {
+      "id": "T91",
+      "title": "A model call with no reported cost is recorded as unknown (null), never as free (review 2026-10-15 F5)",
+      "layer": "backend",
+      "deps": [
+        "T89"
+      ],
+      "acs": [],
+      "dod": "`gatewayCostOf` returns `number | null` (null when `gateway.cost` is missing, non-numeric, non-finite or negative; a reported 0 stays 0). A turn whose router or any agent step cost is unknown stores `AssistantTurn.costUsd = null` (the column is nullable); a fully known turn keeps the rounded sum. The comment cites ADR-0014, not the free-tier key. Unit tests cover gatewayCostOf and the sum; the integration tests at `tests/integration/lib/ai/run-turn.test.ts:470` and `tests/integration/api/chat-route.test.ts:766` are renamed and assert null for a call with no reported cost. Check every reader of costUsd (export, KPI queries, metadata spans) handles null. Gate: unit, integration (ai, chat route), lint, typecheck.",
+      "files_hint": [
+        "lib/ai/gateway-cost.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/router.ts",
+        "tests/integration/lib/ai/run-turn.test.ts",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t91-unknown-model-cost-is-null.md"
+    },
+    {
+      "id": "T92",
+      "title": "Code comments, span fixtures and eval docs match ADR-0014 and ADR-0011 (review 2026-10-15 F8-F10)",
+      "layer": "tests",
+      "deps": [
+        "T89"
+      ],
+      "acs": [],
+      "dod": "`lib/ai/model.ts:3` cites ai-chat-v2 ADR-0014 (supersedes ai-assistant ADR-0003). The paced-text test header says the model then in use (Gemini Flash-Lite) wrote in one burst. The span contract fixtures use `anthropic/claude-haiku-5.5` and an Anthropic span name, and the test stays green. README and dataset.ts say a `press` row answers the offered form question whose option has that label, as a one-answer form Send. No behaviour change. Gate: unit, contract, `pnpm eval:assistant:dry`, lint, typecheck.",
+      "files_hint": [
+        "lib/ai/model.ts",
+        "tests/unit/lib/ai/run-turn-paced-text.test.ts",
+        "tests/contract/ai-spans-metadata-only.test.ts",
+        "evals/assistant/README.md",
+        "evals/assistant/dataset.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t92-model-comments-fixtures-eval-docs.md"
+    },
+    {
+      "id": "T93",
+      "title": "ADR-0014, SAD, spec, architecture map and ship docs are exact about the model switch (review 2026-10-15 F2-F4, F6-F8)",
+      "layer": "docs",
+      "deps": [
+        "T90",
+        "T91",
+        "T92"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "ADR-0014 cites the Vercel AI Gateway model list (`/v1/models`, read 2026-10-15: USD 0.10 / 0.50 per million input / output tokens up to 100k context, 5x above) and adds that tier to Negative; its consequences name the privacy §5 and terms §10 tables and the three tests T90 changed, and the cost-unknown handling of T91. spec.md:655 and sad.md:60 read 'The model provider changes (Google → Anthropic); no other processor is added', noting the security addendum covers it. sad.md §9 prose no longer lists 'model' as in force. architecture-map.md:59,201 name Claude Haiku 5.5 on paid terms (ai-chat-v2 ADR-0014). PR body and changelog list T90-T93 and drop the privacy rewrite from the owner's to-do (wording approval and the Last-updated date stay owner gates). Gate: lint (markdown), no code change.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/architecture-map.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t93-adr-0014-doc-drift.md"
+    },
+    {
+      "id": "T94",
+      "title": "Chat model calls are pinned to Anthropic at the Gateway, so the privacy page's processor list is true (review round 2 N1, N5)",
+      "layer": "backend",
+      "deps": [
+        "T93"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Both the router call (`lib/ai/router.ts`) and the agent stream (`lib/ai/run-turn.ts` → `chatAgent.stream`) pass `providerOptions: { gateway: { only: ['anthropic'] } }` (one shared constant, e.g. in `lib/ai/model.ts`), for gateway models only; the e2e stub path is unaffected. Unit tests assert the option reaches both calls. `constants/public-pages-content.ts:813` reads 'All providers listed …' like privacy §5, covered by `tests/component/public-pages-ai-subprocessor.test.ts`. Scoped gate: related tests, tsc, eslint on changed files.",
+      "files_hint": [
+        "lib/ai/model.ts",
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "constants/public-pages-content.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t94-gateway-only-anthropic.md"
+    },
+    {
+      "id": "T95",
+      "title": "A failed turn's unknown router cost is null, and the router verdict always carries its cost (review round 2 N3)",
+      "layer": "backend",
+      "deps": [
+        "T93"
+      ],
+      "acs": [],
+      "dod": "`failed()` defaults `costUsd: null`; the `:58` comment matches T91's semantics; `RouterVerdict.costUsd` is a required `number | null`, the `=== undefined ? 0` branch is removed, and test doubles that build verdicts set it. A turn that made no model call at all still records 0 only where no call was made (keep the route's pre-model refusal path). Tests cover the router-throw path storing null. Scoped gate: related unit tests, the run-turn and chat-route integration files, tsc, eslint on changed files.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/router.ts",
+        "tests/integration/lib/ai/run-turn.test.ts",
+        "tests/unit/lib/ai/gateway-cost.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t95-failed-turn-cost-unknown.md"
+    },
+    {
+      "id": "T96",
+      "title": "Docs after round 2: closed risks, terms note, weekly cost check, provider pin and the missing security addendum (review round 2 N2, N4)",
+      "layer": "docs",
+      "deps": [
+        "T94",
+        "T95"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "sad.md:1071 marked closed by T90; spec.md:684 notes T90 added the Anthropic row to terms §10; the duplicate sentence in spec.md:655 removed; 'alert' → 'weekly p95 cost check' in architecture-map.md:201 and sad.md:1069; ADR-0014 consequences record the Gateway provider pin (T94: only Anthropic, no cross-provider fallback; a provider outage now surfaces as 'AI temporarily unavailable') and T95; pr-body gains an unchecked owner/ship item 'Security review addendum for ADR-0014 (spec §6.1)' and no longer implies the 2026-10-14 review covers the switch; changelog lists T94–T96. No tests (docs only).",
+      "files_hint": [
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/architecture-map.md",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t96-round-2-doc-drift.md"
+    },
+    {
+      "id": "T97",
+      "title": "Docs say only another anthropic/* model is a setting change; weekly cost check; terms SCC sentence in the owner approval (review round 3 R3-1..R3-3)",
+      "layer": "docs",
+      "deps": [
+        "T96"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "ADR-0014 Neutral (dated revision) and :36 say only another `anthropic/*` model is a pure setting change; another vendor needs `GATEWAY_PROVIDER_OPTIONS` changed plus a privacy §11/§5 and terms §10 update. env.example's AI_CHAT_MODEL comment says the same in one line. `lib/ai/gateway-options.ts:1` comment adds that a non-Anthropic gateway model id is refused by the pin. ADR-0014:51 says 'weekly p95 cost check'. pr-body's owner wording item names the terms §10 'All providers listed above comply with GDPR through SCCs' sentence. Gate: tsc (comment-only code change), no tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "env.example",
+        "lib/ai/gateway-options.ts",
+        "docs/features/ai-chat-v2/_ship/pr-body.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t97-model-switch-needs-anthropic-docs.md"
+    },
+    {
+      "id": "T98",
+      "title": "The Mastra Studio agent is pinned to Anthropic like the app (review round 3 R3-4)",
+      "layer": "backend",
+      "deps": [
+        "T96"
+      ],
+      "acs": [],
+      "dod": "The Studio agent's `defaultOptions` (or equivalent) pass `providerOptions: GATEWAY_PROVIDER_OPTIONS` from `lib/ai/gateway-options.ts`. Gate: tsc, eslint on the file; a unit test only if the Studio config is already unit-tested.",
+      "files_hint": [
+        "mastra/index.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t98-studio-agent-pinned.md"
+    },
+    {
+      "id": "T99",
+      "title": "Every model call stays well below 100k input tokens: output caps, a history size budget, and capped tool answers in the chat (SEC-M-01 a, b)",
+      "layer": "backend",
+      "deps": [
+        "T98"
+      ],
+      "acs": [],
+      "dod": "(1) `maxOutputTokens`: router 300 (lib/ai/router.ts generateText), agent 2000 per step (chatAgent.stream options in lib/ai/run-turn.ts, or the agent's defaultOptions). (2) History budget: after the 40-message cap, the history sent to the model keeps the newest messages whose text parts total at most 40,000 characters (drop oldest whole messages; the newest message always kept); one exported constant. (3) Chat tool answers: in the chat wrapper `lib/ai/tools/read-tools.ts` (NOT the shared lib/assistant-tools registry, so MCP answers and contracts are unchanged), every read answer passed to the model is capped: strings over 2,000 chars truncated with a marker, arrays over 50 items cut with `truncated: true`, and the serialized answer at most 20,000 chars (further trimmed if needed); links extraction still sees the full answer. Constants exported. Unit tests for each bound (router and agent call options via MockLanguageModelV4 like tests/unit/lib/ai/gateway-only-anthropic.test.ts; history budget; tool-answer capping incl. a huge invoice); an MCP contract test still passes unchanged. Scoped gate: related tests, tests/contract for MCP read tools, tsc, eslint on changed files.",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/agent.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/services/conversations/conversations.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t99-bound-model-input-and-output.md"
+    },
+    {
+      "id": "T100",
+      "title": "The chat refuses more than 10 messages a minute per Freelancer (SEC-M-01 c)",
+      "layer": "backend",
+      "deps": [
+        "T99"
+      ],
+      "acs": [],
+      "dod": "`app/api/chat/route.ts` refuses a request before any model call when the Freelancer already has 10 or more `AssistantTurn` rows created in the last 60 seconds (any outcome; constant exported), with HTTP 429, code `RATE_LIMITED`-style error distinct from the daily allowance (e.g. `TOO_FAST`), the sentence \"You're sending messages too quickly. Try again in a minute.\", no slot reserved, nothing counted, and a metadata row consistent with the existing pre-model refusal path. The chat island shows that sentence like other 429 notices (check components/ai/chat-island.tsx handling; add the code there if needed). Integration test in tests/integration/api/chat-route.test.ts (10 rows inside the window → 429 and no model call; rows older than 60 s don't count); component test if the island needed a change. Scoped gate: chat-route integration file (under caffeinate), related unit/component tests, tsc, eslint on changed files.",
+      "files_hint": [
+        "app/api/chat/route.ts",
+        "lib/services/assistant-usage",
+        "components/ai/chat-island.tsx",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t100-chat-per-minute-limit.md"
+    },
+    {
+      "id": "T101",
+      "title": "Gateway requests ask for no prompt training; the app agent carries the pin in its defaults; privacy §5 Vercel row names the AI Gateway (SEC-L-03, SEC-I-04, SEC-I-03)",
+      "layer": "backend",
+      "deps": [
+        "T100"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "`GATEWAY_PROVIDER_OPTIONS` (lib/ai/gateway-options.ts) becomes `{ gateway: { only: ['anthropic'], disallowPromptTraining: true } }` (check the key in node_modules/@ai-sdk/gateway types); tests/unit/lib/ai/gateway-only-anthropic.test.ts asserts it (update its expected constant; the router/stream call assertions use toMatchObject). `lib/ai/agent.ts` chatAgent gets `defaultOptions: { providerOptions: GATEWAY_PROVIDER_OPTIONS }` (keep the call-site option), asserted via getDefaultOptions() like tests/unit/mastra/studio-traces.test.ts. Privacy §5 Vercel row (constants/public-pages-content.ts ~357-361) purpose names the AI Gateway (AI assistant message text); tests/component/public-pages-ai-subprocessor.test.ts asserts it. Scoped gate: related tests, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/gateway-options.ts",
+        "lib/ai/agent.ts",
+        "constants/public-pages-content.ts",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t101-no-training-filter-and-agent-default-pin.md"
+    },
+    {
+      "id": "T102",
+      "title": "ADR-0014, SAD, spec and ship docs say what bounds a turn; weekly check reports null costs; owner checks listed (SEC-M-01 d, e; SEC-I-03; SEC-I-05)",
+      "layer": "docs",
+      "deps": [
+        "T101"
+      ],
+      "acs": [],
+      "dod": "ADR-0014 (dated revision) and sad §11 state the real bounds (T99 output/history/tool caps, T100 10/min limit, AC-11 unchanged, Gateway spend budget as owner backstop) and T101 (disallowPromptTraining, agent default pin). spec §6/§6.1 record the 10 messages/minute refusal (marked added-by security review 2026-10-15) and the bounds. `_ship/feature.md` weekly cost check also reports the null-cost share and total spend incl. FAILED turns, and treats a high null share as a failed check. pr-body owner items: set a spend budget/alert on the Vercel AI Gateway team; verify SEC-I-03 (USA location, SCC coverage of Anthropic via Vercel's DPA, provider-side retention) with the wording approval; the security addendum item is checked with a pointer to the fixes. Changelog lists T99–T102. Security addendum file gets a short 'Resolution' line for SEC-M-01, SEC-L-03, SEC-I-03..05. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/_ship/feature.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t102-security-addendum-docs.md"
+    },
+    {
+      "id": "T103",
+      "title": "One turn's tool answers share a byte budget and a call cap; truncation never splits a character (SEC-M-02, SEC-L-04)",
+      "layer": "backend",
+      "deps": [
+        "T102"
+      ],
+      "acs": [],
+      "dod": "(1) Measure sizes in UTF-8 bytes (`Buffer.byteLength(JSON.stringify(x), 'utf8')`) for the tool-answer cap and `trimHistoryToBudget` (rename constants to *_BYTES; history 40,000 bytes, per answer 20,000 bytes with a hard final check that always holds). (2) A per-turn tool budget in `TurnContext`: all chat tool answers that reach the model (read tools, `find_in_app`, `propose_draft`, `ask_user`) count against TURN_TOOL_BUDGET_BYTES = 60,000 and TURN_TOOL_CALLS_MAX = 12; once either is spent, a tool returns a short fixed answer ('The tool budget for this message is used up; answer from what you already have.') without running the read. The pinned/prior propose_draft and prior ask_user steps count against the same budget. (3) Link labels capped (e.g. 80 chars). (4) Truncation never splits a surrogate pair (cut one char earlier when the last kept char is a high surrogate). Unit tests: N parallel get_invoice calls in one step keep the summed tool-answer bytes ≤ budget and the 13th call gets the fixed answer; a propose_draft answer counts; emoji at the cut boundary yields valid UTF-16; hard final byte cap holds for adversarial shapes. Scoped gate: tests/unit/lib/ai, tests/contract, run-turn + chat-route integration under caffeinate, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/limits.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/ai/turn-context.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/propose-draft.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t103-per-turn-tool-budget.md"
+    },
+    {
+      "id": "T104",
+      "title": "The per-minute chat limit is atomic in the shared limit store and refusals write no turn rows (SEC-L-05, SEC-I-06 code)",
+      "layer": "migration",
+      "deps": [
+        "T103"
+      ],
+      "acs": [],
+      "dod": "Add `CHAT_MESSAGE` to `enum LimitScope` (prisma/schema/auth.prisma) with an additive migration following the repo's enum-migration convention (stage under docs/features/ai-chat-v2/migrations/, promote to the live tree, apply + revert in the gate); `LIMIT_SCOPES.CHAT_MESSAGE = { windowMs: CHAT_RATE_WINDOW_MS, max: CHAT_PER_MINUTE_MAX, countedOutcomes: ['REQUESTED'] }`. The chat route, before any reservation or paid call, runs `withKeyLock('CHAT_MESSAGE', <user key>, …)`: count in window ≥ max → 429 TOO_FAST (no AssistantTurn row, no LimitEvent for the refusal); else record REQUESTED (with userId) and proceed. Store unavailable → 503 FAILED (fail closed). Remove `countRecentTurns` (and its import) so the service inventory is green. Add `TOO_FAST` to `types/result.ts` ActionErrorCode. Tests: parallel burst of 15 requests → exactly 10 proceed (integration, Promise.all); refusal writes no AssistantTurn row; form-path refusal; `assertMatchesContract` on the TOO_FAST body; `tests/unit/service-layer-inventory.test.ts` green. Gate: migration apply/revert, chat-route integration under caffeinate, related unit tests incl. the inventory test, tsc, eslint.",
+      "files_hint": [
+        "prisma/schema/auth.prisma",
+        "lib/security/limits/scopes.ts",
+        "app/api/chat/route.ts",
+        "lib/services/assistant-usage/turns.ts",
+        "types/result.ts",
+        "tests/integration/api/chat-route.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t104-atomic-chat-rate-limit.md"
+    },
+    {
+      "id": "T105",
+      "title": "Docs state the real bounds after the re-check (SEC-M-02, SEC-L-05, SEC-I-06 docs)",
+      "layer": "docs",
+      "deps": [
+        "T104"
+      ],
+      "acs": [],
+      "dod": "spec.md (~646, ~648), ADR-0014 (:52, :59 and the security revision), sad §11 and pr-body (~14) describe T103 (byte budgets, 60,000-byte per-turn tool budget, 12 tool calls, surrogate-safe cuts; realistic worst case per call stated, e.g. well under 100k tokens) and T104 (atomic 10/min in the shared limit store, refusals write no turn rows; the FAILED steps-0 cost-0 note from T102 is removed or corrected, incl. `_ship/feature.md` weekly check). openapi.yaml 429 description and ActionFailure description mention TOO_FAST. Security addendum re-check gets a 'Resolution' line mapping SEC-M-02/SEC-L-04 → T103, SEC-L-05/SEC-I-06 → T104/T105. Changelog lists T103–T105. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/contracts/openapi.yaml",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/feature.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t105-re-check-docs.md"
+    },
+    {
+      "id": "T106",
+      "title": "A card or form is kept only when its answer fits the turn budget; draft answers and links are inside the byte cap (N-1, N-2 code)",
+      "layer": "backend",
+      "deps": [
+        "T105"
+      ],
+      "acs": [],
+      "dod": "Tool bodies that set turn.pending (propose_draft, ask_user) commit their pending change only after the answer was charged successfully (e.g. the body returns { answer, commit } and withToolBudget calls commit() only on a successful charge), so a refused answer leaves turn.pending, drafted and the shown card/form unchanged. propose_draft answers pass through capToolAnswer (≤ 20,000 bytes) like read answers; read-tool links are included inside the capped answer's final byte check. Tests: with bytesLeft nearly spent, a CARD answer → no pending card, no card part, drafted false, and the model got the budget text; same for ask_user (no form); a 50-line ISSUES answer is ≤ 20,000 bytes; a read answer with many links stays ≤ 20,000 bytes. Scoped gate: tests/unit/lib/ai, run-turn + chat-route integration under caffeinate, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/limits.ts",
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/tools/ask-user.ts",
+        "lib/ai/tools/read-tools.ts",
+        "lib/ai/run-turn.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t106-commit-pending-after-charge.md"
+    },
+    {
+      "id": "T107",
+      "title": "Docs describe the bounds as they are, with the estimate marked and exclusions named (N-2 docs, N-3, N-4)",
+      "layer": "docs",
+      "deps": [
+        "T106"
+      ],
+      "acs": [],
+      "dod": "spec bounds row, ADR-0014 (:52 and :59), sad §11, changelog and pr-body: per-answer cap now covers read and propose_draft answers including links (T106); pinned/prior steps are charged against the turn budget but never cut; the worst case lists what it excludes (user message ≤ 2,000 chars, model-written tool inputs and text across ≤ 8 steps) and '30–60k tokens, below the 100k tier' is labelled an estimate; ADR-0014 :59 says the limit slows repeated failures to at most 10 a minute per Freelancer; the spec row notes calls rejected for invalid input before execution do not use the 12-call cap. Security file: a 'Resolution (final review)' line mapping N-1..N-4 → T106/T107. Changelog lists T106–T107. No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t107-bounds-wording-final.md"
+    },
+    {
+      "id": "T108",
+      "title": "The tool-answer cap's last fallback holds with links; docs name the pinned re-call (re-check F-1, F-2)",
+      "layer": "backend",
+      "deps": [
+        "T107"
+      ],
+      "acs": [],
+      "dod": "`capToolAnswer` (lib/ai/tools/read-tools.ts ~64) checks the exact object it returns (including `links: []` when links were given), so its UTF-8 JSON bytes are always ≤ 20,000; unit test with many top-level keys plus links that reaches the last fallback. spec bounds row and sad §11 add: 'a propose_draft re-call in a pressed turn returns the pinned step's value: charged to the turn budget, not cut'. Security file: 'Resolution' line F-1, F-2 → T108. Scoped gate: tests/unit/lib/ai, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/tools/read-tools.ts",
+        "tests/unit/lib/ai/tools/read-tools-cap.test.ts",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t108-cap-fallback-and-pinned-recall-docs.md"
+    },
+    {
+      "id": "T109",
+      "title": "Gateway calls require zero data retention; privacy and terms name the EU hosting and the US model transfer (SEC-I-03, owner option A)",
+      "layer": "backend",
+      "deps": [
+        "T108"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "`GATEWAY_PROVIDER_OPTIONS.gateway.zeroDataRetention = true` (lib/ai/gateway-options.ts, comment: the anthropic endpoint reports has_zdr; a team without ZDR eligibility fails closed); tests/unit/lib/ai/gateway-only-anthropic.test.ts and agent-gateway-defaults/studio tests expect it at the router, agent stream and defaults. Privacy §5 and terms §10 (constants/public-pages-content.ts): Vercel location 'EU (Frankfurt, fra1)'; Neon location 'EU (Frankfurt, eu-central-1)'; Anthropic row stays 'USA' and says 'zero data retention'; the transfer sentence names the US transfer for Anthropic and the OAuth providers under SCCs (keep Vercel's DPA wording). Privacy §11 says the model provider keeps no copy of the message text (zero data retention) and that processing happens in the USA. Component tests (public-pages-ai-subprocessor, privacy-ai-section, privacy-page-ai-section) assert the EU locations, 'USA' for Anthropic, and the zero-retention statement; any e2e text assertion affected is updated. Do not change the 'Last updated' date. Scoped gate: related unit/component tests, tsc, eslint.",
+      "files_hint": [
+        "lib/ai/gateway-options.ts",
+        "constants/public-pages-content.ts",
+        "app/(public)/privacy/privacy-content.tsx",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t109-zdr-and-eu-locations.md"
+    },
+    {
+      "id": "T110",
+      "title": "ADR-0014, SAD, spec and ship docs record zero data retention and the EU hosting / US model transfer (owner option A)",
+      "layer": "docs",
+      "deps": [
+        "T109"
+      ],
+      "acs": [],
+      "dod": "ADR-0014 (dated revision): option A — Anthropic endpoint is US-only at the Gateway (live endpoints list read 2026-10-15; EU inference exists only via bedrock eu-central-1 and vertexAnthropic EU, rejected for now: another processor and BYOK setup); zeroDataRetention required; app hosting EU (fra1, Neon eu-central-1). sad §2/§11 and spec §6.1 likewise. pr-body: SEC-I-03 owner items narrowed to confirming the team's ZDR eligibility on preview (one chat message after deploy) and the SCC coverage via Vercel's DPA; list T109–T110. Changelog and the security file ('Resolution' line for SEC-I-03 location/retention → T109/T110). No tests.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t110-zdr-eu-docs.md"
+    },
+    {
+      "id": "T111",
+      "title": "Privacy and terms describe where processing happens without overclaiming; Sentry is listed (review Z-1..Z-6)",
+      "layer": "frontend",
+      "deps": [
+        "T110"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Privacy §11 (app/(public)/privacy/privacy-content.tsx): Anthropic is a US company and processes the message text outside the EU, mainly in the USA; it does not store the text after answering (zero data retention under its agreement with Vercel), except where the law requires it. Privacy §5 and terms §10 (constants/public-pages-content.ts): Vercel location 'EU (Frankfurt, fra1) for the app; AI Gateway and CDN are global'; Neon stays 'EU (Frankfurt, eu-central-1)'; the transfer sentence (one string, no unescaped double quotes) says: hosting and database run in the EU; Vercel and Neon are US companies whose DPAs include Standard Contractual Clauses (SCCs) for any access from outside the EU; Anthropic processes data in the USA under Vercel's Data Processing Agreement (SCCs); the sign-in providers (Google, GitHub) process data in the USA under their own SCCs or EU-US Data Privacy Framework certification. Remove or complete the dangling 'All providers listed above are covered.' (if a T94 test requires the phrase, extend it to '…are covered by data processing agreements' and keep the test passing without weakening it). Add a Sentry row to both tables: error monitoring, error reports and metadata-only performance spans, location 'EU (Germany)'. ADR-0014 option A revision and sad.md:60: 'Anthropic, a US company; the anthropic endpoint offers no EU region; processing is outside the EU, mainly in the USA' (no claim that inference stays in the US; the +10 % US-zone pin was considered and not taken). Tests (component): §11 matches /outside the EU/ and /zero data retention/ and not /keeps no copy/; Vercel row matches /AI Gateway/ and /global/; transfer sentence matches /Vercel and Neon/ and /Data Privacy Framework|own SCCs/; Sentry row present with /EU/. Don't change Last updated. Scoped gate: related component tests, tsc, eslint. Security file: Resolution line Z-1..Z-6 → T111.",
+      "files_hint": [
+        "app/(public)/privacy/privacy-content.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts",
+        "tests/component/privacy-ai-section.test.tsx",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t111-privacy-terms-transfer-wording.md"
+    },
+    {
+      "id": "T112",
+      "title": "Privacy and terms tables match §11 for Anthropic and disclose what Sentry receives (review W-1..W-4)",
+      "layer": "frontend",
+      "deps": [
+        "T111"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "constants/public-pages-content.ts, privacy §5 and terms §10: Anthropic row location 'Outside the EU (mainly USA)' (still mentions zero data retention); transfer sentence says 'Vercel, Neon and Sentry are US companies whose Data Processing Agreements include Standard Contractual Clauses (SCCs) for any access from outside the EU' and 'Anthropic, a US company, processes data outside the EU, mainly in the USA, under Vercel's Data Processing Agreement (SCCs)'; sign-in providers sentence unchanged; Sentry rows' data 'Error reports, session replays recorded when an error occurs (text masked), logs and metadata-only performance spans' (verify masking in instrumentation-client.ts: if replay text is not masked, say so accurately instead). tests/component/public-pages-ai-subprocessor.test.ts: the Anthropic row location matches /Outside the EU/ and /USA/; neither content object contains a USA-only claim for Anthropic (/Anthropic processes data in the USA/); the transfer sentence matches /Vercel, Neon and Sentry/ (update the T111 /Vercel and Neon/ assertion accordingly — it is being replaced by a stricter one); Sentry row data matches /replay/i and /logs/i. docs/features/ai-chat-v2/sad.md:60 stray parenthesis fixed. Security file: 'Resolution (review of T111): W-1..W-4 → T112.' Don't change Last updated. Scoped gate: the component tests + vitest related on the constants file, tsc, eslint.",
+      "files_hint": [
+        "constants/public-pages-content.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts",
+        "instrumentation-client.ts",
+        "docs/features/ai-chat-v2/sad.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t112-anthropic-location-and-sentry-disclosure.md"
+    },
+    {
+      "id": "T113",
+      "title": "Drop zero data retention from Gateway calls (Hobby plan) and state Anthropic's 30-day API retention on privacy and terms",
+      "layer": "backend",
+      "deps": [
+        "T112"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Owner decision 2026-10-16: the Vercel team is on Hobby and the Gateway refuses zeroDataRetention ('Zero Data Retention (ZDR) is only available for Pro and Enterprise plans. Current plan: hobby.', verified by a direct Gateway call), so every turn ended AI_UNAVAILABLE. Remove ZDR, keep the rest. lib/ai/gateway-options.ts: GATEWAY_PROVIDER_OPTIONS = { gateway: { only: ['anthropic'], disallowPromptTraining: true } } (no zeroDataRetention; comment updated). Privacy §11 (app/(public)/privacy/privacy-content.tsx): replace the 'does not store your message text after answering (zero data retention ...)' sentence with: Anthropic deletes the text it receives through the API within 30 days, unless it is flagged for a Usage Policy violation (then kept up to 2 years) or the law requires longer; Vercel AI Gateway does not keep the message text after the request. Keep 'does not use the content you send to train its models', 'outside the EU, mainly in the USA'. constants/public-pages-content.ts privacy §5 and terms §10 Anthropic rows: data 'Chat message text and the data it reads to answer (deleted within 30 days)'. Nothing on any public page may say 'zero data retention'. Tests: tests/unit/lib/ai/gateway-only-anthropic.test.ts and agent-gateway-defaults.test.ts expect the options without zeroDataRetention (and assert zeroDataRetention is absent); tests/component/public-pages-ai-subprocessor.test.ts, privacy-ai-section.test.tsx, privacy-page-ai-section.test.tsx: assert /30 days/ and not /zero data retention/i for Anthropic (keep the USA / outside-EU / no-absolute-claim assertions). Docs: ADR-0014 revision 2026-10-16 (ZDR dropped: Hobby plan; Anthropic 30-day API retention, 2 years if flagged; Gateway keeps no content); sad.md §2 line 60 and the §11 ZDR risk row; spec.md §6.1 line 659 revision note. Scoped gate: the five tests + vitest related on changed files, tsc, eslint on changed files.",
+      "files_hint": [
+        "lib/ai/gateway-options.ts",
+        "app/(public)/privacy/privacy-content.tsx",
+        "constants/public-pages-content.ts",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "tests/unit/lib/ai/agent-gateway-defaults.test.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts",
+        "tests/component/privacy-ai-section.test.tsx",
+        "tests/component/privacy-page-ai-section.test.tsx",
+        "docs/features/ai-chat-v2/adr/0014-run-the-chat-on-claude-haiku-5-5-through-the-ai-gateway-on-paid-terms.md",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/spec.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t113-drop-zero-data-retention.md"
+    },
+    {
+      "id": "T114",
+      "title": "T113 review follow-ups: qualified 30-day cell, ship docs without ZDR, Last updated October 16",
+      "layer": "frontend",
+      "deps": [
+        "T113"
+      ],
+      "acs": [
+        "AC-35"
+      ],
+      "dod": "Review 2026-10-16 T113 findings 1-8 (_review/review-2026-10-16-t113.md). (1) constants/public-pages-content.ts privacy §5 and terms §10 Anthropic rows: data 'Chat message text and the data it reads to answer (usually deleted within 30 days; see Privacy Policy section 11)' for terms, '(usually deleted within 30 days; see section 11)' for privacy; test in public-pages-ai-subprocessor.test.ts: row matches /30 days/ and /usually/i and does not match /\\(deleted within 30 days\\)/. (8) Last updated on privacy and terms (lines 224, 575, 602, 886) becomes 'October 16, 2026' (owner asked for today's date for the current text); test asserts privacy and terms lastUpdated contain 'October 16, 2026'. (7) gateway-only-anthropic.test.ts router and stream tests also assert providerOptions.gateway has no zeroDataRetention. (6) test comment at public-pages-ai-subprocessor.test.ts:46 says Anthropic's 30-day retention (T113). (5) sad.md:1070 risk row closed per the sad.md:1068 pattern (strike old text, '—' severity/mitigation, 'Closed by T113'). (2) _ship/pr-body.md: follow-ups line adds 'T113 dropped zero data retention (Hobby plan); pages state Anthropic's 30-day retention'; the owner item at :30 drops the ZDR eligibility check, keeps the SCC/DPA check, adds 'confirm the 30-day default applies to Vercel's Anthropic account'; :22 Last-updated note says it reads October 16, 2026. (3) _ship/changelog.md:81 marked superseded by T113 with a T113 entry. (4) _ship/security-review-2026-10-14.md: one-line T113 addendum after the resolutions (ZDR dropped 2026-10-16, Hobby plan; pages state Anthropic 30-day retention; the eligibility check is void) and 'Resolution (review of T113): findings 1-8 -> T114.' Scoped gate: the changed tests, vitest related on constants file, tsc, eslint on changed files.",
+      "files_hint": [
+        "constants/public-pages-content.ts",
+        "tests/component/public-pages-ai-subprocessor.test.ts",
+        "tests/unit/lib/ai/gateway-only-anthropic.test.ts",
+        "docs/features/ai-chat-v2/sad.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md",
+        "docs/features/ai-chat-v2/_ship/security-review-2026-10-14.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t114-t113-review-follow-ups.md"
+    },
+    {
+      "id": "T115",
+      "title": "propose_draft in the chat tolerates Haiku's Customer and profile arguments",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-08",
+        "AC-14"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. Chat tool only (lib/ai/tools/propose-draft.ts); MCP create_draft_invoice keeps its strict schema. In the tool's input preprocess (next to liftLineCurrency): both customer and customerId -> keep customerId, drop customer; both senderProfile and senderProfileId -> keep the id. The tool's inputSchema must also accept a request with neither customer nor customerId (a chat-only relaxed schema; draftRequestSchema stays as is for MCP and stored requests). In execute, a request with no Customer is not resolved: the answer is an ISSUES answer that asks for the Customer (askFields includes 'CUSTOMER', no card, nothing pending as a card; the model then calls ask_user for CUSTOMER and the app fills the Freelancer's own Customers). ask_user: a line description that is empty or whitespace is dropped before validation instead of refusing the call. Unit tests in tests/unit/lib/ai/ (propose-draft tests): both-given keeps the id; no Customer gives ISSUES with CUSTOMER asked and no card; senderProfile both-given keeps the id; MCP schema still refuses both and neither; ask_user empty description accepted.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/tools/ask-user.ts",
+        "lib/services/assistant-drafts/schema.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t115-propose-draft-in-the-chat-tolerates-haiku-s-custom.md"
+    },
+    {
+      "id": "T116",
+      "title": "Chat instructions: pass the Customer as written, never move it to the sender profile",
+      "layer": "backend",
+      "deps": [
+        "T115"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-14",
+        "AC-45"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. lib/ai/instructions/chat.ts (frozen prefix; edit wording only): in 'Asking and drafting' add: always pass the Customer in `customer` exactly as the Freelancer wrote it, even when a search found several or no matching Customers (propose_draft turns that into the right question); pass customerId only from a form answer, never together with `customer`; never leave the Customer out because a search was unclear. In 'Sender profile and Customer': when the name the Freelancer gives as the Customer is one of their sender profiles, still pass it as `customer` (propose_draft refuses it and you then explain and ask), never as senderProfile. Unit test on CHAT_INSTRUCTIONS asserting these sentences exist (tests/unit/lib/ai/ instructions test, existing file if present).",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t116-chat-instructions-pass-the-customer-as-written-nev.md"
+    },
+    {
+      "id": "T117",
+      "title": "Router: changing an existing draft or invoice is not a drafting intent",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [
+        "ai-assistant AC-15"
+      ],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. lib/ai/router.ts SYSTEM: intent 'draft' only for a request to create a new invoice or draft, or an answer to a question about a draft in progress; a request to change an existing draft or invoice (add or remove a line, edit a value) is 'read' (the assistant cannot edit; it explains and links). Unit test asserting the router prompt carries that rule.",
+      "files_hint": [
+        "lib/ai/router.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t117-router-changing-an-existing-draft-or-invoice-is-no.md"
+    },
+    {
+      "id": "T118",
+      "title": "Eval report prints why each failing row failed",
+      "layer": "backend",
+      "deps": [
+        "T114"
+      ],
+      "acs": [],
+      "dod": "Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. evals/assistant/run.ts: after the report, for every no-guessing row that fails in the last run print '  - <id>: <reasons joined by '; '>' using noGuessingRowFailures, plus the reply text truncated to 200 chars; for every topic row that fails print its text, expected and got. Scored behaviour unchanged. Unit test via evaluateRun or a new exported formatter in run.ts/score.ts (tests/unit/evals/ or wherever the eval unit tests live).",
+      "files_hint": [
+        "evals/assistant/run.ts",
+        "evals/assistant/score.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t118-eval-report-prints-why-each-failing-row-failed.md"
+    },
+    {
+      "id": "T119",
+      "title": "Router: only a saved invoice cannot be edited; changing the chat's draft card is drafting",
+      "layer": "backend",
+      "deps": [
+        "T117"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15"
+      ],
+      "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review B1. lib/ai/router.ts SYSTEM: replace the T117 sentence: a request to change a draft or invoice already saved in the app (one from the invoice list, e.g. INV-0042: add or remove a line, edit a value, mark paid) is 'read'; changing the draft card shown in this Conversation before it is created (\"make it 25 hours\", \"add a line\", \"use EUR\") is 'draft'. Unit test in tests/unit/lib/ai/router.test.ts asserting both rules (replace the T117 assertion). AC refs: ai-assistant AC-14b (follow-up card) and ai-assistant AC-15 (intent guard); fix the T117 comment in router.test.ts:148 that cites ai-chat-v2 AC-15.",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "tests/unit/lib/ai/router.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t119-router-only-a-saved-invoice-cannot-be-edited-chang.md"
+    },
+    {
+      "id": "T120",
+      "title": "Chat draft tools: keep line positions, prefer the Freelancer's words, ask for the Customer in code",
+      "layer": "backend",
+      "deps": [
+        "T115"
+      ],
+      "acs": [
+        "AC-04",
+        "AC-05b",
+        "AC-08",
+        "AC-09",
+        "AC-14",
+        "AC-45"
+      ],
+      "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review B2, W1, W2, N5. (a) lib/ai/tools/ask-user.ts: never drop a line; a blank description becomes the placeholder 'Line N' (N = position + 1, as form-pin.ts lineAt does) so lineIndex and quantity/price stay. Tests: line-index stability and kept quantity/price. (b) lib/ai/tools/propose-draft.ts preferIds: when both customer and customerId are given, keep customerId only when it is the id of an option the Freelancer chose in a form answered this turn (find where answered form ids live on the turn: pinnedAnswer / priorAnswers / form answers in TurnContext); otherwise keep `customer` (the Freelancer's words) and drop the id. Same for senderProfile/senderProfileId. Tests: both-given without a form answer keeps the name and execute passes `customer` to resolveDraftRequest; with a matching form answer keeps the id; a foreign id never yields a card. (c) no Customer given: build the CUSTOMER question in code and commit it like a resolver form (turn.pending.resolver with an input-only CUSTOMER question; fillRecordOptions then offers the Freelancer's own Customers, AC-09), so a form appears even if the model does not call ask_user; keep askFields. When senderProfile (a name) is given and no Customer, the answer's `say` states that the name given is the Freelancer's own sender profile, not a Customer, and asks which Customer to invoice with a question (AC-05b). Tests: no-Customer commit sets a CUSTOMER question and no card; guard order with no Customer (draftIntent false -> NOT_REQUESTED; pinned turn -> pinnedAnswer).",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/tools/ask-user.ts",
+        "lib/ai/turn-context.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t120-chat-draft-tools-keep-line-positions-prefer-the-fr.md"
+    },
+    {
+      "id": "T121",
+      "title": "Chat instructions: no values from read tools, ask for the Customer as a question, say the match count",
+      "layer": "backend",
+      "deps": [
+        "T116"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-14",
+        "ai-assistant AC-16",
+        "AC-45"
+      ],
+      "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review W3, N4. lib/ai/instructions/chat.ts (frozen prefix; wording only): (1) replace the absolute T116 rule with: 'Except for a form answer's customerId (above): when the Freelancer named a Customer, always pass it in `customer` exactly as they wrote it, even when a search found several or no matching Customers; never drop it because a search was unclear. When they named none, leave it out; propose_draft asks.' Keep 'Never pass customerId together with `customer`'. (2) Add: 'Never pass a price, quantity, currency or other value you read from a tool (list_products, list_customers, an earlier invoice); leave it out and propose_draft fills the catalogue price or the Customer's custom price.' (3) In 'Sender profile and Customer' merge the T116 sentence and the existing one into one: when the Freelancer names one of their sender profiles as the Customer, pass it as `customer` (never as senderProfile), then explain that it is their own sender profile and ask which Customer to invoice in one sentence that ends with a question mark. (4) Add: 'When a propose_draft answer carries a count (listCounts, matchCount or a say sentence with a number), say that number in your reply.' Update tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts accordingly (T116 assertions change with the wording; keep them meaningful).",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t121-chat-instructions-no-values-from-read-tools-ask-fo.md"
+    },
+    {
+      "id": "T122",
+      "title": "Docs and nits: integration on manual start in the test plans, AC refs, eval JSDoc, stray file",
+      "layer": "docs",
+      "deps": [
+        "T118"
+      ],
+      "acs": [],
+      "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review W4, N1, N2, N3. docs/features/ai-chat-v2/test-plan.md (~255, ~333) and docs/features/ai-assistant/test-plan.md (~211): CI placement says unit/component/contract on every PR; integration on manual start only (gh workflow run test.yml --ref <branch>), available once the workflow with workflow_dispatch is on main; until then and as a habit run pnpm test:integration locally before a merge; not enforced by a required check. Same sentence about the default-branch requirement in tests/README.md §CI placement and docs/architecture-map.md CI line. Delete docs/features/ai-chat-v2/tasks/tracker.md-E. tasks.json T117 acs: replace AC-15 with ai-assistant AC-15 wording note ('ai-assistant AC-15') . evals/assistant/score.ts: move formatRowFailures above scoreNoGuessing's JSDoc so each JSDoc sits on its function. No tests (docs) except running the eval unit tests after the score.ts move.",
+      "files_hint": [
+        "docs/features/ai-chat-v2/test-plan.md",
+        "docs/features/ai-assistant/test-plan.md",
+        "tests/README.md",
+        "docs/architecture-map.md",
+        "evals/assistant/score.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t122-docs-and-nits-integration-on-manual-start-in-the-t.md"
+    },
+    {
+      "id": "T123",
+      "title": "Draft tools: profile follows the Freelancer's words, own-profile notice checked, answered ids tested",
+      "layer": "backend",
+      "deps": [
+        "T120"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-10",
+        "AC-14"
+      ],
+      "dod": "Re-review of T119–T122 (_review/review-2026-10-16-t115-t118.md, second table). W-1: preferIds applies the answeredRecordIds rule to senderProfileId too (no form answer -> keep senderProfile, drop the id); flip the test at propose-draft-haiku-args.test.ts:68. W-2: before the own-profile wording, check the senderProfile name against the Freelancer's own sender profiles (owner-scoped, the same fold the resolver uses); only when it matches use the own-profile directive; otherwise NO_CUSTOMER_SAY. Pass the name as a separate data field of the answer (e.g. ownSenderProfile: { freelancerText: name }) instead of inside the directive sentence. Tests: matching name -> own-profile directive + data field; non-matching -> plain no-Customer directive. W-3: a runTurn-level test (pattern of tests/unit/lib/ai/tool-pending-commit.test.ts) - priorAnswers [{customerId:'c1'}] and a model call {customer:'Acme', customerId:'c1'} -> resolver receives customerId; an id not in priorAnswers -> resolver receives customer. N-1: the no-Customer commit uses the same call >= resolverCalls check and sets resolverCalls. N-2: update the stale comments. N-5: remove the dead pinned-request branch in run-turn.ts answeredRecordIds (or comment why), rename dropEmptyLines to nameBlankLines.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/ask-user.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t123-draft-tools-profile-follows-the-freelancer-s-words.md"
+    },
+    {
+      "id": "T124",
+      "title": "Chat instructions: the Customer named earlier in the Conversation is carried over; no false 'fills' promise",
+      "layer": "backend",
+      "deps": [
+        "T121"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "AC-45"
+      ],
+      "dod": "Re-review of T119–T122 (_review/review-2026-10-16-t115-t118.md, second table). W-4: chat.ts:15 rule becomes 'when the Freelancer named a Customer in this Conversation (including the one on the card being changed), always pass it in `customer` exactly as the Freelancer wrote it ...; when they named none, leave it out; propose_draft asks.' N-4: chat.ts:16 '... leave it out; propose_draft fills the price from the catalogue or the Customer's custom price, or asks.' Update tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts. N-3 already fixed in tasks.json by the orchestrator.",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t124-chat-instructions-the-customer-named-earlier-in-th.md"
+    },
+    {
+      "id": "T125",
+      "title": "No-Customer form also asks the missing line values; own-profile answer carries the exact question",
+      "layer": "backend",
+      "deps": [
+        "T123"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-37",
+        "AC-46"
+      ],
+      "dod": "Third Haiku eval (2026-10-16, ASSISTANT_EVAL_RUNS=3, after T123-T124): 32/40 rows 3/3, 0 ungrounded; failing: AC-14-many-studios 0/3 (reply 'Twelve Customers match' - count in words), AC-05b-own-profile 2/3 / -uk 1/3 (explains, no question), AC-05b-own-profile-folded 0/3 (model passed customer 'fop'), search-before-add 0/3 and yesterday-date 1/3 ('my new customer' is a real Customer name; model did not search), form-not-prose-uk 1/3 / -en 2/3 (form lacks PRICE: the T120 no-Customer branch asks only CUSTOMER), router row 'Add a line for the website to my draft and write me a slogan for it' -> draft (no card in the Conversation; expected read). Owner: one more round, then one eval run. lib/ai/tools/propose-draft.ts: (1) the no-Customer branch commits a form that asks CUSTOMER plus the line questions the resolver would ask for the request's lines (missing price, quantity or amount; product ambiguity) - reuse the resolver's line resolution (lib/services/assistant-drafts/resolve-lines.ts or resolveDraftRequest pieces) without a Customer (catalogue prices only; no custom price lookup), owner-scoped; askFields lists every field asked. (2) The own-profile directive (OWN_PROFILE_SAY) ends with the exact question to ask, in the Freelancer's language: 'End your reply with the question: Which Customer should this invoice be for?' (the model translates). (3) Review nit: the answer field ownSenderProfile takes the resolver issue's shape { name: { freelancerText } } (schema.ts:186). (4) Review nit: when senderProfile (a name) matches none of the Freelancer's sender profiles in the no-Customer branch, it is dropped from the stored request (so no extra sender-profile question later). Unit tests: no-Customer request with a line lacking a price -> form has CUSTOMER and PRICE questions; own-profile say contains the question text; ownSenderProfile shape; unmatched senderProfile not in turn.pending.resolver.request.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/assistant-drafts/resolve-lines.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t125-no-customer-form-also-asks-the-missing-line-values.md"
+    },
+    {
+      "id": "T126",
+      "title": "Chat instructions and router: counts in digits, generic-looking names are searched, card edits need a card",
+      "layer": "backend",
+      "deps": [
+        "T124",
+        "T119"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-47",
+        "AC-45",
+        "ai-assistant AC-15"
+      ],
+      "dod": "Third Haiku eval (2026-10-16, ASSISTANT_EVAL_RUNS=3, after T123-T124): 32/40 rows 3/3, 0 ungrounded; failing: AC-14-many-studios 0/3 (reply 'Twelve Customers match' - count in words), AC-05b-own-profile 2/3 / -uk 1/3 (explains, no question), AC-05b-own-profile-folded 0/3 (model passed customer 'fop'), search-before-add 0/3 and yesterday-date 1/3 ('my new customer' is a real Customer name; model did not search), form-not-prose-uk 1/3 / -en 2/3 (form lacks PRICE: the T120 no-Customer branch asks only CUSTOMER), router row 'Add a line for the website to my draft and write me a slogan for it' -> draft (no card in the Conversation; expected read). Owner: one more round, then one eval run. lib/ai/instructions/chat.ts (wording only, frozen prefix): (1) 'Write every count as digits (12, not twelve).' next to 'say that number'. (2) In the search rule: 'A phrase that looks generic, such as \"my new customer\" or \"the studio\", may be a Customer's or product's actual name: search for it with list_customers or list_products before treating it as missing, and pass it as written.' lib/ai/router.ts SYSTEM: the card-edit sentence applies only when the recent turns show a draft card prepared in this Conversation; without one, a request to change 'my draft' or an invoice is about a saved draft and is 'read'. Unit tests: instruction regexes for (1) and (2); router prompt regex for the card-in-recent-turns condition (keep the T119 assertions passing).",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts",
+        "lib/ai/router.ts",
+        "tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts",
+        "tests/unit/lib/ai/router.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t126-chat-instructions-and-router-counts-in-digits-gene.md"
+    },
+    {
+      "id": "T127",
+      "title": "Router sees a code-built marker for a draft card or a draft in progress",
+      "layer": "backend",
+      "deps": [
+        "T126"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15"
+      ],
+      "dod": "Review _review/review-2026-10-16-t125-t126.md. Finding 1. lib/ai/run-turn.ts: for the router only (classifyMessage recentTurns), map an assistant turn that holds a data-draft-card part to its text plus a fixed system marker '[A draft card was shown in this reply.]', and one that holds a Question form (the form/offer part the conversation stores) to '[A draft question form was shown in this reply.]'. The model's own history (toModelTurns for the agent) stays unchanged. lib/ai/router.ts SYSTEM: the card-edit rule refers to those markers: a change while the recent turns show a draft card or a draft question form (marked in brackets) is 'draft'; without one, a change to 'my draft' or an invoice is about a saved draft and is 'read'. Keep the existing router test assertions passing (adjust only where the wording intentionally changes). Unit tests: runTurn passes the marker to classifyMessage for a history with a card part and with a form part; the marker is not in the agent's messages; router prompt mentions the markers.",
+      "files_hint": [
+        "lib/ai/run-turn.ts",
+        "lib/ai/router.ts",
+        "tests/unit/lib/ai/router.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t127-router-sees-a-code-built-marker-for-a-draft-card-o.md"
+    },
+    {
+      "id": "T128",
+      "title": "No-Customer branch: keep a partly written profile, resolve the currency like the resolver, log failures, ask every field",
+      "layer": "backend",
+      "deps": [
+        "T125"
+      ],
+      "acs": [
+        "AC-46",
+        "AC-37",
+        "AC-09"
+      ],
+      "dod": "Review _review/review-2026-10-16-t125-t126.md. Findings 2-6, lib/ai/tools/propose-draft.ts. (2) Drop senderProfile from the stored request only when it matches none of the Freelancer's profiles by the resolver's rule (exact folded match, or exactly one profile whose name contains the written words; owner-scoped) - reuse the resolver's matching helper from lib/services/assistant-drafts/resolve-parties.ts if exported, else export it; keep the exact-only isOwnSenderProfileName check for the own-profile directive. (3) Currency for the line resolution: read it with the same interpretation as the resolver (interpretCurrency / writtenCurrency; '$' -> USD) and when none is written, omit PRODUCT questions from this branch (keep PRICE/QUANTITY/AMOUNT questions) so the post-Customer resolution asks products in the invoice currency. (4) catch logs console.error(`no_customer_lines_failed error=${String(redactError(error))}`) like other call sites. (5) NO_CUSTOMER_SAY: 'No Customer was given. Call ask_user once with a one-line prompt for each askFields field (for CUSTOMER omit recordIds; the app offers the Freelancer's Customers). Do not guess one.' and OWN_PROFILE_SAY likewise refers to each askFields field. (6) Tests: resolveLines called with an owner-only ctx ({ userId } and no customerId); '$' gives USD; no currency -> PRODUCT issues filtered out; a rejecting resolveLines -> CUSTOMER-only form and a logged line; a partly written profile ('Consulting' with profile 'Consulting FOP') stays in turn.pending.resolver.request; NO_CUSTOMER_SAY mentions each askFields field.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/services/assistant-drafts/resolve-parties.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t128-no-customer-branch-keep-a-partly-written-profile-r.md"
+    },
+    {
+      "id": "T129",
+      "title": "Router marker wording and stripping; sender-profile match error path tested",
+      "layer": "backend",
+      "deps": [
+        "T127",
+        "T128"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15",
+        "AC-46"
+      ],
+      "dod": "Re-review notes L1-L3 (_review/review-2026-10-16-t125-t126.md, last section). L1 lib/ai/router.ts: the card-edit sentence reads '... applies only when the recent turns show a draft card or a draft question form from this Conversation, marked in brackets: ...' (keep /recent turns show a draft card/i and the T119/T126/T127 regexes matching). L2 lib/ai/run-turn.ts toRouterTurns: remove both marker strings from an assistant turn's text before appending the real markers. L3 tests: a unit case where prisma.senderProfile.findMany rejects -> matchesOwnSenderProfile returns true, logs own_sender_profile_match_failed, and propose_draft keeps senderProfile in turn.pending.resolver.request. Tests for L1 (router prompt mentions 'draft question form from this Conversation') and L2 (a text containing the card marker without a card part reaches the router without the marker).",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "tests/unit/lib/ai/router.test.ts",
+        "tests/unit/lib/ai/run-turn-router-markers.test.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t129-router-marker-wording-and-stripping.md"
+    },
+    {
+      "id": "T130",
+      "title": "AC-05b accepts a request to choose; search before linking a named invoice",
+      "layer": "backend",
+      "deps": [
+        "T129"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-37",
+        "AC-48"
+      ],
+      "dod": "Fourth Haiku eval (2026-10-16, one run, after T125-T129): Topic PASS; no-guessing 37/40, 0 ungrounded; failing AC-05b-own-profile-uk (explains, then 'Оберіть, будь ласка, клієнта' with no '?'), AC-05b-own-profile-folded (model passed customer 'fop'; the resolver's own-profile check is exact only), link-to-draft (model distrusted its earlier 'I created INV-0042' and did not search). (1) lib/services/assistant-drafts/resolve-parties.ts: the own-sender-profile check for a written Customer that matches no Customer also accepts the partial rule used by matchesOwnSenderProfile (exactly one own profile whose folded name contains the folded written words), so 'fop' with profile 'Consulting FOP' raises the own-profile issue (CUSTOMER_NOT_FOUND with ownSenderProfile, or whatever the existing own-profile issue shape is) naming that profile. Exact match behaviour unchanged; a name that matches a real Customer is never treated as a profile. Integration or unit test following the existing resolve-parties tests. (2) Owner decision 2026-10-16 (AC-05b vs AC-37 conflict: with a form present, a prose question is forbidden): evals/assistant/score.ts ownProfileFailures accepts 'asks for the Customer' as either a '?' with the Customer term, or a request to choose/pick/name/select the Customer (en: /(choose|pick|select|name|tell me)[^.]*customer/i; uk: /(оберіть|виберіть|вкажіть|назвіть)[^.]*(клієнт|замовник)/i). Unit test in tests/unit/evals/. Record the decision in docs/features/ai-chat-v2/test-plan.md where AC-05b's evaluation rule is described (one sentence). (3) lib/ai/instructions/chat.ts: 'When the Freelancer asks for a link to an invoice or draft named or mentioned earlier (for example INV-0042), search for it with search_invoices and link the row's path; do not refuse or doubt it before searching.' Instruction test. Revision 2026-10-16 (orchestrator, while implementing): part (1) is dropped. The existing T09 test 'a partial \"Consulting\" sets no hint' encodes a deliberate rule (spec AC-05b, T09 dod: the hint only for an exact folded match), and a partial match would tell a Freelancer writing a new Customer 'Consulting' that it is their own profile 'Consulting FOP'. Exact-only stays; the eval row AC-05b-own-profile-folded (model shortens 'consulting  fop' to 'fop') is recorded as a known model limitation. Remove the T130 'fop' resolver test; keep the two guard tests.",
+      "files_hint": [
+        "evals/assistant/score.ts",
+        "lib/ai/instructions/chat.ts",
+        "docs/features/ai-chat-v2/test-plan.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t130-own-profile-partial-ac05b-ask-link-search.md"
+    },
+    {
+      "id": "T131",
+      "title": "AC-05b scorer accepts only a real request; tests and instruction aligned with the owner decision",
+      "layer": "backend",
+      "deps": [
+        "T130"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-37"
+      ],
+      "dod": "Review of T130 (_review/review-2026-10-16-t125-t126.md, last section), findings 1-5. (1) evals/assistant/score.ts: English request regex /(?:^|[.!?:;]\\s*|\\n\\s*|\\bplease\\s+|\\bcan you\\s+|\\bcould you\\s+)(choose|pick|select|name|tell me)\\b[^.!?\\n]*\\bcustomer/im; Ukrainian uses [^.!?\\n]* instead of [^.]*. (2) Unit tests: 'You named Consulting FOP as the customer, but Consulting FOP is your own sender profile.' and 'Consulting FOP is the name of your own sender profile, not a customer.' fail with 'reply does not ask for the Customer'; 'Please pick the Customer below.', 'Choose the Customer to invoice in the form.', 'Tell me which customer to bill.' pass. (3) Move the three-part doc comment back above ownProfileFailures; type the map Record<EvalLang, RegExp>. (4) tests/integration/ai-chat-v2-own-profile.test.ts: rename the two-profile test to an exact-only case ('\"fop\" alone sets no hint (exact only)') and make the 'Acme' test unconditional (expect PROPOSAL and the Customer id) or drop it; fix the comment. (5) lib/ai/instructions/chat.ts ~31: 'then explain that it is their own sender profile and ask which Customer to invoice: when a form is shown, ask them to choose the Customer in it; otherwise ask in one sentence that ends with a question mark.' Update tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts for the new wording (keep it pinned).",
+      "files_hint": [
+        "evals/assistant/score.ts",
+        "tests/unit/evals/assistant-eval-chat-v2.test.ts",
+        "tests/integration/ai-chat-v2-own-profile.test.ts",
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t131-ac05b-scorer-request-only.md"
+    },
+    {
+      "id": "T132",
+      "title": "AC-05b scorer: requests in Markdown pass; a stray question does not",
+      "layer": "backend",
+      "deps": [
+        "T131"
+      ],
+      "acs": [
+        "AC-05b"
+      ],
+      "dod": "Review of T131 (_review/review-2026-10-16-t125-t126.md, last section), low items 1-2. evals/assistant/score.ts: (1) English request regex allows Markdown and softer request forms between the anchor and the verb: /(?:^|[.!?:;,]\\s*|\\n\\s*|\\bplease\\s+|\\bcan you\\s+|\\bcould you\\s+|\\byou can\\s+|\\bkindly\\s+)(?:[-*+]\\s+|\\d+\\.\\s+)?(?:\\*\\*|__)?(choose|pick|select|name|tell me)\\b[^.!?\\n]*\\bcustomer/im (adjust if a near-miss starts passing). (2) The '?' path requires the question sentence itself to name the Customer: en /[^.!?\\n]*\\bcustomers?\\b[^.!?\\n]*\\?/i, uk /[^.!?\\n]*(клієнт|замовник)[^.!?\\n]*\\?/i. Unit tests (tests/unit/evals/assistant-eval-chat-v2.test.ts): passing '… sender profile.\\n- Choose the customer in the form.', '… sender profile.\\n\\n**Choose the customer** in the form below.', '… Please **choose the customer** below.', '…, so choose a customer in the form.', 'You can pick the customer in the form.', 'Which Customer should this invoice be for?'; failing 'You named Consulting FOP as the customer, but it is your own sender profile. Anything else?' plus all T131 near-misses still failing.",
+      "files_hint": [
+        "evals/assistant/score.ts",
+        "tests/unit/evals/assistant-eval-chat-v2.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t132-ac05b-scorer-markdown-and-question.md"
+    },
+    {
+      "id": "T133",
+      "title": "AC-14 count in words accepted; folded own-profile row recorded as a known limitation",
+      "layer": "backend",
+      "deps": [
+        "T132"
+      ],
+      "acs": [
+        "AC-14",
+        "AC-05b"
+      ],
+      "dod": "Fifth Haiku eval (2026-10-16, one run, after T130-T132): Topic PASS; no-guessing 38/40, 0 ungrounded; failing AC-05b-own-profile-folded (known model limitation, T130 revision) and AC-14-many-studios ('Twelve Customers match \"Studio\"', the count in words, 4 runs in a row). Owner decision 2026-10-16: a count written in words counts as saying how many match; the folded row is a known limitation. (1) evals/assistant/score.ts matchCountFailures: 'says how many match' passes on /\\b12\\b/ or the number word (en /\\btwelve\\b/i, uk /дванадцят/i). Unit tests: 'Twelve Customers match \"Studio\"' and 'Дванадцять клієнтів відповідають «Studio»' pass; a reply with no count still fails; listing a Studio name still fails. (2) docs/features/ai-chat-v2/test-plan.md: one sentence where AC-14's evaluation rule is described recording the owner decision; one sentence recording AC-05b-own-profile-folded as a known model limitation (Haiku shortens 'consulting  fop' to 'fop'; the own-profile hint stays exact-only by design). (3) docs/features/ai-chat-v2/_ship/pr-body.md and _ship/changelog.md: the real-model evaluation owner item records the Haiku result (38/40 on 2026-10-16 after T115-T133, topic boundary PASS, 0 ungrounded values) and the known limitation; mark the evaluation item done if the only remaining failure is the known one.",
+      "files_hint": [
+        "evals/assistant/score.ts",
+        "tests/unit/evals/assistant-eval-chat-v2.test.ts",
+        "docs/features/ai-chat-v2/test-plan.md",
+        "docs/features/ai-chat-v2/_ship/pr-body.md",
+        "docs/features/ai-chat-v2/_ship/changelog.md"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t133-count-in-words-and-known-limitation.md"
+    }
+  ]
+}

@@ -8,6 +8,11 @@ enum Currency {
     PLN
 }
 
+enum AssistantOrigin {
+    CHAT
+    PERSONAL_KEY
+}
+
 enum InvoiceStatus {
     DRAFT // Draft invoice, not sent yet
     PENDING // Sent to customer, awaiting payment
@@ -142,12 +147,12 @@ model CustomPrice {
 
 // Invoice
 model Invoice {
-    id              String @id @default(cuid())
-    invoiceNumber   String // e.g., "INV-2025-0001"
+    id               String @id @default(cuid())
+    invoiceNumber    String // e.g., "INV-2025-0001"
     invoiceNumberKey String // lower(trim(invoiceNumber)) (ADR-0004); NOT NULL since the T30 contract step
-    senderProfileId String
-    customerId      String
-    bankAccountId   String
+    senderProfileId  String
+    customerId       String
+    bankAccountId    String
 
     issueDate    DateTime @default(now())
     dueDate      DateTime
@@ -206,10 +211,24 @@ model Invoice {
     // Payment tracking
     paidAt DateTime?
 
-    senderProfile SenderProfile @relation(fields: [senderProfileId], references: [id], onDelete: Restrict)
-    customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-    bankAccount   BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+    // Issue tracking (ADR-0013): written once, when the invoice first leaves DRAFT
+    issuedAt DateTime?
+
+    // ai-chat-v2 (SAD §7 Monitoring): set once by issueFromPreview, never cleared or copied
+    issuedFromChat Boolean @default(false)
+
+    // Assistant origin (ADR-0013): written once at creation, never copied or rewritten
+    assistantOrigin  AssistantOrigin?
+    assistantKeyName String? // the key's name at creation (PERSONAL_KEY only)
+    assistantKeyId   String? // NULL for CHAT, or once the key row is deleted
+
+    senderProfile SenderProfile    @relation(fields: [senderProfileId], references: [id], onDelete: Restrict)
+    customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+    bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
     items         InvoiceItem[]
+    assistantKey  PersonalKey?     @relation(fields: [assistantKeyId], references: [id], onDelete: SetNull)
+    draftCards    DraftCard[]
+    draftRepeats  McpDraftRepeat[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -221,6 +240,7 @@ model Invoice {
     @@index([status])
     @@index([issueDate])
     @@index([dueDate])
+    @@index([assistantKeyId])
 }
 
 // Invoice Line Items
@@ -231,10 +251,10 @@ model InvoiceItem {
 
     name        String // Product name (snapshot from Product or custom)
     description String? // Additional description
-    unit        String  @default("pcs") // Unit of measure
-    quantity    Decimal @db.Decimal(10, 2)
-    rate        Decimal @db.Decimal(10, 2) // Price at the time of invoice creation (snapshot)
-    amount      Decimal @db.Decimal(10, 2) // quantity * rate
+    unit        String    @default("pcs") // Unit of measure
+    quantity    Decimal   @db.Decimal(10, 2)
+    rate        Decimal   @db.Decimal(10, 2) // Price at the time of invoice creation (snapshot)
+    amount      Decimal   @db.Decimal(10, 2) // quantity * rate
     currency    Currency? // Optional: can differ from invoice currency in multi-currency scenarios
 
     invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)

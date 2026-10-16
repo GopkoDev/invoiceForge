@@ -62,7 +62,7 @@ describe('toToolError', () => {
   });
 
   it('maps every other failure to FAILED without leaking its text', () => {
-    for (const code of ['FAILED', 'CONFLICT', 'UNAUTHORIZED', 'RATE_LIMITED'] as const) {
+    for (const code of ['FAILED', 'UNAUTHORIZED', 'RATE_LIMITED'] as const) {
       const err = toToolError(fail(code, 'prisma: connection refused at db:5432'));
       expect(err.code).toBe('FAILED');
       expect(err.message).not.toMatch(/prisma|5432/);

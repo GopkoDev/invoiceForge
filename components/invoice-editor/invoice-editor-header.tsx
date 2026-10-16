@@ -15,7 +15,9 @@ import {
   useInvoiceStatus,
   useHasUnsavedChanges,
   useInvoiceId,
+  useAssistantMark,
 } from '@/store/invoice-editor-store';
+import { AssistantMark } from '@/components/ai/assistant-mark';
 import { EditorSaveStatus } from './invoice-editor-save-status';
 import { useEditorHeaderButtons } from '@/hooks/use-editor-header-buttons';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
@@ -25,6 +27,7 @@ export function InvoiceEditorHeader() {
   const status = useInvoiceStatus();
   const hasUnsavedChanges = useHasUnsavedChanges();
   const invoiceId = useInvoiceId();
+  const assistantMark = useAssistantMark();
 
   const {
     HomeButton,
@@ -56,9 +59,12 @@ export function InvoiceEditorHeader() {
   );
 
   const InvoiceStatus = (
-    <Badge variant={statusInfo.variant} className="shrink-0">
-      {statusInfo.label}
-    </Badge>
+    <>
+      <Badge variant={statusInfo.variant} className="shrink-0">
+        {statusInfo.label}
+      </Badge>
+      {status === 'DRAFT' && <AssistantMark mark={assistantMark} />}
+    </>
   );
 
   return (

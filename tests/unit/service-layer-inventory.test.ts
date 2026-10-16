@@ -68,8 +68,30 @@ describe('part 2: every business function has request-free and foreign-record te
     // Adapter-only functions (server-actions.md): they run before an actor exists or on its behalf.
     /personal-keys\/authenticate\.ts$/,
     /personal-keys\/usage\.ts$/,
+    // Cron-only retention sweeps: system-wide, no acting Freelancer (ai-assistant T14).
+    /conversations\/purge\.ts$/,
+    /assistant-usage\/purge\.ts$/,
+    // Internal line step of resolveDraftRequest (covered through it, ai-assistant T16).
+    /assistant-drafts\/resolve-lines\.ts$/,
+    // Mark storage used by createDraftForKey only (ai-assistant T21).
+    /assistant-drafts\/repeat-marks\.ts$/,
+    // Turn-row writer shared by saveTurn and recordTurnMetadata (ai-assistant T25).
+    /assistant-usage\/turn-row\.ts$/,
   ];
-  const NOT_BUSINESS_NAMES = new Set(['resolveManualOrAllocatedNumber', 'invoiceNumberConflict']);
+  const NOT_BUSINESS_NAMES = new Set([
+    'resolveManualOrAllocatedNumber',
+    'invoiceNumberConflict',
+    // Internal link-state read shared by getConversation and createFromCard (ai-assistant T20).
+    'readInvoiceStates',
+    // Transaction steps of a Question form (they take the route's transaction, not an actor-first call), and the record re-check shared by both checks (ai-chat-v2 T56); covered by
+    // tests/integration/services/assistant-drafts/form-check.test.ts.
+    'claimForm',
+    'releaseForm',
+    'stillFits',
+    // ai-chat-v2 T78: the record fill is request-free (actor-first) but its test shares a file that mocks @/auth for the chat route; covered by
+    // tests/integration/services/assistant-drafts/fill-record-options.test.ts and tests/integration/ai-chat-v2-fill-options-turn.test.ts.
+    'fillRecordOptions',
+  ]);
 
   type Fn = { name: string; file: string; takesId: boolean };
   const functions: Fn[] = walk(join(root, 'lib/services'))

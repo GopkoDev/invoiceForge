@@ -119,12 +119,23 @@ async function startRealApp() {
       process.env.AUTH_SECRET || 'e2e-route-sweep-secret-do-not-use-in-prod',
     AUTH_URL: `http://127.0.0.1:${PORT}`,
     PORT: String(PORT),
+    // T35: the chat answers from the scripted stub model (tests/e2e/support/ai-stub.ts), never a real
+    // provider. getChatModel() honours this pair only together; only this harness sets them.
+    E2E: '1',
+    AI_CHAT_MODEL: 'stub:e2e',
   };
 
   console.log(
     '[e2e app server] applying migrations to the throwaway container...'
   );
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+    cwd: repoRoot,
+    env: appEnv,
+    stdio: 'inherit',
+  });
+
+  // Mastra storage (chat agent runs, traces) lives in its own schema, created by this script only.
+  execFileSync('pnpm', ['mastra:migrate'], {
     cwd: repoRoot,
     env: appEnv,
     stdio: 'inherit',

@@ -1,12 +1,11 @@
 'use client';
 
-import type { Ref } from 'react';
+import { useState, type Ref } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-} from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import {
   Item,
   ItemActions,
@@ -27,6 +26,7 @@ interface KeyListProps {
   revoked: RevokedPersonalKeySummary[];
   timeZone: string;
   onRevoke: (key: PersonalKeySummary) => void;
+  onLift: (key: PersonalKeySummary) => Promise<void>;
   /** Stable focus target once a revoked row has left the list. */
   headingRef?: Ref<HTMLHeadingElement>;
 }
@@ -51,8 +51,22 @@ export function KeyList({
   revoked,
   timeZone,
   onRevoke,
+  onLift,
   headingRef,
 }: KeyListProps) {
+  const [lifting, setLifting] = useState<string | null>(null);
+  const hasReadOnly = active.some((k) => !k.canCreateDrafts);
+
+  async function handleLift(key: PersonalKeySummary) {
+    if (lifting) return;
+    setLifting(key.id);
+    try {
+      await onLift(key);
+    } finally {
+      setLifting(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -72,37 +86,88 @@ export function KeyList({
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup className="gap-2">
-            {active.map((key) => (
-              <Item key={key.id} variant="outline" className="flex-col items-stretch sm:flex-row sm:items-center">
-                <ItemContent>
-                  <ItemTitle>{key.name}</ItemTitle>
-                  <ItemDescription>
-                    {`Created ${formatDate(key.createdAt, timeZone)}`}
-                  </ItemDescription>
-                  <ItemDescription>
-                    <span className="font-mono">{`••••${key.lastFour}`}</span>
-                  </ItemDescription>
-                  <ItemDescription>
-                    {key.lastUsedAt
-                      ? `Last used ${formatDateTime(key.lastUsedAt, timeZone)}`
-                      : 'Never used'}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions className="w-full sm:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    aria-label={`Revoke ${key.name}`}
-                    onClick={() => onRevoke(key)}
-                  >
-                    Revoke
-                  </Button>
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
+          <>
+            {hasReadOnly && (
+              <Alert>
+                <AlertDescription>
+                  Read-only keys can&apos;t be given Draft permission. To let an
+                  assistant create drafts, create a new key with Draft
+                  permission, then revoke the old one.
+                </AlertDescription>
+              </Alert>
+            )}
+            <ItemGroup className="gap-2">
+              {active.map((key) => (
+                <Item
+                  key={key.id}
+                  variant="outline"
+                  className="flex-col items-stretch sm:flex-row sm:items-center"
+                >
+                  <ItemContent>
+                    <ItemTitle>
+                      {key.name}
+                      <Badge
+                        variant={key.canCreateDrafts ? 'default' : 'secondary'}
+                      >
+                        {key.canCreateDrafts
+                          ? 'Can create drafts'
+                          : 'Read-only'}
+                      </Badge>
+                    </ItemTitle>
+                    <ItemDescription>
+                      {`Created ${formatDate(key.createdAt, timeZone)}`}
+                    </ItemDescription>
+                    <ItemDescription>
+                      <span className="font-mono">{`••••${key.lastFour}`}</span>
+                    </ItemDescription>
+                    <ItemDescription>
+                      {key.lastUsedAt
+                        ? `Last used ${formatDateTime(key.lastUsedAt, timeZone)}`
+                        : 'Never used'}
+                    </ItemDescription>
+                    {key.draftsToday && (
+                      <ItemDescription>
+                        {`Drafts today: ${key.draftsToday.created} of ${key.draftsToday.allowance}${
+                          key.draftsToday.created >= key.draftsToday.allowance
+                            ? ' · limit reached'
+                            : ''
+                        }`}
+                      </ItemDescription>
+                    )}
+                    {key.draftsToday?.lastLiftedAt && (
+                      <ItemDescription>
+                        {`Limit last lifted ${formatDateTime(key.draftsToday.lastLiftedAt, timeZone)}`}
+                      </ItemDescription>
+                    )}
+                  </ItemContent>
+                  <ItemActions className="w-full sm:w-auto">
+                    {key.draftsToday &&
+                      key.draftsToday.created >= key.draftsToday.allowance && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          disabled={lifting === key.id}
+                          onClick={() => handleLift(key)}
+                        >
+                          {lifting === key.id && <Spinner />}
+                          Lift limit
+                        </Button>
+                      )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      aria-label={`Revoke ${key.name}`}
+                      onClick={() => onRevoke(key)}
+                    >
+                      Revoke
+                    </Button>
+                  </ItemActions>
+                </Item>
+              ))}
+            </ItemGroup>
+          </>
         )}
       </section>
 

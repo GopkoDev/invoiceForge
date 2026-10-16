@@ -1,0 +1,9 @@
+# T115 — propose_draft in the chat tolerates Haiku's Customer and profile arguments
+
+- **Layer:** backend
+- **Deps:** T114
+- **AC:** AC-04, AC-08, AC-14
+
+## Definition of done
+
+Eval on Claude Haiku 5.5 (owner run 2026-10-16, pnpm eval:assistant): Topic boundary FAIL (one mixed row 'Add a line for the website to my draft and write me a slogan for it' got intent draft, expected read); No-guessing FAIL (70.6 % incomplete/ambiguous ending in a question, need 100 %; 2 ungrounded values; failing AC-16-custom-price, AC-19-use-revolut, AC-05b-own-profile(-uk,-folded), AC-14-many-studios(-uk), yesterday-date). The log shows Haiku calling propose_draft with both customer and customerId, or with no Customer at all, and the tool input schema refusing ('Give exactly one of customer and customerId'); once ask_user with an empty line description. Chat tool only (lib/ai/tools/propose-draft.ts); MCP create_draft_invoice keeps its strict schema. In the tool's input preprocess (next to liftLineCurrency): both customer and customerId -> keep customerId, drop customer; both senderProfile and senderProfileId -> keep the id. The tool's inputSchema must also accept a request with neither customer nor customerId (a chat-only relaxed schema; draftRequestSchema stays as is for MCP and stored requests). In execute, a request with no Customer is not resolved: the answer is an ISSUES answer that asks for the Customer (askFields includes 'CUSTOMER', no card, nothing pending as a card; the model then calls ask_user for CUSTOMER and the app fills the Freelancer's own Customers). ask_user: a line description that is empty or whitespace is dropped before validation instead of refusing the call. Unit tests in tests/unit/lib/ai/ (propose-draft tests): both-given keeps the id; no Customer gives ISSUES with CUSTOMER asked and no card; senderProfile both-given keeps the id; MCP schema still refuses both and neither; ask_user empty description accepted.

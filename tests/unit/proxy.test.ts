@@ -69,7 +69,7 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     expect(res.status).toBe(200);
   });
 
-  it.each(['/dashboard', '/invoices/x/edit', '/some-new-path'])(
+  it.each(['/dashboard', '/invoices/x/edit', '/some-new-path', '/ai', '/ai/x'])(
     'redirects the private page %s to sign-in with a callbackUrl',
     async (path) => {
       const res = await callProxy(buildRequest(path));
@@ -84,7 +84,7 @@ describe('proxy (AC-05, deny by default, no session)', () => {
     }
   );
 
-  it.each(['/api/convert-image', '/api/user/export'])(
+  it.each(['/api/convert-image', '/api/user/export', '/api/chat'])(
     'refuses %s with 401 NotSignedIn and no data (AC-02)',
     async (path) => {
       const res = await callProxy(buildRequest(path, { method: 'POST' }));

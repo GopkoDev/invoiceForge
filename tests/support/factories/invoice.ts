@@ -118,6 +118,11 @@ export async function createInvoice(
       terms: overrides.terms,
       poNumber: overrides.poNumber,
       paidAt: overrides.paidAt,
+      issuedAt: overrides.issuedAt,
+      issuedFromChat: overrides.issuedFromChat,
+      assistantOrigin: overrides.assistantOrigin,
+      assistantKeyName: overrides.assistantKeyName,
+      assistantKeyId: overrides.assistantKeyId,
 
       ...(overrides.id ? { id: overrides.id } : {}),
 

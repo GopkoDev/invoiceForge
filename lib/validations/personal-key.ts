@@ -11,3 +11,6 @@ export const personalKeyNameSchema = z
   .trim()
   .min(1, KEY_NAME_MESSAGE)
   .max(50, KEY_NAME_MESSAGE);
+
+/** Draft permission is chosen at creation only and defaults to off (AC-25, AC-26). */
+export const personalKeyCanCreateDraftsSchema = z.boolean().default(false);

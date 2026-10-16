@@ -12,6 +12,7 @@ export const REQUIRED_SETTINGS = [
   'NEXT_PUBLIC_SENTRY_DSN',
   'CRON_SECRET',
   'LIMIT_KEY_SECRET',
+  'AI_GATEWAY_API_KEY',
 ] as const;
 
 export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number];
@@ -20,6 +21,8 @@ export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number];
 export const OPTIONAL_SETTINGS = [
   // Sign-in response floor in ms (see responseFloorMs in lib/auth/email-provider.ts).
   'SIGNIN_RESPONSE_FLOOR_MS',
+  // Chat model id through the AI Gateway (lib/ai/model.ts); defaults to Claude Haiku 5.5.
+  'AI_CHAT_MODEL',
 ] as const;
 
 export type OptionalSetting = (typeof OPTIONAL_SETTINGS)[number];

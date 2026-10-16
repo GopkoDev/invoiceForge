@@ -232,4 +232,54 @@ describe.runIf(containerRuntimeAvailable)('sender-profiles service — request-f
     });
     expect(await prisma.senderProfile.findUnique({ where: { id: o.senderProfile.id } })).not.toBeNull();
   });
+  it('listSenderProfilesForAssistant (ai-chat-v2 T05): owner-scoped summaries, last four only, default first', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    const other = await createSenderProfile(prisma, a.id, { name: 'Beta', isDefault: false });
+    const main = await createSenderProfile(prisma, a.id, { name: 'Zeta', isDefault: true });
+    await createBankAccount(prisma, main.id, { bankName: 'Test Bank', accountNumber: '1234 5678', currency: 'USD' });
+    await createSenderProfile(prisma, b.id, { name: 'Globex Ltd' });
+
+    const res = await svc.listSenderProfilesForAssistant(await actingFreelancerForTest(a.id), { pageSize: 99 });
+
+    expect(res).toMatchObject({ success: true });
+    if (!res.success) return;
+    expect(res.data.rows.map((r) => r.name)).toEqual(['Zeta', 'Beta']);
+    expect(res.data.rows[0].bankAccounts).toEqual([
+      expect.objectContaining({ bankName: 'Test Bank', lastFour: '5678', currency: 'USD', isDefault: true }),
+    ]);
+    expect(res.data.rows[1]).toMatchObject({ senderProfileId: other.id, bankAccounts: [] });
+    expect(res.data.pageInfo).toMatchObject({ pageSize: 20, pageSizeCapped: true, total: 2 });
+    expect(await svc.listSenderProfilesForAssistant(await actingFreelancerForTest(a.id), { page: 2 })).toMatchObject({
+      success: false,
+      code: 'NOT_FOUND',
+      details: { kind: 'PAGE_OUT_OF_RANGE' },
+    });
+  });
+  it('isOwnSenderProfileName (ai-chat-v2 R3-B1): folded match on own profiles only, never Freelancer B\'s', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting FOP' });
+    await createSenderProfile(prisma, b.id, { name: 'Globex Studio' });
+    const actor = await actingFreelancerForTest(a.id);
+
+    expect(await svc.isOwnSenderProfileName(actor, 'consulting   fop')).toBe(true);
+    expect(await svc.isOwnSenderProfileName(actor, 'Consulting')).toBe(false);
+    expect(await svc.isOwnSenderProfileName(actor, 'Globex Studio')).toBe(false);
+    expect(await svc.isOwnSenderProfileName(actor, '   ')).toBe(false);
+  });
+  it('matchesOwnSenderProfile (ai-chat-v2 T128): exact or the one containing profile, own profiles only', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting FOP' });
+    await createSenderProfile(prisma, b.id, { name: 'Globex Studio' });
+    const actor = await actingFreelancerForTest(a.id);
+
+    expect(await svc.matchesOwnSenderProfile(actor, 'consulting   fop')).toBe(true);
+    expect(await svc.matchesOwnSenderProfile(actor, 'Consulting')).toBe(true);
+    expect(await svc.matchesOwnSenderProfile(actor, 'Globex Studio')).toBe(false);
+    expect(await svc.matchesOwnSenderProfile(actor, '   ')).toBe(false);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting LLC' });
+    expect(await svc.matchesOwnSenderProfile(actor, 'Consulting')).toBe(false);
+  });
 });

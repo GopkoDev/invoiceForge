@@ -5,13 +5,22 @@ This page shows how the project grows. The newest work is at the top.
 ## To do
 
 - **MCP OAuth (v2).** Hosted chat assistants (claude.ai, ChatGPT) connect with the Invoice Forge account, not with a Personal key. See the [idea brief](./features/mcp-server/idea-brief.md) §7.
-- **MCP drafts (v1.1).** An Assistant can create and change draft invoices. This work starts after invoice-integrity. See the [idea brief](./features/mcp-server/idea-brief.md) §7.
 
 ## In progress
 
 Nothing is in progress.
 
 ## Shipped
+
+### 2026-10-13 · ai-chat-v2
+
+The AI chat asks every open question at once in one Question form, answered with one Send. The options come from the app's own checked data, never from the model. Replies are formatted and link only to pages of the app. The chat knows today's date, drafts instead of asking in prose, and can link invoices. A draft can be previewed and issued in the chat under the editor's issuing rules, and only the Freelancer's own press issues it. The AI section fills the screen, keeps the message box in view and keeps the Conversation list in place on a switch. The AI can be reached from the navigation and from the dashboard. The chat and MCP can also read sender profiles, bank accounts (last four digits only) and products.
+[Spec](./features/ai-chat-v2/spec.md) · [Changelog](./features/ai-chat-v2/_ship/changelog.md) · [OpenAPI](/api/ai-chat-v2)
+
+### 2026-10-12 · ai-assistant (#10)
+
+An AI chat in the app answers questions about the Freelancer's own data and makes a Draft invoice from one sentence. It never guesses a value, and a draft exists only after the Freelancer presses Create. External AI clients can create drafts with a new key that has Draft permission.
+[Spec](./features/ai-assistant/spec.md) · [Changelog](./features/ai-assistant/_ship/changelog.md) · [OpenAPI](/api/ai-assistant)
 
 ### 2026-10-11 · editor-ux (#9)
 

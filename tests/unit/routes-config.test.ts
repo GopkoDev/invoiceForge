@@ -53,6 +53,8 @@ describe('isPublicPath (AC-05, deny-by-default allowlist)', () => {
     '/customers',
     '/products',
     '/settings',
+    '/ai', // T18 (AC-42): the AI section and every conversation under it are private
+    '/ai/x',
     '/api/convert-image',
     '/api/user/export',
     '/some-new-path', // AC-05: private by default even though nothing else has ever seen it

@@ -23,6 +23,7 @@ import {
   type StrictPageInfo,
 } from '@/lib/services/_shared/strict-page';
 import { addDaysToDay, dayToUtcDate, utcDateToDay } from '@/lib/helpers/calendar-day';
+import { formatLocalDateKey, localDayRange } from '@/lib/services/_shared/time-zone';
 import { normalizeInvoiceNumber } from '@/lib/services/invoices/numbering';
 import { resolveCustomerByName } from '@/lib/services/customers/customers';
 import { resolveSenderProfileByName } from '@/lib/services/sender-profiles/resolve-by-name';
@@ -59,6 +60,9 @@ const searchInput = z
     issueDateTo: localDate.optional(),
     dueDateFrom: localDate.optional(),
     dueDateTo: localDate.optional(),
+    createdFrom: localDate.optional(),
+    createdTo: localDate.optional(),
+    sort: z.enum(['issueDate', 'createdAt']).optional(),
   })
   .superRefine((v, ctx) => {
     const bad = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
@@ -68,6 +72,7 @@ const searchInput = z
     }
     if (v.issueDateFrom && v.issueDateTo && v.issueDateFrom > v.issueDateTo) bad('issueDateTo', 'The end is before the start.');
     if (v.dueDateFrom && v.dueDateTo && v.dueDateFrom > v.dueDateTo) bad('dueDateTo', 'The end is before the start.');
+    if (v.createdFrom && v.createdTo && v.createdFrom > v.createdTo) bad('createdTo', 'The end is before the start.');
   });
 
 export type SearchInvoicesInput = z.input<typeof searchInput>;
@@ -84,6 +89,10 @@ export type InvoiceRow = {
   currency: Currency;
   dueDate: LocalDate;
   daysOverdue: number | null;
+  /** The day the invoice was created, in the Freelancer time zone. */
+  createdAt: LocalDate;
+  /** In-app path of the invoice editor. */
+  path: string;
 };
 
 export type InvoiceSearchAnswer = {
@@ -162,6 +171,9 @@ export async function searchInvoicesForAssistant(
     if (q.issueDateTo) and.push({ issueDate: { lt: dayToUtcDate(addDaysToDay(q.issueDateTo, 1)) } });
     if (q.dueDateFrom) and.push({ dueDate: { gte: dayToUtcDate(q.dueDateFrom) } });
     if (q.dueDateTo) and.push({ dueDate: { lt: dayToUtcDate(addDaysToDay(q.dueDateTo, 1)) } });
+    // Created is an instant: each bound is a local day in the Freelancer zone, inclusive.
+    if (q.createdFrom) and.push({ createdAt: { gte: localDayRange(q.createdFrom, q.createdFrom, actor.timeZone)[0] } });
+    if (q.createdTo) and.push({ createdAt: { lt: localDayRange(q.createdTo, q.createdTo, actor.timeZone)[1] } });
     const where: Prisma.InvoiceWhereInput = { senderProfile: { userId: actor.userId }, AND: and };
 
     // 3. Totals over every match, then one strict page.
@@ -191,8 +203,9 @@ export async function searchInvoicesForAssistant(
               total: true,
               currency: true,
               dueDate: true,
+              createdAt: true,
             },
-            orderBy: [{ issueDate: 'desc' }, { invoiceNumber: 'asc' }, { id: 'asc' }],
+            orderBy: [q.sort === 'createdAt' ? { createdAt: 'desc' } : { issueDate: 'desc' }, { invoiceNumber: 'asc' }, { id: 'asc' }],
             skip: plan.offset,
             take: plan.limit,
           });
@@ -212,6 +225,8 @@ export async function searchInvoicesForAssistant(
           currency: r.currency,
           dueDate: utcDateToDay(r.dueDate),
           daysOverdue: status === 'overdue' ? daysOverdue(r.dueDate, today) : null,
+          createdAt: formatLocalDateKey(r.createdAt, actor.timeZone),
+          path: `/invoices/${r.id}/edit`,
         };
       }),
       totals: groups

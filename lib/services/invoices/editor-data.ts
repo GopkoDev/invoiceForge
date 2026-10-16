@@ -1,6 +1,7 @@
 import 'server-only';
 import type { Invoice } from '@prisma/client';
 import { prisma } from '@/prisma';
+import { assistantMarkOf } from '@/lib/services/invoices/assistant-mark';
 import { fail, ok, type ActionResult } from '@/types/result';
 import type {
   InvoiceBankAccount,
@@ -98,6 +99,7 @@ export async function getInvoiceEditorData(
           : newInvoiceDefaults(todayIn(actor.timeZone), senderProfiles),
       derivedOverdue: existingInvoice ? isDerivedOverdue(existingInvoice, todayIn(actor.timeZone)) : undefined,
       invoiceId,
+      assistantMark: existingInvoice ? assistantMarkOf(existingInvoice) : null,
       legacy,
       version: existingInvoice?.version,
       issuedDetails: existingInvoice ? issuedDetailsOf(existingInvoice) : null,
@@ -115,7 +117,7 @@ export async function getInvoiceEditorData(
 }
 
 /** A new invoice's defaults: issued `today` (a calendar day in the Freelancer zone), due 30 days later. */
-function newInvoiceDefaults(
+export function newInvoiceDefaults(
   today: string,
   senderProfiles: { id: string; isDefault: boolean; bankAccounts: InvoiceBankAccount[] }[],
 ): InvoiceFormData {

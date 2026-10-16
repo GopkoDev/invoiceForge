@@ -54,6 +54,8 @@ type Active = {
   createdAt: string;
   lastFour: string;
   lastUsedAt: string | null;
+  canCreateDrafts: boolean;
+  draftsToday: { created: number; allowance: number; lastLiftedAt: string | null } | null;
 };
 const laptop: Active = {
   id: 'k1',
@@ -61,6 +63,8 @@ const laptop: Active = {
   createdAt: '2026-09-01T10:00:00.000Z',
   lastFour: 'a1b2',
   lastUsedAt: '2026-09-20T14:30:00.000Z',
+  canCreateDrafts: false,
+  draftsToday: null,
 };
 const unused: Active = {
   id: 'k2',
@@ -68,6 +72,8 @@ const unused: Active = {
   createdAt: '2026-09-02T10:00:00.000Z',
   lastFour: 'c3d4',
   lastUsedAt: null,
+  canCreateDrafts: false,
+  draftsToday: null,
 };
 const old = {
   id: 'k3',
@@ -75,6 +81,7 @@ const old = {
   createdAt: '2026-08-01T10:00:00.000Z',
   lastFour: 'e5f6',
   lastUsedAt: null,
+  canCreateDrafts: false,
   revokedAt: '2026-08-15T10:00:00.000Z',
 };
 
@@ -190,7 +197,7 @@ describe('create', () => {
     expect(screen.getByText('Never used')).toBeTruthy();
     expect(screen.getByText('••••1234')).toBeTruthy();
     expect(input.value).toBe('');
-    expect(createMock).toHaveBeenCalledWith({ name: 'Laptop assistant' });
+    expect(createMock).toHaveBeenCalledWith({ name: 'Laptop assistant', canCreateDrafts: false });
   });
 
   it('the full key is gone after a remount and the snippets show YOUR_KEY again (AC-02)', async () => {

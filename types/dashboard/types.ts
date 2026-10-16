@@ -1,4 +1,5 @@
 import { Currency, InvoiceStatus } from '@prisma/client';
+import type { AssistantMark } from '@/types/invoice/types';
 
 // Currency tab info based on bank accounts
 export interface CurrencyTab {
@@ -88,4 +89,6 @@ export interface RecentInvoice {
   dueDate: Date;
   total: number;
   currency: Currency;
+  /** AC-23: the Assistant mark while the stored status is DRAFT. */
+  assistantMark: AssistantMark;
 }

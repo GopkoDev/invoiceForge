@@ -25,3 +25,13 @@ describe('limit scopes (T8)', () => {
     });
   });
 });
+
+describe('limit scopes (T104)', () => {
+  it('CHAT_MESSAGE: 10 REQUESTED per minute (SEC-L-05)', () => {
+    expect((LIMIT_SCOPES as Record<string, unknown>).CHAT_MESSAGE).toEqual({
+      windowMs: 60_000,
+      max: 10,
+      countedOutcomes: ['REQUESTED'],
+    });
+  });
+});

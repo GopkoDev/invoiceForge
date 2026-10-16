@@ -16,7 +16,12 @@ import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer'
 // source limit -> Bearer key (never cookies) -> key check -> key limit.
 
 export type McpPipelineResult =
-  | { ok: true; actor: ActingFreelancer; keyId: string }
+  | {
+      ok: true;
+      actor: ActingFreelancer;
+      keyId: string;
+      key: { id: string; name: string; canCreateDrafts: boolean };
+    }
   | { ok: false; response: Response };
 
 const BEARER = /^Bearer (\S+)$/i;
@@ -129,5 +134,10 @@ export async function runMcpPipeline(
   );
   if (limited) return { ok: false, response: limited };
 
-  return { ok: true, actor: auth.actor, keyId: auth.keyId };
+  return {
+    ok: true,
+    actor: auth.actor,
+    keyId: auth.keyId,
+    key: { id: auth.keyId, name: auth.name, canCreateDrafts: auth.canCreateDrafts },
+  };
 }

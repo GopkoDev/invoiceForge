@@ -25,6 +25,7 @@ import {
 } from '@/types/invoice/types';
 import { formatCurrency } from '@/lib/helpers/format-helpers';
 import { protectedRoutes } from '@/config/routes.config';
+import { AssistantMark } from '@/components/ai/assistant-mark';
 import { InvoiceStatusBadge } from './invoice-status-badge';
 import { InvoiceRowActions } from './invoice-row-actions';
 import { formatStoredDay } from '@/lib/helpers/calendar-day';
@@ -128,11 +129,14 @@ export function InvoicesDataTable({
         accessorKey: 'status',
         header: 'Status',
         cell: ({ row }) => (
-          <InvoiceStatusBadge
-            status={row.original.status}
-            paidAt={row.original.paidAt}
-            timeZone={timeZone}
-          />
+          <div className="flex items-center gap-1.5">
+            <InvoiceStatusBadge
+              status={row.original.status}
+              paidAt={row.original.paidAt}
+              timeZone={timeZone}
+            />
+            <AssistantMark mark={row.original.assistantMark ?? null} />
+          </div>
         ),
       },
       {

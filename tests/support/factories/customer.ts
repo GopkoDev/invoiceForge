@@ -16,7 +16,7 @@ export async function createCustomer(
       name: overrides.name ?? 'Test Customer',
       companyName: overrides.companyName,
       taxId: overrides.taxId,
-      email: overrides.email ?? uniqueTestEmail('customer'),
+      email: overrides.email === undefined ? uniqueTestEmail('customer') : overrides.email,
       phone: overrides.phone,
       website: overrides.website,
       image: overrides.image,

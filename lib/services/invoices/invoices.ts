@@ -2,11 +2,13 @@ import 'server-only';
 import { z } from 'zod';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/prisma';
+import { assistantMarkOf } from '@/lib/services/invoices/assistant-mark';
 import { fail, ok, type ActionFailure, type ActionResult } from '@/types/result';
 import type {
   InvoiceFilterOptions,
   InvoiceIssuedDetails,
   InvoiceListItem,
+  InvoiceOrigin,
   SerializedInvoice,
 } from '@/types/invoice/types';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
@@ -67,6 +69,8 @@ import {
   peekNextInvoiceNumber as peekNextNumber,
 } from '@/lib/services/invoices/numbering';
 import { SenderProfileNotFoundError } from '@/lib/services/invoices/numbering-errors';
+import { linkedInvoiceStateOf } from '@/lib/services/assistant-drafts/card-view';
+import type { LinkedInvoiceState } from '@/types/assistant/types';
 
 function isRecordNotFoundError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
@@ -101,7 +105,7 @@ export async function getInvoice(
 
     // AC-17's legacy flags (contracts/server-actions.md §getInvoiceEditorData / getInvoice).
     const legacy = await computeInvoiceLegacyInfo(prisma, invoice);
-    return ok({ ...serialized, legacy });
+    return ok({ ...serialized, legacy, assistantMark: assistantMarkOf(invoice) });
   } catch (error) {
     return failed('Error fetching invoice:', error, 'Failed to fetch invoice.');
   }
@@ -292,9 +296,10 @@ export async function listInvoices(
 
     return ok({
       ...page,
-      items: page.items.map((inv) => ({
+      items: page.items.map(({ assistantOrigin: _o, assistantKeyName: _k, ...inv }) => ({
         ...withDerivedStatus(inv, today),
         storedStatus: inv.status,
+        assistantMark: assistantMarkOf({ status: inv.status, assistantOrigin: _o, assistantKeyName: _k }),
         total: serializeDecimal(inv.total),
       })),
       filterOptions: { customers, senderProfiles },
@@ -421,15 +426,22 @@ function inOutcomeSpan<T>(
   });
 }
 
-export async function createInvoice(actor: ActingFreelancer, data: InvoiceFormInput) {
+export async function createInvoice(
+  actor: ActingFreelancer,
+  data: InvoiceFormInput,
+  origin?: InvoiceOrigin,
+  tx?: Prisma.TransactionClient
+) {
   return inOutcomeSpan({ name: 'invoices.save', attributes: { operation: 'create' } }, () =>
-    createInvoiceUnspanned(actor, data)
+    createInvoiceUnspanned(actor, data, origin, tx)
   );
 }
 
 async function createInvoiceUnspanned(
   actor: ActingFreelancer,
-  data: InvoiceFormInput
+  data: InvoiceFormInput,
+  origin?: InvoiceOrigin,
+  outerTx?: Prisma.TransactionClient
 ): Promise<ActionResult<SavedInvoice>> {
   // Set inside the transaction when the number was system-assigned, so the P2002 backstop below
   // knows whether to alert Sentry (checklist: only for system-assigned numbers).
@@ -454,7 +466,11 @@ async function createInvoiceUnspanned(
       });
     }
 
-    const invoice = await prisma.$transaction(async (tx) => {
+    // With an outer transaction (T20: the Create press) the insert joins it; a failure is returned as a
+    // result and the caller rolls its transaction back.
+    const runInTx = <R,>(fn: (tx: Prisma.TransactionClient) => Promise<R>) =>
+      outerTx ? fn(outerTx) : prisma.$transaction(fn);
+    const invoice = await runInTx(async (tx) => {
       // T26 (review F7, ADR-0005): the sender-profile lock first, so an account's currency can't
       // change between the draft rules and the insert; the rules then run on the locked state.
       await lockSenderProfileRow(tx, validatedData.senderProfileId, userId);
@@ -502,6 +518,15 @@ async function createInvoiceUnspanned(
           status: 'DRAFT',
           paidAt: null,
           version: 0,
+          // ADR-0013: written once here, from the separate argument; no other path writes it.
+          ...(origin?.origin === 'CHAT' ? { assistantOrigin: 'CHAT' as const } : {}),
+          ...(origin?.origin === 'PERSONAL_KEY'
+            ? {
+                assistantOrigin: 'PERSONAL_KEY' as const,
+                assistantKeyId: origin.keyId,
+                assistantKeyName: origin.keyName,
+              }
+            : {}),
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
           ...buildSenderSnapshot(senderProfile),
@@ -913,6 +938,8 @@ async function updateInvoiceUnspanned(
           paymentTerms: validatedData.paymentTerms,
           status,
           paidAt,
+          // AC-23: the first move out of DRAFT stamps issuedAt; it is never cleared.
+          ...(status !== 'DRAFT' && !existingInvoice.issuedAt ? { issuedAt: new Date() } : {}),
           version: { increment: 1 },
           currency: validatedData.currency,
           poNumber: validatedData.poNumber,
@@ -1005,17 +1032,56 @@ async function updateInvoiceUnspanned(
 // Update invoice status (the list, flow 5). Touches only status/paidAt/version: never runs the
 // number or legacy-total checks (AC-17 last sentence). The lifecycle and the paid-date rule live
 // once in decideStatusChange (ADR-0002).
-export async function updateInvoiceStatus(actor: ActingFreelancer, id: string, status: string) {
-  return inOutcomeSpan({ name: 'invoices.status-change' }, () =>
-    updateInvoiceStatusUnspanned(actor, id, status)
-  );
-}
-
-async function updateInvoiceStatusUnspanned(
+// ai-chat-v2 (ADR-0007): an optional expectedVersion, checked on the locked row before the decision:
+// not DRAFT → CONFLICT ALREADY_ISSUED; another version → CONFLICT CHANGED_ELSEWHERE. Without it
+// (the row menu) the behaviour is unchanged.
+export async function updateInvoiceStatus(
   actor: ActingFreelancer,
   id: string,
-  status: string
+  status: string,
+  opts?: { expectedVersion?: number }
 ): Promise<ActionResult<{ status: InvoiceStatus; paidAt: string | null }>> {
+  return inOutcomeSpan({ name: 'invoices.status-change' }, async () => {
+    const result = await changeInvoiceStatus(actor, id, status, { expectedVersion: opts?.expectedVersion });
+    if (!result.success) return result;
+    const { status: stored, paidAt } = result.data;
+    return ok({ status: stored, paidAt: paidAt ? paidAt.toISOString() : null });
+  });
+}
+
+/**
+ * ai-chat-v2 T16 (AC-23, AC-25, AC-26, AC-26b; ADR-0007): issues a draft from the chat's preview through
+ * the list/editor issuing path, guarded by the version the preview showed, and marks it issuedFromChat
+ * in the same locked write. The mark is write-once: nothing else writes or copies it.
+ */
+export async function issueInvoiceFromPreview(
+  actor: ActingFreelancer,
+  id: string,
+  expectedVersion: number
+): Promise<ActionResult<{ status: InvoiceStatus; version: number; invoice: LinkedInvoiceState }>> {
+  // Span per contracts/server-actions.md §issueFromPreview; metadata only (the outcome).
+  return inOutcomeSpan({ name: 'invoices.issue-from-preview' }, async () => {
+    const result = await changeInvoiceStatus(actor, id, 'PENDING', { expectedVersion, issuedFromChat: true });
+    if (!result.success) return result;
+    return ok({
+      status: result.data.status,
+      version: result.data.version,
+      invoice: linkedInvoiceStateOf({ ...result.data, id }, todayIn(actor.timeZone)),
+    });
+  });
+}
+
+const ALREADY_ISSUED_MESSAGE = 'This invoice has already been issued.';
+const OUTDATED_PREVIEW_MESSAGE = 'This draft was changed after you opened the preview. Check it and issue again.';
+
+async function changeInvoiceStatus(
+  actor: ActingFreelancer,
+  id: string,
+  status: string,
+  guard: { expectedVersion?: number; issuedFromChat?: boolean }
+): Promise<
+  ActionResult<{ status: InvoiceStatus; paidAt: Date | null; version: number; invoiceNumber: string; dueDate: Date }>
+> {
   try {
     const parsedStatus = z.nativeEnum(InvoiceStatus, {
       errorMap: () => ({ message: 'Unknown status.' }),
@@ -1033,13 +1099,27 @@ async function updateInvoiceStatusUnspanned(
     const outcome = await prisma.$transaction(async (tx) => {
       const invoice = await lockInvoiceRow(tx, id, userId);
       const today = todayIn(actor.timeZone);
+      if (guard.expectedVersion !== undefined) {
+        if (invoice.status !== 'DRAFT') {
+          throw new InvoiceRefusal(
+            fail('CONFLICT', ALREADY_ISSUED_MESSAGE, {
+              details: { kind: 'ALREADY_ISSUED', invoice: linkedInvoiceStateOf(invoice, today) },
+            })
+          );
+        }
+        if (invoice.version !== guard.expectedVersion) {
+          throw new InvoiceRefusal(
+            fail('CONFLICT', OUTDATED_PREVIEW_MESSAGE, {
+              details: { kind: 'CHANGED_ELSEWHERE', currentVersion: invoice.version },
+            })
+          );
+        }
+      }
       // The overdue status of a derived-overdue invoice is never stored (mcp-server ADR-0005):
       // asking for it is asking for the status it already has.
       const target = statusToStoreOnSave(invoice, parsedStatus.data, today);
       const decision = decideStatusChange(invoice, target, { now: new Date(), today });
-      if (decision.kind === 'unchanged') {
-        return { status: invoice.status, paidAt: invoice.paidAt };
-      }
+      if (decision.kind === 'unchanged') return invoice;
       if (decision.kind === 'refused') {
         throw new InvoiceRefusal(
           fail('VALIDATION', decision.message, {
@@ -1067,14 +1147,27 @@ async function updateInvoiceStatusUnspanned(
 
       return tx.invoice.update({
         where: { id, senderProfile: { userId } },
-        data: { status: decision.status, paidAt: decision.paidAt, version: { increment: 1 } },
-        select: { status: true, paidAt: true },
+        data: {
+          status: decision.status,
+          paidAt: decision.paidAt,
+          // AC-23: set once when the invoice first leaves DRAFT, never cleared.
+          ...(invoice.status === 'DRAFT' && decision.status !== 'DRAFT' && !invoice.issuedAt
+            ? { issuedAt: new Date() }
+            : {}),
+          // ai-chat-v2 (ADR-0007): only issueInvoiceFromPreview passes it; write-once.
+          ...(guard.issuedFromChat ? { issuedFromChat: true } : {}),
+          version: { increment: 1 },
+        },
+        select: { status: true, paidAt: true, version: true, invoiceNumber: true, dueDate: true },
       });
     });
 
     return ok({
       status: outcome.status,
-      paidAt: outcome.paidAt ? outcome.paidAt.toISOString() : null,
+      paidAt: outcome.paidAt,
+      version: outcome.version,
+      invoiceNumber: outcome.invoiceNumber,
+      dueDate: outcome.dueDate,
     });
   } catch (error) {
     if (error instanceof InvoiceRefusal) return error.result;

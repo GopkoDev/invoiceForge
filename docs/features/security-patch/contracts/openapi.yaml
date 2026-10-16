@@ -192,7 +192,7 @@ paths:
               schema: { $ref: "#/components/schemas/UserDataExport" }
               example:
                 exportDate: "2026-10-02T10:00:00.000Z"
-                exportVersion: "2.1"
+                exportVersion: "2.4"
                 user: { id: "clx0000000000000000000001", name: "Test User", email: "user-1@example.test", emailVerified: null, image: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", timeZone: null, overdueNoticeDismissedAt: null }
                 accounts: [{ provider: "google", type: "oidc", createdAt: "2026-01-01T00:00:00.000Z" }]
                 emailHistory: []
@@ -201,6 +201,8 @@ paths:
                 products: []
                 invoices: []
                 personalKeys: []
+                conversations: []
+                messageAllowanceDays: []
         "401":
           $ref: "#/components/responses/NotSignedIn"
         "429":
@@ -479,19 +481,43 @@ components:
               type: integer
               minimum: 0
               description: Number of `LimitEvent` rows deleted (`at` < now − 24 h)
+            steps:
+              type: array
+              description: |
+                ai-assistant AC-38: the four independent retention steps (`conversations`, `repeatMarks`,
+                `traces`, `turnsAndCounters`). A failed step has `ok: false` and `deleted: null`; the run stays 200.
+              items:
+                type: object
+                required: [step, deleted, ok]
+                additionalProperties: false
+                properties:
+                  step: { type: string }
+                  deleted: { type: [integer, "null"], minimum: 0 }
+                  ok: { type: boolean }
 
     UserDataExport:
       type: object
       description: |
-        `exportVersion` 2.1 (mcp-server): architecture-hardening's 2.0 body plus `personalKeys`,
+        `exportVersion` 2.4 (ai-chat-v2 revision 2026-10-13, AC-34): the 2.3 body plus `form` on each
+        message (a Question form with its questions, option labels and the answers sent, typed text
+        included, or null; never refs, sources or the stored request), and origin `FORM`. A form
+        reply exports `offer: null`; a pre-revision offer keeps `offer` and also carries its form view.
+        2.3 (ai-chat-v2, AC-34): the 2.2 body plus `startedFrom` on each Conversation,
+        and `origin` and `offer` on each message (an offer exports its labels, state and chosen
+        option, never its record references or stored draft request). Invoices also carry
+        `issuedFromChat`.
+        2.2 (ai-assistant): the 2.1 body plus `conversations`, `messageAllowanceDays`
+        and, on each Personal key, `canCreateDrafts` and `draftDays`. Invoices carry
+        `assistantOrigin`, `assistantKeyName` and `issuedAt`, never `assistantKeyId`.
+        2.1 (mcp-server): architecture-hardening's 2.0 body plus `personalKeys`,
         `user.timeZone` and `user.overdueNoticeDismissedAt`. `LimitEvent` rows are **not**
         exported: they are short-lived security records, and address rows hold only a keyed
         digest that the Freelancer couldn't read anyway (api-sync-report D-6).
-      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices, personalKeys]
+      required: [exportDate, exportVersion, user, accounts, emailHistory, senderProfiles, customers, products, invoices, personalKeys, conversations, messageAllowanceDays]
       additionalProperties: false
       properties:
         exportDate: { type: string, format: date-time }
-        exportVersion: { const: "2.1" }
+        exportVersion: { const: "2.4" }
         user:
           type: object
           required: [id, email]
@@ -525,12 +551,24 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [name, createdAt, lastUsedAt, revokedAt, usageWeeks]
+            required: [name, createdAt, lastUsedAt, revokedAt, canCreateDrafts, draftDays, usageWeeks]
             properties:
               name: { type: string }
               createdAt: { type: string, format: date-time }
               lastUsedAt: { type: [string, "null"], format: date-time }
               revokedAt: { type: [string, "null"], format: date-time }
+              canCreateDrafts: { type: boolean }
+              draftDays:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [day, created, allowance, lastLiftedAt]
+                  properties:
+                    day: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+                    created: { type: integer }
+                    allowance: { type: integer }
+                    lastLiftedAt: { type: [string, "null"], format: date-time }
               usageWeeks:
                 type: array
                 items:
@@ -542,3 +580,130 @@ components:
                     attempts: { type: integer }
                     successes: { type: integer }
                     assistantErrors: { type: integer }
+        conversations:
+          type: array
+          description: The Freelancer's own Conversations; never AssistantTurn rows (ai-assistant AC-39).
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, createdAt, lastMessageAt, startedFrom, messages, draftCards]
+            properties:
+              title: { type: string }
+              createdAt: { type: string, format: date-time }
+              lastMessageAt: { type: string, format: date-time }
+              startedFrom: { type: string, enum: [AI_SECTION, INVOICE_LIST, DASHBOARD_PROMPT, DASHBOARD_CREATE] }
+              messages:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [role, createdAt, text, links, draftCardIds, origin, offer, form]
+                  properties:
+                    role: { type: string, enum: [user, assistant] }
+                    createdAt: { type: string, format: date-time }
+                    text: { type: string }
+                    links: { type: array, items: { type: object } }
+                    draftCardIds: { type: array, items: { type: string } }
+                    origin:
+                      description: How a user message was sent; null on assistant messages.
+                      enum: [TYPED, PRESSED, FORM, DASHBOARD, null]
+                    offer:
+                      description: The reply's Offered choices, or null.
+                      oneOf:
+                        - type: "null"
+                        - type: object
+                          additionalProperties: false
+                          required: [kind, options, state, chosenOptionId, createdAt]
+                          properties:
+                            kind: { type: string, enum: [CUSTOMER, SENDER_PROFILE, CURRENCY, BANK_ACCOUNT, PRODUCT] }
+                            options:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required: [optionId, label]
+                                properties:
+                                  optionId: { type: integer }
+                                  label: { type: string }
+                            state: { type: string, enum: [OPEN, CHOSEN, CLOSED] }
+                            chosenOptionId: { type: [integer, "null"] }
+                            createdAt: { type: string, format: date-time }
+                    form:
+                      description: The reply's Question form (questions, option labels, answers sent), or null.
+                      oneOf:
+                        - type: "null"
+                        - type: object
+                          additionalProperties: false
+                          required: [state, questions, answers]
+                          properties:
+                            state: { type: string, enum: [OPEN, CHOSEN, CLOSED] }
+                            questions:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required: [questionId, field, prompt, options, input, required, skippable]
+                                properties:
+                                  questionId: { type: integer }
+                                  field: { type: string }
+                                  lineIndex: { type: [integer, "null"] }
+                                  prompt: { type: [string, "null"] }
+                                  options:
+                                    type: array
+                                    items:
+                                      type: object
+                                      additionalProperties: false
+                                      required: [optionId, label]
+                                      properties:
+                                        optionId: { type: integer }
+                                        label: { type: string }
+                                  input: { type: string, enum: [NONE, TEXT, AMOUNT, RATE, DISCOUNT, DATE] }
+                                  required: { type: boolean }
+                                  skippable: { type: boolean }
+                            answers:
+                              description: Null unless the form was sent (CHOSEN).
+                              oneOf:
+                                - type: "null"
+                                - type: array
+                                  items:
+                                    oneOf:
+                                      - type: object
+                                        additionalProperties: false
+                                        required: [questionId, optionId, label]
+                                        properties:
+                                          questionId: { type: integer }
+                                          optionId: { type: integer }
+                                          label: { type: string }
+                                      - type: object
+                                        additionalProperties: false
+                                        required: [questionId, text]
+                                        properties:
+                                          questionId: { type: integer }
+                                          text: { type: string }
+                                      - type: object
+                                        additionalProperties: false
+                                        required: [questionId, skipped]
+                                        properties:
+                                          questionId: { type: integer }
+                                          skipped: { const: true }
+              draftCards:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, state, createdAt, proposal, invoiceId]
+                  properties:
+                    id: { type: string }
+                    state: { type: string, enum: [LIVE, REPLACED, OUTDATED, CREATED] }
+                    createdAt: { type: string, format: date-time }
+                    proposal: { type: object }
+                    invoiceId: { type: [string, "null"] }
+        messageAllowanceDays:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, used]
+            properties:
+              day: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+              used: { type: integer }

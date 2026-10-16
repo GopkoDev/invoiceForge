@@ -1,0 +1,2 @@
+-- Reverts 03: intentionally no statement. The backfilled TYPED values cannot be told apart from TYPED values the new
+-- build wrote, and they are harmless to the previous build (it never reads the column). 02's down drops the column.

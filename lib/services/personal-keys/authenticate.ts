@@ -7,7 +7,7 @@ import {
 import { digestKey, isWellFormedKey } from './key-format';
 
 export type PersonalKeyAuthResult =
-  | { ok: true; actor: ActingFreelancer; keyId: string }
+  | { ok: true; actor: ActingFreelancer; keyId: string; canCreateDrafts: boolean; name: string }
   | { ok: false; unavailable?: undefined }
   | { ok: false; unavailable: true };
 
@@ -15,7 +15,7 @@ const REFUSED = { ok: false } as const;
 const UNAVAILABLE = { ok: false, unavailable: true } as const;
 const LAST_USE_INTERVAL_MS = 60_000;
 
-type AuthRow = { id: string; userId: string; timeZone: string | null };
+type AuthRow = { id: string; userId: string; timeZone: string | null; canCreateDrafts: boolean; name: string };
 
 /**
  * The one place a presented key becomes an ActingFreelancer. Shape check first (no query for a
@@ -32,7 +32,7 @@ export async function authenticatePersonalKey(
     const digest = digestKey(fullKey);
 
     const rows = await prisma.$queryRaw<AuthRow[]>`
-      SELECT pk."id", pk."userId", u."timeZone"
+      SELECT pk."id", pk."userId", pk."canCreateDrafts", pk."name", u."timeZone"
       FROM "PersonalKey" pk
       JOIN "User" u ON u."id" = pk."userId"
       WHERE pk."digest" = ${digest} AND pk."revokedAt" IS NULL`;
@@ -50,7 +50,7 @@ export async function authenticatePersonalKey(
     }
 
     const actor = await actingFreelancerFromPersonalKey(row.userId, row.timeZone);
-    return { ok: true, actor, keyId: row.id };
+    return { ok: true, actor, keyId: row.id, canCreateDrafts: row.canCreateDrafts, name: row.name };
   } catch (error) {
     // Never include the key or its digest; a store failure is unavailable, not a refusal.
     console.error('Personal key check failed:', error instanceof Error ? error.name : 'unknown');

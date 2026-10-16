@@ -19,6 +19,24 @@ export const navigationMenuConfig: NavigationConfig = {
       ],
     },
 
+    // ai-chat-v2 T25 (screens.md §SCR-08, AC-28): the AI group, styled like "Management".
+    {
+      type: 'group',
+      label: 'AI',
+      items: [
+        {
+          title: 'AI chat',
+          url: protectedRoutes.ai,
+          icon: 'ai',
+        },
+        {
+          title: 'Connect your AI',
+          url: protectedRoutes.settingsAssistants,
+          icon: 'plug',
+        },
+      ],
+    },
+
     {
       type: 'group',
       label: 'Management',

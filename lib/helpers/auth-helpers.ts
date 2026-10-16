@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/auth';
+import { readSession } from '@/lib/helpers/session-read';
 import { ActionResult, ok, fail } from '@/types/actions';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { isVerifiedSession } from '@/lib/helpers/verified-session';
@@ -13,7 +13,7 @@ export async function getAuthenticatedUser(): Promise<
   ActionResult<{ userId: string }>
 > {
   try {
-    const session = await auth();
+    const session = await readSession();
 
     if (!isVerifiedSession(session)) {
       return fail('UNAUTHORIZED', 'Not signed in.');

@@ -1,25 +1,21 @@
+import type { DraftIssue } from '@/lib/services/assistant-drafts/schema';
 import type {
   ActionErrorDetails,
   ActionFailure,
   AmbiguousCandidate,
 } from '@/types/result';
+import { freelancerText } from '@/lib/assistant-tools/freelancer-text';
 
 // The one place that turns service results into MCP answers: Freelancer-entered
-// text marking (AC-19b) and tool errors. Pure; no I/O.
+// text marking (mcp-server AC-19b) and tool errors. Pure; no I/O.
 
 const MAX_CANDIDATES = 50;
 
-export type FreelancerText = { freelancerText: string };
-
-export function freelancerText(text: string): FreelancerText {
-  return { freelancerText: text };
-}
-
-export function nullableFreelancerText(text: string | null | undefined): FreelancerText | null {
-  return text === null || text === undefined ? null : freelancerText(text);
-}
+export { freelancerText, nullableFreelancerText, type FreelancerText } from '@/lib/assistant-tools/freelancer-text';
 
 export type ToolErrorDetails =
+  | { kind: 'DRAFT_ISSUES'; issues: DraftIssue[] }
+  | { kind: 'DRAFT_LIMIT_REACHED'; created: number; allowance: number; renewsAt: string }
   | { kind: 'PAGE_OUT_OF_RANGE'; total: number; lastPage: number }
   | {
       kind: 'AMBIGUOUS_REFERENCE';
@@ -28,7 +24,7 @@ export type ToolErrorDetails =
     };
 
 export type ToolError = {
-  code: 'VALIDATION' | 'NOT_FOUND' | 'FAILED';
+  code: 'VALIDATION' | 'NOT_FOUND' | 'FORBIDDEN' | 'RATE_LIMITED' | 'CONFLICT' | 'FAILED';
   message: string;
   fieldErrors?: Record<string, string[]>;
   details?: ToolErrorDetails;
@@ -73,12 +69,34 @@ function toolErrorDetails(details: ActionErrorDetails | undefined): ToolErrorDet
         .map((c) => candidate(details.reference, c)),
     };
   }
+  if (details?.kind === 'DRAFT_ISSUES') return { kind: 'DRAFT_ISSUES', issues: details.issues };
+  if (details?.kind === 'DRAFT_LIMIT_REACHED') {
+    return {
+      kind: 'DRAFT_LIMIT_REACHED',
+      created: details.created,
+      allowance: details.allowance,
+      renewsAt: details.renewsAt,
+    };
+  }
   return undefined;
 }
 
-/** VALIDATION / NOT_FOUND explain what to ask; every other failure is a plain FAILED. */
+const FORBIDDEN_MESSAGE =
+  'This key can only read. To create drafts, the Freelancer can create a new key with Draft permission on the Connect your AI page.';
+
+/** The codes that explain what to do next; every other failure is a plain FAILED. */
 export function toToolError(failure: ActionFailure): ToolError {
-  if (failure.code !== 'VALIDATION' && failure.code !== 'NOT_FOUND') {
+  if (failure.code === 'FORBIDDEN') return { code: 'FORBIDDEN', message: FORBIDDEN_MESSAGE };
+  if (failure.code === 'RATE_LIMITED') {
+    const details = toolErrorDetails(failure.details);
+    if (details?.kind !== 'DRAFT_LIMIT_REACHED') return { code: 'FAILED', message: FAILED_MESSAGE };
+    return {
+      code: 'RATE_LIMITED',
+      message: `This key has created ${details.created} drafts today, its daily limit. The Freelancer can lift it on the Connect your AI page. Reading still works.`,
+      details,
+    };
+  }
+  if (failure.code !== 'VALIDATION' && failure.code !== 'NOT_FOUND' && failure.code !== 'CONFLICT') {
     return { code: 'FAILED', message: FAILED_MESSAGE };
   }
   const details = toolErrorDetails(failure.details);

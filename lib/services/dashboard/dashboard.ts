@@ -14,6 +14,7 @@ import { ok, type ActionResult } from '@/types/result';
 import type { ActingFreelancer } from '@/lib/services/_shared/acting-freelancer';
 import { failed } from '@/lib/services/_shared/result-helpers';
 import { derivedStatus, todayIn } from '@/lib/services/_shared/overdue';
+import { assistantMarkOf } from '@/lib/services/invoices/assistant-mark';
 import { currentMonthPeriod, parseDashboardInput, periodBounds, type DashboardPeriod } from './period';
 import {
   queryChartBuckets,
@@ -188,8 +189,9 @@ export async function getRecentInvoices(
       const rows = await queryRecentInvoices(actor, input.currency);
       const today = todayIn(actor.timeZone);
       return ok(
-        rows.map((r): RecentInvoice => ({
+        rows.map(({ assistantOrigin, assistantKeyName, ...r }): RecentInvoice => ({
           ...r,
+          assistantMark: assistantMarkOf({ status: r.status as InvoiceStatus, assistantOrigin, assistantKeyName }),
           storedStatus: r.status as InvoiceStatus,
           // The shared rule: a past-due pending invoice shows as overdue; the stored status is untouched.
           status: derivedStatus({ status: r.status as InvoiceStatus, dueDate: r.dueDate }, today).toUpperCase() as RecentInvoice['status'],

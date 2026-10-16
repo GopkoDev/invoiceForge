@@ -38,6 +38,8 @@ const READ_ONLY_TOOLS = [
   'list_debtors',
   'list_expected_payments',
   'list_overdue_invoices',
+  'list_sender_profiles', // ai-chat-v2 T05
+  'list_products', // ai-chat-v2 T06
   'search_invoices',
 ];
 
@@ -74,8 +76,9 @@ describe.runIf(containerRuntimeAvailable)('Assistant: read-only and issued detai
     const { fullKey } = await setup();
     const res = await route.POST(post({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/list' }, fullKey));
     const tools = (await res.json()).result.tools as { name: string; annotations: { readOnlyHint: boolean } }[];
-    expect(tools.map((t) => t.name).sort()).toEqual(READ_ONLY_TOOLS);
-    for (const t of tools) expect(t.annotations.readOnlyHint, t.name).toBe(true);
+    // T26: create_draft_invoice is the one writer and only creates a Draft; every other tool is read-only.
+    expect(tools.map((t) => t.name).sort()).toEqual([...READ_ONLY_TOOLS, 'create_draft_invoice'].sort());
+    for (const t of tools) expect(t.annotations.readOnlyHint, t.name).toBe(t.name !== 'create_draft_invoice');
   });
 
   it('AC-24: calling a write tool by name is refused and the invoice is unchanged', async () => {

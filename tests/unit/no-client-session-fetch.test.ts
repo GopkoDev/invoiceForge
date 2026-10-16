@@ -19,7 +19,7 @@ const SERVER_SIDE_MENTIONS = new Set([
   'config/routes.config.ts',
   'app/api/auth/[...nextauth]/route.ts',
 ]);
-const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude']);
+const SKIP_ANYWHERE = new Set(['node_modules', '.next', '.git', '.claude', '.mastra']);
 const SKIP_AT_ROOT = new Set([
   'docs',
   'tests',

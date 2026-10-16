@@ -1,0 +1,128 @@
+// ai-assistant T04 - the AI settings and the pinned AI packages (sad.md §2, §7; ADR-0003).
+// The build fails naming the missing AI Gateway key; AI_CHAT_MODEL is optional with a Claude Haiku 5.5 default.
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  OPTIONAL_SETTINGS,
+  REQUIRED_SETTINGS,
+  missingSettings,
+} from '@/lib/env/required-settings';
+
+const root = path.resolve(__dirname, '../../../..');
+
+function fullEnv(): Record<string, string> {
+  return Object.fromEntries(REQUIRED_SETTINGS.map((n) => [n, 'x']));
+}
+
+describe('AI settings', () => {
+  it('requires AI_GATEWAY_API_KEY and no Google key', () => {
+    expect(REQUIRED_SETTINGS).toContain('AI_GATEWAY_API_KEY');
+    expect(REQUIRED_SETTINGS).not.toContain('GOOGLE_GENERATIVE_AI_API_KEY');
+  });
+
+  it('names the AI key when it is missing', () => {
+    const env = fullEnv();
+    delete env.AI_GATEWAY_API_KEY;
+    expect(missingSettings(env)).toEqual(['AI_GATEWAY_API_KEY']);
+  });
+
+  it('treats AI_CHAT_MODEL as optional, never required', () => {
+    expect(OPTIONAL_SETTINGS).toContain('AI_CHAT_MODEL');
+    expect(REQUIRED_SETTINGS).not.toContain('AI_CHAT_MODEL');
+    expect(missingSettings(fullEnv())).toEqual([]);
+  });
+
+  it('fails the build check naming the AI key when it is unset', () => {
+    const env = fullEnv();
+    delete env.AI_GATEWAY_API_KEY;
+    const res = spawnSync('node', ['scripts/check-required-settings.ts'], {
+      cwd: root,
+      env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '', ...env },
+      encoding: 'utf8',
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('AI_GATEWAY_API_KEY');
+  });
+});
+
+describe('getChatModel', () => {
+  const saved = { ...process.env };
+  beforeEach(() => {
+    process.env.AI_GATEWAY_API_KEY = 'test-gateway-key';
+  });
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('defaults to Claude Haiku 5.5 when AI_CHAT_MODEL is unset', async () => {
+    delete process.env.AI_CHAT_MODEL;
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string };
+    expect(model.modelId).toBe('anthropic/claude-haiku-5.5');
+  });
+
+  it('resolves the model id from AI_CHAT_MODEL when set', async () => {
+    process.env.AI_CHAT_MODEL = 'google/gemini-2.5-flash';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string };
+    expect(model.modelId).toBe('google/gemini-2.5-flash');
+  });
+
+  it('ignores the e2e stub id without E2E=1', async () => {
+    delete process.env.E2E;
+    process.env.AI_CHAT_MODEL = 'stub:e2e';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.modelId).toBe('stub:e2e');
+    expect(model.provider).toMatch(/gateway/i);
+  });
+
+  it('ignores E2E=1 when the model id is not the stub id', async () => {
+    process.env.E2E = '1';
+    process.env.AI_CHAT_MODEL = 'google/gemini-2.5-flash';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.modelId).toBe('google/gemini-2.5-flash');
+    expect(model.provider).toMatch(/gateway/i);
+  });
+
+  it('selects the scripted stub only with E2E=1 and AI_CHAT_MODEL=stub:e2e', async () => {
+    process.env.E2E = '1';
+    process.env.AI_CHAT_MODEL = 'stub:e2e';
+    const { getChatModel } = await import('@/lib/ai/model');
+    const model = (await getChatModel()) as { modelId: string; provider: string };
+    expect(model.provider).not.toMatch(/gateway/i);
+  });
+});
+
+describe('pinned AI packages (sad.md §2, §11 risk 4)', () => {
+  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+    dependencies: Record<string, string>;
+    scripts: Record<string, string>;
+  };
+  const EXACT = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
+
+  it.each(['ai', '@ai-sdk/gateway', '@ai-sdk/react', '@mastra/core', '@mastra/pg'])(
+    '%s is an exact version, no range',
+    (name) => {
+      expect(pkg.dependencies[name], `${name} missing from dependencies`).toMatch(EXACT);
+    }
+  );
+
+  it('every @mastra/* package is exactly pinned', () => {
+    const mastra = Object.entries(pkg.dependencies).filter(([n]) => n.startsWith('@mastra/'));
+    expect(mastra.length).toBeGreaterThanOrEqual(2);
+    for (const [n, v] of mastra) expect(v, n).toMatch(EXACT);
+  });
+
+  it('has a mastra:migrate script', () => {
+    expect(pkg.scripts['mastra:migrate']).toMatch(/mastra-migrate/);
+  });
+
+  it('declares the Mastra packages server-external in next.config.ts', () => {
+    const cfg = readFileSync(path.join(root, 'next.config.ts'), 'utf8');
+    expect(cfg).toMatch(/serverExternalPackages[\s\S]*@mastra\//);
+  });
+});

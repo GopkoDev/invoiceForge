@@ -13,6 +13,14 @@ export type InvoiceWithRelations = Prisma.InvoiceGetPayload<{
   };
 }>;
 
+/** AC-23 / ADR-0013: who made a draft; null for an invoice made by hand or once it is issued. */
+export type AssistantMark = { origin: 'CHAT' } | { origin: 'PERSONAL_KEY'; keyName: string } | null;
+
+/** The origin passed to createInvoice as a separate argument (never part of the form). */
+export type InvoiceOrigin =
+  | { origin: 'CHAT' }
+  | { origin: 'PERSONAL_KEY'; keyId: string; keyName: string };
+
 // Invoice list item type
 export type InvoiceListItem = {
   id: string;
@@ -30,6 +38,8 @@ export type InvoiceListItem = {
   createdAt: Date;
   // T35 (AC-18, F-15): the moment the status became Paid; null otherwise.
   paidAt: Date | null;
+  /** AC-23: the Assistant mark while the stored status is DRAFT (always set by listInvoices). */
+  assistantMark?: AssistantMark;
 };
 
 // T14 (spec.md §5 AC-17) — legacy flags surfaced alongside a saved invoice
@@ -62,6 +72,7 @@ export type SerializedInvoice = Omit<
   amountPaid: number;
   items: SerializedInvoiceItem[];
   legacy: InvoiceLegacyInfo | null;
+  assistantMark: AssistantMark;
 };
 
 export type SerializedInvoiceItem = {
@@ -186,6 +197,8 @@ export interface InvoiceEditorData {
   /** The stored status is PENDING but the due date has passed: the header badge reads Overdue (AC-24). */
   derivedOverdue?: boolean;
   invoiceId?: string;
+  /** AC-23: the Assistant mark while the stored status is DRAFT. */
+  assistantMark?: AssistantMark;
   legacy?: InvoiceLegacyInfo | null;
   /** invoice-integrity (ADR-0004): Invoice.version as loaded; the editor sends it back as loadedVersion. */
   version?: number;

@@ -221,7 +221,7 @@ export const privacyContent = {
     subheadline:
       'Simple, honest privacy policy. No legal jargon, no hidden surprises.',
     effectiveDate: 'January 22, 2026',
-    lastUpdated: 'January 23, 2026',
+    lastUpdated: 'October 16, 2026',
   },
 
   sections: [
@@ -358,15 +358,15 @@ export const privacyContent = {
         rows: [
           {
             service: 'Vercel',
-            purpose: 'Hosting and serverless functions',
-            data: 'Encrypted application data, server logs',
-            location: 'USA (with EU edge caching)',
+            purpose: 'Hosting, serverless functions, and the AI Gateway that routes AI assistant message text',
+            data: 'Encrypted application data, server logs, AI assistant message text (in transit)',
+            location: 'EU (Frankfurt, fra1) for the app; AI Gateway and CDN are global',
           },
           {
             service: 'Neon',
             purpose: 'Database storage (PostgreSQL)',
             data: 'All user data (encrypted at rest)',
-            location: 'USA',
+            location: 'EU (Frankfurt, eu-central-1)',
           },
           {
             service: 'Auth.js OAuth Providers',
@@ -374,13 +374,25 @@ export const privacyContent = {
             data: 'Your email, name, profile photo (authentication only)',
             location: 'USA (Google/GitHub servers)',
           },
+          {
+            service: 'Anthropic (via Vercel AI Gateway)',
+            purpose: 'AI assistant',
+            data: 'Chat message text and the data it reads to answer (usually deleted within 30 days; see section 11)',
+            location: 'Outside the EU (mainly USA)',
+          },
+          {
+            service: 'Sentry',
+            purpose: 'Error monitoring',
+            data: 'Error reports, session replays recorded when an error occurs (text masked), logs and metadata-only performance spans',
+            location: 'EU (Germany)',
+          },
         ],
       },
       safeguards: {
         title: 'Data Transfer Safeguards:',
-        text: 'All providers comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission.',
+        text: 'Our hosting and database run in the EU (Frankfurt). Vercel, Neon and Sentry are US companies whose Data Processing Agreements include <strong>Standard Contractual Clauses (SCCs)</strong> for any access from outside the EU. Anthropic, a US company, processes data outside the EU, mainly in the USA, under Vercel\'s Data Processing Agreement (SCCs). The sign-in providers (Google, GitHub) process data in the USA under their own SCCs or EU-US Data Privacy Framework certification.',
         privacy:
-          '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors only handle the technical infrastructure.',
+          '<strong>Your data is private</strong> – no one else can see your invoices or customer lists. These processors handle only what their service needs: the technical infrastructure and, for the AI assistant, the model provider that answers your chat messages.',
       },
     },
     {
@@ -560,7 +572,7 @@ export const privacyContent = {
       'You consent to the use of strictly necessary cookies',
       'You know you can delete everything anytime',
     ],
-    lastUpdated: 'Last Updated: January 23, 2026',
+    lastUpdated: 'Last Updated: October 16, 2026',
     compliance:
       'This policy complies with GDPR (EU) 2016/679, Ukrainian Law on Personal Data Protection, ePrivacy Directive, and EU consumer protection laws.',
   },
@@ -587,7 +599,7 @@ export const termsContent = {
     subheadline:
       "Plain English terms of service. Know exactly what you're agreeing to.",
     effectiveDate: 'January 22, 2026',
-    lastUpdated: 'January 23, 2026',
+    lastUpdated: 'October 16, 2026',
   },
 
   sections: [
@@ -779,15 +791,15 @@ export const termsContent = {
         rows: [
           {
             provider: 'Vercel',
-            service: 'Hosting & Deployment',
-            data: 'Application hosting, logs',
-            location: 'USA (with EU edge caching)',
+            service: 'Hosting, Deployment & AI Gateway',
+            data: 'Application hosting, logs, AI assistant message text (in transit)',
+            location: 'EU (Frankfurt, fra1) for the app; AI Gateway and CDN are global',
           },
           {
             provider: 'Neon',
             service: 'Database (PostgreSQL)',
             data: 'All user data (encrypted at rest)',
-            location: 'USA',
+            location: 'EU (Frankfurt, eu-central-1)',
           },
           {
             provider: 'Auth.js OAuth',
@@ -795,10 +807,22 @@ export const termsContent = {
             data: 'Email, name, profile photo',
             location: 'USA (Google/GitHub)',
           },
+          {
+            provider: 'Anthropic (via Vercel AI Gateway)',
+            service: 'AI assistant',
+            data: 'Chat message text and the data it reads to answer (usually deleted within 30 days; see Privacy Policy section 11)',
+            location: 'Outside the EU (mainly USA)',
+          },
+          {
+            provider: 'Sentry',
+            service: 'Error monitoring',
+            data: 'Error reports, session replays recorded when an error occurs (text masked), logs and metadata-only performance spans',
+            location: 'EU (Germany)',
+          },
         ],
       },
       compliance:
-        'Both Vercel and Neon comply with GDPR through <strong>Standard Contractual Clauses (SCCs)</strong>. You acknowledge and consent to this data processing.',
+        'Our hosting and database run in the EU (Frankfurt). Vercel, Neon and Sentry are US companies whose Data Processing Agreements include <strong>Standard Contractual Clauses (SCCs)</strong> for any access from outside the EU. Anthropic, a US company, processes data outside the EU, mainly in the USA, under Vercel\'s Data Processing Agreement (SCCs). The sign-in providers (Google, GitHub) process data in the USA under their own SCCs or EU-US Data Privacy Framework certification. All providers listed above are covered by data processing agreements. You acknowledge and consent to this data processing.',
     },
     {
       id: 'termination',
@@ -859,7 +883,7 @@ export const termsContent = {
       'You understand the beta limitations',
       'You accept full responsibility for your invoices',
     ],
-    lastUpdated: 'Last Updated: January 23, 2026',
+    lastUpdated: 'Last Updated: October 16, 2026',
     compliance:
       'This document complies with EU consumer protection laws (GDPR, Consumer Rights Directive 2011/83/EU) and Ukrainian law, but does NOT certify Invoice Forge for government e-invoicing systems.',
   },

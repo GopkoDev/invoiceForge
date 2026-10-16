@@ -17,6 +17,7 @@ describe('robots.txt (AC-30)', () => {
         '/products',
         '/sender-profiles',
         '/settings',
+        '/ai',
         '/api/',
       ].sort()
     );

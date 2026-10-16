@@ -52,4 +52,11 @@ function applyMigrations(connectionString: string): void {
     env: { ...process.env, DATABASE_URL: connectionString },
     stdio: 'pipe',
   });
+
+  // Mastra storage (schema `mastra`) is created beside Prisma's migrations, never lazily.
+  execFileSync('pnpm', ['mastra:migrate'], {
+    cwd: path.resolve(process.cwd()),
+    env: { ...process.env, DATABASE_URL: connectionString },
+    stdio: 'pipe',
+  });
 }
