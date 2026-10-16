@@ -54,9 +54,12 @@ beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', MockIO);
   fetchSpy = vi.fn();
   vi.stubGlobal('fetch', fetchSpy);
+  // jsdom applies no module CSS and reports opacity 1; default to "CSS reveal not happened yet" (T12).
+  stubCssReveal(false);
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -277,6 +280,7 @@ describe('LandingDemo AC-04 fallbacks', () => {
   it('AC-04: late hydration, demo on screen -> keeps the still and offers Replay', () => {
     stubReducedMotion(false);
     setSinceLoad(5000);
+    stubCssReveal(true);
     const { container } = renderDemo();
     intersect(1);
     expect(root(container).getAttribute('data-phase')).toBe('still');
@@ -290,6 +294,7 @@ describe('LandingDemo AC-04 fallbacks', () => {
   it('AC-04: late hydration, demo not on screen -> stays idle unseen, then plays on visibility', () => {
     stubReducedMotion(false);
     setSinceLoad(5000);
+    stubCssReveal(true);
     const { container } = renderDemo();
     intersect(0);
     act(() => {
@@ -388,5 +393,79 @@ describe('LandingDemo AC-04 fallbacks', () => {
     expect(css).toMatch(/\[data-phase=["']?idle["']?\]:not\(\[data-armed\]\)/);
     expect(css).toMatch(/\[data-armed\]\[data-visible\]/);
     expect(css).toMatch(/animation-delay:\s*3s/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T12 (landing-update; AC-02, AC-04; review F1 + F2; ADR-0002) - hydration handoff.
+// Lateness is judged from the CSS reveal state (computed opacity of the bubble), not performance.now().
+const realGetComputedStyle = window.getComputedStyle.bind(window);
+function stubCssReveal(revealed: boolean) {
+  const real = realGetComputedStyle;
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el: Element, pseudo?: string | null) => {
+    const style = real(el, pseudo);
+    if (el instanceof HTMLElement && /bubble/.test(el.className)) {
+      return new Proxy(style, {
+        get(target, prop) {
+          if (prop === 'opacity') return revealed ? '1' : '0';
+          const v = Reflect.get(target, prop);
+          return typeof v === 'function' ? v.bind(target) : v;
+        },
+      });
+    }
+    return style;
+  });
+}
+
+describe('LandingDemo T12 hydration handoff', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('F2/AC-04: without IntersectionObserver the demo ends in the finished still', () => {
+    stubReducedMotion(false);
+    setSinceLoad(500);
+    vi.stubGlobal('IntersectionObserver', undefined);
+    const { container } = renderDemo();
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(root(container).getAttribute('data-phase')).toBe('still');
+  });
+
+  it('F1a/AC-04: hydrating after the CSS reveal showed the still keeps it revealed in the same commit, before any observer callback', () => {
+    stubReducedMotion(false);
+    setSinceLoad(5000);
+    stubCssReveal(true);
+    const { container } = renderDemo();
+    const el = root(container);
+    expect(el.hasAttribute('data-armed')).toBe(true);
+    const revealed =
+      el.getAttribute('data-phase') === 'still' ||
+      el.hasAttribute('data-visible') ||
+      el.hasAttribute('data-late');
+    expect(revealed, 'armed root matches no reveal selector before the observer fires').toBe(true);
+  });
+
+  it('F1b/AC-02: mounting at performance.now() >= 3000 while the CSS reveal has not happened, on screen, plays the animation', () => {
+    stubReducedMotion(false);
+    setSinceLoad(5000);
+    stubCssReveal(false);
+    const { container } = renderDemo();
+    intersect(1);
+    expect(root(container).getAttribute('data-phase')).toBe('typing');
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(root(container).getAttribute('data-phase')).toBe('done');
+  });
+
+  it('F1b/AC-04: mounting early while the CSS reveal already happened, on screen, keeps the still', () => {
+    stubReducedMotion(false);
+    setSinceLoad(500);
+    stubCssReveal(true);
+    const { container } = renderDemo();
+    intersect(1);
+    expect(root(container).getAttribute('data-phase')).toBe('still');
   });
 });

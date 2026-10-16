@@ -17,9 +17,6 @@ const PHASE_STARTS: ReadonlyArray<readonly [Phase, number]> = [
   ['done', 4600],
 ];
 const REPLAY_RESET_MS = 300;
-/** The CSS load reveal fires this long after page load; a player hydrating later keeps the still. */
-const LOAD_REVEAL_MS = 3000;
-
 /** Finished still for visitors without scripts; mirrors the `still` rules in the CSS module. */
 const noscriptCss = `.${styles.root} .${styles.bubble}{opacity:1;clip-path:inset(0)}.${styles.root} .${styles.cardWrap}{opacity:1;transform:none}`;
 
@@ -27,8 +24,10 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [armed, setArmed] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [late, setLate] = useState(false);
   const [reduced, setReduced] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const bubbleRef = useRef<HTMLParagraphElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const hasPlayed = useRef(false);
@@ -49,8 +48,12 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
 
   /* eslint-disable react-hooks/set-state-in-effect -- mount-time client detection (armed, reduced motion) must follow hydration so the server HTML stays the start frame */
   useEffect(() => {
+    // Read the CSS load reveal before arming, while its rules still apply: a visible bubble means the still already showed.
+    const bubble = bubbleRef.current;
+    const cssRevealed = bubble !== null && parseFloat(window.getComputedStyle(bubble).opacity) >= 1;
     // Armed: the player has taken over, so the CSS load reveal stands down.
     setArmed(true);
+    if (cssRevealed) setLate(true);
     if (
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -60,16 +63,19 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       return;
     }
     const root = rootRef.current;
-    if (!root || typeof IntersectionObserver === 'undefined') return;
-    let late = performance.now() >= LOAD_REVEAL_MS;
+    if (!root || typeof IntersectionObserver === 'undefined') {
+      setPhase('still');
+      return;
+    }
+    let wasRevealed = cssRevealed;
     const observer = new IntersectionObserver(
       (entries) => {
         if (hasPlayed.current) return;
         const onScreen = entries.some(
           (e) => e.isIntersecting && e.intersectionRatio >= 0.5
         );
-        const wasLate = late;
-        late = false;
+        const wasLate = wasRevealed;
+        wasRevealed = false;
         if (!onScreen) return;
         setVisible(true);
         // Test-only hook (Playwright addInitScript); never set in production.
@@ -107,6 +113,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       className={styles.root}
       data-armed={armed ? '' : undefined}
       data-visible={visible ? '' : undefined}
+      data-late={late ? '' : undefined}
       data-phase={phase}
     >
       <noscript>
@@ -115,7 +122,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       <div className={styles.frame}>
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.bubbleRow}>
-            <p className={styles.bubble}>{sample.sentence}</p>
+            <p ref={bubbleRef} className={styles.bubble}>{sample.sentence}</p>
           </div>
           <div className={styles.stage}>
             <div className={styles.thinking}>

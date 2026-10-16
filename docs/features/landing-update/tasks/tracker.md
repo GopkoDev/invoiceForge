@@ -16,5 +16,9 @@
 | T09 | Write the landing e2e spec: first screen, demo timing and fallbacks, no data requests, sign-in links, signed-in redirect | tests | Dmytro Hopko | M | T06, T07, T08 | done |
 | T10 | Add axe, Linux visual references of the finished demo and the 30 KB JS budget check to the landing e2e spec | tests | Dmytro Hopko | S | T02, T09 | done |
 | T11 | Register LandingDemo, DemoDraftCard and AiSection in the design-system component inventory | docs | Dmytro Hopko | S | T03, T05, T07 | done |
+| T12 | Fix the demo hydration handoff: no still flicker on late hydration, correct lateness detection, still when IntersectionObserver is missing (review F1, F2) | ui | Dmytro Hopko | S | T05 | done |
+| T13 | Show the Example label on the demo box in every phase and move DemoDraftCard's hard-coded labels into landingContent (review F3, F6) | ui | Dmytro Hopko | S | T12 | todo |
+| T14 | Keep Replay mounted during a replay without stealing focus, and give the card link a purpose-bearing name (review F4, F5) | ui | Dmytro Hopko | S | T13 | todo |
+| T15 | Render AiSection's privacy link from content and correct its design-system entry (review F7, F8) | ui | Dmytro Hopko | S | T07 | todo |
 
-**Total:** 11 tasks, ~5 person-days (S ≈ 0.3 d, M ≈ 0.7 d).
+**Total:** 15 tasks (T12–T15 from review 2026-10-17), ~5 person-days (S ≈ 0.3 d, M ≈ 0.7 d).

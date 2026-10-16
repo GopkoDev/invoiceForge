@@ -207,6 +207,22 @@
   animation-fill-mode: forwards;
 }
 
+/* Hydrated after the CSS reveal already showed the still: keep it shown in the same commit as armed, without re-fading. */
+.root[data-phase='idle'][data-armed][data-late] .bubble {
+  opacity: 1;
+  clip-path: inset(0);
+}
+
+.root[data-phase='idle'][data-armed][data-late] .cardWrap {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.root[data-phase='still'] .cardWrap {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .root[data-phase='idle'] .bubble {
     opacity: 1;

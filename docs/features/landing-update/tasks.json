@@ -217,6 +217,88 @@
         "docs/features/landing-update/screens.md"
       ],
       "file": "docs/features/landing-update/tasks/t11-register-components-design-system.md"
+    },
+    {
+      "id": "T12",
+      "title": "Fix the demo hydration handoff: no still flicker on late hydration, correct lateness detection, still when IntersectionObserver is missing (review F1, F2)",
+      "layer": "ui",
+      "deps": [
+        "T05"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-04"
+      ],
+      "dod": "A late-hydrating player never hides the revealed still (no frame at opacity 0, no re-fade); lateness is judged from the CSS reveal state, not performance.now(); with IntersectionObserver undefined the demo shows the finished still; component tests cover no-IO and late paths, e2e covers delayed-JS hydration with the demo on screen",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "components/landing/landing-demo/landing-demo.module.css",
+        "tests/component/landing-demo.test.tsx",
+        "tests/e2e/landing.spec.ts"
+      ],
+      "file": "docs/features/landing-update/_review/review-2026-10-17.md"
+    },
+    {
+      "id": "T13",
+      "title": "Show the Example label on the demo box in every phase and move DemoDraftCard's hard-coded labels into landingContent (review F3, F6)",
+      "layer": "ui",
+      "deps": [
+        "T12"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-05"
+      ],
+      "dod": "A box-level Example badge from sample.exampleLabel is visible in idle/typing/thinking/done/still; DemoDraftCard's 'Draft proposal', 'Customer', 'Total' come from LandingDemoSample props and are walked by the truth guard",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "components/landing/landing-demo/demo-draft-card.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/landing-demo.test.tsx",
+        "tests/component/landing-demo-draft-card.test.tsx",
+        "tests/unit/landing-claims.test.ts",
+        "tests/e2e/landing.spec.ts"
+      ],
+      "file": "docs/features/landing-update/_review/review-2026-10-17.md"
+    },
+    {
+      "id": "T14",
+      "title": "Keep Replay mounted during a replay without stealing focus, and give the card link a purpose-bearing name (review F4, F5)",
+      "layer": "ui",
+      "deps": [
+        "T13"
+      ],
+      "acs": [
+        "AC-09"
+      ],
+      "dod": "Replay stays in the DOM (disabled/aria-disabled) while playing so focus is not lost; no programmatic focus that pulls a user who moved away; the card link's accessible name says where it goes and comes from landingContent.demo; e2e locators updated",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/landing-demo.test.tsx",
+        "tests/e2e/landing.spec.ts"
+      ],
+      "file": "docs/features/landing-update/_review/review-2026-10-17.md"
+    },
+    {
+      "id": "T15",
+      "title": "Render AiSection's privacy link from content and correct its design-system entry (review F7, F8)",
+      "layer": "ui",
+      "deps": [
+        "T07"
+      ],
+      "acs": [
+        "AC-06"
+      ],
+      "dod": "AiSection renders privacyLink.href from landingContent (unit assertion guards the rendered value); docs/design-system.md describes AiSection as a stateless presentational component in the landing client tree",
+      "files_hint": [
+        "components/landing/ai-section.tsx",
+        "constants/public-pages-content.ts",
+        "tests/component/landing-ai-section.test.tsx",
+        "tests/unit/landing-claims.test.ts",
+        "docs/design-system.md"
+      ],
+      "file": "docs/features/landing-update/_review/review-2026-10-17.md"
     }
   ]
 }

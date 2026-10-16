@@ -718,3 +718,39 @@ test.describe('landing JS budget', () => {
     ).toBeLessThanOrEqual(budget);
   });
 });
+
+// T12 (review F1a): a player that hydrates late must never make the revealed still drop back to hidden.
+test.describe('landing demo late hydration', () => {
+  test.use({ viewport: VIEWPORTS[1].size });
+
+  test('AC-04: with the JS chunks delayed ~4 s the bubble never drops back to hidden while hydration lands', async ({
+    page,
+  }) => {
+    await page.route('**/*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      await route.continue();
+    });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __opacities: number[] };
+      w.__opacities = [];
+      const sample = () => {
+        const bubble = document.querySelector('[data-phase] p');
+        if (bubble) w.__opacities.push(Number(getComputedStyle(bubble).opacity));
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    await page.goto(LANDING_URL);
+    await expect(demoRoot(page)).toHaveAttribute('data-armed', '', {
+      timeout: 15_000,
+    });
+    await page.waitForTimeout(1000);
+    const opacities = await page.evaluate(
+      () => (window as unknown as { __opacities: number[] }).__opacities
+    );
+    const firstShown = opacities.findIndex((o) => o >= 0.99);
+    expect(firstShown, 'the CSS reveal never showed the bubble').toBeGreaterThanOrEqual(0);
+    const lowest = Math.min(...opacities.slice(firstShown));
+    expect(lowest, 'lowest bubble opacity after it was first revealed').toBeGreaterThanOrEqual(0.99);
+  });
+});
