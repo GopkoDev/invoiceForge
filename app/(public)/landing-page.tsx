@@ -41,10 +41,10 @@ export function LandingPage() {
         <LandingHero
           badge={landingContent.hero.badge}
           headline={landingContent.hero.headline}
-          subheadline={landingContent.hero.subheadline}
+          supportingLine={landingContent.hero.supportingLine}
           ctaButton={landingContent.hero.ctaButton}
           ctaHref={loginHref}
-          stats={landingContent.hero.stats}
+          demo={landingContent.demo}
         />
 
         <FeatureGrid

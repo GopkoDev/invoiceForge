@@ -32,11 +32,6 @@ export interface HowItWorksStep {
   description: string;
 }
 
-export interface StatItem {
-  label: string;
-  value: string;
-}
-
 export interface LandingDemoLine {
   description: string;
   quantityLabel: string;
@@ -92,22 +87,10 @@ export const landingContent = {
       icon: Sparkles,
       text: 'Public Beta - Free to Use',
     },
-    headline: {
-      line1: 'Master Your Billing',
-      line2: 'With the Invoice Forge',
-      // New single-line headline; line1/line2 are removed with the old component (T06).
-      text: 'Your next invoice is one sentence away',
-    },
+    headline: 'Your next invoice is one sentence away',
     supportingLine:
       'Type what you billed. The AI prepares a draft — you review it before anything is sent.',
-    subheadline:
-      'Stop wrestling with messy templates. Use pre-saved data and smart snapshots to hammer out professional-looking PDFs instantly. Focus on your craft, while the Forge handles the paperwork.',
     ctaButton: 'Join Beta for Free',
-    stats: [
-      { label: 'Manual Retyping', value: '0%' },
-      { label: 'Pixel-Perfect', value: '100%' },
-      { label: 'Status Tracking', value: 'Live' },
-    ] as StatItem[],
   },
 
   demo: landingDemo,
