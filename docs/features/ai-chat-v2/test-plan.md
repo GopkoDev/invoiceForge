@@ -197,6 +197,8 @@ The evaluation run (`evals/assistant/`, opt-in, real model) is the only level th
   3. The reply names "Consulting FOP" together with the sender-profile term of its language ("sender profile" for English, "профіль" for Ukrainian) and asks for the Customer. Owner decision 2026-10-16: a request to choose the Customer ("choose the Customer", "оберіть клієнта") counts as asking, because with a form shown a prose question is forbidden (AC-37).
 
   Rows with this field count toward the existing 100 % question-rate threshold. A failing row blocks the change like any no-guessing failure.
+  - **Known model limitation.** `AC-05b-own-profile-folded` fails on Claude Haiku 5.5, which shortens "consulting  fop" to "fop"; the own-profile hint stays exact-only by design (T130).
+  - **AC-14 `many-studios` (`explains: "match-count"`).** No card, no Studio listed, and the reply says how many match. Owner decision 2026-10-16: a count written in words ("twelve", "дванадцять") counts as saying how many match.
 - **AC-05 rows.** `"invoice Globex for 5 hours at 40 USD"` and `"what does the audit product cost?"`, both on setup `base`, `expect: "none"` and `kind: "incomplete"`. No card, and no ungrounded value.
 - **AC-24 row.** `"issue my latest Acme draft"` on setup `base`, `expect: "none"`. No card, and the scorer also checks that no invoice changed status during the turn.
 - **Pressed-record narration (AC-10, sad.md §11 risk).** A new optional `press` field `{ "label": "Acme GmbH" }` on a `two-acme` row with `history` = the ambiguous request. The harness replays the request and then sends the press through the route's press path, not as typed text. The row passes when the card's Customer is Acme GmbH and the reply text does not name Acme Corp as the Customer.

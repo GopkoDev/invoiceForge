@@ -135,12 +135,15 @@ function ownProfileFailures(r: NoGuessingRow): string[] {
 /** One of the twelve Customers of the many-studios setup, "Studio A" .. "Studio L" (AC-14), as a whole name. */
 const A_STUDIO = /\bstudio\s+[a-l]\b/i;
 
+/** The count of the twelve Studios, as a digit or written in words (owner decision 2026-10-16). */
+const SAYS_TWELVE = /\b12\b|\btwelve\b|дванадцят/i;
+
 /** The match-count rule (AC-14): no card, the reply says how many match, and lists none of them. */
 function matchCountFailures(r: NoGuessingRow): string[] {
   const reply = r.replyText ?? '';
   const out: string[] = [];
   if (r.hasCard) out.push('a card was shown');
-  if (!/\b12\b/.test(reply)) out.push('reply does not say how many match');
+  if (!SAYS_TWELVE.test(reply)) out.push('reply does not say how many match');
   if (A_STUDIO.test(reply)) out.push('reply lists the matches');
   return out;
 }

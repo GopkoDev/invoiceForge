@@ -416,6 +416,26 @@ describe('AC-14: the match-count rows and rule', () => {
     );
   });
 
+  // T133 (owner decision 2026-10-16): a count written in words says how many match.
+  it.each([
+    ['en', 'Twelve Customers match "Studio", so I need you to pick the right one in the form below.'],
+    ['uk', 'Дванадцять клієнтів відповідають «Studio», оберіть потрібного у формі.'],
+  ])('passes when the %s reply gives the count in words', (lang, replyText) => {
+    expect(noGuessingRowFailures(row({ lang: lang as 'en' | 'uk', replyText }))).toEqual([]);
+  });
+
+  it('still fails a reply with no count at all', () => {
+    expect(noGuessingRowFailures(row({ replyText: 'Several Customers match "Studio".' }))).toContain(
+      'reply does not say how many match'
+    );
+  });
+
+  it('still fails a reply that lists a Studio name, even with the count in words', () => {
+    expect(
+      noGuessingRowFailures(row({ replyText: 'Twelve Customers match "Studio", e.g. Studio A.' }))
+    ).toContain('reply lists the matches');
+  });
+
   it('a failing match-count row lowers the question rate', () => {
     expect(scoreNoGuessing([row({ replyText: 'Which Studio?' })]).questionRate).toBe(0);
   });
