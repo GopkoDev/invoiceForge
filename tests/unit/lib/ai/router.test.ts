@@ -185,3 +185,13 @@ describe('router prompt: the bracketed markers are the signal for a draft in pro
     expect(sent).toContain('[A draft question form was shown in this reply.]');
   });
 });
+
+// ai-chat-v2 T129 (ai-assistant AC-15): the card-edit sentence names a draft card or a draft question form.
+describe('router prompt: card-edit sentence wording (T129)', () => {
+  it('applies only when the recent turns show a draft card or a draft question form from this Conversation', async () => {
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
+    await classifyMessage({ message: 'make it 25 hours', recentTurns: [] });
+    const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(sent).toMatch(/recent turns show a draft card or a draft question form from this Conversation/i);
+  });
+});

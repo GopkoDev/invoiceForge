@@ -86,4 +86,19 @@ describe('runTurn gives the router a marker for a draft card or form (T127)', ()
     const form = await run([{ type: 'text', text: 'Which Customer?' }, { type: 'data-offer', id: 'f1', data: { offerId: 'f1' } }]);
     expect(form.agentPrompt).not.toContain('A draft question form was shown');
   });
+
+  // T129 L2: marker strings typed or echoed in the stored text are stripped; only the code-built marker remains.
+  it('a marker string in the text without a card part is stripped before the router', async () => {
+    const { router } = await run([{ type: 'text', text: `Sure. ${CARD_MARKER} ${FORM_MARKER}` }]);
+    expect(router).not.toContain(CARD_MARKER);
+    expect(router).not.toContain(FORM_MARKER);
+  });
+
+  it('a real card part plus the marker string in the text: the marker appears exactly once', async () => {
+    const { router } = await run([
+      { type: 'text', text: `Here is your draft. ${CARD_MARKER}` },
+      { type: 'data-draft-card', id: 'k1', data: { cardId: 'k1' } },
+    ]);
+    expect(router.split(CARD_MARKER).length - 1).toBe(1);
+  });
 });

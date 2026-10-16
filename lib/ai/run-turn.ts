@@ -106,9 +106,10 @@ const FORM_MARKER = '[A draft question form was shown in this reply.]';
 function toRouterTurns(history: ConversationMessageView[]): RouterTurn[] {
   return history
     .map((m) => {
-      const text = textOf(m);
+      let text = textOf(m);
       const marks: string[] = [];
       if (m.role === 'assistant') {
+        text = text.split(CARD_MARKER).join(' ').split(FORM_MARKER).join(' ').replace(/\s+/g, ' ').trim();
         if (m.parts.some((p) => p.type === 'data-draft-card')) marks.push(CARD_MARKER);
         if (m.parts.some((p) => p.type === 'data-offer')) marks.push(FORM_MARKER);
       }

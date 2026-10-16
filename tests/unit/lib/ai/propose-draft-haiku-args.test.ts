@@ -310,6 +310,20 @@ describe('no-Customer branch (T128)', () => {
     }
   });
 
+  // T129 L3: a failed own-profile lookup counts as a match (the name is kept), and the failure is logged.
+  it('prisma.senderProfile.findMany rejecting: senderProfile stays in the stored request and own_sender_profile_match_failed is logged', async () => {
+    const { prisma } = await import('@/prisma');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(prisma.senderProfile.findMany).mockRejectedValueOnce(new Error('db down'));
+    try {
+      const { turn } = await run({ senderProfile: 'Consulting' });
+      expect(turn.pending.resolver!.request.senderProfile).toBe('Consulting');
+      expect(spy.mock.calls.some((c) => typeof c[0] === 'string' && c[0].startsWith('own_sender_profile_match_failed'))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('NO_CUSTOMER_SAY and the own-profile say tell the model to prompt each askFields field', async () => {
     const plain = await run();
     expect(String(plain.answer.say)).toContain('each askFields field');
