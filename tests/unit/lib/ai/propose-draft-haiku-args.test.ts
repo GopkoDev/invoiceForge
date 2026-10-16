@@ -6,6 +6,16 @@ import { describe, expect, it, vi } from 'vitest';
 const resolveDraftRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/prisma', () => ({ prisma: {} }));
 vi.mock('@/lib/services/assistant-drafts/resolve', () => ({ resolveDraftRequest }));
+// T125: the no-Customer branch reuses the resolver's line resolution without a Customer. resolveLines reads the
+// Freelancer's products through prisma (mocked empty above), so it is mocked here: a line with no price and no product
+// comes back as the issue the real resolver gives, LINE_AMOUNT_MISSING.
+const resolveLines = vi.hoisted(() =>
+  vi.fn(async (request: { lines: Array<unknown> }) => ({
+    lines: [],
+    issues: request.lines.map((_l, lineIndex) => ({ kind: 'LINE_AMOUNT_MISSING', lineIndex, description: 'web dev' })),
+  })),
+);
+vi.mock('@/lib/services/assistant-drafts/resolve-lines', () => ({ resolveLines }));
 // T123 W-2: the owner-scoped check of a name against the Freelancer's own sender profiles. Mocked: 'Consulting FOP' is
 // one of this Freelancer's own profiles, 'Acme' is not.
 const isOwnSenderProfileName = vi.hoisted(() => vi.fn(async (_actor: unknown, name: string) => name === 'Consulting FOP'));
@@ -136,19 +146,34 @@ describe('propose_draft tolerates Haiku arguments (T115)', () => {
     const { answer } = await NO_CUSTOMER_RUN({ senderProfile: 'Consulting FOP' });
     const say = String(answer.say);
     expect(isOwnSenderProfileName).toHaveBeenCalledWith(expect.anything(), 'Consulting FOP');
-    expect(answer.ownSenderProfile).toEqual({ freelancerText: 'Consulting FOP' });
+    // T125: the issue's shape { name: { freelancerText } } (schema.ts), and the exact question to end the reply with.
+    expect(answer.ownSenderProfile).toEqual({ name: { freelancerText: 'Consulting FOP' } });
+    expect(say).toContain('Which Customer should this invoice be for?');
     expect(say).not.toContain('Consulting FOP');
     expect(say.toLowerCase()).toContain('sender profile');
     expect(say).toContain('?');
   });
 
   it('T123: senderProfile that matches no own profile: the plain no-Customer directive, no ownSenderProfile', async () => {
-    const { answer } = await NO_CUSTOMER_RUN({ senderProfile: 'Acme' });
+    const { answer, turn } = await NO_CUSTOMER_RUN({ senderProfile: 'Acme' });
     const say = String(answer.say);
     expect(answer).not.toHaveProperty('ownSenderProfile');
+    expect(turn.pending.resolver!.request).not.toHaveProperty('senderProfile');
     expect(say).not.toContain('Acme');
     expect(say).toContain('No Customer was given');
     expect(say.toLowerCase()).not.toContain('own sender profile');
+  });
+
+  // T125 (AC-05b, AC-37, AC-46): the no-Customer form also asks what the lines lack.
+  it('T125: no Customer and a line without a price: the form asks CUSTOMER and PRICE (line 0)', async () => {
+    const { turn, answer } = await NO_CUSTOMER_RUN({ lines: [{ description: 'web dev', quantity: '10' }] });
+    const fields = (answer.askFields as Array<{ field: string; lineIndex: number | null }>).map((f) => f.field);
+    expect(fields).toContain('CUSTOMER');
+    expect(fields).toContain('PRICE');
+    const price = turn.pending.resolver!.questions.find((q) => q.field === 'PRICE');
+    expect(turn.pending.resolver!.questions.map((q) => q.field)).toContain('CUSTOMER');
+    expect(price).toBeDefined();
+    expect(price!.lineIndex).toBe(0);
   });
 
   // T123 N-1: the own-profile check is awaited, so parallel no-Customer calls can commit out of order. Call 0 names a

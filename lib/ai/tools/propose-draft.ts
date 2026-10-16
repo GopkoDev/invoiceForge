@@ -6,6 +6,7 @@ import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
 import { isOwnSenderProfileName } from '@/lib/services/sender-profiles/sender-profiles';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
+import { resolveLines } from '@/lib/services/assistant-drafts/resolve-lines';
 import { composeForm, formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import { isCurrency } from '@/lib/services/assistant-drafts/offers';
 import {
@@ -80,7 +81,7 @@ const NO_CUSTOMER_SAY =
 
 // The name travels in the answer's `ownSenderProfile` data field, never inside this sentence.
 const OWN_PROFILE_SAY =
-  "The name given as the sender profile (ownSenderProfile) is the Freelancer's own sender profile, not a Customer. Explain that and ask which Customer to invoice?";
+  "The name given as the sender profile (ownSenderProfile) is the Freelancer's own sender profile, not a Customer. Explain that briefly. End your reply with the question, in the Freelancer's language: Which Customer should this invoice be for?";
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
 export function linksFor(issues: DraftIssue[]): AppLink[] {
@@ -232,11 +233,35 @@ export function createProposeDraftTool(turn: TurnContext) {
         // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
         if (!turn.draftIntent) return { answer: { kind: 'NOT_REQUESTED', message: NOT_REQUESTED } };
         if (relaxed.customer === undefined && relaxed.customerId === undefined) {
-          const questions: FormQuestionDraft[] = formFromIssues([{ kind: 'CUSTOMER_NOT_FOUND', written: '' }], {
-            today: turn.today,
-            timeZone: turn.actor.timeZone,
-          });
           const own = relaxed.senderProfile ? await isOwnSenderProfileName(turn.actor, relaxed.senderProfile) : false;
+          // T125: the lines' own questions (missing price, quantity, amount; product choice) come with CUSTOMER, from the
+          // resolver's line resolution without a Customer (catalogue prices only).
+          const written = relaxed.currency?.trim().toUpperCase();
+          const currency = written && isCurrency(written) ? written : undefined;
+          let lineIssues: DraftIssue[] = [];
+          if (relaxed.lines && relaxed.lines.length > 0) {
+            try {
+              lineIssues = (
+                await resolveLines(relaxed as DraftRequest, {
+                  userId: turn.actor.userId,
+                  ...(currency ? { currency } : {}),
+                })
+              ).issues;
+            } catch {
+              lineIssues = [];
+            }
+          }
+          const questions: FormQuestionDraft[] = formFromIssues(
+            [{ kind: 'CUSTOMER_NOT_FOUND', written: '' }, ...lineIssues],
+            {
+              today: turn.today,
+              timeZone: turn.actor.timeZone,
+              invoiceCurrency: currency ?? null,
+              issueDate: relaxed.issueDate ?? null,
+            }
+          );
+          const stored: Record<string, unknown> = { ...relaxed };
+          if (!own) delete stored.senderProfile;
           return {
             answer: {
               kind: 'ISSUES',
@@ -244,11 +269,11 @@ export function createProposeDraftTool(turn: TurnContext) {
               links: [],
               askFields: askFieldsOf(questions),
               say: own ? OWN_PROFILE_SAY : NO_CUSTOMER_SAY,
-              ...(own ? { ownSenderProfile: { freelancerText: relaxed.senderProfile } } : {}),
+              ...(own ? { ownSenderProfile: { name: { freelancerText: relaxed.senderProfile } } } : {}),
             },
             commit: () => {
               if (call >= (resolverCalls.get(turn) ?? -1)) {
-                turn.pending.resolver = { request: relaxed as DraftRequest, questions };
+                turn.pending.resolver = { request: stored as DraftRequest, questions };
                 resolverCalls.set(turn, call);
               }
             },
