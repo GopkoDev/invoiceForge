@@ -13,7 +13,7 @@ const DESCRIPTION =
   'Pass what the Freelancer already said as the partial draft. Your reply text must be at most two sentences leading into the form.';
 
 /** T115/T120: Haiku sometimes sends a draft line with a blank description; the line keeps its place and is named "Line N". */
-function dropEmptyLines(raw: unknown): unknown {
+function nameBlankLines(raw: unknown): unknown {
   const draft = (raw as { draft?: { lines?: unknown } } | null)?.draft;
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.lines)) return raw;
   const lines = draft.lines.map((l, i) =>
@@ -35,10 +35,10 @@ export function createAskUserTool(turn: TurnContext) {
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
     // Mastra validates the input before execute; once the turn's budget is spent the call is refused before any
     // check of its words (T103), so a spent budget lets any input through to that refusal.
-    inputSchema: z.preprocess((raw) => (turn.toolBudget.callsLeft <= 0 ? SPENT_PLACEHOLDER : dropEmptyLines(raw)), askUserInputSchema),
+    inputSchema: z.preprocess((raw) => (turn.toolBudget.callsLeft <= 0 ? SPENT_PLACEHOLDER : nameBlankLines(raw)), askUserInputSchema),
     execute: (raw: AskUserInput): Promise<Record<string, unknown>> =>
       withToolBudget(turn.toolBudget, async () => {
-        const input = askUserInputSchema.parse(dropEmptyLines(raw));
+        const input = askUserInputSchema.parse(nameBlankLines(raw));
         const checked = await checkAskUser(turn.actor, input, { today: turn.today });
         if (checked.ok) {
           return {

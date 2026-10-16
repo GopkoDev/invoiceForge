@@ -6,6 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 const resolveDraftRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/prisma', () => ({ prisma: {} }));
 vi.mock('@/lib/services/assistant-drafts/resolve', () => ({ resolveDraftRequest }));
+// T123 W-2: the owner-scoped check of a name against the Freelancer's own sender profiles. Mocked: 'Consulting FOP' is
+// one of this Freelancer's own profiles, 'Acme' is not.
+const isOwnSenderProfileName = vi.hoisted(() => vi.fn(async (_actor: unknown, name: string) => name === 'Consulting FOP'));
+vi.mock('@/lib/services/sender-profiles/sender-profiles', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/services/sender-profiles/sender-profiles')>()),
+  isOwnSenderProfileName,
+}));
 
 const { createTurnContext } = await import('@/lib/ai/turn-context');
 const { createProposeDraftTool } = await import('@/lib/ai/tools/propose-draft');
@@ -32,8 +39,8 @@ describe('propose_draft tolerates Haiku arguments (T115)', () => {
   });
 
   // The answered form choice lives on the turn as `answeredRecordIds` (string[]): the record ids of options the
-  // Freelancer chose in a form answered this turn (pinned press or sent form). TurnContext has no such field yet;
-  // the implementer adds it and run-turn fills it from input.pinned.request / input.priorAnswers.
+  // Freelancer chose in a form answered this turn (pinned press or sent form); run-turn fills it from
+  // input.pinned.request / input.priorAnswers.
   const withAnswer = (ids: string[]) => Object.assign(makeTurn(), { answeredRecordIds: ids });
   const OK_ISSUES = { success: true, data: { kind: 'ISSUES', issues: [] } };
 
@@ -65,12 +72,31 @@ describe('propose_draft tolerates Haiku arguments (T115)', () => {
     expect(request).not.toHaveProperty('customerId');
   });
 
-  it('both senderProfile and senderProfileId (T115 rule, unchanged unless T120 decides otherwise): keeps senderProfileId', () => {
+  // T123 W-1: the same rule as the Customer. The Freelancer's written senderProfile wins unless senderProfileId is the
+  // id of an option chosen in a form answered this turn.
+  it('both senderProfile and senderProfileId, no form answer this turn: keeps senderProfile, drops the id', () => {
     const tool = createProposeDraftTool(makeTurn()) as unknown as AnyTool;
+    const r = tool.inputSchema.safeParse({ customer: 'Acme', senderProfile: 'Studio', senderProfileId: 'sp1', lines: LINES });
+    expect(r.success).toBe(true);
+    expect(r.data?.senderProfile).toBe('Studio');
+    expect(r.data).not.toHaveProperty('senderProfileId');
+  });
+
+  it('both senderProfile and senderProfileId, the id answered in a form this turn: keeps the id', () => {
+    const tool = createProposeDraftTool(withAnswer(['sp1'])) as unknown as AnyTool;
     const r = tool.inputSchema.safeParse({ customer: 'Acme', senderProfile: 'Studio', senderProfileId: 'sp1', lines: LINES });
     expect(r.success).toBe(true);
     expect(r.data?.senderProfileId).toBe('sp1');
     expect(r.data).not.toHaveProperty('senderProfile');
+  });
+
+  it('execute passes senderProfile (not the id) to the resolver when no form was answered', async () => {
+    resolveDraftRequest.mockReset().mockResolvedValue(OK_ISSUES);
+    const tool = createProposeDraftTool(makeTurn()) as unknown as AnyTool;
+    await tool.execute({ customer: 'Acme', senderProfile: 'Studio', senderProfileId: 'sp1', lines: LINES }, {});
+    const request = resolveDraftRequest.mock.calls[0][1];
+    expect(request.senderProfile).toBe('Studio');
+    expect(request).not.toHaveProperty('senderProfileId');
   });
 
   it('no Customer: the input is accepted and execute answers ISSUES asking for CUSTOMER, no card, resolver not called', async () => {
@@ -104,12 +130,42 @@ describe('propose_draft tolerates Haiku arguments (T115)', () => {
     expect(customerQ!.options).toHaveLength(0);
   });
 
-  it('T120: senderProfile given and no Customer: say names it as the sender profile and asks with a question mark', async () => {
+  // T123 W-2: the own-profile directive only when the name is one of the Freelancer's own sender profiles; the name
+  // travels as the data field `ownSenderProfile: { freelancerText }`, never inside the directive sentence.
+  it('T123: senderProfile that is one of the Freelancer\'s own: own-profile directive, name in ownSenderProfile only', async () => {
     const { answer } = await NO_CUSTOMER_RUN({ senderProfile: 'Consulting FOP' });
     const say = String(answer.say);
-    expect(say).toContain('Consulting FOP');
+    expect(isOwnSenderProfileName).toHaveBeenCalledWith(expect.anything(), 'Consulting FOP');
+    expect(answer.ownSenderProfile).toEqual({ freelancerText: 'Consulting FOP' });
+    expect(say).not.toContain('Consulting FOP');
     expect(say.toLowerCase()).toContain('sender profile');
     expect(say).toContain('?');
+  });
+
+  it('T123: senderProfile that matches no own profile: the plain no-Customer directive, no ownSenderProfile', async () => {
+    const { answer } = await NO_CUSTOMER_RUN({ senderProfile: 'Acme' });
+    const say = String(answer.say);
+    expect(answer).not.toHaveProperty('ownSenderProfile');
+    expect(say).not.toContain('Acme');
+    expect(say).toContain('No Customer was given');
+    expect(say.toLowerCase()).not.toContain('own sender profile');
+  });
+
+  // T123 N-1: the own-profile check is awaited, so parallel no-Customer calls can commit out of order. Call 0 names a
+  // sender profile and waits on the (held) own-profile lookup; call 1 commits first; releasing call 0 must not
+  // overwrite the later call's question. (Commits run inside withToolBudget, after the answer is charged.)
+  it('T123: two no-Customer calls whose commits run out of order: the later call stays in turn.pending.resolver', async () => {
+    let release: (v: boolean) => void = () => {};
+    isOwnSenderProfileName.mockImplementationOnce(() => new Promise<boolean>((r) => (release = r)));
+    const turn = makeTurn();
+    const tool = createProposeDraftTool(turn) as unknown as AnyTool;
+    const slow = tool.execute({ senderProfile: 'Slow', lines: [{ description: 'First', quantity: '1', price: '1' }] }, {});
+    const fast = tool.execute({ lines: [{ description: 'Second', quantity: '1', price: '1' }] }, {});
+    await fast;
+    expect(turn.pending.resolver!.request.lines[0].description).toBe('Second');
+    release(false);
+    await slow;
+    expect(turn.pending.resolver!.request.lines[0].description).toBe('Second');
   });
 
   it('T120: guard order with no Customer: draftIntent false -> NOT_REQUESTED', async () => {

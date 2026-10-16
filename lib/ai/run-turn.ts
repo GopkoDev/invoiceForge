@@ -303,10 +303,6 @@ export async function runTurn(input: RunTurnInput): Promise<{ stream: AsyncItera
     pinned: input.pinned,
   });
   // T120: the ids of records the Freelancer picked in a form answered in this request.
-  if (input.pinned) {
-    const { customerId, senderProfileId } = input.pinned.request;
-    for (const id of [customerId, senderProfileId]) if (id) turn.answeredRecordIds.push(id);
-  }
   for (const answer of input.priorAnswers ?? []) {
     for (const key of ['customerId', 'senderProfileId']) {
       const id = answer[key];

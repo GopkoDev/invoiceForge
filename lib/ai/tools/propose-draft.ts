@@ -4,6 +4,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
+import { isOwnSenderProfileName } from '@/lib/services/sender-profiles/sender-profiles';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { composeForm, formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import { isCurrency } from '@/lib/services/assistant-drafts/offers';
@@ -66,16 +67,20 @@ function preferIds(raw: unknown, answered: readonly string[]): unknown {
     if (typeof request.customerId === 'string' && answered.includes(request.customerId)) delete request.customer;
     else delete request.customerId;
   }
-  // The sender profile keeps the T115 rule (the exact id wins; a pinned test holds it).
-  if (request.senderProfile !== undefined && request.senderProfileId !== undefined) delete request.senderProfile;
+  // The sender profile follows the same rule as the Customer (T123).
+  if (request.senderProfile !== undefined && request.senderProfileId !== undefined) {
+    if (typeof request.senderProfileId === 'string' && answered.includes(request.senderProfileId)) delete request.senderProfile;
+    else delete request.senderProfileId;
+  }
   return request;
 }
 
 const NO_CUSTOMER_SAY =
   "No Customer was given. Call ask_user with one question for CUSTOMER (omit recordIds; the app offers the Freelancer's Customers). Do not guess one.";
 
-const ownProfileSay = (name: string) =>
-  `"${name}" is the Freelancer's own sender profile, not a Customer. Explain that and ask which Customer to invoice?`;
+// The name travels in the answer's `ownSenderProfile` data field, never inside this sentence.
+const OWN_PROFILE_SAY =
+  "The name given as the sender profile (ownSenderProfile) is the Freelancer's own sender profile, not a Customer. Explain that and ask which Customer to invoice?";
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
 export function linksFor(issues: DraftIssue[]): AppLink[] {
@@ -231,16 +236,21 @@ export function createProposeDraftTool(turn: TurnContext) {
             today: turn.today,
             timeZone: turn.actor.timeZone,
           });
+          const own = relaxed.senderProfile ? await isOwnSenderProfileName(turn.actor, relaxed.senderProfile) : false;
           return {
             answer: {
               kind: 'ISSUES',
               issues: [],
               links: [],
               askFields: askFieldsOf(questions),
-              say: relaxed.senderProfile ? ownProfileSay(relaxed.senderProfile) : NO_CUSTOMER_SAY,
+              say: own ? OWN_PROFILE_SAY : NO_CUSTOMER_SAY,
+              ...(own ? { ownSenderProfile: { freelancerText: relaxed.senderProfile } } : {}),
             },
             commit: () => {
-              turn.pending.resolver = { request: relaxed as DraftRequest, questions };
+              if (call >= (resolverCalls.get(turn) ?? -1)) {
+                turn.pending.resolver = { request: relaxed as DraftRequest, questions };
+                resolverCalls.set(turn, call);
+              }
             },
           };
         }
