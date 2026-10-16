@@ -1,0 +1,181 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 28rem;
+}
+
+.visual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  padding: 1rem;
+}
+
+.bubbleRow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  height: 3.5rem;
+}
+
+.bubble {
+  max-width: 90%;
+  border-radius: 1rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  opacity: 0;
+  clip-path: inset(0 100% 0 0);
+}
+
+/* The card and the thinking dots share one grid cell, so the box keeps the final card size in every phase. */
+.stage {
+  position: relative;
+  display: grid;
+}
+
+.stage > * {
+  grid-area: 1 / 1;
+}
+
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: start;
+  opacity: 0;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.cardWrap {
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.input {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  height: 2.25rem;
+}
+
+/* Phases */
+.root[data-phase='typing'] .bubble,
+.root[data-phase='thinking'] .bubble,
+.root[data-phase='card'] .bubble,
+.root[data-phase='done'] .bubble {
+  opacity: 1;
+}
+
+.root[data-phase='typing'] .bubble {
+  animation: type 1.6s steps(24, end) forwards;
+}
+
+.root[data-phase='thinking'] .bubble,
+.root[data-phase='card'] .bubble,
+.root[data-phase='done'] .bubble {
+  clip-path: inset(0);
+}
+
+.root[data-phase='thinking'] .thinking {
+  opacity: 1;
+}
+
+.root[data-phase='card'] .cardWrap,
+.root[data-phase='done'] .cardWrap {
+  opacity: 1;
+  transform: none;
+}
+
+/* Frame holds the visual and the link overlay; the overlay is aligned to the stage (padding 1rem, bubble row 3.5rem, input 2.25rem, gaps 0.75rem). */
+.frame {
+  position: relative;
+}
+
+.links {
+  position: absolute;
+  top: 5.25rem;
+  right: 1rem;
+  bottom: 4rem;
+  left: 1rem;
+}
+
+/* Real links, overlaid on the card visual; transparent but keyboard-focusable. */
+.cardLink,
+.createLink {
+  position: absolute;
+  display: block;
+  border-radius: 0.75rem;
+}
+
+.cardLink {
+  inset: 0;
+}
+
+.createLink {
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 1;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+}
+
+.cardLink:focus-visible,
+.createLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.replayRow {
+  display: flex;
+  justify-content: center;
+  min-height: 2.25rem;
+}
+
+@media (min-width: 640px) {
+  .createLink {
+    left: auto;
+    width: 8rem;
+  }
+}
+
+@keyframes type {
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
