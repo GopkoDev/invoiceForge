@@ -558,3 +558,52 @@ describe('LandingDemo T14 a11y', () => {
     expect(screen.getByRole('link', { name: label })).toBe(card);
   });
 });
+
+// ---------------------------------------------------------------------------
+// T16 (landing-update; AC-02, AC-09; review F9 + F10) - replay from a late still, Replay disabled look.
+describe('LandingDemo T16 replay', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('F9/AC-02: Replay from a late still returns to idle without data-late, then plays to done', () => {
+    stubReducedMotion(false);
+    setSinceLoad(5000);
+    stubCssReveal(true);
+    const { container } = renderDemo();
+    intersect(1);
+    expect(root(container).getAttribute('data-phase')).toBe('still');
+    expect(root(container).hasAttribute('data-late')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: sample.replayLabel }));
+    expect(root(container).getAttribute('data-phase')).toBe('idle');
+    expect(root(container).hasAttribute('data-late')).toBe(false);
+    intersect(1);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(['typing', 'thinking']).toContain(phase(container));
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(phase(container)).toBe('done');
+  });
+
+  it('F10/AC-09: during a replay Replay is aria-disabled, looks disabled, and stays focusable', () => {
+    const { container } = renderDemo();
+    intersect(1);
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(phase(container)).toBe('done');
+    fireEvent.click(screen.getByRole('button', { name: sample.replayLabel }));
+    intersect(1);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(['typing', 'thinking']).toContain(phase(container));
+    const during = screen.getByRole('button', { name: sample.replayLabel });
+    expect(during.getAttribute('aria-disabled')).toBe('true');
+    expect(during.hasAttribute('disabled')).toBe(false);
+    expect(during.className).toContain('aria-disabled:opacity-50');
+  });
+});

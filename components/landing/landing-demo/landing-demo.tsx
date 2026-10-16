@@ -98,6 +98,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   const replay = () => {
     if (phase !== 'done' && phase !== 'still') return;
     setReplayed(true);
+    setLate(false);
     clearTimers();
     setPhase('idle');
     timers.current.push(setTimeout(play, REPLAY_RESET_MS));
@@ -160,7 +161,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
         {(replayed || phase === 'done' || (phase === 'still' && !reduced)) && (
           <button
             type="button"
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            className={`${buttonVariants({ variant: 'outline', size: 'sm' })} aria-disabled:cursor-default aria-disabled:opacity-50`}
             aria-disabled={phase === 'done' || phase === 'still' ? undefined : 'true'}
             onClick={replay}
           >

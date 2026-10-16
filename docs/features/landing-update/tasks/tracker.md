@@ -20,5 +20,6 @@
 | T13 | Show the Example label on the demo box in every phase and move DemoDraftCard's hard-coded labels into landingContent (review F3, F6) | ui | Dmytro Hopko | S | T12 | done |
 | T14 | Keep Replay mounted during a replay without stealing focus, and give the card link a purpose-bearing name (review F4, F5) | ui | Dmytro Hopko | S | T13 | done |
 | T15 | Render AiSection's privacy link from content and correct its design-system entry (review F7, F8) | ui | Dmytro Hopko | S | T07 | done |
+| T16 | Replay from a late still restarts from the start frame, and an aria-disabled Replay looks disabled (re-review F9, F10) | ui | Dmytro Hopko | S | T14 | done |
 
-**Total:** 15 tasks (T12–T15 from review 2026-10-17), ~5 person-days (S ≈ 0.3 d, M ≈ 0.7 d).
+**Total:** 16 tasks (T12–T16 from review 2026-10-17), ~5 person-days (S ≈ 0.3 d, M ≈ 0.7 d).

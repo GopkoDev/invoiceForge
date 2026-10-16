@@ -299,6 +299,24 @@
         "docs/design-system.md"
       ],
       "file": "docs/features/landing-update/_review/review-2026-10-17.md"
+    },
+    {
+      "id": "T16",
+      "title": "Replay from a late still restarts from the start frame, and an aria-disabled Replay looks disabled (re-review F9, F10)",
+      "layer": "ui",
+      "deps": [
+        "T14"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-09"
+      ],
+      "dod": "replay() clears data-late so a replay after late hydration commits idle without data-late (no finished frame lingering, no fade-out under typing); Replay shows a disabled look while aria-disabled and stays focusable",
+      "files_hint": [
+        "components/landing/landing-demo/landing-demo.tsx",
+        "tests/component/landing-demo.test.tsx"
+      ],
+      "file": "docs/features/landing-update/_review/review-2026-10-17.md"
     }
   ]
 }
