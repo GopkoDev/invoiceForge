@@ -2366,8 +2366,8 @@
         "T117"
       ],
       "acs": [
-        "AC-14b",
-        "AC-15"
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15"
       ],
       "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review B1. lib/ai/router.ts SYSTEM: replace the T117 sentence: a request to change a draft or invoice already saved in the app (one from the invoice list, e.g. INV-0042: add or remove a line, edit a value, mark paid) is 'read'; changing the draft card shown in this Conversation before it is created (\"make it 25 hours\", \"add a line\", \"use EUR\") is 'draft'. Unit test in tests/unit/lib/ai/router.test.ts asserting both rules (replace the T117 assertion). AC refs: ai-assistant AC-14b (follow-up card) and ai-assistant AC-15 (intent guard); fix the T117 comment in router.test.ts:148 that cites ai-chat-v2 AC-15.",
       "files_hint": [
@@ -2410,7 +2410,7 @@
       "acs": [
         "AC-05b",
         "AC-14",
-        "AC-16",
+        "ai-assistant AC-16",
         "AC-45"
       ],
       "dod": "Second Haiku eval (2026-10-16, after T115-T118): Topic boundary PASS; no-guessing FAIL 76.5 %, 1 ungrounded; failing: AC-14b-hours-followup (no card: the T117 router rule made 'make it 25 hours' read), AC-16-custom-price (model passed the catalogue price 50.00 the Freelancer never wrote; the Customer's custom price was expected), AC-05b-own-profile/-uk/-folded (reply explains the own sender profile but does not ask which Customer with a question; -folded: model moved the name to senderProfile and gave no Customer), AC-14-many-studios (reply says 'multiple Customers' instead of the count 12). Review: _review/review-2026-10-16-t115-t118.md. Review W3, N4. lib/ai/instructions/chat.ts (frozen prefix; wording only): (1) replace the absolute T116 rule with: 'Except for a form answer's customerId (above): when the Freelancer named a Customer, always pass it in `customer` exactly as they wrote it, even when a search found several or no matching Customers; never drop it because a search was unclear. When they named none, leave it out; propose_draft asks.' Keep 'Never pass customerId together with `customer`'. (2) Add: 'Never pass a price, quantity, currency or other value you read from a tool (list_products, list_customers, an earlier invoice); leave it out and propose_draft fills the catalogue price or the Customer's custom price.' (3) In 'Sender profile and Customer' merge the T116 sentence and the existing one into one: when the Freelancer names one of their sender profiles as the Customer, pass it as `customer` (never as senderProfile), then explain that it is their own sender profile and ask which Customer to invoice in one sentence that ends with a question mark. (4) Add: 'When a propose_draft answer carries a count (listCounts, matchCount or a say sentence with a number), say that number in your reply.' Update tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts accordingly (T116 assertions change with the wording; keep them meaningful).",
@@ -2437,6 +2437,45 @@
         "evals/assistant/score.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t122-docs-and-nits-integration-on-manual-start-in-the-t.md"
+    },
+    {
+      "id": "T123",
+      "title": "Draft tools: profile follows the Freelancer's words, own-profile notice checked, answered ids tested",
+      "layer": "backend",
+      "deps": [
+        "T120"
+      ],
+      "acs": [
+        "AC-05b",
+        "AC-10",
+        "AC-14"
+      ],
+      "dod": "Re-review of T119–T122 (_review/review-2026-10-16-t115-t118.md, second table). W-1: preferIds applies the answeredRecordIds rule to senderProfileId too (no form answer -> keep senderProfile, drop the id); flip the test at propose-draft-haiku-args.test.ts:68. W-2: before the own-profile wording, check the senderProfile name against the Freelancer's own sender profiles (owner-scoped, the same fold the resolver uses); only when it matches use the own-profile directive; otherwise NO_CUSTOMER_SAY. Pass the name as a separate data field of the answer (e.g. ownSenderProfile: { freelancerText: name }) instead of inside the directive sentence. Tests: matching name -> own-profile directive + data field; non-matching -> plain no-Customer directive. W-3: a runTurn-level test (pattern of tests/unit/lib/ai/tool-pending-commit.test.ts) - priorAnswers [{customerId:'c1'}] and a model call {customer:'Acme', customerId:'c1'} -> resolver receives customerId; an id not in priorAnswers -> resolver receives customer. N-1: the no-Customer commit uses the same call >= resolverCalls check and sets resolverCalls. N-2: update the stale comments. N-5: remove the dead pinned-request branch in run-turn.ts answeredRecordIds (or comment why), rename dropEmptyLines to nameBlankLines.",
+      "files_hint": [
+        "lib/ai/tools/propose-draft.ts",
+        "lib/ai/run-turn.ts",
+        "lib/ai/tools/ask-user.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t123-draft-tools-profile-follows-the-freelancer-s-words.md"
+    },
+    {
+      "id": "T124",
+      "title": "Chat instructions: the Customer named earlier in the Conversation is carried over; no false 'fills' promise",
+      "layer": "backend",
+      "deps": [
+        "T121"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "AC-45"
+      ],
+      "dod": "Re-review of T119–T122 (_review/review-2026-10-16-t115-t118.md, second table). W-4: chat.ts:15 rule becomes 'when the Freelancer named a Customer in this Conversation (including the one on the card being changed), always pass it in `customer` exactly as the Freelancer wrote it ...; when they named none, leave it out; propose_draft asks.' N-4: chat.ts:16 '... leave it out; propose_draft fills the price from the catalogue or the Customer's custom price, or asks.' Update tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts. N-3 already fixed in tasks.json by the orchestrator.",
+      "files_hint": [
+        "lib/ai/instructions/chat.ts",
+        "tests/unit/lib/ai/chat-instructions-haiku-rules.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t124-chat-instructions-the-customer-named-earlier-in-th.md"
     }
   ]
 }
