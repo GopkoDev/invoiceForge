@@ -37,6 +37,44 @@ export interface StatItem {
   value: string;
 }
 
+export interface LandingDemoLine {
+  description: string;
+  quantityLabel: string;
+  amount: string;
+}
+
+export interface LandingDemoSample {
+  sentence: string;
+  customer: string;
+  lines: LandingDemoLine[];
+  total: string;
+  currency: string;
+  exampleLabel: string;
+  createLabel: string;
+  replayLabel: string;
+  srSummary: string;
+}
+
+export interface LandingAiBlock {
+  title: string;
+  items: string[];
+}
+
+const landingDemo: LandingDemoSample = {
+  sentence: 'Invoice Acme for 20 hours of design at $50',
+  customer: 'Acme Corp',
+  lines: [
+    { description: 'Design', quantityLabel: '20 h × $50.00', amount: '$1,000.00' },
+  ],
+  total: '$1,000.00',
+  currency: 'USD',
+  exampleLabel: 'Example',
+  createLabel: 'Create draft',
+  replayLabel: 'Replay',
+  srSummary:
+    'Example: the sentence "Invoice Acme for 20 hours of design at $50" becomes a draft invoice for Acme Corp with one line, Design, 20 hours at $50.00, total $1,000.00 USD. You review the draft before anything else happens.',
+};
+
 export const landingContent = {
   navigation: {
     brandName: 'Invoice Forge',
@@ -46,6 +84,7 @@ export const landingContent = {
       { label: 'How It Works', href: '#how-it-works' },
     ],
     ctaButton: 'Get Started',
+    aiLink: { label: 'AI assistant', href: '#ai' },
   },
 
   hero: {
@@ -56,7 +95,11 @@ export const landingContent = {
     headline: {
       line1: 'Master Your Billing',
       line2: 'With the Invoice Forge',
+      // New single-line headline; line1/line2 are removed with the old component (T06).
+      text: 'Your next invoice is one sentence away',
     },
+    supportingLine:
+      'Type what you billed. The AI prepares a draft — you review it before anything is sent.',
     subheadline:
       'Stop wrestling with messy templates. Use pre-saved data and smart snapshots to hammer out professional-looking PDFs instantly. Focus on your craft, while the Forge handles the paperwork.',
     ctaButton: 'Join Beta for Free',
@@ -65,6 +108,59 @@ export const landingContent = {
       { label: 'Pixel-Perfect', value: '100%' },
       { label: 'Status Tracking', value: 'Live' },
     ] as StatItem[],
+  },
+
+  demo: landingDemo,
+
+  aiSection: {
+    badge: 'AI assistant',
+    h2: 'Ask about your invoices. Let the AI draft the next one.',
+    does: {
+      title: 'What it does',
+      items: [
+        'Answers questions about your own invoices, like who owes you money and what is overdue.',
+        'Prepares an invoice draft from one sentence, which you review.',
+        'Asks you when a detail is missing instead of guessing.',
+      ],
+    } as LandingAiBlock,
+    never: {
+      title: 'What it never does',
+      items: [
+        'Never issues or sends an invoice.',
+        'Never edits or deletes an invoice.',
+        'Never creates a Customer.',
+        'The chat has a daily message limit.',
+        'Your invoices are not used to train AI models.',
+      ],
+    } as LandingAiBlock,
+    ownTools: {
+      title: 'From your own AI tools',
+      items: [
+        'Ask about your invoices and create drafts from the AI tools you already use: Claude Desktop, Claude Code and Cursor.',
+        'Creating drafts from these tools needs a permission you choose when connecting them.',
+      ],
+    } as LandingAiBlock,
+    smallPrint: 'Tools connect with a personal key through MCP.',
+    privacyLink: {
+      label: 'How AI messages are processed',
+      href: legalRoutes.privacy,
+    },
+    ctaButton: 'Join Beta for Free',
+  },
+
+  metadata: {
+    description:
+      'Invoice Forge creates an invoice draft from one sentence with AI. You review it and issue it yourself.',
+    openGraph: {
+      title: 'Invoice Forge — an invoice draft from one sentence with AI',
+      description:
+        'Type what you billed and get an invoice draft from one sentence with AI. You review every draft.',
+    },
+    twitter: {
+      title: 'Invoice Forge — an invoice draft from one sentence with AI',
+      description:
+        'Type what you billed and get an invoice draft from one sentence with AI. You review every draft.',
+    },
   },
 
   features: {
@@ -119,7 +215,7 @@ export const landingContent = {
     },
     headline: 'Why is Invoice Forge free?',
     description:
-      "We're in Public Beta and need your feedback to build the fastest invoicing tool. Help us perfect the autofill logic, status tracking, and workflow. In exchange: unlimited usage, free forever during beta.",
+      "We're in Public Beta and need your feedback to build the fastest invoicing tool. Help us perfect the autofill logic, status tracking, and workflow. In exchange: unlimited invoices and clients, free forever during beta.",
     benefits: [
       'Unlimited invoices & clients',
       'All features unlocked',
