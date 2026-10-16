@@ -87,7 +87,8 @@
 .root[data-phase='typing'] .bubble,
 .root[data-phase='thinking'] .bubble,
 .root[data-phase='card'] .bubble,
-.root[data-phase='done'] .bubble {
+.root[data-phase='done'] .bubble,
+.root[data-phase='still'] .bubble {
   opacity: 1;
 }
 
@@ -97,7 +98,8 @@
 
 .root[data-phase='thinking'] .bubble,
 .root[data-phase='card'] .bubble,
-.root[data-phase='done'] .bubble {
+.root[data-phase='done'] .bubble,
+.root[data-phase='still'] .bubble {
   clip-path: inset(0);
 }
 
@@ -106,7 +108,8 @@
 }
 
 .root[data-phase='card'] .cardWrap,
-.root[data-phase='done'] .cardWrap {
+.root[data-phase='done'] .cardWrap,
+.root[data-phase='still'] .cardWrap {
   opacity: 1;
   transform: none;
 }
@@ -177,5 +180,60 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+/*
+ * Finished-still fallbacks, same box (only opacity/clip/transform change).
+ * 3 s reveal: runs from page load until the player is armed, then restarts once visible.
+ * It applies only in idle, so leaving idle cancels it.
+ */
+.root[data-phase='idle']:not([data-armed]) .bubble,
+.root[data-phase='idle'][data-armed][data-visible] .bubble {
+  animation-name: revealBubble;
+  animation-duration: 0.01s;
+  animation-delay: 3s;
+  animation-fill-mode: forwards;
+}
+
+.root[data-phase='idle']:not([data-armed]) .cardWrap,
+.root[data-phase='idle'][data-armed][data-visible] .cardWrap {
+  transition: none;
+  animation-name: revealCard;
+  animation-duration: 0.01s;
+  animation-delay: 3s;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-phase='idle'] .bubble {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+
+  .root[data-phase='idle'] .cardWrap {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .bubble,
+  .cardWrap,
+  .dot {
+    animation: none !important;
+  }
+}
+
+@keyframes revealBubble {
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+
+@keyframes revealCard {
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

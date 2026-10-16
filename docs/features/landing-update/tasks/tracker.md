@@ -9,7 +9,7 @@
 | T02 | Record the landing page's first-load compressed JavaScript baseline before any landing code changes | tests | Dmytro Hopko | S | — | done |
 | T03 | Build DemoDraftCard, the presentational replica of the chat draft proposal card | ui | Dmytro Hopko | S | T01 | done |
 | T04 | Build the LandingDemo player: phase state machine, play-once on visibility, Replay, links and text equivalent | ui | Dmytro Hopko | M | T01, T03 | done |
-| T05 | Add the demo's CSS-only finished-still fallbacks and the armed/visible reveal timing | ui | Dmytro Hopko | M | T04 | todo |
+| T05 | Add the demo's CSS-only finished-still fallbacks and the armed/visible reveal timing | ui | Dmytro Hopko | M | T04 | done |
 | T06 | Rewrite LandingHero around the one-sentence promise with the demo and drop the stats row | ui | Dmytro Hopko | S | T01, T02, T05 | todo |
 | T07 | Build AiSection, place it right after the hero and add the #ai navigation link | ui | Dmytro Hopko | S | T01, T02 | todo |
 | T08 | Override the landing route's description, openGraph and twitter metadata with the one-sentence promise | wiring | Dmytro Hopko | S | T01 | todo |

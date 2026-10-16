@@ -8,7 +8,7 @@ import type { LandingDemoSample } from '@/constants/public-pages-content';
 import { DemoDraftCard } from './demo-draft-card';
 import styles from './landing-demo.module.css';
 
-type Phase = 'idle' | 'typing' | 'thinking' | 'card' | 'done';
+type Phase = 'idle' | 'typing' | 'thinking' | 'card' | 'done' | 'still';
 
 /** Delay (ms) before each phase begins, counted from the start; total stays well under 8 s. */
 const PHASE_STARTS: ReadonlyArray<readonly [Phase, number]> = [
@@ -17,9 +17,17 @@ const PHASE_STARTS: ReadonlyArray<readonly [Phase, number]> = [
   ['done', 4600],
 ];
 const REPLAY_RESET_MS = 300;
+/** The CSS load reveal fires this long after page load; a player hydrating later keeps the still. */
+const LOAD_REVEAL_MS = 3000;
+
+/** Finished still for visitors without scripts; mirrors the `still` rules in the CSS module. */
+const noscriptCss = `.${styles.root} .${styles.bubble}{opacity:1;clip-path:inset(0)}.${styles.root} .${styles.cardWrap}{opacity:1;transform:none}`;
 
 export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [armed, setArmed] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [reduced, setReduced] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const replayRef = useRef<HTMLButtonElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -39,19 +47,37 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
     }
   }, [clearTimers]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- mount-time client detection (armed, reduced motion) must follow hydration so the server HTML stays the start frame */
   useEffect(() => {
+    // Armed: the player has taken over, so the CSS load reveal stands down.
+    setArmed(true);
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      setReduced(true);
+      setPhase('still');
+      return;
+    }
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === 'undefined') return;
+    let late = performance.now() >= LOAD_REVEAL_MS;
     const observer = new IntersectionObserver(
       (entries) => {
         if (hasPlayed.current) return;
-        if (
-          entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.5)
-        ) {
-          hasPlayed.current = true;
-          observer.disconnect();
-          play();
-        }
+        const onScreen = entries.some(
+          (e) => e.isIntersecting && e.intersectionRatio >= 0.5
+        );
+        const wasLate = late;
+        late = false;
+        if (!onScreen) return;
+        setVisible(true);
+        // Test-only hook (Playwright addInitScript); never set in production.
+        if ((globalThis as { __LANDING_DEMO_HOLD__?: boolean }).__LANDING_DEMO_HOLD__ === true) return;
+        hasPlayed.current = true;
+        observer.disconnect();
+        if (wasLate) setPhase('still');
+        else play();
       },
       { threshold: 0.5 }
     );
@@ -61,6 +87,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       clearTimers();
     };
   }, [play, clearTimers]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // The Replay button unmounts while playing, so hand focus back when it returns after a replay.
   useEffect(() => {
@@ -75,7 +102,16 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   };
 
   return (
-    <div ref={rootRef} className={styles.root} data-phase={phase}>
+    <div
+      ref={rootRef}
+      className={styles.root}
+      data-armed={armed ? '' : undefined}
+      data-visible={visible ? '' : undefined}
+      data-phase={phase}
+    >
+      <noscript>
+        <style>{noscriptCss}</style>
+      </noscript>
       <div className={styles.frame}>
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.bubbleRow}>
@@ -112,7 +148,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       </div>
       <p className="sr-only">{sample.srSummary}</p>
       <div className={styles.replayRow}>
-        {phase === 'done' && (
+        {(phase === 'done' || (phase === 'still' && !reduced)) && (
           <button
             ref={replayRef}
             type="button"
