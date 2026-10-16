@@ -501,3 +501,60 @@ describe('LandingDemo T12 hydration handoff', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// T14 (landing-update; AC-09; review F4 + F5) - focus continuity on Replay, purposeful card link name.
+describe('LandingDemo T14 a11y', () => {
+  function playToDone(container: HTMLElement) {
+    intersect(1);
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(phase(container)).toBe('done');
+  }
+
+  it('F4a/AC-09: Replay stays in the DOM during a replay and keeps focus', () => {
+    const { container } = renderDemo();
+    playToDone(container);
+    const replay = screen.getByRole('button', { name: sample.replayLabel });
+    replay.focus();
+    fireEvent.click(replay);
+    intersect(1);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(['typing', 'thinking']).toContain(phase(container));
+    const during = screen.getByRole('button', { name: sample.replayLabel });
+    expect(during).toBeTruthy();
+    expect(document.activeElement).toBe(during);
+  });
+
+  it('F4b/AC-09: finishing a replay does not steal focus from another element', () => {
+    const { container } = renderDemo();
+    playToDone(container);
+    fireEvent.click(screen.getByRole('button', { name: sample.replayLabel }));
+    const other = document.createElement('button');
+    other.textContent = 'Elsewhere';
+    document.body.appendChild(other);
+    other.focus();
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(phase(container)).toBe('done');
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
+
+  it('F5/AC-09: the card link has a purposeful accessible name from content, including the customer', () => {
+    renderDemo();
+    const label = (sample as unknown as { cardLinkLabel?: string }).cardLinkLabel;
+    const links = screen.getAllByRole('link');
+    const card = links.find((l) => (l.textContent ?? '').includes(sample.customer))!;
+    expect(card).toBeTruthy();
+    const name = card.textContent?.trim();
+    expect(name).not.toBe(sample.customer);
+    expect(name).toContain(sample.customer);
+    expect(name).toBe(label);
+    expect(screen.getByRole('link', { name: label })).toBe(card);
+  });
+});

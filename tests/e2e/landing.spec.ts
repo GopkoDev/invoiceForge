@@ -308,7 +308,7 @@ for (const vp of VIEWPORTS) {
         timeout: 15_000,
       });
 
-      for (const name of [demo.customer, demo.createLabel]) {
+      for (const name of [demo.cardLinkLabel, demo.createLabel]) {
         for (const moment of ['typing', 'done'] as const) {
           await openLanding(page);
           await waitArmed(page);
@@ -357,7 +357,9 @@ for (const vp of VIEWPORTS) {
       });
 
       const account = heroAccountLink(page);
-      const card = demoRoot(page).getByRole('link', { name: demo.customer });
+      const card = demoRoot(page).getByRole('link', {
+        name: demo.cardLinkLabel,
+      });
       const create = demoRoot(page).getByRole('link', {
         name: demo.createLabel,
       });

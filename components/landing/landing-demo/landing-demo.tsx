@@ -29,10 +29,9 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   const [reduced, setReduced] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLParagraphElement>(null);
-  const replayRef = useRef<HTMLButtonElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const hasPlayed = useRef(false);
-  const replayed = useRef(false);
+  const [replayed, setReplayed] = useState(false);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(clearTimeout);
@@ -96,13 +95,9 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
   }, [play, clearTimers]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // The Replay button unmounts while playing, so hand focus back when it returns after a replay.
-  useEffect(() => {
-    if (phase === 'done' && replayed.current) replayRef.current?.focus();
-  }, [phase]);
-
   const replay = () => {
-    replayed.current = true;
+    if (phase !== 'done' && phase !== 'still') return;
+    setReplayed(true);
     clearTimers();
     setPhase('idle');
     timers.current.push(setTimeout(play, REPLAY_RESET_MS));
@@ -153,7 +148,7 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
         {/* Real links sit outside the aria-hidden layer, overlaid on the card area, in every phase. */}
         <div className={styles.links}>
           <Link href={authRoutes.signIn} className={styles.cardLink}>
-            <span className="sr-only">{sample.customer}</span>
+            <span className="sr-only">{sample.cardLinkLabel}</span>
           </Link>
           <Link href={authRoutes.signIn} className={styles.createLink}>
             <span className="sr-only">{sample.createLabel}</span>
@@ -162,11 +157,11 @@ export function LandingDemo({ sample }: { sample: LandingDemoSample }) {
       </div>
       <p className="sr-only">{sample.srSummary}</p>
       <div className={styles.replayRow}>
-        {(phase === 'done' || (phase === 'still' && !reduced)) && (
+        {(replayed || phase === 'done' || (phase === 'still' && !reduced)) && (
           <button
-            ref={replayRef}
             type="button"
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            aria-disabled={phase === 'done' || phase === 'still' ? undefined : 'true'}
             onClick={replay}
           >
             {sample.replayLabel}

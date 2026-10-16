@@ -46,6 +46,7 @@ export interface LandingDemoSample {
   currency: string;
   exampleLabel: string;
   createLabel: string;
+  cardLinkLabel: string;
   cardTitle: string;
   customerLabel: string;
   totalLabel: string;
@@ -68,6 +69,7 @@ const landingDemo: LandingDemoSample = {
   currency: 'USD',
   exampleLabel: 'Example',
   createLabel: 'Create draft',
+  cardLinkLabel: 'Example draft for Acme Corp: get started',
   cardTitle: 'Draft proposal',
   customerLabel: 'Customer',
   totalLabel: 'Total',
