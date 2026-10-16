@@ -107,13 +107,13 @@ const CUSTOMER_TERM: Record<EvalLang, RegExp> = {
 const fold = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
 const names = (text: string, name: string) => fold(text).includes(fold(name));
 
-/** The three-part own-sender-profile rule (AC-05b): no card, not resolved as the Customer, the reply explains and asks. */
 /** A request to choose the Customer counts as asking: with a form shown a prose question is forbidden (AC-37, owner decision 2026-10-16). */
-const REQUEST_TO_CHOOSE_CUSTOMER: Record<'en' | 'uk', RegExp> = {
-  en: /(choose|pick|select|name|tell me)[^.]*customer/i,
-  uk: /(оберіть|виберіть|вкажіть|назвіть)[^.]*(клієнт|замовник)/i,
+const REQUEST_TO_CHOOSE_CUSTOMER: Record<EvalLang, RegExp> = {
+  en: /(?:^|[.!?:;]\s*|\n\s*|\bplease\s+|\bcan you\s+|\bcould you\s+)(choose|pick|select|name|tell me)\b[^.!?\n]*\bcustomer/im,
+  uk: /(оберіть|виберіть|вкажіть|назвіть)[^.!?\n]*(клієнт|замовник)/i,
 };
 
+/** The three-part own-sender-profile rule (AC-05b): no card, not resolved as the Customer, the reply explains and asks. */
 function ownProfileFailures(r: NoGuessingRow): string[] {
   const lang = r.lang ?? 'en';
   const reply = r.replyText ?? '';

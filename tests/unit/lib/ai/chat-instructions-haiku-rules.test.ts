@@ -28,8 +28,10 @@ describe('CHAT_INSTRUCTIONS Customer rules (T116, T121)', () => {
     expect(await text()).toMatch(/never as senderProfile/i);
   });
 
-  it('a sender profile named without a Customer: the reply ends with a question mark', async () => {
-    expect(await text()).toMatch(/sender profile[^]*ends with a question mark/i);
+  it('a sender profile named without a Customer: choose it in the form, else one sentence ending with a question mark', async () => {
+    expect(await text()).toMatch(
+      /when a form is shown, ask them to choose the Customer in it; otherwise ask in one sentence that ends with a question mark/i
+    );
   });
 });
 

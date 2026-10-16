@@ -54,8 +54,8 @@ describe.runIf(containerRuntimeAvailable)('own sender profile named as the Custo
     const user = await createFreelancer(prisma, { email: 't09-a@example.com', timeZone: TZ });
     const fop = await createSenderProfile(prisma, user.id, { name: 'Consulting FOP' });
     await createBankAccount(prisma, fop.id, { currency: 'USD' });
-    await createCustomer(prisma, user.id, { name: 'Acme Corp' });
-    return { user, fop, actor: await actingFreelancerForTest(user.id, TZ) };
+    const acme = await createCustomer(prisma, user.id, { name: 'Acme Corp' });
+    return { user, fop, acme, actor: await actingFreelancerForTest(user.id, TZ) };
   }
 
   const resolve = (actor: unknown, customer: string) =>
@@ -112,22 +112,21 @@ describe.runIf(containerRuntimeAvailable)('own sender profile named as the Custo
     }
   });
 
-  // T130 guards: the own-profile hint is exact-only, and a real Customer match always wins; these keep it so.
+  // T130 guards: the own-profile hint is exact-only (a partial name sets none), and a real Customer match wins.
   it('"Acme" with a Customer "Acme Corp" and a profile "Acme Studio": the Customer path, no own profile (T130)', async () => {
-    const { user, actor } = await setup();
+    const { user, actor, acme } = await setup();
     const studio = await createSenderProfile(prisma, user.id, { name: 'Acme Studio' });
     await createBankAccount(prisma, studio.id, { currency: 'USD' });
 
     const res = await resolve(actor, 'Acme');
 
-    if (!res.success) throw new Error(`failure ${res.code}`);
-    const issues = res.data.kind === 'ISSUES' ? res.data.issues : [];
-    expect(issues.find((i) => i.kind === 'CUSTOMER_NOT_FOUND')).toBeUndefined();
+    expect(res.success && res.data.kind).toBe('PROPOSAL');
+    if (!res.success || res.data.kind !== 'PROPOSAL') return;
+    expect(res.data.proposal.customer.customerId).toBe(acme.id);
     expect(JSON.stringify(res.data)).not.toContain('ownSenderProfile');
-    if (res.data.kind === 'PROPOSAL') expect(res.data.proposal.customer.name.freelancerText).toBe('Acme Corp');
   });
 
-  it('two own profiles containing the written words: no own-profile issue (T130)', async () => {
+  it('"fop" alone sets no hint (exact only)', async () => {
     const { user, actor } = await setup();
     const second = await createSenderProfile(prisma, user.id, { name: 'Design FOP' });
     await createBankAccount(prisma, second.id, { currency: 'USD' });

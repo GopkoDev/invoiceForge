@@ -246,6 +246,24 @@ describe('scorer: the own-sender-profile rule (AC-05b)', () => {
     ).toContain('reply does not ask for the Customer');
   });
 
+  it.each([
+    'You named Consulting FOP as the customer, but Consulting FOP is your own sender profile.',
+    'Consulting FOP is the name of your own sender profile, not a customer.',
+    'Consulting FOP is your own sender profile, so I cannot use that name for the customer.',
+    'I could not select Consulting FOP as the customer: it is your own sender profile.',
+    'Consulting FOP is your own sender profile.\n- choose another option\n- the customer field stays empty',
+  ])('fails a statement that merely mentions the customer, not a request (T131): %s', (replyText) => {
+    expect(noGuessingRowFailures(row({ replyText }))).toContain('reply does not ask for the Customer');
+  });
+
+  it.each([
+    'Consulting FOP is your own sender profile, not a customer. Please pick the Customer below.',
+    'Consulting FOP is your own sender profile, not a customer. Choose the Customer to invoice in the form.',
+    'Consulting FOP is your own sender profile, not a customer. Tell me which customer to bill.',
+  ])('passes a real request for the Customer (T131): %s', (replyText) => {
+    expect(noGuessingRowFailures(row({ replyText }))).toEqual([]);
+  });
+
   it('a failing explains row lowers the question rate and blocks the run', () => {
     const score = scoreNoGuessing([
       row(),
