@@ -19,6 +19,6 @@
 | T12 | Fix the demo hydration handoff: no still flicker on late hydration, correct lateness detection, still when IntersectionObserver is missing (review F1, F2) | ui | Dmytro Hopko | S | T05 | done |
 | T13 | Show the Example label on the demo box in every phase and move DemoDraftCard's hard-coded labels into landingContent (review F3, F6) | ui | Dmytro Hopko | S | T12 | done |
 | T14 | Keep Replay mounted during a replay without stealing focus, and give the card link a purpose-bearing name (review F4, F5) | ui | Dmytro Hopko | S | T13 | todo |
-| T15 | Render AiSection's privacy link from content and correct its design-system entry (review F7, F8) | ui | Dmytro Hopko | S | T07 | todo |
+| T15 | Render AiSection's privacy link from content and correct its design-system entry (review F7, F8) | ui | Dmytro Hopko | S | T07 | done |
 
 **Total:** 15 tasks (T12–T15 from review 2026-10-17), ~5 person-days (S ≈ 0.3 d, M ≈ 0.7 d).

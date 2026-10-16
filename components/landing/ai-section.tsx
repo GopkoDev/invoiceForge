@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { authRoutes, legalRoutes } from '@/config/routes.config';
+import { authRoutes } from '@/config/routes.config';
 import { ContentCard } from './content-card';
 import { IconBadge } from './icon-badge';
 import { SectionContainer } from './section-container';
@@ -19,7 +19,7 @@ interface AiSectionProps {
   never: AiBlock;
   ownTools: AiBlock;
   smallPrint: string;
-  privacyLink: { label: string };
+  privacyLink: { label: string; href: string };
   ctaButton: string;
 }
 
@@ -67,7 +67,7 @@ export function AiSection({
       <div className="mt-10 flex flex-col items-center gap-4 text-center">
         <p className="text-muted-foreground text-xs">{smallPrint}</p>
         <Link
-          href={legalRoutes.privacy}
+          href={privacyLink.href}
           className="text-primary text-sm font-medium underline-offset-4 hover:underline"
         >
           {privacyLink.label}

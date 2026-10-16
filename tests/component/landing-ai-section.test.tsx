@@ -148,4 +148,10 @@ describe('LandingPage with AiSection (T07)', () => {
       authRoutes.signIn
     );
   });
+
+  it('AC-06 (F7): the privacy link renders the href from the privacyLink prop', () => {
+    const Props = AiSection as unknown as (p: Record<string, unknown>) => React.ReactElement;
+    render(<Props {...ai} privacyLink={{ label: 'X', href: '/zz-privacy' }} />);
+    expect(screen.getByRole('link', { name: 'X' }).getAttribute('href')).toBe('/zz-privacy');
+  });
 });
