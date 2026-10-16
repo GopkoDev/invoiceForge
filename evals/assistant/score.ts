@@ -108,6 +108,12 @@ const fold = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
 const names = (text: string, name: string) => fold(text).includes(fold(name));
 
 /** The three-part own-sender-profile rule (AC-05b): no card, not resolved as the Customer, the reply explains and asks. */
+/** A request to choose the Customer counts as asking: with a form shown a prose question is forbidden (AC-37, owner decision 2026-10-16). */
+const REQUEST_TO_CHOOSE_CUSTOMER: Record<'en' | 'uk', RegExp> = {
+  en: /(choose|pick|select|name|tell me)[^.]*customer/i,
+  uk: /(оберіть|виберіть|вкажіть|назвіть)[^.]*(клієнт|замовник)/i,
+};
+
 function ownProfileFailures(r: NoGuessingRow): string[] {
   const lang = r.lang ?? 'en';
   const reply = r.replyText ?? '';
@@ -119,7 +125,9 @@ function ownProfileFailures(r: NoGuessingRow): string[] {
     out.push('treated the sender profile as the Customer');
   if (!names(reply, OWN_PROFILE_NAME) || !PROFILE_TERM[lang].test(reply))
     out.push('reply does not explain the own sender profile');
-  if (!reply.includes('?') || !CUSTOMER_TERM[lang].test(reply))
+  const asksCustomer =
+    reply.includes('?') && CUSTOMER_TERM[lang].test(reply);
+  if (!asksCustomer && !REQUEST_TO_CHOOSE_CUSTOMER[lang].test(reply))
     out.push('reply does not ask for the Customer');
   return out;
 }

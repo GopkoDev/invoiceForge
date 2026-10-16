@@ -112,6 +112,33 @@ describe.runIf(containerRuntimeAvailable)('own sender profile named as the Custo
     }
   });
 
+  // T130 guards: the own-profile hint is exact-only, and a real Customer match always wins; these keep it so.
+  it('"Acme" with a Customer "Acme Corp" and a profile "Acme Studio": the Customer path, no own profile (T130)', async () => {
+    const { user, actor } = await setup();
+    const studio = await createSenderProfile(prisma, user.id, { name: 'Acme Studio' });
+    await createBankAccount(prisma, studio.id, { currency: 'USD' });
+
+    const res = await resolve(actor, 'Acme');
+
+    if (!res.success) throw new Error(`failure ${res.code}`);
+    const issues = res.data.kind === 'ISSUES' ? res.data.issues : [];
+    expect(issues.find((i) => i.kind === 'CUSTOMER_NOT_FOUND')).toBeUndefined();
+    expect(JSON.stringify(res.data)).not.toContain('ownSenderProfile');
+    if (res.data.kind === 'PROPOSAL') expect(res.data.proposal.customer.name.freelancerText).toBe('Acme Corp');
+  });
+
+  it('two own profiles containing the written words: no own-profile issue (T130)', async () => {
+    const { user, actor } = await setup();
+    const second = await createSenderProfile(prisma, user.id, { name: 'Design FOP' });
+    await createBankAccount(prisma, second.id, { currency: 'USD' });
+
+    const issues = await issuesOf(resolve(actor, 'fop'));
+
+    const nf = issues.find((i) => i.kind === 'CUSTOMER_NOT_FOUND');
+    expect(nf).toBeDefined();
+    expect(nf).not.toHaveProperty('ownSenderProfile');
+  });
+
   it('a customerId that is not found sets no hint', async () => {
     const { actor } = await setup();
 

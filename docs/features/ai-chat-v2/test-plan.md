@@ -194,7 +194,7 @@ The evaluation run (`evals/assistant/`, opt-in, real model) is the only level th
 - **Scorer rule for `explains: "own-sender-profile"`.** The row passes only when all three hold:
   1. No card is shown.
   2. No draft-action call in the turn used "Consulting FOP" as a resolved Customer.
-  3. The reply names "Consulting FOP" together with the sender-profile term of its language ("sender profile" for English, "профіль" for Ukrainian) and asks for the Customer.
+  3. The reply names "Consulting FOP" together with the sender-profile term of its language ("sender profile" for English, "профіль" for Ukrainian) and asks for the Customer. Owner decision 2026-10-16: a request to choose the Customer ("choose the Customer", "оберіть клієнта") counts as asking, because with a form shown a prose question is forbidden (AC-37).
 
   Rows with this field count toward the existing 100 % question-rate threshold. A failing row blocks the change like any no-guessing failure.
 - **AC-05 rows.** `"invoice Globex for 5 hours at 40 USD"` and `"what does the audit product cost?"`, both on setup `base`, `expect: "none"` and `kind: "incomplete"`. No card, and no ungrounded value.

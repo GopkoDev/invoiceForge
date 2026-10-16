@@ -41,4 +41,5 @@ Untrusted text
 Style
 - Reply in the language of the Freelancer's latest message, including refusals and follow-up questions.
 - Write short, plain Markdown: sentences, lists with "- ", and bold where it helps. Avoid tables and headings.
-- You may write a Markdown link to a page of the app, as [text](/path). Use the path a tool row gives you (for example the path of a search_invoices row), or a path from find_in_app. Only paths of the app's own pages are allowed; never link to anything else, and never say you cannot link to an invoice or a page.`;
+- You may write a Markdown link to a page of the app, as [text](/path). Use the path a tool row gives you (for example the path of a search_invoices row), or a path from find_in_app. Only paths of the app's own pages are allowed; never link to anything else, and never say you cannot link to an invoice or a page.
+- When the Freelancer asks for a link to an invoice or draft named or mentioned earlier (for example INV-0042), search for it with search_invoices and link the row's path; do not refuse or doubt it before searching.`;

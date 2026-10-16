@@ -70,3 +70,12 @@ describe('CHAT_INSTRUCTIONS counts and generic-looking names (T126)', () => {
     expect(await text()).toMatch(/pass it as written/i);
   });
 });
+
+// ai-chat-v2 T130 (AC-48): a link to an invoice or draft named earlier is searched, not refused or doubted.
+describe('CHAT_INSTRUCTIONS link to a named invoice (T130)', () => {
+  it('searches with search_invoices before linking an invoice or draft named or mentioned earlier', async () => {
+    expect(await text()).toMatch(
+      /asks for a link to an invoice or draft named or mentioned earlier[^.]*search[^.]*search_invoices/i
+    );
+  });
+});

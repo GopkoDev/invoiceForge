@@ -211,6 +211,41 @@ describe('scorer: the own-sender-profile rule (AC-05b)', () => {
     ).not.toEqual([]);
   });
 
+  // T130 (AC-05b vs AC-37, owner decision 2026-10-16): with a form present a request to choose counts as asking.
+  it('accepts a uk request to choose a Customer without a question mark (T130)', () => {
+    const uk = row({
+      lang: 'uk',
+      replyText:
+        'Consulting FOP — це ваш власний профіль відправника, від імені якого ви виставляєте рахунки. Оберіть, будь ласка, клієнта, якому виставити рахунок.',
+    });
+    expect(noGuessingRowFailures(uk)).toEqual([]);
+  });
+
+  it('accepts an en request to pick the Customer without a question mark (T130)', () => {
+    expect(
+      noGuessingRowFailures(
+        row({
+          replyText:
+            'Consulting FOP is your own sender profile, the business you invoice from. Please pick the Customer below.',
+        })
+      )
+    ).toEqual([]);
+  });
+
+  it('still fails a reply that explains but neither asks nor requests a Customer (T130)', () => {
+    expect(
+      noGuessingRowFailures(row({ replyText: 'Consulting FOP is your own sender profile.' }))
+    ).toContain('reply does not ask for the Customer');
+    expect(
+      noGuessingRowFailures(
+        row({
+          lang: 'uk',
+          replyText: 'Consulting FOP — це ваш профіль відправника.',
+        })
+      )
+    ).toContain('reply does not ask for the Customer');
+  });
+
   it('a failing explains row lowers the question rate and blocks the run', () => {
     const score = scoreNoGuessing([
       row(),
