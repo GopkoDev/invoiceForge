@@ -41,4 +41,17 @@ describe('CHAT_INSTRUCTIONS price and count rules (T121)', () => {
   it('with many matches the reply says that number, not "several" or "multiple"', async () => {
     expect(await text()).toMatch(/say that number/i);
   });
+
+  // T124 (review W-4, N-4)
+  it('a Customer named earlier in the Conversation, including the one on the card being changed, is passed too', async () => {
+    const t = await text();
+    expect(t).toMatch(/named a Customer in this Conversation/i);
+    expect(t).toMatch(/card being changed/i);
+  });
+
+  it('the price promise is conditional: fills from the catalogue or custom price, or asks', async () => {
+    const t = await text();
+    expect(t).toMatch(/fills the price from the catalogue or the Customer's custom price, or asks/i);
+    expect(t).not.toMatch(/propose_draft fills the catalogue price or the Customer's custom price\./);
+  });
 });
