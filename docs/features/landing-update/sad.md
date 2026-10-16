@@ -35,6 +35,7 @@ target_surfaces: [web-frontend]  # filled in §4 — subset of: backend-service 
 | Contributor | Automated checks that fail when the promise, demo, AI section or account button disappears | No |
 | Product owner (Dmytro Hopko) | Copy, the example sentence and draft, the headline (spec §8) | Yes |
 | Tech Lead | SAD approval | Yes |
+| Security Lead | Confirms no new access boundary, input or data reach (spec §6.1: security review N/A) | No |
 
 <!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
 
@@ -86,11 +87,11 @@ External: no new third-party system — deliberate. The demo is fixed content sh
 C4Context
     title landing-update - System Context
 
-    Person_Ext(visitor, "Visitor", "Not signed in; decides whether to create an account")
-    Person(freelancer, "Freelancer", "Signed in; goes straight to the dashboard")
+    Person_Ext(visitor, "Visitor", "Not signed in, decides whether to create an account")
+    Person(freelancer, "Freelancer", "Signed in, goes straight to the dashboard")
     Person_Ext(contributor, "Contributor", "Runs the landing page checks")
 
-    System(invoiceforge, "Invoice Forge", "Invoicing web app; public landing page with the Landing demo and AI section")
+    System(invoiceforge, "Invoice Forge", "Invoicing web app, public landing page with the Landing demo and AI section")
 
     System_Ext(search, "Search engine / link preview", "Shows the page description before a visit")
     System_Ext(vitals, "Vercel Analytics + Speed Insights", "Site-wide page analytics and real-user web vitals")
@@ -109,7 +110,7 @@ C4Context
 1. **Target surface: `[web-frontend]` only.** The audience is a Visitor in a browser (spec §1, §4); ux-flows confirms one page and no new screens (SCR-01, SCR-02 on the existing landing page; SCR-03…05 existing). No backend, contract or worker surface is added — the landing page makes no new request. Single surface, nothing irreversible → inline, no ADR.
 2. **UI architecture: keep the landing page's existing rendering.** The page stays one client tree server-rendered by Next (`landing-page.tsx`), extended in place; converting it to server components with client islands would cut JavaScript but rewrites every landing component for a page public-redesign will replace. The two first-screen qualities are protected instead by local rules: the new hero has no entrance animation that starts the headline at `opacity: 0`, so the headline is in the first paint (QG-1), and the demo adds only its own small player. Borderline (one real alternative, fully reversible) → inline.
 3. **The demo card is a standalone presentational replica** of the chat's draft proposal card, built in `components/landing/` from the same `components/ui/` primitives and tokens; the chat's `DraftCard` is not imported or refactored → [ADR-0001](./adr/0001-render-the-landing-demo-card-as-a-standalone-replica-of-the-chat-draft-card.md).
-4. **The demo's first HTML is its start frame, and CSS alone shows the finished still** whenever the player cannot run — scripts off (`<noscript><style>`), reduced motion (media query), or no player takeover within 3 s (a delayed CSS reveal the player cancels on hydration); the hydrated player plays once when ≥ 50 % of the demo is visible, and both states occupy one fixed-size box → [ADR-0002](./adr/0002-server-render-the-demo-start-frame-and-show-the-finished-still-through-css-only-fallbacks.md).
+4. **The demo's first HTML is its start frame, and CSS alone shows the finished still** whenever the player cannot run — scripts off (`<noscript><style>`), reduced motion (media query), or the animation not started within 3 s of the demo becoming visible (a delayed CSS reveal that applies only while the demo is still in its start frame). Before hydration the reveal timer runs from page load; at takeover the player marks the demo `armed`, which cancels the load timer, and when ≥ 50 % of the demo is visible it marks it `visible`, which starts a fresh 3 s CSS reveal that only leaving the start frame cancels — so a player that takes over but stalls still ends on the still. A player that hydrates after the load reveal fired keeps the still only if the demo is on screen; if it is not yet visible, it rewinds unseen to the start frame and plays on visibility (AC-02). The hydrated player plays once when ≥ 50 % of the demo is visible, and both states occupy one fixed-size box → [ADR-0002](./adr/0002-server-render-the-demo-start-frame-and-show-the-finished-still-through-css-only-fallbacks.md).
 
 Supporting choices, decided inline (owner accepted the batch, 2026-10-16):
 
@@ -134,7 +135,7 @@ app/(public)/
 components/landing/
 ├── landing-hero.tsx              rewritten: badge kept, headline (first h1) + supporting line + account button + <LandingDemo>; no stats row, no opacity-0 entrance
 ├── landing-demo/
-│   ├── landing-demo.tsx          'use client' player: phase state machine, IntersectionObserver (≥ 0.5), play-once per page view, Replay, takeover class that cancels the CSS reveal
+│   ├── landing-demo.tsx          'use client' player: phase state machine, IntersectionObserver (≥ 0.5), play-once per page view, Replay, `armed`/`visible` attributes that drive the CSS reveal (ADR-0002)
 │   ├── demo-draft-card.tsx       presentational replica of the chat draft proposal card (Customer, line, total + currency, unpressed Create, "Example" label); card and Create are links to sign-in
 │   └── landing-demo.module.css   fixed-size box, per-phase rules, <noscript>/reduced-motion/3 s still fallbacks
 ├── ai-section.tsx                new section id="ai": what the AI does / doesn't, own AI tools (3 named), privacy link, own account button
@@ -156,8 +157,8 @@ C4Container
     Person(freelancer, "Freelancer", "Signed in")
 
     Container_Boundary(app, "Invoice Forge") {
-        Container(proxy, "Proxy", "proxy.ts, next-auth edge config", "Lets anonymous requests reach public pages; sends a session on / to the dashboard")
-        Container(landing, "Landing page", "Next.js 16 public route, React 19 client tree, SSR", "Hero with the Landing demo, AI section, unchanged sections; fixed content only")
+        Container(proxy, "Proxy", "proxy.ts, next-auth edge config", "Lets anonymous requests reach public pages, sends a session on / to the dashboard")
+        Container(landing, "Landing page", "Next.js 16 public route, React 19 client tree, SSR", "Hero with the Landing demo, AI section, unchanged sections, fixed content only")
         Container(signin, "Sign-in page", "Next.js 16 auth route (existing)", "First sign-in creates the account")
         Container(signedin, "Signed-in app", "Next.js 16 protected routes (existing)", "Dashboard and the in-app AI chat")
     }
@@ -191,7 +192,7 @@ sequenceDiagram
     Proxy->>Proxy: no session, public route
     Proxy->>LandingPage: anonymous request
     LandingPage-->>Visitor: first HTML: headline, account button, demo start frame
-    Note over Visitor,LandingPage: CSS reveal timer runs; fallback rules wait
+    Note over Visitor,LandingPage: CSS reveal timer runs, fallback rules wait
     LandingPage->>Demo: hydrates
     Demo->>Demo: takes over, cancels the CSS reveal
     Demo->>Demo: waits until at least half of the demo is visible
@@ -219,9 +220,11 @@ sequenceDiagram
     else device asks for reduced motion
         LandingPage-->>Visitor: media query shows the finished still
         Demo->>Demo: hydrates, stays on the still, never animates
-    else player has not taken over within 3 s
+    else player has not taken over within 3 s of load
         LandingPage-->>Visitor: delayed CSS reveal shows the finished still
-        Demo->>Demo: hydrates late, keeps the still, offers Replay
+        Demo->>Demo: hydrates late, keeps the still if the demo is on screen, else rewinds unseen
+    else player took over but the animation has not started 3 s after the demo became visible
+        LandingPage-->>Visitor: visibility-started CSS reveal shows the finished still
     end
     Note over Visitor,Demo: the still uses the same box, nothing moves
 ```
@@ -230,7 +233,7 @@ Flow 3 (signed-in Freelancer → dashboard, AC-10) is the existing proxy redirec
 
 ## 7. Deployment view
 
-<!-- N/A: reuses the existing Vercel deployment unit with no infra change — the landing page ships as part of the same Next.js build; no new route, env setting, migration or external system. -->
+Reuses the existing Vercel deployment unit with no infra change — the landing page ships as part of the same Next.js build; no new route, env setting, migration or external system.
 
 Monitoring stays on what already exists: Vercel Speed Insights real-user LCP and CLS for `/` are the production measurement of QG-1 (spec §6); Sentry keeps reporting client errors as today. There are no scaling thresholds — the page is static content with no per-request data.
 
@@ -239,10 +242,10 @@ Monitoring stays on what already exists: Vercel Speed Insights real-user LCP and
 | Concept | Convention | Where defined |
 |---|---|---|
 | Content / copy | Every visible word and the demo's fixed sample come from `landingContent`; components take props, hold no copy | `constants/public-pages-content.ts`; here |
-| Claim truthfulness | A unit test over `landingContent` pins the claims: exactly Claude Desktop, Claude Code and Cursor are named; "MCP" appears at most once and never in a heading; "unlimited" only for invoices and clients; no link to developer documentation; the daily message limit and "not used to train AI models" are stated | `tests/unit/landing-claims.test.ts`; spec §1, AC-05, AC-07 |
+| Claim truthfulness | A unit test over `landingContent` pins the claims: exactly Claude Desktop, Claude Code and Cursor are named; "MCP" appears at most once and never in a heading; "unlimited" only for invoices and clients; no link to developer documentation; the daily message limit and "not used to train AI models" are stated; the AI "asks instead of guessing" and "never issues or sends" an invoice; drafts from an external tool need "a permission chosen when connecting it"; "Claude" alone, ChatGPT and "any AI tool" never appear | `tests/unit/landing-claims.test.ts`; spec §1, AC-05, AC-06, AC-07 |
 | Motion | Demo motion is CSS transitions keyed by `data-phase`; `prefers-reduced-motion: reduce` always yields the still; nothing loops; existing `animate-gradient-shift` text effects stop under reduced motion as today | `landing-demo.module.css`; ADR-0002 |
 | Layout stability | The demo box has a fixed size per breakpoint from the start frame; the still and the animation share it, so no phase changes the page height | `landing-demo.module.css`; ADR-0002 |
-| Accessibility | Headline is the page's first `h1`; the demo's animated layer is `aria-hidden` and a visually hidden text equivalent reads the example sentence and the draft summary; card, Create, Replay and account button are native links/buttons with visible focus and no focus trap; phase changes are not announced | `landing-demo.tsx`; AC-09 |
+| Accessibility | Headline is the page's first `h1`; the demo's decorative animated layer (typing, thinking, card visuals) is `aria-hidden` and contains no focusable element; a visually hidden text equivalent reads the example sentence and the draft summary; the card link and the Create link are two separate, non-nested links placed outside the `aria-hidden` layer (overlaid on the card), so they stay reachable at every phase; card, Create, Replay and account button are native links/buttons with visible focus and no focus trap; phase changes are not announced | `landing-demo.tsx`; AC-09 |
 | Navigation targets | Every new action is a plain link to `authRoutes.signIn` (account buttons, demo card, Create) or an in-page anchor (`#ai`); Replay is the only button and only replays | `config/routes.config.ts`; AC-03, AC-08 |
 | Authentication | Unchanged — `/` is public; the proxy redirects a session to the dashboard | `proxy.ts:73-74` |
 | Data access | None: the landing page imports no server action, route handler or service; no request beyond the site-wide beacons | AC-03; enforced by the e2e request recording |
@@ -256,7 +259,7 @@ Monitoring stays on what already exists: Vercel Speed Insights real-user LCP and
 | # | Title | Status | Section |
 |---|---|---|---|
 | 0001 | Render the Landing demo card as a standalone replica of the chat draft card | Accepted | §4, §5 |
-| 0002 | Server-render the demo start frame and show the finished still through CSS-only fallbacks | Accepted | §4, §6 |
+| 0002 | Server-render the demo start frame and show the finished still through CSS-only fallbacks | Accepted | §4, §6, §8 |
 
 ADR files live under `docs/features/landing-update/adr/NNNN-<title>.md`.
 
@@ -275,7 +278,7 @@ ADR files live under `docs/features/landing-update/adr/NNNN-<title>.md`.
 **QG-3. Works for every Visitor**
 - **When:** a Visitor uses a keyboard, a screen reader, reduced motion, a browser without scripts, or a 360×640 phone.
 - **Then:** accessibility violations on the landing page (serious or critical): 0; the still replaces the animation in the same space (AC-04); the headline is the first heading, the demo has a text equivalent, focus is visible and never trapped (AC-09).
-- **How verify:** the existing automated accessibility check (axe) extended to `/` at phone and desktop width; e2e runs with `reducedMotion: 'reduce'`, `javaScriptEnabled: false`, and every script request aborted while scripts stay enabled (the 3 s path), each asserting the still is visible and the demo box height is unchanged; Linux visual baselines of the finished state in light and dark at 360×640 and 1280×800 (AC-11).
+- **How verify:** the repo's axe harness (`@axe-core/playwright`) run against `/` inside `tests/e2e/landing.spec.ts` at phone and desktop width; e2e runs with `reducedMotion: 'reduce'`, `javaScriptEnabled: false`, every script request aborted while scripts stay enabled (the 3 s load path), and the player held in `armed` through a test-only start hook (the 3 s visibility path), each asserting the still is visible and the demo box height is unchanged; Linux visual baselines of the finished state in light and dark at 360×640 and 1280×800 (AC-11).
 
 ## 11. Risks and technical debt
 
@@ -284,7 +287,7 @@ ADR files live under `docs/features/landing-update/adr/NNNN-<title>.md`.
 | The demo looks fake or overpromises (product risk from the idea brief) | Medium | Card replicates the chat's real draft proposal card; "Example" label; Create shown but never pressed; claims pinned by the truth-guard test | Dmytro Hopko |
 | The replica card drifts from the real chat card as the chat evolves (ADR-0001) | Low | Same primitives and tokens; public-redesign replaces the demo; reviewers compare against the `ai-draft-card-live` baseline when the chat card changes | Dmytro Hopko |
 | AC-11's "checks fail" holds only when someone runs e2e — e2e is not in CI | Medium | Full e2e (incl. `landing.spec.ts`) runs locally before ship, per the repo's ship rule; unit truth guard and component test do run in CI | Dmytro Hopko |
-| On a slow phone the player hydrates after 3 s and the Visitor sees only the still (ADR-0002) | Low | Accepted by AC-04; Replay still plays the animation once hydrated; the still conveys the same promise | Dmytro Hopko |
+| Before hydration the CSS reveal timer runs from page load, not from visibility (pure CSS cannot see visibility), so a demo visible at load on a device that hydrates after 3 s shows the still (ADR-0002) | Low | Within AC-04 for a demo visible at load; a demo not yet visible is rewound unseen by the late player and plays per AC-02; Replay plays the animation once hydrated | Dmytro Hopko |
 | The 30 KB budget has no build-output number in Next 16 | Low | Measured as transferred compressed JS on `/` from the production build in e2e, against a baseline recorded before the change | Dmytro Hopko |
 | Existing hero/section `framer-motion` entrance animations on the rest of the page can still affect LCP if the largest element is below them | Low | New hero drops its opacity-0 entrance; Speed Insights LCP p75 is watched after release | Dmytro Hopko |
 | Open question: the demo's example sentence and draft (spec §8) | Open question | Resolve before `sdd:tasks`; default "Invoice Acme for 20 hours of design at $50" → Acme Corp, Design — 20 h × $50.00, $1,000.00 USD | Dmytro Hopko |
@@ -304,7 +307,7 @@ ADR files live under `docs/features/landing-update/adr/NNNN-<title>.md`.
 | Landing demo | The scripted, play-once animation on the first screen in which one fixed example sentence turns into a sample draft proposal card with Create shown but never pressed; it calls no model and reads or stores no data (feature CONTEXT) |
 | Draft proposal card | The card the in-app chat shows before the Freelancer presses Create; the demo replicates its look with fixed sample content |
 | Start frame | The demo's first state — an empty chat box — which is what the server-rendered HTML shows |
-| Finished still | The demo's final state (the example sentence plus the finished proposal card with the Example label) shown without animation; the fallback for reduced motion, no scripts, or no player takeover within 3 s |
-| Player takeover | The moment the hydrated demo player marks the demo as its own, cancelling the CSS reveal that would otherwise show the finished still |
+| Finished still | The demo's final state (the example sentence plus the finished proposal card with the Example label) shown without animation; the fallback for reduced motion, no scripts, no player takeover within 3 s of load, or no animation start within 3 s of the demo becoming visible |
+| Player takeover | The moment the hydrated demo player marks the demo `armed`, cancelling the load-started CSS reveal; from then on the reveal restarts when the demo becomes visible and is cancelled only when the animation leaves the start frame |
 | AI section | The new landing section (`#ai`) directly after the first screen explaining what the in-app AI does and does not do and which AI tools connect today |
 | Daily message allowance | The per-Freelancer daily cap on in-app chat messages (repo-root CONTEXT); the AI section mentions it, the landing page never uses it |
