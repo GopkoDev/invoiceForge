@@ -4,11 +4,13 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { DATA_NOT_INSTRUCTIONS } from '@/lib/mcp/server';
 import { toToolError } from '@/lib/mcp/answers';
-import { isOwnSenderProfileName } from '@/lib/services/sender-profiles/sender-profiles';
+import { isOwnSenderProfileName, matchesOwnSenderProfile } from '@/lib/services/sender-profiles/sender-profiles';
 import { resolveDraftRequest } from '@/lib/services/assistant-drafts/resolve';
 import { resolveLines } from '@/lib/services/assistant-drafts/resolve-lines';
 import { composeForm, formFromIssues, type FormQuestionDraft } from '@/lib/services/assistant-drafts/forms';
 import { isCurrency } from '@/lib/services/assistant-drafts/offers';
+import { interpretCurrency } from '@/lib/services/assistant-drafts/currency-symbols';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import {
   chatDraftRequestSchema,
   draftRequestSchema,
@@ -77,11 +79,11 @@ function preferIds(raw: unknown, answered: readonly string[]): unknown {
 }
 
 const NO_CUSTOMER_SAY =
-  "No Customer was given. Call ask_user with one question for CUSTOMER (omit recordIds; the app offers the Freelancer's Customers). Do not guess one.";
+  "No Customer was given. Call ask_user once with a one-line prompt for each askFields field (for CUSTOMER omit recordIds; the app offers the Freelancer's Customers). Do not guess one.";
 
 // The name travels in the answer's `ownSenderProfile` data field, never inside this sentence.
 const OWN_PROFILE_SAY =
-  "The name given as the sender profile (ownSenderProfile) is the Freelancer's own sender profile, not a Customer. Explain that briefly. End your reply with the question, in the Freelancer's language: Which Customer should this invoice be for?";
+  "The name given as the sender profile (ownSenderProfile) is the Freelancer's own sender profile, not a Customer. Explain that briefly. Call ask_user once with a one-line prompt for each askFields field. End your reply with the question, in the Freelancer's language: Which Customer should this invoice be for?";
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
 export function linksFor(issues: DraftIssue[]): AppLink[] {
@@ -236,8 +238,9 @@ export function createProposeDraftTool(turn: TurnContext) {
           const own = relaxed.senderProfile ? await isOwnSenderProfileName(turn.actor, relaxed.senderProfile) : false;
           // T125: the lines' own questions (missing price, quantity, amount; product choice) come with CUSTOMER, from the
           // resolver's line resolution without a Customer (catalogue prices only).
-          const written = relaxed.currency?.trim().toUpperCase();
-          const currency = written && isCurrency(written) ? written : undefined;
+          // Read like the resolver does ('$' is USD); no currency stays undefined.
+          const reading = relaxed.currency ? interpretCurrency(relaxed.currency, 'USD') : null;
+          const currency = reading?.kind === 'RESOLVED' && isCurrency(reading.currency) ? reading.currency : undefined;
           let lineIssues: DraftIssue[] = [];
           if (relaxed.lines && relaxed.lines.length > 0) {
             try {
@@ -247,7 +250,10 @@ export function createProposeDraftTool(turn: TurnContext) {
                   ...(currency ? { currency } : {}),
                 })
               ).issues;
-            } catch {
+              // Without a currency a product choice would list other-currency products: not asked here.
+              if (!currency) lineIssues = lineIssues.filter((i) => i.kind !== 'PRODUCT_AMBIGUOUS');
+            } catch (error) {
+              console.error(`no_customer_lines_failed error=${String(redactError(error))}`);
               lineIssues = [];
             }
           }
@@ -261,7 +267,9 @@ export function createProposeDraftTool(turn: TurnContext) {
             }
           );
           const stored: Record<string, unknown> = { ...relaxed };
-          if (!own) delete stored.senderProfile;
+          if (!own && !(relaxed.senderProfile && (await matchesOwnSenderProfile(turn.actor, relaxed.senderProfile)))) {
+            delete stored.senderProfile;
+          }
           return {
             answer: {
               kind: 'ISSUES',

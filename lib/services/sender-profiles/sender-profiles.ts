@@ -19,6 +19,7 @@ import { z } from 'zod';
 import type { Currency } from '@prisma/client';
 import { accountLastFour } from '@/lib/helpers/account-last-four';
 import { foldName } from '@/lib/helpers/fold-name';
+import { redactError } from '@/lib/helpers/prisma-error-scrub';
 import {
   isPageOutOfRange,
   pageOutOfRange,
@@ -380,5 +381,23 @@ export async function isOwnSenderProfileName(actor: ActingFreelancer, name: stri
     return profiles.some((p) => foldName(p.name) === needle);
   } catch {
     return false;
+  }
+}
+
+/**
+ * ai-chat-v2 T128 (AC-46): whether the written sender profile words name one of the Freelancer's own profiles by the
+ * resolver's rule (exact folded match, or exactly one profile whose folded name contains the folded words). Owner-scoped.
+ * On any failure it answers true: nothing the Freelancer wrote is dropped.
+ */
+export async function matchesOwnSenderProfile(actor: ActingFreelancer, written: string): Promise<boolean> {
+  const needle = foldName(written);
+  if (!needle) return false;
+  try {
+    const profiles = await prisma.senderProfile.findMany({ where: { userId: actor.userId }, select: { name: true } });
+    if (profiles.some((p) => foldName(p.name) === needle)) return true;
+    return profiles.filter((p) => foldName(p.name).includes(needle)).length === 1;
+  } catch (error) {
+    console.error(`own_sender_profile_match_failed error=${String(redactError(error))}`);
+    return true;
   }
 }

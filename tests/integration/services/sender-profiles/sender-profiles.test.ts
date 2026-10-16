@@ -268,4 +268,18 @@ describe.runIf(containerRuntimeAvailable)('sender-profiles service — request-f
     expect(await svc.isOwnSenderProfileName(actor, 'Globex Studio')).toBe(false);
     expect(await svc.isOwnSenderProfileName(actor, '   ')).toBe(false);
   });
+  it('matchesOwnSenderProfile (ai-chat-v2 T128): exact or the one containing profile, own profiles only', async () => {
+    const a = await createFreelancer(prisma);
+    const b = await createFreelancer(prisma);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting FOP' });
+    await createSenderProfile(prisma, b.id, { name: 'Globex Studio' });
+    const actor = await actingFreelancerForTest(a.id);
+
+    expect(await svc.matchesOwnSenderProfile(actor, 'consulting   fop')).toBe(true);
+    expect(await svc.matchesOwnSenderProfile(actor, 'Consulting')).toBe(true);
+    expect(await svc.matchesOwnSenderProfile(actor, 'Globex Studio')).toBe(false);
+    expect(await svc.matchesOwnSenderProfile(actor, '   ')).toBe(false);
+    await createSenderProfile(prisma, a.id, { name: 'Consulting LLC' });
+    expect(await svc.matchesOwnSenderProfile(actor, 'Consulting')).toBe(false);
+  });
 });

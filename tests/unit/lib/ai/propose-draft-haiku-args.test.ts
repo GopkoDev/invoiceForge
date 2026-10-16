@@ -4,7 +4,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const resolveDraftRequest = vi.hoisted(() => vi.fn());
-vi.mock('@/prisma', () => ({ prisma: {} }));
+// T128: the Freelancer's own sender profiles, read owner-scoped through prisma by the resolver's matching rule
+// (exact folded match, or exactly one profile whose name contains the written words).
+const ownProfiles = vi.hoisted(() => ({ rows: [{ id: 'sp1', name: 'Consulting FOP', isDefault: false }] as Array<{ id: string; name: string; isDefault: boolean }> }));
+vi.mock('@/prisma', () => ({ prisma: { senderProfile: { findMany: vi.fn(async () => ownProfiles.rows) } } }));
 vi.mock('@/lib/services/assistant-drafts/resolve', () => ({ resolveDraftRequest }));
 // T125: the no-Customer branch reuses the resolver's line resolution without a Customer. resolveLines reads the
 // Freelancer's products through prisma (mocked empty above), so it is mocked here: a line with no price and no product
@@ -224,5 +227,93 @@ describe('propose_draft tolerates Haiku arguments (T115)', () => {
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatchObject({ description: 'Line 1', quantity: '176' });
     expect(lines[1].description).toBe('Design');
+  });
+});
+
+// ai-chat-v2 T128 (AC-46, AC-37, AC-09): the no-Customer branch keeps a partly written profile, reads the currency like
+// the resolver, logs a failed line resolution, and asks every field.
+describe('no-Customer branch (T128)', () => {
+  const run = async (extra: Record<string, unknown> = {}, lines: unknown[] = [{ description: 'web dev', quantity: '10' }]) => {
+    const turn = makeTurn();
+    const tool = createProposeDraftTool(turn) as unknown as AnyTool;
+    const out = (await tool.execute({ lines, ...extra }, {})) as { answer?: Record<string, unknown>; commit?: () => void };
+    out.commit?.();
+    return { turn, answer: (out.answer ?? out) as Record<string, unknown> };
+  };
+  const fieldsOf = (turn: ReturnType<typeof makeTurn>) => turn.pending.resolver!.questions.map((q) => q.field);
+
+  it('resolveLines gets an owner-only context: userId u1, no customerId', async () => {
+    resolveLines.mockClear();
+    await run();
+    expect(resolveLines).toHaveBeenCalledTimes(1);
+    const ctx = resolveLines.mock.calls[0][1] as Record<string, unknown>;
+    expect(ctx.userId).toBe('u1');
+    expect(ctx).not.toHaveProperty('customerId');
+  });
+
+  it("a written '$' is read like the resolver does: the line context currency is USD", async () => {
+    resolveLines.mockClear();
+    await run({ currency: '$' });
+    expect((resolveLines.mock.calls[0][1] as Record<string, unknown>).currency).toBe('USD');
+  });
+
+  it('no currency written: PRODUCT_AMBIGUOUS issues are not asked, LINE_AMOUNT_MISSING still is', async () => {
+    resolveLines.mockImplementationOnce((async () => ({
+      lines: [],
+      issues: [
+        { kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'web dev', candidates: [] },
+        { kind: 'LINE_AMOUNT_MISSING', lineIndex: 1, description: 'logo' },
+      ],
+    })) as never);
+    const { turn, answer } = await run({}, [{ description: 'web dev', quantity: '1' }, { description: 'logo', quantity: '1' }]);
+    expect(fieldsOf(turn)).toContain('CUSTOMER');
+    expect(fieldsOf(turn)).toContain('PRICE');
+    expect(fieldsOf(turn)).not.toContain('PRODUCT');
+    expect((answer.askFields as Array<{ field: string }>).map((f) => f.field)).not.toContain('PRODUCT');
+  });
+
+  it('a written currency keeps the PRODUCT question', async () => {
+    resolveLines.mockImplementationOnce((async () => ({
+      lines: [],
+      issues: [{ kind: 'PRODUCT_AMBIGUOUS', lineIndex: 0, written: 'web dev', candidates: [] }],
+    })) as never);
+    const { turn } = await run({ currency: 'EUR' });
+    expect(fieldsOf(turn)).toContain('PRODUCT');
+  });
+
+  it('resolveLines rejecting: a CUSTOMER-only form and a logged no_customer_lines_failed line', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    resolveLines.mockRejectedValueOnce(new Error('db down'));
+    const { turn } = await run();
+    expect(fieldsOf(turn)).toEqual(['CUSTOMER']);
+    expect(spy.mock.calls.some((c) => typeof c[0] === 'string' && c[0].startsWith('no_customer_lines_failed'))).toBe(true);
+    spy.mockRestore();
+  });
+
+  it("a partly written profile ('Consulting' for the own 'Consulting FOP') stays in the stored request", async () => {
+    const { turn, answer } = await run({ senderProfile: 'Consulting' });
+    expect(turn.pending.resolver!.request.senderProfile).toBe('Consulting');
+    expect(answer).not.toHaveProperty('ownSenderProfile');
+  });
+
+  it('a written name that two profiles contain is dropped from the stored request', async () => {
+    const saved = ownProfiles.rows;
+    ownProfiles.rows = [
+      { id: 'sp1', name: 'Consulting FOP', isDefault: false },
+      { id: 'sp2', name: 'Consulting LLC', isDefault: false },
+    ];
+    try {
+      const { turn } = await run({ senderProfile: 'Consulting' });
+      expect(turn.pending.resolver!.request).not.toHaveProperty('senderProfile');
+    } finally {
+      ownProfiles.rows = saved;
+    }
+  });
+
+  it('NO_CUSTOMER_SAY and the own-profile say tell the model to prompt each askFields field', async () => {
+    const plain = await run();
+    expect(String(plain.answer.say)).toContain('each askFields field');
+    const own = await run({ senderProfile: 'Consulting FOP' });
+    expect(String(own.answer.say)).toContain('each askFields field');
   });
 });
