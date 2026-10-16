@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { APP_E2E_URL } from './support/app-server';
+import { APP_E2E_URL, BASE_URL_OVERRIDE } from './support/app-server';
 import { skipWithoutContainerRuntime } from './support/require-container-runtime';
 import {
   looksLikeDevServer,
@@ -17,6 +17,10 @@ test.skip(
 );
 
 test('@baseline record landing first-load JS size', async ({ browser }, testInfo) => {
+  expect(
+    BASE_URL_OVERRIDE,
+    'BASE_URL is set: this recorder measures the local production build only'
+  ).toBeFalsy();
   await skipWithoutContainerRuntime(testInfo);
   const { bytes, scripts } = await measureLandingJsSize(browser, APP_E2E_URL);
   expect(looksLikeDevServer(scripts), 'refusing to record from a dev server').toBe(false);

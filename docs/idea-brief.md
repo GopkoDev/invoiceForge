@@ -39,7 +39,7 @@ The AI assistant and AI chat v2 just shipped to main, and the landing page is be
 
 ## 7. Recommendation
 
-Rewrite the hero around "an invoice from one sentence", backed by an animated, scripted demo where a sentence turns into an invoice draft — no live model calls. Add one section below that covers the AI assistant (answers from your data) and MCP (use InvoiceFlow from your AI tools) in plain, outcome-first language. The rest of the landing page stays as it is.
+Rewrite the hero around "an invoice from one sentence", backed by an animated, scripted demo where a sentence turns into an invoice draft — no live model calls. Add one section below that covers the AI assistant (answers from your data) and MCP (use Invoice Forge from your AI tools) in plain, outcome-first language. The rest of the landing page stays as it is.
 
 ## 8. Open questions
 
