@@ -13,7 +13,7 @@ vi.mock('@/lib/services/assistant-drafts/resolve', () => ({ resolveDraftRequest 
 // Freelancer's products through prisma (mocked empty above), so it is mocked here: a line with no price and no product
 // comes back as the issue the real resolver gives, LINE_AMOUNT_MISSING.
 const resolveLines = vi.hoisted(() =>
-  vi.fn(async (request: { lines: Array<unknown> }) => ({
+  vi.fn(async (request: { lines: Array<unknown> }, _ctx?: Record<string, unknown>) => ({
     lines: [],
     issues: request.lines.map((_l, lineIndex) => ({ kind: 'LINE_AMOUNT_MISSING', lineIndex, description: 'web dev' })),
   })),
