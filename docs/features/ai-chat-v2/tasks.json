@@ -2558,6 +2558,29 @@
         "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
       ],
       "file": "docs/features/ai-chat-v2/tasks/t128-no-customer-branch-keep-a-partly-written-profile-r.md"
+    },
+    {
+      "id": "T129",
+      "title": "Router marker wording and stripping; sender-profile match error path tested",
+      "layer": "backend",
+      "deps": [
+        "T127",
+        "T128"
+      ],
+      "acs": [
+        "ai-assistant AC-14b",
+        "ai-assistant AC-15",
+        "AC-46"
+      ],
+      "dod": "Re-review notes L1-L3 (_review/review-2026-10-16-t125-t126.md, last section). L1 lib/ai/router.ts: the card-edit sentence reads '... applies only when the recent turns show a draft card or a draft question form from this Conversation, marked in brackets: ...' (keep /recent turns show a draft card/i and the T119/T126/T127 regexes matching). L2 lib/ai/run-turn.ts toRouterTurns: remove both marker strings from an assistant turn's text before appending the real markers. L3 tests: a unit case where prisma.senderProfile.findMany rejects -> matchesOwnSenderProfile returns true, logs own_sender_profile_match_failed, and propose_draft keeps senderProfile in turn.pending.resolver.request. Tests for L1 (router prompt mentions 'draft question form from this Conversation') and L2 (a text containing the card marker without a card part reaches the router without the marker).",
+      "files_hint": [
+        "lib/ai/router.ts",
+        "lib/ai/run-turn.ts",
+        "tests/unit/lib/ai/router.test.ts",
+        "tests/unit/lib/ai/run-turn-router-markers.test.ts",
+        "tests/unit/lib/ai/propose-draft-haiku-args.test.ts"
+      ],
+      "file": "docs/features/ai-chat-v2/tasks/t129-router-marker-wording-and-stripping.md"
     }
   ]
 }
