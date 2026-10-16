@@ -48,7 +48,7 @@ export function LandingHero({
           {supportingLine}
         </p>
 
-        <div className="mb-10 flex justify-center">
+        <div className="mb-14 flex justify-center sm:mb-10">
           <Link
             href={ctaHref}
             className={cn(

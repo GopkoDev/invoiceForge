@@ -5,6 +5,8 @@
   gap: 0.75rem;
   width: 100%;
   max-width: 28rem;
+  margin-inline: auto;
+  text-align: left;
 }
 
 .visual {

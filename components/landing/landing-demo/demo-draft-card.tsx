@@ -33,9 +33,9 @@ export function DemoDraftCard({
           <Badge variant="outline">{exampleLabel}</Badge>
         </div>
         <dl className="flex flex-col gap-1.5">
-          <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
-            <dt className="text-muted-foreground w-28 shrink-0 text-sm">Customer</dt>
-            <dd className="min-w-0 text-sm break-words">{customer}</dd>
+          <div className="flex items-start justify-between gap-2 text-sm">
+            <dt className="text-muted-foreground shrink-0">Customer</dt>
+            <dd className="min-w-0 text-right break-words">{customer}</dd>
           </div>
         </dl>
         <Separator />
