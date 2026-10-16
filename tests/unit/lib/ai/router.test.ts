@@ -145,13 +145,21 @@ describe('topic router (ADR-0005)', () => {
   });
 });
 
-// ai-chat-v2 T117 (AC-15): changing an existing draft or invoice is not a drafting intent.
-describe('router prompt: changing an existing draft or invoice (T117)', () => {
-  it('says add/remove a line or edit a value on an existing draft or invoice is read, not draft', async () => {
+// ai-chat-v2 T119 (ai-assistant AC-15 / AC-14b): a change to a draft or invoice already saved in the app is a read
+// (the chat cannot edit it); a change to the draft card in this Conversation before it is created is still a draft.
+describe('router prompt: changing a saved draft or invoice vs. the card in this Conversation (T119)', () => {
+  it('says a change to a draft or invoice already saved in the app is read', async () => {
     model = scripted({ topic: 'in_scope', language: 'en', intent: 'read' });
     await classifyMessage({ message: 'Add a line for the website to my draft', recentTurns: [] });
     const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
-    expect(sent).toMatch(/(change|edit)[^.]*existing (draft|invoice)[^.]*\bread\b/i);
-    expect(sent).toMatch(/add or remove a line|remove a line/i);
+    expect(sent).toMatch(/(change|edit)[^.]*(draft|invoice)[^.]*already saved[^.]*\bread\b/i);
+  });
+
+  it('says a change to the draft card in this Conversation before it is created ("make it 25 hours") is draft', async () => {
+    model = scripted({ topic: 'in_scope', language: 'en', intent: 'draft' });
+    await classifyMessage({ message: 'make it 25 hours', recentTurns: [] });
+    const sent = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(sent).toMatch(/(change|edit)[^.]*(draft )?card[^.]*(this|the) Conversation[^.]*before[^.]*created[^.]*\bdraft\b/i);
+    expect(sent).toContain('make it 25 hours');
   });
 });
