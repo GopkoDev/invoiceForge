@@ -99,9 +99,10 @@ const PROFILE_TERM: Record<EvalLang, RegExp> = {
   en: /sender profile/i,
   uk: /профіл/i,
 };
-const CUSTOMER_TERM: Record<EvalLang, RegExp> = {
-  en: /customer/i,
-  uk: /клієнт|замовник/i,
+/** A question sentence that itself names the Customer (a stray "Anything else?" does not count). */
+const CUSTOMER_QUESTION: Record<EvalLang, RegExp> = {
+  en: /[^.!?\n]*\bcustomers?\b[^.!?\n]*\?/i,
+  uk: /[^.!?\n]*(клієнт|замовник)[^.!?\n]*\?/i,
 };
 /** Case and spaces folded, so "consulting  fop" names "Consulting FOP". */
 const fold = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -109,7 +110,7 @@ const names = (text: string, name: string) => fold(text).includes(fold(name));
 
 /** A request to choose the Customer counts as asking: with a form shown a prose question is forbidden (AC-37, owner decision 2026-10-16). */
 const REQUEST_TO_CHOOSE_CUSTOMER: Record<EvalLang, RegExp> = {
-  en: /(?:^|[.!?:;]\s*|\n\s*|\bplease\s+|\bcan you\s+|\bcould you\s+)(choose|pick|select|name|tell me)\b[^.!?\n]*\bcustomer/im,
+  en: /(?:^|[.!?:;,]\s*|\n\s*|\bplease\s+|\bcan you\s+|\bcould you\s+|\byou can\s+|\bkindly\s+)(?:[-*+]\s+|\d+\.\s+)?(?:\*\*|__)?(choose|pick|select|name|tell me)\b[^.!?\n]*\bcustomer/im,
   uk: /(оберіть|виберіть|вкажіть|назвіть)[^.!?\n]*(клієнт|замовник)/i,
 };
 
@@ -125,8 +126,7 @@ function ownProfileFailures(r: NoGuessingRow): string[] {
     out.push('treated the sender profile as the Customer');
   if (!names(reply, OWN_PROFILE_NAME) || !PROFILE_TERM[lang].test(reply))
     out.push('reply does not explain the own sender profile');
-  const asksCustomer =
-    reply.includes('?') && CUSTOMER_TERM[lang].test(reply);
+  const asksCustomer = CUSTOMER_QUESTION[lang].test(reply);
   if (!asksCustomer && !REQUEST_TO_CHOOSE_CUSTOMER[lang].test(reply))
     out.push('reply does not ask for the Customer');
   return out;

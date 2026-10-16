@@ -264,6 +264,29 @@ describe('scorer: the own-sender-profile rule (AC-05b)', () => {
     expect(noGuessingRowFailures(row({ replyText }))).toEqual([]);
   });
 
+  const P = 'Consulting FOP is your own sender profile, not a customer.';
+  it.each([
+    `${P}\n- Choose the customer in the form.`,
+    `${P}\n\n**Choose the customer** in the form below.`,
+    `${P} Please **choose the customer** below.`,
+    `${P} Pick one, so choose a customer in the form.`,
+    `${P} You can pick the customer in the form.`,
+    'Consulting FOP is your own sender profile. Which Customer should this invoice be for?',
+  ])('passes a Markdown or softer request, or a question naming the Customer (T132): %s', (replyText) => {
+    expect(noGuessingRowFailures(row({ replyText }))).toEqual([]);
+  });
+
+  it('fails a stray question that does not name the Customer (T132)', () => {
+    expect(
+      noGuessingRowFailures(
+        row({
+          replyText:
+            'You named Consulting FOP as the customer, but it is your own sender profile. Anything else?',
+        })
+      )
+    ).toContain('reply does not ask for the Customer');
+  });
+
   it('a failing explains row lowers the question rate and blocks the run', () => {
     const score = scoreNoGuessing([
       row(),
