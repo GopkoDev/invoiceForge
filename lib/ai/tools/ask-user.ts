@@ -12,16 +12,16 @@ const DESCRIPTION =
   'For a Customer, sender profile, bank account or product question you may omit recordIds; the app then offers the Freelancer\'s own records. ' +
   'Pass what the Freelancer already said as the partial draft. Your reply text must be at most two sentences leading into the form.';
 
-/** T115: Haiku sometimes sends a draft line with an empty description; such a line says nothing, so it is dropped. */
+/** T115/T120: Haiku sometimes sends a draft line with a blank description; the line keeps its place and is named "Line N". */
 function dropEmptyLines(raw: unknown): unknown {
   const draft = (raw as { draft?: { lines?: unknown } } | null)?.draft;
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.lines)) return raw;
-  const lines = draft.lines.filter(
-    (l) => !(l && typeof l === 'object' && typeof (l as { description?: unknown }).description === 'string' && !(l as { description: string }).description.trim())
+  const lines = draft.lines.map((l, i) =>
+    l && typeof l === 'object' && typeof (l as { description?: unknown }).description === 'string' && !(l as { description: string }).description.trim()
+      ? { ...(l as Record<string, unknown>), description: `Line ${i + 1}` }
+      : l
   );
-  const rest = { ...(draft as Record<string, unknown>) };
-  delete rest.lines;
-  return { ...(raw as object), draft: lines.length > 0 ? { ...rest, lines } : rest };
+  return { ...(raw as object), draft: { ...(draft as Record<string, unknown>), lines } };
 }
 
 const SPENT_PLACEHOLDER = { questions: [{ field: 'FREE', prompt: '-' }] };

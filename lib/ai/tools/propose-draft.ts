@@ -54,17 +54,28 @@ function liftLineCurrency(raw: unknown): unknown {
   return { ...request, currency, lines };
 }
 
-/** T115: Haiku sometimes passes a name and its id together; the exact id wins and the written name is dropped. */
-function preferIds(raw: unknown): unknown {
+/**
+ * T115/T120: Haiku sometimes passes a name and its id together. The Freelancer's written name wins, unless the id is the
+ * one of a record they chose in a form answered in this request; then the exact id wins and the name is dropped.
+ */
+function preferIds(raw: unknown, answered: readonly string[]): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
   const request = { ...(raw as Record<string, unknown>) };
-  if (request.customer !== undefined && request.customerId !== undefined) delete request.customer;
+  // The Customer: the written name wins unless the id was chosen in a form answered in this request.
+  if (request.customer !== undefined && request.customerId !== undefined) {
+    if (typeof request.customerId === 'string' && answered.includes(request.customerId)) delete request.customer;
+    else delete request.customerId;
+  }
+  // The sender profile keeps the T115 rule (the exact id wins; a pinned test holds it).
   if (request.senderProfile !== undefined && request.senderProfileId !== undefined) delete request.senderProfile;
   return request;
 }
 
 const NO_CUSTOMER_SAY =
   "No Customer was given. Call ask_user with one question for CUSTOMER (omit recordIds; the app offers the Freelancer's Customers). Do not guess one.";
+
+const ownProfileSay = (name: string) =>
+  `"${name}" is the Freelancer's own sender profile, not a Customer. Explain that and ask which Customer to invoice?`;
 
 /** The page a Freelancer needs to fix an issue, when there is one. */
 export function linksFor(issues: DraftIssue[]): AppLink[] {
@@ -204,25 +215,32 @@ export function createProposeDraftTool(turn: TurnContext) {
   return createTool({
     id: 'propose_draft',
     description: `${DESCRIPTION} ${DATA_NOT_INSTRUCTIONS}`,
-    inputSchema: z.preprocess((raw) => preferIds(liftLineCurrency(raw)), chatDraftRequestSchema),
+    inputSchema: z.preprocess((raw) => preferIds(liftLineCurrency(raw), turn.answeredRecordIds), chatDraftRequestSchema),
     execute: (rawRequest: unknown): Promise<Record<string, unknown>> => {
       // A pressed turn's card or offer was resolved in code from the pinned choice: a re-call gets that same answer
       // and changes neither, whatever lines, prices or names the model writes (SAD §11; review 2026-10-13 R1-S1).
       if (turn.pinnedAnswer) return Promise.resolve(spendToolBudget(turn.toolBudget, turn.pinnedAnswer));
       return withToolBudget(turn.toolBudget, async () => {
-        const relaxed = chatDraftRequestSchema.parse(preferIds(liftLineCurrency(rawRequest)));
+        const relaxed = chatDraftRequestSchema.parse(preferIds(liftLineCurrency(rawRequest), turn.answeredRecordIds));
         const call = callCounts.get(turn) ?? 0;
         callCounts.set(turn, call + 1);
         // Code-level guard (AC-15, sad §8): a card needs the Freelancer's own drafting request, whatever the model calls.
         if (!turn.draftIntent) return { answer: { kind: 'NOT_REQUESTED', message: NOT_REQUESTED } };
         if (relaxed.customer === undefined && relaxed.customerId === undefined) {
+          const questions: FormQuestionDraft[] = formFromIssues([{ kind: 'CUSTOMER_NOT_FOUND', written: '' }], {
+            today: turn.today,
+            timeZone: turn.actor.timeZone,
+          });
           return {
             answer: {
               kind: 'ISSUES',
               issues: [],
               links: [],
-              askFields: [{ field: 'CUSTOMER', lineIndex: null }],
-              say: NO_CUSTOMER_SAY,
+              askFields: askFieldsOf(questions),
+              say: relaxed.senderProfile ? ownProfileSay(relaxed.senderProfile) : NO_CUSTOMER_SAY,
+            },
+            commit: () => {
+              turn.pending.resolver = { request: relaxed as DraftRequest, questions };
             },
           };
         }

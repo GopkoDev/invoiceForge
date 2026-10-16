@@ -48,6 +48,11 @@ export interface TurnContext {
    * changes neither the card nor the form: both come from code (SAD §11; review 2026-10-13 R1-S1). Null otherwise.
    */
   pinnedAnswer: Record<string, unknown> | null;
+  /**
+   * T120: the record ids (Customer, sender profile) the Freelancer chose in a form answered in this request (a pressed
+   * option or a sent form). Only these ids may travel as customerId / senderProfileId next to a written name.
+   */
+  answeredRecordIds: string[];
   /** T103: what is left for all tool answers of this turn (bytes) and tool calls; every chat tool spends it. */
   toolBudget: ToolBudget;
 }
@@ -73,6 +78,7 @@ export function createTurnContext(input: {
     draftIntent: pinned ? true : (input.draftIntent ?? false),
     pending: { card, resolver: null, ask: null, askRefused: null },
     pinnedAnswer: null,
+    answeredRecordIds: [],
     toolBudget: { bytesLeft: TURN_TOOL_BUDGET_BYTES, callsLeft: TURN_TOOL_CALLS_MAX },
   };
 }

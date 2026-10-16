@@ -120,7 +120,7 @@
 | T117 | [Router: changing an existing draft or invoice is not a drafting intent](./t117-router-changing-an-existing-draft-or-invoice-is-no.md) | backend | Dmytro Hopko | XS | T114 | done |
 | T118 | [Eval report prints why each failing row failed](./t118-eval-report-prints-why-each-failing-row-failed.md) | backend | Dmytro Hopko | XS | T114 | done |
 | T119 | [Router: only a saved invoice cannot be edited; changing the chat's draft card is drafting](./t119-router-only-a-saved-invoice-cannot-be-edited-chang.md) | backend | Dmytro Hopko | XS | T117 | done |
-| T120 | [Chat draft tools: keep line positions, prefer the Freelancer's words, ask for the Customer in code](./t120-chat-draft-tools-keep-line-positions-prefer-the-fr.md) | backend | Dmytro Hopko | XS | T115 | todo |
+| T120 | [Chat draft tools: keep line positions, prefer the Freelancer's words, ask for the Customer in code](./t120-chat-draft-tools-keep-line-positions-prefer-the-fr.md) | backend | Dmytro Hopko | XS | T115 | done |
 | T121 | [Chat instructions: no values from read tools, ask for the Customer as a question, say the match count](./t121-chat-instructions-no-values-from-read-tools-ask-fo.md) | backend | Dmytro Hopko | XS | T116 | todo |
 | T122 | [Docs and nits: integration on manual start in the test plans, AC refs, eval JSDoc, stray file](./t122-docs-and-nits-integration-on-manual-start-in-the-t.md) | docs | Dmytro Hopko | XS | T118 | done |
 
