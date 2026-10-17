@@ -78,7 +78,7 @@ export function LandingFooter({
         <div className="text-muted-foreground mt-12 border-t pt-8 text-center text-sm">
           <p className="mb-3">{copyright}</p>
           {disclaimer && (
-            <p className="mx-auto max-w-3xl text-xs opacity-70">{disclaimer}</p>
+            <p className="mx-auto max-w-3xl text-xs">{disclaimer}</p>
           )}
         </div>
       </div>

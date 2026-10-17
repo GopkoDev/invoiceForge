@@ -2,6 +2,7 @@
 
 import { LandingNav } from '@/components/landing/landing-nav';
 import { LandingHero } from '@/components/landing/landing-hero';
+import { AiSection } from '@/components/landing/ai-section';
 import { FeatureGrid } from '@/components/landing/feature-grid';
 import { BetaPricingSection } from '@/components/landing/beta-pricing-section';
 import { HowItWorksSection } from '@/components/landing/how-it-works-section';
@@ -41,11 +42,13 @@ export function LandingPage() {
         <LandingHero
           badge={landingContent.hero.badge}
           headline={landingContent.hero.headline}
-          subheadline={landingContent.hero.subheadline}
+          supportingLine={landingContent.hero.supportingLine}
           ctaButton={landingContent.hero.ctaButton}
           ctaHref={loginHref}
-          stats={landingContent.hero.stats}
+          demo={landingContent.demo}
         />
+
+        <AiSection {...landingContent.aiSection} />
 
         <FeatureGrid
           badge={landingContent.features.badge}

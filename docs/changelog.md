@@ -12,6 +12,11 @@ Nothing is in progress.
 
 ## Shipped
 
+### 2026-10-17 · landing-update
+
+The landing page leads with "Your next invoice is one sentence away". Next to it, a demo drawn as an AI chat window types an example sentence and turns it into a draft proposal card that is never created. It plays once, can be replayed, and shows the finished picture when motion or scripts are off. A new AI section says in plain words what the AI does and never does, and that it works from Claude Desktop, Claude Code and Cursor. It is a temporary bridge until public-redesign.
+[Spec](./features/landing-update/spec.md) · [Changelog](./features/landing-update/_ship/changelog.md)
+
 ### 2026-10-13 · ai-chat-v2
 
 The AI chat asks every open question at once in one Question form, answered with one Send. The options come from the app's own checked data, never from the model. Replies are formatted and link only to pages of the app. The chat knows today's date, drafts instead of asking in prose, and can link invoices. A draft can be previewed and issued in the chat under the editor's issuing rules, and only the Freelancer's own press issues it. The AI section fills the screen, keeps the message box in view and keeps the Conversation list in place on a switch. The AI can be reached from the navigation and from the dashboard. The chat and MCP can also read sender profiles, bank accounts (last four digits only) and products.

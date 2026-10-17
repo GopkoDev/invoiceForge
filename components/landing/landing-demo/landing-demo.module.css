@@ -1,0 +1,570 @@
+/*
+ * Sizes the link overlay depends on. The Create link is placed from the window's bottom-right corner:
+ * composer + body padding + card padding. Change these together.
+ */
+.root {
+  --pad: 1rem;
+  --composer-h: 4.25rem;
+  --avatar: 1.75rem;
+  --avatar-gap: 0.625rem;
+  --card-pad: 1rem;
+  --accent-a: oklch(0.6 0.22 293);
+  --accent-b: oklch(0.65 0.24 330);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 30rem;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.frame {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Soft glow behind the window. */
+.frame::before {
+  content: '';
+  position: absolute;
+  inset: 8% -6% -4%;
+  z-index: -1;
+  border-radius: 2rem;
+  background:
+    radial-gradient(60% 60% at 25% 30%, color-mix(in oklch, var(--accent-a) 35%, transparent), transparent 70%),
+    radial-gradient(55% 55% at 80% 75%, color-mix(in oklch, var(--accent-b) 28%, transparent), transparent 70%);
+  filter: blur(40px);
+  opacity: 0.7;
+}
+
+.window {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 12px 24px -8px rgb(0 0 0 / 0.12),
+    0 32px 64px -24px color-mix(in oklch, var(--accent-a) 30%, transparent);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 2.75rem;
+  padding-inline: var(--pad);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--muted) 60%, var(--card));
+}
+
+.lights {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.lights > span {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--border);
+}
+
+.lights > span:nth-child(1) {
+  background: oklch(0.7 0.18 25);
+}
+
+.lights > span:nth-child(2) {
+  background: oklch(0.82 0.16 85);
+}
+
+.lights > span:nth-child(3) {
+  background: oklch(0.75 0.17 150);
+}
+
+.title {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: var(--pad);
+  background:
+    radial-gradient(120% 60% at 100% 0%, color-mix(in oklch, var(--accent-a) 6%, transparent), transparent 60%),
+    var(--card);
+}
+
+.bubbleRow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  min-height: 2.75rem;
+}
+
+/* Empty chat in the start frame; it leaves once the sentence is sent. */
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: opacity 0.25s ease;
+}
+
+.emptyMark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, color-mix(in oklch, var(--accent-a) 18%, transparent), color-mix(in oklch, var(--accent-b) 18%, transparent));
+  color: var(--accent-a);
+}
+
+/* Same look as the chat's user message: secondary, rounded-2xl, at most 80 % wide. */
+.bubble {
+  max-width: 85%;
+  border-radius: 1rem;
+  border-bottom-right-radius: 0.375rem;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  opacity: 0;
+  transform-origin: bottom right;
+}
+
+.reply {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--avatar-gap);
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--avatar);
+  height: var(--avatar);
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+  color: white;
+  box-shadow: 0 4px 12px -4px color-mix(in oklch, var(--accent-a) 60%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* The card and the thinking dots share one grid cell, so the box keeps the final card size in every phase. */
+.stage {
+  position: relative;
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.stage > * {
+  grid-area: 1 / 1;
+}
+
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: start;
+  height: var(--avatar);
+  opacity: 0;
+}
+
+.dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.cardWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.replyText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.replyName {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--composer-h);
+  padding: 0.75rem var(--pad);
+  border-top: 1px solid var(--border);
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding-inline: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--background);
+  font-size: 0.875rem;
+}
+
+.placeholder,
+.typed {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.placeholder {
+  color: var(--muted-foreground);
+}
+
+.typed {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: 0.875rem;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+}
+
+.typed::before {
+  content: attr(data-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.send {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  opacity: 0.35;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* Phases */
+
+.root[data-phase='thinking'] .empty,
+.root[data-phase='card'] .empty,
+.root[data-phase='done'] .empty,
+.root[data-phase='still'] .empty {
+  opacity: 0;
+}
+
+/* Typing: the sentence is typed into the composer, then sent. */
+.root[data-phase='typing'] .placeholder {
+  opacity: 0;
+}
+
+.root[data-phase='typing'] .typed {
+  opacity: 1;
+  clip-path: inset(0 100% 0 0);
+  animation: type 1.5s steps(32, end) 0.1s forwards;
+}
+
+.root[data-phase='typing'] .send {
+  opacity: 1;
+}
+
+.root[data-phase='thinking'] .bubble,
+.root[data-phase='card'] .bubble,
+.root[data-phase='done'] .bubble,
+.root[data-phase='still'] .bubble {
+  opacity: 1;
+}
+
+.root[data-phase='thinking'] .bubble {
+  animation: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.root[data-phase='thinking'] .avatar,
+.root[data-phase='card'] .avatar,
+.root[data-phase='done'] .avatar,
+.root[data-phase='still'] .avatar {
+  opacity: 1;
+}
+
+.root[data-phase='thinking'] .thinking {
+  opacity: 1;
+}
+
+.root[data-phase='card'] .cardWrap,
+.root[data-phase='done'] .cardWrap,
+.root[data-phase='still'] .cardWrap {
+  opacity: 1;
+  transform: none;
+}
+
+/* The card's rows rise in one after another while it arrives; the resting state is the finished card. */
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > * {
+  animation: rise 0.4s ease both;
+}
+
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(3),
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(4) {
+  animation-delay: 0.16s;
+}
+
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(5),
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(6) {
+  animation-delay: 0.24s;
+}
+
+.root[data-phase='card'] .cardWrap [data-slot='card-content'] > :nth-child(7) {
+  animation-delay: 0.36s;
+}
+
+/* Link overlay: the whole window is the card link; the Create link sits over the Create visual. */
+.links {
+  position: absolute;
+  inset: 0;
+}
+
+.cardLink,
+.createLink {
+  position: absolute;
+  display: block;
+}
+
+.cardLink {
+  inset: 0;
+  border-radius: 1rem;
+}
+
+.createLink {
+  right: calc(var(--pad) + var(--card-pad));
+  bottom: calc(var(--composer-h) + 1px + var(--pad) + var(--card-pad));
+  left: calc(var(--pad) + var(--avatar) + var(--avatar-gap) + var(--card-pad));
+  z-index: 1;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+}
+
+.cardLink:focus-visible,
+.createLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.replayRow {
+  display: flex;
+  justify-content: center;
+  min-height: 2.25rem;
+}
+
+@media (min-width: 640px) {
+  .root {
+    --pad: 1.25rem;
+  }
+
+  .createLink {
+    left: auto;
+    width: 7.5rem; /* the Create visual's sm:w-30 */
+  }
+}
+
+@keyframes type {
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.94);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-0.2rem);
+  }
+}
+
+/*
+ * Finished-still fallbacks, same box (only opacity/transform change).
+ * 3 s reveal: runs from page load until the player is armed, then restarts once visible.
+ * It applies only in idle, so leaving idle cancels it.
+ */
+.root[data-phase='idle']:not([data-armed]) .bubble,
+.root[data-phase='idle']:not([data-armed]) .avatar,
+.root[data-phase='idle'][data-armed][data-visible] .bubble,
+.root[data-phase='idle'][data-armed][data-visible] .avatar {
+  transition: none;
+  animation-name: revealBubble;
+  animation-duration: 0.01s;
+  animation-delay: 3s;
+  animation-fill-mode: forwards;
+}
+
+.root[data-phase='idle']:not([data-armed]) .empty,
+.root[data-phase='idle'][data-armed][data-visible] .empty {
+  transition: none;
+  animation-name: revealEmpty;
+  animation-duration: 0.01s;
+  animation-delay: 3s;
+  animation-fill-mode: forwards;
+}
+
+.root[data-phase='idle']:not([data-armed]) .cardWrap,
+.root[data-phase='idle'][data-armed][data-visible] .cardWrap {
+  transition: none;
+  animation-name: revealCard;
+  animation-duration: 0.01s;
+  animation-delay: 3s;
+  animation-fill-mode: forwards;
+}
+
+/* Hydrated after the CSS reveal already showed the still: keep it shown in the same commit as armed, without re-fading. */
+.root[data-phase='idle'][data-armed][data-late] .bubble,
+.root[data-phase='idle'][data-armed][data-late] .avatar {
+  opacity: 1;
+  transition: none;
+}
+
+.root[data-phase='idle'][data-armed][data-late] .empty {
+  opacity: 0;
+  transition: none;
+}
+
+.root[data-phase='idle'][data-armed][data-late] .cardWrap {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.root[data-phase='still'] .cardWrap,
+.root[data-phase='still'] .avatar,
+.root[data-phase='still'] .empty {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-phase='idle'] .bubble,
+  .root[data-phase='idle'] .avatar {
+    opacity: 1;
+  }
+
+  .root[data-phase='idle'] .cardWrap {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .root[data-phase='idle'] .empty {
+    opacity: 0;
+  }
+
+  .bubble,
+  .avatar,
+  .empty,
+  .cardWrap,
+  .cardWrap *,
+  .typed,
+  .dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes revealBubble {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes revealEmpty {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes revealCard {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Keep the scripts-off <noscript> out of the flex flow so it adds no gap; its <style> still applies. */
+.root > noscript {
+  display: none;
+}
